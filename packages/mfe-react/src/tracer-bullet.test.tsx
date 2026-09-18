@@ -252,7 +252,7 @@ describe('router contract validation', () => {
           routeTree,
           basepath: basePath,
           history,
-          context: { ...context, analytics: { track: () => {} } },
+          context: { ...context, analytics: { track: () => {} } } as MfeRouterContext,
         })
         observedKeys = Object.keys(router.options.context as object)
         return router
@@ -271,7 +271,12 @@ describe('pinned router feasibility', () => {
   it('exposes basepath and exact history identity for validation', () => {
     const { routeTree } = buildFixture([])
     const history = createMemoryHistory({ initialEntries: ['/tracer'] })
-    const router = createRouter({ routeTree, basepath: '/tracer', history, context: {} })
+    const router = createRouter({
+      routeTree,
+      basepath: '/tracer',
+      history,
+      context: {} as MfeRouterContext,
+    })
 
     // Both are supported, observable state. Without them the entry contract
     // could not be validated and would have had to change.
@@ -284,8 +289,18 @@ describe('pinned router feasibility', () => {
 
     const historyA = createMemoryHistory({ initialEntries: ['/a'] })
     const historyB = createMemoryHistory({ initialEntries: ['/b'] })
-    const routerA = createRouter({ routeTree, basepath: '/a', history: historyA, context: {} })
-    const routerB = createRouter({ routeTree, basepath: '/b', history: historyB, context: {} })
+    const routerA = createRouter({
+      routeTree,
+      basepath: '/a',
+      history: historyA,
+      context: {} as MfeRouterContext,
+    })
+    const routerB = createRouter({
+      routeTree,
+      basepath: '/b',
+      history: historyB,
+      context: {} as MfeRouterContext,
+    })
 
     await routerA.load()
     await routerB.load()

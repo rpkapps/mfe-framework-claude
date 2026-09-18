@@ -1,0 +1,191 @@
+/**
+ * The Module Federation container loader.
+ *
+ * This is the one place in the framework that knows federation exists. The
+ * neutral host orchestrates loading through a port; this implements that port.
+ * Authors never see a container name, an expose path, a manifest, a share scope
+ * or a registration call — the registry entry carries what is needed, the
+ * loader resolves it, and everything above this file deals in definitions.
+ *
+ * It lives in the React adapter because the adapter is the package that already
+ * depends on React and the design system, which are the singletons the share
+ * scope has to resolve consistently.
+ */
+
+import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import type { ContainerLoader, LoadedDefinition } from '@company/mfe-host'
+
+import { isMfeDefinition, type MfeDefinition } from './definition.ts'
+
+/** The subset of the federation runtime this loader uses. */
+interface FederationRuntime {
+  registerRemotes(
+    remotes: readonly { name: string; entry: string }[],
+    options?: { force?: boolean },
+  ): void
+  loadRemote<T>(id: string): Promise<T | null>
+}
+
+export interface Mf2LoaderOptions {
+  /**
+   * The federation runtime. Injected so tests and the in-process path never
+   * have to load the real runtime, and so this module has no import-time
+   * side effects.
+   */
+  readonly runtime: FederationRuntime
+}
+
+interface AdapterData {
+  readonly containerName?: unknown
+  readonly exposeName?: unknown
+}
+
+function readAdapterData(entry: NeutralRegistryEntry): {
+  containerName: string
+  exposeName: string
+} {
+  const data = entry.adapterData as AdapterData | undefined
+
+  if (typeof data?.containerName !== 'string' || data.containerName === '') {
+    throw createMfeError({
+      code: 'registry/invalid-descriptor',
+      id: entry.id,
+      operation: 'resolve federation container',
+      expected: 'a container name in the generated registry descriptor',
+      observed: 'none',
+      declaredBy: 'The build plugin, which emits the descriptor',
+      repair:
+        'Rebuild the container so its descriptor is regenerated. Registry JSON is generated, never hand-written.',
+    })
+  }
+
+  const exposeName =
+    typeof data.exposeName === 'string' && data.exposeName !== ''
+      ? data.exposeName
+      : entry.definitionKind === 'app'
+        ? './app'
+        : `./widgets/${entry.id}`
+
+  return { containerName: data.containerName, exposeName }
+}
+
+/**
+ * Creates the federation-backed loader.
+ *
+ * Registration is idempotent per container: several definitions exported by one
+ * container register it once, which is also why a developer override has to be
+ * consistent across that container's exports and why changing one requires a
+ * reload rather than a remount.
+ */
+export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLoader {
+  const registered = new Set<string>()
+
+  const loader: ContainerLoader<MfeDefinition> = {
+    load: async (entry, { signal }): Promise<LoadedDefinition<MfeDefinition>> => {
+      signal.throwIfAborted()
+
+      const { containerName, exposeName } = readAdapterData(entry)
+
+      if (!registered.has(containerName)) {
+        try {
+          options.runtime.registerRemotes([{ name: containerName, entry: entry.manifestUrl }])
+          registered.add(containerName)
+        } catch (error) {
+          throw toMfeError(error, {
+            code: 'load/manifest-failure',
+            id: entry.id,
+            operation: 'register federation container',
+            declaredBy: 'The federation runtime',
+            repair: `Check that ${entry.manifestUrl} is reachable and serves a valid manifest. In development this is the URL your dev command printed.`,
+          })
+        }
+      }
+
+      let moduleExports: unknown
+      try {
+        moduleExports = await options.runtime.loadRemote(
+          `${containerName}/${exposeName.replace(/^\.\//, '')}`,
+        )
+      } catch (error) {
+        throw toMfeError(error, {
+          code: 'load/entry-failure',
+          id: entry.id,
+          operation: 'load federation entry',
+          declaredBy: 'The federation runtime',
+          repair:
+            'Check the browser network panel for the failed chunk. A version conflict on a shared singleton reports itself separately as a share conflict.',
+        })
+      }
+
+      signal.throwIfAborted()
+
+      const definition = extractDefinition(moduleExports, entry.id)
+
+      if (definition.kind !== entry.definitionKind) {
+        throw createMfeError({
+          code: 'registry/invalid-descriptor',
+          id: entry.id,
+          operation: 'load definition',
+          expected: `a ${entry.definitionKind} definition, as the registry advertises`,
+          observed: `a ${definition.kind} definition`,
+          declaredBy: 'The shell registry',
+          repair:
+            'Rebuild the container so its descriptor matches what src/mfe.ts exports. Apps take URLs; Widgets take props.',
+        })
+      }
+
+      return {
+        identity: {
+          id: definition.id,
+          kind: definition.kind,
+          ...(definition.version === undefined ? {} : { version: definition.version }),
+        },
+        module: definition,
+      }
+    },
+  }
+
+  return loader as ContainerLoader
+}
+
+/**
+ * Finds the definition in a loaded module.
+ *
+ * A container may export one App, one or more Widgets, or both, and a default
+ * export is allowed when there is exactly one definition. The generated entry
+ * narrows this to a single definition per expose path, so in practice this
+ * picks the default or the single named export.
+ */
+function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
+  if (isMfeDefinition(moduleExports)) return moduleExports
+
+  if (moduleExports !== null && typeof moduleExports === 'object') {
+    const candidates = Object.values(moduleExports).filter(isMfeDefinition)
+
+    const byId = candidates.find(definition => definition.id === id)
+    if (byId) return byId
+    if (candidates.length === 1 && candidates[0]) return candidates[0]
+
+    if (candidates.length > 1) {
+      throw createMfeError({
+        code: 'load/entry-failure',
+        id,
+        operation: 'resolve definition from the federation entry',
+        expected: `exactly one definition, or one whose id is "${id}"`,
+        observed: `${candidates.length} definitions (${candidates.map(c => c.id).join(', ')})`,
+        declaredBy: 'The framework definition contract',
+        repair: 'Rebuild the container; the generated entry should expose one definition per path.',
+      })
+    }
+  }
+
+  throw createMfeError({
+    code: 'load/entry-failure',
+    id,
+    operation: 'resolve definition from the federation entry',
+    expected: 'a module exporting a createApp or createWidget result',
+    observed: moduleExports === null ? 'null' : `a ${typeof moduleExports}`,
+    declaredBy: 'The framework definition contract',
+    repair: 'Export the definition from src/mfe.ts and rebuild the container.',
+  })
+}

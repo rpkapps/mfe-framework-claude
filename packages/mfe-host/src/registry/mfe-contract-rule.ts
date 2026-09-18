@@ -29,6 +29,8 @@ interface AdvertisedEntry {
   readonly id?: unknown
   readonly mfe?: unknown
   readonly manifestUrl?: unknown
+  readonly container?: unknown
+  readonly expose?: unknown
   readonly kind?: unknown
   readonly version?: unknown
   readonly capabilities?: unknown
@@ -229,11 +231,28 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         })
       }
 
+      // The federation container name and expose path are adapter-private:
+      // they are implementation details the neutral record must not name, so
+      // they travel in adapterData where only the owning adapter reads them.
+      const adapterData =
+        typeof entry.container === 'string'
+          ? {
+              containerName: entry.container,
+              exposeName:
+                typeof entry.expose === 'string'
+                  ? entry.expose
+                  : entry.kind === 'app'
+                    ? './app'
+                    : `./widgets/${String(entry.id)}`,
+            }
+          : undefined
+
       return {
         id: entry.id,
         definitionKind: entry.kind,
         adapter,
         manifestUrl: entry.manifestUrl,
+        ...(adapterData ? { adapterData } : {}),
         ...(typeof entry.version === 'string' ? { version: entry.version } : {}),
         ...(capabilities ? { capabilities } : {}),
         ...(entry.hidden === true ? { hidden: true } : {}),

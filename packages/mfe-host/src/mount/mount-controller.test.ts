@@ -46,7 +46,9 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject }
 }
 
-function operations(overrides: Partial<MountOperations<TestModule>> = {}): MountOperations<TestModule> {
+function operations(
+  overrides: Partial<MountOperations<TestModule>> = {},
+): MountOperations<TestModule> {
   return {
     load: overrides.load ?? (async () => MODULE),
     attach: overrides.attach ?? (async () => undefined),
@@ -503,9 +505,9 @@ describe('disposal', () => {
     // Assert
     expect(cleanup).toHaveBeenCalledTimes(1)
     expect(controller.state).toEqual({ status: 'disposed' })
-    expect(records.some(record => record.error.message.includes('root was already unmounted'))).toBe(
-      true,
-    )
+    expect(
+      records.some(record => record.error.message.includes('root was already unmounted')),
+    ).toBe(true)
   })
 
   it('reports a cleanup failure as a structured disposal error', async () => {

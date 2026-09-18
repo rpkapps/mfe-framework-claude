@@ -115,5 +115,6 @@ export {
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
 export { AppMount, type AppMountProps } from './app-mount.tsx'
+export { createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
 export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
