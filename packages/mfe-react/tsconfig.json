@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "types": ["node", "@testing-library/jest-dom/vitest"]
+    "types": ["node"]
   },
-  "include": ["src/**/*", "*.config.ts", "*.config.mts"]
+  "include": ["src/**/*", "vitest.setup.ts", "*.config.ts", "*.config.mts"]
 }

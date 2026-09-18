@@ -117,6 +117,21 @@ export default function config(_env, argv) {
       new rspack.CopyRspackPlugin({
         patterns: [{ from: 'public', to: '.' }],
       }),
+      // `process` does not exist in a browser, so every `process.env.X` the
+      // shell reads has to be substituted here or it survives into the bundle
+      // and throws on boot. Both forms are defined because TypeScript's
+      // index-signature rule makes the source write the bracket one.
+      new rspack.DefinePlugin(
+        Object.fromEntries(
+          [
+            ['FARO_URL', process.env.FARO_URL ?? ''],
+            ['NODE_ENV', isDev ? 'development' : 'production'],
+          ].flatMap(([name, value]) => [
+            [`process.env.${name}`, JSON.stringify(value)],
+            [`process.env['${name}']`, JSON.stringify(value)],
+          ]),
+        ),
+      ),
       new ModuleFederationPlugin({
         name: 'shell',
         // No static remotes: each one is registered at runtime from the

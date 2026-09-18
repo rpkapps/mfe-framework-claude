@@ -101,6 +101,23 @@ export {
   type MountHandleWithCleanup,
 } from './create-runtime.ts'
 
+/**
+ * The authentication seam. `installShellAuth` is the shell's one call; the
+ * generated `#mfe/fetch` module is the only caller of `createContainerTransport`
+ * and is why both are named here rather than only on the host.
+ */
+export {
+  createContainerTransport,
+  installShellAuth,
+  type AccessTokenOptions,
+  type AccessTokenSource,
+  type AuthTransport,
+  type ContainerAuthBinding,
+  type FetchLike,
+  type GetAccessToken,
+  type ShellAuthOptions,
+} from '@company/mfe-host'
+
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
 export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'

@@ -147,13 +147,12 @@ describe('#mfe/config', () => {
 })
 
 describe('#mfe/fetch', () => {
-  it('re-exports a bound fetch instead of patching the global one', () => {
+  it('exports a bound fetch instead of patching the global one', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
     const source = fileFor('fetch.ts')
 
-    expect(source).toContain("from '@company/mfe-host'")
-    expect(source).toContain('export { authenticatedFetch as fetch }')
-    expect(source).toContain('export function getAccessToken(')
+    expect(source).toContain("import { createContainerTransport } from '@company/mfe-react'")
+    expect(source).toContain('export const { fetch, getAccessToken } = transport')
     expect(source).not.toContain('globalThis.fetch =')
     expect(source).not.toContain('window.fetch =')
   })
@@ -166,10 +165,22 @@ describe('#mfe/fetch', () => {
     expect(source).not.toContain('config.oidcIssuer')
   })
 
-  it('binds an empty allowlist when the container declares no API origin', () => {
-    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
+  // §10.4: the first declared API is the default base for relative URLs, and a
+  // later { api: true } entry extends the allowlist without changing it.
+  it('makes the first declared API the default base', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
-    expect(fileFor('fetch.ts')).toContain('Object.freeze([])')
+    expect(fileFor('fetch.ts')).toContain('apiBaseUrl: config.apiBaseUrl,')
+  })
+
+  it('binds an empty allowlist and no base when the container declares no API origin', () => {
+    const source = planFixture({ 'src/mfe.ts': APP_ENTRY }).fileFor('fetch.ts')
+
+    expect(source).toContain('Object.freeze([])')
+    expect(source).not.toContain('apiBaseUrl:')
+    // Nothing to read, so the module must not import a config that a
+    // configuration-less container never generates.
+    expect(source).not.toContain("from './config.ts'")
   })
 })
 

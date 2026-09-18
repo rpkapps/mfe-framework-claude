@@ -2,12 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "types": ["node", "@testing-library/jest-dom/vitest"],
+    "types": ["node"],
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],
       "#mfe/fetch": ["./.mfe/fetch.ts"],
       "#mfe/meta": ["./.mfe/meta.ts"]
     }
   },
-  "include": ["src/**/*", ".mfe/**/*", "*.config.ts"]
+  "include": ["src/**/*", ".mfe/**/*", "*.config.ts", "../../packages/mfe-react/vitest.setup.ts"]
 }

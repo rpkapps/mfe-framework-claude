@@ -15,6 +15,7 @@ import {
   createBrowserNavigationBridge,
   createRecordingTelemetryProvider,
   createSpanEmitter,
+  installShellAuth,
   type TelemetryProvider,
 } from '@company/mfe-host'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
@@ -22,6 +23,7 @@ import { toast } from 'sonner'
 
 import { createFaroProvider } from './shell/faro.ts'
 import { createShellRouter } from './shell/router.tsx'
+import { createDevSession } from './shell/session.ts'
 import './styles/app.css'
 
 /** The workspace the shell represents, and the signed-in user, are shell facts. */
@@ -75,6 +77,14 @@ function telemetryProvider(): TelemetryProvider {
 
 const container = document.getElementById('root')
 if (!container) throw new Error('index.html must contain <div id="root">')
+
+// Before any remote is registered: a container's generated #mfe/fetch resolves
+// this at its first request, and one session for the page is what keeps refresh
+// single-flight across every mount.
+installShellAuth({
+  tokens: createDevSession(),
+  isDevelopment: process.env['NODE_ENV'] !== 'production',
+})
 
 const storage = overrideStorage()
 const { runtime, activeOverrides } = createMfeRuntime({

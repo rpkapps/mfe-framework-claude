@@ -9,5 +9,5 @@
       "#mfe/meta": ["./.mfe/meta.ts"]
     }
   },
-  "include": ["src/**/*", ".mfe/**/*", "*.config.ts"]
+  "include": ["src/**/*", ".mfe/**/*", "*.config.ts", "../../packages/mfe-react/vitest.setup.ts"]
 }

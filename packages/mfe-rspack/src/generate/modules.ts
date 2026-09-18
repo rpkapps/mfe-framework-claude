@@ -248,9 +248,20 @@ const CONFIG_VALIDATE = [
  * Importing a bound fetch is the whole point: the global one is never replaced,
  * so nothing a container does here changes what the shell or another container
  * observes when it calls `fetch`.
+ *
+ * The session itself is the shell's and is resolved at call time. What the
+ * build contributes is the part only it knows: the origins the author declared
+ * `{ api: true }`, and the first of them as the default base for relative
+ * request URLs (§10.4).
+ *
+ * The import is from `@company/mfe-react` rather than the host it re-exports
+ * from, because that is the package a container already depends on — a
+ * generated file must not oblige every project to add a dependency it never
+ * writes an import for.
  */
 export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
+  const baseField = apiFields[0]
 
   const origins =
     apiFields.length === 0
@@ -262,25 +273,26 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
     contents: joinBlocks([
       banner(ALIASES.fetch),
       [
-        "import { createAuthenticatedFetch, getAccessToken as requestAccessToken } from '@company/mfe-host'",
-        ...(apiFields.length === 0 ? [] : ["import { config } from './config.ts'"]),
+        "import { createContainerTransport } from '@company/mfe-react'",
+        ...(apiFields.length === 0 ? [] : ['', "import { config } from './config.ts'"]),
       ].join('\n'),
-      `const CONTAINER_ID = ${quote(containerId(context))}`,
       [
         '// The origins declared with env(…, { api: true }). A request to any other',
-        '// origin is refused rather than sent without a token.',
+        '// origin is sent without a token rather than leaking the session to it.',
         `export const apiOrigins: readonly string[] = Object.freeze(${origins})`,
       ].join('\n'),
-      'const binding = Object.freeze({ id: CONTAINER_ID, origins: apiOrigins })',
       [
-        'const authenticatedFetch = createAuthenticatedFetch(binding)',
+        '/**',
+        ' * Standard `fetch`, plus the tier-2 accessor for transports it cannot cover.',
+        ' * Always await getAccessToken, call it per connection, and never store it.',
+        ' */',
+        'const transport = createContainerTransport({',
+        `  id: ${quote(containerId(context))},`,
+        ...(baseField === undefined ? [] : [`  apiBaseUrl: config.${baseField.field},`]),
+        '  apiOrigins,',
+        '})',
         '',
-        'export { authenticatedFetch as fetch }',
-      ].join('\n'),
-      [
-        "export function getAccessToken(origin: string = apiOrigins[0] ?? ''): Promise<string> {",
-        '  return requestAccessToken({ ...binding, origin })',
-        '}',
+        'export const { fetch, getAccessToken } = transport',
       ].join('\n'),
     ]),
   }

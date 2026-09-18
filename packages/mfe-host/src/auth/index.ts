@@ -28,4 +28,11 @@ export {
   type FetchLike,
 } from './authenticated-fetch.ts'
 
+export {
+  createContainerTransport,
+  installShellAuth,
+  type ContainerAuthBinding,
+  type ShellAuthOptions,
+} from './container-transport.ts'
+
 export { normalizeAllowedOrigins, type AllowlistContext, type OriginAllowlist } from './origins.ts'
