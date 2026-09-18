@@ -187,7 +187,9 @@ async function main() {
   for (const [index, service] of services.entries()) {
     const colour = COLOURS[index % COLOURS.length]
     const role = service.isShell ? 'shell' : `mfe: ${service.definitions.join(', ')}`
-    console.log(`  ${colour}${service.name.padEnd(14)}${RESET} :${service.port}  ${DIM}${role}${RESET}`)
+    console.log(
+      `  ${colour}${service.name.padEnd(14)}${RESET} :${service.port}  ${DIM}${role}${RESET}`,
+    )
   }
 
   printConnectionInstructions(services)

@@ -147,8 +147,10 @@ import { cleanup } from '@testing-library/react'
 import { afterEach, expect } from 'vitest'
 
 declare module 'vitest' {
-  interface Assertion<R extends void | Promise<void> = void, T = unknown>
-    extends TestingLibraryMatchers<T, R> {}
+  interface Assertion<
+    R extends void | Promise<void> = void,
+    T = unknown,
+  > extends TestingLibraryMatchers<T, R> {}
   interface AsymmetricMatchersContaining extends TestingLibraryMatchers<unknown, void> {}
 }
 
@@ -189,21 +191,25 @@ export default [
     },
     {
       path: 'tsconfig.json',
-      contents: json({
-        extends: '../../tsconfig.base.json',
-        compilerOptions: {
-          rootDir: '.',
-          types: ['node'],
-          paths: {
-            '#mfe/config': ['./.mfe/config.ts'],
-            '#mfe/fetch': ['./.mfe/fetch.ts'],
-            '#mfe/meta': ['./.mfe/meta.ts'],
-          },
-        },
-        // vitest.setup.ts is in the program because it carries the matcher
-        // declarations; outside it, every matcher call is a type error.
-        include: ['src/**/*', '.mfe/**/*', 'vitest.setup.ts', '*.config.ts'],
-      }),
+      // Written out rather than serialized: this file carries comments,
+      // and Prettier formats JSON with comments differently from
+      // JSON.stringify, which would fail the project's own format check.
+      contents: `{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"],
+    "paths": {
+      "#mfe/config": ["./.mfe/config.ts"],
+      "#mfe/fetch": ["./.mfe/fetch.ts"],
+      "#mfe/meta": ["./.mfe/meta.ts"]
+    }
+  },
+  // vitest.setup.ts is in the program because it carries the matcher
+  // declarations; outside it, every matcher call is a type error.
+  "include": ["src/**/*", ".mfe/**/*", "vitest.setup.ts", "*.config.ts"]
+}
+`,
     },
     {
       path: 'rspack.config.ts',
