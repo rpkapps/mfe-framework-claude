@@ -298,10 +298,10 @@ export class MountTelemetryRuntime {
   }
 
   #levelEnabled(level: TelemetryLevel): boolean {
-    const filter = this.provider.isLevelEnabled
-    if (typeof filter !== 'function') return true
+    const provider = this.provider
+    if (typeof provider.isLevelEnabled !== 'function') return true
     try {
-      return filter.call(this.provider, level) !== false
+      return provider.isLevelEnabled(level) !== false
     } catch {
       // A filter that throws must not lose the record: count the failure and
       // let the record through, where the provider can still drop it.

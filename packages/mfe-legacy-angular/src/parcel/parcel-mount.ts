@@ -33,12 +33,7 @@ import type {
  * what makes a remount a plain second mount rather than a special case.
  */
 export type LegacyParcelStatus =
-  | 'idle'
-  | 'mounting'
-  | 'mounted'
-  | 'unmounting'
-  | 'error'
-  | 'disposed'
+  'idle' | 'mounting' | 'mounted' | 'unmounting' | 'error' | 'disposed'
 
 export interface LegacyParcelMountOptions {
   /** The neutral definition id, used for diagnostics. */
@@ -220,7 +215,9 @@ export class LegacyParcelMount {
       const mfeError = toMfeError(error, {
         code: 'dispose/failure',
         id: this.id,
-        ...(this.#options.version === undefined ? {} : { definitionVersion: this.#options.version }),
+        ...(this.#options.version === undefined
+          ? {}
+          : { definitionVersion: this.#options.version }),
         operation: 'unmount the legacy parcel',
         declaredBy: 'The legacy parcel lifecycle',
         repair: `Check ${this.#options.containerName}'s ngOnDestroy for a throwing teardown. The shell has already dropped its reference to the parcel, so it will not be reused.`,
@@ -252,7 +249,9 @@ export class LegacyParcelMount {
       const mfeError = toMfeError(error, {
         code: 'dispose/failure',
         id: this.id,
-        ...(this.#options.version === undefined ? {} : { definitionVersion: this.#options.version }),
+        ...(this.#options.version === undefined
+          ? {}
+          : { definitionVersion: this.#options.version }),
         operation: 'dispose the legacy parcel',
         declaredBy: 'The legacy parcel lifecycle',
         repair: `Check ${this.#options.containerName}'s teardown. The mount is disposed either way; it is never reused after a failed teardown.`,

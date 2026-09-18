@@ -22,7 +22,6 @@ import type {
   TelemetryAttribution,
   TelemetryLevel,
   TelemetryProvider,
-  Tracer,
 } from '@company/mfe-core'
 
 import { MountTelemetryRuntime, type TelemetryCounters } from './runtime.ts'
@@ -105,7 +104,7 @@ export function createMountTelemetry(
     ): void {
       runtime.emitMeasurement(name, value, measurement.unit, measurement.attributes)
     },
-    tracer: tracer as Tracer,
+    tracer,
   }
 
   const handle = surface as MountTelemetryHandle

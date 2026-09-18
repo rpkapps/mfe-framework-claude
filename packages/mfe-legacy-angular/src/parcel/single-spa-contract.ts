@@ -22,7 +22,12 @@ export interface LegacyParcelProps {
   readonly [key: string]: unknown
 }
 
-export type LegacyLifecycleFn = (props: LegacyParcelProps) => Promise<unknown> | unknown
+/**
+ * single-spa expects a lifecycle to return a promise. The return type stays
+ * loose because a legacy lifecycle that forgets one still has to be awaited
+ * rather than rejected at the type level.
+ */
+export type LegacyLifecycleFn = (props: LegacyParcelProps) => Promise<unknown> | void
 
 /**
  * What `<name>/single-spa-app` exports. single-spa allows a lifecycle to be a
@@ -46,10 +51,7 @@ export interface LegacyParcel {
 }
 
 /** single-spa's `mountRootParcel`, injected so no runtime is needed in tests. */
-export type MountRootParcel = (
-  config: LegacyParcelConfig,
-  props: LegacyParcelProps,
-) => LegacyParcel
+export type MountRootParcel = (config: LegacyParcelConfig, props: LegacyParcelProps) => LegacyParcel
 
 function isLifecycle(value: unknown): boolean {
   if (typeof value === 'function') return true

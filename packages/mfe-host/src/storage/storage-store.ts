@@ -126,7 +126,7 @@ function defaultEventTarget(): StorageEventTargetLike | null {
   const candidate = globalThis as { addEventListener?: unknown; removeEventListener?: unknown }
   return typeof candidate.addEventListener === 'function' &&
     typeof candidate.removeEventListener === 'function'
-    ? (globalThis as unknown as StorageEventTargetLike)
+    ? globalThis
     : null
 }
 
@@ -706,15 +706,13 @@ export class MfeStorageStore {
     return {
       name,
       area,
-      schema: declaration.schema as ContractSchema<unknown>,
+      schema: declaration.schema,
       retention: declaration.retention ?? DEFAULT_RETENTION,
       version,
       declaresDefault,
       defaultValue,
       defaultSignature: declaresDefault ? stableStringify(defaultValue) : NO_DEFAULT,
-      ...(declaration.migrate === undefined
-        ? {}
-        : { migrate: declaration.migrate as (value: unknown, fromVersion: number) => unknown }),
+      ...(declaration.migrate === undefined ? {} : { migrate: declaration.migrate }),
     }
   }
 

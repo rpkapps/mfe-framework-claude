@@ -6,11 +6,12 @@
  *
  * Two settings carry the @tecton/react integration:
  *
- *  - `resolve.symlinks: false` keeps the design system's files addressed
- *    through `node_modules/@tecton/react/...` instead of their real path in the
- *    neighbouring checkout. That matters twice over: bare imports inside the
- *    package (react, react-aria-components, tailwindcss) then resolve upwards
- *    into *this* workspace's node_modules, and React stays a single copy.
+ *  - `resolve.modules` names this workspace's node_modules by absolute path.
+ *    The design system is a link to a neighbouring checkout that has no
+ *    node_modules of its own, so walking up from its files finds nothing;
+ *    naming the directories explicitly is what lets `react`,
+ *    `react-aria-components` and the rest resolve — and resolve to *this*
+ *    workspace's single copy, which is what keeps React a singleton.
  *  - the TypeScript rule has no `node_modules` exclusion, because @tecton/react
  *    ships unbuilt TSX and this build is what transpiles it.
  */
@@ -83,8 +84,10 @@ export default function config(_env, argv) {
     resolve: {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
       // See the file header: this is what makes the linked design system
-      // resolve its peers against this workspace.
-      symlinks: false,
+      // resolve its peers against this workspace. Symlinks stay resolved, so
+      // every other package still finds its own transitive dependencies the
+      // way pnpm's layout expects.
+      modules: ['node_modules', resolve(here, 'node_modules'), resolve(here, '../../node_modules')],
     },
 
     module: {

@@ -577,7 +577,7 @@ describe('execution', () => {
     registry.register(
       'reports',
       'mount-1',
-      registration({ execute: async () => Promise.reject(new Error('network down')) }),
+      registration({ execute: () => Promise.reject(new Error('network down')) }),
     )
 
     const result = await registry.execute('reports:refresh')
@@ -593,6 +593,7 @@ describe('execution', () => {
       'mount-1',
       registration({
         execute: () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- a command that throws a non-Error is exactly what this test covers, so the value has to stay a bare string
           throw 'just a string'
         },
       }),

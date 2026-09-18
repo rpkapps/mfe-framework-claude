@@ -2,7 +2,33 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+
+    /*
+     * The design system is consumed as unbuilt source from a linked checkout
+     * that has no node_modules of its own, so TypeScript — which resolves the
+     * symlink to that checkout — cannot find the packages its files import.
+     * These mappings point exactly those specifiers back at this workspace's
+     * copies, which is the type-level counterpart of `resolve.symlinks: false`
+     * in the bundler. Everything else, including each package's own transitive
+     * dependencies, resolves normally.
+     */
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"],
+      "react-aria": ["./node_modules/react-aria"],
+      "react-aria/*": ["./node_modules/react-aria/*"],
+      "react-aria-components": ["./node_modules/react-aria-components"],
+      "react-resizable-panels": ["./node_modules/react-resizable-panels"],
+      "class-variance-authority": ["./node_modules/class-variance-authority"],
+      "cn": ["./node_modules/cn"],
+      "lucide-react": ["./node_modules/lucide-react"],
+      "next-themes": ["./node_modules/next-themes"],
+      "sonner": ["./node_modules/sonner"]
+    }
   },
   "include": ["src", "scripts", "tests"]
 }

@@ -11,10 +11,7 @@
  * repository, so no claim is made that it has been run against them.
  */
 
-export {
-  createLegacyAdapterRule,
-  deriveLegacyDefinitionId,
-} from './registry/legacy-rule.ts'
+export { createLegacyAdapterRule, deriveLegacyDefinitionId } from './registry/legacy-rule.ts'
 
 export {
   LEGACY_NAVIGATION_OWNERSHIP,

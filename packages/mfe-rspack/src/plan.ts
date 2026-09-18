@@ -10,13 +10,15 @@
  * what the compiler is being asked to do, and can be tested without one.
  */
 
+import { join } from 'node:path'
+
 import type { CapabilityDescriptor } from '@company/mfe-core'
 
 import { readConfigSource, type ConfigSource } from './config/config-source.ts'
 import { extractCapabilities } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
-import { findStrayDefinitions } from './discovery/stray-definitions.ts'
+import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
 import { containerDependencies, resolveShared, type SharedModuleConfig } from './federation/sharing.ts'
 import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
 import {
@@ -25,6 +27,7 @@ import {
   exposeName,
   type GenerateContext,
 } from './generate/modules.ts'
+import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
 
 export interface ContainerPlan {
@@ -98,9 +101,22 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     aliases,
     scopes: discovery.definitions.map(definition => definition.id),
     generated,
-    diagnostics: findStrayDefinitions(`${resolved.containerRoot}/src`, {
-      entryFile,
-      ignoredDirectories: [resolved.generatedDir],
-    }),
+    diagnostics: collectDiagnostics(resolved, entryFile),
   }
+}
+
+/**
+ * The findings the plugin reports on the compilation rather than throwing:
+ * definitions declared where discovery will never look, and asset references
+ * the bundler cannot make container-relative.
+ */
+function collectDiagnostics(options: ResolvedOptions, entryFile: string): readonly Error[] {
+  const sourceRoot = join(options.containerRoot, 'src')
+  const ignored = new Set([options.generatedDir])
+  const files = containerSourceFiles(sourceRoot, ignored)
+
+  return [
+    ...findStrayDefinitions(sourceRoot, { entryFile, ignoredDirectories: [options.generatedDir] }),
+    ...files.flatMap(file => findNonContainerAwareAssetReferences(file)),
+  ]
 }

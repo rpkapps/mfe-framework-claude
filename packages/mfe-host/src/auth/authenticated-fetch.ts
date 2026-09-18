@@ -353,12 +353,12 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
 
     if (!allowlist.has(url.origin)) {
       warnUndeclaredOrigin(url.origin, plan.method)
-      return plan.send(null)
+      return await plan.send(null)
     }
 
     // An explicit Authorization header is the caller's own credential. The
     // framework neither replaces it nor refreshes on its behalf.
-    if (plan.hasCallerAuthorization) return plan.send(null)
+    if (plan.hasCallerAuthorization) return await plan.send(null)
 
     const token = await tokens.getAccessToken(tokenOptions(plan.signal))
     const response = await plan.send(token === null ? null : `Bearer ${token}`)
@@ -379,7 +379,7 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
     const refreshed = await tokens.getAccessToken(tokenOptions(plan.signal, token))
     // Exactly one retry, expressed structurally: there is no loop to bound.
     if (refreshed === null || refreshed === token) return response
-    return plan.send(`Bearer ${refreshed}`)
+    return await plan.send(`Bearer ${refreshed}`)
   }
 }
 

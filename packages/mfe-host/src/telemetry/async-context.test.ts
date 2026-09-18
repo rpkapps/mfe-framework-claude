@@ -234,7 +234,7 @@ describe('concurrent operations', () => {
     const { provider, tracer } = setup()
 
     async function operation(name: string): Promise<string> {
-      return tracer.startActiveSpan(name, async span => {
+      return await tracer.startActiveSpan(name, async span => {
         tracer.startSpan(`${name}.sync`).end()
         await Promise.resolve()
         tracer.startSpan(`${name}.async`).end()
@@ -265,7 +265,7 @@ describe('concurrent operations', () => {
     const { provider, tracer } = setup()
 
     async function operation(name: string): Promise<void> {
-      return tracer.startActiveSpan(name, async span => {
+      return await tracer.startActiveSpan(name, async span => {
         const resume = bindTelemetryContext(() => {
           tracer.startSpan(`${name}.bound`).end()
         })

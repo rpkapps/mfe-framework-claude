@@ -220,7 +220,12 @@ export function createBrowserNavigationBridge(target: Window = window): Navigati
   return {
     read,
 
-    readState: () => target.history.state,
+    readState: () => {
+      // `History.state` is `any`; the bridge contract hands back `unknown` so a
+      // caller has to narrow it before reading anything off it.
+      const state: unknown = target.history.state
+      return state
+    },
 
     subscribe: listener => {
       const onPopState = (): void => listener(read())

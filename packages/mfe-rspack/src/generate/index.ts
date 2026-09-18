@@ -60,7 +60,7 @@ export function generateContainerFiles(
   const envExample = envExampleFile(context)
   if (envExample !== null) base.push(envExample)
 
-  const buildHash = contentHash(base)
+  const buildHash = contentHash(base, context.options.generatedDir)
   const descriptor = containerDescriptor(context, capabilities, buildHash)
 
   const files = [...base, metaModule(context, buildHash), registryDescriptorFile(context, descriptor)]

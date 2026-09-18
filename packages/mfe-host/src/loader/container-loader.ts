@@ -14,6 +14,7 @@ import {
   createMfeError,
   toMfeError,
   type DefinitionIdentity,
+  type MfeError,
   type NeutralRegistryEntry,
 } from '@company/mfe-core'
 
@@ -83,7 +84,7 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
       this.#inFlight.set(entry.id, shared)
     }
 
-    return raceWithAbort(shared, options.signal, entry)
+    return await raceWithAbort(shared, options.signal, entry)
   }
 
   preload(entry: NeutralRegistryEntry, options: { readonly signal: AbortSignal }): Promise<void> {
@@ -121,38 +122,36 @@ function raceWithAbort<T>(
 ): Promise<T> {
   if (!signal.aborted && typeof signal.addEventListener !== 'function') return shared
 
-  return new Promise<T>((resolve, reject) => {
-    const abandon = (): void => {
-      reject(
-        toMfeError(signal.reason, {
-          code: 'load/entry-failure',
-          id: entry.id,
-          operation: 'load container',
-          observed: 'the caller stopped waiting before the container finished loading',
-          declaredBy: 'The host mount controller',
-          repair:
-            'No action required when this follows a disposal or a retry. Other callers waiting on the same container are unaffected.',
-        }),
-      )
-    }
+  const abandonment = (): MfeError =>
+    toMfeError(signal.reason, {
+      code: 'load/entry-failure',
+      id: entry.id,
+      operation: 'load container',
+      observed: 'the caller stopped waiting before the container finished loading',
+      declaredBy: 'The host mount controller',
+      repair:
+        'No action required when this follows a disposal or a retry. Other callers waiting on the same container are unaffected.',
+    })
 
-    if (signal.aborted) {
-      shared.catch(() => undefined)
-      abandon()
-      return
-    }
+  if (signal.aborted) {
+    // The shared work keeps running for the other waiters, so it still has to
+    // be observed here or this caller's exit surfaces as an unhandled rejection.
+    shared.catch(() => undefined)
+    return Promise.reject(abandonment())
+  }
 
+  let abandon: (() => void) | undefined
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    abandon = (): void => {
+      reject(abandonment())
+    }
     signal.addEventListener('abort', abandon, { once: true })
-    shared.then(
-      value => {
-        signal.removeEventListener('abort', abandon)
-        resolve(value)
-      },
-      error => {
-        signal.removeEventListener('abort', abandon)
-        reject(error)
-      },
-    )
+  })
+
+  // Racing the two rather than re-wrapping the shared promise is what keeps a
+  // rejection of the shared work reaching this caller exactly as it was thrown.
+  return Promise.race([shared, cancelled]).finally(() => {
+    if (abandon !== undefined) signal.removeEventListener('abort', abandon)
   })
 }
 
@@ -165,6 +164,12 @@ export function createInProcessLoader<TModule>(
   definitions: ReadonlyMap<string, LoadedDefinition<TModule>>,
 ): ContainerLoader<TModule> {
   return {
+    // `async` is load-bearing here rather than incidental. The ContainerLoader
+    // contract requires an already-aborted signal and a missing definition to
+    // arrive as a rejected promise, and this implementation resolves from a Map
+    // with nothing to await; without `async` both become a synchronous throw at
+    // the call site, which no caller of a Promise-returning port handles.
+    // eslint-disable-next-line @typescript-eslint/require-await -- the async signature is the port's contract and there is genuinely nothing to await
     load: async (entry, options) => {
       options.signal.throwIfAborted()
 

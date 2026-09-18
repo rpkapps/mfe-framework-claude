@@ -27,6 +27,14 @@
     "@company/mfe-core": "workspace:*",
     "@company/mfe-host": "workspace:*"
   },
+  "peerDependencies": {
+    "single-spa": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "single-spa": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:",

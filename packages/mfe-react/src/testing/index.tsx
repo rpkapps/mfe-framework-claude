@@ -219,6 +219,29 @@ export function createMfeTestEnvironment(
   }
 }
 
+/**
+ * Renders a tree that will suspend, inside an awaited act scope.
+ *
+ * Anything that loads a definition suspends on first render, and React warns
+ * — then leaves the tree stuck on its fallback — when a component suspends
+ * inside an act scope that was never awaited. Plain `render()` from React
+ * Testing Library is exactly that case, so every test consuming a lazy Widget
+ * or a hosted App would otherwise have to remember this wrapper.
+ *
+ * It composes with React Testing Library rather than replacing it: the result
+ * is an ordinary `RenderResult`.
+ */
+export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
+  let result: RenderResult | undefined
+
+  await act(async () => {
+    result = render(<>{ui}</>)
+  })
+
+  if (!result) throw new Error('renderSuspending produced no result')
+  return result
+}
+
 export interface RenderAppOptions extends MfeTestEnvironmentOptions {
   readonly basePath?: string
 }

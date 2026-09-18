@@ -81,11 +81,19 @@ export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly G
  * A content hash of everything the build generated. It changes when the
  * container's shape changes and not otherwise, which is what makes it useful in
  * a diagnostic: two reports carrying the same hash describe the same build.
+ *
+ * Paths enter the hash relative to the generated directory, so the same sources
+ * hash the same on a developer's machine and on a build agent that checked them
+ * out somewhere else.
  */
-export function contentHash(files: readonly GeneratedFile[]): string {
+export function contentHash(files: readonly GeneratedFile[], baseDir: string): string {
   const hash = createHash('sha256')
-  for (const file of [...files].sort((left, right) => (left.path < right.path ? -1 : 1))) {
-    hash.update(`${file.path}\n${file.contents.length}\n${file.contents}\n`)
+  const entries = files
+    .map(file => ({ name: relative(baseDir, file.path).split(sep).join('/'), file }))
+    .sort((left, right) => (left.name < right.name ? -1 : 1))
+
+  for (const entry of entries) {
+    hash.update(`${entry.name}\n${entry.file.contents.length}\n${entry.file.contents}\n`)
   }
   return hash.digest('hex').slice(0, 16)
 }

@@ -34,9 +34,9 @@ function fakeFetch(
   const spy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const call: FetchCall = { input, init }
     calls.push(call)
-    return handler(call, calls.length)
+    return await handler(call, calls.length)
   })
-  return { fetch: spy as unknown as FetchLike, calls, spy }
+  return { fetch: spy, calls, spy }
 }
 
 function ok(): Response {
@@ -68,9 +68,7 @@ function staticTokens(token: string | null): AccessTokenSource & {
   readonly getAccessToken: ReturnType<typeof vi.fn>
 } {
   const getAccessToken = vi.fn(async () => token)
-  return { getAccessToken } as AccessTokenSource & {
-    readonly getAccessToken: ReturnType<typeof vi.fn>
-  }
+  return { getAccessToken }
 }
 
 function flush(): Promise<void> {
@@ -108,7 +106,7 @@ describe('createAuthenticatedFetch: it wraps, it does not patch', () => {
   it('delegates to globalThis.fetch by default without ever assigning to it', async () => {
     const original = globalThis.fetch
     const spy = vi.fn(async () => ok())
-    globalThis.fetch = spy as unknown as typeof globalThis.fetch
+    globalThis.fetch = spy
 
     try {
       const authenticatedFetch = createAuthenticatedFetch({
@@ -578,11 +576,14 @@ describe('createAuthenticatedFetch: requests that cannot be replayed', () => {
       diagnostics,
     })
 
-    const response = await authenticatedFetch('upload', {
+    // `duplex` is mandatory on the platform whenever the body is a stream, and
+    // is not part of `RequestInit` in this TypeScript release yet.
+    const init: RequestInit & { readonly duplex: 'half' } = {
       method: 'POST',
       body: streamingBody(),
       duplex: 'half',
-    } as RequestInit)
+    }
+    const response = await authenticatedFetch('upload', init)
 
     expect(response.status).toBe(401)
     expect(inner.calls).toHaveLength(1)

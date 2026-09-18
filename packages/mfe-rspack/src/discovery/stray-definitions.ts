@@ -42,7 +42,7 @@ export function findStrayDefinitions(
   const ignored = new Set(options.ignoredDirectories ?? [])
   const errors: Error[] = []
 
-  for (const file of sourceFiles(sourceRoot, ignored)) {
+  for (const file of containerSourceFiles(sourceRoot, ignored)) {
     if (file === options.entryFile) continue
     if (TEST_PATTERN.test(file)) continue
 
@@ -82,7 +82,11 @@ export function findStrayDefinitions(
   return errors
 }
 
-function sourceFiles(root: string, ignored: ReadonlySet<string>): readonly string[] {
+/** Every TypeScript source of a container, in a stable order. */
+export function containerSourceFiles(
+  root: string,
+  ignored: ReadonlySet<string> = new Set(),
+): readonly string[] {
   const files: string[] = []
 
   const visit = (directory: string): void => {

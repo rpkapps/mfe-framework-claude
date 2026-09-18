@@ -178,9 +178,13 @@ describe('automatic attribution', () => {
   })
 
   it('copies the attribution, so a later mutation cannot rewrite emitted records', () => {
-    const mutable = { ...ATTRIBUTION } as { definitionId: string; definitionKind: 'app' }
+    // A writable copy of the attribution: mutating it after the handle exists
+    // is the whole point of the test.
+    const mutable: { -readonly [K in keyof TelemetryAttribution]: TelemetryAttribution[K] } = {
+      ...ATTRIBUTION,
+    }
     const provider = createRecordingTelemetryProvider()
-    const telemetry = createMountTelemetry(provider, mutable as TelemetryAttribution, { dev: true })
+    const telemetry = createMountTelemetry(provider, mutable, { dev: true })
 
     telemetry.event('before')
     mutable.definitionId = 'someone-else'

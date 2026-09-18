@@ -226,6 +226,7 @@ describe('failure and retry', () => {
     const { controller } = createController(
       operations({
         attach: async () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- an adapter that throws a non-Error is exactly what this test covers, so the value has to stay a bare string
           throw 'attach said no'
         },
       }),

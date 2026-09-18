@@ -266,6 +266,27 @@ export function maintainability(files: readonly string[]): Linter.Config {
 }
 
 /**
+ * Resolves the files the React and React Compiler rules apply to.
+ *
+ * Defaults to everything the preset covers. A repository that narrows it is
+ * saying "these are the packages with React in them": a package without React
+ * gets false positives from any API whose name collides with a hook — Rspack's
+ * `rule.use(...)` loader API reads as React's `use()` to `rules-of-hooks` — and
+ * the fix is not to suppress the rule but to stop applying React rules to code
+ * that is not React.
+ *
+ * The result is always intersected with `files`, because a block that reaches
+ * past the files the preset covers would apply where the parser is not set.
+ */
+export function resolveReactFiles(
+  files: readonly string[],
+  reactFiles: readonly string[] | undefined,
+): (string | string[])[] {
+  if (reactFiles === undefined) return [...files]
+  return reactFiles.flatMap(scope => intersectFiles(files, scope))
+}
+
+/**
  * Scoped exceptions for test files.
  *
  * Every entry here is off for a reason specific to what a test *is*, and the
@@ -323,13 +344,13 @@ export function testScopeOverrides(files: readonly string[], name: string): Lint
  * that bails out silently loses the memoisation the host sized its performance
  * budget around, so they are on rather than off.
  */
-export function reactCorrectness(files: readonly string[]): Linter.Config[] {
+export function reactCorrectness(files: readonly (string | string[])[]): Linter.Config[] {
   const recommended = asConfigs([reactHooks.configs.flat['recommended-latest']])
   return [
     ...withFiles(recommended, files, 'mfe/react-hooks-recommended'),
     {
       name: 'mfe/react-compiler',
-      files: [...files],
+      files: files.map(pattern => (Array.isArray(pattern) ? [...pattern] : pattern)),
       plugins: pluginsOf(recommended),
       rules: {
         // Not enabled by `recommended-latest`; every one of them is a case where

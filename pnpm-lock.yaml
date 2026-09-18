@@ -278,6 +278,9 @@ catalogs:
     react-dom:
       specifier: 19.3.0
       version: 19.3.0
+    single-spa:
+      specifier: 6.0.3
+      version: 6.0.3
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
@@ -692,6 +695,9 @@ importers:
       '@company/mfe-host':
         specifier: workspace:*
         version: link:../mfe-host
+      single-spa:
+        specifier: 'catalog:'
+        version: 6.0.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -3585,6 +3591,9 @@ packages:
   signal-exit@4.1.0:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
+
+  single-spa@6.0.3:
+    resolution: {integrity: sha512-pXlwHXHhs3hx/MnGQHBLdFCVAN2rlm9TLBKazbDMyZ25QRxoen2vlUZ47MyXKa9K8Gd5UZs/gkuQad4TGbViwg==}
 
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
@@ -6902,6 +6911,8 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
+
+  single-spa@6.0.3: {}
 
   sisteransi@1.0.5: {}
 

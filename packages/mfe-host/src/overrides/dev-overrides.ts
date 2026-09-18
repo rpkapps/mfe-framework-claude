@@ -78,7 +78,7 @@ export function readDevOverrides(
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
-  } catch (error) {
+  } catch {
     return {
       overrides: new Map(),
       diagnostics: [

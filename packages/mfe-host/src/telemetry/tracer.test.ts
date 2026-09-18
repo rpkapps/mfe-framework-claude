@@ -12,6 +12,7 @@ import {
   type Tracer,
 } from '@company/mfe-core'
 
+import { nonRecordingSpan } from './non-recording.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry, type MountTelemetryOptions } from './service.ts'
 
@@ -454,7 +455,7 @@ describe('tracing switched off or broken', () => {
           throw new Error('cannot start')
         },
         startActiveSpan: (<T>(_name: string, callback: (span: Span) => T): T =>
-          callback({} as Span)) as Tracer['startActiveSpan'],
+          callback(nonRecordingSpan)) as Tracer['startActiveSpan'],
       }),
     }
     const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
