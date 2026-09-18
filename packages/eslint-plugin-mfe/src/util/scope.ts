@@ -1,29 +1,19 @@
 /**
- * Lexical resolution helpers.
- *
- * Every rule in this plugin answers "which binding is this name?" through the
- * scope manager rather than by comparing identifier text. Bare name matching
- * cannot tell `window.fetch` from a local `const window = ...`, and it cannot
- * see `import { createWidget as mk }` at all; scope analysis sees both.
+ * Lexical resolution helpers. Every rule answers "which binding is this name?"
+ * through the scope manager rather than by comparing identifier text: bare name
+ * matching cannot tell `window.fetch` from a local `const window = ...`, and it
+ * cannot see `import { createWidget as mk }` at all.
  */
 
 import type { Scope, SourceCode } from 'eslint'
-import type { AnyNode, Identifier, MemberExpression } from './ast.ts'
+import type { AnyNode, MemberExpression } from './ast.ts'
 import { asNode, staticPropertyName, unwrapExpression } from './ast.ts'
 
 /** Names that denote the global object in a browser or worker realm. */
-export const GLOBAL_OBJECT_NAMES: ReadonlySet<string> = new Set([
-  'window',
-  'globalThis',
-  'self',
-  'global',
-])
+const GLOBAL_OBJECT_NAMES: ReadonlySet<string> = new Set(['window', 'globalThis', 'self', 'global'])
 
-/**
- * Walks the scope chain outwards and returns the variable a name resolves to,
- * together with the scope that declares it, or `null` when nothing declares it
- * (an unresolved reference, which in a browser realm means a global).
- */
+/** The variable a name resolves to and the scope that declares it, or `null`
+ * when nothing does — in a browser realm, a global. */
 function lookup(
   scope: Scope.Scope | null,
   name: string,
@@ -36,10 +26,9 @@ function lookup(
 }
 
 /**
- * True when `name`, as used at `node`, refers to a real global: either nothing
- * declares it, or the only declaration is a predefined global, which carries no
- * definition site. A local, parameter, import or module-level declaration of
- * the same name shadows the global and is not it.
+ * True when `name` refers to a real global: nothing declares it, or the only
+ * declaration is a predefined global. A local, parameter, import or
+ * module-level declaration of the same name shadows it and is not it.
  */
 export function isGlobalBinding(sourceCode: SourceCode, node: AnyNode, name: string): boolean {
   const found = lookup(sourceCode.getScope(node), name)
@@ -56,17 +45,10 @@ export function isGlobalObjectName(sourceCode: SourceCode, node: AnyNode, name: 
   return GLOBAL_OBJECT_NAMES.has(name) && isGlobalBinding(sourceCode, node, name)
 }
 
-/** Convenience wrapper for an identifier reached through a listener. */
-export function isGlobalObjectIdentifier(sourceCode: SourceCode, node: Identifier): boolean {
-  return isGlobalObjectName(sourceCode, node, node.name)
-}
-
 /**
- * Resolves an expression expected to denote a global object, or one of its
- * well-known properties, and returns the canonical name of that object.
- *
- * `window` becomes `globalThis`, `globalThis.document` becomes `document`,
- * `window.history` becomes `history`, and a shadowed `history` becomes `null`.
+ * The canonical name of the global object an expression denotes: `window`
+ * becomes `globalThis`, `globalThis.document` becomes `document`, and a
+ * shadowed `history` becomes `null`.
  */
 export function resolveGlobalObject(
   sourceCode: SourceCode,
@@ -92,25 +74,17 @@ export function resolveGlobalObject(
 
 /** A binding that originates from an `import` declaration. */
 export interface ImportedBinding {
-  /** The module specifier the binding comes from. */
   readonly source: string
-  /**
-   * The exported name: `default` for a default import, `*` for a namespace
-   * import, otherwise the name as exported by the module, not the local alias.
-   */
+  /** `default`, `*`, or the name as exported — never the local alias. */
   readonly imported: string
 }
 
 const ALIAS_DEPTH_LIMIT = 8
 
 /**
- * Resolves the name used at `node` back to the import it ultimately comes from,
- * following local aliases (`const mk = createWidget`) and namespace member
- * aliases (`const mk = mfe.createWidget`).
- *
- * Returns `null` for anything locally declared, which is what makes a local
- * `function createWidget() {}` shadow the framework export instead of being
- * mistaken for it.
+ * Follows local aliases (`const mk = createWidget`) and namespace members
+ * (`const mk = mfe.createWidget`) back to the import. `null` for anything
+ * locally declared, so a local `function createWidget() {}` shadows the export.
  */
 export function resolveImportedBinding(
   sourceCode: SourceCode,
@@ -158,9 +132,8 @@ export function resolveImportedBinding(
 }
 
 /**
- * Resolves `namespace.member` where `namespace` is a namespace import, so that
- * `import * as mfe from '@company/mfe-react'; mfe.createWidget()` is recognised
- * as the same binding as a named import of `createWidget`.
+ * `namespace.member` where `namespace` is a namespace import, so
+ * `import * as mfe ...; mfe.createWidget()` resolves like a named import.
  */
 export function resolveMemberBinding(
   sourceCode: SourceCode,
@@ -176,11 +149,7 @@ export function resolveMemberBinding(
   return { source: binding.source, imported: property }
 }
 
-/**
- * Resolves the callee of a call expression to the import it comes from,
- * covering `createWidget()`, `mk()` (aliased import), `mfe.createWidget()`
- * (namespace import) and one level of local re-aliasing.
- */
+/** The import a callee comes from: `createWidget()`, `mk()`, `mfe.createWidget()`. */
 export function resolveCalleeBinding(
   sourceCode: SourceCode,
   callee: AnyNode,

@@ -9,10 +9,7 @@
     "title": "Orion Discovery",
     "icon": "ORI",
     "version": "0.1.0",
-    "capabilities": [
-      { "name": "settings", "label": "Discovery settings", "path": "/settings" },
-      { "name": "help", "label": "Discovery help", "path": "/help" }
-    ]
+    "capabilities": [{ "name": "settings", "label": "Discovery settings", "path": "/settings" }]
   },
   {
     "id": "well-planning",
@@ -23,17 +20,6 @@
     "expose": "./app",
     "title": "Well Planning",
     "icon": "DWP",
-    "version": "0.1.0"
-  },
-  {
-    "id": "facility-model",
-    "kind": "app",
-    "mfe": { "contractMajor": 1 },
-    "manifestUrl": "http://localhost:3103/mf-manifest.json",
-    "container": "facility_model",
-    "expose": "./app",
-    "title": "Facility Model",
-    "icon": "FAC",
     "version": "0.1.0"
   },
   {
@@ -54,7 +40,6 @@
     "container": "internal_admin",
     "expose": "./app",
     "title": "Internal Admin",
-    "icon": "ADM",
     "hidden": true,
     "version": "0.1.0"
   },
@@ -65,8 +50,7 @@
     "manifestUrl": "http://localhost:3106/mf-manifest.json",
     "container": "legacy_reports",
     "expose": "./app",
-    "title": "Legacy Reports",
-    "version": "0.1.0"
+    "title": "Legacy Reports"
   },
   {
     "id": "no-manifest",

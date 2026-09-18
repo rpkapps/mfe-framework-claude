@@ -12,7 +12,7 @@ import {
   type Tracer,
 } from '@company/mfe-core'
 
-import { nonRecordingSpan } from './non-recording.ts'
+import { nonRecordingSpan } from './tracer.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry, type MountTelemetryOptions } from './service.ts'
 

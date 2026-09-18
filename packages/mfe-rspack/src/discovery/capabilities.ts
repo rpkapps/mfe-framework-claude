@@ -89,7 +89,6 @@ export function extractCapabilities(
     )
 }
 
-
 /** Every route source file, in a stable order. */
 function routeFiles(routesDirectory: string): readonly string[] {
   let entries: readonly string[]
@@ -139,7 +138,6 @@ function asMarkedRoute(node: ts.Node): MarkedRoute | null {
 
   return { routePath, staticData: value, node }
 }
-
 
 function readCapability(
   sourceFile: ts.SourceFile,

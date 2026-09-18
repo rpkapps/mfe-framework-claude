@@ -1,15 +1,8 @@
 /**
- * `mfe/no-raw-storage`.
- *
- * `localStorage` and `sessionStorage` are one flat, unversioned key space shared
- * by the shell and by every MFE in the origin. Written directly, keys collide
- * across MFEs, they cannot be namespaced per deployment, the shell cannot clear
- * or migrate them on sign-out, and a quota error surfaces as an unhandled
- * exception in whichever MFE happened to write last. The framework storage
- * boundary owns the prefix, the serialisation envelope and the failure mode.
- *
- * The framework's own storage adapter, and a shell bootstrap that deliberately
- * overrides storage, opt out through the `allowedScopes` option: ownership is
+ * `mfe/no-raw-storage`. Web Storage is one flat, unversioned key space shared by
+ * the shell and every MFE in the origin, so written directly keys collide, the
+ * shell cannot clear them on sign-out and a quota error escapes. The storage
+ * adapter and a shell override opt out through `allowedScopes`: ownership is
  * declared in configuration, never inferred from a file name.
  */
 

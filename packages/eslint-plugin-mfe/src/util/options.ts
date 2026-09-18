@@ -1,9 +1,7 @@
 /**
- * Option readers.
- *
- * `context.options` is untyped by construction, and the repository's TypeScript
- * baseline forbids the usual unchecked indexing, so every rule reads its options
- * through these narrow helpers instead of asserting a shape.
+ * `context.options` is untyped by construction and the repository's TypeScript
+ * baseline forbids unchecked indexing, so rules read options through these
+ * narrow helpers rather than asserting a shape.
  */
 
 export function optionRecord(options: readonly unknown[]): Record<string, unknown> {

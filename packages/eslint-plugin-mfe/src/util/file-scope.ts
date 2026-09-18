@@ -1,17 +1,9 @@
 /**
- * File-scope matching for the rules that are only meaningful inside an
- * explicitly configured part of the tree.
- *
- * Ownership is never guessed from a file name: `no-widget-global-effects` only
- * runs where a repository has declared "these files are Widget-owned", and
- * `no-raw-storage` only stands down where a repository has declared "this file
- * is the storage boundary". Both read their globs from rule options, and both
- * go through this matcher.
- *
- * The syntax is the familiar subset: `**` crosses directory separators, `*` and
- * `?` do not, and `{a,b}` is a flat alternation. A pattern that does not start
- * with a slash or with `**` is implicitly prefixed with `**` plus a slash, so
- * `src/storage/**` matches that directory wherever it sits in the workspace.
+ * Glob matching for the rules that only run inside an explicitly configured
+ * part of the tree; ownership is never guessed from a file name. `**` crosses
+ * directory separators, `*` and `?` do not, `{a,b}` is a flat alternation, and
+ * a pattern not starting with `/` or `**` is prefixed with `**\/`, so
+ * `src/storage/**` matches that directory wherever it sits.
  */
 
 const cache = new Map<string, RegExp>()

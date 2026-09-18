@@ -1,15 +1,11 @@
 /**
  * The selector layer over `useSyncExternalStore`.
  *
- * React's own store hook has no selector, and re-deriving a value on every read
- * would defeat the whole point: a fresh result each call looks like a change and
- * re-renders forever. This caches per snapshot and compares results with
- * `Object.is`, so a selector that narrows to a primitive or to an existing
- * reference is genuinely free when nothing it depends on changed.
- *
- * A selector that allocates a new object on every call cannot be compared this
- * way. Return the value the consumer needs, or an existing reference; do not
- * build a fresh aggregate and expect it to be de-duplicated.
+ * React's own store hook has no selector, and a freshly derived result on every
+ * read looks like a change and re-renders forever. This caches per snapshot and
+ * compares results with `Object.is`, so a selector that narrows to a primitive
+ * or to an existing reference is free. A selector that allocates a new object on
+ * every call cannot be compared this way and will not be de-duplicated.
  */
 
 import { useRef, useSyncExternalStore } from 'react'
@@ -40,8 +36,8 @@ export function useStoreSelector<S, T>(
 
     const value = selector(snapshot)
 
-    // An inline selector is a new function on every render. Comparing the
-    // result keeps that from looking like a state change.
+    // An inline selector is a new function on every render. Comparing the result
+    // keeps that from looking like a state change.
     if (cached && Object.is(cached.value, value)) {
       cache.current = { snapshot, selector, value: cached.value }
       return cached.value

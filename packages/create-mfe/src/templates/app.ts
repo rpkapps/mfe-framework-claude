@@ -1,14 +1,17 @@
 /**
- * The App starter.
- *
- * It writes the router bootstrap and the module augmentation for the author,
- * because those are the two pieces that are easy to get subtly wrong and
- * tedious to debug: a router built with the wrong base path renders at the
- * wrong boundary, and a missing augmentation silently degrades every route's
- * types.
+ * The App starter. It writes the router bootstrap and the module augmentation
+ * for the author, because those are the two pieces that are easy to get subtly
+ * wrong and tedious to debug: a router built with the wrong base path renders
+ * at the wrong boundary, and a missing augmentation degrades every route's types.
  */
 
-import { scripts, sharedFiles, type TemplateFile, type TemplateOptions } from './types.ts'
+import {
+  overrideSnippet,
+  packageJsonFile,
+  sharedFiles,
+  type TemplateFile,
+  type TemplateOptions,
+} from './types.ts'
 
 export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
   const { id, packageName } = options
@@ -16,79 +19,9 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
   return [
     ...sharedFiles(),
 
-    {
-      path: 'package.json',
-      contents:
-        JSON.stringify(
-          {
-            name: packageName,
-            version: '0.1.0',
-            private: true,
-            type: 'module',
-            mfe: { port: 3101, definitions: [id] },
-            scripts: scripts(),
-            dependencies: {
-              '@company/mfe-react': 'workspace:*',
-              '@tanstack/react-query': 'catalog:',
-              '@tanstack/react-router': 'catalog:',
-              react: 'catalog:',
-              'react-dom': 'catalog:',
-              zod: 'catalog:',
-            },
-            devDependencies: {
-              '@company/eslint-plugin-mfe': 'workspace:*',
-              '@company/mfe-rspack': 'workspace:*',
-              '@rspack/cli': 'catalog:',
-              '@rspack/core': 'catalog:',
-              '@testing-library/jest-dom': 'catalog:',
-              '@testing-library/react': 'catalog:',
-              '@types/react': 'catalog:',
-              '@types/react-dom': 'catalog:',
-              eslint: 'catalog:',
-              prettier: 'catalog:',
-              typescript: 'catalog:',
-              vitest: 'catalog:',
-            },
-          },
-          null,
-          2,
-        ) + '\n',
-    },
-
-    {
-      path: 'tsconfig.json',
-      contents:
-        JSON.stringify(
-          {
-            extends: '../../tsconfig.base.json',
-            compilerOptions: {
-              rootDir: '.',
-              types: ['node', '@testing-library/jest-dom/vitest'],
-              paths: {
-                '#mfe/config': ['./.mfe/config.ts'],
-                '#mfe/fetch': ['./.mfe/fetch.ts'],
-                '#mfe/meta': ['./.mfe/meta.ts'],
-              },
-            },
-            include: ['src/**/*', '.mfe/**/*', '*.config.ts'],
-          },
-          null,
-          2,
-        ) + '\n',
-    },
-
-    {
-      path: 'rspack.config.ts',
-      contents: `import { mfePlugin } from '@company/mfe-rspack'
-
-// An ordinary Rspack configuration. mfePlugin is a normal plugin, not a
-// wrapper, so every other option here stays exactly what it would otherwise be.
-export default {
-  entry: './src/main.ts',
-  plugins: [mfePlugin()],
-}
-`,
-    },
+    packageJsonFile(options, 3101, {
+      dependencies: { '@tanstack/react-query': 'catalog:', '@tanstack/react-router': 'catalog:' },
+    }),
 
     {
       path: 'src/mfe.ts',
@@ -235,58 +168,25 @@ pnpm test
 pnpm run generate   # the one recovery command when generated output is stale
 \`\`\`
 
-Development, tests, typecheck and build run their own generation steps. Ordinary
-edits never need \`generate\` run by hand.
+Dev, test, typecheck and build run their own generation steps, so ordinary edits
+never need \`generate\` by hand.
 
 ## Connecting to the shell
 
-There is no standalone harness: you develop against the real shell, with a real
+There is no standalone harness: you develop against the real shell with a real
 session, so no class of authentication bug waits until deployment. Start the
-shell, then run this in its browser console and reload:
+shell, run this in its browser console, and reload.
 
-\`\`\`js
-const key = 'company:mfe:overrides'
-const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-overrides['${id}'] = 'http://localhost:3101/mf-manifest.json'
-localStorage.setItem(key, JSON.stringify(overrides))
-location.reload()
-\`\`\`
-
-To reset, delete just your id and reload — unrelated overrides are preserved:
-
-\`\`\`js
-const key = 'company:mfe:overrides'
-const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-delete overrides['${id}']
-localStorage.setItem(key, JSON.stringify(overrides))
-location.reload()
-\`\`\`
-
-Changing an override requires a reload rather than a remount: the container's
-modules are already registered in the federation runtime under the same name and
-its chunks and stylesheets are document-level. The shell shows an indicator
-while any override is active, so a forgotten one cannot be mistaken for a bug.
-
-The override is a URL only. It never carries tokens or configuration.
+${overrideSnippet(id, 3101)}
 
 ## Configuration
 
 \`src/mfe.config.ts\` holds the schema and the environment mapping — no values
-and no secrets. Copy \`runtime-config.example.json\` to your documented local
-values path for development. Read configuration with:
-
-\`\`\`ts
-import { config } from '#mfe/config'
-\`\`\`
-
-and make authenticated requests with:
-
-\`\`\`ts
-import { fetch } from '#mfe/fetch'
-\`\`\`
-
-The token is attached only to origins declared \`{ api: true }\`. Request code
-never handles a token.
+and no secrets. Copy \`runtime-config.example.json\` to your local values path.
+Read configuration with \`import { config } from '#mfe/config'\` and make
+authenticated requests with \`import { fetch } from '#mfe/fetch'\`. The token is
+attached only to origins declared \`{ api: true }\`, and request code never
+handles one.
 `,
     },
   ]

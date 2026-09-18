@@ -78,7 +78,7 @@ function resolveOnce(runtime: MfeRuntime, appId: string): Promise<LoadFailure | 
   return pending
 }
 
-function Failure({ error, retry }: { readonly error: LoadFailure; readonly retry: () => void }) {
+function Failure({ error, retry }: { error: LoadFailure; retry: () => void }) {
   return (
     <Empty className="h-full">
       <EmptyHeader>
@@ -99,9 +99,8 @@ function Failure({ error, retry }: { readonly error: LoadFailure; readonly retry
 }
 
 function Boundary(): ReactNode {
-  // The boundary serves `/`, `/$appId` and `/$appId/$`, so the id comes from
-  // the loose params bag, which TanStack types as `any` without a registered
-  // router instance.
+  // Three routes share this component, so the id comes from the loose params
+  // bag, which TanStack types as `any` without a registered router instance.
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
   const appId: string = useParams({ strict: false }).appId ?? ''
   const [attempt, setAttempt] = useState(0)
@@ -112,30 +111,13 @@ function Boundary(): ReactNode {
   }
 
   return (
-    <Suspense
-      fallback={
-        <Empty className="h-full">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Spinner />
-            </EmptyMedia>
-            <EmptyTitle>Loading {appId}</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
-      }
-    >
+    <Suspense fallback={<Spinner className="m-auto size-6" />}>
       <Mounted key={attempt} appId={appId} retry={retry} />
     </Suspense>
   )
 }
 
-function Mounted({
-  appId,
-  retry,
-}: {
-  readonly appId: string
-  readonly retry: () => void
-}): ReactNode {
+function Mounted({ appId, retry }: { appId: string; retry: () => void }): ReactNode {
   const runtime = useMfeRuntime('the App boundary')
   const error = use(resolveOnce(runtime, appId))
   if (error) return <Failure error={error} retry={retry} />

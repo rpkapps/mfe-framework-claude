@@ -12,11 +12,11 @@ import {
   createMfeError,
   validateAgainstContract,
   validateSerializable,
-  type ContractSchema,
   type MfeError,
   type WidgetContract,
 } from '@company/mfe-core'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { z } from 'zod'
 
 import { assertUsableInputNames, type WidgetDefinition } from './definition.ts'
 import { MfeMountProvider } from './mount-context.tsx'
@@ -46,7 +46,7 @@ export interface WidgetMountProps {
   /** Latest committed handlers, keyed by event name (not by `onX` prop name). */
   readonly handlers: WidgetEventHandlers
   /** Consumer-declared event schemas, when a runtime contract was supplied. */
-  readonly consumerEvents?: Readonly<Record<string, ContractSchema<unknown>>> | undefined
+  readonly consumerEvents?: Readonly<Record<string, z.ZodType>> | undefined
   readonly onInputRejected?: (error: MfeError) => void
 }
 

@@ -5,7 +5,13 @@
  * There is no fallback mode, no feature detection and no per-MFE opt-out.
  */
 
-import postcss, { type AtRule, type ChildNode, type Declaration, type Root, type Rule } from 'postcss'
+import postcss, {
+  type AtRule,
+  type ChildNode,
+  type Declaration,
+  type Root,
+  type Rule,
+} from 'postcss'
 
 import { createBuildError, listNames } from '../diagnostics.ts'
 
@@ -127,7 +133,6 @@ export function transformScopedCss(css: string, options: ScopedCssOptions): stri
   return parts.join('\n\n')
 }
 
-
 function rejectUnsupportedAtRules(root: Root, file: string, scopes: readonly string[]): void {
   root.walkAtRules(atRule => {
     const name = atRule.name.toLowerCase()
@@ -182,7 +187,6 @@ function rejectUnsupportedAtRules(root: Root, file: string, scopes: readonly str
     })
   })
 }
-
 
 function namespacedName(name: string, namespace: string): string {
   return `${name}__${namespace}`
@@ -283,7 +287,6 @@ function replaceTokens(value: string, renames: ReadonlyMap<string, string>): str
   return value.replace(/[A-Za-z_-][\w-]*/g, token => renames.get(token) ?? token)
 }
 
-
 function rewriteSelectors(root: Root, file: string, scopes: readonly string[]): void {
   root.walkRules(rule => {
     if (isInsideKeyframes(rule)) return
@@ -368,7 +371,6 @@ function splitSelectorList(selector: string): readonly string[] {
   parts.push(current.trim())
   return parts.filter(part => part !== '')
 }
-
 
 function positionOf(node: ChildNode): { readonly line?: number; readonly column?: number } {
   const start = node.source?.start

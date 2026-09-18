@@ -5,6 +5,8 @@
  * adapter needs no new vocabulary.
  */
 
+import { arrayEqual } from './observable.ts'
+
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
 
@@ -52,11 +54,7 @@ export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
   if (!a.decision.allowed && !b.decision.allowed && a.decision.reason !== b.decision.reason) {
     return false
   }
-  if (a.placements.length !== b.placements.length) return false
-  for (let index = 0; index < a.placements.length; index += 1) {
-    if (a.placements[index] !== b.placements[index]) return false
-  }
-  return true
+  return arrayEqual(a.placements, b.placements)
 }
 
 /** The identifier field is `key`; `id` stays reserved for definition identity. */

@@ -1,15 +1,9 @@
 /**
- * The render-isolation gate.
+ * The render-isolation gate: framework-induced work, measured.
  *
- * These tests measure framework-induced work: how many commits a subscription
- * causes, how many times validation runs, how many registrations churn. They
- * use isolated probe components so an ordinary parent re-render is never
- * mistaken for subscription fan-out — the probe is the only thing rendered by
- * the change under test.
- *
- * Counting commits rather than asserting rendered output matters, because a
- * cached render can hide excessive upstream work. Where a contract is about the
- * *absence* of work, the count is the assertion.
+ * Isolated probe components keep an ordinary parent re-render from looking like
+ * subscription fan-out, and counting commits rather than asserting output is the
+ * point — a cached render can hide excessive upstream work.
  */
 
 import { act, render, screen } from '@testing-library/react'
@@ -28,8 +22,9 @@ import { allow } from '@company/mfe-core'
 let environment: MfeTestEnvironment | null = null
 
 afterEach(async () => {
-  await environment?.dispose()
+  const current = environment
   environment = null
+  await current?.dispose()
 })
 
 function setup(options?: Parameters<typeof createMfeTestEnvironment>[0]): MfeTestEnvironment {
@@ -102,8 +97,8 @@ describe('shell state fans out only to the field that changed', () => {
   it('a selector narrows the subscription further', () => {
     const env = setup({ shellState: { user: { id: 'u-1', name: 'Ada' } } })
 
-    // Selects a boolean, so a name change that keeps the user signed in is not
-    // a change as far as this consumer is concerned.
+    // Selects a boolean, so a name change that keeps the user signed in is not a
+    // change as far as this consumer is concerned.
     const signedIn = makeProbe('signed-in', () => useUser(user => user != null))
 
     render(
@@ -139,19 +134,22 @@ describe('storage fans out per key', () => {
   const densitySchema = z.enum(['comfortable', 'compact'])
   const localeSchema = z.string()
 
-  it('writing one key does not commit a probe subscribed to a different key', () => {
-    const env = setup()
-
-    let setDensity: ((next: 'comfortable' | 'compact') => void) | null = null
-
-    const density = makeProbe('density', () => {
+  function makeDensityProbe(capture?: (setter: (next: 'comfortable' | 'compact') => void) => void) {
+    return makeProbe('density', () => {
       const [value, setter] = useStoredState('table-density', densitySchema, {
         defaultValue: 'comfortable',
         retention: 'preference',
       })
-      setDensity = setter
+      capture?.(setter)
       return value
     })
+  }
+
+  it('writing one key does not commit a probe subscribed to a different key', () => {
+    const env = setup()
+
+    let setDensity: ((next: 'comfortable' | 'compact') => void) | null = null
+    const density = makeDensityProbe(setter => (setDensity = setter))
 
     const locale = makeProbe('locale', () => {
       const [value] = useStoredState('locale', localeSchema, {
@@ -179,15 +177,7 @@ describe('storage fans out per key', () => {
   it('writing the same value again publishes no changed snapshot', () => {
     const env = setup()
     let setDensity: ((next: 'comfortable' | 'compact') => void) | null = null
-
-    const density = makeProbe('density', () => {
-      const [value, setter] = useStoredState('table-density', densitySchema, {
-        defaultValue: 'comfortable',
-        retention: 'preference',
-      })
-      setDensity = setter
-      return value
-    })
+    const density = makeDensityProbe(setter => (setDensity = setter))
 
     render(
       <env.wrapper>
@@ -205,35 +195,26 @@ describe('storage fans out per key', () => {
 
   it('reading a snapshot repeatedly does not touch the browser store', () => {
     const env = setup()
-    const reads = () => env.runtime.storage.stats().reads
+    // The injected memory area counts its own getItem calls; nothing in the
+    // store has to carry a counter for this.
+    const reads = (): number => env.storageAreas.local.calls.reads
+    const probe = makeDensityProbe()
 
-    const probe = makeProbe('density', () => {
-      const [value] = useStoredState('table-density', densitySchema, {
-        defaultValue: 'comfortable',
-        retention: 'preference',
-      })
-      return value
-    })
-
-    const { rerender } = render(
+    const tree = (
       <env.wrapper>
         <probe.Probe />
-      </env.wrapper>,
+      </env.wrapper>
     )
+    const { rerender } = render(tree)
 
     const afterMount = reads()
 
-    for (let index = 0; index < 5; index += 1) {
-      rerender(
-        <env.wrapper>
-          <probe.Probe />
-        </env.wrapper>,
-      )
-    }
+    for (let index = 0; index < 5; index += 1) rerender(tree)
 
     // The snapshot is cached by its raw serialized form, so re-rendering never
     // re-reads or re-parses.
     expect(reads()).toBe(afterMount)
+    expect(afterMount).toBeGreaterThan(0)
   })
 })
 
@@ -282,9 +263,8 @@ describe('commands publish only when visible state changes', () => {
     const otherCanExecute = vi.fn(() => allow())
     let setLabel: ((next: string) => void) | null = null
 
-    // Separate components, so only the first one re-renders. This is the
-    // isolation that matters: a command's availability check must not run
-    // because something unrelated elsewhere changed.
+    // Separate components, so only the first one re-renders. A command's
+    // availability check must not run because something unrelated changed.
     function RefreshOwner(): ReactNode {
       const [label, setter] = useState('Refresh data')
       setLabel = setter
@@ -367,12 +347,12 @@ describe('Widget inputs and handlers', () => {
     render: ({ inputs }) => <span data-testid="widget-value">{inputs.value}</span>,
   })
 
-  function renderWidgetWith(
+  function widgetTree(
     env: MfeTestEnvironment,
     inputs: Record<string, unknown>,
     handlers: Record<string, (payload: unknown) => void>,
-  ) {
-    return render(
+  ): ReactNode {
+    return (
       <env.wrapper>
         <WidgetMount
           definition={probeWidget}
@@ -380,7 +360,7 @@ describe('Widget inputs and handlers', () => {
           inputs={inputs}
           handlers={handlers}
         />
-      </env.wrapper>,
+      </env.wrapper>
     )
   }
 
@@ -388,23 +368,14 @@ describe('Widget inputs and handlers', () => {
     const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
     const inputs = { value: 'stable' }
 
-    const { rerender } = renderWidgetWith(env, inputs, { changed: () => {} })
-    const parseCount = () => env.telemetry.records.length
+    const { rerender } = render(widgetTree(env, inputs, { changed: () => {} }))
+    const parseCount = (): number => env.telemetry.records.length
 
     const before = parseCount()
 
     // A new handler closure on every render, with the same input object.
     for (let index = 0; index < 3; index += 1) {
-      rerender(
-        <env.wrapper>
-          <WidgetMount
-            definition={probeWidget}
-            mount={env.mount}
-            inputs={inputs}
-            handlers={{ changed: () => index }}
-          />
-        </env.wrapper>,
-      )
+      rerender(widgetTree(env, inputs, { changed: () => index }))
     }
 
     expect(screen.getByTestId('widget-value')).toHaveTextContent('stable')
@@ -414,19 +385,10 @@ describe('Widget inputs and handlers', () => {
   it('an equal but freshly allocated input object does not remount the Widget', () => {
     const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
 
-    const { rerender } = renderWidgetWith(env, { value: 'same' }, {})
+    const { rerender } = render(widgetTree(env, { value: 'same' }, {}))
     const node = screen.getByTestId('widget-value')
 
-    rerender(
-      <env.wrapper>
-        <WidgetMount
-          definition={probeWidget}
-          mount={env.mount}
-          inputs={{ value: 'same' }}
-          handlers={{}}
-        />
-      </env.wrapper>,
-    )
+    rerender(widgetTree(env, { value: 'same' }, {}))
 
     // The same DOM node means component state survived: the inputs compared
     // equal by name and value, so nothing remounted.
@@ -436,19 +398,10 @@ describe('Widget inputs and handlers', () => {
   it('a rejected input update keeps the last valid inputs rendered', () => {
     const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
 
-    const { rerender } = renderWidgetWith(env, { value: 'good' }, {})
+    const { rerender } = render(widgetTree(env, { value: 'good' }, {}))
     expect(screen.getByTestId('widget-value')).toHaveTextContent('good')
 
-    rerender(
-      <env.wrapper>
-        <WidgetMount
-          definition={probeWidget}
-          mount={env.mount}
-          inputs={{ value: 42 }}
-          handlers={{}}
-        />
-      </env.wrapper>,
-    )
+    rerender(widgetTree(env, { value: 42 }, {}))
 
     // The update was rejected; the mount stayed mounted with its last good value.
     expect(screen.getByTestId('widget-value')).toHaveTextContent('good')
@@ -458,7 +411,7 @@ describe('Widget inputs and handlers', () => {
 
 describe('teardown returns resources to baseline', () => {
   it('repeated mount and dispose leaves no commands, subscriptions or overlay roots behind', async () => {
-    const overlayCount = () => document.querySelectorAll('[data-mfe-overlay-root]').length
+    const overlayCount = (): number => document.querySelectorAll('[data-mfe-overlay-root]').length
     const baselineOverlays = overlayCount()
 
     for (let iteration = 0; iteration < 3; iteration += 1) {

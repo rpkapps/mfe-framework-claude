@@ -159,7 +159,6 @@ export function readStaticSchema(
   }
 }
 
-
 function chainOf(
   expression: ts.Expression,
   context: ReadSchemaContext,
@@ -209,7 +208,6 @@ function chainOf(
     current = receiver
   }
 }
-
 
 function readBase(base: ChainStep, context: ReadSchemaContext): JsonObject {
   switch (base.name) {
@@ -300,12 +298,7 @@ function readObject(base: ChainStep, context: ReadSchemaContext): JsonObject {
   }
 }
 
-
-function applyBound(
-  schema: JsonObject,
-  step: ChainStep,
-  context: ReadSchemaContext,
-): JsonObject {
+function applyBound(schema: JsonObject, step: ChainStep, context: ReadSchemaContext): JsonObject {
   const value = readLiteralValue(step.args[0], context, step)
   if (typeof value !== 'number') {
     throw reject(
@@ -384,7 +377,6 @@ function readLiteralValue(
     'Write the value as a JSON literal. The build copies it into the generated JSON Schema and into .env.example, so it cannot be computed.',
   )
 }
-
 
 function nullable(schema: JsonObject): JsonObject {
   return { anyOf: [schema, { type: 'null' }] }

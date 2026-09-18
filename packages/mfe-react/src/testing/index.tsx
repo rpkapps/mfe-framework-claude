@@ -1,22 +1,16 @@
 /**
  * `@company/mfe-react/testing` — supported author testing utilities.
  *
- * This entry is never imported by the production entry and never reaches an
- * author's production bundle. It is for Vitest and React Testing Library, and
- * it is explicitly not a standalone interactive shell or a second
- * authentication system: it supplies isolated providers, explicit fixtures and
- * deterministic cleanup, and nothing else.
- *
- * A helper here never quietly supplies live credentials, and it does not claim
- * federation, CSS layout or real authenticated integration coverage. Those
- * remain browser tests against real builds.
+ * Never imported by the production entry. It supplies isolated providers,
+ * explicit fixtures and deterministic cleanup for Vitest and React Testing
+ * Library — never live credentials, and no claim to cover federation, CSS layout
+ * or real authenticated integration. Those remain browser tests against builds.
  */
 
 import {
   DEFAULT_DEADLINES,
   DiagnosticsHub,
   type Diagnostic,
-  type ShellState,
   type ShellTheme,
   type ShellUser,
 } from '@company/mfe-core'
@@ -33,14 +27,14 @@ import {
   SharedContainerLoader,
   ShellStateStore,
   type LoadedDefinition,
+  type MemoryStorageArea,
   type RecordingTelemetryProvider,
 } from '@company/mfe-host'
 import { act, render, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import { AppMount } from '../app-mount.tsx'
+import { AppMount, createRouterContext } from '../app-mount.tsx'
 import { createMount } from '../create-runtime.ts'
-import { createRouterContext } from '../app-mount.tsx'
 import { MfeProvider } from '../runtime-context.tsx'
 import { MfeMountProvider } from '../mount-context.tsx'
 import { WidgetMount, declaredEventNames, partitionWidgetProps } from '../widget-mount.tsx'
@@ -79,20 +73,18 @@ export interface MfeTestEnvironment {
   readonly telemetry: RecordingTelemetryProvider
   readonly diagnostics: readonly Diagnostic[]
   readonly navigation: ReturnType<typeof createMemoryNavigationBridge>
+  /** The injected browser stores, which count the calls made against them. */
+  readonly storageAreas: {
+    readonly local: MemoryStorageArea
+    readonly session: MemoryStorageArea
+  }
   dispose(): Promise<void>
 }
 
-const DEFAULT_SHELL_STATE: ShellState = Object.freeze({
-  user: Object.freeze({ id: 'test-user', name: 'Test User' }),
-  groups: Object.freeze(['testers']),
-  theme: 'light' as const,
-})
-
 /**
- * Builds a single simulated mount with explicit fixtures.
- *
- * Every environment is independent: separate stores, separate storage areas and
- * separate recorded telemetry, so no singleton leaks state between tests.
+ * Builds a single simulated mount with explicit fixtures. Every environment is
+ * independent — separate stores, storage areas and recorded telemetry — so no
+ * singleton leaks state between tests.
  */
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
@@ -105,13 +97,17 @@ export function createMfeTestEnvironment(
   diagnostics.add(diagnostic => recorded.push(diagnostic))
 
   const shellState = new ShellStateStore({
-    user: options.shellState?.user ?? DEFAULT_SHELL_STATE.user,
-    groups: options.shellState?.groups ?? DEFAULT_SHELL_STATE.groups,
-    theme: options.shellState?.theme ?? DEFAULT_SHELL_STATE.theme,
+    user: options.shellState?.user ?? { id: 'test-user', name: 'Test User' },
+    groups: options.shellState?.groups ?? ['testers'],
+    theme: options.shellState?.theme ?? 'light',
   })
 
+  const storageAreas = {
+    local: createMemoryStorageArea(),
+    session: createMemoryStorageArea(),
+  }
   const storage = new MfeStorageStore({
-    areas: { local: createMemoryStorageArea(), session: createMemoryStorageArea() },
+    areas: storageAreas,
     diagnostics,
     eventTarget: null,
     sessionGeneration: options.sessionGeneration ?? 'test-session',
@@ -137,11 +133,11 @@ export function createMfeTestEnvironment(
   const runtime: MfeRuntime = {
     registry: {
       entries: new Map(
-        [...loadable.keys()].map(id => [
+        [...loadable].map(([id, loaded]) => [
           id,
           {
             id,
-            definitionKind: loadable.get(id)?.identity.kind ?? 'app',
+            definitionKind: loaded.identity.kind,
             adapter: 'react' as const,
             manifestUrl: `memory://${id}`,
           },
@@ -160,9 +156,9 @@ export function createMfeTestEnvironment(
     deadlines: DEFAULT_DEADLINES,
   }
 
-  // Generations are minted per transition so a test can exercise the real
-  // fencing behaviour: records written under a retired generation must not come
-  // back when the same user or group set returns.
+  // Generations are minted per transition so a test exercises the real fencing:
+  // records written under a retired generation must not come back when the same
+  // user or group set returns.
   let generation = 0
   const stopWatchingSession = shellState.observeTransitions(change => {
     if (!requiresSessionRetirement(change.transitions)) return
@@ -187,16 +183,14 @@ export function createMfeTestEnvironment(
     ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
   })
 
-  const wrapper = ({ children }: { readonly children: ReactNode }): ReactNode => (
-    <MfeProvider runtime={runtime}>
-      <MfeMountProvider mount={handle.mount}>{children}</MfeMountProvider>
-    </MfeProvider>
-  )
-
   return {
     runtime,
     mount: handle.mount,
-    wrapper,
+    wrapper: ({ children }) => (
+      <MfeProvider runtime={runtime}>
+        <MfeMountProvider mount={handle.mount}>{children}</MfeMountProvider>
+      </MfeProvider>
+    ),
     routerContext: createRouterContext(handle.mount),
     // Wrapped in `act` so updates land inside the test's normal React boundary.
     setShellState: patch => {
@@ -207,6 +201,7 @@ export function createMfeTestEnvironment(
     telemetry: telemetryProvider,
     diagnostics: recorded,
     navigation,
+    storageAreas,
     dispose: async () => {
       stopWatchingSession()
       await handle.dispose()
@@ -222,19 +217,15 @@ export function createMfeTestEnvironment(
 /**
  * Renders a tree that will suspend, inside an awaited act scope.
  *
- * Anything that loads a definition suspends on first render, and React warns
- * — then leaves the tree stuck on its fallback — when a component suspends
- * inside an act scope that was never awaited. Plain `render()` from React
- * Testing Library is exactly that case, so every test consuming a lazy Widget
- * or a hosted App would otherwise have to remember this wrapper.
- *
- * It composes with React Testing Library rather than replacing it: the result
- * is an ordinary `RenderResult`.
+ * Anything that loads a definition suspends on first render, and React warns —
+ * then leaves the tree stuck on its fallback — when a component suspends inside
+ * an act scope that was never awaited, which is exactly what plain `render()`
+ * is. The result is an ordinary `RenderResult`.
  */
 export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
   let result: RenderResult | undefined
 
-  await act(async () => {
+  await act(() => {
     result = render(<>{ui}</>)
   })
 
@@ -242,18 +233,29 @@ export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
   return result
 }
 
-export interface RenderAppOptions extends MfeTestEnvironmentOptions {
-  readonly basePath?: string
-}
+export type RenderAppOptions = MfeTestEnvironmentOptions
 
 export interface RenderedMfe extends RenderResult {
   readonly environment: MfeTestEnvironment
   dispose(): Promise<void>
 }
 
+function renderInto(environment: MfeTestEnvironment, ui: ReactNode): RenderedMfe {
+  const result = render(<MfeProvider runtime={environment.runtime}>{ui}</MfeProvider>)
+
+  return {
+    ...result,
+    environment,
+    dispose: async () => {
+      result.unmount()
+      await environment.dispose()
+    },
+  }
+}
+
 /**
- * Renders a real App definition through the same adapter production uses, with
- * a test-owned memory history. No global History patch is involved.
+ * Renders a real App definition through the same adapter production uses, with a
+ * test-owned memory history. No global History patch is involved.
  */
 export function renderApp(definition: AppDefinition, options: RenderAppOptions = {}): RenderedMfe {
   const environment = createMfeTestEnvironment({
@@ -265,24 +267,14 @@ export function renderApp(definition: AppDefinition, options: RenderAppOptions =
     definitions: [...(options.definitions ?? []), definition],
   })
 
-  const result = render(
-    <MfeProvider runtime={environment.runtime}>
-      <AppMount
-        definition={definition}
-        mount={environment.mount}
-        bridge={environment.runtime.navigator}
-      />
-    </MfeProvider>,
-  )
-
-  return {
-    ...result,
+  return renderInto(
     environment,
-    dispose: async () => {
-      result.unmount()
-      await environment.dispose()
-    },
-  }
+    <AppMount
+      definition={definition}
+      mount={environment.mount}
+      bridge={environment.runtime.navigator}
+    />,
+  )
 }
 
 export interface RenderWidgetOptions extends MfeTestEnvironmentOptions {
@@ -307,24 +299,14 @@ export function renderWidget(
     declaredEventNames(definition.contract),
   )
 
-  const result = render(
-    <MfeProvider runtime={environment.runtime}>
-      <WidgetMount
-        definition={definition}
-        mount={environment.mount}
-        inputs={inputs}
-        handlers={handlers}
-        consumerEvents={definition.contract.events}
-      />
-    </MfeProvider>,
-  )
-
-  return {
-    ...result,
+  return renderInto(
     environment,
-    dispose: async () => {
-      result.unmount()
-      await environment.dispose()
-    },
-  }
+    <WidgetMount
+      definition={definition}
+      mount={environment.mount}
+      inputs={inputs}
+      handlers={handlers}
+      consumerEvents={definition.contract.events}
+    />,
+  )
 }

@@ -77,7 +77,10 @@ interface CopyState {
 interface Ctx {
   readonly sourceFile: ts.SourceFile
   readonly entryFile: string
-  readonly factory: { readonly options: ts.ObjectLiteralExpression; readonly call: ts.CallExpression }
+  readonly factory: {
+    readonly options: ts.ObjectLiteralExpression
+    readonly call: ts.CallExpression
+  }
   readonly id: string
   readonly imports: ReadonlyMap<string, ImportedBinding>
   readonly topLevel: ReadonlyMap<string, ts.Expression>
@@ -224,7 +227,6 @@ function optionProperty(
   return undefined
 }
 
-
 function copyIdentifier(
   context: Ctx,
   field: string,
@@ -325,7 +327,6 @@ function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
   return [...used]
 }
 
-
 /**
  * The declared field names of `z.object({ … })` or of an events map. Empty when
  * the shape is not a literal the build can read: the names drive validation,
@@ -365,7 +366,6 @@ function literalKeys(object: ts.ObjectLiteralExpression): readonly string[] {
   }
   return keys
 }
-
 
 /** Resolves a relative specifier to a file on disk, or `null` for a bare one. */
 function resolveRelativeModule(fromFile: string, specifier: string): string | null {

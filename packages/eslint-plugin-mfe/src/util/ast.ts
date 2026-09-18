@@ -1,9 +1,7 @@
 /**
- * Narrow AST aliases derived from ESLint's own rule types.
- *
- * The `estree` types are not a direct dependency of this package, so every node
- * type used by a rule is extracted from `Rule.Node` instead of imported. That
- * keeps the rules typed without adding a dependency the runtime does not need.
+ * Narrow AST aliases derived from ESLint's own rule types. `estree` is not a
+ * direct dependency, so every node type a rule uses is extracted from
+ * `Rule.Node` rather than imported.
  */
 
 import type { Rule } from 'eslint'
@@ -17,9 +15,8 @@ export type MemberExpression = NodeOfType<'MemberExpression'>
 export type CallExpression = NodeOfType<'CallExpression'>
 
 /**
- * ESLint attaches `parent` to every node before a rule ever sees it, but the
- * published node types only say so for nodes reached through a listener. This
- * is that fact, spelled once, instead of an assertion at each use site.
+ * ESLint attaches `parent` to every node before a rule sees it, but the
+ * published types only say so for nodes reached through a listener.
  */
 export function asNode(value: unknown): AnyNode {
   return value as AnyNode

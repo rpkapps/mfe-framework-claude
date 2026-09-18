@@ -16,7 +16,11 @@ import type {
   TelemetryProvider,
 } from '@company/mfe-core'
 
-import { MountTelemetryRuntime, type TelemetryCounters, type TelemetryRuntimeOptions } from './runtime.ts'
+import {
+  MountTelemetryRuntime,
+  type TelemetryCounters,
+  type TelemetryRuntimeOptions,
+} from './runtime.ts'
 import { MountTracer } from './tracer.ts'
 
 export interface MountTelemetryOptions extends TelemetryRuntimeOptions {

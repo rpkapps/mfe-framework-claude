@@ -1,15 +1,9 @@
 /**
- * The Module Federation container loader.
- *
- * This is the one place in the framework that knows federation exists. The
- * neutral host orchestrates loading through a port; this implements that port.
- * Authors never see a container name, an expose path, a manifest, a share scope
- * or a registration call — the registry entry carries what is needed, the
- * loader resolves it, and everything above this file deals in definitions.
- *
- * It lives in the React adapter because the adapter is the package that already
- * depends on React and the design system, which are the singletons the share
- * scope has to resolve consistently.
+ * The Module Federation container loader: the one place in the framework that
+ * knows federation exists. The neutral host orchestrates loading through a port
+ * and this implements it, so nothing above this file sees a container name, an
+ * expose path or a share scope. It lives in the React adapter because that is
+ * the package that already depends on the singletons the share scope resolves.
  */
 
 import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -28,23 +22,17 @@ interface FederationRuntime {
 
 export interface Mf2LoaderOptions {
   /**
-   * The federation runtime. Injected so tests and the in-process path never
-   * have to load the real runtime, and so this module has no import-time
-   * side effects.
+   * Injected so tests and the in-process path never load the real runtime, and
+   * so this module has no import-time side effects.
    */
   readonly runtime: FederationRuntime
-}
-
-interface AdapterData {
-  readonly containerName?: unknown
-  readonly exposeName?: unknown
 }
 
 function readAdapterData(entry: NeutralRegistryEntry): {
   containerName: string
   exposeName: string
 } {
-  const data = entry.adapterData as AdapterData | undefined
+  const data = entry.adapterData as { containerName?: unknown; exposeName?: unknown } | undefined
 
   if (typeof data?.containerName !== 'string' || data.containerName === '') {
     throw createMfeError({
@@ -54,8 +42,7 @@ function readAdapterData(entry: NeutralRegistryEntry): {
       expected: 'a container name in the generated registry descriptor',
       observed: 'none',
       declaredBy: 'The build plugin, which emits the descriptor',
-      repair:
-        'Rebuild the container so its descriptor is regenerated. Registry JSON is generated, never hand-written.',
+      repair: 'Rebuild the container; registry JSON is generated, never hand-written.',
     })
   }
 
@@ -70,12 +57,9 @@ function readAdapterData(entry: NeutralRegistryEntry): {
 }
 
 /**
- * Creates the federation-backed loader.
- *
  * Registration is idempotent per container: several definitions exported by one
  * container register it once, which is also why a developer override has to be
- * consistent across that container's exports and why changing one requires a
- * reload rather than a remount.
+ * consistent across that container's exports.
  */
 export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLoader {
   const registered = new Set<string>()
@@ -96,7 +80,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
             id: entry.id,
             operation: 'register federation container',
             declaredBy: 'The federation runtime',
-            repair: `Check that ${entry.manifestUrl} is reachable and serves a valid manifest. In development this is the URL your dev command printed.`,
+            repair: `Check that ${entry.manifestUrl} is reachable and serves a valid manifest.`,
           })
         }
       }
@@ -113,7 +97,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
           operation: 'load federation entry',
           declaredBy: 'The federation runtime',
           repair:
-            'Check the browser network panel for the failed chunk. A version conflict on a shared singleton reports itself separately as a share conflict.',
+            'Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.',
         })
       }
 
@@ -129,8 +113,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
           expected: `a ${entry.definitionKind} definition, as the registry advertises`,
           observed: `a ${definition.kind} definition`,
           declaredBy: 'The shell registry',
-          repair:
-            'Rebuild the container so its descriptor matches what src/mfe.ts exports. Apps take URLs; Widgets take props.',
+          repair: 'Rebuild the container so its descriptor matches what src/mfe.ts exports.',
         })
       }
 
@@ -149,12 +132,9 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
 }
 
 /**
- * Finds the definition in a loaded module.
- *
  * A container may export one App, one or more Widgets, or both, and a default
  * export is allowed when there is exactly one definition. The generated entry
- * narrows this to a single definition per expose path, so in practice this
- * picks the default or the single named export.
+ * narrows this to a single definition per expose path.
  */
 function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
   if (isMfeDefinition(moduleExports)) return moduleExports
@@ -174,7 +154,7 @@ function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
         expected: `exactly one definition, or one whose id is "${id}"`,
         observed: `${candidates.length} definitions (${candidates.map(c => c.id).join(', ')})`,
         declaredBy: 'The framework definition contract',
-        repair: 'Rebuild the container; the generated entry should expose one definition per path.',
+        repair: 'Rebuild the container; the generated entry exposes one definition per path.',
       })
     }
   }

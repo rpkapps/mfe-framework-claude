@@ -12,7 +12,7 @@
  * (`bg-destructive-surface`) or a Tecton step (`bg-blue-120 text-blue-830`).
  */
 
-@import "@tecton/react/globals.css";
+@import '@tecton/react/globals.css';
 
 @source "../**/*.{ts,tsx}";
 

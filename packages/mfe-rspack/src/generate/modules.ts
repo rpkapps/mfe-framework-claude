@@ -33,7 +33,6 @@ export const ALIASES = {
   meta: '#mfe/meta',
 } as const
 
-
 /**
  * Loads `runtime-config.json` — values only, no envelope — applies the schema
  * defaults the author declared, validates and freezes. Every failure throws
@@ -53,7 +52,9 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
       )} },`,
   )
   const fieldUnion =
-    source.fields.length === 0 ? 'never' : source.fields.map(field => quote(field.field)).join(' | ')
+    source.fields.length === 0
+      ? 'never'
+      : source.fields.map(field => quote(field.field)).join(' | ')
 
   return {
     path: file,
@@ -243,7 +244,6 @@ const CONFIG_VALIDATE = [
   '}',
 ].join('\n')
 
-
 /**
  * Importing a bound fetch is the whole point: the global one is never replaced,
  * so nothing a container does here changes what the shell or another container
@@ -286,10 +286,10 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
   }
 }
 
-
 export function metaModule(context: GenerateContext, buildHash: string): GeneratedFile {
   const rows = context.discovery.definitions.map(definition => {
-    const version = definition.version === undefined ? '' : `, version: ${quote(definition.version)}`
+    const version =
+      definition.version === undefined ? '' : `, version: ${quote(definition.version)}`
     return `  { id: ${quote(definition.id)}, kind: ${quote(definition.kind)}${version} },`
   })
 
@@ -319,13 +319,15 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
   }
 }
 
-
 /** Generated, and not public API. */
 export function exposeName(definition: DiscoveredDefinition): string {
   return definition.kind === 'app' ? './app' : `./widgets/${definition.id}`
 }
 
-export function entryModulePath(context: GenerateContext, definition: DiscoveredDefinition): string {
+export function entryModulePath(
+  context: GenerateContext,
+  definition: DiscoveredDefinition,
+): string {
   return definition.kind === 'app'
     ? generatedPath(context.options.generatedDir, 'entries', 'app.ts')
     : generatedPath(context.options.generatedDir, 'entries', 'widgets', `${definition.id}.ts`)
@@ -359,7 +361,6 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
   })
 }
 
-
 /**
  * One side-effect-free module per exported Widget. A consumer imports it for
  * types and for validation on its own side, so it has to reach the schemas
@@ -373,7 +374,10 @@ export function widgetContractModules(context: GenerateContext): readonly Genera
     .map(widget => widgetContractModule(context, widget))
 }
 
-function widgetContractModule(context: GenerateContext, widget: DiscoveredDefinition): GeneratedFile {
+function widgetContractModule(
+  context: GenerateContext,
+  widget: DiscoveredDefinition,
+): GeneratedFile {
   const source = widget.contractSource as WidgetContractSource
   const file = generatedPath(context.options.generatedDir, 'widgets', `${widget.id}.contract.ts`)
 
@@ -386,7 +390,9 @@ function widgetContractModule(context: GenerateContext, widget: DiscoveredDefini
     const specifier = entry.isFile ? relativeSpecifier(file, entry.module) : entry.module
     const names = [...entry.names]
       .sort((left, right) => (left.local < right.local ? -1 : 1))
-      .map(name => (name.imported === name.local ? name.local : `${name.imported} as ${name.local}`))
+      .map(name =>
+        name.imported === name.local ? name.local : `${name.imported} as ${name.local}`,
+      )
     for (const name of entry.names) boundNames.add(name.local)
     importLines.push(`import { ${names.join(', ')} } from ${quote(specifier)}`)
   }

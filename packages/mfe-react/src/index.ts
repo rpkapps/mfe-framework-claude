@@ -4,15 +4,10 @@
  * The getting-started surface is deliberately tiny: `createApp` or
  * `createWidget`, an `id`, your own route tree, and the generated `#mfe/config`
  * and `#mfe/fetch` modules. Everything else here is discovered when a need
- * arises, and is absent from the quickstart.
- *
- * Nothing in the public API is named after the framework where a plain name
- * works: `useCommand` and `useBreadcrumbs`, not `useMfeCommands`. The `useMfe*`
- * prefix is reserved for the imperative storage accessor and the mount signal,
- * where the qualifier genuinely disambiguates.
+ * arises. Nothing is named after the framework where a plain name works, so the
+ * `useMfe*` prefix is reserved for where the qualifier disambiguates.
  */
 
-/* Definitions — the one call an author makes in src/mfe.ts */
 export {
   createApp,
   createWidget,
@@ -25,7 +20,6 @@ export {
   type WidgetRenderProps,
 } from './definition.ts'
 
-/* Router contract */
 export {
   RESERVED_CONTEXT_KEYS,
   type AppRouterOptions,
@@ -35,7 +29,6 @@ export {
   type ReservedContextKey,
 } from './router-contract.ts'
 
-/* Hosting Apps and Widgets */
 export {
   AppHost,
   mfeRoute,
@@ -51,10 +44,8 @@ export {
   type WidgetFallbackProps,
 } from './lazy-widget.tsx'
 
-/* Shell-state hooks, live in Apps and independently mounted Widgets alike */
 export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 
-/* Service hooks */
 export { useBasePath, useMfeSignal, useMfeStorage, useTelemetry } from './hooks/services.ts'
 export { useCommand } from './hooks/use-command.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
@@ -65,11 +56,9 @@ export {
 } from './hooks/use-stored-state.ts'
 
 /**
- * Framework-owned telemetry and tracing types and constants.
- *
- * These are re-exported from the neutral core rather than aliased from a vendor
- * package: an author's declarations and bundles must never have to resolve
- * `@opentelemetry/*` or `@grafana/faro-*`.
+ * Telemetry and tracing come from the neutral core rather than aliased from a
+ * vendor package: an author's declarations and bundles must never have to
+ * resolve `@opentelemetry/*` or `@grafana/faro-*`.
  */
 export {
   SpanKind,

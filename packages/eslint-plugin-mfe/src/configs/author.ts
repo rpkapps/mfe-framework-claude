@@ -1,12 +1,8 @@
 /**
- * The `author` preset: for MFE Apps and Widgets, that is the code in
- * `examples/*` and in every product repository that ships an MFE.
- *
- * An author's constraints are the mirror image of the framework's. Application
- * state libraries are fine, and zustand is expected. Reaching into framework
- * internals, owning the React root, shipping a telemetry SDK or writing raw Web
- * Storage are not, because each of them turns a fragment into something that
- * behaves like the whole page.
+ * The `author` preset, for MFE Apps and Widgets. An author's constraints mirror
+ * the framework's: application state libraries are expected, while reaching into
+ * framework internals, owning the React root, shipping a telemetry SDK or
+ * writing raw Web Storage each turn a fragment into something page-shaped.
  */
 
 import type { Linter } from 'eslint'
@@ -53,24 +49,17 @@ export interface AuthorPresetOptions {
   /** Files the preset applies to. Defaults to every TypeScript file. */
   readonly files?: readonly string[] | undefined
   /**
-   * Files the React and React Compiler rules apply to. Defaults to `files`.
-   *
-   * Narrow it to the packages that actually contain React: a package without
-   * React gets false positives from any API whose name collides with a hook,
-   * and the repair is to stop applying React rules there rather than to
-   * suppress them one by one. Always intersected with `files`.
+   * Files the React and React Compiler rules apply to, always intersected with
+   * `files`. Defaults to `files`; narrow it to the packages that contain React,
+   * because elsewhere any API whose name collides with a hook reports falsely.
    */
   readonly reactFiles?: readonly string[] | undefined
   /**
    * Widget-owned sources. `mfe/no-widget-global-effects` reports only inside
-   * these globs; with none configured it is inert, because Widget ownership is
-   * declared, never inferred from a file name.
+   * these globs and is inert with none configured.
    */
   readonly widgetScopes?: readonly string[] | undefined
-  /**
-   * Files allowed to touch Web Storage directly, normally only a documented
-   * shell override bootstrap.
-   */
+  /** Files allowed to touch Web Storage directly. */
   readonly storageAllowedScopes?: readonly string[] | undefined
   /** Where the TanStack Router rules apply. */
   readonly routerFiles?: readonly string[] | undefined
@@ -91,7 +80,7 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
   const extraPatterns = options.extraRestrictedPatterns ?? []
 
   return [
-    { ...eslintRecommended(), files: [...files] },
+    eslintRecommended(files),
     languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
     ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
     asyncCorrectness(files),

@@ -129,7 +129,6 @@ function asFactoryCall(
   return { kind, call: node, options: unwrapExpression(first) as ts.ObjectLiteralExpression }
 }
 
-
 function collectExportedBindings(
   sourceFile: ts.SourceFile,
   topLevel: ReadonlyMap<string, ts.Expression>,
@@ -137,8 +136,10 @@ function collectExportedBindings(
   const bindings: ExportedBinding[] = []
 
   for (const statement of sourceFile.statements) {
-    const modifiers = ts.isVariableStatement(statement) ? (ts.getModifiers(statement) ?? []) : []
-    if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+    if (
+      ts.isVariableStatement(statement) &&
+      (ts.getModifiers(statement) ?? []).some(m => m.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
       for (const declaration of statement.declarationList.declarations) {
         if (!ts.isIdentifier(declaration.name)) continue
         if (declaration.initializer === undefined) continue
@@ -223,7 +224,6 @@ function assertEveryDefinitionIsExported(
     })
   })
 }
-
 
 function readDefinition(
   sourceFile: ts.SourceFile,
@@ -333,7 +333,6 @@ function readVersion(
 
   return value
 }
-
 
 function assertContainerShape(
   entryFile: string,

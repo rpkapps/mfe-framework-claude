@@ -14,13 +14,12 @@ export {
   type MountTelemetryOptions,
 } from './service.ts'
 
-export { type TelemetryCounters } from './runtime.ts'
-
 export {
   isReservedAttributeKey,
   RESERVED_ATTRIBUTE_KEYS,
   type ReservedAttributeKey,
-} from './attribution.ts'
+  type TelemetryCounters,
+} from './runtime.ts'
 
 export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './context.ts'
 
@@ -28,7 +27,7 @@ export {
   createNonRecordingTracer,
   createNoopTelemetryProvider,
   nonRecordingSpan,
-} from './non-recording.ts'
+} from './tracer.ts'
 
 export {
   createRecordingTelemetryProvider,

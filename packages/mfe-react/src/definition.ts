@@ -14,11 +14,11 @@ import {
   isValidEventName,
   type ContractEvents,
   type ContractInputs,
-  type ContractSchema,
   type WidgetContract,
 } from '@company/mfe-core'
 import type { AnyRouter } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import type { z } from 'zod'
 
 import type { AppRouterOptions } from './router-contract.ts'
 
@@ -87,8 +87,8 @@ export interface WidgetRenderProps<C extends WidgetContract> {
 }
 
 export interface WidgetOptions<
-  Inputs extends ContractSchema<unknown>,
-  Events extends Record<string, ContractSchema<unknown>>,
+  Inputs extends z.ZodType,
+  Events extends Record<string, z.ZodType>,
 > {
   readonly id: string
   readonly version?: string
@@ -98,8 +98,8 @@ export interface WidgetOptions<
 }
 
 export interface WidgetDefinition<
-  Inputs extends ContractSchema<unknown> = ContractSchema<unknown>,
-  Events extends Record<string, ContractSchema<unknown>> = Record<string, ContractSchema<unknown>>,
+  Inputs extends z.ZodType = z.ZodType,
+  Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
 > {
   readonly [DEFINITION_BRAND]: true
   readonly kind: 'widget'
@@ -110,8 +110,8 @@ export interface WidgetDefinition<
 }
 
 export function createWidget<
-  Inputs extends ContractSchema<unknown>,
-  Events extends Record<string, ContractSchema<unknown>>,
+  Inputs extends z.ZodType,
+  Events extends Record<string, z.ZodType>,
 >(options: WidgetOptions<Inputs, Events>): WidgetDefinition<Inputs, Events> {
   assertValidId(options.id, 'createWidget')
   assertUsableEventNames(options.id, options.events)
@@ -168,7 +168,7 @@ function assertValidId(id: unknown, operation: string): asserts id is string {
  * their `on`-prefixed props, since two events mapping to one handler prop would
  * make a consumer's subscription ambiguous.
  */
-function assertUsableEventNames(id: string, events: Record<string, ContractSchema<unknown>>): void {
+function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
   const handlerProps = new Map<string, string>()
 
   for (const name of Object.keys(events)) {

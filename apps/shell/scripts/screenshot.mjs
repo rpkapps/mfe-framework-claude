@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 /**
- * Screenshots the running shell so the header can be compared against the
- * design. Expects `pnpm --filter @company/shell dev` on port 3000.
- *
+ * Screenshots the running shell. Expects `dev` on port 3000.
  * Usage: node scripts/screenshot.mjs [path] [outfile]
  */
 
@@ -16,10 +14,11 @@ const shellRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const outfile = resolve(shellRoot, process.argv[3] ?? 'docs/shell-header.png')
 
 // This machine's preinstalled Chromium is a build behind the one this
-// Playwright release downloads, and downloading browsers is not part of
-// running the shell.
+// Playwright release downloads, and downloading browsers is out of scope.
 const preinstalled = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
-const browser = await chromium.launch(existsSync(preinstalled) ? { executablePath: preinstalled } : {})
+const browser = await chromium.launch(
+  existsSync(preinstalled) ? { executablePath: preinstalled } : {},
+)
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
 
 const problems = []
@@ -34,7 +33,10 @@ await mkdir(dirname(outfile), { recursive: true })
 await page.screenshot({ path: outfile })
 
 console.log('url:', page.url())
-console.log('header:', (await page.locator('[data-slot="shell-header"]').innerText()).replace(/\n/g, ' | '))
+console.log(
+  'header:',
+  (await page.locator('[data-slot="shell-header"]').innerText()).replace(/\n/g, ' | '),
+)
 console.log('console errors:', problems.length === 0 ? '(none)' : problems.join(' ;; '))
 console.log('written:', outfile)
 

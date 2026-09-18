@@ -44,11 +44,10 @@ export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn
 
 /**
  * Captures the active context now and restores it for every later invocation of
- * the returned function. This is the supported way to keep a continuation
- * correlated: a span started after an `await` has no ambient context and would
- * otherwise become a root — never a wrong parent, but never a child either.
- * Create the wrapper while the span is still active, then hand the wrapper to
- * the timer, listener or promise callback.
+ * the returned function. A span started after an `await` has no ambient context
+ * and becomes a root — never a wrong parent, but never a child either — so this
+ * is the supported way to keep a continuation correlated. Create the wrapper
+ * while the span is still active, then hand it to the timer or callback.
  */
 export function bindTelemetryContext<A extends readonly unknown[], R>(
   fn: (...args: A) => R,

@@ -84,7 +84,6 @@ export function registryDescriptorFile(
   }
 }
 
-
 /**
  * `additionalProperties: false` is deliberate: an undeclared key is almost
  * always a misspelled declared one, and accepting it silently would let the
@@ -122,7 +121,6 @@ export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile
     contents: jsonFile(schema),
   }
 }
-
 
 /**
  * The environment variables a deployment has to provide, derived from the
@@ -162,7 +160,6 @@ export function envExampleFile(context: GenerateContext): GeneratedFile | null {
     contents: `${lines.join('\n')}\n`,
   }
 }
-
 
 /** A container extends this from its own tsconfig, so `#mfe/*` resolves once. */
 export function tsconfigPathsFile(context: GenerateContext): GeneratedFile {

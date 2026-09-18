@@ -12,5 +12,3 @@ export const rules: Record<string, Rule.RuleModule> = {
   'no-widget-global-effects': noWidgetGlobalEffects,
   'stable-definitions': stableDefinitions,
 }
-
-export { noGlobalPatching, noRawStorage, noWidgetGlobalEffects, stableDefinitions }

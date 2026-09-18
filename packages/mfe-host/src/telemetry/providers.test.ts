@@ -12,7 +12,7 @@ import {
   createNonRecordingTracer,
   createNoopTelemetryProvider,
   nonRecordingSpan,
-} from './non-recording.ts'
+} from './tracer.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 
@@ -50,7 +50,7 @@ describe('the recording provider', () => {
     telemetry.framework('mount', { message: 'mounted' })
 
     expect(provider.records).toHaveLength(6)
-    expect(provider.recordsOfKind('event')).toHaveLength(2)
+    expect(provider.events()).toHaveLength(2)
     expect(provider.events('checkout.started')).toHaveLength(1)
     expect(provider.logs()).toHaveLength(2)
     expect(provider.logs('warn')).toHaveLength(1)

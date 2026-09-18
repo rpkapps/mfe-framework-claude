@@ -59,7 +59,11 @@ class MfeBuildError extends Error {
 function composeBuildMessage(details: BuildDiagnosticDetails): string {
   const { file, line, column } = details
   const location =
-    line === undefined ? file : column === undefined ? `${file}:${line}` : `${file}:${line}:${column}`
+    line === undefined
+      ? file
+      : column === undefined
+        ? `${file}:${line}`
+        : `${file}:${line}:${column}`
   const subject = details.id === undefined ? 'the build' : `'${details.id}'`
 
   const sentences = [

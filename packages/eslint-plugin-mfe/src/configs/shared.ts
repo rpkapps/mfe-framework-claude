@@ -82,14 +82,14 @@ export function withFiles(
  * second copy of ESLint's metadata; the recommended set is exactly the built-in
  * rules whose own metadata says `recommended: true`.
  */
-export function eslintRecommended(): Linter.Config {
+export function eslintRecommended(files: readonly string[]): Linter.Config {
   const rules: Partial<Linter.RulesRecord> = {}
   for (const [name, rule] of builtinRules) {
     if (rule.meta?.docs?.recommended === true && rule.meta.deprecated === undefined) {
       rules[name] = 'error'
     }
   }
-  return { name: 'mfe/eslint-recommended', rules }
+  return { name: 'mfe/eslint-recommended', files: [...files], rules }
 }
 
 /** The MFE plugin itself, registered under the `mfe` namespace. */

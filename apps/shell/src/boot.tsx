@@ -80,7 +80,14 @@ const { runtime, activeOverrides } = createMfeRuntime({
 
 notices.overrides = activeOverrides
 
-createRoot(container).render(
+// Hot reload re-executes this module, and a second createRoot on the same
+// container orphans the first.
+declare global {
+  var shellRoot: ReturnType<typeof createRoot> | undefined
+}
+globalThis.shellRoot ??= createRoot(container)
+
+globalThis.shellRoot.render(
   <StrictMode>
     <MfeProvider runtime={runtime}>
       <RouterProvider router={createShellRouter(runtime)} />

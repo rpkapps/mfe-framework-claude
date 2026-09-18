@@ -1,19 +1,13 @@
 // @ts-check
 /**
- * Shell build. The shell is the federation *host*: it consumes remote
- * containers and is never itself a container, so it does not use `mfePlugin()`
- * from @company/mfe-rspack. It only needs a share scope the remotes can join.
+ * Shell build. The shell is the federation *host*: it consumes containers and
+ * is never one, so it does not use `mfePlugin()` from @company/mfe-rspack — it
+ * only needs a share scope the remotes can join.
  *
- * Two settings carry the @tecton/react integration:
- *
- *  - `resolve.modules` names this workspace's node_modules by absolute path.
- *    The design system is a link to a neighbouring checkout that has no
- *    node_modules of its own, so walking up from its files finds nothing;
- *    naming the directories explicitly is what lets `react`,
- *    `react-aria-components` and the rest resolve — and resolve to *this*
- *    workspace's single copy, which is what keeps React a singleton.
- *  - the TypeScript rule has no `node_modules` exclusion, because @tecton/react
- *    ships unbuilt TSX and this build is what transpiles it.
+ * @tecton/react is a link to a neighbouring checkout with no node_modules of
+ * its own, which is why `resolve.modules` and `NODE_PATH` below name this
+ * workspace's directories absolutely, and why the TypeScript rule has no
+ * node_modules exclusion: this build is what transpiles its TSX.
  */
 
 import { createRequire } from 'node:module'
@@ -28,14 +22,9 @@ const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
 /**
- * Tailwind resolves the `@import`s it finds *inside* a stylesheet from that
- * stylesheet's real location, and the design system's real location is a
- * neighbouring checkout with no node_modules of its own. Tailwind's resolver
- * adds `NODE_PATH` to its module directories, so pointing it back at this
- * workspace is what lets `globals.css` find `tailwindcss`, `tw-animate-css`,
- * `shadcn/tailwind.css` and the font packages. Set here rather than in the
- * scripts so it works the same on every platform, and before the build starts,
- * which is when Tailwind reads it.
+ * Tailwind resolves a stylesheet's `@import`s from that stylesheet's own
+ * location, and adds `NODE_PATH` to its module directories. Set here rather
+ * than in the scripts: cross-platform, and before Tailwind reads it.
  */
 process.env.NODE_PATH = [
   resolve(here, 'node_modules'),
@@ -79,18 +68,14 @@ export default function config(_env, argv) {
 
     resolve: {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-      // See the file header: this is what makes the linked design system
-      // resolve its peers against this workspace. Symlinks stay resolved, so
-      // every other package still finds its own transitive dependencies the
-      // way pnpm's layout expects.
+      // Symlinks stay resolved, so every other package still finds its own
+      // transitive dependencies the way pnpm's layout expects.
       modules: ['node_modules', resolve(here, 'node_modules'), resolve(here, '../../node_modules')],
     },
 
     module: {
       rules: [
         {
-          // No node_modules exclusion on purpose: @tecton/react and the
-          // @company/mfe-* packages are consumed as TypeScript source.
           test: /\.[cm]?tsx?$/,
           loader: 'builtin:swc-loader',
           options: {
@@ -159,8 +144,8 @@ export default function config(_env, argv) {
 
     devServer: {
       port: DEV_PORT,
-      // Deep links such as /orion-discovery/wells/42 belong to the mounted App,
-      // so every unknown path has to return the shell document.
+      // Deep links below a boundary belong to the mounted App, so every unknown
+      // path has to return the shell document.
       historyApiFallback: true,
       hot: true,
       static: { directory: resolve(here, 'public'), publicPath: '/' },

@@ -1,10 +1,8 @@
 /**
- * The package import DAG and the state/telemetry boundaries, expressed as
- * `no-restricted-imports` zones.
- *
- * `tools/boundaries/check-boundaries.mjs` is the mechanical backstop that also
- * reads package manifests; these zones are the version a developer meets in the
- * editor, on the line that broke the boundary, with the repair in the message.
+ * The package import DAG and the state/telemetry boundaries as
+ * `no-restricted-imports` zones. `tools/boundaries/check-boundaries.mjs` is the
+ * mechanical backstop that also reads manifests; these zones are the version a
+ * developer meets in the editor, with the repair in the message.
  */
 
 import type { Linter } from 'eslint'

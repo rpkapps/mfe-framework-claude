@@ -1,6 +1,6 @@
 /**
- * The mount-scoped telemetry runtime: record construction, provider
- * containment, level filtering, bounded counters and development diagnostics.
+ * The mount-scoped telemetry runtime: reserved attribution, record building,
+ * level filtering, bounded counters and development diagnostics.
  *
  * Emitting is synchronous and returns nothing, so it can never rerender. A
  * provider that throws is contained here, and a failure of the telemetry path
@@ -8,6 +8,7 @@
  */
 
 import {
+  boundAttributes,
   boundName,
   createMfeError,
   normalizeError,
@@ -18,16 +19,46 @@ import {
   type MfeErrorCode,
   type TelemetryAttributes,
   type TelemetryAttribution,
-  type TelemetryEventRecord,
-  type TelemetryFrameworkRecord,
   type TelemetryLevel,
-  type TelemetryLogRecord,
-  type TelemetryMeasurementRecord,
   type TelemetryProvider,
   type TelemetryRecord,
 } from '@company/mfe-core'
 
-import { bindAttribution, mergeWithReserved } from './attribution.ts'
+/**
+ * The `mfe.*` namespace the host owns. Span ids live here too: they are written
+ * by the tracer so a provider can rebuild parentage from a record alone, and an
+ * author who set them by hand would silently corrupt the trace.
+ */
+export const RESERVED_ATTRIBUTE_KEYS = {
+  definitionId: 'mfe.definition.id',
+  definitionKind: 'mfe.definition.kind',
+  definitionVersion: 'mfe.definition.version',
+  buildHash: 'mfe.build.hash',
+  mountToken: 'mfe.mount.token',
+  traceId: 'mfe.trace.id',
+  spanId: 'mfe.span.id',
+  parentSpanId: 'mfe.span.parent_id',
+  cancelled: 'mfe.span.cancelled',
+  endReason: 'mfe.span.end_reason',
+} as const
+
+export type ReservedAttributeKey =
+  (typeof RESERVED_ATTRIBUTE_KEYS)[keyof typeof RESERVED_ATTRIBUTE_KEYS]
+
+const RESERVED_KEYS: ReadonlySet<string> = new Set<string>(Object.values(RESERVED_ATTRIBUTE_KEYS))
+
+export function isReservedAttributeKey(key: string): boolean {
+  return RESERVED_KEYS.has(key)
+}
+
+/** Attribution fields, each paired with the attribute key it renders as. */
+const ATTRIBUTION_FIELDS = [
+  ['definitionId', RESERVED_ATTRIBUTE_KEYS.definitionId],
+  ['definitionKind', RESERVED_ATTRIBUTE_KEYS.definitionKind],
+  ['definitionVersion', RESERVED_ATTRIBUTE_KEYS.definitionVersion],
+  ['buildHash', RESERVED_ATTRIBUTE_KEYS.buildHash],
+  ['mountToken', RESERVED_ATTRIBUTE_KEYS.mountToken],
+] as const satisfies readonly (readonly [keyof TelemetryAttribution, string])[]
 
 const COUNTER_NAMES = [
   'recorded',
@@ -51,13 +82,10 @@ const COUNTER_NAMES = [
 ] as const
 
 /**
- * Local, bounded accounting of everything the telemetry path swallowed: the
- * numbers a shell can surface when it suspects its provider is misbehaving.
- * Each one is a single integer, so the counters can never grow memory.
+ * Local, bounded accounting of everything the telemetry path swallowed. Each
+ * one is a single integer, so the counters can never grow memory.
  */
 export type TelemetryCounters = Readonly<Record<(typeof COUNTER_NAMES)[number], number>>
-
-type MutableCounters = { -readonly [K in keyof TelemetryCounters]: number }
 
 export interface DiagnosticDetails {
   readonly code: MfeErrorCode
@@ -65,8 +93,6 @@ export interface DiagnosticDetails {
   readonly expected?: string
   readonly observed?: string
   readonly repair?: string
-  readonly note?: string
-  readonly severity?: DiagnosticSeverity
   readonly context?: Readonly<Record<string, string | number | boolean>>
 }
 
@@ -81,28 +107,20 @@ export interface TelemetryRuntimeOptions {
   readonly now?: () => number
 }
 
-const DEFAULT_MAX_DIAGNOSTICS = 50
+/** Every diagnostic this binding raises is a warning, never an error. */
+const WARNING: DiagnosticSeverity = 'warning'
 
-function detectDevelopmentMode(): boolean {
-  const runtime = globalThis as { process?: { env?: Record<string, string | undefined> } }
-  return runtime.process?.env?.['NODE_ENV'] !== 'production'
-}
-
-/**
- * Everything the telemetry service and the tracer share for one mount.
- *
- * `owner` is the identity the context manager compares, so it must be created
- * once per mount and never handed out.
- */
+/** Everything the telemetry service and the tracer share for one mount. */
 export class MountTelemetryRuntime {
   readonly provider: TelemetryProvider
   readonly attribution: TelemetryAttribution
-  readonly reservedAttributes: TelemetryAttributes
+  /** Identity the context manager compares. Created per mount, never handed out. */
   readonly owner: object = Object.freeze({})
-  readonly counters: MutableCounters = Object.fromEntries(
-    COUNTER_NAMES.map(name => [name, 0]),
-  ) as MutableCounters
+  readonly counters = Object.fromEntries(COUNTER_NAMES.map(name => [name, 0])) as {
+    -readonly [K in keyof TelemetryCounters]: number
+  }
 
+  readonly #reserved: TelemetryAttributes
   readonly #onDiagnostic: DiagnosticsSink | undefined
   readonly #dev: boolean
   readonly #maxDiagnostics: number
@@ -116,13 +134,22 @@ export class MountTelemetryRuntime {
     attribution: TelemetryAttribution,
     options: TelemetryRuntimeOptions = {},
   ) {
-    const bound = bindAttribution(attribution)
+    // Copied field by field, so records emitted before disposal keep exactly the
+    // attribution they carried even if the caller mutates its own object later.
+    const bound: Record<string, string> = {}
+    const reserved: Record<string, string> = {}
+    for (const [field, key] of ATTRIBUTION_FIELDS) {
+      const value = attribution[field]
+      if (value === undefined) continue
+      bound[field] = value
+      reserved[key] = value
+    }
     this.provider = provider
-    this.attribution = bound.attribution
-    this.reservedAttributes = bound.attributes
+    this.attribution = Object.freeze(bound) as unknown as TelemetryAttribution
+    this.#reserved = Object.freeze(reserved)
     this.#onDiagnostic = options.onDiagnostic
-    this.#dev = options.dev ?? detectDevelopmentMode()
-    this.#maxDiagnostics = options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS
+    this.#dev = options.dev ?? globalThis.process?.env?.['NODE_ENV'] !== 'production'
+    this.#maxDiagnostics = options.maxDiagnostics ?? 50
     this.#clock = options.now ?? Date.now
   }
 
@@ -158,7 +185,6 @@ export class MountTelemetryRuntime {
         expected: 'a telemetry provider that returns without throwing',
         observed: `the provider threw ${normalizeError(failure).name}`,
         repair: 'Fix the provider so it buffers or drops internally.',
-        severity: 'warning',
       })
       return undefined
     }
@@ -175,9 +201,8 @@ export class MountTelemetryRuntime {
 
     const sink = this.#onDiagnostic
     if (sink === undefined) return
-
     const diagnostic: Diagnostic = {
-      severity: details.severity ?? 'warning',
+      severity: WARNING,
       error: createMfeError({
         code: details.code,
         id: this.attribution.definitionId,
@@ -189,7 +214,6 @@ export class MountTelemetryRuntime {
         ...(details.observed === undefined ? {} : { observed: details.observed }),
         declaredBy: 'The host telemetry binding',
         ...(details.repair === undefined ? {} : { repair: details.repair }),
-        ...(details.note === undefined ? {} : { note: details.note }),
       }),
       ...(details.context === undefined ? {} : { context: details.context }),
       timestamp: this.now(),
@@ -198,30 +222,45 @@ export class MountTelemetryRuntime {
     try {
       sink(diagnostic)
     } catch {
-      // Counted, never re-reported: a failing sink that reported its own
-      // failure would recurse forever.
+      // Counted, never re-reported: a sink that reported its own failure would
+      // recurse forever.
       this.counters.sinkFailures += 1
     }
   }
 
-  /** Clamps author attributes and lets host-bound attribution win collisions. */
+  /**
+   * Clamps the author attributes, then lets host-bound attribution win. The
+   * whole `mfe.` namespace is host-owned, so a forged reserved key is dropped
+   * rather than passed through looking like attribution.
+   */
   mergeAttributes(author: TelemetryAttributes | undefined, operation: string): TelemetryAttributes {
-    const merged = mergeWithReserved(author, this.reservedAttributes)
-    if (merged.collisions.length > 0) {
-      this.counters.reservedOverrideAttempts += merged.collisions.length
+    const bounded = boundAttributes(author)
+    const keys = Object.keys(bounded)
+    if (keys.length === 0) return this.#reserved
+
+    const collisions: string[] = []
+    const authored: Record<string, string | number | boolean> = {}
+    for (const key of keys) {
+      const value = bounded[key]
+      if (RESERVED_KEYS.has(key)) collisions.push(key)
+      else if (value !== undefined) authored[key] = value
+    }
+
+    if (collisions.length > 0) {
+      this.counters.reservedOverrideAttempts += collisions.length
       this.diagnose({
         code: 'contract/input-mismatch',
         operation,
         expected: 'attribute keys outside the host-owned "mfe." attribution namespace',
-        observed: `reserved ${merged.collisions.length === 1 ? 'key' : 'keys'} ${merged.collisions.join(', ')}`,
+        observed: `reserved ${collisions.length === 1 ? 'key' : 'keys'} ${collisions.join(', ')}`,
         repair: 'Rename the attribute; the supplied value was discarded.',
       })
     }
-    return merged.attributes
+    return Object.freeze({ ...authored, ...this.#reserved })
   }
 
   /** True when the call must be refused because the mount is gone. */
-  #refuseAfterDispose(operation: string): boolean {
+  #refused(operation: string): boolean {
     if (!this.#disposed) return false
     this.counters.droppedAfterDispose += 1
     this.diagnose({
@@ -234,8 +273,9 @@ export class MountTelemetryRuntime {
     return true
   }
 
+  /** The shell owns level filtering, including whether debug is collected. */
   #levelEnabled(level: TelemetryLevel): boolean {
-    const provider = this.provider
+    const { provider } = this
     if (typeof provider.isLevelEnabled !== 'function') return true
     try {
       return provider.isLevelEnabled(level) !== false
@@ -255,17 +295,25 @@ export class MountTelemetryRuntime {
     if (delivered === true) this.counters.recorded += 1
   }
 
-  emitEvent(name: string, attributes: TelemetryAttributes | undefined): void {
-    const operation = 'record a telemetry event'
-    if (this.#refuseAfterDispose(operation)) return
-    const record: TelemetryEventRecord = {
-      kind: 'event',
-      name: boundName(name),
+  /** The fields every record shares. */
+  #envelope(
+    attributes: TelemetryAttributes | undefined,
+    operation: string,
+  ): Pick<TelemetryRecord, 'attributes' | 'attribution' | 'timestamp'> {
+    return {
       attributes: this.mergeAttributes(attributes, operation),
       attribution: this.attribution,
       timestamp: this.now(),
     }
-    this.#deliver(record, operation)
+  }
+
+  emitEvent(name: string, attributes: TelemetryAttributes | undefined): void {
+    const operation = 'record a telemetry event'
+    if (this.#refused(operation)) return
+    this.#deliver(
+      { kind: 'event', name: boundName(name), ...this.#envelope(attributes, operation) },
+      operation,
+    )
   }
 
   emitLog(
@@ -275,23 +323,21 @@ export class MountTelemetryRuntime {
     error?: unknown,
   ): void {
     const operation = `record a ${level} log`
-    if (this.#refuseAfterDispose(operation)) return
-    // The shell owns level filtering, including whether debug is collected at
-    // all; the binding only asks.
+    if (this.#refused(operation)) return
     if (!this.#levelEnabled(level)) {
       this.counters.droppedByLevelFilter += 1
       return
     }
-    const record: TelemetryLogRecord = {
-      kind: 'log',
-      level,
-      message: boundName(message),
-      ...(error === undefined ? {} : { error }),
-      attributes: this.mergeAttributes(attributes, operation),
-      attribution: this.attribution,
-      timestamp: this.now(),
-    }
-    this.#deliver(record, operation)
+    this.#deliver(
+      {
+        kind: 'log',
+        level,
+        message: boundName(message),
+        ...(error === undefined ? {} : { error }),
+        ...this.#envelope(attributes, operation),
+      },
+      operation,
+    )
   }
 
   emitError(error: unknown, attributes: TelemetryAttributes | undefined): void {
@@ -302,7 +348,7 @@ export class MountTelemetryRuntime {
     }
     // "error.type" is a convenience, not attribution: an author who supplies it
     // deliberately wins, while the reserved namespace still cannot be shadowed.
-    const merged: TelemetryAttributes = { 'error.type': normalized.name, ...(attributes ?? {}) }
+    const merged = { 'error.type': normalized.name, ...(attributes ?? {}) }
     this.emitLog('error', normalized.message, merged, error)
   }
 
@@ -313,10 +359,10 @@ export class MountTelemetryRuntime {
     attributes: TelemetryAttributes | undefined,
   ): void {
     const operation = 'record a measurement'
-    if (this.#refuseAfterDispose(operation)) return
+    if (this.#refused(operation)) return
     if (!Number.isFinite(value)) {
-      // One finite observation with a unit, or nothing: NaN and the infinities
-      // cannot be aggregated and would poison a histogram downstream.
+      // NaN and the infinities cannot be aggregated and would poison a
+      // histogram downstream, so nothing is recorded at all.
       this.counters.invalidMeasurements += 1
       this.diagnose({
         code: 'contract/input-mismatch',
@@ -327,16 +373,16 @@ export class MountTelemetryRuntime {
       })
       return
     }
-    const record: TelemetryMeasurementRecord = {
-      kind: 'measurement',
-      name: boundName(name),
-      value,
-      unit,
-      attributes: this.mergeAttributes(attributes, operation),
-      attribution: this.attribution,
-      timestamp: this.now(),
-    }
-    this.#deliver(record, operation)
+    this.#deliver(
+      {
+        kind: 'measurement',
+        name: boundName(name),
+        value,
+        unit,
+        ...this.#envelope(attributes, operation),
+      },
+      operation,
+    )
   }
 
   /**
@@ -353,7 +399,7 @@ export class MountTelemetryRuntime {
     },
   ): void {
     const label = `record a framework diagnostic for ${operation}`
-    if (this.#refuseAfterDispose(label)) return
+    if (this.#refused(label)) return
 
     const level = details.level ?? 'info'
     if (!this.#levelEnabled(level)) {
@@ -370,16 +416,16 @@ export class MountTelemetryRuntime {
       this.#reportedErrors.add(error)
     }
 
-    const record: TelemetryFrameworkRecord = {
-      kind: 'framework',
-      level,
-      operation: boundName(operation),
-      message: boundName(details.message),
-      ...(error === undefined ? {} : { error }),
-      attributes: this.mergeAttributes(details.attributes, label),
-      attribution: this.attribution,
-      timestamp: this.now(),
-    }
-    this.#deliver(record, label)
+    this.#deliver(
+      {
+        kind: 'framework',
+        level,
+        operation: boundName(operation),
+        message: boundName(details.message),
+        ...(error === undefined ? {} : { error }),
+        ...this.#envelope(details.attributes, label),
+      },
+      label,
+    )
   }
 }

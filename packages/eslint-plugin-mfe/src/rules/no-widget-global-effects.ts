@@ -1,15 +1,9 @@
 /**
- * `mfe/no-widget-global-effects`.
- *
- * A Widget is an embedded fragment: it does not own the URL and it does not own
- * the document head. If a Widget pushes history, the whole page navigates behind
- * the host router's back; if it writes `document.title` or swaps the favicon,
- * the last Widget to render wins and the page flickers between MFEs. Apps and
- * the shell may do both; a Widget asks its owner to.
- *
- * Ownership is never inferred from a file name. The rule reports only inside the
- * globs a repository lists in `widgetScopes`, and with no scopes configured it
- * does nothing at all.
+ * `mfe/no-widget-global-effects`. A Widget is an embedded fragment: it owns
+ * neither the URL nor the document head, so pushing history navigates the page
+ * behind the host router's back and writing `document.title` lets the last
+ * Widget to render win. Ownership is never inferred from a file name: the rule
+ * reports only inside `widgetScopes`, and is inert with none configured.
  */
 
 import type { Rule } from 'eslint'

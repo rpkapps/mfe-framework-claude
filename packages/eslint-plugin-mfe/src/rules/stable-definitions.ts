@@ -1,17 +1,9 @@
 /**
- * `mfe/stable-definitions`.
- *
- * `createApp`, `createWidget` and `lazyWidget` produce a definition: a stable
- * identity that the host keys its registry, mount lifecycle, router integration
- * and query cache on. Calling one inside a component, a hook or any other
- * function body mints a fresh identity on every call, so the host sees a
- * different MFE each render: it unmounts the running tree, discards its state
- * and refetches. The symptom is an MFE that flickers and forgets; the cause is a
- * definition built in the wrong place.
- *
- * The callee is resolved through the scope manager, so
- * `import { createWidget as mk }` is caught under its alias, and a local
- * `function createWidget()` that shadows the import is not caught at all.
+ * `mfe/stable-definitions`. A definition is the stable identity the host keys
+ * its registry, mount lifecycle, router and query cache on. Built inside a
+ * function body it is minted afresh on every call, so the host sees a different
+ * MFE each render and unmounts, discards state and refetches. The callee is
+ * resolved through the scope manager, so an aliased import is still caught.
  */
 
 import type { Rule } from 'eslint'
@@ -46,36 +38,37 @@ function enclosingRuntimeScope(node: AnyNode): AnyNode | null {
   }
 }
 
-/** The name the enclosing scope is known by, when it has one. */
-function namedOwner(scope: AnyNode): string | null {
-  if (
-    (scope.type === 'FunctionDeclaration' || scope.type === 'FunctionExpression') &&
-    scope.id !== null &&
-    scope.id !== undefined
-  ) {
-    return scope.id.name
-  }
-  const parent = scope.parent
-  if (parent === null) return null
-  if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name
-  if (parent.type === 'Property' && !parent.computed && parent.key.type === 'Identifier') {
-    return parent.key.name
-  }
-  if (parent.type === 'MethodDefinition' && !parent.computed && parent.key.type === 'Identifier') {
-    return parent.key.name
-  }
-  if (parent.type === 'CallExpression' && parent.callee.type === 'Identifier') {
-    return `${parent.callee.name}(...)`
-  }
-  return null
-}
-
 /** A human description of where the offending call sits. */
 function describeScope(scope: AnyNode): string {
   if (scope.type === 'StaticBlock') return 'a class static block'
   if (scope.type === 'PropertyDefinition') return 'a class field initialiser'
 
-  const named = namedOwner(scope)
+  const named = ((): string | null => {
+    if (
+      (scope.type === 'FunctionDeclaration' || scope.type === 'FunctionExpression') &&
+      scope.id !== null &&
+      scope.id !== undefined
+    ) {
+      return scope.id.name
+    }
+    const parent = scope.parent
+    if (parent === null) return null
+    if (parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') {
+      return parent.id.name
+    }
+    if (
+      (parent.type === 'Property' || parent.type === 'MethodDefinition') &&
+      !parent.computed &&
+      parent.key.type === 'Identifier'
+    ) {
+      return parent.key.name
+    }
+    if (parent.type === 'CallExpression' && parent.callee.type === 'Identifier') {
+      return `${parent.callee.name}(...)`
+    }
+    return null
+  })()
+
   if (named !== null) return `the body of \`${named}\``
   return scope.type === 'ArrowFunctionExpression' ? 'an arrow function' : 'a function body'
 }

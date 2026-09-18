@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 /**
- * Type-checks the shell's own source.
- *
- * `tsc` cannot exclude a file it was asked to resolve, so consuming @tecton/react
- * as unbuilt TSX type-checks that repository's source too — under *this*
- * workspace's options rather than the ones it is written against (it sets
- * `strict` but not `exactOptionalPropertyTypes` or `noUncheckedIndexedAccess`).
- * Those diagnostics are reported, never hidden, but they do not fail this check
- * because the shell cannot fix them. Anything under apps/shell does fail it,
- * including errors raised at a shell call site for misusing a design-system prop.
+ * Type-checks the shell's own source. `tsc` cannot exclude a file it was asked
+ * to resolve, so consuming unbuilt TSX type-checks the dependency's source too,
+ * under options it is not written against. Those diagnostics are reported but
+ * do not fail this check; anything under apps/shell does, including errors
+ * raised at a shell call site for misusing a design-system prop.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -16,10 +12,14 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const shellRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const result = spawnSync(resolve(shellRoot, 'node_modules/.bin/tsc'), ['--noEmit', '--pretty', 'false'], {
-  cwd: shellRoot,
-  encoding: 'utf8',
-})
+const result = spawnSync(
+  resolve(shellRoot, 'node_modules/.bin/tsc'),
+  ['--noEmit', '--pretty', 'false'],
+  {
+    cwd: shellRoot,
+    encoding: 'utf8',
+  },
+)
 
 if (result.error) {
   console.error(`Could not run tsc: ${result.error.message}`)

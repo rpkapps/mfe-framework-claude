@@ -69,4 +69,3 @@ export function generateContainerFiles(
     frameworkMetadata: frameworkMetadata(context, descriptor, buildHash),
   }
 }
-

@@ -1,14 +1,11 @@
 /**
  * Service hooks: React conveniences over the same mount-bound services that
- * route callbacks reach through `context.mfe`.
- *
- * `useTelemetry()` and `context.mfe.telemetry` are the same object, as are
- * `useMfeSignal()` and `context.mfe.signal`. There is no second instance and no
- * global service locator.
+ * route callbacks reach through `context.mfe`. There is no second instance and
+ * no global service locator — `useTelemetry()` and `context.mfe.telemetry` are
+ * the same object.
  */
 
-import type { MfeStorage, MfeTelemetry } from '@company/mfe-core'
-import type { StorageArea } from '@company/mfe-core'
+import type { MfeStorage, MfeTelemetry, StorageArea } from '@company/mfe-core'
 
 import { useMfeMount } from '../mount-context.tsx'
 
@@ -18,22 +15,17 @@ export function useTelemetry(): MfeTelemetry {
 }
 
 /**
- * The mount-disposal signal, for background work started outside a loader.
- *
- * A route loader keeps using its own abort signal for navigation-scoped
- * cancellation; this one only aborts when the whole mount goes away.
+ * The mount-disposal signal, for background work started outside a loader. A
+ * route loader keeps using its own signal for navigation-scoped cancellation.
  */
 export function useMfeSignal(): AbortSignal {
   return useMfeMount('useMfeSignal').signal
 }
 
 /**
- * The literal boundary prefix.
- *
- * Almost nothing needs this: `Link` and `navigate` already resolve under the
- * boundary. It exists for the genuine case of building a URL for an external
- * system. Widgets have no boundary, so it returns an empty string for them and
- * that is deliberate rather than an oversight.
+ * The literal boundary prefix, for the genuine case of building a URL for an
+ * external system: `Link` and `navigate` already resolve under the boundary.
+ * Widgets have no boundary, so they get `''` by design.
  */
 export function useBasePath(): string {
   return useMfeMount('useBasePath').basePath
@@ -41,9 +33,7 @@ export function useBasePath(): string {
 
 /**
  * The imperative storage handle, for reads, migrations and explicit removal.
- *
- * Calling `get()` does not subscribe. Components that render stored state use
- * `useStoredState` instead.
+ * `get()` does not subscribe; rendering stored state uses `useStoredState`.
  */
 export function useMfeStorage(area: StorageArea = 'local'): MfeStorage {
   const mount = useMfeMount('useMfeStorage')

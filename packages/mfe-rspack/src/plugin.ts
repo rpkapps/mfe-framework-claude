@@ -96,7 +96,6 @@ export function mfePlugin(options: MfePluginOptions = {}): RspackPluginInstance 
   return new MfeRspackPlugin(options)
 }
 
-
 /**
  * Runs `enforce: 'pre'`, ahead of the bundler's own TypeScript and JSX
  * handling, because the compiler reads the source structure those transforms
@@ -131,7 +130,6 @@ function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
     { test: /\.jsx?$/, exclude, enforce: 'pre', use: use(true) },
   )
 }
-
 
 /**
  * Working on the emitted asset rather than on each source file means the

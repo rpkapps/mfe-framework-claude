@@ -1,15 +1,12 @@
 /**
  * Command registration as a hook, so mount scoping falls out of component
- * lifetime instead of being a rule the author has to remember. There is no
- * registry object to acquire and no disposer to return.
+ * lifetime: no registry to acquire and no disposer to return.
  *
- * Two effects, deliberately: the first owns the registration's existence, the
- * second publishes the latest committed callbacks. Splitting them is what lets
- * inline `execute` and `canExecute` closures stay current without removing and
- * recreating the registration on every render.
- *
- * Nothing is published during render. An abandoned render must not reach the
- * palette, so every write happens after React commits.
+ * Two effects, deliberately. The first owns the registration's existence, the
+ * second publishes the latest committed callbacks, which is what lets inline
+ * closures stay current without recreating the registration on every render.
+ * Nothing is published during render: an abandoned render must not reach the
+ * palette.
  */
 
 import { useEffect, useRef } from 'react'
@@ -22,9 +19,8 @@ export function useCommand(registration: CommandRegistration): void {
   const mount = useMfeMount('useCommand')
   const handle = useRef<CommandRegistrationHandle | null>(null)
 
-  // Holds the newest committed registration so the registration effect can pick
-  // it up on re-registration (for example after a Strict Mode remount) without
-  // depending on render-time values.
+  // The newest committed registration, so re-registration (after a Strict Mode
+  // remount, say) picks it up without depending on render-time values.
   const committed = useRef(registration)
 
   const { commands } = mount.runtime

@@ -1,16 +1,9 @@
 /**
- * `mfe/no-global-patching`.
- *
- * A micro-frontend shares one realm with the shell and with every other MFE.
- * Replacing `fetch`, the History API or the event-listener plumbing is therefore
- * not a local decision: it changes behaviour for code the author has never seen,
- * it survives the MFE's own unmount, and the winner is whichever bundle happened
- * to evaluate last. The framework owns those seams, so an MFE asks for them
- * rather than taking them.
- *
- * The global is resolved through scope analysis, so a local
- * `const window = createFakeWindow()` or a `history` imported from the router is
- * not mistaken for the real global.
+ * `mfe/no-global-patching`. An MFE shares one realm with the shell and every
+ * other MFE, so replacing `fetch`, the History API or the listener plumbing
+ * changes behaviour for code the author has never seen, survives its own
+ * unmount, and is won by whichever bundle evaluated last. The global is resolved
+ * through scope analysis, so a local `const window = ...` is not mistaken for it.
  */
 
 import type { Rule, SourceCode } from 'eslint'
@@ -51,15 +44,6 @@ function classify(
   return null
 }
 
-/** `fetch = ...`, `addEventListener = ...`: the same patch without a receiver. */
-function classifyBareGlobal(sourceCode: SourceCode, node: AnyNode, name: string): PatchKind | null {
-  if (!isGlobalBinding(sourceCode, node, name)) return null
-  if (name === 'fetch') return 'fetch'
-  if (name === 'history') return 'history'
-  if (LISTENER_METHODS.has(name)) return 'listeners'
-  return null
-}
-
 const rule: Rule.RuleModule = {
   meta: {
     type: 'problem',
@@ -96,9 +80,12 @@ const rule: Rule.RuleModule = {
         if (kind !== null) report(target, kind)
         return
       }
-      if (target.type === 'Identifier') {
-        const kind = classifyBareGlobal(sourceCode, target, target.name)
-        if (kind !== null) report(target, kind)
+      // `fetch = ...`, `addEventListener = ...`: the same patch, no receiver.
+      if (target.type === 'Identifier' && isGlobalBinding(sourceCode, target, target.name)) {
+        const { name } = target
+        if (name === 'fetch') report(target, 'fetch')
+        else if (name === 'history') report(target, 'history')
+        else if (LISTENER_METHODS.has(name)) report(target, 'listeners')
       }
     }
 

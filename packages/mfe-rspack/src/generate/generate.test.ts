@@ -118,7 +118,9 @@ describe('#mfe/config', () => {
     const source = fileFor('config.ts')
 
     expect(source).toContain("Application code imports this module as '#mfe/config'")
-    expect(source).toContain("new URL('runtime-config.json', new URL(assetBase, documentBase)).href")
+    expect(source).toContain(
+      "new URL('runtime-config.json', new URL(assetBase, documentBase)).href",
+    )
     expect(source).toContain("'config/missing'")
     expect(source).toContain("'config/unreachable'")
     expect(source).toContain("'config/invalid'")
