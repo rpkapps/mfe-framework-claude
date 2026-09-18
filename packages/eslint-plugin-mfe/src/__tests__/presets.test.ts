@@ -82,6 +82,73 @@ describe.each([
     expect(ids).toContain('no-dupe-keys')
   })
 
+  it('registers a plugin in every config object that turns one of its rules on', () => {
+    for (const entry of preset) {
+      const registered = new Set(Object.keys(entry.plugins ?? {}))
+      for (const ruleId of Object.keys(entry.rules ?? {})) {
+        const separator = ruleId.lastIndexOf('/')
+        if (separator === -1) continue
+        const pluginName = ruleId.slice(0, separator)
+        // Flat config resolves a rule's plugin from the objects that match the
+        // file, so a block that names `plugin/rule` has to carry `plugin`.
+        expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(pluginName)
+      }
+    }
+  })
+
+  it('scopes every config object to the files it was asked to cover', () => {
+    const scoped = framework({ files: ['packages/*/src/**/*.ts'] })
+    for (const entry of scoped) {
+      for (const pattern of entry.files ?? []) {
+        const patterns = Array.isArray(pattern) ? pattern : [pattern]
+        expect(patterns, entry.name ?? '(unnamed)').toContain('packages/*/src/**/*.ts')
+      }
+    }
+  })
+
+  it('relaxes exactly the four justified rules in test scope, and nothing else', () => {
+    const tests = preset.find(entry => entry.name?.endsWith('/tests'))
+    expect(tests, name).toBeDefined()
+    expect(Object.entries(tests?.rules ?? {})).toEqual([
+      ['mfe/no-global-patching', 'off'],
+      ['mfe/no-raw-storage', 'off'],
+      ['@typescript-eslint/unbound-method', 'off'],
+      ['@typescript-eslint/require-await', 'off'],
+    ])
+  })
+
+  it('keeps the rules that find real defects in tests switched on there', () => {
+    const tests = preset.find(entry => entry.name?.endsWith('/tests'))
+    const relaxed = new Set(Object.keys(tests?.rules ?? {}))
+    for (const guarded of [
+      '@typescript-eslint/no-floating-promises',
+      '@typescript-eslint/no-misused-promises',
+      '@typescript-eslint/no-unsafe-argument',
+      '@typescript-eslint/no-unsafe-assignment',
+      '@typescript-eslint/no-unsafe-call',
+      '@typescript-eslint/no-unsafe-member-access',
+      '@typescript-eslint/no-unsafe-return',
+      '@typescript-eslint/no-non-null-assertion',
+      'react-hooks/rules-of-hooks',
+      'react-hooks/refs',
+      'react-hooks/set-state-in-render',
+    ]) {
+      expect(relaxed, guarded).not.toContain(guarded)
+    }
+  })
+
+  it('scopes the test exceptions to test files, not to whole packages', () => {
+    const tests = preset.find(entry => entry.name?.endsWith('/tests'))
+    for (const pattern of tests?.files ?? []) {
+      const patterns = Array.isArray(pattern) ? pattern : [pattern]
+      const scope = patterns.at(-1) ?? ''
+      expect(
+        /\*\.(test|spec)\.|__tests__|vitest\.setup/.test(scope),
+        `${scope} is not a test-file scope`,
+      ).toBe(true)
+    }
+  })
+
   it('is accepted by ESLint, rule options included', async () => {
     const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: preset })
     const resolved: unknown = await eslint.calculateConfigForFile('src/widgets/panel.ts')
@@ -90,11 +157,15 @@ describe.each([
 })
 
 describe('preset options', () => {
-  it('scopes the TanStack Router rules to router files only, in the author preset', () => {
-    const preset = author({ routerFiles: ['src/routes/**/*.tsx'] })
+  it('scopes the TanStack Router rules to router files inside the covered files', () => {
+    const preset = author({ files: ['src/**/*.ts'], routerFiles: ['src/routes/**/*.tsx'] })
     const routerConfigs = preset.filter(entry => entry.name?.startsWith('mfe/tanstack-router'))
     expect(routerConfigs.length).toBeGreaterThan(0)
-    for (const entry of routerConfigs) expect(entry.files).toEqual(['src/routes/**/*.tsx'])
+    for (const entry of routerConfigs) {
+      // A nested `files` entry is an AND: router code *and* inside the files the
+      // preset was asked to cover, which is where the parser is configured.
+      expect(entry.files).toEqual([['src/**/*.ts', 'src/routes/**/*.tsx']])
+    }
     const ids = configuredRuleIds(routerConfigs)
     expect(ids).toContain('@tanstack/router/create-route-property-order')
   })

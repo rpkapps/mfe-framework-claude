@@ -1,0 +1,38 @@
+{
+  "name": "@example/reports",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "mfe": {
+    "port": 3002,
+    "definitions": ["reports"]
+  },
+  "scripts": {
+    "dev": "pnpm run generate && rspack serve",
+    "build": "pnpm run generate && rspack build",
+    "generate": "node ../../tools/dev/generate-routes.mjs",
+    "typecheck": "pnpm run generate && tsc --noEmit",
+    "test": "pnpm run generate && vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-react": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@company/mfe-rspack": "workspace:*",
+    "@rspack/cli": "catalog:",
+    "@rspack/core": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

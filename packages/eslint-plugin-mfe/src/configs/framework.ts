@@ -11,17 +11,18 @@
 
 import type { Linter } from 'eslint'
 import {
-  ALL_FILES,
   TS_FILES,
-  asConfigs,
   asyncCorrectness,
   eslintRecommended,
+  intersectFiles,
   languageConfig,
   maintainability,
   mfePlugin,
   reactCorrectness,
-  tseslint,
+  typeCheckedConfigs,
+  testScopeOverrides,
   typeSafety,
+  typeScriptPlugins,
   withFiles,
 } from './shared.ts'
 import {
@@ -58,6 +59,7 @@ export interface FrameworkPresetOptions {
  * the same boundary CI enforces from the manifests.
  */
 function packageZones(
+  files: readonly string[],
   extraPaths: readonly RestrictedPath[],
   extraPatterns: readonly RestrictedPattern[],
 ): Linter.Config[] {
@@ -67,7 +69,8 @@ function packageZones(
   return [
     {
       name: 'mfe/zone/mfe-core',
-      files: ['**/packages/mfe-core/**/*.{ts,tsx,mts,cts}'],
+      files: intersectFiles(files, '**/packages/mfe-core/**'),
+      plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [
@@ -90,7 +93,8 @@ function packageZones(
     },
     {
       name: 'mfe/zone/mfe-host',
-      files: ['**/packages/mfe-host/**/*.{ts,tsx,mts,cts}'],
+      files: intersectFiles(files, '**/packages/mfe-host/**'),
+      plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [
@@ -108,7 +112,8 @@ function packageZones(
     },
     {
       name: 'mfe/zone/mfe-react',
-      files: ['**/packages/mfe-react/**/*.{ts,tsx,mts,cts}'],
+      files: intersectFiles(files, '**/packages/mfe-react/**'),
+      plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [
@@ -125,7 +130,8 @@ function packageZones(
     },
     {
       name: 'mfe/zone/mfe-legacy-angular',
-      files: ['**/packages/mfe-legacy-angular/**/*.{ts,tsx,mts,cts}'],
+      files: intersectFiles(files, '**/packages/mfe-legacy-angular/**'),
+      plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [
@@ -166,20 +172,17 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
   const extraPatterns = options.extraRestrictedPatterns ?? []
 
   return [
-    { ...eslintRecommended(), files: [...ALL_FILES] },
+    { ...eslintRecommended(), files: [...files] },
     languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(
-      asConfigs(tseslint.configs.recommendedTypeChecked),
-      files,
-      'mfe/typescript-recommended',
-    ),
-    asyncCorrectness,
-    typeSafety,
-    maintainability,
+    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
+    asyncCorrectness(files),
+    typeSafety(files),
+    maintainability(files),
     ...reactCorrectness(files),
     {
       name: 'mfe/framework/state-and-telemetry',
       files: [...files],
+      plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [...STATE_PATHS, ...extraPaths],
@@ -187,7 +190,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
         ),
       },
     },
-    ...packageZones(extraPaths, extraPatterns),
+    ...packageZones(files, extraPaths, extraPatterns),
     {
       name: 'mfe/framework/rules',
       files: [...files],
@@ -199,17 +202,6 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
         'mfe/no-widget-global-effects': ['error', { widgetScopes: [...widgetScopes] }],
       },
     },
-    {
-      // A test may reach for the very globals the rules above guard, because
-      // reaching for them is what it is testing.
-      name: 'mfe/framework/tests',
-      files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
-      rules: {
-        'mfe/no-global-patching': 'off',
-        'mfe/no-raw-storage': 'off',
-        '@typescript-eslint/no-non-null-assertion': 'off',
-        '@typescript-eslint/no-unsafe-assignment': 'off',
-      },
-    },
+    testScopeOverrides(files, 'mfe/framework/tests'),
   ]
 }

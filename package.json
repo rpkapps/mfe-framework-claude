@@ -32,6 +32,7 @@
     "@company/eslint-plugin-mfe": "workspace:*",
     "@tanstack/eslint-plugin-query": "catalog:",
     "@tanstack/eslint-plugin-router": "catalog:",
+    "@tanstack/router-generator": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "concurrently": "catalog:",

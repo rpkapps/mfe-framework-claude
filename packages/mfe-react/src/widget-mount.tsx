@@ -24,7 +24,7 @@ import {
   type MfeError,
   type WidgetContract,
 } from '@company/mfe-core'
-import { memo, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { assertUsableInputNames, type WidgetDefinition } from './definition.ts'
 import { MfeMountProvider } from './mount-context.tsx'
@@ -67,6 +67,35 @@ interface ValidatedInputs {
 interface RejectedInputs {
   readonly ok: false
   readonly error: MfeError
+}
+
+/** The render-state a Widget boundary holds for one committed input set. */
+interface ValidationState {
+  /** The inputs this result was computed from. */
+  readonly checked: Readonly<Record<string, unknown>>
+  /** The last inputs that passed, or null when nothing has passed yet. */
+  readonly valid: Record<string, unknown> | null
+  /** Set when the most recent input set was rejected. */
+  readonly error: MfeError | null
+}
+
+/**
+ * Validates one input set against the previous valid one.
+ *
+ * Pure, so it is safe to call during render: it allocates a new state value and
+ * touches nothing outside.
+ */
+function validateInto(
+  definition: WidgetDefinition,
+  inputs: Readonly<Record<string, unknown>>,
+  previousValid: Record<string, unknown> | null,
+): ValidationState {
+  const result = validateInputs(definition, inputs)
+
+  if (!result.ok) return { checked: inputs, valid: previousValid, error: result.error }
+
+  assertUsableInputNames(definition.id, Object.keys(result.value))
+  return { checked: inputs, valid: result.value, error: null }
 }
 
 function validateInputs(
@@ -135,26 +164,33 @@ export function WidgetMount({
     committedHandlers.current = handlers
   })
 
-  // The last inputs that passed validation. A rejected update leaves this alone,
-  // so the last valid inputs stay rendered and the mount stays mounted.
-  const lastValid = useRef<Record<string, unknown> | null>(null)
-  const lastChecked = useRef<Readonly<Record<string, unknown>> | null>(null)
+  // Validation state is React state, not a ref, and the comparison happens
+  // during render using React's documented "adjust state when props change"
+  // pattern. Writing refs during render would be wrong here: React may discard
+  // a render, and under concurrent rendering the ref could then describe inputs
+  // that were never committed.
+  //
+  // `checked` is the input set the current result belongs to. `valid` is the
+  // last input set that passed, which a rejected update deliberately leaves
+  // alone so the previous valid inputs stay rendered and the mount stays
+  // mounted.
+  const [validation, setValidation] = useState(() => validateInto(definition, inputs, null))
 
-  if (lastChecked.current === null || !inputsEqual(lastChecked.current, inputs)) {
-    lastChecked.current = inputs
-    const result = validateInputs(definition, inputs)
-
-    if (result.ok) {
-      assertUsableInputNames(definition.id, Object.keys(result.value))
-      lastValid.current = result.value
-    } else {
-      diagnostics.report(result.error, { context: { widget: definition.id } })
-      onInputRejected?.(result.error)
-
-      // An invalid payload on the very first mount has nothing to fall back to.
-      if (lastValid.current === null) throw result.error
-    }
+  if (!Object.is(validation.checked, inputs) && !inputsEqual(validation.checked, inputs)) {
+    setValidation(current => validateInto(definition, inputs, current.valid))
   }
+
+  // Reporting is a side effect, so it runs after commit rather than during
+  // render. An abandoned render must not reach the diagnostics sink.
+  const reported = useRef<MfeError | null>(null)
+  useEffect(() => {
+    const { error } = validation
+    if (error === null || reported.current === error) return
+
+    reported.current = error
+    diagnostics.report(error, { context: { widget: definition.id } })
+    onInputRejected?.(error)
+  }, [validation, diagnostics, definition.id, onInputRejected])
 
   const emit = useMemo(() => {
     const declared = definition.contract.events
@@ -218,8 +254,13 @@ export function WidgetMount({
     }
   }, [definition, consumerEvents, diagnostics])
 
-  const validInputs = lastValid.current
+  const validInputs = validation.valid
   if (validInputs === null) {
+    // An invalid payload on the very first mount has nothing to fall back to,
+    // so the mount fails with the validation error itself rather than a generic
+    // one: the original names the field, the value and the repair.
+    if (validation.error !== null) throw validation.error
+
     throw createMfeError({
       code: 'contract/input-mismatch',
       id: definition.id,

@@ -50,6 +50,16 @@ family are the rules worth having here, and none of them work without a
 program). They set `parserOptions.projectService: true`; pass `tsconfigRootDir`
 if ESLint's working directory is not your project root.
 
+**`files` governs the whole preset.** Every config object a preset produces is
+scoped to it, including ESLint's recommended baseline, and every narrower scope —
+the package zones, `routerFiles`, and the test and generated-code overrides — is
+_intersected_ with it rather than added to it. So a preset never reaches a file
+you did not ask it to cover, and the parser and plugins are always registered
+wherever the rules apply. The default is every TypeScript file; widen it if you
+want plain JavaScript linted too. Every object also registers the plugins for the
+rules it turns on, so re-scoping or dropping one object can never strand another
+object's rules.
+
 ---
 
 ## The `framework` preset

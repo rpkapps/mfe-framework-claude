@@ -62,6 +62,15 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'examples',
+          root: './examples',
+          environment: 'jsdom',
+          include: ['*/src/**/*.test.ts', '*/src/**/*.test.tsx'],
+          setupFiles: ['../packages/mfe-react/vitest.setup.ts'],
+        },
+      },
+      {
+        test: {
           name: 'browser-matrix',
           root: './tools/browser-matrix',
           environment: 'node',
