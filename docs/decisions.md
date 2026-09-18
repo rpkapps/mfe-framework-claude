@@ -91,28 +91,25 @@ the Node test runner and fail in browsers, which is the worst of both.
 
 ---
 
-## 5. Browser coverage with native `@scope` is below the 91% target
+## 5. The browser support matrix was removed
 
-**Status:** open finding. The gate fails honestly.
+**Status:** decided, at the project owner's direction.
 
-The browser support policy requires at least 91% aggregate global usage coverage
-with native CSS `@scope` available in every supported browser, and no fallback.
+A tool here measured aggregate global usage coverage for the feature set the
+framework depends on, against a 91% target, and failed: **89.9685%** with
+caniuse-lite 1.0.30001810. Native CSS `@scope` was the entire gap — the same
+intersection without it measured 95.6886% — and the shortfall was mainstream
+users on pre-`@scope` releases rather than exotic browsers.
 
-Measured with caniuse-lite 1.0.30001810: **89.9685%**, a 1.03 pp shortfall.
+The owner removed it rather than tune it. That is a reasonable call: the number
+was a policy input, not a build check, and a tool that recomputes a policy
+target on every CI run invites the target to be edited until it passes.
 
-`@scope` is the entire gap. The same feature intersection without it measures
-95.6886%. The shortfall is mainstream users on pre-`@scope` releases, not exotic
-browsers — Chrome below 118 (2.51%), Firefox below 146 (1.52%), iOS Safari below
-17.4 (1.01%).
-
-Worth knowing: caniuse's global usage table itself sums to 96.6878%, not 100%,
-so the matrix already covers roughly 93% of everything the dataset accounts for.
-Firefox only shipped `@scope` in 146, so this figure improves on its own with
-each quarterly refresh.
-
-`pnpm browser-matrix` exits non-zero. It was left failing rather than tuned to
-pass: lowering the target, shipping a fallback, or accepting a red gate for a
-period are all policy decisions, not tooling ones.
+What is worth keeping from it: `@scope` is still the feature with the narrowest
+support of anything the framework requires, and `packages/mfe-rspack/src/css/`
+still emits it with no fallback. A deployment whose audience includes Chrome
+below 118, Firefox below 146 or iOS Safari below 17.4 will see unscoped CSS.
+That is now a thing to know rather than a gate to pass.
 
 ---
 

@@ -20,6 +20,8 @@
 import * as jestDom from '@testing-library/jest-dom/matchers'
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 import { cleanup } from '@testing-library/react'
+
+import { resetGeneratedAliases } from './src/testing/index.tsx'
 import { afterEach, expect } from 'vitest'
 
 declare module 'vitest' {
@@ -33,7 +35,10 @@ declare module 'vitest' {
 expect.extend(jestDom)
 
 // Automatic cleanup after every test so no mount, root, subscription or
-// registration leaks into the next one.
+// registration leaks into the next one. The generated-alias fixtures are
+// module state and would otherwise carry one test's configuration and request
+// handler into the next.
 afterEach(() => {
   cleanup()
+  resetGeneratedAliases()
 })

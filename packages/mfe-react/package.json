@@ -13,6 +13,14 @@
     "./testing": {
       "types": "./src/testing/index.tsx",
       "default": "./src/testing/index.tsx"
+    },
+    "./testing/mfe-config": {
+      "types": "./src/testing/generated/config.ts",
+      "default": "./src/testing/generated/config.ts"
+    },
+    "./testing/mfe-fetch": {
+      "types": "./src/testing/generated/fetch.ts",
+      "default": "./src/testing/generated/fetch.ts"
     }
   },
   "files": [

@@ -30,6 +30,9 @@ import {
   type RecordingTelemetryProvider,
 } from '@company/mfe-host'
 import { act, render, type RenderResult } from '@testing-library/react'
+
+import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'
+import { resetMfeFetch as resetMfeFetchState } from './generated/fetch.ts'
 import type { ReactNode } from 'react'
 
 import { AppMount, createRouterContext } from '../app-mount.tsx'
@@ -40,6 +43,31 @@ import { WidgetMount, declaredEventNames, partitionWidgetProps } from '../widget
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
 import type { MfeRouterContext } from '../router-contract.ts'
 import type { MfeMount, MfeRuntime } from '../runtime.ts'
+
+/**
+ * The generated-alias fixtures. A container's vitest config points `#mfe/config`
+ * and `#mfe/fetch` at `@company/mfe-react/testing/mfe-config` and
+ * `.../mfe-fetch`, and a test installs values through these. The source under
+ * test keeps its production imports (§14); nothing here is a second
+ * configuration API.
+ */
+export { setMfeConfig, resetMfeConfig } from './generated/config.ts'
+export {
+  mfeRequests,
+  setMfeAccessToken,
+  setMfeApiBaseUrl,
+  setMfeApiOrigins,
+  setMfeFetch,
+  resetMfeFetch,
+  type MfeFetchHandler,
+  type MfeFetchRecord,
+} from './generated/fetch.ts'
+
+/** Everything the aliases hold, cleared. The shared vitest setup calls it. */
+export function resetGeneratedAliases(): void {
+  resetMfeConfigState()
+  resetMfeFetchState()
+}
 
 export interface TestShellState {
   readonly user?: ShellUser | null

@@ -108,7 +108,6 @@ Other entry points:
 pnpm dev:shell     # the shell alone
 pnpm dev:mfes      # the examples alone, against a shell you started yourself
 pnpm check         # generate, format check, lint, typecheck, boundaries, tests
-pnpm browser-matrix# regenerate and verify the browser support matrix
 ```
 
 ---

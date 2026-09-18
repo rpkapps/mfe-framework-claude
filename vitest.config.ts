@@ -68,13 +68,15 @@ export default defineConfig({
           include: ['*/src/**/*.test.ts', '*/src/**/*.test.tsx'],
           setupFiles: ['../packages/mfe-react/vitest.setup.ts'],
         },
-      },
-      {
-        test: {
-          name: 'browser-matrix',
-          root: './tools/browser-matrix',
-          environment: 'node',
-          include: ['src/**/*.test.ts'],
+        // Each example also carries these in its own vitest config, for running
+        // one example's suite from inside it. Repeated here because this
+        // project collects all three from the repository root, where an
+        // example's own config is not read (§14).
+        resolve: {
+          alias: {
+            '#mfe/config': '@company/mfe-react/testing/mfe-config',
+            '#mfe/fetch': '@company/mfe-react/testing/mfe-fetch',
+          },
         },
       },
       {

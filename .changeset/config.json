@@ -7,5 +7,5 @@
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@company/shell", "@example/*", "@company/browser-matrix"]
+  "ignore": ["@company/shell", "@example/*"]
 }

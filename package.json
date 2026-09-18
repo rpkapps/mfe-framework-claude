@@ -18,7 +18,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "browser-matrix": "node tools/browser-matrix/report.mjs",
     "dev": "node tools/dev/dev.mjs",
     "dev:shell": "pnpm --filter @company/shell dev",
     "dev:mfes": "node tools/dev/dev.mjs --only-mfes",
