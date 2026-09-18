@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  DiagnosticsHub,
   isMfeError,
   type BoundaryLocation,
-  type Diagnostic,
   type NavigationBridge,
   type NavigationIntent,
   type Unsubscribe,
@@ -17,13 +15,7 @@ import {
   parseBoundaryLocation,
   type NavigationBlocker,
 } from './boundary-navigator.ts'
-
-function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
-  const records: Diagnostic[] = []
-  const hub = new DiagnosticsHub()
-  hub.add(diagnostic => records.push(diagnostic))
-  return { hub, records }
-}
+import { deferred, recordingDiagnostics } from '../__tests__/harness.ts'
 
 const INTENT: NavigationIntent = {
   from: { pathname: '/reports/42/edit', search: '', hash: '' },
@@ -50,22 +42,6 @@ function createRecordingBridge(): NavigationBridge & {
     forward: vi.fn(),
     reload: vi.fn(),
   }
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>
-  readonly resolve: (value: T) => void
-  readonly reject: (reason: unknown) => void
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve
-    reject = onReject
-  })
-  return { promise, resolve, reject }
 }
 
 /**

@@ -1,10 +1,7 @@
 /**
- * Registry normalization and table-driven adapter selection.
- *
- * One internal normalized registry backs every shell surface, so no
- * shell feature has to know which adapter an entry belongs to. Selection is a
- * table: adding an adapter later is a table entry, not a rewrite
- * of this module.
+ * Registry normalization and table-driven adapter selection: one normalized
+ * registry backs every shell surface, so no feature has to know which adapter
+ * an entry belongs to, and adding an adapter is a table entry.
  */
 
 import {
@@ -20,10 +17,9 @@ import {
 
 export interface NormalizeRegistryOptions {
   /**
-   * Ordered selection table. The first rule whose `advertises` returns true
-   * owns the entry — including when its `normalize` then fails. That is what
-   * makes the no-silent-fallback rule hold: a malformed new descriptor produces an explicit
-   * contract error instead of falling through to the legacy rule.
+   * Ordered selection table. The first rule whose `advertises` returns true owns
+   * the entry, including when its `normalize` then fails — that is the
+   * no-silent-fallback rule.
    */
   readonly rules: readonly AdapterSelectionRule[]
   /** Boot-time URL overrides by definition id. */
@@ -49,10 +45,7 @@ function quarantine(
   return { id: labelFor(source, index), reason, error, source }
 }
 
-/**
- * Validates every entry independently: a malformed entry produces a per-entry
- * diagnostic and never removes unrelated valid entries.
- */
+/** Every entry is validated independently, so one malformed entry loses only itself. */
 export function normalizeRegistry(
   sources: readonly unknown[],
   options: NormalizeRegistryOptions,
@@ -167,10 +160,8 @@ export function normalizeRegistry(
 }
 
 /**
- * A rule that throws while merely *detecting* its contract would otherwise take
- * the whole registry down. Treating the throw as "not mine" is safe here
- * because a genuinely malformed advertised contract still fails inside
- * `normalize`, where a malformed advertised contract must fail explicitly.
+ * Treating a throw during *detection* as "not mine" is safe: a genuinely
+ * malformed advertised contract still fails explicitly inside `normalize`.
  */
 function safeAdvertises(rule: AdapterSelectionRule, source: unknown): boolean {
   try {

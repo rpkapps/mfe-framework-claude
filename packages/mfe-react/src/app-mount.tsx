@@ -123,7 +123,7 @@ function findReservedKeyConflict(
   for (const match of router.state.matches) {
     // `AnyRouter` types `routeId` as `any`.
     const routeId = String(match.routeId)
-    const matchContext = match.context as Record<string, unknown> | undefined
+    const matchContext = match.context as unknown as Record<string, unknown> | undefined
     if (!matchContext) continue
     if ('mfe' in matchContext && matchContext['mfe'] !== context.mfe) {
       return { routeId, key: 'mfe' }

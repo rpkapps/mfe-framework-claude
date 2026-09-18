@@ -23,11 +23,14 @@ export {
 
 export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './tracer.ts'
 
+export { createNoopTelemetryProvider } from './tracer.ts'
+
 export {
   createNonRecordingTracer,
-  createNoopTelemetryProvider,
+  createSpanEmitter,
   nonRecordingSpan,
-} from './tracer.ts'
+  type SpanEmitterOptions,
+} from './span-emitter.ts'
 
 export {
   createRecordingTelemetryProvider,

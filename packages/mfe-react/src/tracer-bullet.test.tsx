@@ -323,13 +323,20 @@ describe('mount failure is explicit', () => {
     const app = createApp({ id: 'tracer', router: makeRouter })
     const rendered = renderApp(app, { basePath: '/tracer', initialEntries: ['/tracer'] })
 
-    // The in-process loader refuses an id it was never given, naming what it has.
-    await expect(
-      rendered.environment.runtime.loader.load(
+    const failure = await rendered.environment.runtime.loader
+      .load(
         { id: 'absent', definitionKind: 'app', adapter: 'react', manifestUrl: 'memory://absent' },
         { signal: new AbortController().signal },
-      ),
-    ).rejects.toThrowError(/absent failed to resolve definition.*Register the definition/s)
+      )
+      .then(
+        () => null,
+        (error: unknown) => error as Error,
+      )
+
+    // The in-process loader refuses an id it was never given, naming what it has.
+    expect(failure?.message).toMatch(
+      /absent failed to resolve definition.*Register the definition/s,
+    )
 
     await rendered.dispose()
   })

@@ -8,6 +8,7 @@ import {
   type ContainerLoader,
   type LoadedDefinition,
 } from './container-loader.ts'
+import { deferred, type Deferred } from '../__tests__/harness.ts'
 
 interface TestModule {
   readonly name: string
@@ -24,22 +25,6 @@ function entryFor(id: string): NeutralRegistryEntry {
 
 function loadedFor(id: string): LoadedDefinition<TestModule> {
   return { identity: { id, kind: 'app' }, module: { name: id } }
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>
-  readonly resolve: (value: T) => void
-  readonly reject: (reason: unknown) => void
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve
-    reject = onReject
-  })
-  return { promise, resolve, reject }
 }
 
 /** An inner loader whose settlement the test controls, one deferred per call. */

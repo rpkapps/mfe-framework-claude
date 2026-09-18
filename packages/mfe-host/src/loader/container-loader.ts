@@ -1,13 +1,10 @@
 /**
- * The container-loading port.
+ * The container-loading port: an internal seam, not a public loader API.
  *
- * The neutral host orchestrates loading but never performs it: the concrete
- * Module Federation implementation lives in the React adapter, and tests supply
- * an in-process loader instead. That inversion is what keeps Module Federation
- * out of this package entirely, and it is also what lets the contract tracer
- * bullet run with no bundler, no manifest and no network.
- *
- * The seam is internal. It is not a public loader API for authors.
+ * The host orchestrates loading but never performs it — the Module Federation
+ * implementation lives in the React adapter and tests supply an in-process
+ * loader. That inversion keeps federation out of this package entirely and lets
+ * the contract tests run with no bundler, manifest or network.
  */
 
 import {
@@ -18,10 +15,7 @@ import {
   type NeutralRegistryEntry,
 } from '@company/mfe-core'
 
-/**
- * What a loader returns: the definition's identity as the container advertises
- * it, plus the opaque module the owning adapter knows how to mount.
- */
+/** The identity the container advertises, plus the module its adapter mounts. */
 export interface LoadedDefinition<TModule = unknown> {
   readonly identity: DefinitionIdentity
   readonly module: TModule
@@ -42,10 +36,8 @@ export interface ContainerLoader<TModule = unknown> {
 
 /**
  * Deduplicates concurrent loads of the same container and caches the result.
- *
- * One caller abandoning a load must not cancel work another active caller still
- * needs, so the shared promise is not tied to any single caller's signal; each
- * waiter settles within its own deadline instead.
+ * The shared promise is tied to no single caller's signal, so one caller
+ * abandoning a load cannot cancel work another still needs.
  */
 export class SharedContainerLoader<TModule = unknown> implements ContainerLoader<TModule> {
   readonly #inner: ContainerLoader<TModule>
@@ -99,8 +91,7 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
     )
   }
 
-  /** Drops cached modules. Disposal does not call this: module caching is a
-   * cache, not mount state, and must survive a mount's teardown. */
+  /** Disposal does not call this: a module cache is not mount state. */
   clearCache(): void {
     this.#resolved.clear()
   }
@@ -111,9 +102,8 @@ function neverAborted(): AbortSignal {
 }
 
 /**
- * Lets one waiter give up without disturbing the shared work. The shared
- * promise is always observed so an eventual rejection cannot surface as an
- * unhandled rejection.
+ * Lets one waiter give up without disturbing the shared work, which is always
+ * observed so an eventual rejection cannot surface as an unhandled one.
  */
 function raceWithAbort<T>(
   shared: Promise<T>,
@@ -155,11 +145,7 @@ function raceWithAbort<T>(
   })
 }
 
-/**
- * An in-process loader used by the contract tests and the author testing
- * utilities. Definitions are registered directly, so no bundler, manifest or
- * network is involved.
- */
+/** An in-process loader: definitions registered directly, no bundler or network. */
 export function createInProcessLoader<TModule>(
   definitions: ReadonlyMap<string, LoadedDefinition<TModule>>,
 ): ContainerLoader<TModule> {

@@ -1,11 +1,7 @@
 /**
  * The selection rule for entries that advertise the new framework contract.
- *
- * `advertises` is deliberately loose — it only asks "did this entry claim the
- * new contract?" — while `normalize` is strict. That split is what makes a typo
- * in new metadata fail explicitly instead of silently changing loading
- * behaviour. A malformed advertised contract is never reinterpreted as another
- * adapter.
+ * `advertises` is deliberately loose and `normalize` strict, so a typo in new
+ * metadata fails explicitly instead of being reinterpreted as another adapter.
  */
 
 import {
@@ -20,11 +16,7 @@ import {
   type NeutralRegistryEntry,
 } from '@company/mfe-core'
 
-/**
- * The shape a generated shell registry descriptor has. The `mfe`
- * property is the contract marker: its presence commits the entry to this
- * adapter for the rest of selection.
- */
+/** The `mfe` property is the contract marker: its presence commits the entry here. */
 interface AdvertisedEntry {
   readonly id?: unknown
   readonly mfe?: unknown
@@ -161,11 +153,7 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
   })
 }
 
-/**
- * Builds the selection rule for the new framework contract. The adapter kind is
- * a parameter so a future non-React authoring adapter is a second table entry
- * rather than a change here.
- */
+/** The adapter kind is a parameter, so a second authoring adapter is a table entry. */
 export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelectionRule {
   return {
     adapter,

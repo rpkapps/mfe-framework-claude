@@ -3,13 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DiagnosticsHub, type BreadcrumbItem, type Diagnostic } from '@company/mfe-core'
 
 import { BreadcrumbStore } from './breadcrumb-store.ts'
-
-function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
-  const records: Diagnostic[] = []
-  const hub = new DiagnosticsHub()
-  hub.add(diagnostic => records.push(diagnostic))
-  return { hub, records }
-}
+import { recordingDiagnostics } from '../__tests__/harness.ts'
 
 function crumb(key: string, label = key): BreadcrumbItem {
   return { key, label, href: `/${key}` }

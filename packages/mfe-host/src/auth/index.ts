@@ -1,14 +1,11 @@
 /**
- * Authentication and transport for the host.
+ * Authentication and transport.
  *
- * Two tiers, one session. `createAuthenticatedFetch` covers everything that
- * speaks HTTP through `fetch`; `getAccessToken` on the session service is the
- * escape hatch for transports `fetch` cannot express — WebSocket, EventSource,
- * a library with its own HTTP stack. Both go through the same single-flight
- * refresh, so a burst of expired-token requests renews the session once.
- *
- * Nothing here patches a global, and no token value is ever written to
- * configuration, browser storage or a diagnostic.
+ * The shell owns the session — Better Auth, Auth0, MSAL or its own endpoint —
+ * and satisfies `AccessTokenSource`. The framework adds the token at the
+ * interceptor and only for origins the author declared as APIs.
+ * `createSessionTokenService` is an opt-in single-flight adapter for a shell
+ * with no library of its own, not the path.
  */
 
 export {
@@ -18,11 +15,6 @@ export {
   type AccessTokenReader,
   type GetAccessToken,
   type SessionCallContext,
-  type SessionFailure,
-  type SessionFailureListener,
-  type SessionFailureReason,
-  type SessionRefresher,
-  type SessionTokenService,
   type SessionTokenServiceOptions,
 } from './session.ts'
 

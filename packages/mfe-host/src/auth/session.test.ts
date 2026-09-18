@@ -1,29 +1,11 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-
-import { DiagnosticsHub, type Diagnostic } from '@company/mfe-core'
+import { describe, expect, it, vi, type Mock } from 'vitest'
 
 import {
   createSessionTokenService,
+  type GetAccessToken,
   type SessionCallContext,
-  type SessionFailure,
-  type SessionTokenService,
-  type SessionTokenServiceOptions,
 } from './session.ts'
-
-/** A promise whose settlement the test controls, so races are deterministic. */
-function deferred<T>(): {
-  readonly promise: Promise<T>
-  readonly resolve: (value: T) => void
-  readonly reject: (reason: unknown) => void
-} {
-  let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
+import { at, deferred } from '../__tests__/harness.ts'
 
 type TokenCall = (context: SessionCallContext) => Promise<string | null>
 
@@ -59,14 +41,10 @@ function createFakeSession(initial: string | null = null): FakeSession {
   }
 }
 
-function serviceFor(
-  session: FakeSession,
-  extra: Omit<SessionTokenServiceOptions, 'getToken' | 'refreshToken'> = {},
-): SessionTokenService {
+function serviceFor(session: FakeSession): { readonly getAccessToken: GetAccessToken } {
   return createSessionTokenService({
     getToken: session.getToken,
     refreshToken: session.refreshToken,
-    ...extra,
   })
 }
 
@@ -241,145 +219,60 @@ describe('createSessionTokenService: cancellation', () => {
   })
 })
 
-describe('createSessionTokenService: session failure', () => {
-  let diagnostics: DiagnosticsHub
-  let reported: Diagnostic[]
-
-  beforeEach(() => {
-    diagnostics = new DiagnosticsHub()
-    reported = []
-    diagnostics.add(diagnostic => reported.push(diagnostic))
-  })
-
-  it('reports a thrown refresh as a session event and resolves null to the caller', async () => {
+describe('createSessionTokenService: a refresh the shell cannot complete', () => {
+  it('resolves null to the caller rather than failing whichever mount fired first', async () => {
     const session = createFakeSession(null)
     session.refreshToken.mockRejectedValue(new Error('network down'))
-    const failures: SessionFailure[] = []
-    const tokens = serviceFor(session, {
-      onSessionFailure: failure => failures.push(failure),
-      diagnostics,
-    })
+    const tokens = serviceFor(session)
 
-    // The caller that happened to fire first does not receive a mount error.
     await expect(tokens.getAccessToken()).resolves.toBeNull()
-
-    expect(failures).toHaveLength(1)
-    expect(failures[0]?.reason).toBe('refresh-failed')
-    expect(failures[0]?.error.code).toBe('config/unreachable')
-    expect(failures[0]?.error.message).toContain('re-authentication')
-    expect(failures[0]?.error.cause).toBeInstanceOf(Error)
-    expect(reported).toHaveLength(1)
-    expect(reported[0]?.severity).toBe('error')
   })
 
-  it('reports a refresh that returns no token as a rejected refresh credential', async () => {
+  it('resolves null when the refresh completes without a token', async () => {
     const session = createFakeSession(null)
     session.refreshToken.mockResolvedValue(null)
-    const failures: SessionFailure[] = []
-    const tokens = serviceFor(session, { onSessionFailure: failure => failures.push(failure) })
+    const tokens = serviceFor(session)
 
     await expect(tokens.getAccessToken()).resolves.toBeNull()
-    expect(failures[0]?.reason).toBe('refresh-rejected')
-    expect(failures[0]?.error.message).toContain('no longer accepted')
   })
 
-  it('reports one session event for a whole burst of concurrent callers', async () => {
+  it('still refreshes only once for a whole burst of concurrent callers', async () => {
     const session = createFakeSession(null)
     const gate = deferred<string>()
     session.refreshToken.mockImplementation(() => gate.promise)
-    const failures: SessionFailure[] = []
-    const tokens = serviceFor(session, { onSessionFailure: failure => failures.push(failure) })
+    const tokens = serviceFor(session)
 
     const pending = Array.from({ length: 4 }, () => tokens.getAccessToken())
     gate.reject(new Error('refresh token rotated away'))
 
     await expect(Promise.all(pending)).resolves.toEqual([null, null, null, null])
-    expect(failures).toHaveLength(1)
     expect(session.refreshToken).toHaveBeenCalledTimes(1)
   })
 
-  it('latches the failure so a doomed refresh is not retried on every request', async () => {
-    const session = createFakeSession(null)
-    session.refreshToken.mockRejectedValue(new Error('network down'))
+  it('stops believing the token it was holding, so the next call renews again', async () => {
+    const session = createFakeSession('stored-token')
     const tokens = serviceFor(session)
-
-    await tokens.getAccessToken()
-    await tokens.getAccessToken()
     await tokens.getAccessToken()
 
-    expect(session.refreshToken).toHaveBeenCalledTimes(1)
-    expect(tokens.getSessionFailure()?.reason).toBe('refresh-failed')
-  })
-
-  it('resumes after the shell re-authenticates and calls invalidate', async () => {
-    const session = createFakeSession(null)
     session.refreshToken.mockRejectedValueOnce(new Error('network down'))
-    const tokens = serviceFor(session)
-
-    await expect(tokens.getAccessToken()).resolves.toBeNull()
+    await expect(tokens.getAccessToken({ rejectedToken: 'stored-token' })).resolves.toBeNull()
 
     session.store.current = 'after-login'
-    tokens.invalidate()
-
-    expect(tokens.getSessionFailure()).toBeNull()
     await expect(tokens.getAccessToken()).resolves.toBe('after-login')
   })
 
-  it('notifies every subscriber, and one that throws does not silence the rest', async () => {
-    const session = createFakeSession(null)
-    session.refreshToken.mockRejectedValue(new Error('network down'))
-    const seen: string[] = []
-    const tokens = serviceFor(session, { diagnostics })
-
-    tokens.subscribeToSessionFailure(() => {
-      seen.push('first')
-      throw new Error('subscriber exploded')
-    })
-    const unsubscribe = tokens.subscribeToSessionFailure(() => seen.push('second'))
-    tokens.subscribeToSessionFailure(failure => seen.push(`third:${failure.reason}`))
-
-    await tokens.getAccessToken()
-    expect(seen).toEqual(['first', 'second', 'third:refresh-failed'])
-    // The throwing subscriber is reported rather than swallowed.
-    expect(reported.some(entry => entry.error.message.includes('session-failure'))).toBe(true)
-
-    unsubscribe()
-    tokens.invalidate()
-    seen.length = 0
-    await tokens.getAccessToken()
-    expect(seen).toEqual(['first', 'third:refresh-failed'])
-  })
-
-  it('keeps token material out of every diagnostic it reports', async () => {
+  it('keeps token material out of the error a cancelled caller is handed', async () => {
     const session = createFakeSession('s3cr3t-access-token')
-    session.refreshToken.mockRejectedValue(new Error('network down'))
-    const tokens = serviceFor(session, { diagnostics })
-
+    const tokens = serviceFor(session)
     await tokens.getAccessToken()
-    await tokens.getAccessToken({ rejectedToken: 's3cr3t-access-token' })
 
-    const serialized = JSON.stringify(
-      reported.map(entry => ({ message: entry.error.message, context: entry.context })),
+    const controller = new AbortController()
+    controller.abort({ note: 'not an Error' })
+
+    await expect(
+      tokens.getAccessToken({ signal: controller.signal, rejectedToken: 's3cr3t-access-token' }),
+    ).rejects.toSatisfy(
+      (error: unknown) => !JSON.stringify((error as Error).message).includes('s3cr3t'),
     )
-    expect(serialized).not.toContain('s3cr3t-access-token')
-  })
-
-  it('does not latch a failure onto a session that invalidate already replaced', async () => {
-    const session = createFakeSession(null)
-    const gate = deferred<string>()
-    session.refreshToken.mockImplementation(() => gate.promise)
-    const failures: SessionFailure[] = []
-    const tokens = serviceFor(session, { onSessionFailure: failure => failures.push(failure) })
-
-    const abandoned = tokens.getAccessToken()
-    // The shell re-authenticated while the old refresh was still in flight.
-    session.store.current = 'after-login'
-    tokens.invalidate()
-    gate.reject(new Error('stale refresh token'))
-
-    await expect(abandoned).resolves.toBeNull()
-    expect(failures).toHaveLength(0)
-    expect(tokens.getSessionFailure()).toBeNull()
-    await expect(tokens.getAccessToken()).resolves.toBe('after-login')
   })
 })

@@ -10,7 +10,8 @@ import {
 
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
-import { createNonRecordingTracer, createNoopTelemetryProvider } from './tracer.ts'
+import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
+import { createNoopTelemetryProvider } from './tracer.ts'
 import { at, ATTRIBUTION, setup } from './__tests__/harness.ts'
 
 describe('the seven public members', () => {
@@ -109,6 +110,7 @@ describe('the surface the framework does not have', () => {
       'createNonRecordingTracer',
       'createNoopTelemetryProvider',
       'createRecordingTelemetryProvider',
+      'createSpanEmitter',
       'getActiveSpanContext',
       'isReservedAttributeKey',
       'nonRecordingSpan',

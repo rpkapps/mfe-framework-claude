@@ -1,14 +1,10 @@
 /**
- * Shell-owned live state and its transitions.
+ * Shell-owned live state and its transitions. UI subscribes *per field*, so a
+ * theme change never notifies a consumer that only reads the user, and each
+ * change is classified because a theme change must not reload data while an
+ * identity or group change must retire session-dependent work first.
  *
- * `user`, `groups` and `theme` are immutable snapshots that UI subscribes to
- * *per field*, so changing the theme never notifies a consumer that only reads
- * the user. The store also classifies each change, because the host's reaction
- * differs sharply: a theme change must not reload data, while an identity or
- * semantic group change must retire session-dependent work first.
- *
- * These values are data for rendering and UX decisions. They are deliberately
- * not an authorization API; the host and backend remain responsible for that.
+ * Data for rendering, deliberately not an authorization API.
  */
 
 import {
@@ -42,11 +38,7 @@ export interface ShellStateChange {
 
 export type ShellStateObserver = (change: ShellStateChange) => void
 
-/**
- * Semantic group comparison: a mere reordering of an identical group set is a
- * no-op, but adding or removing a group is a real permission change and must
- * invalidate session-retained state.
- */
+/** A reordering is a no-op; adding or removing a group is a real permission change. */
 function sameGroupSet(a: readonly string[], b: readonly string[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
@@ -63,11 +55,7 @@ function sameUser(a: ShellUser | null, b: ShellUser | null): boolean {
   return shallowEqual(a, b)
 }
 
-/**
- * Classifies an identity change so the host knows whether to retire session
- * state. A different principal, account or tenant all retire it; a changed
- * display name does not.
- */
+/** A different principal, account or tenant retires session state; a new display name does not. */
 function classifyIdentityChange(
   previous: ShellUser | null,
   next: ShellUser | null,
@@ -101,10 +89,7 @@ export class ShellStateStore {
   readonly getGroups = (): readonly string[] => this.#state.groups
   readonly getTheme = (): ShellTheme => this.#state.theme
 
-  /**
-   * Subscribes to one field only. The reference is stable, so React can hold it
-   * across renders without resubscribing.
-   */
+  /** One field only, with a stable reference React can hold across renders. */
   readonly subscribeToField = (field: ShellStateField, listener: () => void): Unsubscribe =>
     this.#fieldListeners.subscribe(field, listener)
 
@@ -121,11 +106,9 @@ export class ShellStateStore {
   }
 
   /**
-   * Applies a patch, replacing the snapshot only when its state actually
-   * changed and preserving the references of unchanged fields.
-   *
-   * Observers run before field listeners so the host can retire obsolete work
-   * and persisted state *before* new-session state becomes visible to UI.
+   * Replaces the snapshot only when state actually changed, preserving
+   * unchanged field references. Observers run before field listeners, so the
+   * host retires obsolete work before new-session state reaches the UI.
    */
   apply(
     patch: ShellStatePatch,

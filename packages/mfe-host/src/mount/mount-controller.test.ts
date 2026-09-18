@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  DiagnosticsHub,
   isMfeError,
   type DeadlineConfig,
   type Diagnostic,
@@ -9,6 +8,7 @@ import {
 } from '@company/mfe-core'
 
 import { MountController, type MountOperations } from './mount-controller.ts'
+import { deferred, flush, recordingDiagnostics, type Deferred } from '../__tests__/harness.ts'
 
 interface TestModule {
   readonly name: string
@@ -18,29 +18,6 @@ const MODULE: TestModule = { name: 'reports' }
 const SECOND_MODULE: TestModule = { name: 'reports-retry' }
 
 const DEADLINES: DeadlineConfig = Object.freeze({ load: 30_000, mount: 30_000, dispose: 5_000 })
-
-function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
-  const records: Diagnostic[] = []
-  const hub = new DiagnosticsHub()
-  hub.add(diagnostic => records.push(diagnostic))
-  return { hub, records }
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>
-  readonly resolve: (value: T) => void
-  readonly reject: (reason: unknown) => void
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve
-    reject = onReject
-  })
-  return { promise, resolve, reject }
-}
 
 function operations(
   overrides: Partial<MountOperations<TestModule>> = {},
@@ -75,13 +52,6 @@ function createController(
 function errorStateOf(state: MountState): { readonly code: string; readonly message: string } {
   if (state.status !== 'error') throw new Error(`expected an error state, saw "${state.status}"`)
   return { code: state.error.code, message: state.error.message }
-}
-
-/** Lets already-queued microtasks and callbacks run under real timers. */
-function flush(): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, 0)
-  })
 }
 
 describe('mounting', () => {

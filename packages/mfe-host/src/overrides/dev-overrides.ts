@@ -1,9 +1,7 @@
 /**
- * Boot-time developer URL overrides.
- *
- * The override is a URL only. It deliberately accepts no configuration,
- * contract or adapter changes: keeping that constraint now is what prevents it
- * from growing into a second configuration surface.
+ * Boot-time developer URL overrides. A URL only: accepting configuration,
+ * contract or adapter changes here is what would turn it into a second
+ * configuration surface.
  */
 
 import { createMfeError, type MfeError } from '@company/mfe-core'
@@ -23,28 +21,31 @@ const EMPTY_RESULT: DevOverridesResult = Object.freeze({
   diagnostics: [],
 })
 
-function overrideError(details: {
+interface OverrideProblem {
   readonly id: string
   readonly operation: string
   readonly expected: string
   readonly observed: string
   readonly repair: string
-}): MfeError {
+}
+
+function overrideError(details: OverrideProblem): MfeError {
   return createMfeError({
     code: 'registry/invalid-descriptor',
-    id: details.id,
-    operation: details.operation,
-    expected: details.expected,
-    observed: details.observed,
     declaredBy: `The local development override in localStorage["${OVERRIDES_STORAGE_KEY}"]`,
-    repair: details.repair,
+    ...details,
   })
+}
+
+/** A result carrying nothing but one problem to show the developer. */
+function onlyDiagnostic(details: OverrideProblem): DevOverridesResult {
+  return { overrides: new Map(), diagnostics: [overrideError(details)] }
 }
 
 /**
  * Reads overrides before remotes are registered. Every failure mode is
- * reported: a forgotten or malformed override that silently did nothing is the
- * exact phantom bug the visible-override requirement exists to prevent.
+ * reported: an override that silently did nothing is the phantom bug the
+ * visible-override requirement exists to prevent.
  */
 export function readDevOverrides(
   storage: Pick<Storage, 'getItem'> | undefined,
@@ -55,22 +56,14 @@ export function readDevOverrides(
   try {
     raw = storage.getItem(OVERRIDES_STORAGE_KEY)
   } catch (error) {
-    return {
-      overrides: new Map(),
-      diagnostics: [
-        createMfeError({
-          code: 'registry/invalid-descriptor',
-          id: OVERRIDES_STORAGE_KEY,
-          operation: 'read development overrides',
-          expected: 'readable localStorage',
-          observed: error instanceof Error ? `${error.name}: ${error.message}` : 'an access error',
-          declaredBy: 'The local development override reader',
-          repair:
-            'Browser storage is blocked for this origin. Development overrides are unavailable until it is allowed.',
-          cause: error,
-        }),
-      ],
-    }
+    return onlyDiagnostic({
+      id: OVERRIDES_STORAGE_KEY,
+      operation: 'read development overrides',
+      expected: 'readable localStorage',
+      observed: error instanceof Error ? `${error.name}: ${error.message}` : 'an access error',
+      repair:
+        'Browser storage is blocked for this origin. Development overrides are unavailable until it is allowed.',
+    })
   }
 
   if (raw === null || raw === '') return EMPTY_RESULT
@@ -79,33 +72,23 @@ export function readDevOverrides(
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return {
-      overrides: new Map(),
-      diagnostics: [
-        overrideError({
-          id: OVERRIDES_STORAGE_KEY,
-          operation: 'parse development overrides',
-          expected: 'a JSON object mapping definition ids to absolute manifest URLs',
-          observed: 'text that is not valid JSON',
-          repair: `Run localStorage.removeItem('${OVERRIDES_STORAGE_KEY}') and set the override again using the snippet the dev command prints.`,
-        }),
-      ],
-    }
+    return onlyDiagnostic({
+      id: OVERRIDES_STORAGE_KEY,
+      operation: 'parse development overrides',
+      expected: 'a JSON object mapping definition ids to absolute manifest URLs',
+      observed: 'text that is not valid JSON',
+      repair: `Run localStorage.removeItem('${OVERRIDES_STORAGE_KEY}') and set the override again using the snippet the dev command prints.`,
+    })
   }
 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {
-      overrides: new Map(),
-      diagnostics: [
-        overrideError({
-          id: OVERRIDES_STORAGE_KEY,
-          operation: 'read development overrides',
-          expected: 'a JSON object mapping definition ids to absolute manifest URLs',
-          observed: Array.isArray(parsed) ? 'an array' : `a ${typeof parsed}`,
-          repair: `Set it to an object, for example {"operations":"http://localhost:3001/mf-manifest.json"}.`,
-        }),
-      ],
-    }
+    return onlyDiagnostic({
+      id: OVERRIDES_STORAGE_KEY,
+      operation: 'read development overrides',
+      expected: 'a JSON object mapping definition ids to absolute manifest URLs',
+      observed: Array.isArray(parsed) ? 'an array' : `a ${typeof parsed}`,
+      repair: `Set it to an object, for example {"operations":"http://localhost:3001/mf-manifest.json"}.`,
+    })
   }
 
   const overrides = new Map<string, string>()
@@ -154,9 +137,9 @@ function isAbsoluteUrl(value: string): boolean {
 }
 
 /**
- * Detects a multi-definition container whose exports were pointed at different
- * URLs. This is diagnosed before registration rather than
- * resolving to whichever entry registered first.
+ * A multi-definition container whose exports were pointed at different URLs,
+ * diagnosed before registration rather than resolved by whichever registered
+ * first.
  */
 export function findConflictingContainerOverrides(
   overrides: ReadonlyMap<string, string>,

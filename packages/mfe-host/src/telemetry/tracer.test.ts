@@ -11,7 +11,7 @@ import {
 
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
-import { nonRecordingSpan } from './tracer.ts'
+import { nonRecordingSpan } from './span-emitter.ts'
 import { at, ATTRIBUTION, setup, spanNamed } from './__tests__/harness.ts'
 
 describe('span creation', () => {

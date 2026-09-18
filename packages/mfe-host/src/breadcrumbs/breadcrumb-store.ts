@@ -1,14 +1,8 @@
 /**
- * Breadcrumb composition across mounts.
- *
- * The React adapter derives an App's own contribution from its native router
- * matches; this store only orders contributions parent-to-child and publishes
- * the composed trail. Keeping composition here means a nested App contributes
- * exactly the way a top-level App does.
- *
- * The equality rules matter as much as the ordering: an inline array holding
- * unchanged records must be a no-op for shell subscribers, so the header does
- * not re-render for unrelated router state such as fetch status.
+ * Breadcrumb composition across mounts: order contributions parent-to-child and
+ * publish the composed trail, so a nested App contributes exactly as a
+ * top-level one does. The equality rules matter as much as the ordering — an
+ * inline array of unchanged records must be a no-op for shell subscribers.
  */
 
 import {
@@ -69,10 +63,7 @@ export class BreadcrumbStore {
     return this.#contributions.size
   }
 
-  /**
-   * Registers a mount as a contributor. An App that opted out simply never
-   * registers, which does not affect contributions from nested child Apps.
-   */
+  /** An App that opted out never registers, which does not affect nested Apps. */
   registerMount(
     definitionId: string,
     mountToken: string,
@@ -109,12 +100,9 @@ export class BreadcrumbStore {
   }
 
   /**
-   * Installs the single permitted override for a mount.
-   *
-   * The override is bound to the navigation at which it mounted, so a hook that
-   * somehow survives a navigation cannot reinstall its previous contribution.
-   * A second, competing override produces an explicit diagnostic rather than an
-   * order-dependent result.
+   * Installs the single permitted override for a mount, bound to the navigation
+   * it mounted in. A second, competing override produces an explicit diagnostic
+   * rather than a result that depends on render order.
    */
   setOverride(mountToken: string, items: readonly BreadcrumbItem[], ownerToken: string): void {
     const contribution = this.#contributions.get(mountToken)
@@ -173,11 +161,7 @@ export class BreadcrumbStore {
     this.#compose()
   }
 
-  /**
-   * Called by the adapter on every committed navigation inside a mount. It
-   * clears any active override so a multi-step flow cannot leak its steps into
-   * the next route.
-   */
+  /** Clears any active override, so a multi-step flow cannot leak into the next route. */
   notifyNavigation(mountToken: string): void {
     const contribution = this.#contributions.get(mountToken)
     if (!contribution) return
@@ -196,10 +180,7 @@ export class BreadcrumbStore {
     this.#trail.dispose()
   }
 
-  /**
-   * Composes parent-to-child. Unchanged records keep their references and an
-   * equal composed trail is never republished.
-   */
+  /** Unchanged records keep their references; an equal trail is never republished. */
   #compose(): void {
     const ordered = [...this.#contributions.values()].sort(
       (a, b) => a.depth - b.depth || a.sequence - b.sequence,

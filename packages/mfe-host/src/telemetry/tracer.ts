@@ -27,6 +27,7 @@ import {
   RESERVED_ATTRIBUTE_KEYS,
   type MountTelemetryRuntime,
 } from './runtime.ts'
+import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
 
 export interface ActiveSpanContext {
   /** Identity of the mount that owns the span. Compared by reference. */
@@ -79,50 +80,6 @@ export function bindTelemetryContext<A extends readonly unknown[], R>(
 
 /** How a span that outlived its mount is labelled. Never an error status. */
 const CANCELLATION_REASON = 'mount-disposed'
-
-/** One frozen instance: the handle carries no state, so a disabled mount allocates nothing. */
-export const nonRecordingSpan: Span = Object.freeze({
-  setAttribute: (): Span => nonRecordingSpan,
-  setAttributes: (): Span => nonRecordingSpan,
-  addEvent: (): Span => nonRecordingSpan,
-  setStatus: (): Span => nonRecordingSpan,
-  recordException: (): Span => nonRecordingSpan,
-  end: (): void => {},
-  isRecording: (): boolean => false,
-})
-
-/** Splits the two `startActiveSpan` overloads into their parts. */
-function activeSpanArgs<T>(
-  optionsOrCallback: SpanOptions | ((span: Span) => T),
-  maybeCallback: ((span: Span) => T) | undefined,
-): { options: SpanOptions | undefined; callback: ((span: Span) => T) | undefined } {
-  return typeof optionsOrCallback === 'function'
-    ? { options: undefined, callback: optionsOrCallback }
-    : { options: optionsOrCallback, callback: maybeCallback }
-}
-
-/**
- * A tracer whose spans never record: what a caller gets when tracing is off,
- * when the mount is disposed, when the provider's tracer could not be built, or
- * when the open-span budget is exhausted. The callback still runs exactly once
- * and its result is returned unchanged, so turning tracing off cannot change
- * what the application does.
- */
-export function createNonRecordingTracer(): Tracer {
-  return Object.freeze({
-    startSpan: (): Span => nonRecordingSpan,
-    startActiveSpan: <T>(
-      _name: string,
-      optionsOrCallback: SpanOptions | ((span: Span) => T),
-      maybeCallback?: (span: Span) => T,
-    ): T => {
-      const { callback } = activeSpanArgs(optionsOrCallback, maybeCallback)
-      return typeof callback === 'function'
-        ? callback(nonRecordingSpan)
-        : (undefined as unknown as T)
-    },
-  })
-}
 
 /** A provider that keeps nothing: the default before a shell wires a backend. */
 export function createNoopTelemetryProvider(): TelemetryProvider {
@@ -365,7 +322,9 @@ export class MountTracer implements Tracer {
     optionsOrCallback: SpanOptions | ((span: Span) => T),
     maybeCallback?: (span: Span) => T,
   ): T {
-    const { options, callback } = activeSpanArgs(optionsOrCallback, maybeCallback)
+    const isCallback = typeof optionsOrCallback === 'function'
+    const callback = isCallback ? optionsOrCallback : maybeCallback
+    const options = isCallback ? undefined : optionsOrCallback
 
     if (typeof callback !== 'function') {
       // Only reachable from untyped JavaScript. Throwing here would turn a

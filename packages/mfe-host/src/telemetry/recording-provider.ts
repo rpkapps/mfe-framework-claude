@@ -1,47 +1,24 @@
 /**
  * A recording telemetry provider: the test-only entry point.
  *
- * It implements the provider seam in memory and keeps what it was given, so
- * asserting that a feature emits the right telemetry needs no monitoring
- * account, no vendor SDK and no network. Parentage is rebuilt from the reserved
- * span-id attributes, exactly as a real shell adapter would. Buffers are
- * bounded like a real sink's, and `overflowCount` moves when one overflows.
+ * It keeps what it was given in bounded buffers, so asserting that a feature
+ * emits the right telemetry needs no monitoring account, no vendor SDK and no
+ * network. Every span comes from `createSpanEmitter`, which is what a real
+ * shell adapter uses too, so this is a sink and not a second tracer.
  */
 
-import {
-  EMPTY_ATTRIBUTES,
-  SpanKind,
-  SpanStatusCode,
-  type Span,
-  type SpanOptions,
-  type SpanRecord,
-  type SpanStatus,
-  type TelemetryAttributes,
-  type TelemetryAttribution,
-  type TelemetryEventRecord,
-  type TelemetryFrameworkRecord,
-  type TelemetryLevel,
-  type TelemetryLogRecord,
-  type TelemetryMeasurementRecord,
-  type TelemetryProvider,
-  type TelemetryRecord,
+import type {
+  SpanRecord,
+  TelemetryEventRecord,
+  TelemetryFrameworkRecord,
+  TelemetryLevel,
+  TelemetryLogRecord,
+  TelemetryMeasurementRecord,
+  TelemetryProvider,
+  TelemetryRecord,
 } from '@company/mfe-core'
 
-import { RESERVED_ATTRIBUTE_KEYS } from './runtime.ts'
-
-/** A `SpanRecord` while it is still being written to. */
-interface MutableSpanRecord {
-  name: string
-  kind: SpanKind
-  attributes: TelemetryAttributes
-  attribution: TelemetryAttribution
-  startTime: number
-  endTime?: number
-  status: SpanStatus
-  events: { name: string; attributes: TelemetryAttributes; timestamp: number }[]
-  exceptions: unknown[]
-  parent?: SpanRecord
-}
+import { createSpanEmitter } from './span-emitter.ts'
 
 export interface RecordingProviderOptions {
   /** Levels the provider admits. Omit for "everything". */
@@ -81,17 +58,23 @@ export function createRecordingTelemetryProvider(
   options: RecordingProviderOptions = {},
 ): RecordingTelemetryProvider {
   const limit = options.limit ?? 1000
-  const now = options.now ?? Date.now
-
   const records: TelemetryRecord[] = []
-  const spans: MutableSpanRecord[] = []
-  const spansById = new Map<string, MutableSpanRecord>()
+  const spans: SpanRecord[] = []
 
   let overflowCount = 0
   let tracerCount = 0
   let enabledLevels = options.enabledLevels
   let recordFailure: ((record: TelemetryRecord) => boolean) | null = null
   let tracerFailure = false
+
+  /** Appends to a bounded buffer, dropping the oldest entry once it is full. */
+  function keep<T>(buffer: T[], entry: T): void {
+    if (buffer.length >= limit) {
+      buffer.shift()
+      overflowCount += 1
+    }
+    buffer.push(entry)
+  }
 
   /** Records of one kind, optionally narrowed by the field that names them. */
   const select = <T>(kind: string, field: string, match: string | undefined): readonly T[] =>
@@ -101,99 +84,21 @@ export function createRecordingTelemetryProvider(
         (match === undefined || (record as unknown as Record<string, unknown>)[field] === match),
     ) as unknown as readonly T[]
 
-  function startSpan(attribution: TelemetryAttribution, name: string, given?: SpanOptions): Span {
-    const attributes = given?.attributes ?? EMPTY_ATTRIBUTES
-    const record: MutableSpanRecord = {
-      name,
-      kind: given?.kind ?? SpanKind.INTERNAL,
-      attributes,
-      attribution,
-      startTime: given?.startTime ?? now(),
-      status: { code: SpanStatusCode.UNSET },
-      events: [],
-      exceptions: [],
-    }
-
-    const parent = spansById.get(String(attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]))
-    if (parent !== undefined) record.parent = parent
-    const spanId = attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
-    if (typeof spanId === 'string') spansById.set(spanId, record)
-
-    if (spans.length >= limit) {
-      overflowCount += 1
-      const evictedId = spans.shift()?.attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
-      if (typeof evictedId === 'string') spansById.delete(evictedId)
-    }
-    spans.push(record)
-
-    const span: Span = {
-      setAttribute: (key, value) => {
-        record.attributes = Object.freeze({ ...record.attributes, [key]: value })
-        return span
-      },
-      setAttributes: added => {
-        record.attributes = Object.freeze({ ...record.attributes, ...added })
-        return span
-      },
-      addEvent: (eventName, eventAttributes) => {
-        record.events.push({
-          name: eventName,
-          attributes: eventAttributes ?? EMPTY_ATTRIBUTES,
-          timestamp: now(),
-        })
-        return span
-      },
-      setStatus: status => {
-        record.status = status
-        return span
-      },
-      recordException: (error, exceptionAttributes) => {
-        record.exceptions.push(error)
-        // OpenTelemetry models an exception as an event on the span; mirroring
-        // that keeps the attributes visible to a test.
-        return span.addEvent('exception', exceptionAttributes)
-      },
-      end: endTime => {
-        if (record.endTime === undefined) record.endTime = endTime ?? now()
-      },
-      isRecording: () => record.endTime === undefined,
-    }
-    return span
-  }
-
-  const provider: RecordingTelemetryProvider = {
+  return {
     record: record => {
       if (recordFailure !== null && recordFailure(record)) {
         throw new Error(`recording provider: record() is configured to fail for ${record.kind}`)
       }
-      if (records.length >= limit) {
-        records.shift()
-        overflowCount += 1
-      }
-      records.push(record)
+      keep(records, record)
     },
 
     createTracer: attribution => {
       tracerCount += 1
       if (tracerFailure) throw new Error('recording provider: createTracer is configured to fail')
-      const start = (name: string, given?: SpanOptions): Span => startSpan(attribution, name, given)
-      // The host owns context and never calls startActiveSpan, but a provider
-      // must still honour the contract: the callback runs exactly once and its
-      // result is returned unchanged.
-      return {
-        startSpan: start,
-        startActiveSpan: <T>(
-          name: string,
-          optionsOrCallback: SpanOptions | ((span: Span) => T),
-          maybeCallback?: (span: Span) => T,
-        ): T => {
-          const given = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback
-          const callback =
-            typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback
-          if (typeof callback !== 'function') return undefined as unknown as T
-          return callback(start(name, given))
-        },
-      }
+      return createSpanEmitter(attribution, {
+        ...(options.now === undefined ? {} : { now: options.now }),
+        onSpanStart: span => keep(spans, span),
+      })
     },
 
     isLevelEnabled: level => enabledLevels === undefined || enabledLevels.includes(level),
@@ -222,7 +127,6 @@ export function createRecordingTelemetryProvider(
     clear: () => {
       records.length = 0
       spans.length = 0
-      spansById.clear()
       overflowCount = 0
     },
     failRecords: mode => {
@@ -235,6 +139,4 @@ export function createRecordingTelemetryProvider(
       enabledLevels = levels
     },
   }
-
-  return provider
 }

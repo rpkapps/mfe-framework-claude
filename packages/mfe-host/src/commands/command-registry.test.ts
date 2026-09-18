@@ -3,21 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   allow,
   deny,
-  DiagnosticsHub,
   isMfeError,
   type CommandPlacement,
   type CommandRegistration,
-  type Diagnostic,
 } from '@company/mfe-core'
 
 import { CommandRegistry } from './command-registry.ts'
-
-function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
-  const records: Diagnostic[] = []
-  const hub = new DiagnosticsHub()
-  hub.add(diagnostic => records.push(diagnostic))
-  return { hub, records }
-}
+import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
 function registration(overrides: Partial<CommandRegistration> = {}): CommandRegistration {
   return {
@@ -26,10 +18,6 @@ function registration(overrides: Partial<CommandRegistration> = {}): CommandRegi
     execute: () => undefined,
     ...overrides,
   }
-}
-
-function codesOf(records: readonly Diagnostic[]): readonly string[] {
-  return records.map(record => record.error.code)
 }
 
 describe('registration', () => {
