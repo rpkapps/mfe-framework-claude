@@ -2,10 +2,9 @@
  * The Widget provider boundary: input validation, event emission and the remote
  * render.
  *
- * Inputs are reactive but not cheap to validate, so they are compared shallowly
- * first and a successful update publishes a validated snapshot to the existing
- * mount rather than remounting it. Handlers change on almost every render, so
- * they live in a ref and the channel is never torn down and rebuilt.
+ * Inputs are compared shallowly before revalidating, and an accepted update
+ * publishes a snapshot to the existing mount rather than remounting it.
+ * Handlers live in a ref, so the channel is never torn down and rebuilt.
  */
 
 import {
@@ -16,14 +15,11 @@ import {
   type WidgetContract,
 } from '@company/mfe-core'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { z } from 'zod'
 
 import { assertUsableInputNames, type WidgetDefinition } from './definition.ts'
 import { MfeMountProvider } from './mount-context.tsx'
 import { MfeScopeRoot } from './scope-root.tsx'
 import type { MfeMount } from './runtime.ts'
-
-export type WidgetEventHandlers = Readonly<Record<string, (payload: unknown) => void>>
 
 /** Shallow comparison over input names, so a handler change is not an input change. */
 function inputsEqual(
@@ -44,9 +40,9 @@ export interface WidgetMountProps {
   readonly mount: MfeMount
   readonly inputs: Readonly<Record<string, unknown>>
   /** Latest committed handlers, keyed by event name (not by `onX` prop name). */
-  readonly handlers: WidgetEventHandlers
+  readonly handlers: Readonly<Record<string, (payload: unknown) => void>>
   /** Consumer-declared event schemas, when a runtime contract was supplied. */
-  readonly consumerEvents?: Readonly<Record<string, z.ZodType>> | undefined
+  readonly consumerEvents?: WidgetContract['events'] | undefined
   readonly onInputRejected?: (error: MfeError) => void
 }
 

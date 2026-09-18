@@ -1,10 +1,8 @@
 /**
- * Derives the supported browser matrix.
- *
- * The matrix is the *intersection* of the required native features, measured
- * afterwards for aggregate global usage. The order matters: `cover 91%` on its
- * own would happily include browsers with no `@scope`, so the feature floor is
- * applied first and coverage is the outcome, never the input.
+ * The supported browser matrix: the *intersection* of the required native
+ * features, measured afterwards for aggregate global usage. Order matters —
+ * `cover 91%` alone would happily include browsers with no `@scope`, so the
+ * feature floor is applied first and coverage is the outcome, never the input.
  */
 
 import { versionKey, type FeatureSupport, type SupportData, type SupportString } from './caniuse.ts'
@@ -13,16 +11,10 @@ import { versionKey, type FeatureSupport, type SupportData, type SupportString }
 export const COVERAGE_TARGET_PERCENT = 91
 
 /**
- * caniuse encodes the verdict in the first space-separated token (`y`
- * supported, `a` partial, `n` unsupported, `p` polyfill, `u` unknown) followed
- * by modifier flags (`x` needs a vendor prefix, `d` behind a flag).
- *
- * Only a plain `y` counts:
- * - `a` (partial) is not enough because no CSS fallback ships — a browser
- *   that implements part of `@scope` still renders unscoped styles somewhere,
- *   which is worse than a browser we simply do not claim to support.
- * - `y x` is not enough either: the build emits unprefixed CSS and unprefixed
- *   API calls, so prefix-only support would not run.
+ * caniuse puts the verdict in the first space-separated token and modifier
+ * flags after it. Only a plain `y` counts: partial support renders unscoped
+ * styles somewhere, and `y x` (vendor prefix) would not run against the
+ * unprefixed CSS and API calls the build emits.
  */
 export function isFullySupported(cell: SupportString | undefined): boolean {
   if (cell === undefined) return false
@@ -40,12 +32,10 @@ export interface BrowserFloor {
   readonly browser: string
   /** Lowest released version from which every required feature is supported. */
   readonly version: string
-  /** Every released version at or above the floor. */
+  /** Every released version at or above the floor, and their usage share. */
   readonly versions: readonly string[]
-  /** Aggregate global usage share of those versions. */
   readonly usage: number
-  /** Usage share of the released versions *below* the floor, i.e. what the
-   * feature floor costs on this browser. */
+  /** What the floor costs on this browser: usage of the versions below it. */
   readonly usageBelowFloor: number
 }
 
@@ -82,14 +72,6 @@ export interface ComputeMatrixOptions {
   readonly target?: number
 }
 
-function supportCell(
-  feature: FeatureSupport,
-  browser: string,
-  version: string,
-): SupportString | undefined {
-  return feature.stats[browser]?.[version]
-}
-
 function missingAt(
   features: readonly FeatureSupport[],
   browser: string,
@@ -97,19 +79,16 @@ function missingAt(
 ): MissingFeature[] {
   const missing: MissingFeature[] = []
   for (const feature of features) {
-    const cell = supportCell(feature, browser, version)
+    const cell = feature.stats[browser]?.[version]
     if (!isFullySupported(cell)) missing.push({ id: feature.id, support: cell ?? 'n/a' })
   }
   return missing
 }
 
 /**
- * Computes the matrix from the required features.
- *
- * Support must be *contiguous from the newest released version downwards*: the
- * floor is the oldest version from which no later release regresses. A browser
- * that shipped a feature and then removed it therefore does not get a floor
- * below the regression, which is what a `>= version` query actually promises.
+ * Support must be contiguous from the newest released version downwards, so a
+ * browser that shipped a feature and then removed it gets no floor below the
+ * regression — which is what a `>= version` query actually promises.
  */
 export function computeMatrix(
   data: SupportData,

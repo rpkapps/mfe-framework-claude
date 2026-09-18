@@ -9,10 +9,6 @@ import {
   type LoadedDefinition,
 } from './container-loader.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 interface TestModule {
   readonly name: string
 }
@@ -74,10 +70,6 @@ function settle<T>(deferredValue: Deferred<T> | undefined, value: T): void {
   deferredValue.resolve(value)
 }
 
-/* -------------------------------------------------------------------------- */
-/* In-process loader                                                           */
-/* -------------------------------------------------------------------------- */
-
 describe('createInProcessLoader', () => {
   it('resolves a registered definition with no bundler, manifest or network', async () => {
     const reports = loadedFor('reports')
@@ -128,18 +120,12 @@ describe('createInProcessLoader', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Shared loading                                                              */
-/* -------------------------------------------------------------------------- */
-
 describe('SharedContainerLoader deduplication', () => {
   it('runs the inner loader once for several concurrent callers', async () => {
-    // Arrange
     const inner = createControllableLoader()
     const shared = new SharedContainerLoader(inner.loader)
     const entry = entryFor('reports')
 
-    // Act
     const waiters = [
       shared.load(entry, { signal: new AbortController().signal }),
       shared.load(entry, { signal: new AbortController().signal }),
@@ -149,7 +135,6 @@ describe('SharedContainerLoader deduplication', () => {
     const loaded = loadedFor('reports')
     settle(inner.pending[0], loaded)
 
-    // Assert
     await expect(Promise.all(waiters)).resolves.toEqual([loaded, loaded, loaded])
     expect(inner.load).toHaveBeenCalledTimes(1)
   })
@@ -219,13 +204,9 @@ describe('SharedContainerLoader deduplication', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Abandonment                                                                 */
-/* -------------------------------------------------------------------------- */
-
 describe('abandoning a shared load', () => {
   it('does not cancel work another caller still needs', async () => {
-    // Arrange: two mounts want the same container.
+    // two mounts want the same container.
     const inner = createControllableLoader()
     const shared = new SharedContainerLoader(inner.loader)
     const entry = entryFor('reports')
@@ -234,10 +215,10 @@ describe('abandoning a shared load', () => {
     const abandoned = shared.load(entry, { signal: abandoning.signal })
     const stillWaiting = shared.load(entry, { signal: waiting.signal })
 
-    // Act: the first mount is disposed mid-load.
+    // the first mount is disposed mid-load.
     abandoning.abort()
 
-    // Assert: it gives up, the other caller is unaffected.
+    // it gives up, the other caller is unaffected.
     await expect(abandoned).rejects.toMatchObject({ code: 'load/entry-failure', id: 'reports' })
     const loaded = loadedFor('reports')
     settle(inner.pending[0], loaded)
@@ -287,24 +268,18 @@ describe('abandoning a shared load', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Preloading                                                                  */
-/* -------------------------------------------------------------------------- */
-
 describe('preload', () => {
   it('resolves the container’s code without creating a mount', async () => {
-    // Arrange
     const inner = createControllableLoader()
     const shared = new SharedContainerLoader(inner.loader)
     const entry = entryFor('reports')
 
-    // Act
     const warming = shared.preload(entry, { signal: new AbortController().signal })
     const loaded = loadedFor('reports')
     settle(inner.pending[0], loaded)
     await expect(warming).resolves.toBeUndefined()
 
-    // Assert: a later real navigation is served from the warmed cache.
+    // a later real navigation is served from the warmed cache.
     await expect(shared.load(entry, { signal: new AbortController().signal })).resolves.toBe(loaded)
     expect(inner.load).toHaveBeenCalledTimes(1)
   })

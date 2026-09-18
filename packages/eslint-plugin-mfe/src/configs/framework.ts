@@ -21,6 +21,7 @@ import {
   typeSafety,
   typeScriptPlugins,
   withFiles,
+  type PresetOptions,
 } from './shared.ts'
 import {
   MODULE_FEDERATION_PATTERN,
@@ -32,27 +33,7 @@ import {
   type RestrictedPattern,
 } from './restricted-imports.ts'
 
-export interface FrameworkPresetOptions {
-  /** Root directory for the type-aware program. Defaults to the ESLint CWD. */
-  readonly tsconfigRootDir?: string | undefined
-  /** Files the preset applies to. Defaults to every TypeScript file. */
-  readonly files?: readonly string[] | undefined
-  /**
-   * Files the React and React Compiler rules apply to, always intersected with
-   * `files`. Defaults to `files`; narrow it to the packages that contain React,
-   * because elsewhere any API whose name collides with a hook reports falsely.
-   */
-  readonly reactFiles?: readonly string[] | undefined
-  /** Files allowed to touch Web Storage directly: the storage adapter, and a
-   * documented shell bootstrap that overrides it. */
-  readonly storageAllowedScopes?: readonly string[] | undefined
-  /** Globs of Widget-owned sources, if the package under lint ships Widgets. */
-  readonly widgetScopes?: readonly string[] | undefined
-  /** Extra restricted paths appended to every zone. */
-  readonly extraRestrictedPaths?: readonly RestrictedPath[] | undefined
-  /** Extra restricted patterns appended to every zone. */
-  readonly extraRestrictedPatterns?: readonly RestrictedPattern[] | undefined
-}
+export type FrameworkPresetOptions = PresetOptions
 
 /** A sibling of the React adapter, not a consumer of it. */
 const SIBLING =

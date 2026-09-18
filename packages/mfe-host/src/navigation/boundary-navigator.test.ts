@@ -18,10 +18,6 @@ import {
   type NavigationBlocker,
 } from './boundary-navigator.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
   const records: Diagnostic[] = []
   const hub = new DiagnosticsHub()
@@ -97,10 +93,6 @@ function recordingBlocker(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Blocker negotiation                                                         */
-/* -------------------------------------------------------------------------- */
-
 describe('requestNavigation', () => {
   it('commits exactly once when no mount wants to block', async () => {
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
@@ -113,7 +105,6 @@ describe('requestNavigation', () => {
   })
 
   it('commits exactly once when every blocker agrees, not once per blocker', async () => {
-    // Arrange
     const order: string[] = []
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
     navigator.registerBlocker('mount-a', recordingBlocker('outer', 1, order))
@@ -121,31 +112,26 @@ describe('requestNavigation', () => {
     navigator.registerBlocker('mount-c', recordingBlocker('inner', 3, order))
     const commit = vi.fn()
 
-    // Act
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // Assert
     expect(outcome).toBe('proceeded')
     expect(commit).toHaveBeenCalledTimes(1)
   })
 
   it('asks the innermost mount first and works outwards', async () => {
-    // Arrange: registration order deliberately does not match nesting depth.
+    // registration order deliberately does not match nesting depth.
     const order: string[] = []
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
     navigator.registerBlocker('mount-middle', recordingBlocker('middle', 2, order))
     navigator.registerBlocker('mount-outer', recordingBlocker('outer', 1, order))
     navigator.registerBlocker('mount-inner', recordingBlocker('inner', 3, order))
 
-    // Act
     await navigator.requestNavigation(INTENT, vi.fn())
 
-    // Assert
     expect(order).toEqual(['inner', 'middle', 'outer'])
   })
 
   it('stops at the first refusal and never asks the shallower mounts', async () => {
-    // Arrange
     const order: string[] = []
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
     navigator.registerBlocker('mount-outer', recordingBlocker('outer', 1, order))
@@ -157,10 +143,9 @@ describe('requestNavigation', () => {
     )
     const commit = vi.fn()
 
-    // Act
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // Assert: the current route and UI stay intact.
+    // the current route and UI stay intact.
     expect(outcome).toBe('blocked')
     expect(order).toEqual(['inner'])
     expect(commit).not.toHaveBeenCalled()
@@ -178,7 +163,7 @@ describe('requestNavigation', () => {
   })
 
   it('refuses a second request while a confirmation is still open', async () => {
-    // Arrange: the first navigation is waiting on the user.
+    // the first navigation is waiting on the user.
     const order: string[] = []
     const answer = deferred<'proceed' | 'reset'>()
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
@@ -191,10 +176,10 @@ describe('requestNavigation', () => {
     const first = navigator.requestNavigation(INTENT, firstCommit)
     expect(navigator.isNegotiating).toBe(true)
 
-    // Act: a second intent arrives before the user answered.
+    // a second intent arrives before the user answered.
     const secondOutcome = await navigator.requestNavigation(INTENT, secondCommit)
 
-    // Assert: no competing dialog was opened.
+    // no competing dialog was opened.
     expect(secondOutcome).toBe('blocked')
     expect(secondCommit).not.toHaveBeenCalled()
     expect(order).toEqual(['inner'])
@@ -220,13 +205,8 @@ describe('requestNavigation', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Misbehaving blockers                                                        */
-/* -------------------------------------------------------------------------- */
-
 describe('misbehaving blockers', () => {
   it('treats a blocker whose check throws as non-blocking and diagnoses it', async () => {
-    // Arrange
     const { hub, records } = recordingDiagnostics()
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge(), diagnostics: hub })
     const confirm = vi.fn(async () => 'reset' as const)
@@ -239,10 +219,8 @@ describe('misbehaving blockers', () => {
     })
     const commit = vi.fn()
 
-    // Act
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // Assert
     expect(outcome).toBe('proceeded')
     expect(commit).toHaveBeenCalledTimes(1)
     expect(confirm).not.toHaveBeenCalled()
@@ -252,7 +230,6 @@ describe('misbehaving blockers', () => {
   })
 
   it('cancels the navigation when a confirmation rejects, rather than discarding work', async () => {
-    // Arrange
     const { hub, records } = recordingDiagnostics()
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge(), diagnostics: hub })
     navigator.registerBlocker('mount-a', {
@@ -262,10 +239,8 @@ describe('misbehaving blockers', () => {
     })
     const commit = vi.fn()
 
-    // Act
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // Assert
     expect(outcome).toBe('blocked')
     expect(commit).not.toHaveBeenCalled()
     expect(records).toHaveLength(1)
@@ -292,10 +267,6 @@ describe('misbehaving blockers', () => {
     expect(order).toEqual(['ok'])
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Blocker registration                                                        */
-/* -------------------------------------------------------------------------- */
 
 describe('blocker registration', () => {
   it('removes a blocker through its unsubscribe', async () => {
@@ -334,7 +305,7 @@ describe('blocker registration', () => {
   })
 
   it('drops every blocker on forced cleanup, which cannot be vetoed', async () => {
-    // Arrange: forced cleanup follows session revocation or host disposal, and
+    // forced cleanup follows session revocation or host disposal, and
     // is not a user navigation transaction.
     const order: string[] = []
     const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
@@ -342,11 +313,9 @@ describe('blocker registration', () => {
     navigator.registerBlocker('mount-b', recordingBlocker('b', 2, order, { decision: 'reset' }))
     const commit = vi.fn()
 
-    // Act
     navigator.clearBlockers()
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // Assert
     expect(navigator.blockerCount).toBe(0)
     expect(outcome).toBe('proceeded')
     expect(commit).toHaveBeenCalledTimes(1)
@@ -371,10 +340,6 @@ describe('blocker registration', () => {
     answer.resolve('proceed')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Bridge delegation                                                           */
-/* -------------------------------------------------------------------------- */
 
 describe('bridge delegation', () => {
   it('forwards every navigation verb to the bridge it was given', () => {
@@ -408,10 +373,6 @@ describe('bridge delegation', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Browser bridge                                                              */
-/* -------------------------------------------------------------------------- */
-
 describe('createBrowserNavigationBridge', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/')
@@ -422,13 +383,13 @@ describe('createBrowserNavigationBridge', () => {
   })
 
   it('leaves the global History and event-listener methods untouched', () => {
-    // Arrange: capture the real functions before the bridge exists.
+    // capture the real functions before the bridge exists.
     const pushState = window.history.pushState
     const replaceState = window.history.replaceState
     const addEventListener = window.addEventListener
     const removeEventListener = window.removeEventListener
 
-    // Act: create the bridge and exercise every path that touches the globals.
+    // create the bridge and exercise every path that touches the globals.
     const bridge = createBrowserNavigationBridge()
     const unsubscribe = bridge.subscribe(() => undefined)
     bridge.push('/reports/42')
@@ -436,7 +397,7 @@ describe('createBrowserNavigationBridge', () => {
     bridge.read()
     unsubscribe()
 
-    // Assert: patching a global History method is precisely what this bridge
+    // patching a global History method is precisely what this bridge
     // replaced, so each reference must still be the original function.
     expect(window.history.pushState).toBe(pushState)
     expect(window.history.replaceState).toBe(replaceState)
@@ -476,16 +437,13 @@ describe('createBrowserNavigationBridge', () => {
   })
 
   it('adds a popstate listener on subscribe and removes it on unsubscribe', () => {
-    // Arrange
     const bridge = createBrowserNavigationBridge()
     const listener = vi.fn()
     const unsubscribe = bridge.subscribe(listener)
 
-    // Act
     window.history.replaceState(null, '', '/reports/42')
     window.dispatchEvent(new PopStateEvent('popstate'))
 
-    // Assert
     expect(listener).toHaveBeenCalledTimes(1)
     expect(listener).toHaveBeenCalledWith({ pathname: '/reports/42', search: '', hash: '' })
 
@@ -523,10 +481,6 @@ describe('createBrowserNavigationBridge', () => {
     expect(forward).toHaveBeenCalledTimes(1)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Intents                                                                     */
-/* -------------------------------------------------------------------------- */
 
 describe('createNavigationIntent', () => {
   const from: BoundaryLocation = { pathname: '/reports', search: '', hash: '' }
@@ -575,10 +529,6 @@ describe('createNavigationIntent', () => {
     expect(intent.to).toBe(target)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Location parsing                                                            */
-/* -------------------------------------------------------------------------- */
 
 describe('parseBoundaryLocation', () => {
   it('parses a path with a query string and a hash', () => {

@@ -12,12 +12,12 @@ import type {
   MfeTelemetry,
   TelemetryAttributes,
   TelemetryAttribution,
-  TelemetryLevel,
   TelemetryProvider,
 } from '@company/mfe-core'
 
 import {
   MountTelemetryRuntime,
+  type FrameworkRecordDetails,
   type TelemetryCounters,
   type TelemetryRuntimeOptions,
 } from './runtime.ts'
@@ -26,14 +26,6 @@ import { MountTracer } from './tracer.ts'
 export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
   /** False switches tracing off: every span is a non-recording handle. Defaults to true. */
   readonly tracing?: boolean
-}
-
-export interface FrameworkRecordDetails {
-  /** Defaults to `info`. */
-  readonly level?: TelemetryLevel
-  readonly message: string
-  readonly error?: unknown
-  readonly attributes?: TelemetryAttributes
 }
 
 /**

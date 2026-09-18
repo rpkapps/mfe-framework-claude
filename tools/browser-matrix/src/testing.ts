@@ -1,7 +1,6 @@
 /**
  * An in-memory {@link SupportData} so the intersection, coverage and gate logic
- * can be tested against a fixed dataset instead of whatever caniuse-lite
- * happens to be pinned at. Test-only, not part of the package's public surface.
+ * run against a fixed dataset rather than whatever caniuse-lite is pinned at.
  */
 
 import { versionKey, type FeatureSupport, type SupportData, type SupportString } from './caniuse.ts'
@@ -47,7 +46,7 @@ export function createFakeSupportData(spec: FakeDataSpec): SupportData {
       return { id, title: id, stats }
     },
     // browserslist.coverage() is a plain sum of the per-version usage shares;
-    // the fake mirrors that, and `caniuse.test.ts` asserts the real loader agrees.
+    // `required-features.test.ts` asserts the real loader agrees.
     coverage(versions) {
       let total = 0
       for (const key of versions) total += usageByKey.get(key) ?? 0

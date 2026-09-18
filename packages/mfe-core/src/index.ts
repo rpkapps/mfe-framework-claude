@@ -58,13 +58,8 @@ export {
   validateSerializable,
   type ContractEvents,
   type ContractInputs,
-  type ContractIssue,
-  type ContractParseError,
-  type ContractParseResult,
-  type ContractSchema,
   type ContractValidation,
   type ContractValidationContext,
-  type InferContract,
   type WidgetContract,
 } from './contract.ts'
 

@@ -9,7 +9,6 @@
 
 export {
   createMountTelemetry,
-  type FrameworkRecordDetails,
   type MountTelemetryHandle,
   type MountTelemetryOptions,
 } from './service.ts'
@@ -17,11 +16,12 @@ export {
 export {
   isReservedAttributeKey,
   RESERVED_ATTRIBUTE_KEYS,
+  type FrameworkRecordDetails,
   type ReservedAttributeKey,
   type TelemetryCounters,
 } from './runtime.ts'
 
-export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './context.ts'
+export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './tracer.ts'
 
 export {
   createNonRecordingTracer,

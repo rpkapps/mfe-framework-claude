@@ -1,55 +1,33 @@
 /**
- * Widget contract primitives and two-sided validation. Schemas are the source
- * of truth for validation and author-facing types alike. This module is typed
- * against Zod but never imports it: it calls `safeParse` on the author's own
- * schema, so one Zod instance stays in play and the core keeps no runtime dep.
+ * Widget contract primitives and two-sided validation. Contracts are Zod
+ * schemas, which are the source of truth for runtime validation and for the
+ * author-facing types alike, so there is no parallel type parameter to keep in
+ * sync and no framework-owned mirror of Zod's surface.
  */
 
-import { createMfeErrorFactory, describeValue, type MfeError } from './errors.ts'
+import { z } from 'zod'
 
-/**
- * The slice of Zod's surface the framework uses. Typing against this rather
- * than `z.ZodType` means a container's Zod copy and the framework's
- * declarations never have to be the same instance of the type.
- */
-export interface ContractSchema<T> {
-  safeParse(value: unknown): ContractParseResult<T>
-}
-
-export type ContractParseResult<T> =
-  | { readonly success: true; readonly data: T }
-  | { readonly success: false; readonly error: ContractParseError }
-
-export interface ContractParseError {
-  readonly issues: readonly ContractIssue[]
-}
-
-export interface ContractIssue {
-  readonly path: readonly (string | number | symbol)[]
-  readonly message: string
-  readonly code?: string
-  /** Present on Zod's `invalid_type` issues; used to phrase "expected …". */
-  readonly expected?: string
-}
-
-export type InferContract<S> = S extends ContractSchema<infer T> ? T : never
+import { createMfeErrorFactory, describeValue, formatPath, type MfeError } from './errors.ts'
 
 /**
  * A Widget's declared contract. `events` maps a lower-camel-case event name to
  * the schema for its payload; the consumer sees it as `on` + capitalized name.
+ *
+ * A consumer contract never calls `.strict()`: Zod's default strip-unknown-keys
+ * behaviour is what lets a Widget add a field without breaking its consumers.
  */
 export interface WidgetContract<
-  Inputs extends ContractSchema<unknown> = ContractSchema<unknown>,
-  Events extends Record<string, ContractSchema<unknown>> = Record<string, ContractSchema<unknown>>,
+  Inputs extends z.ZodType = z.ZodType,
+  Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
 > {
   readonly inputs: Inputs
   readonly events: Events
 }
 
-export type ContractInputs<C extends WidgetContract> = InferContract<C['inputs']>
+export type ContractInputs<C extends WidgetContract> = z.infer<C['inputs']>
 
 export type ContractEvents<C extends WidgetContract> = {
-  readonly [K in keyof C['events']]: InferContract<C['events'][K]>
+  readonly [K in keyof C['events']]: z.infer<C['events'][K]>
 }
 
 /**
@@ -218,19 +196,42 @@ function repairFor(context: ContractValidationContext, field: string): string {
  * Validates a value against a contract schema, turning a failure into a
  * structured error that names the field, the expectation and the repair.
  *
- * The first issue drives the message: reporting every issue at once buries the
- * actionable one. The underlying parse error stays on `cause`.
+ * `z.prettifyError` renders every issue with its own path, which beats anything
+ * re-derived here; the first issue's path fills the structured `path` field,
+ * and the `ZodError` itself stays on `cause`.
  */
+/**
+ * Zod names the received *type* ("received number"); the concrete value is the
+ * one detail the reader cannot re-derive from the message. Resolve it at the
+ * failing path so a nested field reports its own value rather than the whole
+ * object, and fall back to zod alone when the path leads nowhere nameable.
+ */
+function describeObserved(
+  value: unknown,
+  path: readonly (string | number)[],
+  error: z.ZodError,
+): string {
+  const rendered = z.prettifyError(error)
+  const observed = path.reduce<unknown>(
+    (current, segment) =>
+      current !== null && typeof current === 'object'
+        ? (current as Record<string | number, unknown>)[segment]
+        : undefined,
+    value,
+  )
+  if (observed !== null && typeof observed === 'object') return rendered
+  return `${describeValue(observed)}; ${rendered}`
+}
+
 export function validateAgainstContract<T>(
-  schema: ContractSchema<T>,
+  schema: z.ZodType<T>,
   value: unknown,
   context: ContractValidationContext,
 ): ContractValidation<T> {
   const result = schema.safeParse(value)
   if (result.success) return { ok: true, value: result.data }
 
-  const issue = result.error.issues[0]
-  const path = (issue?.path ?? []).filter(
+  const path = (result.error.issues[0]?.path ?? []).filter(
     (segment): segment is string | number => typeof segment !== 'symbol',
   )
 
@@ -238,24 +239,13 @@ export function validateAgainstContract<T>(
     ok: false,
     error: contractFailure(context)({
       ...(path.length > 0 ? { path } : {}),
-      expected: issue?.expected ?? issue?.message ?? 'a value matching the declared schema',
-      observed: describeValue(readPath(value, path)),
+      observed: describeObserved(value, path, result.error),
       declaredBy: declaredBy(context),
-      repair: repairFor(context, path.join('.')),
+      repair: repairFor(context, formatPath(path)),
       ...(context.note === undefined ? {} : { note: context.note }),
       cause: result.error,
     }),
   }
-}
-
-/** Reads the value an issue path points at, for the "received …" clause. */
-function readPath(root: unknown, path: readonly (string | number)[]): unknown {
-  let current = root
-  for (const segment of path) {
-    if (current === null || typeof current !== 'object') return undefined
-    current = (current as Record<string | number, unknown>)[segment]
-  }
-  return current
 }
 
 /**

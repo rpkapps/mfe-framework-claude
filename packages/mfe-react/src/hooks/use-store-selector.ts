@@ -3,9 +3,8 @@
  *
  * React's own store hook has no selector, and a freshly derived result on every
  * read looks like a change and re-renders forever. This caches per snapshot and
- * compares results with `Object.is`, so a selector that narrows to a primitive
- * or to an existing reference is free. A selector that allocates a new object on
- * every call cannot be compared this way and will not be de-duplicated.
+ * compares with `Object.is`, so narrowing to a primitive or an existing
+ * reference is free — a selector that allocates cannot be de-duplicated.
  */
 
 import { useRef, useSyncExternalStore } from 'react'

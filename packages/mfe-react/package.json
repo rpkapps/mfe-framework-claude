@@ -12,10 +12,6 @@
     "./testing": {
       "types": "./src/testing/index.tsx",
       "default": "./src/testing/index.tsx"
-    },
-    "./shell": {
-      "types": "./src/shell/index.ts",
-      "default": "./src/shell/index.ts"
     }
   },
   "files": [

@@ -3,9 +3,8 @@
  *
  * The getting-started surface is deliberately tiny: `createApp` or
  * `createWidget`, an `id`, your own route tree, and the generated `#mfe/config`
- * and `#mfe/fetch` modules. Everything else here is discovered when a need
- * arises. Nothing is named after the framework where a plain name works, so the
- * `useMfe*` prefix is reserved for where the qualifier disambiguates.
+ * and `#mfe/fetch` modules. Nothing is named after the framework where a plain
+ * name works, so `useMfe*` is reserved for where the qualifier disambiguates.
  */
 
 export {

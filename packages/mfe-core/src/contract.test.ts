@@ -8,7 +8,6 @@ import {
   isValidEventName,
   validateAgainstContract,
   validateSerializable,
-  type ContractSchema,
   type ContractValidationContext,
 } from './contract.ts'
 
@@ -21,9 +20,7 @@ const inputContext: ContractValidationContext = {
 
 describe('validateAgainstContract', () => {
   it('accepts a valid payload and returns the parsed value', () => {
-    const schema = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
-      alertId: string
-    }>
+    const schema = z.object({ alertId: z.string() })
 
     const result = validateAgainstContract(schema, { alertId: 'a-1' }, inputContext)
 
@@ -31,9 +28,7 @@ describe('validateAgainstContract', () => {
   })
 
   it('produces an actionable diagnostic for a missing field', () => {
-    const schema = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
-      alertId: string
-    }>
+    const schema = z.object({ alertId: z.string() })
 
     const result = validateAgainstContract(
       schema,
@@ -59,9 +54,7 @@ describe('validateAgainstContract', () => {
   })
 
   it('attributes a consumer-side event failure to the consumer contract', () => {
-    const schema = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
-      alertId: string
-    }>
+    const schema = z.object({ alertId: z.string() })
 
     const result = validateAgainstContract(
       schema,
@@ -83,9 +76,7 @@ describe('validateAgainstContract', () => {
   })
 
   it('strips unknown keys so a provider adding a field does not break consumers (tolerant readers)', () => {
-    const consumerContract = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
-      alertId: string
-    }>
+    const consumerContract = z.object({ alertId: z.string() })
 
     const result = validateAgainstContract(
       consumerContract,
@@ -99,7 +90,7 @@ describe('validateAgainstContract', () => {
   it('reports a nested field path the way an author would write it', () => {
     const schema = z.object({
       filters: z.array(z.object({ value: z.string() })),
-    }) as unknown as ContractSchema<{ filters: { value: string }[] }>
+    })
 
     const result = validateAgainstContract(schema, { filters: [{ value: 9 }] }, inputContext)
 

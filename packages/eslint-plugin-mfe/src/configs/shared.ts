@@ -9,8 +9,35 @@ import { builtinRules } from 'eslint/use-at-your-own-risk'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import { rules as mfeRules } from '../rules/index.ts'
+import type { RestrictedPath, RestrictedPattern } from './restricted-imports.ts'
 
 export const TS_FILES: readonly string[] = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts']
+
+/** What both presets take. */
+export interface PresetOptions {
+  /** Root directory for the type-aware program. Defaults to the ESLint CWD. */
+  readonly tsconfigRootDir?: string | undefined
+  /** Files the preset applies to. Defaults to every TypeScript file. */
+  readonly files?: readonly string[] | undefined
+  /**
+   * Files the React and React Compiler rules apply to, always intersected with
+   * `files`. Defaults to `files`; narrow it to the packages that contain React,
+   * because elsewhere any API whose name collides with a hook reports falsely.
+   */
+  readonly reactFiles?: readonly string[] | undefined
+  /** Files allowed to touch Web Storage directly: the framework storage
+   * adapter, and a documented shell bootstrap that overrides it. */
+  readonly storageAllowedScopes?: readonly string[] | undefined
+  /**
+   * Widget-owned sources. `mfe/no-widget-global-effects` reports only inside
+   * these globs and is inert with none configured, because Widget ownership is
+   * declared, never inferred from a file name.
+   */
+  readonly widgetScopes?: readonly string[] | undefined
+  /** Extra restricted paths and patterns appended to every zone. */
+  readonly extraRestrictedPaths?: readonly RestrictedPath[] | undefined
+  readonly extraRestrictedPatterns?: readonly RestrictedPattern[] | undefined
+}
 
 /**
  * `Linter.Config` and the "compatible" config types typescript-eslint and the

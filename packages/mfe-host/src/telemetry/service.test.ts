@@ -8,34 +8,10 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import { createNonRecordingTracer, createNoopTelemetryProvider } from './tracer.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
-import { createMountTelemetry, type MountTelemetryOptions } from './service.ts'
-
-const ATTRIBUTION: TelemetryAttribution = {
-  definitionId: 'operations-console',
-  definitionKind: 'app',
-  definitionVersion: '2.4.1',
-  buildHash: 'a1b2c3d4',
-  mountToken: 'mount-7',
-}
-
-function at<T>(items: readonly T[], index = 0): T {
-  const item = items[index]
-  if (item === undefined) throw new Error(`expected an item at index ${index}`)
-  return item
-}
-
-function setup(options: MountTelemetryOptions = {}) {
-  const provider = createRecordingTelemetryProvider()
-  const diagnostics: Diagnostic[] = []
-  const telemetry = createMountTelemetry(provider, ATTRIBUTION, {
-    dev: true,
-    onDiagnostic: diagnostic => diagnostics.push(diagnostic),
-    ...options,
-  })
-  return { provider, diagnostics, telemetry }
-}
+import { createMountTelemetry } from './service.ts'
+import { createNonRecordingTracer, createNoopTelemetryProvider } from './tracer.ts'
+import { at, ATTRIBUTION, setup } from './__tests__/harness.ts'
 
 describe('the seven public members', () => {
   it('exposes exactly event, debug, info, warn, error, measure and tracer', () => {

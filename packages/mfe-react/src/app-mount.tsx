@@ -138,12 +138,10 @@ function findReservedKeyConflict(
 function toBreadcrumbMatches(router: AnyRouter): readonly BreadcrumbMatch[] {
   return router.state.matches.map(match => {
     const route = router.routesById[String(match.routeId)] as
-      | { options?: { path?: string; staticData?: unknown } }
-      | undefined
+      { options?: { path?: string; staticData?: unknown } } | undefined
 
     const head = match.meta?.find(entry => entry && 'title' in entry) as
-      | { title?: string }
-      | undefined
+      { title?: string } | undefined
 
     return {
       id: match.id,

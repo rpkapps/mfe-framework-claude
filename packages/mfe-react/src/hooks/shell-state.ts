@@ -2,10 +2,9 @@
  * The live shell-state hooks, available in Apps and in independently mounted
  * Widgets alike.
  *
- * Each hook subscribes to exactly one field, so changing the theme cannot notify
- * a consumer that only reads the user, and each accepts a selector to narrow the
- * subscription further. These values are readonly data for rendering, not an
- * authorization API: the host and backend remain responsible for that.
+ * Each hook subscribes to one field, so a theme change cannot notify a consumer
+ * that only reads the user, and a selector narrows it further. These are
+ * readonly data for rendering, never an authorization API.
  */
 
 import { useCallback } from 'react'

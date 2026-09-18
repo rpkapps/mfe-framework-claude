@@ -4,10 +4,6 @@ import { DiagnosticsHub, type BreadcrumbItem, type Diagnostic } from '@company/m
 
 import { BreadcrumbStore } from './breadcrumb-store.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
   const records: Diagnostic[] = []
   const hub = new DiagnosticsHub()
@@ -23,10 +19,6 @@ function keysOf(items: readonly BreadcrumbItem[]): readonly string[] {
   return items.map(item => item.key)
 }
 
-/* -------------------------------------------------------------------------- */
-/* Composition                                                                 */
-/* -------------------------------------------------------------------------- */
-
 describe('composition', () => {
   it('starts with an empty trail', () => {
     const store = new BreadcrumbStore()
@@ -36,17 +28,15 @@ describe('composition', () => {
   })
 
   it('orders contributions parent to child by depth', () => {
-    // Arrange: the nested App registers before its parent, so only depth can
+    // the nested App registers before its parent, so only depth can
     // produce the right order.
     const store = new BreadcrumbStore()
     const child = store.registerMount('report-detail', 'mount-child', 2)
     const parent = store.registerMount('reports', 'mount-parent', 1)
 
-    // Act
     child.update([crumb('detail')])
     parent.update([crumb('reports')])
 
-    // Assert
     expect(keysOf(store.getSnapshot())).toEqual(['reports', 'detail'])
   })
 
@@ -94,13 +84,9 @@ describe('composition', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Equality                                                                    */
-/* -------------------------------------------------------------------------- */
-
 describe('equal contributions', () => {
   it('keeps the published trail and notifies nobody when equal items are supplied again', () => {
-    // Arrange: the router re-renders and hands over a fresh array holding
+    // the router re-renders and hands over a fresh array holding
     // equal records, as it does for unrelated state such as fetch status.
     const store = new BreadcrumbStore()
     const handle = store.registerMount('reports', 'mount-1', 1)
@@ -109,10 +95,8 @@ describe('equal contributions', () => {
     const subscriber = vi.fn()
     store.subscribe(subscriber)
 
-    // Act
     handle.update([crumb('reports'), crumb('quarterly')])
 
-    // Assert
     expect(store.getSnapshot()).toBe(published)
     expect(subscriber).not.toHaveBeenCalled()
   })
@@ -146,23 +130,19 @@ describe('equal contributions', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Overrides                                                                   */
-/* -------------------------------------------------------------------------- */
-
 describe('overrides', () => {
   it('replaces only the overriding mount’s own portion of the trail', () => {
-    // Arrange: a parent App and a nested App both contribute.
+    // a parent App and a nested App both contribute.
     const store = new BreadcrumbStore()
     const parent = store.registerMount('reports', 'mount-parent', 1)
     const child = store.registerMount('report-detail', 'mount-child', 2)
     parent.update([crumb('reports')])
     child.update([crumb('detail')])
 
-    // Act: the nested App opens a multi-step flow.
+    // the nested App opens a multi-step flow.
     store.setOverride('mount-child', [crumb('wizard'), crumb('step-1')], 'owner-a')
 
-    // Assert: the parent's contribution is untouched.
+    // the parent's contribution is untouched.
     expect(keysOf(store.getSnapshot())).toEqual(['reports', 'wizard', 'step-1'])
   })
 
@@ -199,17 +179,15 @@ describe('overrides', () => {
   })
 
   it('refuses a competing override from a different owner and diagnoses it', () => {
-    // Arrange
     const { hub, records } = recordingDiagnostics()
     const store = new BreadcrumbStore({ diagnostics: hub })
     store.registerMount('reports', 'mount-1', 1)
     store.setOverride('mount-1', [crumb('wizard'), crumb('step-1')], 'owner-a')
     const published = store.getSnapshot()
 
-    // Act
     store.setOverride('mount-1', [crumb('other-flow')], 'owner-b')
 
-    // Assert: the first override stands and the conflict is reported rather
+    // the first override stands and the conflict is reported rather
     // than resolved by render order.
     expect(store.getSnapshot()).toBe(published)
     expect(keysOf(store.getSnapshot())).toEqual(['wizard', 'step-1'])
@@ -228,37 +206,28 @@ describe('overrides', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Navigation                                                                  */
-/* -------------------------------------------------------------------------- */
-
 describe('navigation', () => {
   it('clears the active override so a flow does not leak into the next route', () => {
-    // Arrange
     const store = new BreadcrumbStore()
     const handle = store.registerMount('reports', 'mount-1', 1)
     handle.update([crumb('reports')])
     store.setOverride('mount-1', [crumb('wizard'), crumb('step-3')], 'owner-a')
 
-    // Act
     store.notifyNavigation('mount-1')
 
-    // Assert
     expect(keysOf(store.getSnapshot())).toEqual(['reports'])
   })
 
   it('does not let the previous owner reinstall its override after a navigation', () => {
-    // Arrange: a hook that somehow outlived the navigation tries again.
+    // a hook that somehow outlived the navigation tries again.
     const store = new BreadcrumbStore()
     const handle = store.registerMount('reports', 'mount-1', 1)
     handle.update([crumb('reports')])
     store.setOverride('mount-1', [crumb('wizard'), crumb('step-3')], 'owner-a')
     store.notifyNavigation('mount-1')
 
-    // Act
     store.setOverride('mount-1', [crumb('wizard'), crumb('step-3')], 'owner-a')
 
-    // Assert
     expect(keysOf(store.getSnapshot())).toEqual(['reports'])
   })
 
@@ -309,23 +278,16 @@ describe('navigation', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Removal                                                                     */
-/* -------------------------------------------------------------------------- */
-
 describe('removal', () => {
   it('drops a contribution and recomposes the remaining ones', () => {
-    // Arrange
     const store = new BreadcrumbStore()
     const parent = store.registerMount('reports', 'mount-parent', 1)
     const child = store.registerMount('report-detail', 'mount-child', 2)
     parent.update([crumb('reports')])
     child.update([crumb('detail')])
 
-    // Act
     child.remove()
 
-    // Assert
     expect(keysOf(store.getSnapshot())).toEqual(['reports'])
     expect(store.contributionCount).toBe(1)
   })

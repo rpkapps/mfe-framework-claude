@@ -2,9 +2,9 @@
  * Composition: a Widget loaded through the loader and consumed as a component,
  * and a child App delegated at a splat route.
  *
- * The tracer bullet proves one App mounts. This proves the two composition
- * models behave differently in the ways that matter: Apps take URLs and get
- * their own boundary, Widgets take props and get no boundary at all.
+ * The tracer bullet proves one App mounts. This proves the two models differ
+ * where it matters: Apps take URLs and own a boundary, Widgets take props and
+ * get none.
  */
 
 import {
@@ -13,7 +13,7 @@ import {
   createRouter,
   Outlet,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Suspense, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -34,13 +34,10 @@ import type { AppRouterOptions, MfeRouterContext } from './router-contract.ts'
 let environment: MfeTestEnvironment | null = null
 
 afterEach(async () => {
-  await environment?.dispose()
+  const current = environment
   environment = null
+  await current?.dispose()
 })
-
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
 
 const counterWidget = createWidget({
   id: 'counter-widget',
@@ -68,12 +65,12 @@ function buildChildApp(observed: { basePath?: string; signalAborted?: boolean })
     getParentRoute: () => rootRoute,
     path: '/accounts/$accountId',
     component: function Account() {
-      const { accountId } = accountRoute.useParams()
-      const basePath = useBasePath()
-      const signal = useMfeSignal()
+      // This tree is not the registered one, so the typed accessor resolves to
+      // `any`; the assertion is what keeps the fixture honest about the shape.
+      const { accountId } = accountRoute.useParams() as unknown as { accountId: string }
 
-      observed.basePath = basePath
-      observed.signalAborted = signal.aborted
+      observed.basePath = useBasePath()
+      observed.signalAborted = useMfeSignal().aborted
 
       return <p data-testid="child-account">Account {accountId}</p>
     },
@@ -95,7 +92,14 @@ function buildChildApp(observed: { basePath?: string; signalAborted?: boolean })
   })
 }
 
-/* -------------------------------------------------------------------------- */
+/** Every case renders through the shell provider with a Suspense boundary. */
+function hosted(runtime: MfeTestEnvironment['runtime'], children: ReactNode): ReactNode {
+  return (
+    <MfeProvider runtime={runtime}>
+      <Suspense fallback={null}>{children}</Suspense>
+    </MfeProvider>
+  )
+}
 
 describe('consuming a Widget', () => {
   it('loads through the loader and renders as an ordinary lazy component', async () => {
@@ -104,13 +108,7 @@ describe('consuming a Widget', () => {
       definitions: [counterWidget],
     })
 
-    await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={<p>Loading…</p>}>
-          <CounterWidget label="Clicks" count={3} />
-        </Suspense>
-      </MfeProvider>,
-    )
+    await renderSuspending(hosted(environment.runtime, <CounterWidget label="Clicks" count={3} />))
 
     await waitFor(() => expect(screen.getByRole('button')).toHaveTextContent('Clicks: 3'))
   })
@@ -124,11 +122,7 @@ describe('consuming a Widget', () => {
     const onBumped = vi.fn()
 
     await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <CounterWidget label="Clicks" count={7} onBumped={onBumped} />
-        </Suspense>
-      </MfeProvider>,
+      hosted(environment.runtime, <CounterWidget label="Clicks" count={7} onBumped={onBumped} />),
     )
 
     await waitFor(() => expect(screen.getByRole('button')).toBeInTheDocument())
@@ -141,22 +135,21 @@ describe('consuming a Widget', () => {
     environment = createMfeTestEnvironment({ definitionId: 'host-app', definitions: [] })
 
     await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <CounterWidget
-            label="Clicks"
-            count={0}
-            fallback={({ error, retry }) => (
-              <div>
-                <p data-testid="widget-error">{error.message}</p>
-                <button type="button" onClick={retry}>
-                  Retry
-                </button>
-              </div>
-            )}
-          />
-        </Suspense>
-      </MfeProvider>,
+      hosted(
+        environment.runtime,
+        <CounterWidget
+          label="Clicks"
+          count={0}
+          fallback={({ error, retry }) => (
+            <div>
+              <p data-testid="widget-error">{error.message}</p>
+              <button type="button" onClick={retry}>
+                Retry
+              </button>
+            </div>
+          )}
+        />,
+      ),
     )
 
     await waitFor(() => expect(screen.getByTestId('widget-error')).toBeInTheDocument())
@@ -186,13 +179,7 @@ describe('consuming a Widget', () => {
 
     const Probe = lazyWidget('boundary-probe')
 
-    await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <Probe />
-        </Suspense>
-      </MfeProvider>,
-    )
+    await renderSuspending(hosted(environment.runtime, <Probe />))
 
     await waitFor(() => expect(screen.getByTestId('probe')).toBeInTheDocument())
     expect(observedBasePath).toBe('')
@@ -202,20 +189,15 @@ describe('consuming a Widget', () => {
 describe('nesting a child App', () => {
   it('mounts the child at the boundary the parent assigned', async () => {
     const observed: { basePath?: string; signalAborted?: boolean } = {}
-    const childApp = buildChildApp(observed)
 
     environment = createMfeTestEnvironment({
       definitionId: 'parent-app',
-      definitions: [childApp],
+      definitions: [buildChildApp(observed)],
       initialEntries: ['/reports/accounts/42'],
     })
 
     await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <AppHost appId="child-reports" basePath="/reports" />
-        </Suspense>
-      </MfeProvider>,
+      hosted(environment.runtime, <AppHost appId="child-reports" basePath="/reports" />),
     )
 
     await waitFor(() => expect(screen.getByTestId('child-account')).toBeInTheDocument())
@@ -236,11 +218,7 @@ describe('nesting a child App', () => {
     })
 
     const firstRender = await renderSuspending(
-      <MfeProvider runtime={first.runtime}>
-        <Suspense fallback={null}>
-          <AppHost appId="child-reports" basePath="/reports" />
-        </Suspense>
-      </MfeProvider>,
+      hosted(first.runtime, <AppHost appId="child-reports" basePath="/reports" />),
     )
     await waitFor(() => expect(screen.getByTestId('child-account')).toHaveTextContent('Account 7'))
     firstRender.unmount()
@@ -253,11 +231,7 @@ describe('nesting a child App', () => {
     })
 
     await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <AppHost appId="child-reports" basePath="/workspace/reports" />
-        </Suspense>
-      </MfeProvider>,
+      hosted(environment.runtime, <AppHost appId="child-reports" basePath="/workspace/reports" />),
     )
     await waitFor(() => expect(screen.getByTestId('child-account')).toHaveTextContent('Account 7'))
 
@@ -273,15 +247,14 @@ describe('nesting a child App', () => {
     })
 
     await renderSuspending(
-      <MfeProvider runtime={environment.runtime}>
-        <Suspense fallback={null}>
-          <AppHost
-            appId="counter-widget"
-            basePath="/reports"
-            fallback={({ error }) => <p data-testid="app-error">{error.message}</p>}
-          />
-        </Suspense>
-      </MfeProvider>,
+      hosted(
+        environment.runtime,
+        <AppHost
+          appId="counter-widget"
+          basePath="/reports"
+          fallback={({ error }) => <p data-testid="app-error">{error.message}</p>}
+        />,
+      ),
     )
 
     await waitFor(() => expect(screen.getByTestId('app-error')).toBeInTheDocument())
@@ -292,21 +265,17 @@ describe('nesting a child App', () => {
 
   it('disposes the child when it is removed, aborting its mount signal', async () => {
     const observed: { basePath?: string; signalAborted?: boolean } = {}
-    const childApp = buildChildApp(observed)
 
     environment = createMfeTestEnvironment({
       definitionId: 'parent-app',
-      definitions: [childApp],
+      definitions: [buildChildApp(observed)],
       initialEntries: ['/reports/accounts/1'],
     })
 
     function Parent({ show }: { readonly show: boolean }): ReactNode {
-      return (
-        <MfeProvider runtime={environment!.runtime}>
-          <Suspense fallback={null}>
-            {show ? <AppHost appId="child-reports" basePath="/reports" /> : <p>gone</p>}
-          </Suspense>
-        </MfeProvider>
+      return hosted(
+        environment!.runtime,
+        show ? <AppHost appId="child-reports" basePath="/reports" /> : <p>gone</p>,
       )
     }
 

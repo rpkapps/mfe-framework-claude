@@ -9,10 +9,6 @@ import {
   type ShellStateChange,
 } from './shell-state-store.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 const ADA: ShellUser = {
   id: 'user-1',
   name: 'Ada Lovelace',
@@ -50,20 +46,14 @@ function listenerFor(
   return listener
 }
 
-/* -------------------------------------------------------------------------- */
-/* Per-field subscriptions                                                     */
-/* -------------------------------------------------------------------------- */
-
 describe('per-field subscriptions', () => {
   it('notifies only the theme subscriber when only the theme changed', () => {
-    // Arrange
     const store = new ShellStateStore(initialState())
     const listeners = watchAllFields(store)
 
-    // Act
     store.apply({ theme: 'dark' })
 
-    // Assert: a consumer that reads only the user or the groups must not
+    // a consumer that reads only the user or the groups must not
     // re-render because the shell changed its theme.
     expect(listenerFor(listeners, 'theme')).toHaveBeenCalledTimes(1)
     expect(listenerFor(listeners, 'user')).toHaveBeenCalledTimes(0)
@@ -112,10 +102,6 @@ describe('per-field subscriptions', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Snapshot identity                                                           */
-/* -------------------------------------------------------------------------- */
-
 describe('snapshot identity', () => {
   it('preserves the references of fields the patch did not change', () => {
     const store = new ShellStateStore(initialState())
@@ -140,21 +126,19 @@ describe('snapshot identity', () => {
   })
 
   it('returns no changes and notifies nobody for a patch that changes nothing', () => {
-    // Arrange
     const store = new ShellStateStore(initialState())
     const listeners = watchAllFields(store)
     const observer = vi.fn()
     store.observeTransitions(observer)
     const before = store.getSnapshot()
 
-    // Act: re-supplying the very same values, as a re-render would.
+    // re-supplying the very same values, as a re-render would.
     const change = store.apply({
       user: { ...ADA },
       groups: ['analysts', 'viewers'],
       theme: 'light',
     })
 
-    // Assert
     expect(change.changed).toEqual([])
     expect(change.transitions).toEqual([])
     expect(change.previous).toBe(before)
@@ -176,10 +160,6 @@ describe('snapshot identity', () => {
     expect(Object.isFrozen(store.getGroups())).toBe(true)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Transition classification                                                   */
-/* -------------------------------------------------------------------------- */
 
 describe('transition classification', () => {
   it('classifies a theme change as a theme transition only', () => {
@@ -241,26 +221,23 @@ describe('transition classification', () => {
   })
 
   it('does not treat a renamed display name on the same principal as an identity change', () => {
-    // Arrange
     const store = new ShellStateStore(initialState())
 
-    // Act: the same id, account and tenant; only the rendered name differs.
+    // the same id, account and tenant; only the rendered name differs.
     const change = store.apply({ user: { ...ADA, name: 'Ada King' } })
 
-    // Assert: the field changed so UI re-renders, but nothing is retired.
+    // the field changed so UI re-renders, but nothing is retired.
     expect(change.changed).toEqual(['user'])
     expect(change.transitions).toEqual([])
     expect(requiresSessionRetirement(change.transitions)).toBe(false)
   })
 
   it('does not raise a groups transition when an identical group set is merely reordered', () => {
-    // Arrange
     const store = new ShellStateStore(initialState({ groups: ['analysts', 'viewers'] }))
 
-    // Act
     const change = store.apply({ groups: ['viewers', 'analysts'] })
 
-    // Assert: the set is the same, so no permission change happened.
+    // the set is the same, so no permission change happened.
     expect(change.transitions).toEqual([])
     expect(requiresSessionRetirement(change.transitions)).toBe(false)
     expect(store.getGroups()).toEqual(['viewers', 'analysts'])
@@ -308,10 +285,6 @@ describe('transition classification', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Session retirement                                                          */
-/* -------------------------------------------------------------------------- */
-
 describe('requiresSessionRetirement', () => {
   it('requires retirement for identity and semantic group changes', () => {
     expect(requiresSessionRetirement([{ kind: 'identity', reason: 'login' }])).toBe(true)
@@ -329,13 +302,9 @@ describe('requiresSessionRetirement', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Observer ordering                                                           */
-/* -------------------------------------------------------------------------- */
-
 describe('transition observers', () => {
   it('runs host observers before field listeners see the new state', () => {
-    // Arrange: the host has to be able to retire session-dependent work before
+    // the host has to be able to retire session-dependent work before
     // any UI renders against the new identity.
     const store = new ShellStateStore(initialState())
     const order: string[] = []
@@ -343,10 +312,8 @@ describe('transition observers', () => {
     store.subscribeToField('user', () => order.push('user-listener'))
     store.subscribeToField('groups', () => order.push('groups-listener'))
 
-    // Act
     store.apply({ user: { ...ADA, id: 'user-2' }, groups: ['admins'] })
 
-    // Assert
     expect(order).toEqual(['observer', 'user-listener', 'groups-listener'])
   })
 

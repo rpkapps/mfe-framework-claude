@@ -4,47 +4,15 @@ import {
   SpanKind,
   SpanStatusCode,
   TELEMETRY_LIMITS,
-  type Diagnostic,
   type Span,
-  type SpanRecord,
-  type TelemetryAttribution,
   type TelemetryProvider,
   type Tracer,
 } from '@company/mfe-core'
 
-import { nonRecordingSpan } from './tracer.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
-import { createMountTelemetry, type MountTelemetryOptions } from './service.ts'
-
-const ATTRIBUTION: TelemetryAttribution = {
-  definitionId: 'operations-console',
-  definitionKind: 'app',
-  definitionVersion: '2.4.1',
-  mountToken: 'mount-7',
-}
-
-function at<T>(items: readonly T[], index = 0): T {
-  const item = items[index]
-  if (item === undefined) throw new Error(`expected an item at index ${index}`)
-  return item
-}
-
-function setup(options: MountTelemetryOptions = {}) {
-  const provider = createRecordingTelemetryProvider()
-  const diagnostics: Diagnostic[] = []
-  const telemetry = createMountTelemetry(provider, ATTRIBUTION, {
-    dev: true,
-    onDiagnostic: diagnostic => diagnostics.push(diagnostic),
-    ...options,
-  })
-  return { provider, diagnostics, telemetry, tracer: telemetry.tracer }
-}
-
-function spanNamed(spans: readonly SpanRecord[], name: string): SpanRecord {
-  const match = spans.find(span => span.name === name)
-  if (match === undefined) throw new Error(`no span named ${name}`)
-  return match
-}
+import { createMountTelemetry } from './service.ts'
+import { nonRecordingSpan } from './tracer.ts'
+import { at, ATTRIBUTION, setup, spanNamed } from './__tests__/harness.ts'
 
 describe('span creation', () => {
   it('asks the provider for one tracer and records a span with host attribution', () => {

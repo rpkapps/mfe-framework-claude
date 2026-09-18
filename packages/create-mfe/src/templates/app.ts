@@ -6,7 +6,7 @@
  */
 
 import {
-  overrideSnippet,
+  overrideSection,
   packageJsonFile,
   sharedFiles,
   type TemplateFile,
@@ -155,36 +155,19 @@ it('reads the signed-in user from shell state', () => {
       path: 'README.md',
       contents: `# ${packageName}
 
-An MFE App. Its id is \`${id}\`.
+An MFE App. Its id is \`${id}\`. \`pnpm run dev\` starts the remote and prints its
+manifest URL; \`build\`, \`typecheck\`, \`test\`, \`lint\` and \`format\` do what they
+say. Each runs its own generation step, so \`pnpm run generate\` is only ever a
+recovery command.
 
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm run dev        # starts the remote and prints its manifest URL
-pnpm run build
-pnpm run typecheck
-pnpm test
-pnpm run generate   # the one recovery command when generated output is stale
-\`\`\`
-
-Dev, test, typecheck and build run their own generation steps, so ordinary edits
-never need \`generate\` by hand.
-
-## Connecting to the shell
-
-There is no standalone harness: you develop against the real shell with a real
-session, so no class of authentication bug waits until deployment. Start the
-shell, run this in its browser console, and reload.
-
-${overrideSnippet(id, 3101)}
+${overrideSection(id, 3101)}
 
 ## Configuration
 
 \`src/mfe.config.ts\` holds the schema and the environment mapping — no values
 and no secrets. Copy \`runtime-config.example.json\` to your local values path.
 Read configuration with \`import { config } from '#mfe/config'\` and make
-authenticated requests with \`import { fetch } from '#mfe/fetch'\`. The token is
+authenticated requests with \`import { fetch } from '#mfe/fetch'\`; the token is
 attached only to origins declared \`{ api: true }\`, and request code never
 handles one.
 `,

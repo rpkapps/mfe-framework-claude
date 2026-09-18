@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 /**
- * `pnpm create @company/mfe`
- *
- * The scaffold is a deliverable rather than a convenience: it sets the shape
- * every team copies, and it is the cheapest available guarantee that the
- * documented shape and the real shape stay the same. If a step is missing here,
- * every project created from it is missing that step too.
- *
- * What it produces passes its own format, lint and typecheck commands from a
- * clean checkout, and a second generation over the same directory produces no
- * unexplained changes.
+ * `pnpm create @company/mfe`. The scaffold is a deliverable, not a convenience:
+ * it sets the shape every team copies, so a step missing here is missing from
+ * every project made from it. What it produces passes its own format, lint and
+ * typecheck from a clean checkout.
  */
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
@@ -90,34 +84,28 @@ export async function scaffold(options: ScaffoldOptions): Promise<readonly strin
 function printNextSteps(options: ScaffoldOptions, fileCount: number): void {
   const port = options.template === 'widget' ? 3103 : 3101
 
-  console.log(`\n${pc.green('Created')} ${fileCount} files in ${options.directory}\n`)
-  console.log(pc.bold('Next steps'))
-  console.log(`  cd ${options.directory}`)
-  console.log('  pnpm install')
-  console.log('  pnpm run dev\n')
+  console.log(`
+${pc.green('Created')} ${fileCount} files in ${options.directory}
 
-  console.log(
-    pc.dim(
-      'The dev command validates local configuration, starts the remote and prints the exact\n' +
-        'manifest URL, the definition id, and the override snippet for connecting to the shell.\n',
-    ),
-  )
+${pc.bold('Next steps')}
+  cd ${options.directory}
+  pnpm install
+  pnpm run dev
 
-  console.log(pc.bold('Connecting to the shell'))
-  console.log(pc.dim('Run this in the shell’s browser console, then reload:\n'))
-  console.log(`  const key = 'company:mfe:overrides'`)
-  console.log(`  const overrides = JSON.parse(localStorage.getItem(key) || '{}')`)
-  console.log(`  overrides['${options.id}'] = 'http://localhost:${port}/mf-manifest.json'`)
-  console.log(`  localStorage.setItem(key, JSON.stringify(overrides))`)
-  console.log(`  location.reload()\n`)
+${pc.dim('dev validates local configuration, starts the remote and prints its manifest URL.')}
 
-  console.log(
-    pc.dim(
-      'Changing an override requires a reload: the container’s modules are already registered\n' +
-        'in the federation runtime and its chunks are document-level, so remounting is not enough.\n' +
-        'The override is a URL only. It never carries tokens or configuration.\n',
-    ),
-  )
+${pc.bold('Connecting to the shell')}
+${pc.dim('Run this in the shell’s browser console, then reload:')}
+
+  const key = 'company:mfe:overrides'
+  const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+  overrides['${options.id}'] = 'http://localhost:${port}/mf-manifest.json'
+  localStorage.setItem(key, JSON.stringify(overrides))
+  location.reload()
+
+${pc.dim('Changing an override needs a reload, not a remount: the container’s modules are already')}
+${pc.dim('registered and its chunks are document-level. The override is a URL only — never a token.')}
+`)
 }
 
 export async function main(argv: readonly string[]): Promise<number> {

@@ -8,11 +8,11 @@
 
 import type { Linter } from 'eslint'
 import { rules } from './rules/index.ts'
-import { author, DEFAULT_ROUTER_FILES, type AuthorPresetOptions } from './configs/author.ts'
+import { author, type AuthorPresetOptions } from './configs/author.ts'
 import { framework, type FrameworkPresetOptions } from './configs/framework.ts'
 
 export { rules }
-export { author, framework, DEFAULT_ROUTER_FILES }
+export { author, framework }
 export type { AuthorPresetOptions, FrameworkPresetOptions }
 export type { RestrictedPath, RestrictedPattern } from './configs/restricted-imports.ts'
 

@@ -86,10 +86,7 @@ export interface WidgetRenderProps<C extends WidgetContract> {
   ) => void
 }
 
-export interface WidgetOptions<
-  Inputs extends z.ZodType,
-  Events extends Record<string, z.ZodType>,
-> {
+export interface WidgetOptions<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>> {
   readonly id: string
   readonly version?: string
   readonly inputs: Inputs
@@ -109,10 +106,9 @@ export interface WidgetDefinition<
   readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Events>>) => ReactNode
 }
 
-export function createWidget<
-  Inputs extends z.ZodType,
-  Events extends Record<string, z.ZodType>,
->(options: WidgetOptions<Inputs, Events>): WidgetDefinition<Inputs, Events> {
+export function createWidget<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>(
+  options: WidgetOptions<Inputs, Events>,
+): WidgetDefinition<Inputs, Events> {
   assertValidId(options.id, 'createWidget')
   assertUsableEventNames(options.id, options.events)
 

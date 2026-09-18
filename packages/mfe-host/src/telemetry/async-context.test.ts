@@ -11,24 +11,21 @@ import { describe, expect, it } from 'vitest'
 
 import type { Span, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
-import { bindTelemetryContext, getActiveSpanContext } from './context.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
+import { bindTelemetryContext, getActiveSpanContext } from './tracer.ts'
+import { setup as createMount, spanNamed as findSpan } from './__tests__/harness.ts'
 
 function attribution(definitionId: string): TelemetryAttribution {
   return { definitionId, definitionKind: 'app', mountToken: `${definitionId}-mount` }
 }
 
 function setup(definitionId = 'operations-console') {
-  const provider = createRecordingTelemetryProvider()
-  const telemetry = createMountTelemetry(provider, attribution(definitionId), { dev: true })
-  return { provider, telemetry, tracer: telemetry.tracer }
+  return createMount({}, attribution(definitionId))
 }
 
 function spanNamed(provider: { readonly spans: readonly SpanRecord[] }, name: string): SpanRecord {
-  const match = provider.spans.find(span => span.name === name)
-  if (match === undefined) throw new Error(`no span named ${name}`)
-  return match
+  return findSpan(provider.spans, name)
 }
 
 function traceIdOf(span: SpanRecord): unknown {

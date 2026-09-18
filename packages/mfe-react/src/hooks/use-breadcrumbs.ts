@@ -1,10 +1,9 @@
 /**
  * The one non-route breadcrumb override, for flows a route tree cannot express.
  *
- * It replaces only the contributing App's own portion of the trail, and clears
- * on unmount and on any navigation within the App, so a flow cannot leak its
- * steps into the next route. Items are compared by content, so an inline array
- * of unchanged records is a no-op and authors need not memoize it.
+ * It replaces only the contributing App's own portion of the trail and clears
+ * on unmount and on navigation, so a flow cannot leak its steps into the next
+ * route. Items are compared by content, so authors need not memoize them.
  */
 
 import { useEffect, useId, useRef } from 'react'

@@ -5,7 +5,7 @@
  * itself rather than from a parallel index that can drift.
  */
 
-import type { ContractSchema } from './contract.ts'
+import { z } from 'zod'
 
 export type StorageArea = 'local' | 'session'
 
@@ -14,7 +14,8 @@ export type StorageArea = 'local' | 'session'
  * `localStorage` and survive a logout, while a scoped filter in the same store
  * must not.
  */
-export type StorageRetention = 'session' | 'preference'
+const retentionSchema = z.enum(['session', 'preference'])
+export type StorageRetention = z.infer<typeof retentionSchema>
 
 export interface StorageKeyOptions<T> {
   readonly retention?: StorageRetention
@@ -31,7 +32,7 @@ export interface MfeStorageKey<T> {
 }
 
 export interface MfeStorage {
-  key<T>(name: string, schema: ContractSchema<T>, options?: StorageKeyOptions<T>): MfeStorageKey<T>
+  key<T>(name: string, schema: z.ZodType<T>, options?: StorageKeyOptions<T>): MfeStorageKey<T>
   remove(name: string): void
   /** Removes only the exact `<id>:` prefix; never unrelated shell or third-party keys. */
   clear(): void
@@ -40,31 +41,25 @@ export interface MfeStorage {
 /**
  * The persisted record. Field names are short because they are written to every
  * key; their meaning is fixed here and nowhere else.
- *
- * - `v` — schema version the payload was written against.
- * - `r` — retention class, so a store-wide session reset can act on the record alone.
- * - `g` — opaque session/access generation; `undefined` for preference records.
- * - `d` — the validated payload.
  */
-export interface StorageEnvelope {
-  readonly v: number
-  readonly r: StorageRetention
-  readonly g?: string
-  readonly d: unknown
-}
+const storageEnvelopeSchema = z.object({
+  /** Schema version the payload was written against. */
+  v: z.int().positive(),
+  /** Retention class, so a store-wide session reset can act on the record alone. */
+  r: retentionSchema,
+  /** Opaque session/access generation; absent on preference records. */
+  g: z.string().optional(),
+  /** The payload, validated against the author's own schema, not this one. */
+  d: z.unknown(),
+})
+
+export type StorageEnvelope = z.infer<typeof storageEnvelopeSchema>
 
 export const DEFAULT_SCHEMA_VERSION = 1
 export const DEFAULT_RETENTION: StorageRetention = 'session'
 
 export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
-  if (value === null || typeof value !== 'object') return false
-  const candidate = value as Partial<StorageEnvelope>
-  return (
-    typeof candidate.v === 'number' &&
-    (candidate.r === 'session' || candidate.r === 'preference') &&
-    (candidate.g === undefined || typeof candidate.g === 'string') &&
-    'd' in candidate
-  )
+  return storageEnvelopeSchema.safeParse(value).success
 }
 
 /** Physical key layout: `<id>:<key>`. Never scoped by mount token. */

@@ -6,7 +6,7 @@
  */
 
 import {
-  overrideSnippet,
+  overrideSection,
   packageJsonFile,
   sharedFiles,
   type TemplateFile,
@@ -99,33 +99,16 @@ it('rejects an invalid input at the provider boundary', () => {
       path: 'README.md',
       contents: `# ${packageName}
 
-An MFE Widget. Its id is \`${id}\`.
+An MFE Widget. Its id is \`${id}\`. A Widget is non-routable: it owns no URL
+boundary, never mutates history and never sets the document title. Anything that
+needs a URL is an App. \`pnpm run dev\` previews it through the shell-hosted
+placement, with validated example inputs and an event viewer.
 
-A Widget is non-routable: it owns no URL boundary, never mutates browser history
-and never sets the document title. Anything that needs a URL is an App.
-
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm run dev
-pnpm run build
-pnpm run typecheck
-pnpm test
-\`\`\`
-
-## Previewing it
-
-A Widget-only project previews through the shell-hosted placement, with editable
-validated example inputs and an event viewer, under the real shell session.
-Start the shell, run this in its console, and reload.
-
-${overrideSnippet(id, 3103)}
+${overrideSection(id, 3103)}
 
 ## Being consumed
 
-A consumer renders this Widget as an ordinary lazy component — inputs are props,
-events are \`onX\` props:
+Inputs are props, events are \`onX\` props:
 
 \`\`\`tsx
 import { lazyWidget } from '@company/mfe-react'
@@ -136,12 +119,12 @@ const ${pascal} = lazyWidget('${id}', { contract: ${camel}Contract })
 <${pascal} label="Run" onActivated={event => console.log(event.at)} />
 \`\`\`
 
-The contract argument is optional. Supplying it enables consumer-side event
-validation and infers both prop and handler types; without it inputs are
+The contract argument is optional: with it a consumer gets prop and handler
+inference and consumer-side event validation, without it inputs are
 \`Record<string, unknown>\` and payloads are \`unknown\`. A consumer may declare
 its own contract naming only the fields it uses, so adding a field here never
-breaks an existing consumer. Inputs and event payloads must be
-JSON-serializable; a consumer that needs a callback subscribes to an event.
+breaks one. Inputs and payloads must be JSON-serializable; a consumer that needs
+a callback subscribes to an event.
 `,
     },
   ]

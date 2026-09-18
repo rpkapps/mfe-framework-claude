@@ -1,13 +1,9 @@
 /**
  * Mount orchestration: load, attach, retry and disposal, under finite deadlines.
  *
- * One object owns the whole operation so a maintainer can trace a mount's state
- * changes, cancellation and cleanup in one place instead of reconstructing them
- * from effects spread across the adapters.
- *
- * The controller is framework-neutral. The adapter supplies three callbacks —
- * load, attach and cleanup — and this class decides when they run, what
- * cancels them, and which results are still current.
+ * One framework-neutral object owns the whole operation, so a maintainer traces
+ * a mount's state changes, cancellation and cleanup in one place instead of
+ * reconstructing them from effects spread across the adapters.
  */
 
 import {
@@ -24,10 +20,7 @@ import {
   type Unsubscribe,
 } from '@company/mfe-core'
 
-/**
- * What the owning adapter must provide. `attach` receives whatever `load`
- * resolved, so the controller never inspects the module itself.
- */
+/** `attach` receives whatever `load` resolved; the controller never inspects it. */
 export interface MountOperations<TLoaded> {
   /** Resolve the definition's code. Runs under the load deadline. */
   load(signal: AbortSignal): Promise<TLoaded>
@@ -52,25 +45,27 @@ export interface MountControllerOptions<TLoaded> {
   readonly onDisposed?: () => void
 }
 
-/**
- * Drives one mount. Construction does not start it; call `start()` so the
- * caller controls when the first attempt begins.
- */
+/** Construction does not start the mount; `start()` does, so the caller picks when. */
 export class MountController<TLoaded> implements MountHandle {
   readonly id: string
   readonly #lifecycle: MountLifecycle
   readonly #options: MountControllerOptions<TLoaded>
+  /** Identity every error and deadline carries, without an optional-property dance. */
+  readonly #identity: { readonly id: string; readonly definitionVersion?: string }
   /** The most recent loaded module, so a retry after a mount failure can skip reloading. */
   #loaded: TLoaded | undefined
 
   constructor(options: MountControllerOptions<TLoaded>) {
     this.id = options.id
     this.#options = options
-    this.#lifecycle = new MountLifecycle({
+    this.#identity = {
       id: options.id,
       ...(options.definitionVersion === undefined
         ? {}
         : { definitionVersion: options.definitionVersion }),
+    }
+    this.#lifecycle = new MountLifecycle({
+      ...this.#identity,
       onListenerError: error => {
         options.diagnostics?.report(
           toMfeError(error, {
@@ -142,14 +137,7 @@ export class MountController<TLoaded> implements MountHandle {
         (await withDeadline(
           signal => this.#options.operations.load(signal),
           this.#options.deadlines.load,
-          {
-            id: this.id,
-            ...(this.#options.definitionVersion === undefined
-              ? {}
-              : { definitionVersion: this.#options.definitionVersion }),
-            operation: 'load container',
-            phase: 'load',
-          },
+          { ...this.#identity, operation: 'load container', phase: 'load' },
           { signal: token.signal },
         ))
 
@@ -159,14 +147,7 @@ export class MountController<TLoaded> implements MountHandle {
       await withDeadline(
         signal => this.#options.operations.attach(loaded, signal),
         this.#options.deadlines.mount,
-        {
-          id: this.id,
-          ...(this.#options.definitionVersion === undefined
-            ? {}
-            : { definitionVersion: this.#options.definitionVersion }),
-          operation: 'mount definition',
-          phase: 'mount',
-        },
+        { ...this.#identity, operation: 'mount definition', phase: 'mount' },
         { signal: token.signal },
       )
 
@@ -182,11 +163,8 @@ export class MountController<TLoaded> implements MountHandle {
       if (!token.isCurrent()) return
 
       const structured = toMfeError(error, {
+        ...this.#identity,
         code: 'mount/failure',
-        id: this.id,
-        ...(this.#options.definitionVersion === undefined
-          ? {}
-          : { definitionVersion: this.#options.definitionVersion }),
         operation: 'mount definition',
         declaredBy: 'The framework mount controller',
         repair: 'Use the explicit retry action once the underlying cause is fixed.',
@@ -201,11 +179,8 @@ export class MountController<TLoaded> implements MountHandle {
 
   async #dispose(): Promise<void> {
     const reason = createMfeError({
+      ...this.#identity,
       code: 'dispose/failure',
-      id: this.id,
-      ...(this.#options.definitionVersion === undefined
-        ? {}
-        : { definitionVersion: this.#options.definitionVersion }),
       operation: 'dispose mount',
       observed: 'the host disposed this mount',
       repair: 'No action required; this is the normal teardown signal.',
@@ -222,24 +197,14 @@ export class MountController<TLoaded> implements MountHandle {
           await this.#options.operations.cleanup()
         },
         this.#options.deadlines.dispose,
-        {
-          id: this.id,
-          ...(this.#options.definitionVersion === undefined
-            ? {}
-            : { definitionVersion: this.#options.definitionVersion }),
-          operation: 'complete asynchronous cleanup',
-          phase: 'dispose',
-        },
+        { ...this.#identity, operation: 'complete asynchronous cleanup', phase: 'dispose' },
       )
     } catch (error) {
       // The mount stays disposed and late callbacks stay fenced; the promise
       // rejects so the caller learns cleanup did not finish.
       const structured = toMfeError(error, {
+        ...this.#identity,
         code: 'dispose/failure',
-        id: this.id,
-        ...(this.#options.definitionVersion === undefined
-          ? {}
-          : { definitionVersion: this.#options.definitionVersion }),
         operation: 'complete asynchronous cleanup',
         declaredBy: 'The framework mount controller',
         repair:

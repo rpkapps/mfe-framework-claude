@@ -24,18 +24,17 @@ import {
   typeSafety,
   typeScriptPlugins,
   withFiles,
+  type PresetOptions,
 } from './shared.ts'
 import {
   AUTHOR_FRAMEWORK_PATHS,
   AUTHOR_FRAMEWORK_PATTERNS,
   AUTHOR_TELEMETRY_PATTERNS,
   restrictedImports,
-  type RestrictedPath,
-  type RestrictedPattern,
 } from './restricted-imports.ts'
 
 /** Where TanStack Router code lives by default. */
-export const DEFAULT_ROUTER_FILES: readonly string[] = [
+const DEFAULT_ROUTER_FILES: readonly string[] = [
   '**/routes/**/*.{ts,tsx}',
   '**/*.route.{ts,tsx}',
   '**/*.routes.{ts,tsx}',
@@ -43,30 +42,9 @@ export const DEFAULT_ROUTER_FILES: readonly string[] = [
   '**/routeTree.gen.ts',
 ]
 
-export interface AuthorPresetOptions {
-  /** Root directory for the type-aware program. Defaults to the ESLint CWD. */
-  readonly tsconfigRootDir?: string | undefined
-  /** Files the preset applies to. Defaults to every TypeScript file. */
-  readonly files?: readonly string[] | undefined
-  /**
-   * Files the React and React Compiler rules apply to, always intersected with
-   * `files`. Defaults to `files`; narrow it to the packages that contain React,
-   * because elsewhere any API whose name collides with a hook reports falsely.
-   */
-  readonly reactFiles?: readonly string[] | undefined
-  /**
-   * Widget-owned sources. `mfe/no-widget-global-effects` reports only inside
-   * these globs and is inert with none configured.
-   */
-  readonly widgetScopes?: readonly string[] | undefined
-  /** Files allowed to touch Web Storage directly. */
-  readonly storageAllowedScopes?: readonly string[] | undefined
+export interface AuthorPresetOptions extends PresetOptions {
   /** Where the TanStack Router rules apply. */
   readonly routerFiles?: readonly string[] | undefined
-  /** Extra restricted paths appended to the author boundary. */
-  readonly extraRestrictedPaths?: readonly RestrictedPath[] | undefined
-  /** Extra restricted patterns appended to the author boundary. */
-  readonly extraRestrictedPatterns?: readonly RestrictedPattern[] | undefined
 }
 
 /** Builds the `author` preset. */

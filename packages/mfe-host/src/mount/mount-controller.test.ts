@@ -10,10 +10,6 @@ import {
 
 import { MountController, type MountOperations } from './mount-controller.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 interface TestModule {
   readonly name: string
 }
@@ -88,23 +84,16 @@ function flush(): Promise<void> {
   })
 }
 
-/* -------------------------------------------------------------------------- */
-/* Happy path                                                                  */
-/* -------------------------------------------------------------------------- */
-
 describe('mounting', () => {
   it('moves from pending to mounted and publishes every step', async () => {
-    // Arrange
     const attach = vi.fn(async () => undefined)
     const { controller } = createController(operations({ attach }))
     const seen: string[] = []
     controller.subscribe(() => seen.push(controller.getState().status))
     expect(controller.state).toEqual({ status: 'pending', attempt: 0 })
 
-    // Act
     await controller.start()
 
-    // Assert
     expect(controller.state).toEqual({ status: 'mounted' })
     expect(controller.getState()).toEqual({ status: 'mounted' })
     expect(controller.isDisposed).toBe(false)
@@ -135,13 +124,8 @@ describe('mounting', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Failure and retry                                                           */
-/* -------------------------------------------------------------------------- */
-
 describe('failure and retry', () => {
   it('settles a load failure into a structured error and reports it', async () => {
-    // Arrange
     const detach = vi.fn()
     const { controller, records } = createController(
       operations({
@@ -152,10 +136,8 @@ describe('failure and retry', () => {
       }),
     )
 
-    // Act
     await controller.start()
 
-    // Assert
     const failure = errorStateOf(controller.state)
     expect(failure.code).toBe('mount/failure')
     expect(failure.message).toContain('reports@2.1.0')
@@ -184,7 +166,7 @@ describe('failure and retry', () => {
   })
 
   it('reuses the already-loaded module when retrying after a mount failure', async () => {
-    // Arrange: the code downloaded fine; only rendering it failed.
+    // the code downloaded fine; only rendering it failed.
     const load = vi.fn(async () => MODULE)
     let attaches = 0
     const attach = vi.fn(async () => {
@@ -195,11 +177,10 @@ describe('failure and retry', () => {
     await controller.start()
     expect(controller.state.status).toBe('error')
 
-    // Act
     controller.retry()
     await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
 
-    // Assert: a perfectly good download is not thrown away to re-run a render.
+    // a perfectly good download is not thrown away to re-run a render.
     expect(load).toHaveBeenCalledTimes(1)
     expect(attach).toHaveBeenCalledTimes(2)
   })
@@ -239,13 +220,9 @@ describe('failure and retry', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Attempt fencing                                                             */
-/* -------------------------------------------------------------------------- */
-
 describe('attempt fencing', () => {
   it('does not let a superseded attempt settle over the newer one', async () => {
-    // Arrange: the first load is still in flight when a retry starts.
+    // the first load is still in flight when a retry starts.
     const pending: Deferred<TestModule>[] = []
     const load = vi.fn(() => {
       const next = deferred<TestModule>()
@@ -263,19 +240,17 @@ describe('attempt fencing', () => {
     controller.retry()
     await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2))
 
-    // Act: the newer attempt wins, and only then does the stale one resolve.
+    // the newer attempt wins, and only then does the stale one resolve.
     pending[1]?.resolve(SECOND_MODULE)
     await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
     pending[0]?.resolve(MODULE)
     await flush()
 
-    // Assert
     expect(attached).toEqual([SECOND_MODULE])
     expect(controller.state).toEqual({ status: 'mounted' })
   })
 
   it('detaches whatever a superseded attempt had already attached', async () => {
-    // Arrange
     const attaches: Deferred<void>[] = []
     const attach = vi.fn(() => {
       const next = deferred<void>()
@@ -293,19 +268,15 @@ describe('attempt fencing', () => {
     await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
     detach.mockClear()
 
-    // Act: the stale attempt finishes attaching after losing the race.
+    // the stale attempt finishes attaching after losing the race.
     attaches[0]?.resolve()
     await flush()
 
-    // Assert: it does not get to leave a tree behind.
+    // it does not get to leave a tree behind.
     expect(detach).toHaveBeenCalledTimes(1)
     expect(controller.state).toEqual({ status: 'mounted' })
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Deadlines                                                                   */
-/* -------------------------------------------------------------------------- */
 
 describe('deadlines', () => {
   beforeEach(() => {
@@ -317,7 +288,6 @@ describe('deadlines', () => {
   })
 
   it('fails a load that never settles, aborting its work and detaching', async () => {
-    // Arrange
     let loadSignal: AbortSignal | undefined
     const detach = vi.fn()
     const { controller, records } = createController(
@@ -330,12 +300,10 @@ describe('deadlines', () => {
       }),
     )
 
-    // Act
     const started = controller.start()
     await vi.advanceTimersByTimeAsync(30_000)
     await started
 
-    // Assert
     const failure = errorStateOf(controller.state)
     expect(failure.code).toBe('load/timeout')
     expect(failure.message).toContain('within 30000ms')
@@ -347,7 +315,6 @@ describe('deadlines', () => {
   })
 
   it('fails a mount that never settles, aborting its work and detaching', async () => {
-    // Arrange
     let attachSignal: AbortSignal | undefined
     const detach = vi.fn()
     const { controller, records } = createController(
@@ -360,12 +327,10 @@ describe('deadlines', () => {
       }),
     )
 
-    // Act
     const started = controller.start()
     await vi.advanceTimersByTimeAsync(30_000)
     await started
 
-    // Assert
     const failure = errorStateOf(controller.state)
     expect(failure.code).toBe('mount/timeout')
     expect(attachSignal?.aborted).toBe(true)
@@ -374,7 +339,7 @@ describe('deadlines', () => {
   })
 
   it('measures the mount deadline after the code is ready rather than sharing one clock', async () => {
-    // Arrange: each phase takes two thirds of its own deadline, so a single
+    // each phase takes two thirds of its own deadline, so a single
     // shared clock would have expired.
     const { controller } = createController(
       operations({
@@ -389,29 +354,25 @@ describe('deadlines', () => {
       }),
     )
 
-    // Act
     const started = controller.start()
     await vi.advanceTimersByTimeAsync(40_000)
     await started
 
-    // Assert
     expect(controller.state).toEqual({ status: 'mounted' })
   })
 
   it('rejects disposal that outruns the cleanup deadline while staying disposed', async () => {
-    // Arrange
     const { controller, records } = createController(
       operations({ cleanup: () => new Promise<void>(() => undefined) }),
     )
     await controller.start()
 
-    // Act
     const disposal = controller.dispose()
     const assertion = expect(disposal).rejects.toMatchObject({ code: 'dispose/timeout' })
     await vi.advanceTimersByTimeAsync(5_000)
     await assertion
 
-    // Assert: the mount is terminal regardless, so late callbacks stay fenced.
+    // the mount is terminal regardless, so late callbacks stay fenced.
     expect(controller.state).toEqual({ status: 'disposed' })
     expect(controller.isDisposed).toBe(true)
     expect(controller.signal.aborted).toBe(true)
@@ -419,13 +380,8 @@ describe('deadlines', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Disposal                                                                    */
-/* -------------------------------------------------------------------------- */
-
 describe('disposal', () => {
   it('detaches synchronously before awaiting cleanup', async () => {
-    // Arrange
     const order: string[] = []
     const { controller } = createController(
       operations({
@@ -441,10 +397,9 @@ describe('disposal', () => {
     )
     await controller.start()
 
-    // Act
     const disposal = controller.dispose()
 
-    // Assert: the failed or disposed surface is already gone, and the mount is
+    // the failed or disposed surface is already gone, and the mount is
     // already terminal, before anything is awaited.
     expect(order).toEqual(['detach', 'cleanup-started'])
     expect(controller.state).toEqual({ status: 'disposed' })
@@ -488,7 +443,6 @@ describe('disposal', () => {
   })
 
   it('runs the remaining cleanup even when detach throws', async () => {
-    // Arrange
     const cleanup = vi.fn(async () => undefined)
     const { controller, records } = createController(
       operations({
@@ -500,10 +454,8 @@ describe('disposal', () => {
     )
     await controller.start()
 
-    // Act
     await controller.dispose()
 
-    // Assert
     expect(cleanup).toHaveBeenCalledTimes(1)
     expect(controller.state).toEqual({ status: 'disposed' })
     expect(

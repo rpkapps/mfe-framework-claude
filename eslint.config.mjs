@@ -35,7 +35,7 @@ export default [
     storageAllowedScopes: [
       'packages/mfe-host/src/storage/**',
       'packages/mfe-host/src/overrides/**',
-      'apps/shell/src/shell/override-storage.ts',
+      'apps/shell/src/boot.tsx',
     ],
   }),
 

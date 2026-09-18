@@ -138,7 +138,9 @@ describe('artifact writing', () => {
 
     const result = await run({ target: 91, write: true, packageDir, repoRoot })
 
-    const written = JSON.parse(await readFile(path.join(packageDir, ARTIFACT_FILENAME), 'utf8'))
+    const written: unknown = JSON.parse(
+      await readFile(path.join(packageDir, ARTIFACT_FILENAME), 'utf8'),
+    )
     expect(written).toEqual(result.artifact)
     expect(await readFile(path.join(repoRoot, BROWSERSLISTRC_FILENAME), 'utf8')).toBe(
       result.browserslistrc,

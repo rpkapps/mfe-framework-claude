@@ -3,7 +3,11 @@
  * the plumbing `AppHost` and `lazyWidget` share.
  *
  * Loads are cached per runtime so two consumers of one id suspend on the same
- * promise, and a failed load is dropped again so retry is a fresh attempt.
+ * promise. A rejection stays cached: React has to be handed the *same* settled
+ * promise to surface the failure, and a cache that evicts itself on rejection
+ * hands the next render a fresh pending one instead, which suspends forever and
+ * refetches as fast as the network allows. Only `forgetDefinition`, called by
+ * retry, drops an entry.
  */
 
 import { toMfeError, type MfeError } from '@company/mfe-core'
@@ -77,9 +81,16 @@ export function loadDefinition(
     return definition
   })()
 
-  pending.catch(() => loads.delete(id))
+  // Marks the rejection handled without dropping it, so a cached failure does
+  // not surface as an unhandled rejection before a consumer suspends on it.
+  pending.catch(() => {})
   loads.set(id, pending)
   return pending
+}
+
+/** Drops a cached outcome so the next load is a genuinely fresh attempt. */
+export function forgetDefinition(runtime: MfeRuntime, id: string): void {
+  loadsByRuntime.get(runtime)?.delete(id)
 }
 
 interface RetryBoundaryProps {

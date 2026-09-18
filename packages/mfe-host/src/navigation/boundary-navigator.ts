@@ -1,16 +1,10 @@
 /**
  * The explicit shell-boundary navigation bridge and blocker negotiation.
  *
- * This replaces the global History patch the old shell used. The distinction
- * that matters: *calling* `history.pushState` is ordinary use of a browser API,
- * while *replacing* `history.pushState` is the patch that was removed. Nothing
- * here reassigns a global method or a global event-listener method, and the
- * shell router is never handed to remote code.
- *
- * Blocker negotiation lives here rather than in the adapter because ordering
- * across nested mounts is a host concern: evaluation runs innermost first,
- * stops at the first refusal, and never lets two confirmation flows run for one
- * navigation.
+ * Nothing here reassigns a global History or event-listener method — *calling*
+ * `pushState` is ordinary use of a browser API, *replacing* it is the patch this
+ * replaced. Negotiation lives here because ordering across nested mounts is a
+ * host concern: innermost first, stopping at the first refusal.
  */
 
 import {
@@ -46,12 +40,7 @@ export interface BoundaryNavigatorOptions {
   readonly diagnostics?: DiagnosticsHub
 }
 
-/**
- * Coordinates blockers over one navigation bridge.
- *
- * A navigation already negotiating is not re-negotiated: a second request while
- * a confirmation is open is refused rather than opening a competing dialog.
- */
+/** Coordinates blockers over one navigation bridge. */
 export class BoundaryNavigator {
   readonly #bridge: NavigationBridge
   readonly #diagnostics: DiagnosticsHub | undefined
@@ -92,12 +81,9 @@ export class BoundaryNavigator {
   }
 
   /**
-   * Asks every affected mount, innermost first, and commits the transition once
-   * if they all agree.
-   *
-   * A proceed commits exactly once and does not re-enter the same blockers
-   * through the bridge, because the commit happens after negotiation has
-   * finished rather than from inside it.
+   * Asks every affected mount, innermost first, and commits once if they agree.
+   * The commit happens after negotiation finishes rather than from inside it,
+   * so a proceed cannot re-enter the same blockers through the bridge.
    */
   async requestNavigation(
     intent: NavigationIntent,
@@ -163,19 +149,26 @@ export class BoundaryNavigator {
     this.#negotiating = false
   }
 
+  #reportBlockerFailure(error: unknown, operation: string, repair: string): void {
+    this.#diagnostics?.report(
+      toMfeError(error, {
+        code: 'app/invalid-router',
+        id: 'navigation',
+        operation,
+        declaredBy: 'The blocking MFE',
+        repair,
+      }),
+    )
+  }
+
   #safeShouldBlock(blocker: NavigationBlocker, intent: NavigationIntent): boolean {
     try {
       return blocker.shouldBlock(intent)
     } catch (error) {
-      this.#diagnostics?.report(
-        toMfeError(error, {
-          code: 'app/invalid-router',
-          id: 'navigation',
-          operation: 'evaluate a navigation blocker',
-          declaredBy: 'The blocking MFE',
-          repair:
-            'shouldBlockFn must be a synchronous read of the MFE’s own state. The navigation was allowed to proceed because the check could not be trusted.',
-        }),
+      this.#reportBlockerFailure(
+        error,
+        'evaluate a navigation blocker',
+        'shouldBlockFn must be a synchronous read of the MFE’s own state. The navigation was allowed to proceed because the check could not be trusted.',
       )
       return false
     }
@@ -188,15 +181,10 @@ export class BoundaryNavigator {
     try {
       return await blocker.confirm(intent)
     } catch (error) {
-      this.#diagnostics?.report(
-        toMfeError(error, {
-          code: 'app/invalid-router',
-          id: 'navigation',
-          operation: 'resolve a navigation blocker',
-          declaredBy: 'The blocking MFE',
-          repair:
-            'The confirmation UI threw, so the navigation was cancelled to avoid discarding unsaved work. Fix the resolver and try again.',
-        }),
+      this.#reportBlockerFailure(
+        error,
+        'resolve a navigation blocker',
+        'The confirmation UI threw, so the navigation was cancelled to avoid discarding unsaved work. Fix the resolver and try again.',
       )
       return 'reset'
     }
@@ -204,11 +192,9 @@ export class BoundaryNavigator {
 }
 
 /**
- * A bridge over the real browser History API.
- *
- * It calls `pushState`/`replaceState` and listens for `popstate`. It never
- * reassigns them, never wraps `addEventListener`, and never emits synthetic
- * `popstate` events to keep two routers in sync.
+ * A bridge over the real browser History API: it calls `pushState`/`replaceState`
+ * and listens for `popstate`, never reassigns them, never wraps
+ * `addEventListener` and never emits synthetic `popstate` events.
  */
 export function createBrowserNavigationBridge(target: Window = window): NavigationBridge {
   const read = (): BoundaryLocation => ({
@@ -284,10 +270,8 @@ export function parseBoundaryLocation(
 }
 
 /**
- * An in-memory bridge for tests and for non-browser hosts.
- *
- * Route tests use this instead of a global History patch: it keeps its own
- * entry list, so back and forward behave like a browser without touching one.
+ * An in-memory bridge for tests and non-browser hosts. It keeps its own entry
+ * list, so back and forward behave like a browser without touching one.
  */
 export function createMemoryNavigationBridge(
   initialEntries: readonly string[] = ['/'],

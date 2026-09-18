@@ -4,28 +4,17 @@ import {
   SpanKind,
   SpanStatusCode,
   type Span,
-  type TelemetryAttribution,
   type TelemetryRecord,
 } from '@company/mfe-core'
 
+import { createRecordingTelemetryProvider } from './recording-provider.ts'
+import { createMountTelemetry } from './service.ts'
 import {
   createNonRecordingTracer,
   createNoopTelemetryProvider,
   nonRecordingSpan,
 } from './tracer.ts'
-import { createRecordingTelemetryProvider } from './recording-provider.ts'
-import { createMountTelemetry } from './service.ts'
-
-const ATTRIBUTION: TelemetryAttribution = {
-  definitionId: 'operations-console',
-  definitionKind: 'app',
-}
-
-function at<T>(items: readonly T[], index = 0): T {
-  const item = items[index]
-  if (item === undefined) throw new Error(`expected an item at index ${index}`)
-  return item
-}
+import { at, ATTRIBUTION } from './__tests__/harness.ts'
 
 function eventRecord(name: string): TelemetryRecord {
   return {

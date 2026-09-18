@@ -2,9 +2,8 @@
  * `@company/mfe-react/testing` — supported author testing utilities.
  *
  * Never imported by the production entry. It supplies isolated providers,
- * explicit fixtures and deterministic cleanup for Vitest and React Testing
- * Library — never live credentials, and no claim to cover federation, CSS layout
- * or real authenticated integration. Those remain browser tests against builds.
+ * explicit fixtures and deterministic cleanup — never live credentials, and no
+ * claim to cover federation, CSS layout or authenticated integration.
  */
 
 import {
@@ -225,8 +224,11 @@ export function createMfeTestEnvironment(
 export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
   let result: RenderResult | undefined
 
-  await act(() => {
+  await act(async () => {
     result = render(<>{ui}</>)
+    // Yielding inside the act scope is what lets a suspended load settle before
+    // the caller inspects the tree.
+    await Promise.resolve()
   })
 
   if (!result) throw new Error('renderSuspending produced no result')

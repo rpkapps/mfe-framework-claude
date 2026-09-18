@@ -1,15 +1,11 @@
 /**
- * The contract tracer bullet.
+ * The contract tracer bullet: one complete new-contract path, with the loader
+ * faked and no bundler, federation or deployed remote.
  *
- * One complete new-contract path, with the loader faked and no bundler, no
- * federation and no deployed remote. It exists to retire the contract risk
- * before anything is built on top of it: if the author-facing shape here cannot
- * be made to work against the pinned router, every later gate is built on sand.
- *
- * It also pins the two feasibility answers the design depends on — that the
- * pinned router exposes enough supported state to validate exact history
- * identity, and that one generated route tree can back two concurrent mounts
- * without cross-talk.
+ * It retires the contract risk before anything is built on top, and pins the
+ * two feasibility answers the design depends on: the pinned router exposes
+ * enough state to validate exact history identity, and one generated route tree
+ * backs two concurrent mounts without cross-talk.
  */
 
 import {
@@ -31,10 +27,6 @@ import { MfeProvider } from './runtime-context.tsx'
 import { AppMount } from './app-mount.tsx'
 import type { AppRouterOptions, MfeRouterContext } from './router-contract.ts'
 
-/* -------------------------------------------------------------------------- */
-/* The introductory fixture, exactly as an author would write it               */
-/* -------------------------------------------------------------------------- */
-
 interface BeforeLoadObservation {
   readonly userId: string | null
   readonly theme: string
@@ -42,6 +34,10 @@ interface BeforeLoadObservation {
   readonly hasSignal: boolean
 }
 
+/** The feasibility routers below never read context. */
+const NO_CONTEXT = {} as unknown as MfeRouterContext
+
+/** The introductory fixture, exactly as an author would write it. */
 function buildFixture(observations: BeforeLoadObservation[]) {
   const rootRoute = createRootRouteWithContext<MfeRouterContext>()({
     component: () => <Outlet />,
@@ -89,8 +85,6 @@ function buildFixture(observations: BeforeLoadObservation[]) {
 
   return { makeRouter, routeTree }
 }
-
-/* -------------------------------------------------------------------------- */
 
 describe('contract tracer bullet: mounting one App by id', () => {
   it('mounts at the supplied boundary, renders live shell state and disposes cleanly', async () => {
@@ -220,7 +214,7 @@ describe('router contract validation', () => {
           routeTree,
           basepath: basePath,
           history,
-          context: { ...context, mfe: { ...context.mfe } } as unknown as MfeRouterContext,
+          context: { ...context, mfe: { ...context.mfe } },
         }),
       ),
     ).toThrowError(/replaced or rebuilt mfe namespace.*do not replace mfe/s)
@@ -248,13 +242,9 @@ describe('router contract validation', () => {
     const app = createApp({
       id: 'tracer',
       router: ({ basePath, history, context }) => {
-        const router = createRouter({
-          routeTree,
-          basepath: basePath,
-          history,
-          context: { ...context, analytics: { track: () => {} } } as MfeRouterContext,
-        })
-        observedKeys = Object.keys(router.options.context as object)
+        const extended = { ...context, analytics: { track: () => {} } }
+        const router = createRouter({ routeTree, basepath: basePath, history, context: extended })
+        observedKeys = Object.keys(router.options.context)
         return router
       },
     })
@@ -271,12 +261,7 @@ describe('pinned router feasibility', () => {
   it('exposes basepath and exact history identity for validation', () => {
     const { routeTree } = buildFixture([])
     const history = createMemoryHistory({ initialEntries: ['/tracer'] })
-    const router = createRouter({
-      routeTree,
-      basepath: '/tracer',
-      history,
-      context: {} as MfeRouterContext,
-    })
+    const router = createRouter({ routeTree, basepath: '/tracer', history, context: NO_CONTEXT })
 
     // Both are supported, observable state. Without them the entry contract
     // could not be validated and would have had to change.
@@ -293,13 +278,13 @@ describe('pinned router feasibility', () => {
       routeTree,
       basepath: '/a',
       history: historyA,
-      context: {} as MfeRouterContext,
+      context: NO_CONTEXT,
     })
     const routerB = createRouter({
       routeTree,
       basepath: '/b',
       history: historyB,
-      context: {} as MfeRouterContext,
+      context: NO_CONTEXT,
     })
 
     await routerA.load()
@@ -318,7 +303,7 @@ describe('pinned router feasibility', () => {
 })
 
 describe('mount failure is explicit', () => {
-  it('reports a definition that is not an App rather than mounting an empty surface', async () => {
+  it('reports a definition that is not an App rather than mounting an empty surface', () => {
     const { makeRouter } = buildFixture([])
     const app = createApp({
       id: 'tracer',

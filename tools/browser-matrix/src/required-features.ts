@@ -1,11 +1,8 @@
 /**
- * The native feature floor of the framework.
- *
- * Every id here is a caniuse feature id and is verified against the pinned
- * `caniuse-lite` by `required-features.test.ts`. The matrix is the intersection
- * of these features, so adding one can only ever raise minimum versions — add a
- * feature only when framework code actually depends on it and no fallback
- * ships.
+ * The native feature floor of the framework. Every id is a caniuse feature id,
+ * verified against the pinned `caniuse-lite` in the tests. The matrix is their
+ * intersection, so adding one can only raise minimum versions: add a feature
+ * only when framework code depends on it and no fallback ships.
  */
 
 export interface RequiredFeature {

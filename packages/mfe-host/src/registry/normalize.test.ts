@@ -12,10 +12,6 @@ import {
 import { createMfeContractRule } from './mfe-contract-rule.ts'
 import { normalizeRegistry } from './normalize.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -104,10 +100,6 @@ function codeOf(error: Error): string {
   return isMfeError(error) ? error.code : `<plain Error: ${error.message}>`
 }
 
-/* -------------------------------------------------------------------------- */
-/* Adapter selection table                                                     */
-/* -------------------------------------------------------------------------- */
-
 describe('adapter selection', () => {
   it('selects the new adapter for an entry advertising a valid contract', () => {
     const legacy = createLegacyRule()
@@ -143,7 +135,7 @@ describe('adapter selection', () => {
   })
 
   it('reports a contract error for a malformed advertised contract and never falls back to legacy', () => {
-    // Arrange: an entry that claims the new contract *and* still carries every
+    // an entry that claims the new contract *and* still carries every
     // piece of legacy metadata, so a fallback would look plausible.
     const legacy = createLegacyRule()
     const ambiguous = {
@@ -155,12 +147,11 @@ describe('adapter selection', () => {
       routes: ['/reports'],
     }
 
-    // Act
     const registry = normalizeRegistry([ambiguous], {
       rules: [createMfeContractRule(), legacy.rule],
     })
 
-    // Assert: quarantined with an explicit descriptor error, and the legacy
+    // quarantined with an explicit descriptor error, and the legacy
     // rule was never given the chance to claim it.
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'reports')
@@ -226,10 +217,6 @@ describe('adapter selection', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Per-entry validation                                                        */
-/* -------------------------------------------------------------------------- */
-
 describe('per-entry validation', () => {
   it('keeps unrelated valid entries when one entry is malformed', () => {
     const legacy = createLegacyRule()
@@ -287,10 +274,6 @@ describe('per-entry validation', () => {
     expect(quarantinedEntry(registry, 'reports').error.message).toContain('{ "contractMajor": 1 }')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Duplicate ids                                                               */
-/* -------------------------------------------------------------------------- */
 
 describe('duplicate definition ids', () => {
   it('removes every entry claiming a duplicated id instead of letting one win', () => {
@@ -355,10 +338,6 @@ describe('duplicate definition ids', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Boot-time URL overrides                                                     */
-/* -------------------------------------------------------------------------- */
-
 describe('boot-time URL overrides', () => {
   it('replaces the manifest URL and marks the entry as overridden', () => {
     const registry = normalizeRegistry([advertisedEntry({ id: 'reports' })], {
@@ -395,10 +374,6 @@ describe('boot-time URL overrides', () => {
     expect(registry.entries.size).toBe(0)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Capabilities                                                                */
-/* -------------------------------------------------------------------------- */
 
 describe('advertised capabilities', () => {
   it('carries App capabilities through to the neutral entry', () => {
@@ -483,10 +458,6 @@ describe('advertised capabilities', () => {
     )
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Optional descriptor fields                                                  */
-/* -------------------------------------------------------------------------- */
 
 describe('optional descriptor fields', () => {
   it('carries version, title, icon and hidden through, and omits what was absent', () => {

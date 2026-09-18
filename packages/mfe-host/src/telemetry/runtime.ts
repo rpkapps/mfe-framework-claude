@@ -13,7 +13,6 @@ import {
   createMfeError,
   normalizeError,
   type Diagnostic,
-  type DiagnosticSeverity,
   type DiagnosticsSink,
   type MeasurementUnit,
   type MfeErrorCode,
@@ -51,14 +50,14 @@ export function isReservedAttributeKey(key: string): boolean {
   return RESERVED_KEYS.has(key)
 }
 
-/** Attribution fields, each paired with the attribute key it renders as. */
+/** The attribution fields, in the order they are bound onto every record. */
 const ATTRIBUTION_FIELDS = [
-  ['definitionId', RESERVED_ATTRIBUTE_KEYS.definitionId],
-  ['definitionKind', RESERVED_ATTRIBUTE_KEYS.definitionKind],
-  ['definitionVersion', RESERVED_ATTRIBUTE_KEYS.definitionVersion],
-  ['buildHash', RESERVED_ATTRIBUTE_KEYS.buildHash],
-  ['mountToken', RESERVED_ATTRIBUTE_KEYS.mountToken],
-] as const satisfies readonly (readonly [keyof TelemetryAttribution, string])[]
+  'definitionId',
+  'definitionKind',
+  'definitionVersion',
+  'buildHash',
+  'mountToken',
+] as const satisfies readonly (keyof TelemetryAttribution)[]
 
 const COUNTER_NAMES = [
   'recorded',
@@ -96,6 +95,14 @@ export interface DiagnosticDetails {
   readonly context?: Readonly<Record<string, string | number | boolean>>
 }
 
+export interface FrameworkRecordDetails {
+  /** Defaults to `info`. */
+  readonly level?: TelemetryLevel
+  readonly message: string
+  readonly error?: unknown
+  readonly attributes?: TelemetryAttributes
+}
+
 export interface TelemetryRuntimeOptions {
   /** Where development diagnostics go. The host wires this to its diagnostics hub. */
   readonly onDiagnostic?: DiagnosticsSink
@@ -106,9 +113,6 @@ export interface TelemetryRuntimeOptions {
   /** Injectable clock, for deterministic tests. */
   readonly now?: () => number
 }
-
-/** Every diagnostic this binding raises is a warning, never an error. */
-const WARNING: DiagnosticSeverity = 'warning'
 
 /** Everything the telemetry service and the tracer share for one mount. */
 export class MountTelemetryRuntime {
@@ -138,11 +142,11 @@ export class MountTelemetryRuntime {
     // attribution they carried even if the caller mutates its own object later.
     const bound: Record<string, string> = {}
     const reserved: Record<string, string> = {}
-    for (const [field, key] of ATTRIBUTION_FIELDS) {
+    for (const field of ATTRIBUTION_FIELDS) {
       const value = attribution[field]
       if (value === undefined) continue
       bound[field] = value
-      reserved[key] = value
+      reserved[RESERVED_ATTRIBUTE_KEYS[field]] = value
     }
     this.provider = provider
     this.attribution = Object.freeze(bound) as unknown as TelemetryAttribution
@@ -201,21 +205,18 @@ export class MountTelemetryRuntime {
 
     const sink = this.#onDiagnostic
     if (sink === undefined) return
+
+    const { context, ...message } = details
+    const version = this.attribution.definitionVersion
     const diagnostic: Diagnostic = {
-      severity: WARNING,
+      severity: 'warning',
       error: createMfeError({
-        code: details.code,
+        ...message,
         id: this.attribution.definitionId,
-        operation: details.operation,
-        ...(this.attribution.definitionVersion === undefined
-          ? {}
-          : { definitionVersion: this.attribution.definitionVersion }),
-        ...(details.expected === undefined ? {} : { expected: details.expected }),
-        ...(details.observed === undefined ? {} : { observed: details.observed }),
         declaredBy: 'The host telemetry binding',
-        ...(details.repair === undefined ? {} : { repair: details.repair }),
+        ...(version === undefined ? {} : { definitionVersion: version }),
       }),
-      ...(details.context === undefined ? {} : { context: details.context }),
+      ...(context === undefined ? {} : { context }),
       timestamp: this.now(),
     }
 
@@ -389,15 +390,7 @@ export class MountTelemetryRuntime {
    * A framework lifecycle diagnostic, deduplicated against errors the mount has
    * already reported so one failure never produces two records.
    */
-  emitFramework(
-    operation: string,
-    details: {
-      readonly level?: TelemetryLevel
-      readonly message: string
-      readonly error?: unknown
-      readonly attributes?: TelemetryAttributes
-    },
-  ): void {
+  emitFramework(operation: string, details: FrameworkRecordDetails): void {
     const label = `record a framework diagnostic for ${operation}`
     if (this.#refused(label)) return
 

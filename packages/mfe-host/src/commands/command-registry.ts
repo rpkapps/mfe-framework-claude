@@ -1,11 +1,8 @@
 /**
- * Mount-scoped command registration.
- *
- * Registration is owned by a component's lifetime, so this registry only has to
- * hold the current set and publish a palette snapshot. The performance contract
- * is the interesting part: replacing `execute` or `canExecute` closure identity
- * must not change the public snapshot, and updating one command must not
- * re-evaluate any other.
+ * Mount-scoped command registration: hold the current set, publish a palette
+ * snapshot. The performance contract is the interesting part — replacing
+ * `execute`/`canExecute` closure identity must not change the public snapshot,
+ * and updating one command must not re-evaluate any other.
  */
 
 import {
@@ -20,17 +17,25 @@ import {
   type Decision,
   type DiagnosticsHub,
   type MfeError,
+  type MfeErrorDetails,
   type Unsubscribe,
 } from '@company/mfe-core'
 
 const DEFAULT_PLACEMENTS: readonly CommandPlacement[] = Object.freeze(['command-palette'])
 const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)
 
-/**
- * Local command names are restricted so `<definitionId>:<name>` stays
- * unambiguous and a name can be used as a map key without an exotic separator.
- */
+/** Restricted so `<definitionId>:<name>` stays unambiguous. */
 const COMMAND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
+
+/** Every registration failure this module raises carries the same code. */
+function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id' | 'declaredBy'>): MfeError {
+  return createMfeError({
+    code: 'command/duplicate-name',
+    id,
+    declaredBy: 'The command registry',
+    ...details,
+  })
+}
 
 export interface CommandRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
@@ -167,13 +172,10 @@ export class CommandRegistry {
   async execute(qualifiedId: string): Promise<CommandExecutionResult> {
     const command = this.#find(qualifiedId)
     if (!command) {
-      const error = createMfeError({
-        code: 'command/duplicate-name',
-        id: qualifiedId.split(':')[0] ?? qualifiedId,
+      const error = fail(qualifiedId.split(':')[0] ?? qualifiedId, {
         operation: `execute command '${qualifiedId}'`,
         expected: 'a command registered by a live mount',
         observed: 'no registration, so its definition is unloaded or disposed',
-        declaredBy: 'The command registry',
         repair:
           'Re-open the surface that registers this command. Commands from a disposed mount are unavailable.',
       })
@@ -317,54 +319,43 @@ export class CommandRegistry {
   }
 
   #duplicateNameError(definitionId: string, name: string): MfeError {
-    return createMfeError({
-      code: 'command/duplicate-name',
-      id: definitionId,
+    return fail(definitionId, {
       operation: `register command '${name}'`,
       expected: 'one registration per command name within a mount',
       observed: `a second registration of '${name}' in the same mount`,
-      declaredBy: 'The command registry',
       repair:
         'Rename one of the commands. Duplicate local names are rejected rather than overwritten, so neither registration silently wins.',
     })
   }
 
   #assertValid(definitionId: string, registration: CommandRegistration): void {
-    if (!COMMAND_NAME_PATTERN.test(registration.name)) {
-      throw createMfeError({
-        code: 'command/duplicate-name',
-        id: definitionId,
+    const { name, label } = registration
+    if (!COMMAND_NAME_PATTERN.test(name)) {
+      throw fail(definitionId, {
         operation: 'register command',
         expected:
           'a name of letters, digits and hyphens starting with a letter (for example "refresh")',
-        observed: registration.name === '' ? 'an empty string' : JSON.stringify(registration.name),
-        declaredBy: 'The command registry',
+        observed: name === '' ? 'an empty string' : JSON.stringify(name),
         repair:
           'Rename the command. The runtime qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.',
       })
     }
 
-    if (registration.label === '') {
-      throw createMfeError({
-        code: 'command/duplicate-name',
-        id: definitionId,
-        operation: `register command '${registration.name}'`,
+    if (label === '') {
+      throw fail(definitionId, {
+        operation: `register command '${name}'`,
         expected: 'a non-empty label',
         observed: 'an empty string',
-        declaredBy: 'The command registry, where label is required',
         repair: 'Add a human-readable label; the palette has nothing to render without one.',
       })
     }
 
     for (const placement of registration.placements ?? DEFAULT_PLACEMENTS) {
       if (VALID_PLACEMENTS.has(placement)) continue
-      throw createMfeError({
-        code: 'command/duplicate-name',
-        id: definitionId,
-        operation: `register command '${registration.name}'`,
+      throw fail(definitionId, {
+        operation: `register command '${name}'`,
         expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
         observed: JSON.stringify(placement),
-        declaredBy: 'The command placement contract',
         repair:
           'Only command-palette is standardized. Future placements add placement descriptors to this model.',
       })

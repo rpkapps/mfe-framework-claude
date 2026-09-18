@@ -12,10 +12,6 @@ import {
 
 import { CommandRegistry } from './command-registry.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 function recordingDiagnostics(): { readonly hub: DiagnosticsHub; readonly records: Diagnostic[] } {
   const records: Diagnostic[] = []
   const hub = new DiagnosticsHub()
@@ -35,10 +31,6 @@ function registration(overrides: Partial<CommandRegistration> = {}): CommandRegi
 function codesOf(records: readonly Diagnostic[]): readonly string[] {
   return records.map(record => record.error.code)
 }
-
-/* -------------------------------------------------------------------------- */
-/* Registration and removal                                                    */
-/* -------------------------------------------------------------------------- */
 
 describe('registration', () => {
   it('publishes a qualified entry for a registered command', () => {
@@ -120,10 +112,6 @@ describe('registration', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Duplicate names                                                             */
-/* -------------------------------------------------------------------------- */
-
 describe('duplicate names', () => {
   it('rejects a second registration of the same name inside one mount', () => {
     const registry = new CommandRegistry()
@@ -153,12 +141,10 @@ describe('duplicate names', () => {
   })
 
   it('accepts the same local name in a different mount and qualifies both distinctly', () => {
-    // Arrange / Act
     const registry = new CommandRegistry()
     registry.register('reports', 'mount-1', registration({ name: 'refresh' }))
     registry.register('billing', 'mount-2', registration({ name: 'refresh' }))
 
-    // Assert
     expect(registry.size).toBe(2)
     expect(registry.getSnapshot().map(entry => entry.id)).toEqual([
       'reports:refresh',
@@ -167,13 +153,9 @@ describe('duplicate names', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Update performance contract                                                 */
-/* -------------------------------------------------------------------------- */
-
 describe('update performance contract', () => {
   it('does not republish when only the execute and canExecute closures changed', () => {
-    // Arrange: a command whose visible state (label, placements, decision) is
+    // a command whose visible state (label, placements, decision) is
     // stable across renders, but whose callbacks are new closures each time.
     const registry = new CommandRegistry()
     const handle = registry.register(
@@ -185,10 +167,9 @@ describe('update performance contract', () => {
     const subscriber = vi.fn()
     registry.subscribe(subscriber)
 
-    // Act
     handle.update(registration({ execute: () => undefined, canExecute: () => allow() }))
 
-    // Assert: the palette's snapshot is untouched, so nothing re-renders.
+    // the palette's snapshot is untouched, so nothing re-renders.
     expect(registry.getSnapshot()).toBe(before)
     expect(subscriber).not.toHaveBeenCalled()
   })
@@ -223,7 +204,6 @@ describe('update performance contract', () => {
   })
 
   it('does not re-evaluate another command while one command updates', () => {
-    // Arrange
     const registry = new CommandRegistry()
     const refreshCanExecute = vi.fn(allow)
     const exportCanExecute = vi.fn(allow)
@@ -240,16 +220,14 @@ describe('update performance contract', () => {
     refreshCanExecute.mockClear()
     exportCanExecute.mockClear()
 
-    // Act
     refresh.update(registration({ name: 'refresh', canExecute: refreshCanExecute }))
 
-    // Assert: the untouched command's availability check never ran.
+    // the untouched command's availability check never ran.
     expect(refreshCanExecute).toHaveBeenCalledTimes(1)
     expect(exportCanExecute).toHaveBeenCalledTimes(0)
   })
 
   it('re-evaluates every command when the palette opens', () => {
-    // Arrange
     const registry = new CommandRegistry()
     let hasSelection = false
     const refreshCanExecute = vi.fn(() =>
@@ -271,11 +249,9 @@ describe('update performance contract', () => {
     const subscriber = vi.fn()
     registry.subscribe(subscriber)
 
-    // Act
     hasSelection = true
     registry.evaluateAll()
 
-    // Assert
     expect(refreshCanExecute).toHaveBeenCalledTimes(1)
     expect(exportCanExecute).toHaveBeenCalledTimes(1)
     expect(registry.getSnapshot()[0]?.decision).toEqual({ allowed: true })
@@ -296,10 +272,6 @@ describe('update performance contract', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Renaming                                                                    */
-/* -------------------------------------------------------------------------- */
-
 describe('renaming through update', () => {
   it('replaces the registration under the new qualified id', () => {
     const registry = new CommandRegistry()
@@ -312,12 +284,10 @@ describe('renaming through update', () => {
   })
 
   it('rejects a rename that would collide with another command in the same mount', () => {
-    // Arrange
     const registry = new CommandRegistry()
     const refresh = registry.register('reports', 'mount-1', registration({ name: 'refresh' }))
     registry.register('reports', 'mount-1', registration({ name: 'export' }))
 
-    // Act / Assert
     expect(() => refresh.update(registration({ name: 'export' }))).toThrow(
       /one registration per command name within a mount/,
     )
@@ -349,10 +319,6 @@ describe('renaming through update', () => {
     await expect(registry.execute('reports:reload')).resolves.toEqual({ status: 'executed' })
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Validation                                                                  */
-/* -------------------------------------------------------------------------- */
 
 describe('registration validation', () => {
   it.each([
@@ -406,10 +372,6 @@ describe('registration validation', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Execution                                                                   */
-/* -------------------------------------------------------------------------- */
-
 describe('execution', () => {
   it('runs a command whose availability check allows it', async () => {
     const execute = vi.fn()
@@ -440,7 +402,7 @@ describe('execution', () => {
   })
 
   it('re-checks the latest committed availability rather than the published entry', async () => {
-    // Arrange: registered while allowed, then the mount commits a denial.
+    // registered while allowed, then the mount commits a denial.
     const execute = vi.fn()
     const notifyDenial = vi.fn()
     const registry = new CommandRegistry({ notifyDenial })
@@ -458,10 +420,8 @@ describe('execution', () => {
     )
     allowed = false
 
-    // Act
     const result = await registry.execute('reports:refresh')
 
-    // Assert
     expect(result).toEqual({ status: 'denied', reason: 'Select a report before refreshing.' })
     expect(execute).not.toHaveBeenCalled()
     expect(notifyDenial).toHaveBeenCalledWith({
@@ -515,7 +475,6 @@ describe('execution', () => {
   })
 
   it('denies and diagnoses when the availability check itself throws', async () => {
-    // Arrange
     const { hub, records } = recordingDiagnostics()
     const execute = vi.fn()
     const notifyDenial = vi.fn()
@@ -532,10 +491,9 @@ describe('execution', () => {
     )
     records.length = 0
 
-    // Act
     const result = await registry.execute('reports:refresh')
 
-    // Assert: an unknown precondition denies rather than running the command.
+    // an unknown precondition denies rather than running the command.
     expect(result).toEqual({
       status: 'denied',
       reason: 'This command is unavailable because its availability check failed.',
@@ -607,10 +565,6 @@ describe('execution', () => {
     expect(result.error.message).toContain('just a string')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Disposal                                                                    */
-/* -------------------------------------------------------------------------- */
 
 describe('disposal', () => {
   it('drops every command and stops notifying subscribers', async () => {

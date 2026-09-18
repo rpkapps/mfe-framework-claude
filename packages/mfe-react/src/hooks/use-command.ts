@@ -2,11 +2,9 @@
  * Command registration as a hook, so mount scoping falls out of component
  * lifetime: no registry to acquire and no disposer to return.
  *
- * Two effects, deliberately. The first owns the registration's existence, the
- * second publishes the latest committed callbacks, which is what lets inline
- * closures stay current without recreating the registration on every render.
- * Nothing is published during render: an abandoned render must not reach the
- * palette.
+ * Two effects, deliberately: one owns the registration, the other publishes the
+ * latest committed callbacks, so inline closures stay current without the
+ * registration churning. Nothing is published during render.
  */
 
 import { useEffect, useRef } from 'react'

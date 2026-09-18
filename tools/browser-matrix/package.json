@@ -4,12 +4,6 @@
   "private": true,
   "description": "Browser support policy: derives the supported browser matrix from the required native feature floor and checks aggregate global usage coverage.",
   "type": "module",
-  "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    }
-  },
   "scripts": {
     "report": "node ./report.mjs",
     "test": "vitest run",

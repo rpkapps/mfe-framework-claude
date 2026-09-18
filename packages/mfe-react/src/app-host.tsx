@@ -12,7 +12,7 @@ import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from '
 
 import { AppMount } from './app-mount.tsx'
 import { createMount } from './create-runtime.ts'
-import { loadDefinition, RetryBoundary } from './remote-definition.tsx'
+import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
 import { useOptionalMfeMount } from './mount-context.tsx'
 
@@ -33,8 +33,12 @@ export interface AppHostProps {
  * shell-owned modal. It is the escape hatch; `mfeRoute` is the author path.
  */
 export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode {
+  const runtime = useMfeRuntime(`the "${appId}" App`)
   const [attempt, setAttempt] = useState(0)
-  const retry = useCallback(() => setAttempt(current => current + 1), [])
+  const retry = useCallback(() => {
+    forgetDefinition(runtime, appId)
+    setAttempt(current => current + 1)
+  }, [runtime, appId])
 
   const body = <AppLoader key={attempt} appId={appId} basePath={basePath} />
 

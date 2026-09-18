@@ -1,50 +1,38 @@
 /**
- * Data access for the browser support policy.
- *
  * Everything the matrix needs from `browserslist` and `caniuse-lite` goes
  * through the {@link SupportData} port, so the intersection and coverage logic
- * can be exercised against a fixed, tiny dataset in tests while the release
- * gate runs against the real, pinned data.
+ * runs against a fixed, tiny dataset in tests while the gate runs against the
+ * real pinned data.
  */
 
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 
-/**
- * A raw caniuse support cell, e.g. `y`, `y x` (needs a vendor prefix),
- * `a #1` (partial support, footnote 1), `n d` (behind a flag).
- */
+/** A raw caniuse support cell: `y`, `y x`, `a #1`, `n d`. */
 export type SupportString = string
 
 export interface FeatureSupport {
   readonly id: string
-  /** caniuse title, kept so the report can name the feature in prose. */
   readonly title: string
   /** browser id -> version -> raw caniuse support cell. */
   readonly stats: Readonly<Record<string, Readonly<Record<string, SupportString>> | undefined>>
 }
 
 export interface SupportData {
-  /** Exact `caniuse-lite` version the matrix was derived from; the policy
-   * requires recording it alongside the measured coverage. */
+  /** Recorded alongside the measured coverage, as the policy requires. */
   readonly caniuseVersion: string
-  /** Exact `browserslist` version whose query and usage data were used. */
   readonly browserslistVersion: string
   /** Every browser id browserslist knows about, e.g. `chrome`, `ios_saf`. */
   readonly browsers: readonly string[]
-  /** Released versions of a browser, oldest first. Unreleased betas are excluded. */
+  /** Released versions, oldest first. Unreleased betas are excluded. */
   releasedVersions(browser: string): readonly string[]
   /** The feature, or `null` when the id does not exist in this caniuse-lite. */
   resolveFeature(id: string): FeatureSupport | null
   /** Aggregate global usage share of `"<browser> <version>"` entries. */
   coverage(versions: readonly string[]): number
-  /** Global usage share of a single browser version. */
   usage(browser: string, version: string): number
-  /**
-   * Total usage share the dataset accounts for. caniuse's global data does not
-   * sum to 100%, so this is the ceiling any matrix can reach.
-   */
+  /** The ceiling any matrix can reach: caniuse global data does not sum to 100%. */
   totalUsage(): number
 }
 
@@ -66,9 +54,8 @@ export function versionKey(browser: string, version: string): string {
 }
 
 /**
- * Loads the real, pinned data. `createRequire` is used deliberately:
- * `caniuse-lite` ships one CommonJS module per feature and the id is only known
- * at runtime, so the feature files cannot be static ESM imports.
+ * `createRequire` is deliberate: `caniuse-lite` ships one CommonJS module per
+ * feature and the id is only known at runtime, so they cannot be static imports.
  */
 export function loadSupportData(): SupportData {
   const browserslist = require('browserslist') as BrowserslistModule
@@ -95,10 +82,11 @@ export function loadSupportData(): SupportData {
     resolveFeature(id) {
       const cached = cache.get(id)
       if (cached !== undefined) return cached
-      let feature: FeatureSupport | null = null
+      let feature: FeatureSupport | null
       try {
-        const packed = require(`caniuse-lite/data/features/${id}.js`) as PackedFeature
-        const unpacked = unpackFeature(packed)
+        const unpacked = unpackFeature(
+          require(`caniuse-lite/data/features/${id}.js`) as PackedFeature,
+        )
         feature = { id, title: unpacked.title, stats: unpacked.stats }
       } catch {
         // An unknown id is a policy input error, not a crash: the report names

@@ -25,7 +25,6 @@ import {
   type TelemetryMeasurementRecord,
   type TelemetryProvider,
   type TelemetryRecord,
-  type Tracer,
 } from '@company/mfe-core'
 
 import { RESERVED_ATTRIBUTE_KEYS } from './runtime.ts'
@@ -183,7 +182,7 @@ export function createRecordingTelemetryProvider(
       // result is returned unchanged.
       return {
         startSpan: start,
-        startActiveSpan: (<T>(
+        startActiveSpan: <T>(
           name: string,
           optionsOrCallback: SpanOptions | ((span: Span) => T),
           maybeCallback?: (span: Span) => T,
@@ -193,7 +192,7 @@ export function createRecordingTelemetryProvider(
             typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback
           if (typeof callback !== 'function') return undefined as unknown as T
           return callback(start(name, given))
-        }) as Tracer['startActiveSpan'],
+        },
       }
     },
 

@@ -53,8 +53,13 @@ const DEV_DEPENDENCIES: Record<string, string> = {
 }
 
 /** Sorted so a starter's extra entries land where a human would put them. */
-function merge(base: Record<string, string>, extra: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(Object.entries({ ...base, ...extra }).sort(([a], [b]) => (a < b ? -1 : 1)))
+function merge(
+  base: Record<string, string>,
+  extra: Record<string, string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries({ ...base, ...extra }).sort(([a], [b]) => (a < b ? -1 : 1)),
+  )
 }
 
 export function packageJsonFile(
@@ -152,9 +157,17 @@ export default {
   ]
 }
 
-/** The shell override snippet, shared by both starter READMEs. */
-export function overrideSnippet(id: string, port: number): string {
-  return `\`\`\`js
+/**
+ * The "connect to the shell" section, shared by both starter READMEs. There is
+ * no standalone harness: an MFE is developed against the real shell with a real
+ * session, so no class of authentication bug waits until deployment.
+ */
+export function overrideSection(id: string, port: number): string {
+  return `## Connecting to the shell
+
+Start the shell, run this in its browser console, and reload.
+
+\`\`\`js
 const key = 'company:mfe:overrides'
 const overrides = JSON.parse(localStorage.getItem(key) || '{}')
 overrides['${id}'] = 'http://localhost:${port}/mf-manifest.json'
@@ -162,8 +175,7 @@ localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 \`\`\`
 
-Deleting just your id and reloading resets it; unrelated overrides are kept. A
-change needs a reload rather than a remount, because the container's modules are
-already registered under the same name and its chunks are document-level. The
-override is a URL only: it never carries tokens or configuration.`
+Deleting just your id resets it; unrelated overrides are kept. A change needs a
+reload, not a remount: the container's modules are already registered and its
+chunks are document-level. The override is a URL only, never a token.`
 }

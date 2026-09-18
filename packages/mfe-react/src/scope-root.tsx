@@ -1,11 +1,11 @@
 /**
  * Scope and overlay roots.
  *
- * Every mount renders inside a `data-mfe-scope` element, and the build emits
- * its CSS as `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`: the lower
- * boundary stops a parent App's rules matching inside a nested App's root, and
- * `@scope` does not block inheritance, so shell theme values still flow down.
- * Overlays portalled to the body get a second root, or they escape the scope.
+ * Every mount renders inside a `data-mfe-scope` element whose CSS the build
+ * emits as `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`: the lower
+ * boundary stops a parent App's rules matching inside a nested App's root,
+ * while inheritance still carries shell theme values down. Overlays portalled
+ * to the body get a second root, or they would escape the scope.
  */
 
 import type { ReactNode } from 'react'

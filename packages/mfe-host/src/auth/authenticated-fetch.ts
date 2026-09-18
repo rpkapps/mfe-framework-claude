@@ -1,30 +1,11 @@
 /**
- * The authenticated `fetch` the shell hands to MFEs.
+ * The authenticated `fetch` the shell hands to MFEs: a wrapper, never a patch,
+ * with the standard `fetch` signature.
  *
- * This is a wrapper, never a patch. `globalThis.fetch` is left exactly as the
- * browser defined it, and the injected implementation is the only thing this
- * module calls. A global patch would make every request in the page — including
- * third-party SDKs and the shell's own telemetry — silently depend on framework
- * behaviour that is invisible at the call site, and it cannot be scoped,
- * unwound or reasoned about per MFE.
- *
- * The returned function has the standard `fetch` signature, so any library that
- * accepts a `fetch` implementation accepts this one.
- *
- * What it adds:
- *
- * - Relative URLs resolve against the configured API base, not the shell
- *   document URL. The shell's URL belongs to the router; an MFE asking for
- *   `orders` means the API's `orders`, and it must keep meaning that when the
- *   shell navigates.
- * - The bearer token is attached only to origins the author declared as APIs.
- *   A request to any other origin goes out untouched, so an MFE calling a
- *   third-party endpoint cannot leak the session credential.
- * - One 401 retry, after a single-flight refresh, for requests that can
- *   genuinely be sent twice.
- *
- * Attaching a token is not authorization: a 403 is the server's answer about
- * what this user may do and passes through untouched.
+ * It resolves relative URLs against the configured API base rather than the
+ * shell document URL, attaches the bearer token only to declared API origins,
+ * and retries once after a 401 when the request can genuinely be sent twice.
+ * Attaching a token is not authorization: a 403 passes through untouched.
  */
 
 import { createMfeError } from '@company/mfe-core'
@@ -39,11 +20,7 @@ export const DEFAULT_AUTH_ID = 'shell'
 /** The standard `fetch` shape, so the result is a drop-in for any consumer. */
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
-/**
- * The part of the session service this module needs. Narrow on purpose: a test
- * double is one function, and nothing here can reach the refresh machinery
- * except through the single-flight accessor.
- */
+/** Narrow on purpose: the refresh machinery is reachable only through this. */
 export interface AccessTokenSource {
   readonly getAccessToken: GetAccessToken
 }
@@ -97,7 +74,7 @@ function isStreamBody(body: BodyInit | null | undefined): boolean {
   return typeof ReadableStream !== 'undefined' && body instanceof ReadableStream
 }
 
-/** Builds the token-service options without tripping `exactOptionalPropertyTypes`. */
+/** Token-service options, built without tripping `exactOptionalPropertyTypes`. */
 function tokenOptions(signal: AbortSignal | undefined, rejectedToken?: string): AccessTokenOptions {
   return {
     ...(signal === undefined ? {} : { signal }),
@@ -149,15 +126,9 @@ function parseApiBaseUrl(value: string | URL | undefined, id: string): URL | nul
 }
 
 /**
- * Standard URL resolution against the configured base.
- *
- * With base `https://api.example.test/v1/`, `assets` resolves under the base
- * path to `https://api.example.test/v1/assets`, and `/assets` resolves at the
- * origin root to `https://api.example.test/assets` — exactly the behaviour of
- * `new URL(input, base)`, so a developer reasons about it with the rules they
- * already know. A trailing slash on the base is therefore significant.
- *
- * A `Request` carries a URL the platform already resolved; it is used as-is.
+ * Plain `new URL(input, base)` resolution, so a developer reasons about it with
+ * the rules they already know — a trailing slash on the base is significant. A
+ * `Request` carries a URL the platform already resolved; it is used as-is.
  */
 function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: string): URL {
   if (isRequest(input)) return new URL(input.url)
@@ -200,10 +171,9 @@ function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: strin
 }
 
 /**
- * A `Request`'s body is a one-shot stream: the attempt that sends it consumes
- * it, and a request handed in already consumed cannot be sent at all. The
- * framework deliberately does not buffer a caller's upload just in case a 401
- * arrives, so a body-carrying `Request` is never auto-retried.
+ * A `Request`'s body is a one-shot stream. The framework deliberately does not
+ * buffer a caller's upload just in case a 401 arrives, so a body-carrying
+ * `Request` is never auto-retried.
  */
 function decideRequestReplay(request: Request, init: RequestInit | undefined): ReplayDecision {
   if (isStreamBody(init?.body)) return { replayable: false, reason: STREAM_BODY_REASON }
@@ -224,10 +194,7 @@ interface RequestPlan {
   readonly send: (authorization: string | null) => Promise<Response>
 }
 
-/**
- * Describes the request once, so both attempts reproduce the same method, body,
- * headers and request options and differ only in the `Authorization` header.
- */
+/** Described once, so both attempts differ only in the `Authorization` header. */
 function planRequest(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
@@ -283,10 +250,7 @@ function planRequest(
   }
 }
 
-/**
- * Creates the authenticated `fetch`. Nothing global is modified; the wrapped
- * implementation is called and its `Response` returned unchanged.
- */
+/** Nothing global is modified; the wrapped implementation's `Response` is returned unchanged. */
 export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): FetchLike {
   const id = options.id ?? DEFAULT_AUTH_ID
   const isDevelopment = options.isDevelopment ?? false
@@ -383,10 +347,7 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
   }
 }
 
-/**
- * Wires both auth tiers to one session service, so the escape hatch and the
- * authenticated `fetch` share the same single-flight refresh.
- */
+/** Both tiers on one session, so they share the same single-flight refresh. */
 export function createAuthTransport(options: AuthenticatedFetchOptions): AuthTransport {
   return {
     fetch: createAuthenticatedFetch(options),
