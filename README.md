@@ -90,10 +90,40 @@ const AlertPanel = lazyWidget('alert-panel', { contract: alertPanelContract })
 
 ## Running it
 
+### Prerequisites
+
+- **Node 22.12 or newer.** The build and the tooling run TypeScript sources
+  directly, which needs Node's type stripping.
+- **pnpm 10 or newer.** The repository is a pnpm workspace and uses `catalog:`
+  versions. No `packageManager` field pins it, deliberately (`docs/decisions.md`
+  8).
+- **The Tecton design system, checked out beside this repository.** The shell
+  depends on it through a link:
+
+  ```
+  <parent>/
+    mfe-framework-claude/      this repository
+    tecton-ui-1/               git clone of the design system
+  ```
+
+  Without it `pnpm install` still reports success — pnpm creates the link and
+  does not check that the target exists — and the shell fails later on an
+  unresolvable `@tecton/react` import. If you only want the framework packages
+  and the examples, everything except `apps/shell` builds and tests without it.
+
+### From a clean clone
+
 ```sh
 pnpm install
-pnpm dev          # the shell plus every example, each on its own port
+pnpm run generate   # the #mfe/* modules, route trees and the shell registry
+pnpm dev            # the shell plus every example, each on its own port
 ```
+
+`pnpm dev` runs generation itself, so the middle step is only needed when you
+want editor types before starting anything — a fresh clone has no
+`routeTree.gen.ts` and no `.mfe/`, so an editor opened on it reports errors
+until something generates them. It is also the one documented recovery command
+when generated output looks stale.
 
 `pnpm dev` prints the `localStorage` snippets that point the shell at the local
 dev servers, with real ids and real URLs. Changing an override requires a page
@@ -108,7 +138,24 @@ Other entry points:
 pnpm dev:shell     # the shell alone
 pnpm dev:mfes      # the examples alone, against a shell you started yourself
 pnpm check         # generate, format check, lint, typecheck, boundaries, tests
+pnpm verify:page   # boots everything and asserts in a real browser that a
+                   # container mounted and a Widget from a second container
+                   # mounted inside it
 ```
+
+`pnpm verify:page` drives Chromium through Playwright. `pnpm install` does not
+download a browser; run `pnpm exec playwright install chromium` once, or point
+`PLAYWRIGHT_BROWSERS_PATH` at an existing install. Nothing else needs it.
+
+### Windows
+
+Everything above works on Windows. Two things to know:
+
+- Ports 3000–3003 must be free. A dev server that did not shut down cleanly
+  keeps its port, and the next run fails to bind.
+- Generated output (`.mfe/`, `routeTree.gen.ts`, `apps/shell/public/registry.json`)
+  is not in version control. If a build behaves as though a file is missing,
+  `pnpm run generate` is the fix.
 
 ---
 

@@ -13,6 +13,7 @@
  */
 
 import { createRequire } from 'node:module'
+import { relative, sep } from 'node:path'
 
 import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 import type { Compilation, Compiler, RspackPluginInstance, RuleSetUse } from '@rspack/core'
@@ -209,7 +210,9 @@ function emitContainerArtifacts(
   const { RawSource } = compiler.rspack.sources
 
   for (const file of plan.generated.files) {
-    const name = file.path.slice(plan.options.generatedDir.length + 1)
+    // Normalized, because a path built with `join` uses backslashes on Windows
+    // and the checks below are about the shape of the name, not the platform.
+    const name = relative(plan.options.generatedDir, file.path).split(sep).join('/')
     if (!name.endsWith('.json') || name.includes('/')) continue
     if (name === 'tsconfig.paths.json') continue
     if (compilation.getAsset(name) !== undefined) continue

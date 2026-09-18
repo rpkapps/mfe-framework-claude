@@ -21,6 +21,7 @@ import {
   type SharedModuleConfig,
 } from './federation/sharing.ts'
 import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
+import { generatedPath } from './generate/emit.ts'
 import {
   ALIASES,
   containerEntryPath,
@@ -109,11 +110,15 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     exposes[exposeName(definition)] = entryModulePath(context, definition)
   }
 
+  // Built with the platform's own separator: these are filesystem paths the
+  // bundler resolves, not module specifiers.
   const aliases: Record<string, string> = {
-    [ALIASES.fetch]: `${resolved.generatedDir}/fetch.ts`,
-    [ALIASES.meta]: `${resolved.generatedDir}/meta.ts`,
+    [ALIASES.fetch]: generatedPath(resolved.generatedDir, 'fetch.ts'),
+    [ALIASES.meta]: generatedPath(resolved.generatedDir, 'meta.ts'),
   }
-  if (configSource !== undefined) aliases[ALIASES.config] = `${resolved.generatedDir}/config.ts`
+  if (configSource !== undefined) {
+    aliases[ALIASES.config] = generatedPath(resolved.generatedDir, 'config.ts')
+  }
 
   return {
     options: resolved,

@@ -15,6 +15,8 @@
  */
 
 import { spawn } from 'node:child_process'
+
+import { spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -171,7 +173,7 @@ function buildRegistry() {
 }
 
 function start(service, colour) {
-  const child = spawn('pnpm', ['--filter', service.packageName, 'run', 'dev'], {
+  const child = spawnPnpm(['--filter', service.packageName, 'run', 'dev'], {
     cwd: repoRoot,
     env: { ...process.env, PORT: String(service.port), FORCE_COLOR: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],

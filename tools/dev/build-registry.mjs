@@ -18,8 +18,8 @@
  * `pnpm dev` reads, so a port is declared once.
  */
 
-import { readFile, readdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -97,6 +97,9 @@ async function main() {
   }
 
   const registry = [...entries, ...(source.fixtures ?? [])]
+  // The registry is generated, so `public/` holds nothing a clone carries and
+  // does not exist until something makes it.
+  await mkdir(dirname(output), { recursive: true })
   await writeFile(output, `${JSON.stringify(registry, null, 2)}\n`)
 
   console.log(

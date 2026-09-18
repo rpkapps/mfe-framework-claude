@@ -15,7 +15,7 @@
  * With no --url it checks every page in PAGES below.
  */
 
-import { spawn } from 'node:child_process'
+import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -58,12 +58,12 @@ const PREINSTALLED = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
 const children = []
 
 function start(filter) {
-  const child = spawn('pnpm', ['--filter', filter, 'run', 'dev'], {
+  const child = spawnPnpm(['--filter', filter, 'run', 'dev'], {
     cwd: repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
-    // Its own process group, so one kill takes the whole tree: pnpm spawns
-    // rspack, and killing only pnpm leaves the port held.
-    detached: true,
+    // Its own process group, so one kill takes the whole tree: pnpm spawns the
+    // bundler, and killing only pnpm leaves the port held.
+    detached: detachedForGroupKill,
     env: { ...process.env, FORCE_COLOR: '0' },
   })
   children.push(child)
@@ -74,13 +74,7 @@ function start(filter) {
 }
 
 function stopAll() {
-  for (const child of children) {
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-    } catch {
-      // Already gone.
-    }
-  }
+  for (const child of children) killTree(child)
 }
 
 async function waitForOk(url, timeoutMs = 180_000) {
