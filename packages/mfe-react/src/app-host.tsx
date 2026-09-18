@@ -8,6 +8,7 @@
  */
 
 import type { MfeError } from '@company/mfe-core'
+import { useParams } from '@tanstack/react-router'
 import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
@@ -123,6 +124,25 @@ export function mfeRoute(options: MfeRouteOptions): {
  * The splat route `/reports/$` is matched at `/reports`, so the host route's own
  * pathname is the child's boundary when no override was given.
  */
+/**
+ * The boundary a delegated child is mounted at: the current path with the
+ * splat remainder removed.
+ *
+ * `mfeRoute` is declared at a splat route, so the parent's own path is
+ * everything above the splat and the remainder is the child's URL. Taking the
+ * whole pathname instead hands the child its own deep link as a base, leaves
+ * it nothing to route, and it silently renders its index for every URL below
+ * the boundary — which is exactly what a real page did.
+ */
+export function boundaryAboveSplat(pathname: string, splat: string | undefined): string {
+  const trimmed = pathname.replace(/\/+$/, '')
+  if (splat === undefined || splat === '') return trimmed === '' ? '/' : trimmed
+
+  const remainder = `/${splat.replace(/^\/+/, '')}`
+  const boundary = trimmed.endsWith(remainder) ? trimmed.slice(0, -remainder.length) : trimmed
+  return boundary === '' ? '/' : boundary
+}
+
 function MfeRouteBoundary({
   appId,
   basePath,
@@ -131,7 +151,13 @@ function MfeRouteBoundary({
   readonly basePath: string | undefined
 }): ReactNode {
   const runtime = useMfeRuntime(`the "${appId}" App`)
-  const resolved = basePath ?? runtime.navigator.read().pathname
+  // The parent App's own params, read as a plain bag. The typed shape comes
+  // from whichever router the *consuming* project registered, which is not the
+  // one this component is rendered by: in a project whose own routes have no
+  // splat, `_splat` is not on that type at all.
+  const params = useParams({ strict: false }) as unknown as Record<string, string | undefined>
+  const splat = params['_splat']
+  const resolved = basePath ?? boundaryAboveSplat(runtime.navigator.read().pathname, splat)
 
   return <AppHost appId={appId} basePath={resolved} />
 }

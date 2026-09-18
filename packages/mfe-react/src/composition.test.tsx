@@ -20,8 +20,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createApp, createWidget } from './definition.ts'
+import { renderApp } from './testing/index.tsx'
 import { lazyWidget } from './lazy-widget.tsx'
-import { AppHost } from './app-host.tsx'
+import { AppHost, mfeRoute } from './app-host.tsx'
 import { MfeProvider } from './runtime-context.tsx'
 import {
   createMfeTestEnvironment,
@@ -183,6 +184,90 @@ describe('consuming a Widget', () => {
 
     await waitFor(() => expect(screen.getByTestId('probe')).toBeInTheDocument())
     expect(observedBasePath).toBe('')
+  })
+})
+
+/**
+ * A parent App that delegates to the child at its own splat route, through
+ * `mfeRoute` rather than a hand-written basePath. This is the path a real App
+ * takes, and the only one that exercises how the boundary is computed.
+ */
+function buildParentApp() {
+  const rootRoute = createRootRouteWithContext<MfeRouterContext>()({
+    component: () => <Outlet />,
+  })
+
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: () => <p data-testid="parent-index">Parent index</p>,
+  })
+
+  const delegated = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/reports/$',
+    ...mfeRoute({ appId: 'child-reports' }),
+  })
+
+  const routeTree = rootRoute.addChildren([indexRoute, delegated])
+
+  return createApp({
+    id: 'parent-app',
+    version: '1.0.0',
+    router: ({ basePath, history, context }: AppRouterOptions) =>
+      createRouter({ routeTree, basepath: basePath, history, context: { ...context } }),
+  })
+}
+
+describe('delegating to a child App at a splat route', () => {
+  /**
+   * A regression. The boundary used to be the whole current pathname, so a
+   * child delegated at `/reports/$` and opened at `/reports/accounts/42` was
+   * mounted with that entire path as its base, had nothing left to route, and
+   * silently rendered its index. Nothing caught it because every other test
+   * here passes `basePath` by hand.
+   */
+  it('gives the child everything below the splat, not the whole path', async () => {
+    const observed: { basePath?: string } = {}
+
+    const rendered = renderApp(buildParentApp(), {
+      definitions: [buildChildApp(observed)],
+      initialEntries: ['/reports/accounts/42'],
+    })
+    environment = rendered.environment
+
+    await waitFor(() => expect(screen.getByTestId('child-account')).toBeInTheDocument())
+
+    expect(screen.getByTestId('child-account')).toHaveTextContent('Account 42')
+    expect(observed.basePath).toBe('/reports')
+    expect(screen.queryByTestId('child-index')).not.toBeInTheDocument()
+  })
+
+  it('mounts the child index when the splat is empty', async () => {
+    const rendered = renderApp(buildParentApp(), {
+      definitions: [buildChildApp({})],
+      initialEntries: ['/reports'],
+    })
+    environment = rendered.environment
+
+    // The boundary consumed the whole path, so the child routes '/' — its own
+    // index rather than a not-found or a deeper route.
+    await waitFor(() => expect(screen.getByTestId('child-index')).toBeInTheDocument())
+    expect(screen.queryByTestId('child-account')).not.toBeInTheDocument()
+  })
+
+  it('keeps the child contract identical under a deeper parent boundary', async () => {
+    const observed: { basePath?: string } = {}
+
+    const rendered = renderApp(buildParentApp(), {
+      definitions: [buildChildApp(observed)],
+      basePath: '/workspace',
+      initialEntries: ['/reports/accounts/42'],
+    })
+    environment = rendered.environment
+
+    await waitFor(() => expect(screen.getByTestId('child-account')).toHaveTextContent('Account 42'))
+    expect(observed.basePath).toBe('/workspace/reports')
   })
 })
 

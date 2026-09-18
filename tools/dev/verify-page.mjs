@@ -11,6 +11,8 @@
  * assertion below stands for a defect that shipped and was found this way.
  *
  * Usage: pnpm run verify:page [--url /operations] [--keep-open]
+ *
+ * With no --url it checks every page in PAGES below.
  */
 
 import { spawn } from 'node:child_process'
@@ -23,8 +25,32 @@ import { parseArgs } from 'node:util'
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 const { values } = parseArgs({
-  options: { url: { type: 'string', default: '/operations' }, 'keep-open': { type: 'boolean' } },
+  options: { url: { type: 'string' }, 'keep-open': { type: 'boolean' } },
 })
+
+/**
+ * Each entry is a claim the framework makes, checked against a real page.
+ *
+ * `nested` is the interesting one. A Widget mounted inside an App proves a
+ * second container's module reached the first one's tree through the shared
+ * scope; a child App mounted inside a parent App proves the same for a whole
+ * routed boundary, and that the child reads its own URL rather than the prefix
+ * the parent assigned it.
+ */
+const PAGES = [
+  {
+    url: '/operations',
+    mounts: ['operations'],
+    nested: [{ parent: 'operations', child: 'alert-panel', contains: 'Alert a-1001' }],
+  },
+  {
+    // The child App is delegated at operations' own /reports/$ splat route, and
+    // /accounts/42 below that is the child's URL contract, not the parent's.
+    url: '/operations/reports/accounts/42',
+    mounts: ['operations', 'reports'],
+    nested: [{ parent: 'operations', child: 'reports', contains: 'Account 42' }],
+  },
+]
 
 /** This machine's preinstalled Chromium, as apps/shell/scripts/screenshot.mjs uses. */
 const PREINSTALLED = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
@@ -124,7 +150,7 @@ async function main() {
   )
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
 
-  const pageErrors = []
+  let pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   page.on('console', message => {
     // HMR sockets close as this script tears the servers down, which says
@@ -134,59 +160,81 @@ async function main() {
     }
   })
 
-  await page.goto(`http://127.0.0.1:3000${values.url}`, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(6000)
+  const pages = values.url === undefined ? PAGES : [{ url: values.url, mounts: [], nested: [] }]
 
-  const scopes = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-mfe-scope]')].map(node => ({
-      id: node.getAttribute('data-mfe-scope'),
-      nested:
-        node.parentElement?.closest('[data-mfe-scope]')?.getAttribute('data-mfe-scope') ?? null,
-      text: (node.innerText ?? '').replace(/\s+/g, ' ').trim(),
-    })),
-  )
-  const shellHeaders = await page.evaluate(
-    () => document.querySelectorAll('[data-slot="shell-header"]').length,
-  )
-  const mounted = scopes.filter(scope => scope.text !== '')
+  for (const expected of pages) {
+    pageErrors = []
 
-  console.log(`Assertions for ${values.url}:`)
+    await page.goto(`http://127.0.0.1:3000${expected.url}`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(6000)
 
-  check('the shell chrome renders exactly once', shellHeaders === 1, `found ${shellHeaders}`)
-  check('an App mounted from its own container', mounted.length > 0, 'no scope root has content')
-
-  // The shell rendering inside a mount is the router-global collision: the App
-  // adopts the shell's root component and recurses.
-  check(
-    'no mount contains the shell',
-    !mounted.some(scope => scope.text.includes('Search or jump to')),
-    'a scope root contains the shell chrome',
-  )
-
-  // A Widget from a second container, mounted inside the first App, is what
-  // proves sharing and the mount providers actually cross the boundary.
-  const nested = scopes.filter(scope => scope.nested !== null && scope.text !== '')
-  check(
-    'a Widget from another container mounted inside the App',
-    nested.length > 0,
-    'no nested scope root has content',
-  )
-
-  // Every framework hook fails this way when a container resolves its own copy
-  // of the React surface.
-  check(
-    'framework hooks resolved their mount',
-    !mounted.some(scope => scope.text.includes('outside any mount')),
-    'a mount reported a hook called outside any mount',
-  )
-
-  check('the page logged no errors', pageErrors.length === 0, pageErrors.join(' ;; '))
-
-  console.log('\nMounted:')
-  for (const scope of mounted) {
-    console.log(
-      `  ${scope.nested === null ? '' : `${scope.nested} > `}${scope.id}: ${scope.text.slice(0, 90)}`,
+    const scopes = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-mfe-scope]')].map(node => ({
+        id: node.getAttribute('data-mfe-scope'),
+        parent:
+          node.parentElement?.closest('[data-mfe-scope]')?.getAttribute('data-mfe-scope') ?? null,
+        text: (node.innerText ?? '').replace(/\s+/g, ' ').trim(),
+      })),
     )
+    const shellHeaders = await page.evaluate(
+      () => document.querySelectorAll('[data-slot="shell-header"]').length,
+    )
+    const mounted = scopes.filter(scope => scope.text !== '')
+
+    console.log(`\n${expected.url}`)
+
+    check('the shell chrome renders exactly once', shellHeaders === 1, `found ${shellHeaders}`)
+
+    for (const id of expected.mounts) {
+      check(
+        `${id} mounted from its own container`,
+        mounted.some(scope => scope.id === id),
+        `no scope root named ${id} has content`,
+      )
+    }
+    if (expected.mounts.length === 0) {
+      check('something mounted', mounted.length > 0, 'no scope root has content')
+    }
+
+    for (const { parent, child, contains } of expected.nested) {
+      const found = mounted.find(scope => scope.id === child && scope.parent === parent)
+      check(
+        `${child} mounted inside ${parent}`,
+        found !== undefined,
+        `no ${child} scope root inside ${parent}`,
+      )
+      if (found !== undefined) {
+        check(
+          `${child} rendered its own content`,
+          found.text.includes(contains),
+          `expected ${JSON.stringify(contains)}, saw ${JSON.stringify(found.text.slice(0, 80))}`,
+        )
+      }
+    }
+
+    // The shell rendering inside a mount is the router-global collision: the
+    // App adopts the shell's root component and recurses.
+    check(
+      'no mount contains the shell',
+      !mounted.some(scope => scope.text.includes('Search or jump to')),
+      'a scope root contains the shell chrome',
+    )
+
+    // Every framework hook fails this way when a container resolves its own
+    // copy of the React surface.
+    check(
+      'framework hooks resolved their mount',
+      !mounted.some(scope => scope.text.includes('outside any mount')),
+      'a mount reported a hook called outside any mount',
+    )
+
+    check('the page logged no errors', pageErrors.length === 0, pageErrors.join(' ;; '))
+
+    for (const scope of mounted) {
+      console.log(
+        `       ${scope.parent === null ? '' : `${scope.parent} > `}${scope.id}: ${scope.text.slice(0, 80)}`,
+      )
+    }
   }
 
   if (values['keep-open'] !== true) await browser.close()
@@ -207,7 +255,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log(
-  '\nThe page works: a container mounted, and a Widget from a second container mounted inside it.',
-)
+console.log('\nEvery page checked out.')
 process.exit(0)
