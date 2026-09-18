@@ -119,35 +119,54 @@ function normalizeToken(value: string | null | undefined): string | null {
   return value.trim() === '' ? null : value
 }
 
-function abortReason(signal: AbortSignal): unknown {
+/**
+ * The reason a caller's cancellation rejects with. `AbortSignal.reason` is
+ * untyped and a caller may abort with any value at all, so it is narrowed here
+ * rather than forwarded blind. An `Error` is the caller's own reason and passes
+ * through untouched — that covers the `AbortError` the platform supplies when
+ * `abort()` is called with no argument, which callers match on by name. An
+ * absent reason becomes that same platform `AbortError`. Anything else is
+ * wrapped, so the rejection is always an `Error` while the original value
+ * survives as the cause. `config/unreachable` is the nearest code the closed
+ * union offers for a session-level failure, as it already is elsewhere in this
+ * module; nothing in it describes cancellation.
+ */
+function abortReason(id: string, signal: AbortSignal): Error {
   const reason: unknown = signal.reason
-  if (reason !== undefined) return reason
-  return new DOMException('The operation was aborted.', 'AbortError')
+  if (reason instanceof Error) return reason
+  if (reason === undefined) return new DOMException('The operation was aborted.', 'AbortError')
+  return toMfeError(reason, {
+    code: 'config/unreachable',
+    id,
+    operation: 'wait for an access token',
+    expected: 'the caller to abort with an Error, so the rejection carries a name and a message',
+    declaredBy: 'The shell code that owns the aborting controller',
+    repair:
+      'Call AbortController.abort() with no argument to get the platform AbortError, or pass an Error.',
+    note: 'The shared renewal is unaffected: only this caller stopped waiting for it.',
+  })
 }
 
 /**
  * Awaits shared work while honoring the caller's cancellation. The shared
- * promise keeps running; only this caller stops waiting for it.
+ * promise keeps running; only this caller stops waiting for it. The two are
+ * raced rather than the shared promise being re-wrapped, so a rejection of the
+ * shared work reaches the caller exactly as it was thrown.
  */
-function awaitShared<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+function awaitShared<T>(id: string, work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return work
-  if (signal.aborted) return Promise.reject(abortReason(signal))
+  if (signal.aborted) return Promise.reject(abortReason(id, signal))
 
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      reject(abortReason(signal))
+  let onAbort: (() => void) | undefined
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    onAbort = (): void => {
+      reject(abortReason(id, signal))
     }
     signal.addEventListener('abort', onAbort, { once: true })
-    work.then(
-      value => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
+  })
+
+  return Promise.race([work, cancelled]).finally(() => {
+    if (onAbort !== undefined) signal.removeEventListener('abort', onAbort)
   })
 }
 
@@ -290,7 +309,7 @@ export function createSessionTokenService(
 
   const getAccessToken: GetAccessToken = async (callOptions = {}) => {
     const signal = callOptions.signal
-    if (signal?.aborted === true) throw abortReason(signal)
+    if (signal?.aborted === true) throw abortReason(id, signal)
 
     const cached = token
     const rejected = callOptions.rejectedToken
@@ -302,7 +321,7 @@ export function createSessionTokenService(
     // the shell has already been told to re-authenticate.
     if (failure !== null) return null
 
-    return awaitShared(startOrJoinRenewal(cached), signal)
+    return await awaitShared(id, startOrJoinRenewal(cached), signal)
   }
 
   return {

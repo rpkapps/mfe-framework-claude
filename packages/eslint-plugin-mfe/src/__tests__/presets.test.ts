@@ -106,7 +106,7 @@ describe.each([
     }
   })
 
-  it('relaxes exactly the four justified rules in test scope, and nothing else', () => {
+  it('relaxes exactly the five justified rules in test scope, and nothing else', () => {
     const tests = preset.find(entry => entry.name?.endsWith('/tests'))
     expect(tests, name).toBeDefined()
     expect(Object.entries(tests?.rules ?? {})).toEqual([
@@ -114,6 +114,7 @@ describe.each([
       ['mfe/no-raw-storage', 'off'],
       ['@typescript-eslint/unbound-method', 'off'],
       ['@typescript-eslint/require-await', 'off'],
+      ['@typescript-eslint/no-non-null-assertion', 'off'],
     ])
   })
 
@@ -128,7 +129,6 @@ describe.each([
       '@typescript-eslint/no-unsafe-call',
       '@typescript-eslint/no-unsafe-member-access',
       '@typescript-eslint/no-unsafe-return',
-      '@typescript-eslint/no-non-null-assertion',
       'react-hooks/rules-of-hooks',
       'react-hooks/refs',
       'react-hooks/set-state-in-render',

@@ -1,0 +1,79 @@
+[
+  {
+    "id": "orion-discovery",
+    "kind": "app",
+    "mfe": { "contractMajor": 1 },
+    "manifestUrl": "http://localhost:3101/mf-manifest.json",
+    "container": "orion_discovery",
+    "expose": "./app",
+    "title": "Orion Discovery",
+    "icon": "ORI",
+    "version": "0.1.0",
+    "capabilities": [
+      { "name": "settings", "label": "Discovery settings", "path": "/settings" },
+      { "name": "help", "label": "Discovery help", "path": "/help" }
+    ]
+  },
+  {
+    "id": "well-planning",
+    "kind": "app",
+    "mfe": { "contractMajor": 1 },
+    "manifestUrl": "http://localhost:3102/mf-manifest.json",
+    "container": "well_planning",
+    "expose": "./app",
+    "title": "Well Planning",
+    "icon": "DWP",
+    "version": "0.1.0"
+  },
+  {
+    "id": "facility-model",
+    "kind": "app",
+    "mfe": { "contractMajor": 1 },
+    "manifestUrl": "http://localhost:3103/mf-manifest.json",
+    "container": "facility_model",
+    "expose": "./app",
+    "title": "Facility Model",
+    "icon": "FAC",
+    "version": "0.1.0"
+  },
+  {
+    "id": "alert-panel",
+    "kind": "widget",
+    "mfe": { "contractMajor": 1 },
+    "manifestUrl": "http://localhost:3104/mf-manifest.json",
+    "container": "alert_panel",
+    "expose": "./widgets/alert-panel",
+    "title": "Alert Panel",
+    "version": "0.1.0"
+  },
+  {
+    "id": "internal-admin",
+    "kind": "app",
+    "mfe": { "contractMajor": 1 },
+    "manifestUrl": "http://localhost:3105/mf-manifest.json",
+    "container": "internal_admin",
+    "expose": "./app",
+    "title": "Internal Admin",
+    "icon": "ADM",
+    "hidden": true,
+    "version": "0.1.0"
+  },
+  {
+    "id": "legacy-reports",
+    "kind": "app",
+    "mfe": { "contractMajor": 2 },
+    "manifestUrl": "http://localhost:3106/mf-manifest.json",
+    "container": "legacy_reports",
+    "expose": "./app",
+    "title": "Legacy Reports",
+    "version": "0.1.0"
+  },
+  {
+    "id": "no-manifest",
+    "kind": "app",
+    "mfe": { "contractMajor": 1 },
+    "container": "no_manifest",
+    "expose": "./app",
+    "title": "Missing Manifest URL"
+  }
+]

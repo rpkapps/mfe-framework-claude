@@ -1,0 +1,27 @@
+/*
+ * The shell's only stylesheet.
+ *
+ * Everything visual comes from the design system: `globals.css` pulls in
+ * Tailwind v4, the Tecton tokens, the Tecton palette and the fonts, and it
+ * already declares `@source "../**\/*.{ts,tsx}"` for its own components. What
+ * it cannot know about is this application, so the shell adds its own sources
+ * here.
+ *
+ * Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
+ * `text-zinc-400`) generate no CSS at all. Use a semantic token
+ * (`bg-destructive-surface`) or a Tecton step (`bg-blue-120 text-blue-830`).
+ */
+
+@import "@tecton/react/globals.css";
+
+@source "../**/*.{ts,tsx}";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}

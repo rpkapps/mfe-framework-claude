@@ -300,6 +300,15 @@ export function testScopeOverrides(files: readonly string[], name: string): Lint
       // signature of the real thing it stands in for, while awaiting nothing.
       // The rule cannot distinguish that from a genuinely forgotten `await`.
       '@typescript-eslint/require-await': 'off',
+      // Under `noUncheckedIndexedAccess` every indexed read in an assertion is
+      // `T | undefined`, so `results[0]!.line` is the idiomatic spelling; the
+      // alternative, `expect(results[0]).toBeDefined()` followed by optional
+      // chaining everywhere, adds noise without adding safety. The failure mode
+      // also differs by context: in production a wrong `!` is a crash in front
+      // of a user, while in a test it fails that test immediately with a clear
+      // error, which is exactly what a test is for. The rule stays on in
+      // production code, where that argument does not hold.
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   }
 }

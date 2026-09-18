@@ -28,6 +28,7 @@ const TSCONFIG = JSON.stringify(
       moduleResolution: 'bundler',
       moduleDetection: 'force',
       strict: true,
+      noUncheckedIndexedAccess: true,
       jsx: 'react-jsx',
       noEmit: true,
       skipLibCheck: true,
@@ -38,6 +39,38 @@ const TSCONFIG = JSON.stringify(
   null,
   2,
 )
+
+/**
+ * Source that trips `unbound-method` (a method reference that would lose `this`),
+ * `require-await` (an `async` function that awaits nothing),
+ * `no-non-null-assertion` (an indexed read asserted non-null, which under
+ * `noUncheckedIndexedAccess` is the idiomatic spelling in a test) and
+ * `no-floating-promises` (a promise nobody handles).
+ */
+const SERVICE_SOURCE = [
+  'export class Service {',
+  '  value = 1',
+  '  read(): number {',
+  '    return this.value',
+  '  }',
+  '}',
+  '',
+  'const service = new Service()',
+  '',
+  'export const unbound = service.read',
+  '',
+  'const readings: number[] = [service.read()]',
+  'export const first = readings[0]!.toFixed(2)',
+  '',
+  'export async function helper(): Promise<number> {',
+  '  return service.read()',
+  '}',
+  '',
+  'export function leak(): void {',
+  '  helper()',
+  '}',
+  '',
+].join('\n')
 
 const projects: string[] = []
 
@@ -117,6 +150,10 @@ describe('framework preset, linting real files', () => {
       '}',
       '',
     ].join('\n'),
+    // The same source twice: once as production code, once as a test. Only the
+    // test copy gets the scoped exceptions, which is what makes them scoped.
+    'packages/mfe-host/src/service.ts': SERVICE_SOURCE,
+    'packages/mfe-host/src/service.test.ts': SERVICE_SOURCE,
     'packages/mfe-host/src/clean.ts': [
       'export function add(left: number, right: number): number {',
       '  return left + right',
@@ -169,6 +206,29 @@ describe('framework preset, linting real files', () => {
     const { results } = await lint(root, preset)
     const clean = results.find(result => result.filePath.endsWith('clean.ts'))
     expect(clean?.messages).toEqual([])
+  })
+
+  it('applies the test-scope exceptions in a test file', async () => {
+    const { results } = await lint(root, preset)
+    const test = results.find(result => result.filePath.endsWith('service.test.ts'))
+    const ruleIds = (test?.messages ?? []).map(message => message.ruleId)
+    expect(ruleIds).not.toContain('@typescript-eslint/unbound-method')
+    expect(ruleIds).not.toContain('@typescript-eslint/require-await')
+    expect(ruleIds).not.toContain('@typescript-eslint/no-non-null-assertion')
+    // The rules that find real defects in a test are still on there.
+    expect(ruleIds).toContain('@typescript-eslint/no-floating-promises')
+  })
+
+  it('applies those same rules normally outside test scope', async () => {
+    const { results } = await lint(root, preset)
+    const production = results.find(
+      result => result.filePath.endsWith('service.ts') && !result.filePath.endsWith('.test.ts'),
+    )
+    const ruleIds = (production?.messages ?? []).map(message => message.ruleId)
+    expect(ruleIds).toContain('@typescript-eslint/unbound-method')
+    expect(ruleIds).toContain('@typescript-eslint/require-await')
+    expect(ruleIds).toContain('@typescript-eslint/no-non-null-assertion')
+    expect(ruleIds).toContain('@typescript-eslint/no-floating-promises')
   })
 })
 

@@ -163,6 +163,34 @@ mfe.author({
 
 ---
 
+## Scoped exceptions
+
+Both presets switch five rules off in test files, and only in test files
+(`**/*.test.{ts,tsx,mts,cts}`, `**/*.spec.{ts,tsx,mts,cts}`, `**/__tests__/**`,
+`**/vitest.setup.{ts,tsx}` — never a whole package). Each is a considered
+exception, recorded here so nobody has to guess later whether it was deliberate.
+
+| Rule                                       | Why it is off in tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@typescript-eslint/unbound-method`        | The rule exists to catch a method reference that will lose its `this` when it is eventually called. In `expect(obj.method).toHaveBeenCalled()` and `vi.spyOn(obj, 'method')` the reference is never called through the lost binding at all: it is handed to the assertion or the spy as a value to be identified, not invoked. Every report in that position is a false positive.                                                                                                      |
+| `@typescript-eslint/require-await`         | A test helper or fake is frequently `async` on purpose, to match the signature of the real thing it stands in for, while awaiting nothing. The rule cannot distinguish that from a genuinely forgotten `await`.                                                                                                                                                                                                                                                                        |
+| `@typescript-eslint/no-non-null-assertion` | Under `noUncheckedIndexedAccess` every indexed read in an assertion is `T \| undefined`, so `results[0]!.line` is the idiomatic spelling; the alternative — `expect(results[0]).toBeDefined()` followed by optional chaining everywhere — adds noise without adding safety. The failure mode also differs by context: in production a wrong `!` is a crash in front of a user, while in a test it fails that test immediately with a clear error, which is exactly what a test is for. |
+| `mfe/no-global-patching`                   | A test for that rule, or for code that reacts to a patched global, has to patch one to have anything to assert on.                                                                                                                                                                                                                                                                                                                                                                     |
+| `mfe/no-raw-storage`                       | A storage test has to reach the storage it is verifying.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+Every one of these stays **on** in production code. `no-non-null-assertion` in
+particular is an error outside test scope, because the argument above turns on
+what a failing assertion costs, and in production it costs a user.
+
+**Nothing else is relaxed in tests, deliberately.** `no-floating-promises`, the
+whole `no-unsafe-*` family and the React Hooks rules all stay on in test code,
+because they find real defects there — an unawaited promise in a test is one of
+the most common causes of a flaky suite. If you are tempted to add a sixth entry
+to that table, write the reason first; if the reason is "noisy", it belongs in
+the code rather than in this list.
+
+---
+
 ## Rules
 
 All four resolve names through ESLint's scope manager rather than by matching

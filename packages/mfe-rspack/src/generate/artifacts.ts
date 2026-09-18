@@ -1,0 +1,221 @@
+/**
+ * Build artifacts: files the pipeline, the shell and the developer read, and
+ * that application code never imports.
+ *
+ * The shell registry descriptor is the container's public face. The JSON Schema
+ * is what a deployment pipeline validates `runtime-config.json` against before
+ * it ships, which is where a missing value should be caught — not in a browser.
+ * `.env.example` is the same information for a person setting up locally.
+ */
+
+import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
+import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
+
+import type { ConfigSource } from '../config/config-source.ts'
+import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
+import { ALIASES, containerId, exposeName, type GenerateContext } from './modules.ts'
+import { generatedPath, jsonFile, type GeneratedFile } from './emit.ts'
+
+/** What the plugin embeds in the Module Federation manifest's metadata area. */
+export interface FrameworkManifestMetadata {
+  readonly kind: 'mfe'
+  /** The framework contract major this container was built against. */
+  readonly major: number
+  readonly buildHash: string
+  readonly buildTime: string
+  readonly registryDescriptor: string
+  readonly definitions: readonly ExportedDefinitionDescriptor[]
+  /** Definition id to the generated Module Federation expose name. */
+  readonly entries: Readonly<Record<string, string>>
+}
+
+/**
+ * The descriptor the shell registry reads: what this container exports, the
+ * shared manifest that loads it, and the contract major it was built against.
+ *
+ * `manifestUrl` is container-relative. The shell resolves it against wherever
+ * the container is actually deployed, because the build cannot know that and a
+ * baked-in absolute URL is exactly what breaks a promotion between
+ * environments.
+ */
+export function containerDescriptor(
+  context: GenerateContext,
+  capabilities: readonly CapabilityDescriptor[],
+  buildHash: string,
+): ContainerDescriptor {
+  const definitions = context.discovery.definitions.map(definition => {
+    const appCapabilities = definition.kind === 'app' && capabilities.length > 0 ? capabilities : []
+    return {
+      id: definition.id,
+      kind: definition.kind,
+      ...(definition.version === undefined ? {} : { version: definition.version }),
+      ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
+    }
+  })
+
+  return {
+    manifestUrl: context.options.manifestFileName,
+    contractMajor: FRAMEWORK_CONTRACT_MAJOR,
+    definitions,
+    build: { hash: buildHash, time: context.options.buildTime },
+  }
+}
+
+export function frameworkMetadata(
+  context: GenerateContext,
+  descriptor: ContainerDescriptor,
+  buildHash: string,
+): FrameworkManifestMetadata {
+  const entries: Record<string, string> = {}
+  for (const definition of context.discovery.definitions) {
+    entries[definition.id] = exposeName(definition)
+  }
+
+  return {
+    kind: 'mfe',
+    major: descriptor.contractMajor,
+    buildHash,
+    buildTime: context.options.buildTime,
+    registryDescriptor: context.options.registryFileName,
+    definitions: descriptor.definitions,
+    entries,
+  }
+}
+
+export function registryDescriptorFile(
+  context: GenerateContext,
+  descriptor: ContainerDescriptor,
+): GeneratedFile {
+  return {
+    path: generatedPath(context.options.generatedDir, context.options.registryFileName),
+    contents: jsonFile(descriptor),
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* runtime-config.json schema                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The JSON Schema for the deployment's `runtime-config.json`.
+ *
+ * `additionalProperties: false` is deliberate: an undeclared key is almost
+ * always a misspelled declared one, and accepting it silently would let the
+ * container fall back to a default nobody intended.
+ */
+export function runtimeConfigSchema(context: GenerateContext): JsonObject | null {
+  const source = context.configSource
+  if (source === undefined) return null
+
+  const properties: Record<string, JsonValue> = {}
+  const required: string[] = []
+
+  for (const field of source.fields) {
+    properties[field.field] = {
+      ...field.schema.jsonSchema,
+      ...(field.schema.jsonSchema['description'] === undefined
+        ? { description: `${field.envVar}: ${summarizeSchema(field.schema)}` }
+        : {}),
+    }
+    if (!field.schema.optional) required.push(field.field)
+  }
+
+  return {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    title: `${containerId(context)} runtime configuration`,
+    description: `Deployment values for the ${context.options.packageName} container. Values only: this file carries no envelope and no secrets beyond what the deployment chooses to place in it.`,
+    type: 'object',
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+    additionalProperties: false,
+  }
+}
+
+export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile | null {
+  const schema = runtimeConfigSchema(context)
+  if (schema === null) return null
+
+  return {
+    path: generatedPath(context.options.generatedDir, 'runtime-config.schema.json'),
+    contents: jsonFile(schema),
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* .env.example                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The environment variables a deployment has to provide, derived from the
+ * `env()` declarations. It carries names and expectations, never values.
+ */
+export function envExample(source: ConfigSource, packageName: string): string {
+  const lines: string[] = [
+    '# Generated by @company/mfe-rspack from the env() declarations in src/mfe.config.ts.',
+    '# Do not edit, and do not commit real values: these names are what the deployment',
+    `# writes into the runtime configuration for ${packageName}.`,
+  ]
+
+  for (const field of source.fields) {
+    lines.push('')
+    lines.push(`# ${field.field}: ${summarizeSchema(field.schema)}`)
+    if (field.schema.description !== undefined) lines.push(`# ${field.schema.description}`)
+    if (field.api) {
+      lines.push('# Declares an API origin: its origin joins this container authentication allowlist.')
+    }
+    if (field.schema.hasDefault) {
+      lines.push(`# Optional. Defaults to ${JSON.stringify(field.schema.defaultValue)}.`)
+    } else if (field.schema.optional) {
+      lines.push('# Optional.')
+    } else {
+      lines.push('# Required.')
+    }
+    lines.push(`${field.envVar}=`)
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
+export function envExampleFile(context: GenerateContext): GeneratedFile | null {
+  const source = context.configSource
+  if (source === undefined) return null
+
+  return {
+    path: generatedPath(context.options.generatedDir, '.env.example'),
+    contents: envExample(source, context.options.packageName),
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Editor and version-control support                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The path mapping that makes `#mfe/config` and its siblings resolve in an
+ * editor and in `tsc`. A container extends this from its own tsconfig, so the
+ * aliases are declared in exactly one place.
+ */
+export function tsconfigPathsFile(context: GenerateContext): GeneratedFile {
+  const paths: Record<string, readonly string[]> = {
+    [ALIASES.fetch]: ['./fetch.ts'],
+    [ALIASES.meta]: ['./meta.ts'],
+  }
+  if (context.configSource !== undefined) paths[ALIASES.config] = ['./config.ts']
+
+  return {
+    path: generatedPath(context.options.generatedDir, 'tsconfig.paths.json'),
+    contents: jsonFile({
+      $comment:
+        'Generated by @company/mfe-rspack. Extend it from the container tsconfig so the #mfe/* aliases resolve for tsc and the editor.',
+      compilerOptions: { paths: Object.fromEntries(Object.entries(paths).sort()) },
+    }),
+  }
+}
+
+/** The generated directory is build output, so it stays out of version control. */
+export function gitignoreFile(context: GenerateContext): GeneratedFile {
+  return {
+    path: generatedPath(context.options.generatedDir, '.gitignore'),
+    contents: '# Generated by @company/mfe-rspack. Everything here is build output.\n*\n',
+  }
+}
