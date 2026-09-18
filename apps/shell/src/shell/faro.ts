@@ -1,0 +1,127 @@
+/**
+ * The shell's Faro adapter: the one place a vendor telemetry SDK appears.
+ *
+ * The framework packages own the record shapes and never import Faro, so this
+ * translates and nothing more. Redaction, sampling, batching and delivery are
+ * Faro's, which is why none of that is here.
+ */
+
+import type {
+  SpanRecord,
+  TelemetryAttributes,
+  TelemetryAttribution,
+  TelemetryLevel,
+  TelemetryProvider,
+  TelemetryRecord,
+  Tracer,
+} from '@company/mfe-host'
+import { LogLevel, type Faro } from '@grafana/faro-web-sdk'
+
+/** Faro's context is string-valued, so scalars are rendered, never dropped. */
+function toContext(
+  attributes: TelemetryAttributes,
+  attribution: TelemetryAttribution,
+  extra: Readonly<Record<string, string | undefined>> = {},
+): Record<string, string> {
+  const context: Record<string, string> = {
+    definitionId: attribution.definitionId,
+    definitionKind: attribution.definitionKind,
+  }
+  if (attribution.definitionVersion !== undefined)
+    context['definitionVersion'] = attribution.definitionVersion
+  if (attribution.buildHash !== undefined) context['buildHash'] = attribution.buildHash
+  if (attribution.mountToken !== undefined) context['mountToken'] = attribution.mountToken
+  for (const [key, value] of Object.entries(extra)) {
+    if (value !== undefined) context[key] = value
+  }
+  // Attribution wins: an author attribute can never overwrite it.
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!(key in context)) context[key] = String(value)
+  }
+  return context
+}
+
+const LEVELS: Record<TelemetryLevel, LogLevel> = {
+  debug: LogLevel.DEBUG,
+  info: LogLevel.INFO,
+  warn: LogLevel.WARN,
+  error: LogLevel.ERROR,
+}
+
+function asError(value: unknown): Error {
+  if (value instanceof Error) return value
+  return new Error(typeof value === 'string' ? value : JSON.stringify(value))
+}
+
+export interface FaroProviderOptions {
+  readonly faro: Faro
+  /**
+   * The framework's span implementation. Passed in rather than written here, so
+   * the repository has exactly one of them.
+   */
+  readonly createTracer: (
+    attribution: TelemetryAttribution,
+    onSpanEnd: (span: SpanRecord) => void,
+  ) => Tracer
+}
+
+export function createFaroTelemetryProvider({
+  faro,
+  createTracer,
+}: FaroProviderOptions): TelemetryProvider {
+  const { api } = faro
+
+  return {
+    record(record: TelemetryRecord): void {
+      switch (record.kind) {
+        case 'event':
+          api.pushEvent(record.name, toContext(record.attributes, record.attribution))
+          return
+
+        case 'measurement':
+          api.pushMeasurement(
+            { type: record.name, values: { [record.unit]: record.value } },
+            { context: toContext(record.attributes, record.attribution) },
+          )
+          return
+
+        case 'log':
+        case 'framework': {
+          // A framework diagnostic stays distinguishable from author telemetry.
+          const context = toContext(record.attributes, record.attribution, {
+            recordKind: record.kind,
+            ...(record.kind === 'framework' ? { operation: record.operation } : {}),
+          })
+          if (record.error !== undefined) {
+            api.pushError(asError(record.error), { context })
+            return
+          }
+          api.pushLog([record.message], { level: LEVELS[record.level], context })
+          return
+        }
+      }
+    },
+
+    createTracer(attribution: TelemetryAttribution): Tracer {
+      return createTracer(attribution, span => {
+        // Faro's OTel integration owns real spans when it is installed. Without
+        // it, a completed span still reaches the backend as an event rather
+        // than being silently dropped.
+        api.pushEvent(
+          `span.${span.name}`,
+          toContext(span.attributes, span.attribution, {
+            durationMs:
+              span.endTime === undefined ? undefined : String(span.endTime - span.startTime),
+            status: String(span.status.code),
+            ...(span.status.message === undefined ? {} : { statusMessage: span.status.message }),
+          }),
+        )
+        for (const exception of span.exceptions) {
+          api.pushError(asError(exception), {
+            context: toContext(span.attributes, span.attribution, { span: span.name }),
+          })
+        }
+      })
+    },
+  }
+}

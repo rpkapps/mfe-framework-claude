@@ -1,10 +1,9 @@
 /**
  * `@company/mfe-host` — neutral loading, mounting and shell-service orchestration.
  *
- * Nothing here imports React, a router, single-spa or Module Federation. The
- * concrete container loader is injected through the port in `loader/`, which is
- * what keeps federation out of this package while still letting the host own
- * lifecycle, retry, deadlines and cleanup.
+ * Nothing here imports React, a router, single-spa or Module Federation: the
+ * container loader is injected through the port in `loader/`, which is what
+ * lets the host own lifecycle, retry, deadlines and cleanup without them.
  */
 
 export { normalizeRegistry, type NormalizeRegistryOptions } from './registry/normalize.ts'
@@ -69,3 +68,19 @@ export {
 export * from './storage/index.ts'
 export * from './auth/index.ts'
 export * from './telemetry/index.ts'
+
+// The provider contract a shell implements. It is defined in mfe-core, but a
+// shell depends on this package, not on core, so naming it has to be possible
+// from here.
+export type {
+  MeasurementUnit,
+  Span,
+  SpanRecord,
+  SpanStatus,
+  TelemetryAttributes,
+  TelemetryAttribution,
+  TelemetryLevel,
+  TelemetryProvider,
+  TelemetryRecord,
+  Tracer,
+} from '@company/mfe-core'

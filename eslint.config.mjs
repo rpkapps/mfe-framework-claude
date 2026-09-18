@@ -47,6 +47,16 @@ export default [
   }),
 
   {
+    // The telemetry ban exists so no framework package pins a vendor SDK version
+    // for the whole page. Its own message says the shell adapts the neutral
+    // contract to Faro, so the file that does exactly that is where the ban
+    // stops applying. Named explicitly, never inferred from a directory.
+    name: 'repo/shell-telemetry-adapter',
+    files: ['apps/shell/src/shell/faro.ts', 'apps/shell/src/shell/faro.test.ts'],
+    rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+  },
+
+  {
     name: 'repo/scaffold-cli',
     files: ['packages/create-mfe/src/**/*.ts'],
     rules: {
