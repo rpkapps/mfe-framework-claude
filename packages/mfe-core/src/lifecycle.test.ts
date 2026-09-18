@@ -10,13 +10,13 @@ function disposalReason() {
 describe('MountLifecycle transitions', () => {
   it('starts pending at attempt 0 and reaches mounted through an attempt', () => {
     const lifecycle = new MountLifecycle({ id: 'operations' })
-    expect(lifecycle.state).toEqual({ status: 'pending', attempt: 0 })
+    expect(lifecycle.getState()).toEqual({ status: 'pending', attempt: 0 })
 
     const attempt = lifecycle.beginAttempt()
-    expect(lifecycle.state).toEqual({ status: 'pending', attempt: 1 })
+    expect(lifecycle.getState()).toEqual({ status: 'pending', attempt: 1 })
 
     lifecycle.settleMounted(attempt)
-    expect(lifecycle.state).toEqual({ status: 'mounted' })
+    expect(lifecycle.getState()).toEqual({ status: 'mounted' })
   })
 
   it('reuses the mounted snapshot so an input update republishes nothing', () => {
@@ -76,7 +76,7 @@ describe('attempt fencing', () => {
     const third = lifecycle.beginAttempt()
 
     expect(third.attempt).toBe(3)
-    expect(lifecycle.currentAttempt).toBe(3)
+    expect(lifecycle.getState()).toEqual({ status: 'pending', attempt: 3 })
   })
 })
 

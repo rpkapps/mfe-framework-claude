@@ -1,11 +1,10 @@
 /**
  * Telemetry and tracing binding.
  *
- * The host binds a provider-neutral telemetry service to one mount: identity is
- * attached automatically, limits are enforced, provider failures are contained,
- * and a framework-owned tracer supplies spans with explicit, honest context
- * propagation. No vendor telemetry package is imported anywhere in this
- * directory, so an author bundle never resolves one.
+ * A provider-neutral telemetry service bound to one mount: identity attached
+ * automatically, limits enforced, provider failures contained, and a
+ * framework-owned tracer with explicit context propagation. No vendor telemetry
+ * package is imported here, so an author bundle never resolves one.
  */
 
 export {
@@ -25,12 +24,14 @@ export {
 
 export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './context.ts'
 
-export { createNonRecordingTracer, nonRecordingSpan } from './non-recording.ts'
+export {
+  createNonRecordingTracer,
+  createNoopTelemetryProvider,
+  nonRecordingSpan,
+} from './non-recording.ts'
 
 export {
   createRecordingTelemetryProvider,
   type RecordingProviderOptions,
   type RecordingTelemetryProvider,
 } from './recording-provider.ts'
-
-export { createNoopTelemetryProvider } from './noop-provider.ts'

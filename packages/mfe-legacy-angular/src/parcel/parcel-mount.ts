@@ -1,15 +1,8 @@
 /**
- * The single-spa parcel lifecycle, driven by the shell.
- *
- * The existing loading shape is preserved exactly: the shell registers the
- * remote, loads `<name>/single-spa-app`, and mounts the module it gets back as
- * a parcel. This class is the part that drives the parcel — it hands the
- * lifecycle its props, waits on `mountPromise`, and calls `unmount()` — while
- * the surrounding host keeps owning retry, deadlines and diagnostics.
- *
- * Every collaborator is injected: the parcel factory, the config and the DOM
- * element. Nothing here imports single-spa or Angular, so the whole lifecycle
- * is exercised in tests with plain objects.
+ * The single-spa parcel lifecycle, driven by the shell: hand the lifecycle its
+ * props, wait on `mountPromise`, call `unmount()`. Retry, deadlines and
+ * diagnostics stay with the host. Every collaborator is injected, so the whole
+ * lifecycle is exercised in tests with plain objects.
  */
 
 import {
@@ -20,12 +13,7 @@ import {
   type Unsubscribe,
 } from '@company/mfe-core'
 
-import type {
-  LegacyParcel,
-  LegacyParcelConfig,
-  LegacyParcelProps,
-  MountRootParcel,
-} from './single-spa-contract.ts'
+import type { LegacyParcel, LegacyParcelConfig, MountRootParcel } from './single-spa-contract.ts'
 
 /**
  * `idle` covers both "never mounted" and "unmounted and remountable": a legacy
@@ -36,7 +24,6 @@ export type LegacyParcelStatus =
   'idle' | 'mounting' | 'mounted' | 'unmounting' | 'error' | 'disposed'
 
 export interface LegacyParcelMountOptions {
-  /** The neutral definition id, used for diagnostics. */
   readonly id: string
   /** The legacy registry name, passed to the parcel as its activity name. */
   readonly containerName: string
@@ -88,20 +75,27 @@ export class LegacyParcelMount {
     return this.#disposal !== null
   }
 
-  /** The props the parcel lifecycle receives. Built once per mount. */
-  #buildProps(): LegacyParcelProps {
-    const { baseHref } = this.#options
-    return {
-      ...(this.#options.props ?? {}),
-      domElement: this.#options.domElement,
-      name: this.#options.containerName,
-      ...(baseHref === undefined ? {} : { baseHref }),
-    }
+  #refuse(observed: string, expected: string, repair: string): MfeError {
+    return createMfeError({
+      code: 'mount/failure',
+      id: this.id,
+      operation: 'mount the legacy parcel',
+      expected,
+      observed,
+      declaredBy: 'The legacy parcel lifecycle',
+      repair,
+    })
   }
 
-  #fail(error: unknown, operation: string, repair: string): MfeError {
+  /** Records a collaborator failure so `error` survives the status change. */
+  #report(
+    error: unknown,
+    code: 'mount/failure' | 'dispose/failure',
+    operation: string,
+    repair: string,
+  ): MfeError {
     const mfeError = toMfeError(error, {
-      code: 'mount/failure',
+      code,
       id: this.id,
       ...(this.#options.version === undefined ? {} : { definitionVersion: this.#options.version }),
       operation,
@@ -114,50 +108,46 @@ export class LegacyParcelMount {
 
   /**
    * Bootstraps and mounts the parcel, resolving once single-spa reports the app
-   * on screen. A second mount without an intervening unmount is a programming
-   * error rather than a silent no-op: two live parcels would both render into
-   * the same element.
+   * on screen. A second mount without an intervening unmount is refused: two
+   * live parcels would both render into the same element.
    */
   async mount(): Promise<void> {
     if (this.isDisposed) {
-      throw createMfeError({
-        code: 'mount/failure',
-        id: this.id,
-        operation: 'mount the legacy parcel',
-        expected: 'a live mount',
-        observed: 'a disposed mount',
-        declaredBy: 'The legacy parcel lifecycle',
-        repair:
-          'Create a new LegacyParcelMount instead of reusing a disposed one. Disposal is terminal.',
-      })
+      throw this.#refuse(
+        'a disposed mount',
+        'a live mount',
+        'Create a new LegacyParcelMount. Disposal is terminal.',
+      )
     }
 
     const status = this.#status.getSnapshot()
     if (status === 'mounting' || status === 'mounted') {
-      throw createMfeError({
-        code: 'mount/failure',
-        id: this.id,
-        operation: 'mount the legacy parcel',
-        expected: 'an unmounted parcel',
-        observed: `a parcel that is already ${status}`,
-        declaredBy: 'The legacy parcel lifecycle',
-        repair:
-          'Await unmount() before mounting again. Two parcels rendering into one element would leave orphaned DOM behind.',
-      })
+      throw this.#refuse(
+        `a parcel that is already ${status}`,
+        'an unmounted parcel',
+        'Await unmount() before mounting again.',
+      )
     }
 
     this.#error = null
     this.#status.set('mounting')
 
+    const { containerName } = this.#options
     let parcel: LegacyParcel
     try {
-      parcel = this.#options.mountRootParcel(this.#options.parcelConfig, this.#buildProps())
+      parcel = this.#options.mountRootParcel(this.#options.parcelConfig, {
+        ...(this.#options.props ?? {}),
+        domElement: this.#options.domElement,
+        name: containerName,
+        ...(this.#options.baseHref === undefined ? {} : { baseHref: this.#options.baseHref }),
+      })
     } catch (error) {
       this.#status.set('error')
-      throw this.#fail(
+      throw this.#report(
         error,
+        'mount/failure',
         'create the legacy parcel',
-        `Check that ${this.#options.containerName} still exposes a single-spa parcel with bootstrap, mount and unmount lifecycles.`,
+        `Check that ${containerName} still exposes a single-spa parcel.`,
       )
     }
 
@@ -168,10 +158,11 @@ export class LegacyParcelMount {
     } catch (error) {
       this.#parcel = null
       this.#status.set('error')
-      throw this.#fail(
+      throw this.#report(
         error,
+        'mount/failure',
         'mount the legacy parcel',
-        `Check the browser console for the error ${this.#options.containerName} threw while bootstrapping. The shell kept the mount surface so a retry can reuse it.`,
+        `Check the browser console for the error ${containerName} threw while bootstrapping.`,
       )
     }
 
@@ -179,27 +170,22 @@ export class LegacyParcelMount {
     // Either way the parcel this call created is already being torn down, so
     // the attempt must not report success or re-publish a stale reference.
     if (this.#parcel !== parcel) {
-      throw createMfeError({
-        code: 'mount/failure',
-        id: this.id,
-        operation: 'mount the legacy parcel',
-        expected: 'a live mount when the parcel finished bootstrapping',
-        observed: this.isDisposed
+      throw this.#refuse(
+        this.isDisposed
           ? 'a mount that was disposed while the parcel was still bootstrapping'
           : 'a mount that was unmounted while the parcel was still bootstrapping',
-        declaredBy: 'The legacy parcel lifecycle',
-        repair:
-          'No action required when this follows a navigation away from the app. The parcel that superseded this attempt was already unmounted.',
-      })
+        'a live mount when the parcel finished bootstrapping',
+        'No action required when this follows a navigation away from the app.',
+      )
     }
 
     this.#status.set('mounted')
   }
 
   /**
-   * Unmounts the parcel and returns the mount to `idle`, from which it can be
-   * mounted again. Unmounting when nothing is mounted is a no-op, so a shell
-   * does not have to track whether a failed mount left a parcel behind.
+   * Unmounts and returns the mount to `idle`, from which it can be mounted
+   * again. Unmounting when nothing is mounted is a no-op, so a shell does not
+   * have to track whether a failed mount left a parcel behind.
    */
   async unmount(): Promise<void> {
     const parcel = this.#parcel
@@ -212,27 +198,20 @@ export class LegacyParcelMount {
       await parcel.unmount()
     } catch (error) {
       this.#status.set('error')
-      const mfeError = toMfeError(error, {
-        code: 'dispose/failure',
-        id: this.id,
-        ...(this.#options.version === undefined
-          ? {}
-          : { definitionVersion: this.#options.version }),
-        operation: 'unmount the legacy parcel',
-        declaredBy: 'The legacy parcel lifecycle',
-        repair: `Check ${this.#options.containerName}'s ngOnDestroy for a throwing teardown. The shell has already dropped its reference to the parcel, so it will not be reused.`,
-      })
-      this.#error = mfeError
-      throw mfeError
+      throw this.#report(
+        error,
+        'dispose/failure',
+        'unmount the legacy parcel',
+        `Check ${this.#options.containerName}'s ngOnDestroy for a throwing teardown. The parcel is never reused.`,
+      )
     }
 
     this.#status.set('idle')
   }
 
   /**
-   * Terminal teardown. Idempotent in the sense the framework requires: every
-   * caller awaits the same cleanup, and a second call never starts a second
-   * teardown — including when the first one failed.
+   * Terminal teardown. Every caller awaits the same cleanup and a second call
+   * never starts a second teardown, including when the first one failed.
    */
   dispose(): Promise<void> {
     this.#disposal ??= this.#runDisposal()
@@ -246,18 +225,12 @@ export class LegacyParcelMount {
     try {
       if (parcel) await parcel.unmount()
     } catch (error) {
-      const mfeError = toMfeError(error, {
-        code: 'dispose/failure',
-        id: this.id,
-        ...(this.#options.version === undefined
-          ? {}
-          : { definitionVersion: this.#options.version }),
-        operation: 'dispose the legacy parcel',
-        declaredBy: 'The legacy parcel lifecycle',
-        repair: `Check ${this.#options.containerName}'s teardown. The mount is disposed either way; it is never reused after a failed teardown.`,
-      })
-      this.#error = mfeError
-      throw mfeError
+      throw this.#report(
+        error,
+        'dispose/failure',
+        'dispose the legacy parcel',
+        `Check ${this.#options.containerName}'s teardown. The mount is disposed either way.`,
+      )
     } finally {
       this.#status.set('disposed')
       this.#status.dispose()

@@ -1,23 +1,23 @@
 /**
- * Definitions declared outside the designated entry.
- *
- * Discovery reads `src/mfe.ts` and nothing else, so a `createWidget` call in
- * some other module is not a Widget — it is a definition nothing will ever
- * load. Leaving that silent is the worst outcome: the code compiles, the tests
- * that import it directly pass, and the Widget is simply absent from the
- * container the shell loads.
- *
- * This check is what turns that into a build error. It reads syntax only, and
- * it does not make the rest of the repository part of discovery: a call found
- * here is reported, never collected.
+ * Discovery reads the designated entry and nothing else, so a `createWidget`
+ * call elsewhere is a definition nothing will ever load: the code compiles,
+ * tests that import it pass, and the Widget is simply absent from the container
+ * the shell loads. A call found here is reported, never collected.
  */
 
 import { readdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import { DEFAULT_DEFINITION_MODULES } from './definitions.ts'
-import { calleeName, collectImportedBindings, parseSourceFile, positionOf, ts, walk } from './ts-ast.ts'
+import { DEFINITION_MODULES } from './definitions.ts'
+import {
+  calleeName,
+  collectImportedBindings,
+  parseSourceFile,
+  positionOf,
+  ts,
+  walk,
+} from './ts-ast.ts'
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'] as const
 const FACTORY_NAMES = new Set(['createApp', 'createWidget'])
@@ -30,7 +30,6 @@ export interface StrayDefinitionOptions {
   readonly entryFile: string
   /** Directories skipped entirely, such as the build-managed output. */
   readonly ignoredDirectories?: readonly string[]
-  readonly definitionModules?: readonly string[]
 }
 
 /** Reports every definition declared outside the designated entry module. */
@@ -38,7 +37,6 @@ export function findStrayDefinitions(
   sourceRoot: string,
   options: StrayDefinitionOptions,
 ): readonly Error[] {
-  const definitionModules = options.definitionModules ?? DEFAULT_DEFINITION_MODULES
   const ignored = new Set(options.ignoredDirectories ?? [])
   const errors: Error[] = []
 
@@ -51,7 +49,7 @@ export function findStrayDefinitions(
 
     const factories = new Set<string>()
     for (const [local, binding] of imports) {
-      if (!definitionModules.includes(binding.moduleSpecifier)) continue
+      if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
       if (FACTORY_NAMES.has(binding.imported)) factories.add(local)
     }
     if (factories.size === 0) continue
@@ -100,7 +98,11 @@ export function containerSourceFiles(
     for (const entry of [...entries].sort((left, right) => (left.name < right.name ? -1 : 1))) {
       const full = join(directory, entry.name)
       if (entry.isDirectory()) {
-        if (IGNORED_DIRECTORIES.has(entry.name) || ignored.has(full) || entry.name.startsWith('.')) {
+        if (
+          IGNORED_DIRECTORIES.has(entry.name) ||
+          ignored.has(full) ||
+          entry.name.startsWith('.')
+        ) {
           continue
         }
         visit(full)

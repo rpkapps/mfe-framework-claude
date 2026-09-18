@@ -59,7 +59,6 @@ describe('SnapshotSource', () => {
     source.set(2)
 
     expect(listener).toHaveBeenCalledTimes(1)
-    expect(source.listenerCount).toBe(0)
   })
 })
 
@@ -105,12 +104,15 @@ describe('KeyedListeners', () => {
 
   it('drops a key entirely once its last subscriber leaves', () => {
     const keyed = new KeyedListeners()
-    const unsubscribe = keyed.subscribe('a', () => {})
+    const listener = vi.fn()
+    const unsubscribe = keyed.subscribe('a', listener)
 
-    expect(keyed.activeKeys()).toEqual(['a'])
+    expect(keyed.listenerCount('a')).toBe(1)
     unsubscribe()
-    expect(keyed.activeKeys()).toEqual([])
+
     expect(keyed.listenerCount('a')).toBe(0)
+    keyed.notify('a')
+    expect(listener).not.toHaveBeenCalled()
   })
 
   it('supports several subscribers sharing one key', () => {

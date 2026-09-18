@@ -19,6 +19,7 @@ import {
   maintainability,
   mfePlugin,
   reactCorrectness,
+  resolveReactFiles,
   typeCheckedConfigs,
   testScopeOverrides,
   typeSafety,
@@ -40,6 +41,15 @@ export interface FrameworkPresetOptions {
   readonly tsconfigRootDir?: string | undefined
   /** Files the preset applies to. Defaults to every TypeScript file. */
   readonly files?: readonly string[] | undefined
+  /**
+   * Files the React and React Compiler rules apply to. Defaults to `files`.
+   *
+   * Narrow it to the packages that actually contain React: a package without
+   * React gets false positives from any API whose name collides with a hook,
+   * and the repair is to stop applying React rules there rather than to
+   * suppress them one by one. Always intersected with `files`.
+   */
+  readonly reactFiles?: readonly string[] | undefined
   /**
    * Files allowed to touch Web Storage directly: the framework storage adapter,
    * and a documented shell bootstrap that deliberately overrides it.
@@ -166,6 +176,7 @@ function packageZones(
 /** Builds the `framework` preset. */
 export function framework(options: FrameworkPresetOptions = {}): Linter.Config[] {
   const files = options.files ?? TS_FILES
+  const reactFiles = resolveReactFiles(files, options.reactFiles)
   const storageAllowedScopes = options.storageAllowedScopes ?? []
   const widgetScopes = options.widgetScopes ?? []
   const extraPaths = options.extraRestrictedPaths ?? []
@@ -178,7 +189,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
     asyncCorrectness(files),
     typeSafety(files),
     maintainability(files),
-    ...reactCorrectness(files),
+    ...reactCorrectness(reactFiles),
     {
       name: 'mfe/framework/state-and-telemetry',
       files: [...files],

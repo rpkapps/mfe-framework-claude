@@ -1,11 +1,8 @@
 /**
- * Provider-neutral telemetry and tracing contracts.
- *
- * These types, constants and record shapes are framework-owned. They follow
- * OpenTelemetry's tracing conventions for the supported surface, but nothing
- * here re-exports or aliases an upstream OTel or Faro type, because the contract requires
- * that author declarations and remote bundles never resolve a vendor package.
- * The shell adapter translates these records into whichever provider it uses.
+ * Provider-neutral telemetry and tracing contracts: OTel-shaped, but nothing
+ * here re-exports or aliases an upstream OTel or Faro type, because author
+ * declarations and remote bundles must never resolve a vendor package. The
+ * shell adapter translates these records into whichever provider it uses.
  */
 
 /** Attributes are small scalars. Bodies, credentials and raw URLs never belong here. */
@@ -15,11 +12,7 @@ export type TelemetryLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export type MeasurementUnit = 'ms' | 'bytes' | 'count'
 
-/* -------------------------------------------------------------------------- */
-/* Tracing types — framework-owned, OTel-shaped                                */
-/* -------------------------------------------------------------------------- */
-
-/** Framework-owned mirror of OTel's status codes. A runtime value, not a vendor import. */
+/** A runtime value, not a vendor import. */
 export const SpanStatusCode = {
   UNSET: 0,
   OK: 1,
@@ -27,7 +20,6 @@ export const SpanStatusCode = {
 } as const
 export type SpanStatusCode = (typeof SpanStatusCode)[keyof typeof SpanStatusCode]
 
-/** Framework-owned mirror of OTel's span kinds. */
 export const SpanKind = {
   INTERNAL: 0,
   SERVER: 1,
@@ -65,19 +57,15 @@ export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
   /**
    * Runs `callback` with `span` active for context propagation. It does not end
-   * the span or record a thrown exception; authors do that explicitly.
-   * Return types, synchronous throws and asynchronous results propagate unchanged.
+   * the span or record a thrown exception; authors do that explicitly. Return
+   * types, synchronous throws and asynchronous results propagate unchanged.
    */
   startActiveSpan<T>(name: string, callback: (span: Span) => T): T
   startActiveSpan<T>(name: string, options: SpanOptions, callback: (span: Span) => T): T
 }
 
-/* -------------------------------------------------------------------------- */
-/* Author surface                                                              */
-/* -------------------------------------------------------------------------- */
-
+/** The author-facing surface. */
 export interface MfeTelemetry {
-  /** Records a business event. */
   event(name: string, attributes?: TelemetryAttributes): void
   debug(message: string, attributes?: TelemetryAttributes): void
   info(message: string, attributes?: TelemetryAttributes): void
@@ -93,13 +81,9 @@ export interface MfeTelemetry {
   readonly tracer: Tracer
 }
 
-/* -------------------------------------------------------------------------- */
-/* Normalized records — the provider integration seam                          */
-/* -------------------------------------------------------------------------- */
-
 /**
- * Attribution the host binds automatically. Authors cannot override it
- *; an attribute collision resolves in favour of attribution.
+ * Attribution the host binds automatically. Authors cannot override it: an
+ * attribute collision resolves in favour of attribution.
  */
 export interface TelemetryAttribution {
   readonly definitionId: string
@@ -110,10 +94,7 @@ export interface TelemetryAttribution {
   readonly mountToken?: string
 }
 
-/**
- * Framework lifecycle diagnostics and author telemetry share one provider but
- * stay distinguishable.
- */
+/** Framework lifecycle diagnostics and author telemetry share one provider but stay apart. */
 export type TelemetryRecordKind = 'event' | 'log' | 'measurement' | 'framework'
 
 export interface TelemetryEventRecord {
@@ -175,37 +156,29 @@ export interface SpanRecord {
 
 /**
  * What a shell plugs in. The shell owns redaction, sampling, rate limits,
- * batching, delivery and bounded buffering; this seam only hands it
- * normalized records.
+ * batching, delivery and bounded buffering; this seam only hands it normalized
+ * records.
  */
 export interface TelemetryProvider {
   record(record: TelemetryRecord): void
-  /** Creates a tracer bound to the supplied attribution. */
   createTracer(attribution: TelemetryAttribution): Tracer
   /** Called when the provider's level filter should drop a record before formatting. */
   isLevelEnabled?(level: TelemetryLevel): boolean
 }
 
-/* -------------------------------------------------------------------------- */
-/* Bounds                                                                      */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Attribute limits. Bounded counts and string lengths keep one
- * misbehaving call from filling the shell's buffer.
- */
+/** Bounds that keep one misbehaving call from filling the shell's buffer. */
 export const TELEMETRY_LIMITS = {
   maxAttributeCount: 64,
   maxAttributeValueLength: 1024,
   maxNameLength: 256,
-  /** Bounded tracking that prevents forgotten spans from growing memory. */
   maxOpenSpansPerMount: 256,
 } as const
 
+export const EMPTY_ATTRIBUTES: TelemetryAttributes = Object.freeze({})
+
 /**
- * Clamps attributes to the documented limits, dropping the overflow rather than
- * truncating silently in the middle of the set. Returns the same reference when
- * nothing needed clamping, so unchanged attributes stay cheap.
+ * Clamps attributes to the limits, dropping the overflow rather than truncating
+ * silently mid-set. Returns the same reference when nothing needed clamping.
  */
 export function boundAttributes(attributes: TelemetryAttributes | undefined): TelemetryAttributes {
   if (!attributes) return EMPTY_ATTRIBUTES
@@ -223,8 +196,8 @@ export function boundAttributes(attributes: TelemetryAttributes | undefined): Te
       continue
     }
     if (typeof value === 'number' && !Number.isFinite(value)) {
-      // A non-finite attribute is dropped with the same policy as a non-finite
-      // measurement: it cannot be serialized meaningfully.
+      // Dropped under the same policy as a non-finite measurement: it cannot be
+      // serialized meaningfully.
       changed = true
       continue
     }
@@ -233,8 +206,6 @@ export function boundAttributes(attributes: TelemetryAttributes | undefined): Te
 
   return changed ? Object.freeze(bounded) : attributes
 }
-
-export const EMPTY_ATTRIBUTES: TelemetryAttributes = Object.freeze({})
 
 export function boundName(name: string): string {
   return name.length > TELEMETRY_LIMITS.maxNameLength

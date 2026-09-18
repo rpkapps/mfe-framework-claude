@@ -1,21 +1,15 @@
 /**
- * Widget contract primitives and two-sided validation.
- *
- * Contracts are Zod schemas, and the schemas are the source of truth for both
- * runtime validation and author-facing types — there are no parallel type
- * parameters to keep in sync.
- *
- * This module is typed against Zod but never imports it at runtime: it calls
- * `safeParse` on the schema object the author already constructed. That keeps
- * one Zod instance in play (the author's) and keeps the neutral core free of a
- * runtime dependency it does not own.
+ * Widget contract primitives and two-sided validation. Schemas are the source
+ * of truth for validation and author-facing types alike. This module is typed
+ * against Zod but never imports it: it calls `safeParse` on the author's own
+ * schema, so one Zod instance stays in play and the core keeps no runtime dep.
  */
 
-import { createMfeError, describeValue, type MfeError } from './errors.ts'
+import { createMfeErrorFactory, describeValue, type MfeError } from './errors.ts'
 
 /**
- * The slice of Zod's surface the framework actually uses. Typing against this
- * rather than `z.ZodType` means a container's Zod copy and the framework's
+ * The slice of Zod's surface the framework uses. Typing against this rather
+ * than `z.ZodType` means a container's Zod copy and the framework's
  * declarations never have to be the same instance of the type.
  */
 export interface ContractSchema<T> {
@@ -38,7 +32,6 @@ export interface ContractIssue {
   readonly expected?: string
 }
 
-/** Infers the value type a contract schema validates. */
 export type InferContract<S> = S extends ContractSchema<infer T> ? T : never
 
 /**
@@ -58,10 +51,6 @@ export type ContractInputs<C extends WidgetContract> = InferContract<C['inputs']
 export type ContractEvents<C extends WidgetContract> = {
   readonly [K in keyof C['events']]: InferContract<C['events'][K]>
 }
-
-/* -------------------------------------------------------------------------- */
-/* Reserved names                                                              */
-/* -------------------------------------------------------------------------- */
 
 /**
  * Host control props that are never forwarded as Widget inputs.
@@ -87,18 +76,13 @@ export function isValidEventName(name: string): boolean {
   return EVENT_NAME_PATTERN.test(name)
 }
 
-/* -------------------------------------------------------------------------- */
-/* Serializability                                                             */
-/* -------------------------------------------------------------------------- */
-
 /**
- * Inputs and event payloads must be JSON-serializable. Prohibiting
- * functions, class instances, DOM nodes, elements, `Date`, `Map` and `Set`
- * keeps iframe or worker isolation available later, and validation cannot
- * meaningfully check them anyway.
+ * Inputs and event payloads must be JSON-serializable: prohibiting functions,
+ * class instances, DOM nodes, elements, `Date`, `Map` and `Set` keeps iframe or
+ * worker isolation available later, and validation cannot check them anyway.
  *
- * Returns the path of the first offending value, or `null` when the value is
- * acceptable. Cycles are reported rather than followed.
+ * Returns the first offending value's path, or `null`. Cycles are reported
+ * rather than followed.
  */
 export function findNonSerializableValue(
   value: unknown,
@@ -179,16 +163,11 @@ export function findNonSerializableValue(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Validation                                                                  */
-/* -------------------------------------------------------------------------- */
-
 export interface ContractValidationContext {
   readonly id: string
   readonly definitionVersion?: string
-  /** `'input'` or `'event'` — recorded on the structured error. */
   readonly direction: 'input' | 'event'
-  /** `'provider'` validates its own declaration; `'consumer'` validates what it subscribed to. */
+  /** `'provider'` validates its own declaration; `'consumer'` what it subscribed to. */
   readonly side: 'provider' | 'consumer'
   /** Event name, when validating an event payload. */
   readonly eventName?: string
@@ -199,12 +178,28 @@ export interface ContractValidationContext {
 export type ContractValidation<T> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
 
+/** Fixes everything the context alone decides, so each failure adds only its own clauses. */
+function contractFailure(context: ContractValidationContext) {
+  return createMfeErrorFactory({
+    code: context.direction === 'input' ? 'contract/input-mismatch' : 'contract/event-mismatch',
+    id: context.id,
+    ...(context.definitionVersion === undefined
+      ? {}
+      : { definitionVersion: context.definitionVersion }),
+    operation:
+      context.direction === 'input'
+        ? 'accept input'
+        : `emit event '${context.eventName ?? 'unknown'}'`,
+    direction: context.direction,
+  })
+}
+
 function declaredBy(context: ContractValidationContext): string {
-  return context.side === 'provider'
-    ? context.direction === 'input'
-      ? 'The Widget provider'
-      : 'The Widget provider, at its emit call'
-    : 'The consuming component, through the runtime contract it supplied'
+  if (context.side === 'consumer')
+    return 'The consuming component, through the runtime contract it supplied'
+  return context.direction === 'input'
+    ? 'The Widget provider'
+    : 'The Widget provider, at its emit call'
 }
 
 function repairFor(context: ContractValidationContext, field: string): string {
@@ -220,11 +215,11 @@ function repairFor(context: ContractValidationContext, field: string): string {
 }
 
 /**
- * Validates a value against a contract schema and turns any failure into a
- * structured error whose message names the field, the expectation and the repair.
+ * Validates a value against a contract schema, turning a failure into a
+ * structured error that names the field, the expectation and the repair.
  *
- * The first issue drives the message. Reporting every issue at once reads worse
- * and buries the actionable one; the underlying parse error stays on `cause`.
+ * The first issue drives the message: reporting every issue at once buries the
+ * actionable one. The underlying parse error stays on `cause`.
  */
 export function validateAgainstContract<T>(
   schema: ContractSchema<T>,
@@ -238,29 +233,15 @@ export function validateAgainstContract<T>(
   const path = (issue?.path ?? []).filter(
     (segment): segment is string | number => typeof segment !== 'symbol',
   )
-  const field = path.length > 0 ? path.join('.') : ''
-
-  const observedValue = readPath(value, path)
-  const expected = issue?.expected ?? issue?.message ?? 'a value matching the declared schema'
 
   return {
     ok: false,
-    error: createMfeError({
-      code: context.direction === 'input' ? 'contract/input-mismatch' : 'contract/event-mismatch',
-      id: context.id,
-      ...(context.definitionVersion === undefined
-        ? {}
-        : { definitionVersion: context.definitionVersion }),
-      operation:
-        context.direction === 'input'
-          ? 'accept input'
-          : `emit event '${context.eventName ?? 'unknown'}'`,
-      direction: context.direction,
+    error: contractFailure(context)({
       ...(path.length > 0 ? { path } : {}),
-      expected,
-      observed: describeValue(observedValue),
+      expected: issue?.expected ?? issue?.message ?? 'a value matching the declared schema',
+      observed: describeValue(readPath(value, path)),
       declaredBy: declaredBy(context),
-      repair: repairFor(context, field),
+      repair: repairFor(context, path.join('.')),
       ...(context.note === undefined ? {} : { note: context.note }),
       cause: result.error,
     }),
@@ -288,17 +269,7 @@ export function validateSerializable(
   const offender = findNonSerializableValue(value)
   if (!offender) return null
 
-  return createMfeError({
-    code: context.direction === 'input' ? 'contract/input-mismatch' : 'contract/event-mismatch',
-    id: context.id,
-    ...(context.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: context.definitionVersion }),
-    operation:
-      context.direction === 'input'
-        ? 'accept input'
-        : `emit event '${context.eventName ?? 'unknown'}'`,
-    direction: context.direction,
+  return contractFailure(context)({
     ...(offender.path.length > 0 ? { path: offender.path } : {}),
     expected: 'a JSON-serializable value',
     observed: offender.description,

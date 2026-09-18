@@ -1,9 +1,9 @@
 /**
  * Assembling the shell-side runtime, and deriving a mount from it.
  *
- * The shell calls `createMfeRuntime` once. Every mount is then created from it,
- * which is what keeps ownership legible: anything on the runtime outlives an
- * individual mount, and anything `createMount` returns is torn down with it.
+ * The shell calls `createMfeRuntime` once. Ownership stays legible because
+ * anything on the runtime outlives an individual mount, and anything
+ * `createMount` returns is torn down with it.
  */
 
 import {
@@ -54,9 +54,8 @@ export interface CreateRuntimeOptions {
   /**
    * Mints the generation for a new session. It must never repeat a previous
    * value: returning to an earlier user or group configuration must not
-   * resurrect the data that was invalidated with it. The default is a random
-   * identifier, which satisfies that; a shell that coordinates several tabs
-   * supplies its own instead.
+   * resurrect the data that was invalidated with it. A shell that coordinates
+   * several tabs supplies its own; the default is a random identifier.
    */
   readonly nextSessionGeneration?: () => string
   /** Where boot-time developer URL overrides are read from. */
@@ -65,7 +64,7 @@ export interface CreateRuntimeOptions {
 
 export interface MfeRuntimeHandle {
   readonly runtime: MfeRuntime
-  /** Developer overrides that were applied, for the shell's active-override indicator. */
+  /** Applied developer overrides, for the shell's active-override indicator. */
   readonly activeOverrides: ReadonlyMap<string, string>
   dispose(): void
 }
@@ -74,8 +73,8 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
   const diagnostics = new DiagnosticsHub()
   for (const sink of options.diagnosticsSinks ?? []) diagnostics.add(sink)
 
-  // Overrides are read before anything is registered, so an overridden entry is
-  // already pointing at the developer's dev server the first time it loads.
+  // Read before anything is registered, so an overridden entry already points at
+  // the developer's dev server the first time it loads.
   const overrides = readDevOverrides(options.overrideStorage)
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
@@ -84,9 +83,9 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     overrides: overrides.overrides,
   })
 
+  // A quarantined entry never removes unrelated valid ones; it is reported and
+  // the rest of the shell keeps working.
   for (const quarantined of registry.quarantined) {
-    // A quarantined entry never removes unrelated valid ones; it is reported and
-    // the rest of the shell keeps working.
     if (isMfeError(quarantined.error)) {
       diagnostics.report(quarantined.error, {
         severity: 'error',
@@ -178,18 +177,14 @@ export interface MountHandleWithCleanup {
 }
 
 /**
- * Creates the per-mount services: a Query client, namespaced storage handles,
- * bound telemetry, an overlay root and the disposal signal.
- *
- * Nested and repeated mounts get independent Query clients by default, so a
- * child never inherits a parent's cache. That boundary is a framework policy
- * rather than something TanStack Query requires.
+ * Nested and repeated mounts get independent Query clients, so a child never
+ * inherits a parent's cache. That boundary is framework policy rather than
+ * something TanStack Query requires.
  */
 export function createMount(options: CreateMountOptions): MountHandleWithCleanup {
   const { runtime, definitionId, kind } = options
   const mountToken = createMountToken(definitionId)
   const disposal = new AbortController()
-
   const queryClient = new QueryClient()
 
   const telemetry = createMountTelemetry(runtime.telemetryProvider, {
@@ -230,7 +225,9 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
       runtime.navigator.removeMount(mountToken)
 
       disposal.abort()
-      queryClient.cancelQueries()
+      // Cancellation is signalled, not waited on: `clear()` drops the cache
+      // immediately and teardown must not block on in-flight requests.
+      void queryClient.cancelQueries()
       queryClient.clear()
       telemetry.dispose()
       overlay.dispose()
@@ -240,11 +237,7 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
   }
 }
 
-/**
- * A fresh opaque generation. `randomUUID` is used where available; the counter
- * fallback keeps non-secure contexts and older test environments working, and
- * uniqueness within a document is all a generation needs.
- */
+/** The counter fallback keeps non-secure contexts working; uniqueness per document is enough. */
 let generationCounter = 0
 function defaultSessionGeneration(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

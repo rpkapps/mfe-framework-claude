@@ -56,7 +56,10 @@ describe('extractCapabilities', () => {
         '/whats-new',
         "{ capability: 'releaseNotes', label: 'What is new' }",
       ),
-      'src/routes/settings.tsx': route('/settings', "{ capability: 'settings', label: 'Settings' }"),
+      'src/routes/settings.tsx': route(
+        '/settings',
+        "{ capability: 'settings', label: 'Settings' }",
+      ),
       'src/routes/help.tsx': route('/help', "{ capability: 'help', label: 'Help' }"),
     })
 
@@ -123,7 +126,10 @@ describe('extractCapabilities', () => {
 
   it('accepts a capability without an icon', () => {
     const capabilities = capabilitiesOf({
-      'src/routes/settings.tsx': route('/settings', "{ capability: 'settings', label: 'Settings' }"),
+      'src/routes/settings.tsx': route(
+        '/settings',
+        "{ capability: 'settings', label: 'Settings' }",
+      ),
     })
 
     expect(capabilities[0]).not.toHaveProperty('icon')

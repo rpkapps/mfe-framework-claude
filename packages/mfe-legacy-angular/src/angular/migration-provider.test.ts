@@ -9,10 +9,6 @@ import {
   type LegacyRouterPort,
 } from './migration-provider.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 /**
  * Stands in for Angular's `Router`. It is the whole surface the seam touches,
  * which is what lets the migration be verified without Angular in the
@@ -51,10 +47,6 @@ function createRouterDouble(navigation: LegacyNavigation | null = { extras: {} }
     subscriberCount: () => listeners.length,
   }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Shell-owned navigation                                                      */
-/* -------------------------------------------------------------------------- */
 
 describe('skipLocationChangeOnNonImperativeTriggers', () => {
   it('stops Angular writing the URL when the browser triggered the navigation', () => {
@@ -110,10 +102,6 @@ describe('skipLocationChangeOnNonImperativeTriggers', () => {
     expect(double.subscriberCount()).toBe(0)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* The provider the app registers                                              */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyShellNavigationInitializer', () => {
   it('does not touch the router until Angular runs the initializer', () => {
@@ -182,10 +170,6 @@ describe('createLegacyShellNavigationInitializer', () => {
     expect(initializer.seam.appBaseHref).toBe('/asset-tracker/')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* What the one-line edit preserves                                            */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyMigrationSeam', () => {
   it('preserves the base href an app pins for itself', () => {

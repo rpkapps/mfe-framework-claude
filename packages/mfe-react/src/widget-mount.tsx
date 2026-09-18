@@ -1,18 +1,11 @@
 /**
- * The Widget provider boundary: input validation, event emission and the
- * remote render.
- *
- * Two rules drive the shape of this file.
+ * The Widget provider boundary: input validation, event emission and the remote
+ * render.
  *
  * Inputs are reactive but not cheap to validate, so they are compared shallowly
- * by name and `Object.is` first. Only a real change runs the schema again, and
- * a successful update publishes one validated snapshot to the existing mount
- * rather than remounting it — component state, subscriptions and scope roots
- * all survive.
- *
- * Event handlers change on almost every render. They are kept in a ref so the
- * latest committed handler receives the next event without the channel ever
- * being torn down and rebuilt.
+ * first and a successful update publishes a validated snapshot to the existing
+ * mount rather than remounting it. Handlers change on almost every render, so
+ * they live in a ref and the channel is never torn down and rebuilt.
  */
 
 import {
@@ -20,7 +13,6 @@ import {
   validateAgainstContract,
   validateSerializable,
   type ContractSchema,
-  type DiagnosticsHub,
   type MfeError,
   type WidgetContract,
 } from '@company/mfe-core'
@@ -34,13 +26,12 @@ import type { MfeMount } from './runtime.ts'
 export type WidgetEventHandlers = Readonly<Record<string, (payload: unknown) => void>>
 
 /** Shallow comparison over input names, so a handler change is not an input change. */
-export function inputsEqual(
+function inputsEqual(
   a: Readonly<Record<string, unknown>>,
   b: Readonly<Record<string, unknown>>,
 ): boolean {
   const aKeys = Object.keys(a)
-  const bKeys = Object.keys(b)
-  if (aKeys.length !== bKeys.length) return false
+  if (aKeys.length !== Object.keys(b).length) return false
   for (const key of aKeys) {
     if (!Object.hasOwn(b, key)) return false
     if (!Object.is(a[key], b[key])) return false
@@ -59,29 +50,15 @@ export interface WidgetMountProps {
   readonly onInputRejected?: (error: MfeError) => void
 }
 
-interface ValidatedInputs {
-  readonly ok: true
-  readonly value: Record<string, unknown>
-}
-
-interface RejectedInputs {
-  readonly ok: false
-  readonly error: MfeError
-}
-
-/** The render-state a Widget boundary holds for one committed input set. */
 interface ValidationState {
-  /** The inputs this result was computed from. */
+  /** The input set the result below belongs to. */
   readonly checked: Readonly<Record<string, unknown>>
-  /** The last inputs that passed, or null when nothing has passed yet. */
+  /** The last inputs that passed; a rejected update deliberately leaves it alone. */
   readonly valid: Record<string, unknown> | null
-  /** Set when the most recent input set was rejected. */
   readonly error: MfeError | null
 }
 
 /**
- * Validates one input set against the previous valid one.
- *
  * Pure, so it is safe to call during render: it allocates a new state value and
  * touches nothing outside.
  */
@@ -90,18 +67,6 @@ function validateInto(
   inputs: Readonly<Record<string, unknown>>,
   previousValid: Record<string, unknown> | null,
 ): ValidationState {
-  const result = validateInputs(definition, inputs)
-
-  if (!result.ok) return { checked: inputs, valid: previousValid, error: result.error }
-
-  assertUsableInputNames(definition.id, Object.keys(result.value))
-  return { checked: inputs, valid: result.value, error: null }
-}
-
-function validateInputs(
-  definition: WidgetDefinition,
-  inputs: Readonly<Record<string, unknown>>,
-): ValidatedInputs | RejectedInputs {
   const context = {
     id: definition.id,
     ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
@@ -110,26 +75,24 @@ function validateInputs(
   }
 
   const nonSerializable = validateSerializable(inputs, context)
-  if (nonSerializable) return { ok: false, error: nonSerializable }
+  if (nonSerializable) return { checked: inputs, valid: previousValid, error: nonSerializable }
 
   const result = validateAgainstContract(definition.contract.inputs, inputs, {
     ...context,
     note: 'The previous valid inputs remain displayed.',
   })
+  if (!result.ok) return { checked: inputs, valid: previousValid, error: result.error }
 
-  return result.ok
-    ? { ok: true, value: result.value as Record<string, unknown> }
-    : { ok: false, error: result.error }
+  const value = result.value as Record<string, unknown>
+  assertUsableInputNames(definition.id, Object.keys(value))
+  return { checked: inputs, valid: value, error: null }
 }
 
 /**
- * Renders the Widget's own component with validated inputs and a validating
- * `emit`.
- *
- * Memoized on the validated inputs so a handler-only change re-renders nothing
+ * Memoized on the validated inputs, so a handler-only change re-renders nothing
  * remote: the handler ref is updated outside React's data flow.
  */
-const WidgetBody = memo(function WidgetBody({
+const WidgetBody = memo(function RenderWidgetBody({
   definition,
   inputs,
   emit,
@@ -154,11 +117,10 @@ export function WidgetMount({
   consumerEvents,
   onInputRejected,
 }: WidgetMountProps): ReactNode {
-  const diagnostics: DiagnosticsHub = mount.runtime.diagnostics
+  const { diagnostics } = mount.runtime
 
-  // Latest committed handlers, read at delivery time. Assigning during render
-  // would publish callbacks from a render React may still abandon, so this is
-  // updated in an effect and the initial value seeds the ref.
+  // Assigning during render would publish callbacks from a render React may
+  // still abandon, so the ref is updated in an effect instead.
   const committedHandlers = useRef(handlers)
   useEffect(() => {
     committedHandlers.current = handlers
@@ -166,22 +128,16 @@ export function WidgetMount({
 
   // Validation state is React state, not a ref, and the comparison happens
   // during render using React's documented "adjust state when props change"
-  // pattern. Writing refs during render would be wrong here: React may discard
-  // a render, and under concurrent rendering the ref could then describe inputs
+  // pattern. Writing refs during render would be wrong here: React may discard a
+  // render, and under concurrent rendering the ref could then describe inputs
   // that were never committed.
-  //
-  // `checked` is the input set the current result belongs to. `valid` is the
-  // last input set that passed, which a rejected update deliberately leaves
-  // alone so the previous valid inputs stay rendered and the mount stays
-  // mounted.
   const [validation, setValidation] = useState(() => validateInto(definition, inputs, null))
 
   if (!Object.is(validation.checked, inputs) && !inputsEqual(validation.checked, inputs)) {
     setValidation(current => validateInto(definition, inputs, current.valid))
   }
 
-  // Reporting is a side effect, so it runs after commit rather than during
-  // render. An abandoned render must not reach the diagnostics sink.
+  // Reporting is a side effect: an abandoned render must not reach the sink.
   const reported = useRef<MfeError | null>(null)
   useEffect(() => {
     const { error } = validation
@@ -194,6 +150,8 @@ export function WidgetMount({
 
   const emit = useMemo(() => {
     const declared = definition.contract.events
+    const version =
+      definition.version === undefined ? {} : { definitionVersion: definition.version }
 
     return (event: string, payload: unknown): void => {
       const schema = declared[event]
@@ -203,7 +161,7 @@ export function WidgetMount({
         throw createMfeError({
           code: 'contract/event-mismatch',
           id: definition.id,
-          ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+          ...version,
           operation: `emit event '${event}'`,
           direction: 'event',
           expected: `one of the declared events (${Object.keys(declared).join(', ') || 'none'})`,
@@ -215,7 +173,7 @@ export function WidgetMount({
 
       const providerContext = {
         id: definition.id,
-        ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+        ...version,
         direction: 'event' as const,
         side: 'provider' as const,
         eventName: event,
@@ -228,37 +186,32 @@ export function WidgetMount({
       if (!validated.ok) throw validated.error
 
       // The consumer validates again only when it supplied a runtime contract.
-      // Without one it has no schema to check against, which is why contract-free
-      // consumption is documented as the weaker mode.
+      // Without one it has no schema to check against, which is why
+      // contract-free consumption is documented as the weaker mode.
       const consumerSchema = consumerEvents?.[event]
-      if (consumerSchema) {
-        const accepted = validateAgainstContract(consumerSchema, validated.value, {
-          id: definition.id,
-          ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-          direction: 'event',
-          side: 'consumer',
-          eventName: event,
-          note: 'The event was dropped and the handler was not called. The Widget mount is unaffected.',
-        })
-
-        if (!accepted.ok) {
-          diagnostics.report(accepted.error, { context: { widget: definition.id, event } })
-          return
-        }
-
-        committedHandlers.current[event]?.(accepted.value)
+      if (!consumerSchema) {
+        committedHandlers.current[event]?.(validated.value)
         return
       }
 
-      committedHandlers.current[event]?.(validated.value)
+      const accepted = validateAgainstContract(consumerSchema, validated.value, {
+        ...providerContext,
+        side: 'consumer',
+        note: 'The event was dropped and the handler was not called. The Widget mount is unaffected.',
+      })
+      if (!accepted.ok) {
+        diagnostics.report(accepted.error, { context: { widget: definition.id, event } })
+        return
+      }
+
+      committedHandlers.current[event]?.(accepted.value)
     }
   }, [definition, consumerEvents, diagnostics])
 
   const validInputs = validation.valid
   if (validInputs === null) {
-    // An invalid payload on the very first mount has nothing to fall back to,
-    // so the mount fails with the validation error itself rather than a generic
-    // one: the original names the field, the value and the repair.
+    // Nothing to fall back to on the very first mount, so the mount fails with
+    // the validation error itself: it names the field, the value and the repair.
     if (validation.error !== null) throw validation.error
 
     throw createMfeError({

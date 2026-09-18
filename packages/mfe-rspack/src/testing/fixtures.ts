@@ -1,9 +1,6 @@
 /**
- * Temporary container fixtures for the unit tests.
- *
- * Discovery, configuration reading and generation all work on real files, so
- * the tests give them real files. A fixture is a throwaway directory holding
- * exactly the sources a case needs.
+ * Temporary container fixtures. Discovery, configuration reading and generation
+ * all work on real files, so the tests give them real files.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -12,15 +9,10 @@ import { dirname, join } from 'node:path'
 
 const created: string[] = []
 
-export interface ContainerFixtureOptions {
-  /** Merged into the generated package.json. */
-  readonly manifest?: Record<string, unknown>
-}
-
 /** Writes a container into a temporary directory and returns its root. */
 export function createContainer(
   files: Readonly<Record<string, string>>,
-  options: ContainerFixtureOptions = {},
+  options: { readonly manifest?: Record<string, unknown> } = {},
 ): string {
   const root = mkdtempSync(join(tmpdir(), 'mfe-container-'))
   created.push(root)
@@ -41,7 +33,7 @@ export function createContainer(
   return root
 }
 
-export function writeContainerFile(root: string, path: string, contents: string): string {
+function writeContainerFile(root: string, path: string, contents: string): string {
   const file = join(root, path)
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, contents, 'utf8')

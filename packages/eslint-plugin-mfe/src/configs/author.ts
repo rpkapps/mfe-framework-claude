@@ -22,6 +22,7 @@ import {
   maintainability,
   mfePlugin,
   reactCorrectness,
+  resolveReactFiles,
   typeCheckedConfigs,
   testScopeOverrides,
   typeSafety,
@@ -52,6 +53,15 @@ export interface AuthorPresetOptions {
   /** Files the preset applies to. Defaults to every TypeScript file. */
   readonly files?: readonly string[] | undefined
   /**
+   * Files the React and React Compiler rules apply to. Defaults to `files`.
+   *
+   * Narrow it to the packages that actually contain React: a package without
+   * React gets false positives from any API whose name collides with a hook,
+   * and the repair is to stop applying React rules there rather than to
+   * suppress them one by one. Always intersected with `files`.
+   */
+  readonly reactFiles?: readonly string[] | undefined
+  /**
    * Widget-owned sources. `mfe/no-widget-global-effects` reports only inside
    * these globs; with none configured it is inert, because Widget ownership is
    * declared, never inferred from a file name.
@@ -73,6 +83,7 @@ export interface AuthorPresetOptions {
 /** Builds the `author` preset. */
 export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
   const files = options.files ?? TS_FILES
+  const reactFiles = resolveReactFiles(files, options.reactFiles)
   const routerFiles = options.routerFiles ?? DEFAULT_ROUTER_FILES
   const widgetScopes = options.widgetScopes ?? []
   const storageAllowedScopes = options.storageAllowedScopes ?? []
@@ -86,7 +97,7 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
     asyncCorrectness(files),
     typeSafety(files),
     maintainability(files),
-    ...reactCorrectness(files),
+    ...reactCorrectness(reactFiles),
     ...withFiles(asConfigs(queryPlugin.configs['flat/recommended']), files, 'mfe/tanstack-query'),
     // The router rules apply where router code lives, but never outside the
     // files the preset was asked to cover: that is where the parser is set.

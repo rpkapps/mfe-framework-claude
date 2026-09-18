@@ -1,14 +1,9 @@
 /**
- * Neutral records shared by the host and its adapters: commands,
- * breadcrumbs, shell state and the navigation bridge.
- *
- * They live in the core so the host can orchestrate them without knowing which
- * adapter produced them, and so a second adapter would need no new vocabulary.
+ * Neutral records shared by the host and its adapters: commands, breadcrumbs,
+ * shell state and the navigation bridge. They live here so the host can
+ * orchestrate them without knowing which adapter produced them, and a second
+ * adapter needs no new vocabulary.
  */
-
-/* -------------------------------------------------------------------------- */
-/* Commands                                                            */
-/* -------------------------------------------------------------------------- */
 
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
@@ -64,10 +59,6 @@ export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
   return true
 }
 
-/* -------------------------------------------------------------------------- */
-/* Breadcrumbs                                                         */
-/* -------------------------------------------------------------------------- */
-
 /** The identifier field is `key`; `id` stays reserved for definition identity. */
 export interface BreadcrumbItem {
   readonly key: string
@@ -76,7 +67,7 @@ export interface BreadcrumbItem {
   readonly current?: boolean
 }
 
-export function breadcrumbItemEqual(a: BreadcrumbItem, b: BreadcrumbItem): boolean {
+function breadcrumbItemEqual(a: BreadcrumbItem, b: BreadcrumbItem): boolean {
   return (
     a === b ||
     (a.key === b.key && a.label === b.label && a.href === b.href && a.current === b.current)
@@ -97,18 +88,6 @@ export function breadcrumbTrailEqual(
   return true
 }
 
-/** One definition's contribution to the composed trail. */
-export interface BreadcrumbContribution {
-  readonly definitionId: string
-  /** Depth in the mount tree; shell is 0, a top-level App 1, a nested App 2. */
-  readonly depth: number
-  readonly items: readonly BreadcrumbItem[]
-}
-
-/* -------------------------------------------------------------------------- */
-/* Shell state                                                          */
-/* -------------------------------------------------------------------------- */
-
 export interface ShellUser {
   readonly id: string
   readonly name: string
@@ -120,8 +99,8 @@ export interface ShellUser {
 export type ShellTheme = 'light' | 'dark'
 
 /**
- * Data for rendering and UX decisions — explicitly not an authorization API
- *. The host and backend remain responsible for authorization.
+ * Data for rendering and UX decisions — explicitly not an authorization API.
+ * The host and backend remain responsible for authorization.
  */
 export interface ShellState {
   readonly user: ShellUser | null
@@ -130,19 +109,15 @@ export interface ShellState {
 }
 
 /**
- * Why shell state changed. The host uses this to decide what to invalidate:
- * a theme change must not reload data, while an identity or semantic group
- * change must retire session-dependent work and persisted state.
+ * Why shell state changed. The host uses this to decide what to invalidate: a
+ * theme change must not reload data, while an identity or group change must
+ * retire session-dependent work and persisted state.
  */
 export type ShellTransition =
   | { readonly kind: 'theme' }
   | { readonly kind: 'token-refresh' }
   | { readonly kind: 'identity'; readonly reason: 'login' | 'logout' | 'account' | 'tenant' }
   | { readonly kind: 'groups' }
-
-/* -------------------------------------------------------------------------- */
-/* Navigation bridge                                                    */
-/* -------------------------------------------------------------------------- */
 
 export interface BoundaryLocation {
   readonly pathname: string
@@ -152,15 +127,14 @@ export interface BoundaryLocation {
 
 /**
  * The narrow internal bridge the shell provides at an App boundary. It is not
- * part of the author API and must never be implemented as a global History
- * patch.
+ * part of the author API and must never be implemented as a global History patch.
  */
 export interface NavigationBridge {
   read(): BoundaryLocation
   /**
    * The opaque state stored with the current entry. The boundary history keeps
-   * its own bookkeeping there so browser back and forward can be distinguished
-   * from each other without inspecting `window.history` directly.
+   * its own bookkeeping there so browser back and forward can be told apart
+   * without inspecting `window.history` directly.
    */
   readState?(): unknown
   subscribe(listener: (location: BoundaryLocation) => void): () => void
@@ -175,8 +149,7 @@ export interface NavigationBridge {
 
 /**
  * A mount's answer when a navigation would leave or remove it. Blocking is
- * decided by the MFE through TanStack's native blocker; the bridge only asks
- *.
+ * decided by the MFE through TanStack's native blocker; the bridge only asks.
  */
 export interface NavigationIntent {
   readonly from: BoundaryLocation

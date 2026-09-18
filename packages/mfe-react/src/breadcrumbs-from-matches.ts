@@ -1,11 +1,9 @@
 /**
  * Derives an App's breadcrumb contribution from its native router matches.
  *
- * Authors do not create route wrappers to contribute a breadcrumb: the adapter
- * reads the match tree the router already maintains. Label resolution is a
- * fixed order, not an inference over arbitrary loader data — guessing labels
- * from whatever fields a loader happens to return is exactly the kind of magic
- * that makes a trail change for reasons nobody can explain.
+ * Label resolution is a fixed order, not an inference over arbitrary loader
+ * data: guessing labels from whatever fields a loader happens to return is what
+ * makes a trail change for reasons nobody can explain.
  */
 
 import type { BreadcrumbItem } from '@company/mfe-core'
@@ -27,11 +25,8 @@ export interface BreadcrumbMatch {
 /** Parameters whose names carry no meaning worth showing to a user. */
 const GENERIC_PARAM_NAMES = new Set(['id', '_splat', '*'])
 
-/**
- * Turns `asset-reports` or `assetReports` into `Asset reports`. Only used as a
- * last resort, after explicit labels and title metadata.
- */
-export function humanize(segment: string): string {
+/** `asset-reports` or `assetReports` becomes `Asset reports`. Last resort only. */
+function humanize(segment: string): string {
   const spaced = segment
     .replace(/[-_]+/g, ' ')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -72,9 +67,7 @@ function resolveLabel(match: BreadcrumbMatch): string | null {
 }
 
 /**
- * Composes one App's contribution, parent to child.
- *
- * The deepest contributing match is marked `current`. Items are frozen so the
+ * Composes one App's contribution, parent to child. Items are frozen so the
  * store can compare them by content and keep unchanged records by reference.
  */
 export function breadcrumbsFromMatches(
@@ -88,19 +81,12 @@ export function breadcrumbsFromMatches(
     const label = resolveLabel(match)
     if (label === null) continue
 
-    items.push(
-      Object.freeze({
-        key: match.id,
-        label,
-        href: match.pathname,
-      }),
-    )
+    items.push(Object.freeze({ key: match.id, label, href: match.pathname }))
   }
 
+  // The deepest contributing match is the current one.
   const last = items[items.length - 1]
-  if (last) {
-    items[items.length - 1] = Object.freeze({ ...last, current: true })
-  }
+  if (last) items[items.length - 1] = Object.freeze({ ...last, current: true })
 
   return Object.freeze(items)
 }

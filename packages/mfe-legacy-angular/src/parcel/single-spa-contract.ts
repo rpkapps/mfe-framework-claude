@@ -1,21 +1,14 @@
 /**
- * The single-spa parcel contract, expressed structurally.
- *
- * This package is the only one that may know this contract exists. It is
- * described here as plain interfaces rather than imported, for two reasons:
- * the shapes are what the legacy containers actually export, and a structural
- * description lets every test drive the lifecycle with a double instead of a
- * real single-spa runtime, a real Angular app or a bundler.
- *
- * `single-spa` may be installed alongside as an optional peer; nothing in this
- * package imports it.
+ * The single-spa parcel contract as plain interfaces rather than an import:
+ * these are the shapes the legacy containers actually export, and a structural
+ * description lets every test drive the lifecycle without single-spa, Angular
+ * or a bundler. Nothing in this package imports or depends on `single-spa`.
  */
 
 /** The props single-spa passes through every parcel lifecycle call. */
 export interface LegacyParcelProps {
   /** The element the legacy app renders into. Owned by the shell. */
   readonly domElement: HTMLElement
-  /** The activity name, which is the legacy registry name. */
   readonly name?: string
   /** The base href single-spa supplies. One of the two documented seams. */
   readonly baseHref?: string
@@ -23,16 +16,14 @@ export interface LegacyParcelProps {
 }
 
 /**
- * single-spa expects a lifecycle to return a promise. The return type stays
- * loose because a legacy lifecycle that forgets one still has to be awaited
- * rather than rejected at the type level.
+ * The return type stays loose because a legacy lifecycle that forgets its
+ * promise still has to be awaited rather than rejected at the type level.
  */
 export type LegacyLifecycleFn = (props: LegacyParcelProps) => Promise<unknown> | void
 
 /**
- * What `<name>/single-spa-app` exports. single-spa allows a lifecycle to be a
- * single function or an array of them, and the legacy Angular helper emits
- * arrays, so both are accepted.
+ * What `<name>/single-spa-app` exports. single-spa allows a lifecycle to be one
+ * function or an array of them, and the legacy Angular helper emits arrays.
  */
 export interface LegacyParcelConfig {
   readonly bootstrap: LegacyLifecycleFn | readonly LegacyLifecycleFn[]
@@ -58,20 +49,13 @@ function isLifecycle(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'function')
 }
 
-/** Structural check for a module that can be mounted as a parcel. */
-export function isLegacyParcelConfig(value: unknown): value is LegacyParcelConfig {
-  if (value === null || typeof value !== 'object') return false
-  const candidate = value as Record<string, unknown>
-  return (
-    isLifecycle(candidate['bootstrap']) &&
-    isLifecycle(candidate['mount']) &&
-    isLifecycle(candidate['unmount'])
-  )
-}
-
 /** Names the lifecycles a module is missing, for a diagnostic worth reading. */
 export function missingParcelLifecycles(value: unknown): readonly string[] {
   if (value === null || typeof value !== 'object') return ['bootstrap', 'mount', 'unmount']
   const candidate = value as Record<string, unknown>
   return ['bootstrap', 'mount', 'unmount'].filter(name => !isLifecycle(candidate[name]))
+}
+
+export function isLegacyParcelConfig(value: unknown): value is LegacyParcelConfig {
+  return missingParcelLifecycles(value).length === 0
 }

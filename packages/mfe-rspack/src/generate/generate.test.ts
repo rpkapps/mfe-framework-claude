@@ -46,7 +46,9 @@ function planFixture(files: Readonly<Record<string, string>>, manifest?: Record<
     const target = join(root, '.mfe', relativePath)
     const generated = plan.generated.files.find(file => file.path === target)
     if (generated === undefined) {
-      throw new Error(`no generated file at ${relativePath}: ${plan.generated.files.map(f => f.path).join(', ')}`)
+      throw new Error(
+        `no generated file at ${relativePath}: ${plan.generated.files.map(f => f.path).join(', ')}`,
+      )
     }
     return generated.contents
   }
@@ -66,7 +68,6 @@ describe('generated inventory', () => {
     expect(names).toEqual([
       '.mfe/.env.example',
       '.mfe/.gitignore',
-      '.mfe/asset-base.ts',
       '.mfe/config.ts',
       '.mfe/entries/app.ts',
       '.mfe/fetch.ts',
@@ -117,7 +118,7 @@ describe('#mfe/config', () => {
     const source = fileFor('config.ts')
 
     expect(source).toContain("Application code imports this module as '#mfe/config'")
-    expect(source).toContain("assetUrl('runtime-config.json')")
+    expect(source).toContain("new URL('runtime-config.json', new URL(assetBase, documentBase)).href")
     expect(source).toContain("'config/missing'")
     expect(source).toContain("'config/unreachable'")
     expect(source).toContain("'config/invalid'")
@@ -159,7 +160,7 @@ describe('#mfe/fetch', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
     const source = fileFor('fetch.ts')
 
-    expect(source).toContain('config.apiBaseUrl,')
+    expect(source).toContain('new URL(config.apiBaseUrl).origin,')
     expect(source).not.toContain('config.oidcIssuer')
   })
 
@@ -287,7 +288,7 @@ describe('.env.example', () => {
     expect(example).toContain('MODE=\n')
     expect(example).toContain('# Required.')
     expect(example).toContain('# Optional. Defaults to 25.')
-    expect(example).toContain('authentication allowlist')
+    expect(example).toContain("container's authentication allowlist")
     expect(example).not.toMatch(/=\S/)
   })
 })

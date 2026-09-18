@@ -154,6 +154,24 @@ describe('framework preset, linting real files', () => {
     // test copy gets the scoped exceptions, which is what makes them scoped.
     'packages/mfe-host/src/service.ts': SERVICE_SOURCE,
     'packages/mfe-host/src/service.test.ts': SERVICE_SOURCE,
+    // A package with no React in it, whose bundler helper happens to be named
+    // `use` — the loader key in an Rspack module rule. React's own rules read
+    // any call to a function named `use` as the `use()` hook.
+    'packages/mfe-rspack/src/plugin.ts': [
+      'interface ModuleRule {',
+      '  test: RegExp',
+      '  use: readonly string[]',
+      '}',
+      '',
+      'export function applyReactCompiler(rules: ModuleRule[]): void {',
+      '  const use = (jsx: boolean): readonly string[] =>',
+      "    jsx ? ['babel-loader', 'jsx-loader'] : ['babel-loader']",
+      '',
+      '  rules.push({ test: /\\.tsx$/, use: use(true) })',
+      '  rules.push({ test: /\\.ts$/, use: use(false) })',
+      '}',
+      '',
+    ].join('\n'),
     'packages/mfe-host/src/clean.ts': [
       'export function add(left: number, right: number): number {',
       '  return left + right',
@@ -217,6 +235,39 @@ describe('framework preset, linting real files', () => {
     expect(ruleIds).not.toContain('@typescript-eslint/no-non-null-assertion')
     // The rules that find real defects in a test are still on there.
     expect(ruleIds).toContain('@typescript-eslint/no-floating-promises')
+  })
+
+  it('applies the React rules everywhere by default, hook-shaped API and all', async () => {
+    const { results } = await lint(root, preset)
+    const plugin = results.find(result => result.filePath.endsWith('rspack/src/plugin.ts'))
+    const ruleIds = (plugin?.messages ?? []).map(message => message.ruleId)
+    // `rule.use(...)` is not a hook, but by default React rules apply here.
+    expect(ruleIds).toContain('react-hooks/rules-of-hooks')
+  })
+
+  it('stops linting a non-React package with React rules when reactFiles is narrowed', async () => {
+    const narrowed = framework({
+      tsconfigRootDir: root,
+      files: ['packages/*/src/**/*.{ts,tsx}'],
+      reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}'],
+    })
+    const { results, fatal } = await lint(root, narrowed)
+    expect(fatal).toEqual([])
+
+    const plugin = results.find(result => result.filePath.endsWith('rspack/src/plugin.ts'))
+    const pluginRules = (plugin?.messages ?? []).map(message => message.ruleId ?? '')
+    expect(pluginRules.filter(ruleId => ruleId.startsWith('react-hooks/'))).toEqual([])
+
+    // The React package still gets them, and the rest of the preset still
+    // applies to the non-React package.
+    const react = results.find(result => result.filePath.endsWith('mfe-react/src/use-thing.ts'))
+    expect((react?.messages ?? []).map(message => message.ruleId)).toContain(
+      'react-hooks/rules-of-hooks',
+    )
+    const host = results.find(result => result.filePath.endsWith('mfe-host/src/boot.ts'))
+    expect((host?.messages ?? []).map(message => message.ruleId)).toContain(
+      '@typescript-eslint/no-floating-promises',
+    )
   })
 
   it('applies those same rules normally outside test scope', async () => {

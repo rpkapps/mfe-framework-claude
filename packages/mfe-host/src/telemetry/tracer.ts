@@ -1,26 +1,18 @@
 /**
  * The framework-owned tracer and span.
  *
- * The shapes follow OpenTelemetry's tracing conventions, but nothing here
- * imports or re-exports a vendor package: a boundary check enforces that, and
- * author bundles must never resolve an OTel or Faro module.
- *
- * The provider's tracer is the sink, not the brain. The host owns span
+ * The provider's tracer is the sink, not the brain: the host owns span
  * identity, parentage and the active context, and passes the resolved ids down
- * as host-reserved attributes (`mfe.trace.id`, `mfe.span.id`,
- * `mfe.span.parent_id`). That is deliberate: the provider seam has no way to
- * express "start this span under that parent", and asking a provider to infer
- * parentage from its own callback nesting would break the moment an `await`
- * ended the synchronous region. Because the ids travel on the record, a shell
- * adapter can rebuild the tree from a single span, and the host never calls the
- * provider's own `startActiveSpan`.
+ * as reserved attributes so a shell adapter can rebuild the tree from a single
+ * record. The provider seam cannot express "start this span under that parent",
+ * and provider-side callback nesting breaks at the first `await`. No vendor
+ * package is imported here; a boundary check enforces that.
  */
 
 import {
   boundAttributes,
   boundName,
   SpanKind,
-  SpanStatusCode,
   TELEMETRY_LIMITS,
   type Span,
   type SpanOptions,
@@ -31,12 +23,31 @@ import {
 
 import { isReservedAttributeKey, RESERVED_ATTRIBUTE_KEYS } from './attribution.ts'
 import { getActiveSpanContextFor, runWithSpanContext, type ActiveSpanContext } from './context.ts'
-import { createSpanId, createTraceId } from './ids.ts'
 import { nonRecordingSpan } from './non-recording.ts'
 import type { MountTelemetryRuntime } from './runtime.ts'
 
 /** How a span that outlived its mount is labelled. Never an error status. */
 const CANCELLATION_REASON = 'mount-disposed'
+
+/**
+ * OpenTelemetry's id shapes (128-bit trace id, 64-bit span id, lowercase hex)
+ * are a wire convention, not a vendor API, so mirroring them keeps a shell
+ * adapter's translation trivial without importing `@opentelemetry/*`.
+ */
+function randomHex(byteCount: number): string {
+  const bytes = new Uint8Array(byteCount)
+  const source: Crypto | undefined = globalThis.crypto
+  if (source !== undefined && typeof source.getRandomValues === 'function') {
+    source.getRandomValues(bytes)
+  } else {
+    // Ids only need to be unique inside one page session, never unguessable, so
+    // a weaker source degrades correlation quality and nothing else.
+    for (let index = 0; index < byteCount; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+  }
+  let hex = ''
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, '0')
+  return hex
+}
 
 class MountSpan implements Span {
   readonly traceId: string
@@ -62,11 +73,6 @@ class MountSpan implements Span {
     this.name = identity.name
   }
 
-  /** True once the span has been ended, whether by the author or by disposal. */
-  get ended(): boolean {
-    return this.#ended
-  }
-
   #refuseAfterEnd(operation: string): boolean {
     if (!this.#ended) return false
     this.#runtime.counters.mutationsAfterEnd += 1
@@ -79,6 +85,13 @@ class MountSpan implements Span {
         'Move the call before end(), or start a new span. The change was ignored so a closed span cannot be rewritten.',
     })
     return true
+  }
+
+  /** Forwards to the provider's span under containment, when there still is one. */
+  #forward(operation: string, call: (inner: Span) => unknown): this {
+    const inner = this.#inner
+    if (inner !== undefined) this.#runtime.safeProviderCall(operation, () => call(inner))
+    return this
   }
 
   setAttribute(key: string, value: string | number | boolean): Span {
@@ -94,8 +107,7 @@ class MountSpan implements Span {
       })
       return this
     }
-    const bounded = boundAttributes({ [key]: value })
-    const boundedValue = bounded[key]
+    const boundedValue = boundAttributes({ [key]: value })[key]
     if (boundedValue === undefined) {
       this.#runtime.diagnose({
         code: 'contract/input-mismatch',
@@ -106,80 +118,49 @@ class MountSpan implements Span {
       })
       return this
     }
-    const inner = this.#inner
-    if (inner !== undefined) {
-      this.#runtime.safeProviderCall('set a span attribute', () =>
-        inner.setAttribute(key, boundedValue),
-      )
-    }
-    return this
+    return this.#forward('set a span attribute', inner => inner.setAttribute(key, boundedValue))
   }
 
   setAttributes(attributes: TelemetryAttributes): Span {
     if (this.#refuseAfterEnd('set span attributes')) return this
-    const merged = this.#runtime.mergeAttributes(attributes, 'set span attributes')
     // Reserved attribution is already on the span from creation; re-sending it
     // would be noise, so only the author's own clamped keys go down.
     const authored: Record<string, string | number | boolean> = {}
-    for (const [key, value] of Object.entries(merged)) {
+    for (const [key, value] of Object.entries(
+      this.#runtime.mergeAttributes(attributes, 'set span attributes'),
+    )) {
       if (!isReservedAttributeKey(key)) authored[key] = value
     }
-    const inner = this.#inner
-    if (inner !== undefined && Object.keys(authored).length > 0) {
-      this.#runtime.safeProviderCall('set span attributes', () =>
-        inner.setAttributes(Object.freeze(authored)),
-      )
-    }
-    return this
+    if (Object.keys(authored).length === 0) return this
+    return this.#forward('set span attributes', inner => inner.setAttributes(Object.freeze(authored)))
   }
 
   addEvent(name: string, attributes?: TelemetryAttributes): Span {
     if (this.#refuseAfterEnd('add a span event')) return this
-    const inner = this.#inner
-    if (inner !== undefined) {
-      const bounded = boundAttributes(attributes)
-      this.#runtime.safeProviderCall('add a span event', () =>
-        inner.addEvent(boundName(name), bounded),
-      )
-    }
-    return this
+    const bounded = boundAttributes(attributes)
+    return this.#forward('add a span event', inner => inner.addEvent(boundName(name), bounded))
   }
 
   setStatus(status: SpanStatus): Span {
     if (this.#refuseAfterEnd('set a span status')) return this
-    const inner = this.#inner
-    if (inner !== undefined) {
-      const bounded: SpanStatus = {
-        code: status.code,
-        ...(status.message === undefined ? {} : { message: boundName(status.message) }),
-      }
-      this.#runtime.safeProviderCall('set a span status', () => inner.setStatus(bounded))
+    const bounded: SpanStatus = {
+      code: status.code,
+      ...(status.message === undefined ? {} : { message: boundName(status.message) }),
     }
-    return this
+    return this.#forward('set a span status', inner => inner.setStatus(bounded))
   }
 
   recordException(error: unknown, attributes?: TelemetryAttributes): Span {
     if (this.#refuseAfterEnd('record a span exception')) return this
-    const inner = this.#inner
-    if (inner !== undefined) {
-      const bounded = boundAttributes(attributes)
-      this.#runtime.safeProviderCall('record a span exception', () =>
-        inner.recordException(error, bounded),
-      )
-    }
-    return this
+    const bounded = boundAttributes(attributes)
+    return this.#forward('record a span exception', inner => inner.recordException(error, bounded))
   }
 
   /** Repeated calls are harmless: the first one wins and the rest do nothing. */
   end(endTime?: number): void {
     if (this.#ended) return
-    this.#ended = true
     this.#tracer.releaseSpan(this)
-    const inner = this.#inner
-    this.#inner = undefined
-    if (inner !== undefined) {
-      this.#runtime.safeProviderCall('end a span', () => inner.end(endTime))
-    }
+    this.#close('end a span', endTime)
   }
 
   isRecording(): boolean {
@@ -187,35 +168,31 @@ class MountSpan implements Span {
   }
 
   /**
-   * Disposal finalization for a span the author forgot. It is marked as
-   * cancelled and closed, and its status is left exactly as the author left it:
-   * a mount going away is not a failure of the work the span described, and
-   * turning it into an error status would invent alerts.
+   * Disposal finalization for a span the author forgot. Its status is left
+   * exactly as the author left it: a mount going away is not a failure of the
+   * work the span described, and an error status would invent alerts.
    */
   finalizeCancelled(endTime: number): void {
     if (this.#ended) return
+    this.#forward('finalize a cancelled span', inner =>
+      inner.setAttributes(
+        Object.freeze({
+          [RESERVED_ATTRIBUTE_KEYS.cancelled]: true,
+          [RESERVED_ATTRIBUTE_KEYS.endReason]: CANCELLATION_REASON,
+        }),
+      ),
+    )
+    this.#close('finalize a cancelled span', endTime)
+  }
+
+  #close(operation: string, endTime: number | undefined): void {
     const inner = this.#inner
-    if (inner !== undefined) {
-      this.#runtime.safeProviderCall('finalize a cancelled span', () =>
-        inner.setAttributes(
-          Object.freeze({
-            [RESERVED_ATTRIBUTE_KEYS.cancelled]: true,
-            [RESERVED_ATTRIBUTE_KEYS.endReason]: CANCELLATION_REASON,
-          }),
-        ),
-      )
-    }
     this.#ended = true
     this.#inner = undefined
     if (inner !== undefined) {
-      this.#runtime.safeProviderCall('finalize a cancelled span', () => inner.end(endTime))
+      this.#runtime.safeProviderCall(operation, () => inner.end(endTime))
     }
   }
-}
-
-export interface MountTracerOptions {
-  /** False turns tracing off entirely: the provider is never asked for a tracer. */
-  readonly enabled: boolean
 }
 
 export class MountTracer implements Tracer {
@@ -224,7 +201,7 @@ export class MountTracer implements Tracer {
   readonly #open = new Set<MountSpan>()
   #inner: Tracer | undefined
 
-  constructor(runtime: MountTelemetryRuntime, options: MountTracerOptions) {
+  constructor(runtime: MountTelemetryRuntime, options: { readonly enabled: boolean }) {
     this.#runtime = runtime
     if (!options.enabled) return
     // A provider that throws while building its tracer disables tracing for the
@@ -236,11 +213,6 @@ export class MountTracer implements Tracer {
 
   get openSpanCount(): number {
     return this.#open.size
-  }
-
-  /** Names of the spans still open, for a disposal diagnostic. */
-  get openSpanNames(): readonly string[] {
-    return [...this.#open].map(span => span.name)
   }
 
   releaseSpan(span: MountSpan): void {
@@ -269,26 +241,23 @@ export class MountTracer implements Tracer {
     // mount's context is visible in the same slot but belongs to someone else,
     // so it is ignored and the span becomes a root instead of a wrong child.
     const parent = getActiveSpanContextFor(this.#runtime.owner)
-    const traceId = parent?.traceId ?? createTraceId()
-    const spanId = createSpanId()
+    const traceId = parent?.traceId ?? randomHex(16)
+    const spanId = randomHex(8)
     const spanName = boundName(name)
 
-    const authored = this.#runtime.mergeAttributes(options?.attributes, 'start a span')
     const attributes: TelemetryAttributes = Object.freeze({
-      ...authored,
+      ...this.#runtime.mergeAttributes(options?.attributes, 'start a span'),
       [RESERVED_ATTRIBUTE_KEYS.traceId]: traceId,
       [RESERVED_ATTRIBUTE_KEYS.spanId]: spanId,
       ...(parent === undefined ? {} : { [RESERVED_ATTRIBUTE_KEYS.parentSpanId]: parent.spanId }),
     })
 
-    const innerOptions: SpanOptions = {
-      kind: options?.kind ?? SpanKind.INTERNAL,
-      attributes,
-      ...(options?.startTime === undefined ? {} : { startTime: options.startTime }),
-    }
-
     const innerSpan = this.#runtime.safeProviderCall('start a span', () =>
-      inner.startSpan(spanName, innerOptions),
+      inner.startSpan(spanName, {
+        kind: options?.kind ?? SpanKind.INTERNAL,
+        attributes,
+        ...(options?.startTime === undefined ? {} : { startTime: options.startTime }),
+      }),
     )
     if (innerSpan === undefined) return nonRecordingSpan
 
@@ -323,13 +292,10 @@ export class MountTracer implements Tracer {
 
     const span = options === undefined ? this.startSpan(name) : this.startSpan(name, options)
 
-    if (!(span instanceof MountSpan)) {
-      // A non-recording handle carries no id to parent anything to. The ambient
-      // context is left untouched so the surrounding span - if there is one -
-      // keeps adopting the children created inside, instead of a silent gap.
-      // The callback still runs exactly once and its result is untouched.
-      return callback(span)
-    }
+    // A non-recording handle carries no id to parent anything to. The ambient
+    // context is left untouched so a surrounding span keeps adopting children
+    // created inside, instead of leaving a silent gap.
+    if (!(span instanceof MountSpan)) return callback(span)
 
     const context: ActiveSpanContext = {
       owner: this.#runtime.owner,
@@ -350,20 +316,14 @@ export class MountTracer implements Tracer {
    * development diagnostic.
    */
   finalizeOpenSpans(): { readonly finalized: number; readonly names: readonly string[] } {
-    if (this.#open.size === 0) {
-      this.#inner = undefined
-      return { finalized: 0, names: [] }
-    }
     const open = [...this.#open]
-    const names = open.map(span => span.name)
     this.#open.clear()
+    this.#inner = undefined
+    if (open.length === 0) return { finalized: 0, names: [] }
+
     const endTime = this.#runtime.now()
     for (const span of open) span.finalizeCancelled(endTime)
     this.#runtime.counters.spansFinalizedAtDisposal += open.length
-    this.#inner = undefined
-    return { finalized: open.length, names }
+    return { finalized: open.length, names: open.map(span => span.name) }
   }
 }
-
-/** Exposed for tests that assert on the neutral status default. */
-export const UNSET_STATUS: SpanStatus = Object.freeze({ code: SpanStatusCode.UNSET })

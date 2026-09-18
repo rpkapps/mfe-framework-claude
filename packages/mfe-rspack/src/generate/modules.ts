@@ -1,11 +1,7 @@
 /**
- * The generated modules.
- *
- * Three of them are aliases an author imports — `#mfe/config`, `#mfe/fetch` and
- * `#mfe/meta`. The rest are build artifacts: the Module Federation entry
- * modules, the per-Widget contract entry points and the asset-base helper.
- * Nothing outside the three aliases is a public name, and nothing here is
- * hand-imported by path.
+ * The generated modules. Three are aliases an author imports — `#mfe/config`,
+ * `#mfe/fetch`, `#mfe/meta`. The rest are build artifacts: the Module
+ * Federation entries and the per-Widget contract entry points.
  */
 
 import { FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
@@ -31,32 +27,24 @@ export interface GenerateContext {
   readonly configSource: ConfigSource | undefined
 }
 
-/** The alias every author-facing generated module is imported as. */
 export const ALIASES = {
   config: '#mfe/config',
   fetch: '#mfe/fetch',
   meta: '#mfe/meta',
 } as const
 
-/* -------------------------------------------------------------------------- */
-/* #mfe/config                                                                 */
-/* -------------------------------------------------------------------------- */
 
 /**
- * The validated, typed configuration module.
- *
- * It loads `runtime-config.json` — values only, no envelope — applies the
- * schema defaults the author declared, validates, and freezes the result. Every
- * failure path throws before the top-level await resolves, so an importer never
- * observes a half-configured container, and there is no code path that
- * substitutes an empty object.
+ * Loads `runtime-config.json` — values only, no envelope — applies the schema
+ * defaults the author declared, validates and freezes. Every failure throws
+ * before the top-level await resolves, so an importer never observes a
+ * half-configured container and nothing substitutes an empty object.
  */
 export function configModule(context: GenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
 
   const file = generatedPath(context.options.generatedDir, 'config.ts')
-  const descriptorSpecifier = relativeSpecifier(file, source.file)
 
   const fieldRows = source.fields.map(
     field =>
@@ -65,9 +53,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
       )} },`,
   )
   const fieldUnion =
-    source.fields.length === 0
-      ? 'never'
-      : source.fields.map(field => quote(field.field)).join(' | ')
+    source.fields.length === 0 ? 'never' : source.fields.map(field => quote(field.field)).join(' | ')
 
   return {
     path: file,
@@ -76,8 +62,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
       [
         "import type { InferEnvConfig } from '@company/mfe-rspack'",
         '',
-        `import descriptors from ${quote(descriptorSpecifier)}`,
-        "import { assetUrl } from './asset-base.ts'",
+        `import descriptors from ${quote(relativeSpecifier(file, source.file))}`,
       ].join('\n'),
       [
         '/**',
@@ -86,9 +71,20 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
         ' */',
         'export type MfeConfig = InferEnvConfig<typeof descriptors>',
       ].join('\n'),
+      'declare const __webpack_public_path__: string | undefined',
       [
+        '// `output.publicPath: auto` resolves this to the deployed container, which is',
+        '// what the configuration file sits next to. Resolving against the shell',
+        '// document instead would break as soon as the two were served from different',
+        '// paths.',
+        'const publicPath = __webpack_public_path__',
+        "const assetBase = typeof publicPath === 'string' && publicPath !== '' ? publicPath : './'",
+        "const documentBase = typeof document === 'undefined' ? assetBase : document.baseURI",
+        '',
         `const CONTAINER_ID = ${quote(containerId(context))}`,
-        `const CONFIG_URL = assetUrl(${quote(context.options.runtimeConfigFileName)})`,
+        `const CONFIG_URL = new URL(${quote(
+          context.options.runtimeConfigFileName,
+        )}, new URL(assetBase, documentBase)).href`,
       ].join('\n'),
       [
         'interface FieldSpec {',
@@ -107,11 +103,9 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
       [
         '/**',
         ' * Loaded once per deployed container and shared by every definition it',
-        ' * exports. The snapshot is immutable: changing a value takes a new deployment',
-        ' * and a page reload, and nothing polls for changes.',
-        ' *',
-        ' * The await is at the top level on purpose. No module that imports this one',
-        ' * can run before the configuration has been loaded and validated.',
+        ' * exports. An immutable snapshot: changing a value takes a new deployment and',
+        ' * a page reload, and nothing polls. The await is at the top level on purpose,',
+        ' * so no module that imports this one runs before validation has passed.',
         ' */',
         'export const config: MfeConfig = validate(await readValues())',
         '',
@@ -122,10 +116,8 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
 }
 
 const CONFIG_ERROR_CLASS = [
-  '/**',
-  ' * Carries the same fields as a framework error without importing one, so this',
-  ' * module resolves with nothing but the zod the container already has.',
-  ' */',
+  '// Carries the same fields as a framework error without importing one, so this',
+  '// module resolves with nothing the container does not already have.',
   'class MfeConfigError extends Error {',
   '  readonly code: string',
   '  readonly id: string',
@@ -241,7 +233,7 @@ const CONFIG_VALIDATE = [
   '        `validate ${spec.field}`,',
   '        spec.expected,',
   "        issue === undefined ? 'a value the schema rejected' : issue.message,",
-  '        `Set ${spec.envVar} in the deployment that writes this container runtime configuration, then reload the page.`,',
+  "        `Set ${spec.envVar} in the deployment that writes this container's runtime configuration, then reload the page.`,",
   '      )',
   '    }',
   '    parsed[spec.field] = result.data',
@@ -251,29 +243,22 @@ const CONFIG_VALIDATE = [
   '}',
 ].join('\n')
 
-/* -------------------------------------------------------------------------- */
-/* #mfe/fetch                                                                  */
-/* -------------------------------------------------------------------------- */
 
 /**
- * The authenticated `fetch` and `getAccessToken`, bound to the origins this
- * container declared. Importing a bound function is the whole point: the global
- * `fetch` is never replaced, so nothing a container does here changes what the
- * shell or another container observes when it calls `fetch`.
+ * Importing a bound fetch is the whole point: the global one is never replaced,
+ * so nothing a container does here changes what the shell or another container
+ * observes when it calls `fetch`.
  */
 export function fetchModule(context: GenerateContext): GeneratedFile {
-  const file = generatedPath(context.options.generatedDir, 'fetch.ts')
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
 
-  const originExpression =
+  const origins =
     apiFields.length === 0
       ? '[]'
-      : ['[', ...apiFields.map(field => `    config.${field.field},`), '  ].map(value => new URL(value).origin)'].join(
-          '\n',
-        )
+      : ['[', ...apiFields.map(field => `  new URL(config.${field.field}).origin,`), ']'].join('\n')
 
   return {
-    path: file,
+    path: generatedPath(context.options.generatedDir, 'fetch.ts'),
     contents: joinBlocks([
       banner(ALIASES.fetch),
       [
@@ -282,24 +267,17 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
       ].join('\n'),
       `const CONTAINER_ID = ${quote(containerId(context))}`,
       [
-        '/**',
-        ' * The origins this container declared with env(…, { api: true }). A request to',
-        ' * any other origin is refused rather than sent without a token.',
-        ' */',
-        `export const apiOrigins: readonly string[] = Object.freeze(${originExpression})`,
+        '// The origins declared with env(…, { api: true }). A request to any other',
+        '// origin is refused rather than sent without a token.',
+        `export const apiOrigins: readonly string[] = Object.freeze(${origins})`,
       ].join('\n'),
       'const binding = Object.freeze({ id: CONTAINER_ID, origins: apiOrigins })',
       [
-        '/**',
-        ' * The authenticated fetch for this container: a value you import, never a',
-        ' * replacement for the global one.',
-        ' */',
         'const authenticatedFetch = createAuthenticatedFetch(binding)',
         '',
         'export { authenticatedFetch as fetch }',
       ].join('\n'),
       [
-        '/** The access token for one declared origin, for callers that need it directly. */',
         "export function getAccessToken(origin: string = apiOrigins[0] ?? ''): Promise<string> {",
         '  return requestAccessToken({ ...binding, origin })',
         '}',
@@ -308,14 +286,10 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* #mfe/meta                                                                   */
-/* -------------------------------------------------------------------------- */
 
 export function metaModule(context: GenerateContext, buildHash: string): GeneratedFile {
   const rows = context.discovery.definitions.map(definition => {
-    const version =
-      definition.version === undefined ? '' : `, version: ${quote(definition.version)}`
+    const version = definition.version === undefined ? '' : `, version: ${quote(definition.version)}`
     return `  { id: ${quote(definition.id)}, kind: ${quote(definition.kind)}${version} },`
   })
 
@@ -324,7 +298,6 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
     contents: joinBlocks([
       banner(ALIASES.meta),
       [
-        '/** One record per definition this container exports. */',
         'export interface DefinitionMeta {',
         '  readonly id: string',
         "  readonly kind: 'app' | 'widget'",
@@ -337,7 +310,6 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
         '',
         `export const buildTime = ${quote(context.options.buildTime)}`,
         '',
-        '/** The framework contract major this container was built against. */',
         `export const contractMajor = ${String(FRAMEWORK_CONTRACT_MAJOR)}`,
       ].join('\n'),
       ['export const definitions: readonly DefinitionMeta[] = Object.freeze([', ...rows, '])'].join(
@@ -347,56 +319,13 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Asset base                                                                  */
-/* -------------------------------------------------------------------------- */
 
-/**
- * Container-relative asset resolution.
- *
- * `output.publicPath: 'auto'` makes the bundler resolve the container's own
- * script URL at runtime, and that is the base every asset the container ships
- * is relative to. Resolving against the shell document instead would break the
- * moment the shell was served from a different path than the container.
- */
-export function assetBaseModule(context: GenerateContext): GeneratedFile {
-  return {
-    path: generatedPath(context.options.generatedDir, 'asset-base.ts'),
-    contents: joinBlocks([
-      banner(),
-      'declare const __webpack_public_path__: string | undefined',
-      [
-        "/** The deployed container's asset base, resolved by the bundler at runtime. */",
-        'const resolvedBase = __webpack_public_path__',
-        '',
-        'export const assetBase: string =',
-        "  typeof resolvedBase === 'string' && resolvedBase !== '' ? resolvedBase : './'",
-      ].join('\n'),
-      [
-        '/** Resolves a container-relative path against the deployed container. */',
-        'export function assetUrl(path: string): string {',
-        "  const documentBase = typeof document === 'undefined' ? assetBase : document.baseURI",
-        '  return new URL(path, new URL(assetBase, documentBase)).href',
-        '}',
-      ].join('\n'),
-    ]),
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* Module Federation entries                                                   */
-/* -------------------------------------------------------------------------- */
-
-/** The expose name for a definition. Generated, and not public API. */
+/** Generated, and not public API. */
 export function exposeName(definition: DiscoveredDefinition): string {
   return definition.kind === 'app' ? './app' : `./widgets/${definition.id}`
 }
 
-/** The generated module each expose points at. */
-export function entryModulePath(
-  context: GenerateContext,
-  definition: DiscoveredDefinition,
-): string {
+export function entryModulePath(context: GenerateContext, definition: DiscoveredDefinition): string {
   return definition.kind === 'app'
     ? generatedPath(context.options.generatedDir, 'entries', 'app.ts')
     : generatedPath(context.options.generatedDir, 'entries', 'widgets', `${definition.id}.ts`)
@@ -414,10 +343,7 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
             '// Imported first, so a container whose configuration is missing or invalid',
             '// fails before any application module of this container evaluates.',
             `import ${quote(
-              relativeSpecifier(
-                file,
-                generatedPath(context.options.generatedDir, 'config.ts'),
-              ),
+              relativeSpecifier(file, generatedPath(context.options.generatedDir, 'config.ts')),
             )}`,
           ].join('\n')
 
@@ -433,19 +359,13 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
   })
 }
 
-/* -------------------------------------------------------------------------- */
-/* Widget contract entry points                                                */
-/* -------------------------------------------------------------------------- */
 
 /**
- * One side-effect-free module per exported Widget, carrying its schemas and the
- * types inferred from them.
- *
- * A consumer imports this for types and for validation on its own side. It has
- * to reach the schemas without importing the container entry, which would drag
- * in the App, its router and the generated route tree — which is why the
- * schemas are either re-exported from the module they already live in or copied
- * here verbatim.
+ * One side-effect-free module per exported Widget. A consumer imports it for
+ * types and for validation on its own side, so it has to reach the schemas
+ * without importing the container entry, which would drag in the App, its
+ * router and the route tree. The schemas are therefore either re-exported from
+ * the module they already live in or copied here verbatim.
  */
 export function widgetContractModules(context: GenerateContext): readonly GeneratedFile[] {
   return context.discovery.widgets
@@ -453,10 +373,7 @@ export function widgetContractModules(context: GenerateContext): readonly Genera
     .map(widget => widgetContractModule(context, widget))
 }
 
-function widgetContractModule(
-  context: GenerateContext,
-  widget: DiscoveredDefinition,
-): GeneratedFile {
+function widgetContractModule(context: GenerateContext, widget: DiscoveredDefinition): GeneratedFile {
   const source = widget.contractSource as WidgetContractSource
   const file = generatedPath(context.options.generatedDir, 'widgets', `${widget.id}.contract.ts`)
 
@@ -480,9 +397,8 @@ function widgetContractModule(
   for (const field of ['inputs', 'events'] as const) {
     const binding = source[field]
     if (binding.kind === 'reexport') {
-      const specifier = relativeSpecifier(file, binding.file)
       const alias = binding.exported === field ? field : `${binding.exported} as ${field}`
-      importLines.push(`import { ${alias} } from ${quote(specifier)}`)
+      importLines.push(`import { ${alias} } from ${quote(relativeSpecifier(file, binding.file))}`)
       exportLines.push(`export { ${field} }`)
       continue
     }
@@ -523,9 +439,9 @@ function widgetContractModule(
 }
 
 /**
- * Which local name the generated types use for Zod. Reusing the author's own
- * binding avoids declaring a second one; when there is none, a type-only import
- * is added, which erases completely and keeps the module side-effect free.
+ * Reusing the author's own Zod binding avoids declaring a second one; when
+ * there is none a type-only import is added, which erases completely and keeps
+ * the module side-effect free.
  */
 function zodBinding(
   imports: readonly ContractImport[],
@@ -541,10 +457,6 @@ function zodBinding(
   if (!boundNames.has('z')) return { local: 'z', importLine: "import type { z } from 'zod'" }
   return { local: 'zodTypes', importLine: "import type { z as zodTypes } from 'zod'" }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Shared helpers                                                              */
-/* -------------------------------------------------------------------------- */
 
 /** The id a container reports itself as: its App's, or its first Widget's. */
 export function containerId(context: GenerateContext): string {

@@ -8,8 +8,11 @@ import {
   type TelemetryRecord,
 } from '@company/mfe-core'
 
-import { createNonRecordingTracer, nonRecordingSpan } from './non-recording.ts'
-import { createNoopTelemetryProvider } from './noop-provider.ts'
+import {
+  createNonRecordingTracer,
+  createNoopTelemetryProvider,
+  nonRecordingSpan,
+} from './non-recording.ts'
 import { createRecordingTelemetryProvider } from './recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 

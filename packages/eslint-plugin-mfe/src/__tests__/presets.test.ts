@@ -149,6 +149,50 @@ describe.each([
     }
   })
 
+  it('applies the React rules to everything in `files` by default', () => {
+    const scoped = framework({ files: ['packages/*/src/**/*.ts'] })
+    const reactBlocks = scoped.filter(entry => entry.name?.startsWith('mfe/react-') === true)
+    expect(reactBlocks.length).toBeGreaterThan(0)
+    for (const entry of reactBlocks) {
+      expect(entry.files, entry.name ?? '(unnamed)').toEqual(['packages/*/src/**/*.ts'])
+    }
+  })
+
+  it('narrows the React rules to `reactFiles`, intersected with `files`', () => {
+    const scoped = framework({
+      files: ['packages/*/src/**/*.ts'],
+      reactFiles: ['packages/mfe-react/src/**/*.ts'],
+    })
+    const reactBlocks = scoped.filter(entry => entry.name?.startsWith('mfe/react-') === true)
+    expect(reactBlocks.length).toBeGreaterThan(0)
+    for (const entry of reactBlocks) {
+      // AND semantics: React code *and* inside the files the preset covers.
+      expect(entry.files, entry.name ?? '(unnamed)').toEqual([
+        ['packages/*/src/**/*.ts', 'packages/mfe-react/src/**/*.ts'],
+      ])
+    }
+    // Nothing else moved: the rest of the preset still covers all of `files`.
+    const typeSafetyBlock = scoped.find(entry => entry.name === 'mfe/type-safety')
+    expect(typeSafetyBlock?.files).toEqual(['packages/*/src/**/*.ts'])
+  })
+
+  it('leaves no config object registering react-hooks outside `reactFiles`', () => {
+    const scoped = framework({
+      files: ['packages/*/src/**/*.ts'],
+      reactFiles: ['packages/mfe-react/src/**/*.ts'],
+    })
+    for (const entry of scoped) {
+      const namesReactRule = Object.keys(entry.rules ?? {}).some(ruleId =>
+        ruleId.startsWith('react-hooks/'),
+      )
+      if (!namesReactRule) continue
+      for (const pattern of entry.files ?? []) {
+        const patterns = Array.isArray(pattern) ? pattern : [pattern]
+        expect(patterns, entry.name ?? '(unnamed)').toContain('packages/mfe-react/src/**/*.ts')
+      }
+    }
+  })
+
   it('is accepted by ESLint, rule options included', async () => {
     const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: preset })
     const resolved: unknown = await eslint.calculateConfigForFile('src/widgets/panel.ts')

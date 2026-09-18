@@ -1,26 +1,9 @@
 /**
  * `env()` — how an author declares that a value comes from the deployment.
+ * `src/mfe.config.ts` carries names and schemas, never values or secrets.
  *
- * `src/mfe.config.ts` names environment variables and the schema each one has
- * to satisfy. It carries no deployment values and no secrets: the values arrive
- * at runtime in `runtime-config.json`, which the generated `#mfe/config` module
- * loads, validates and freezes once per deployed container.
- *
- * ```ts
- * import { env } from '@company/mfe-rspack'
- * import { z } from 'zod'
- *
- * export default {
- *   apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
- *   oidcIssuer: env('OIDC_ISSUER', z.string().url()),
- * }
- * ```
- *
- * This module is the one part of the package that is also evaluated in the
- * browser, because the generated config module imports the author's config to
- * reach the real schemas. It therefore imports nothing from Node, from Rspack
- * or from the TypeScript compiler, and the package is marked side-effect free
- * so the rest of the plugin never reaches a bundle.
+ * This is the one part of the package also evaluated in the browser, so it
+ * imports nothing from Node, Rspack or the TypeScript compiler.
  */
 
 import { createMfeError, type ContractSchema, type InferContract } from '@company/mfe-core'

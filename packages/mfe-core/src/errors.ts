@@ -1,16 +1,11 @@
 /**
- * Structured framework errors and the rules their messages follow.
- *
- * Every developer-facing failure names the definition, the operation, the
- * relevant field or resource, what was expected, what was observed, and which
- * side declared the expectation — then gives a concrete repair step. The code is
- * the machine artifact; the message is what a developer actually reads at 2am.
+ * Structured framework errors. The code is the machine artifact; the message is
+ * what a developer reads at 2am, so every failure names the definition, the
+ * operation, the field, the expectation, what was observed, who declared it,
+ * and one repair step.
  */
 
-/**
- * Closed union so hosts can handle each case exhaustively. Adding a code is a
- * deliberate contract change.
- */
+/** Closed union: hosts handle it exhaustively, so adding a code is a contract change. */
 export type MfeErrorCode =
   | 'registry/invalid-descriptor'
   | 'registry/duplicate-id'
@@ -48,10 +43,9 @@ export interface MfeError extends Error {
 }
 
 /**
- * The parts of a diagnostic message the contract requires. `expected`,
- * `observed`, `declaredBy` and `repair` are optional only because a few
- * failures (a bare transport error, for example) genuinely have nothing to say
- * for them; omitting one to save effort is a review defect, not a shortcut.
+ * `expected`, `observed`, `declaredBy` and `repair` are optional only because a
+ * few failures (a bare transport error) genuinely have nothing to say for them;
+ * omitting one to save effort is a review defect.
  */
 export interface MfeErrorDetails {
   readonly code: MfeErrorCode
@@ -61,15 +55,13 @@ export interface MfeErrorDetails {
   readonly direction?: MfeErrorDirection
   readonly path?: readonly (string | number)[]
   readonly cause?: unknown
-  /** What the framework required, in the developer's vocabulary. */
   readonly expected?: string
-  /** What actually arrived or happened. */
   readonly observed?: string
   /** Which side declared the expectation, e.g. "The Widget provider". */
   readonly declaredBy?: string
   /** One concrete next action. */
   readonly repair?: string
-  /** Extra context appended verbatim, e.g. "The previous valid inputs remain displayed." */
+  /** Appended verbatim, e.g. "The previous valid inputs remain displayed." */
   readonly note?: string
 }
 
@@ -106,9 +98,8 @@ export function formatPath(path: readonly (string | number)[] | undefined): stri
 }
 
 /**
- * Describes a runtime value for a diagnostic without dumping it. Strings are
- * quoted and truncated; objects report their shape rather than their contents,
- * because logging whole payloads is forbidden.
+ * Describes a runtime value without dumping it: objects report their shape
+ * rather than their contents, because logging whole payloads is forbidden.
  */
 export function describeValue(value: unknown): string {
   if (value === null) return 'null'
@@ -141,10 +132,9 @@ function composeMessage(details: MfeErrorDetails): string {
     ? `${details.id}@${details.definitionVersion}`
     : details.id
   const field = formatPath(details.path)
+  const target = field ? `${details.operation} ${field}` : details.operation
 
   const sentences: string[] = []
-
-  const target = field ? `${details.operation} ${field}` : details.operation
   if (details.expected !== undefined && details.observed !== undefined) {
     sentences.push(
       `${subject} failed to ${target}: expected ${details.expected}, received ${details.observed}.`,
@@ -165,14 +155,25 @@ function composeMessage(details: MfeErrorDetails): string {
   return sentences.join(' ')
 }
 
-/**
- * Builds a structured error with a message that satisfies the diagnostic
- * rules above. Use this
- * everywhere rather than `new Error`, so every failure carries the same fields
- * and reads the same way.
- */
+/** Use everywhere instead of `new Error`, so every failure reads the same way. */
 export function createMfeError(details: MfeErrorDetails): MfeError {
   return new FrameworkError(composeMessage(details), details)
+}
+
+/**
+ * Fixes the fields a module repeats — typically `code`, `id` and `declaredBy` —
+ * so a throw site carries only what differs. Whatever `fixed` omits stays
+ * required at the call site, and any fixed field can be overridden there.
+ */
+export function createMfeErrorFactory<Fixed extends Partial<MfeErrorDetails>>(
+  fixed: Fixed,
+): (details: Omit<MfeErrorDetails, keyof Fixed> & Partial<MfeErrorDetails>) => MfeError {
+  return details => {
+    // The two parameter types together cover every required field, which the
+    // compiler cannot see through the generic spread.
+    const merged = { ...fixed, ...details }
+    return createMfeError(merged as MfeErrorDetails)
+  }
 }
 
 export function isMfeError(value: unknown): value is MfeError {
@@ -180,9 +181,9 @@ export function isMfeError(value: unknown): value is MfeError {
 }
 
 /**
- * Normalizes an unknown thrown value into a structured error without losing the
- * original cause. Used at boundaries that must report something structured even
- * when remote code threw a string.
+ * Normalizes an unknown thrown value without losing the original cause. Used at
+ * boundaries that must report something structured even when remote code threw
+ * a string.
  */
 export function toMfeError(
   value: unknown,

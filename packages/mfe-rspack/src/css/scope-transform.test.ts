@@ -7,20 +7,20 @@ describe('transformScopedCss', () => {
   it('wraps rules in a scope with the nested lower boundary', () => {
     const result = transformScopedCss('.text-sm { font-size: 0.875rem; }', { scope: 'operations' })
 
-    expect(result.css).toContain('@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])')
-    expect(result.css).toContain('.text-sm')
+    expect(result).toContain('@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])')
+    expect(result).toContain('.text-sm')
   })
 
   it('leaves source class tokens unchanged', () => {
     const result = transformScopedCss('.card > .title:hover { color: red; }', { scope: 'ops' })
 
-    expect(result.css).toContain('.card > .title:hover')
+    expect(result).toContain('.card > .title:hover')
   })
 
   it('scopes to every definition the container exports', () => {
     const result = transformScopedCss('.a { color: red; }', { scope: ['ops', 'order-row'] })
 
-    expect(result.css).toContain(
+    expect(result).toContain(
       '@scope ([data-mfe-scope="ops"], [data-mfe-scope="order-row"]) to ([data-mfe-scope])',
     )
   })
@@ -31,18 +31,18 @@ describe('transformScopedCss', () => {
       { scope: 'ops' },
     )
 
-    const scopeIndex = result.css.indexOf('@scope')
+    const scopeIndex = result.indexOf('@scope')
     expect(scopeIndex).toBeGreaterThanOrEqual(0)
-    expect(result.css.slice(0, scopeIndex)).not.toContain(':root')
-    expect(result.css).not.toMatch(/(^|[^:])\bhtml\b/)
-    expect(result.css.match(/:scope/g)).toHaveLength(3)
+    expect(result.slice(0, scopeIndex)).not.toContain(':root')
+    expect(result).not.toMatch(/(^|[^:])\bhtml\b/)
+    expect(result.match(/:scope/g)).toHaveLength(3)
   })
 
   it('emits the reset exactly once', () => {
     const result = transformScopedCss(':root { --gap: 4px; }', { scope: 'ops' })
 
-    expect(result.css.match(/--gap/g)).toHaveLength(1)
-    expect(result.css.match(/@scope/g)).toHaveLength(1)
+    expect(result.match(/--gap/g)).toHaveLength(1)
+    expect(result.match(/@scope/g)).toHaveLength(1)
   })
 
   it('namespaces keyframes and the declarations that reference them', () => {
@@ -51,11 +51,10 @@ describe('transformScopedCss', () => {
       { scope: 'ops' },
     )
 
-    expect(result.keyframes).toEqual(['spin'])
-    expect(result.css).toContain('@keyframes spin__ops')
-    expect(result.css).toContain('animation: spin__ops 1s linear infinite')
-    expect(result.css).toContain('animation-name: spin__ops')
-    expect(result.css.indexOf('@keyframes')).toBeLessThan(result.css.indexOf('@scope'))
+    expect(result).toContain('@keyframes spin__ops')
+    expect(result).toContain('animation: spin__ops 1s linear infinite')
+    expect(result).toContain('animation-name: spin__ops')
+    expect(result.indexOf('@keyframes')).toBeLessThan(result.indexOf('@scope'))
   })
 
   it('namespaces @font-face families rather than registering a page-wide name', () => {
@@ -64,10 +63,9 @@ describe('transformScopedCss', () => {
       { scope: 'ops' },
     )
 
-    expect(result.fontFamilies).toEqual(['Inter'])
-    expect(result.css).toContain("font-family: 'Inter__ops'")
-    expect(result.css).toContain("font-family: 'Inter__ops', sans-serif")
-    expect(result.css).not.toContain("font-family: 'Inter';")
+    expect(result).toContain("font-family: 'Inter__ops'")
+    expect(result).toContain("font-family: 'Inter__ops', sans-serif")
+    expect(result).not.toContain("font-family: 'Inter';")
   })
 
   it('scopes nested at-rules in place', () => {
@@ -75,7 +73,7 @@ describe('transformScopedCss', () => {
       scope: 'ops',
     })
 
-    expect(result.css.indexOf('@scope')).toBeLessThan(result.css.indexOf('@media'))
+    expect(result.indexOf('@scope')).toBeLessThan(result.indexOf('@media'))
   })
 
   it('rejects @import', () => {

@@ -1,10 +1,9 @@
 /**
  * The internal React context carrying a mount's identity and services.
  *
- * Authors never touch this. They reach the same services through the named
- * hooks, or through `context.mfe` in route callbacks, which is why there is no
- * generic `useMfeContext` in the public API: one generic accessor would make
- * every consumer subscribe to everything.
+ * Authors reach the same services through the named hooks or `context.mfe`,
+ * which is why there is no generic `useMfeContext`: one generic accessor would
+ * make every consumer subscribe to everything.
  */
 
 import { createContext, useContext, type ReactNode } from 'react'
@@ -23,11 +22,7 @@ export function MfeMountProvider({ mount, children }: MfeMountProviderProps): Re
   return <MountContext value={mount}>{children}</MountContext>
 }
 
-/**
- * Reads the current mount, failing with an actionable message when a hook is
- * called outside one. The common cause is a component rendered by the shell
- * rather than by an App or Widget, so the message says exactly that.
- */
+/** The common cause of a miss is a shell-rendered component, so the message says so. */
 export function useMfeMount(hookName: string): MfeMount {
   const mount = useContext(MountContext)
   if (mount) return mount
@@ -39,7 +34,7 @@ export function useMfeMount(hookName: string): MfeMount {
     expected: 'a component rendered inside an App or Widget mount',
     observed: 'a component rendered outside any mount',
     declaredBy: 'The framework mount boundary',
-    repair: `Move the ${hookName} call into a component the App or Widget renders. Shell-owned components use the shell's own APIs.`,
+    repair: `Move the ${hookName} call into a component the App or Widget renders.`,
   })
 }
 

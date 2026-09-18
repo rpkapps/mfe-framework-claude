@@ -1,21 +1,13 @@
 /**
- * The framework-owned boundary history.
+ * The framework-owned boundary history, one per App mount.
  *
- * This is deliberately NOT `createBrowserHistory()`. That helper reassigns
- * `window.history.pushState` and `window.history.replaceState` so it can notice
- * navigations it did not perform. Reassigning those methods is exactly the
- * global History patch this framework removed from the old shell: it is action
- * at a distance, it breaks anything else that wraps them, and with several
- * routers on one page it is what made two routers fight over the URL.
- *
- * `createHistory()` is the supported seam for supplying a different backing
- * store, so the framework builds its history over the explicit navigation
- * bridge instead. The router gets a real, fully functional history — including
- * native blocker support, because `createHistory` consults the blockers it is
- * given — and no global is touched.
- *
- * The App author never sees any of this: they pass the supplied `history`
- * straight into `createRouter`.
+ * Deliberately NOT `createBrowserHistory()`: that helper reassigns
+ * `window.history.pushState` and `replaceState`, the global History patch this
+ * framework removed from the old shell — it breaks anything else wrapping them
+ * and is what made two routers on one page fight over the URL. `createHistory()`
+ * is the supported seam for a different backing store, so the history is built
+ * over the explicit navigation bridge and no global is touched. Blockers still
+ * work natively, because `createHistory` consults the ones it is given.
  */
 
 import { createHistory, type RouterHistory } from '@tanstack/react-router'
@@ -24,50 +16,36 @@ import type { BoundaryLocation, NavigationBridge } from '@company/mfe-core'
 /** Where the history keeps its position, so back and forward stay distinguishable. */
 const INDEX_KEY = '__TSR_index'
 
-interface IndexedState {
-  readonly [INDEX_KEY]: number
-}
-
 export interface BoundaryHistory {
   readonly history: RouterHistory
   /** Detaches the bridge subscription and the underlying history. */
   readonly dispose: () => void
 }
 
-function toHref(location: BoundaryLocation): string {
-  return `${location.pathname}${location.search}${location.hash}`
-}
-
 function readIndex(state: unknown): number | null {
   if (state === null || typeof state !== 'object') return null
-  const value = (state as Partial<IndexedState>)[INDEX_KEY]
+  const value = (state as Record<string, unknown>)[INDEX_KEY]
   return typeof value === 'number' ? value : null
 }
 
 /**
- * Builds a history bound to one App boundary.
- *
  * The history carries full paths rather than boundary-relative ones: TanStack
- * Router strips the `basepath` itself, so a pre-stripped path would have its
- * prefix removed twice.
+ * Router strips the `basepath` itself, so a pre-stripped path would lose its
+ * prefix twice.
  */
 export function createBoundaryHistory(bridge: NavigationBridge): BoundaryHistory {
   /** Our view of the current position, used to classify external navigations. */
   let index = readIndex(bridge.readState?.()) ?? 0
 
-  const currentLocation = (): BoundaryLocation => bridge.read()
-
   const history: RouterHistory = createHistory({
     getLocation: () => {
-      const location = currentLocation()
-      const href = toHref(location)
-      const state = { ...(bridge.readState?.() as object | undefined), [INDEX_KEY]: index }
+      const location: BoundaryLocation = bridge.read()
       return {
-        href,
+        href: `${location.pathname}${location.search}${location.hash}`,
         pathname: location.pathname,
         search: location.search,
         hash: location.hash,
-        state: state as IndexedState & Record<string, unknown>,
+        state: { ...(bridge.readState?.() as object | undefined), [INDEX_KEY]: index },
       }
     },
 
@@ -100,13 +78,10 @@ export function createBoundaryHistory(bridge: NavigationBridge): BoundaryHistory
     createHref: path => path,
   })
 
-  /**
-   * The bridge reports navigations the framework did not initiate: browser back
-   * and forward, and shell-driven boundary changes. `createHistory` already
-   * notifies for its own push and replace, so this covers only the external
-   * case, classifying it from the position delta the way a browser history
-   * does.
-   */
+  // The bridge reports only navigations the framework did not initiate — browser
+  // back and forward, shell-driven boundary changes — because `createHistory`
+  // already notifies for its own push and replace. They are classified from the
+  // position delta the way a browser history does.
   const unsubscribe = bridge.subscribe(() => {
     const nextIndex = readIndex(bridge.readState?.())
     const delta = nextIndex === null ? -1 : nextIndex - index

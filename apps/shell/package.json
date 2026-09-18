@@ -39,6 +39,7 @@
     "@playwright/test": "catalog:",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
+    "@rspack/dev-server": "2.2.1",
     "@rspack/plugin-react-refresh": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",

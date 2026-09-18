@@ -1,24 +1,13 @@
 /**
- * Capability routes.
- *
- * An App advertises Settings, Help and Release notes by marking the route that
- * renders each one:
- *
- * ```ts
- * export const Route = createFileRoute('/settings')({
- *   staticData: { capability: 'settings', label: 'Order settings', icon: 'gear' },
- * })
- * ```
- *
- * The build reads the marker out of the route file, so the shell knows the
- * route exists before the App is ever loaded, and the App keeps one routing
- * table instead of a second registration list that can disagree with it. The
- * route path is the argument to `createFileRoute`, never a second copy in
- * `staticData`.
+ * Capability routes: `createFileRoute('/settings')({ staticData: { capability,
+ * label, icon } })`. Read out of the route file so the shell knows the route
+ * exists before the App is loaded, and the App keeps one routing table instead
+ * of a registration list that can disagree with it. The path is the
+ * `createFileRoute` argument, never a second copy in `staticData`.
  */
 
 import { readdirSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 
 import {
   CAPABILITY_NAMES,
@@ -41,9 +30,6 @@ import {
   walk,
 } from './ts-ast.ts'
 
-/** The default location of an App's file-based routes. */
-export const DEFAULT_ROUTES_DIRECTORY = 'src/routes'
-
 const ROUTE_EXTENSIONS = ['.ts', '.tsx'] as const
 
 /** Anything that looks like markup is markup, whatever it claims to be. */
@@ -58,10 +44,7 @@ export interface ExtractCapabilitiesOptions {
   readonly hasApp: boolean
 }
 
-/**
- * Scans the App's route files and returns the capabilities it declares, sorted
- * by capability name so the descriptor is byte-identical between builds.
- */
+/** Sorted by capability name, so the descriptor is identical between builds. */
 export function extractCapabilities(
   options: ExtractCapabilitiesOptions,
 ): readonly CapabilityDescriptor[] {
@@ -101,15 +84,14 @@ export function extractCapabilities(
 
   return [...byName.values()]
     .map(entry => entry.descriptor)
-    .sort((left, right) => CAPABILITY_NAMES.indexOf(left.name) - CAPABILITY_NAMES.indexOf(right.name))
+    .sort(
+      (left, right) => CAPABILITY_NAMES.indexOf(left.name) - CAPABILITY_NAMES.indexOf(right.name),
+    )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Route file walking                                                          */
-/* -------------------------------------------------------------------------- */
 
 /** Every route source file, in a stable order. */
-export function routeFiles(routesDirectory: string): readonly string[] {
+function routeFiles(routesDirectory: string): readonly string[] {
   let entries: readonly string[]
   try {
     entries = readdirSync(routesDirectory, { recursive: true, encoding: 'utf8' })
@@ -158,9 +140,6 @@ function asMarkedRoute(node: ts.Node): MarkedRoute | null {
   return { routePath, staticData: value, node }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Reading one marker                                                          */
-/* -------------------------------------------------------------------------- */
 
 function readCapability(
   sourceFile: ts.SourceFile,
@@ -341,9 +320,4 @@ function readIcon(
     describeNode(sourceFile, initializer),
     "Write the icon inline, either as a name (icon: 'gear') or as { src: '/icons/gear.svg' }.",
   )
-}
-
-/** Route path relative to the routes directory, for diagnostics. */
-export function routeLabel(routesDirectory: string, file: string): string {
-  return relative(routesDirectory, file).split(sep).join('/')
 }

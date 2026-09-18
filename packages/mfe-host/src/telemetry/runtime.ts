@@ -2,16 +2,9 @@
  * The mount-scoped telemetry runtime: record construction, provider
  * containment, level filtering, bounded counters and development diagnostics.
  *
- * Two rules shape everything here.
- *
- * 1. Emitting telemetry is an imperative action with no return value, no
- *    awaited I/O and no subscription. The provider is called synchronously and
- *    whatever it does with the record - batch, sample, drop, ship - is the
- *    shell's business. A provider that throws is contained here; a transport
- *    failure must never surface inside feature code.
- * 2. Failures of the telemetry path itself are counted locally, never reported
- *    through the path that failed. A diagnostics sink that throws increments a
- *    counter and nothing else, so a broken sink cannot recurse into itself.
+ * Emitting is synchronous and returns nothing, so it can never rerender. A
+ * provider that throws is contained here, and a failure of the telemetry path
+ * is only ever counted — never reported back through the path that failed.
  */
 
 import {
@@ -34,78 +27,37 @@ import {
   type TelemetryRecord,
 } from '@company/mfe-core'
 
-import { freezeAttribution, mergeWithReserved, reservedAttributesFor } from './attribution.ts'
+import { bindAttribution, mergeWithReserved } from './attribution.ts'
+
+const COUNTER_NAMES = [
+  'recorded',
+  'droppedAfterDispose',
+  'droppedByLevelFilter',
+  'invalidMeasurements',
+  // A framework report suppressed because the same error was already reported.
+  'deduplicatedErrors',
+  // A repeat report of an error instance the mount had already recorded.
+  'duplicateErrorReports',
+  // Attribute keys that tried to shadow host-bound attribution.
+  'reservedOverrideAttempts',
+  // Throws contained from the provider, its tracer, its spans or a sink.
+  'sinkFailures',
+  'spansStarted',
+  'spansDroppedAtLimit',
+  'spansFinalizedAtDisposal',
+  'mutationsAfterEnd',
+  'diagnosticsEmitted',
+  'diagnosticsSuppressed',
+] as const
 
 /**
- * Local, bounded accounting of everything the telemetry path swallowed. These
- * are the numbers a test asserts on, and the numbers a shell can surface when
- * it suspects its provider is misbehaving. Each one is a single integer: the
- * counters themselves can never grow memory.
+ * Local, bounded accounting of everything the telemetry path swallowed: the
+ * numbers a shell can surface when it suspects its provider is misbehaving.
+ * Each one is a single integer, so the counters can never grow memory.
  */
-export interface TelemetryCounters {
-  /** Records handed to the provider without it throwing. */
-  readonly recorded: number
-  /** Calls refused because the mount was already disposed. */
-  readonly droppedAfterDispose: number
-  /** Records the provider's level filter rejected. */
-  readonly droppedByLevelFilter: number
-  /** `measure()` calls carrying a non-finite value. */
-  readonly invalidMeasurements: number
-  /** Framework reports suppressed because the same error was already reported. */
-  readonly deduplicatedErrors: number
-  /** Repeat reports of an error instance the mount had already recorded. */
-  readonly duplicateErrorReports: number
-  /** Attribute keys that tried to shadow host-bound attribution. */
-  readonly reservedOverrideAttempts: number
-  /** Throws contained from the provider, its tracer, its spans or a diagnostics sink. */
-  readonly sinkFailures: number
-  readonly spansStarted: number
-  /** Span creations refused because the open-span budget was exhausted. */
-  readonly spansDroppedAtLimit: number
-  /** Spans still open at disposal, finalized as cancelled. */
-  readonly spansFinalizedAtDisposal: number
-  /** Mutations attempted on an already ended span. */
-  readonly mutationsAfterEnd: number
-  readonly diagnosticsEmitted: number
-  /** Diagnostics withheld after the per-mount diagnostic budget ran out. */
-  readonly diagnosticsSuppressed: number
-}
+export type TelemetryCounters = Readonly<Record<(typeof COUNTER_NAMES)[number], number>>
 
-class MutableCounters {
-  recorded = 0
-  droppedAfterDispose = 0
-  droppedByLevelFilter = 0
-  invalidMeasurements = 0
-  deduplicatedErrors = 0
-  duplicateErrorReports = 0
-  reservedOverrideAttempts = 0
-  sinkFailures = 0
-  spansStarted = 0
-  spansDroppedAtLimit = 0
-  spansFinalizedAtDisposal = 0
-  mutationsAfterEnd = 0
-  diagnosticsEmitted = 0
-  diagnosticsSuppressed = 0
-
-  snapshot(): TelemetryCounters {
-    return Object.freeze({
-      recorded: this.recorded,
-      droppedAfterDispose: this.droppedAfterDispose,
-      droppedByLevelFilter: this.droppedByLevelFilter,
-      invalidMeasurements: this.invalidMeasurements,
-      deduplicatedErrors: this.deduplicatedErrors,
-      duplicateErrorReports: this.duplicateErrorReports,
-      reservedOverrideAttempts: this.reservedOverrideAttempts,
-      sinkFailures: this.sinkFailures,
-      spansStarted: this.spansStarted,
-      spansDroppedAtLimit: this.spansDroppedAtLimit,
-      spansFinalizedAtDisposal: this.spansFinalizedAtDisposal,
-      mutationsAfterEnd: this.mutationsAfterEnd,
-      diagnosticsEmitted: this.diagnosticsEmitted,
-      diagnosticsSuppressed: this.diagnosticsSuppressed,
-    })
-  }
-}
+type MutableCounters = { -readonly [K in keyof TelemetryCounters]: number }
 
 export interface DiagnosticDetails {
   readonly code: MfeErrorCode
@@ -133,8 +85,7 @@ const DEFAULT_MAX_DIAGNOSTICS = 50
 
 function detectDevelopmentMode(): boolean {
   const runtime = globalThis as { process?: { env?: Record<string, string | undefined> } }
-  const mode = runtime.process?.env?.['NODE_ENV']
-  return mode !== 'production'
+  return runtime.process?.env?.['NODE_ENV'] !== 'production'
 }
 
 /**
@@ -148,16 +99,15 @@ export class MountTelemetryRuntime {
   readonly attribution: TelemetryAttribution
   readonly reservedAttributes: TelemetryAttributes
   readonly owner: object = Object.freeze({})
-  readonly counters = new MutableCounters()
+  readonly counters: MutableCounters = Object.fromEntries(
+    COUNTER_NAMES.map(name => [name, 0]),
+  ) as MutableCounters
 
   readonly #onDiagnostic: DiagnosticsSink | undefined
   readonly #dev: boolean
   readonly #maxDiagnostics: number
   readonly #clock: () => number
-  /**
-   * Error identities this mount already reported. Weak, so it cannot keep an
-   * error - or its closure over a whole component tree - alive.
-   */
+  /** Weak, so it cannot keep an error — or its closure over a tree — alive. */
   readonly #reportedErrors = new WeakSet<object>()
   #disposed = false
 
@@ -166,9 +116,10 @@ export class MountTelemetryRuntime {
     attribution: TelemetryAttribution,
     options: TelemetryRuntimeOptions = {},
   ) {
+    const bound = bindAttribution(attribution)
     this.provider = provider
-    this.attribution = freezeAttribution(attribution)
-    this.reservedAttributes = reservedAttributesFor(this.attribution)
+    this.attribution = bound.attribution
+    this.reservedAttributes = bound.attributes
     this.#onDiagnostic = options.onDiagnostic
     this.#dev = options.dev ?? detectDevelopmentMode()
     this.#maxDiagnostics = options.maxDiagnostics ?? DEFAULT_MAX_DIAGNOSTICS
@@ -187,15 +138,14 @@ export class MountTelemetryRuntime {
     this.#disposed = true
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* Containment                                                             */
-  /* ---------------------------------------------------------------------- */
+  counterSnapshot(): TelemetryCounters {
+    return Object.freeze({ ...this.counters })
+  }
 
   /**
    * Calls into the provider and swallows its failure into a counter plus a
-   * development diagnostic. The diagnostics sink is a different sink from the
-   * telemetry provider, so reporting a provider failure there is not recursive;
-   * a diagnostics sink failure, by contrast, is only ever counted.
+   * diagnostic. The diagnostics sink is a different sink, so reporting a
+   * provider failure there is not recursive.
    */
   safeProviderCall<T>(operation: string, call: () => T): T | undefined {
     try {
@@ -207,8 +157,7 @@ export class MountTelemetryRuntime {
         operation,
         expected: 'a telemetry provider that returns without throwing',
         observed: `the provider threw ${normalizeError(failure).name}`,
-        repair:
-          'Fix the provider so it buffers or drops internally. The record was discarded and the mount continued.',
+        repair: 'Fix the provider so it buffers or drops internally.',
         severity: 'warning',
       })
       return undefined
@@ -227,23 +176,21 @@ export class MountTelemetryRuntime {
     const sink = this.#onDiagnostic
     if (sink === undefined) return
 
-    const error = createMfeError({
-      code: details.code,
-      id: this.attribution.definitionId,
-      operation: details.operation,
-      ...(this.attribution.definitionVersion === undefined
-        ? {}
-        : { definitionVersion: this.attribution.definitionVersion }),
-      ...(details.expected === undefined ? {} : { expected: details.expected }),
-      ...(details.observed === undefined ? {} : { observed: details.observed }),
-      declaredBy: 'The host telemetry binding',
-      ...(details.repair === undefined ? {} : { repair: details.repair }),
-      ...(details.note === undefined ? {} : { note: details.note }),
-    })
-
     const diagnostic: Diagnostic = {
       severity: details.severity ?? 'warning',
-      error,
+      error: createMfeError({
+        code: details.code,
+        id: this.attribution.definitionId,
+        operation: details.operation,
+        ...(this.attribution.definitionVersion === undefined
+          ? {}
+          : { definitionVersion: this.attribution.definitionVersion }),
+        ...(details.expected === undefined ? {} : { expected: details.expected }),
+        ...(details.observed === undefined ? {} : { observed: details.observed }),
+        declaredBy: 'The host telemetry binding',
+        ...(details.repair === undefined ? {} : { repair: details.repair }),
+        ...(details.note === undefined ? {} : { note: details.note }),
+      }),
       ...(details.context === undefined ? {} : { context: details.context }),
       timestamp: this.now(),
     }
@@ -251,15 +198,11 @@ export class MountTelemetryRuntime {
     try {
       sink(diagnostic)
     } catch {
-      // Counted, never re-reported: a failing diagnostics sink that reported its
-      // own failure would recurse forever.
+      // Counted, never re-reported: a failing sink that reported its own
+      // failure would recurse forever.
       this.counters.sinkFailures += 1
     }
   }
-
-  /* ---------------------------------------------------------------------- */
-  /* Attributes                                                              */
-  /* ---------------------------------------------------------------------- */
 
   /** Clamps author attributes and lets host-bound attribution win collisions. */
   mergeAttributes(author: TelemetryAttributes | undefined, operation: string): TelemetryAttributes {
@@ -271,16 +214,11 @@ export class MountTelemetryRuntime {
         operation,
         expected: 'attribute keys outside the host-owned "mfe." attribution namespace',
         observed: `reserved ${merged.collisions.length === 1 ? 'key' : 'keys'} ${merged.collisions.join(', ')}`,
-        repair:
-          'Rename the attribute. Host-bound attribution always wins, so the supplied value was discarded.',
+        repair: 'Rename the attribute; the supplied value was discarded.',
       })
     }
     return merged.attributes
   }
-
-  /* ---------------------------------------------------------------------- */
-  /* Emission                                                                */
-  /* ---------------------------------------------------------------------- */
 
   /** True when the call must be refused because the mount is gone. */
   #refuseAfterDispose(operation: string): boolean {
@@ -291,8 +229,7 @@ export class MountTelemetryRuntime {
       operation,
       expected: 'telemetry only while the mount is live',
       observed: 'a telemetry call arrived after the mount was disposed',
-      repair:
-        'Cancel the work that produced it with the mount abort signal. The record was dropped; records emitted before disposal keep their attribution.',
+      repair: 'Cancel the work that produced it with the mount abort signal.',
     })
     return true
   }
@@ -386,7 +323,7 @@ export class MountTelemetryRuntime {
         operation,
         expected: 'a finite number',
         observed: `${String(value)} for measurement "${boundName(name)}"`,
-        repair: 'Guard the computation before measuring. The observation was not recorded.',
+        repair: 'Guard the computation before measuring; the observation was not recorded.',
       })
       return
     }
@@ -403,9 +340,8 @@ export class MountTelemetryRuntime {
   }
 
   /**
-   * A framework lifecycle diagnostic. Deduplicated against errors the mount has
-   * already reported, so an author who reported a failure and a framework stage
-   * that observed the same instance do not produce two records of one event.
+   * A framework lifecycle diagnostic, deduplicated against errors the mount has
+   * already reported so one failure never produces two records.
    */
   emitFramework(
     operation: string,

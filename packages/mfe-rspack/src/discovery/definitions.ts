@@ -1,15 +1,8 @@
 /**
- * Static discovery of the definitions a container exports.
- *
- * Everything here is read from syntax. A definition's id, kind and version are
- * whatever literals the author wrote in the designated entry module; no module
- * is evaluated and no render function is ever called, so reading metadata
- * cannot activate anything or mint an identity that differs between builds.
- *
- * Named exports are canonical. A default export is accepted only when the
- * container exports exactly one definition, because `./app` and
- * `./widgets/<id>` have to name something stable and "the default one" stops
- * being a name as soon as there are two.
+ * Static discovery of the definitions a container exports. Everything is read
+ * from syntax: no module is evaluated and no render function is ever called, so
+ * reading metadata cannot activate anything or mint an identity that differs
+ * between builds.
  */
 
 import {
@@ -23,13 +16,7 @@ import {
 } from '@company/mfe-core'
 
 import { createBuildError, listNames } from '../diagnostics.ts'
-import {
-  readWidgetContract,
-  type ContractImport,
-  type ContractImportName,
-  type SchemaBinding,
-  type WidgetContractSource,
-} from './widget-contract.ts'
+import { readWidgetContract, type WidgetContractSource } from './widget-contract.ts'
 import {
   calleeName,
   collectImportedBindings,
@@ -47,7 +34,7 @@ import {
 } from './ts-ast.ts'
 
 /** The modules `createApp` and `createWidget` may be imported from. */
-export const DEFAULT_DEFINITION_MODULES = ['@company/mfe-react'] as const
+export const DEFINITION_MODULES: readonly string[] = ['@company/mfe-react']
 
 const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
   ['createApp', 'app'],
@@ -69,46 +56,37 @@ export interface DiscoveredDefinition {
   readonly contractSource?: WidgetContractSource
 }
 
-export type { ContractImport, ContractImportName, SchemaBinding, WidgetContractSource }
-
 export interface DiscoveryResult {
-  readonly entryFile: string
   readonly definitions: readonly DiscoveredDefinition[]
   readonly app: DiscoveredDefinition | undefined
   readonly widgets: readonly DiscoveredDefinition[]
-}
-
-export interface DiscoverDefinitionsOptions {
-  /** Modules the definition factories may be imported from. */
-  readonly definitionModules?: readonly string[]
-  /** Pre-read entry source, so callers can discover without touching disk. */
-  readonly entrySource?: string
 }
 
 interface ExportedBinding {
   readonly exportName: string
   readonly isDefaultExport: boolean
   readonly expression: ts.Expression
-  readonly node: ts.Node
 }
 
 /**
- * Reads every definition the designated entry exports.
- *
- * Only `entryFile` is parsed for definitions. Modules the entry imports are
- * parsed at most one level deep, and only to read a Widget's contract schemas,
- * which is what lets a contract live in its own side-effect-free module.
+ * Only `entryFile` is parsed for definitions. Modules it imports are parsed at
+ * most one level deep, and only to read a Widget's contract schemas, which is
+ * what lets a contract live in its own side-effect-free module.
  */
-export function discoverDefinitions(
-  entryFile: string,
-  options: DiscoverDefinitionsOptions = {},
-): DiscoveryResult {
-  const sourceFile = parseSourceFile(entryFile, options.entrySource)
-  const definitionModules = options.definitionModules ?? DEFAULT_DEFINITION_MODULES
+export function discoverDefinitions(entryFile: string): DiscoveryResult {
+  const sourceFile = parseSourceFile(entryFile)
   const imports = collectImportedBindings(sourceFile)
   const topLevel = collectTopLevelBindings(sourceFile)
 
-  const factories = resolveFactoryNames(imports, definitionModules)
+  // Resolved through the import bindings, so `createWidget as make` is
+  // recognised under its alias and a local function of the same name is not.
+  const factories = new Map<string, DefinitionKind>()
+  for (const [local, binding] of imports) {
+    if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
+    const kind = FACTORY_KINDS.get(binding.imported)
+    if (kind !== undefined) factories.set(local, kind)
+  }
+
   assertEveryDefinitionIsExported(sourceFile, factories, topLevel)
 
   const definitions: DiscoveredDefinition[] = []
@@ -118,35 +96,13 @@ export function discoverDefinitions(
     definitions.push(readDefinition(sourceFile, entryFile, binding, call, imports, topLevel))
   }
 
-  assertContainerShape(sourceFile, entryFile, definitions)
+  assertContainerShape(entryFile, definitions)
 
-  const app = definitions.find(definition => definition.kind === 'app')
   return {
-    entryFile,
     definitions,
-    app,
+    app: definitions.find(definition => definition.kind === 'app'),
     widgets: definitions.filter(definition => definition.kind === 'widget'),
   }
-}
-
-/* -------------------------------------------------------------------------- */
-/* Factory resolution                                                          */
-/* -------------------------------------------------------------------------- */
-
-/** Local name to definition kind, for the factories this entry imported. */
-function resolveFactoryNames(
-  imports: ReadonlyMap<string, ImportedBinding>,
-  definitionModules: readonly string[],
-): ReadonlyMap<string, DefinitionKind> {
-  const factories = new Map<string, DefinitionKind>()
-
-  for (const [local, binding] of imports) {
-    if (!definitionModules.includes(binding.moduleSpecifier)) continue
-    const kind = FACTORY_KINDS.get(binding.imported)
-    if (kind !== undefined) factories.set(local, kind)
-  }
-
-  return factories
 }
 
 interface FactoryCall {
@@ -173,9 +129,6 @@ function asFactoryCall(
   return { kind, call: node, options: unwrapExpression(first) as ts.ObjectLiteralExpression }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Exported bindings                                                           */
-/* -------------------------------------------------------------------------- */
 
 function collectExportedBindings(
   sourceFile: ts.SourceFile,
@@ -184,7 +137,8 @@ function collectExportedBindings(
   const bindings: ExportedBinding[] = []
 
   for (const statement of sourceFile.statements) {
-    if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
+    const modifiers = ts.isVariableStatement(statement) ? (ts.getModifiers(statement) ?? []) : []
+    if (modifiers.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
       for (const declaration of statement.declarationList.declarations) {
         if (!ts.isIdentifier(declaration.name)) continue
         if (declaration.initializer === undefined) continue
@@ -192,7 +146,6 @@ function collectExportedBindings(
           exportName: declaration.name.text,
           isDefaultExport: false,
           expression: declaration.initializer,
-          node: declaration,
         })
       }
       continue
@@ -207,7 +160,6 @@ function collectExportedBindings(
         exportName: 'default',
         isDefaultExport: true,
         expression: resolved,
-        node: statement,
       })
       continue
     }
@@ -226,20 +178,12 @@ function collectExportedBindings(
           exportName,
           isDefaultExport: exportName === 'default',
           expression,
-          node: element,
         })
       }
     }
   }
 
   return bindings
-}
-
-function hasExportModifier(node: ts.Node): boolean {
-  return (
-    ts.canHaveModifiers(node) &&
-    (ts.getModifiers(node) ?? []).some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
-  )
 }
 
 /**
@@ -253,7 +197,9 @@ function assertEveryDefinitionIsExported(
   topLevel: ReadonlyMap<string, ts.Expression>,
 ): void {
   const exportedExpressions = new Set(
-    collectExportedBindings(sourceFile, topLevel).map(binding => unwrapExpression(binding.expression)),
+    collectExportedBindings(sourceFile, topLevel).map(binding =>
+      unwrapExpression(binding.expression),
+    ),
   )
 
   walk(sourceFile, node => {
@@ -278,9 +224,6 @@ function assertEveryDefinitionIsExported(
   })
 }
 
-/* -------------------------------------------------------------------------- */
-/* Reading one definition                                                      */
-/* -------------------------------------------------------------------------- */
 
 function readDefinition(
   sourceFile: ts.SourceFile,
@@ -292,30 +235,20 @@ function readDefinition(
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id)
-
-  if (factory.kind === 'app') {
-    return {
-      id,
-      kind: 'app',
-      ...(version === undefined ? {} : { version }),
-      exportName: binding.exportName,
-      isDefaultExport: binding.isDefaultExport,
-      eventNames: [],
-      inputNames: [],
-    }
-  }
-
-  const contract = readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel)
+  const contract =
+    factory.kind === 'app'
+      ? null
+      : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel)
 
   return {
     id,
-    kind: 'widget',
+    kind: factory.kind,
     ...(version === undefined ? {} : { version }),
     exportName: binding.exportName,
     isDefaultExport: binding.isDefaultExport,
-    eventNames: contract.eventNames,
-    inputNames: contract.inputNames,
-    contractSource: contract.source,
+    eventNames: contract?.eventNames ?? [],
+    inputNames: contract?.inputNames ?? [],
+    ...(contract === null ? {} : { contractSource: contract.source }),
   }
 }
 
@@ -401,12 +334,8 @@ function readVersion(
   return value
 }
 
-/* -------------------------------------------------------------------------- */
-/* Container-level rules                                                       */
-/* -------------------------------------------------------------------------- */
 
 function assertContainerShape(
-  sourceFile: ts.SourceFile,
   entryFile: string,
   definitions: readonly DiscoveredDefinition[],
 ): void {
@@ -474,16 +403,12 @@ function assertContainerShape(
 
   for (const definition of definitions) {
     if (definition.kind !== 'widget') continue
-    assertUsableEventNames(sourceFile, entryFile, definition)
-    assertUsableInputNames(sourceFile, entryFile, definition)
+    assertUsableEventNames(entryFile, definition)
+    assertUsableInputNames(entryFile, definition)
   }
 }
 
-function assertUsableEventNames(
-  _sourceFile: ts.SourceFile,
-  entryFile: string,
-  definition: DiscoveredDefinition,
-): void {
+function assertUsableEventNames(entryFile: string, definition: DiscoveredDefinition): void {
   const handlerProps = new Map<string, string>()
 
   for (const name of definition.eventNames) {
@@ -518,11 +443,7 @@ function assertUsableEventNames(
   }
 }
 
-function assertUsableInputNames(
-  _sourceFile: ts.SourceFile,
-  entryFile: string,
-  definition: DiscoveredDefinition,
-): void {
+function assertUsableInputNames(entryFile: string, definition: DiscoveredDefinition): void {
   for (const name of definition.inputNames) {
     if (!isReservedInputName(name)) continue
 

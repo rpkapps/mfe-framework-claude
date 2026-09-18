@@ -1,16 +1,8 @@
 /**
- * Asset references that are not container-aware.
- *
- * An imported asset and `new URL('./x.svg', import.meta.url).href` both resolve
- * against the deployed container, because the bundler rewrites them. A bare
- * relative path written into a string does not: the browser resolves it against
- * the shell's document, so it works in a dev server where the two happen to
- * share an origin and path, and 404s the moment the container is deployed
- * somewhere else.
- *
- * The failure is invisible in review and looks like a deployment problem in
- * production, so it is reported at build time wherever it can be seen
- * statically.
+ * An imported asset and `new URL('./x.svg', import.meta.url).href` resolve
+ * against the deployed container because the bundler rewrites them. A bare
+ * relative path in a string resolves against the shell document instead, so it
+ * works in a dev server and 404s once the container is deployed elsewhere.
  */
 
 import { createBuildError } from '../diagnostics.ts'
@@ -38,7 +30,10 @@ const ASSET_EXTENSIONS = [
   'wasm',
 ]
 
-const RELATIVE_ASSET_PATTERN = new RegExp(`^\\.{1,2}/[^\\s'"\`]*\\.(?:${ASSET_EXTENSIONS.join('|')})$`, 'i')
+const RELATIVE_ASSET_PATTERN = new RegExp(
+  `^\\.{1,2}/[^\\s'"\`]*\\.(?:${ASSET_EXTENSIONS.join('|')})$`,
+  'i',
+)
 
 /**
  * Reports bare relative asset references in one module.
@@ -101,17 +96,16 @@ function isContainerAware(node: ts.StringLiteralLike): boolean {
     const callee = parent.expression
     if (ts.isIdentifier(callee) && callee.text === 'URL') {
       const second = parent.arguments?.[1]
-      if (second !== undefined && isImportMetaUrl(second)) return true
+      if (
+        second !== undefined &&
+        ts.isPropertyAccessExpression(second) &&
+        second.name.text === 'url' &&
+        ts.isMetaProperty(second.expression)
+      ) {
+        return true
+      }
     }
   }
 
   return false
-}
-
-function isImportMetaUrl(node: ts.Expression): boolean {
-  return (
-    ts.isPropertyAccessExpression(node) &&
-    node.name.text === 'url' &&
-    ts.isMetaProperty(node.expression)
-  )
 }

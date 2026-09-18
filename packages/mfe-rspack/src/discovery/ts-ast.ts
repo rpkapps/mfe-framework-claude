@@ -1,11 +1,7 @@
 /**
- * The small slice of the TypeScript compiler API the build actually needs.
- *
- * Discovery reads syntax, never semantics: a single `SourceFile` per designated
- * entry, no program, no type checker, and no module evaluation. That is what
- * makes it impossible for reading metadata to activate anything — a definition
- * is described by the literals an author wrote, not by what a function returns
- * when it runs.
+ * The slice of the TypeScript compiler API the build needs. Syntax only: one
+ * `SourceFile` per entry, no program, no type checker, no module evaluation —
+ * which is what makes it impossible for reading metadata to activate anything.
  */
 
 import { readFileSync } from 'node:fs'
@@ -19,7 +15,7 @@ export function parseSourceFile(file: string, text?: string): ts.SourceFile {
   return ts.createSourceFile(file, contents, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TSX)
 }
 
-export interface SourcePosition {
+interface SourcePosition {
   readonly line: number
   readonly column: number
 }
@@ -71,11 +67,7 @@ export interface ImportedBinding {
   readonly moduleSpecifier: string
 }
 
-/**
- * Every named import in a file, keyed by its local name, so an aliased
- * `import { createWidget as make }` is recognised under its alias and a local
- * `function createWidget()` that shadows nothing is not mistaken for it.
- */
+/** Keyed by local name, so `import { createWidget as make }` is recognised. */
 export function collectImportedBindings(
   sourceFile: ts.SourceFile,
 ): ReadonlyMap<string, ImportedBinding> {
@@ -130,10 +122,7 @@ export function collectTopLevelBindings(
   return bindings
 }
 
-/**
- * Unwraps `as const`, parentheses and satisfies clauses so the shape underneath
- * is what the rest of discovery reasons about.
- */
+/** Unwraps parentheses, `as`, `satisfies` and `!` to the shape underneath. */
 export function unwrapExpression(node: ts.Expression): ts.Expression {
   let current = node
   for (;;) {
@@ -153,10 +142,7 @@ export function unwrapExpression(node: ts.Expression): ts.Expression {
   }
 }
 
-/**
- * The dotted callee of a call expression: `createWidget` or `z.string`. Returns
- * `null` for anything that is not a plain identifier or property chain.
- */
+/** The dotted callee: `createWidget` or `z.string`, else `null`. */
 export function calleeName(node: ts.CallExpression): string | null {
   const parts: string[] = []
   let current: ts.Expression = unwrapExpression(node.expression)

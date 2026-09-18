@@ -1,19 +1,11 @@
 /**
  * A recording telemetry provider for tests.
  *
- * It implements the whole provider seam in memory and keeps what it was given:
- * every normalized record, and the lifecycle of every span including status,
- * events, exceptions and parentage. Author tests and the framework's own tests
- * assert against it, so verifying that a feature emits the right telemetry
- * needs no monitoring account, no vendor SDK and no network.
- *
- * Parentage is rebuilt from the host-reserved `mfe.span.id` and
- * `mfe.span.parent_id` attributes the tracer writes onto each span, which is
- * also how a real shell adapter would reconstruct a tree from one record.
- *
- * The buffers are bounded like a real sink's: past the limit the oldest entries
- * are discarded and `overflowCount` moves, so a runaway test cannot exhaust
- * memory and a test can assert the overflow behaviour itself.
+ * It implements the whole provider seam in memory and keeps what it was given,
+ * so verifying that a feature emits the right telemetry needs no monitoring
+ * account, no vendor SDK and no network. Parentage is rebuilt from the reserved
+ * span-id attributes, exactly as a real shell adapter would. The buffers are
+ * bounded like a real sink's, and `overflowCount` moves when they overflow.
  */
 
 import {
@@ -89,45 +81,6 @@ export interface RecordingTelemetryProvider extends TelemetryProvider {
   setEnabledLevels(levels: readonly TelemetryLevel[] | undefined): void
 }
 
-function createRecordingSpan(record: MutableSpanRecord, now: () => number): Span {
-  const span: Span = {
-    setAttribute(key: string, value: string | number | boolean): Span {
-      record.attributes = Object.freeze({ ...record.attributes, [key]: value })
-      return span
-    },
-    setAttributes(attributes: TelemetryAttributes): Span {
-      record.attributes = Object.freeze({ ...record.attributes, ...attributes })
-      return span
-    },
-    addEvent(name: string, attributes?: TelemetryAttributes): Span {
-      record.events.push({ name, attributes: attributes ?? EMPTY_ATTRIBUTES, timestamp: now() })
-      return span
-    },
-    setStatus(status: SpanStatus): Span {
-      record.status = status
-      return span
-    },
-    recordException(error: unknown, attributes?: TelemetryAttributes): Span {
-      record.exceptions.push(error)
-      // OpenTelemetry models an exception as an event on the span; mirroring
-      // that keeps the attributes visible to a test.
-      record.events.push({
-        name: 'exception',
-        attributes: attributes ?? EMPTY_ATTRIBUTES,
-        timestamp: now(),
-      })
-      return span
-    },
-    end(endTime?: number): void {
-      if (record.endTime === undefined) record.endTime = endTime ?? now()
-    },
-    isRecording(): boolean {
-      return record.endTime === undefined
-    },
-  }
-  return span
-}
-
 export function createRecordingTelemetryProvider(
   options: RecordingProviderOptions = {},
 ): RecordingTelemetryProvider {
@@ -144,31 +97,9 @@ export function createRecordingTelemetryProvider(
   let recordFailure: ((record: TelemetryRecord) => boolean) | null = null
   let tracerFailure = false
 
-  function pushRecord(record: TelemetryRecord): void {
-    if (records.length >= limit) {
-      records.shift()
-      overflowCount += 1
-    }
-    records.push(record)
-  }
-
-  function pushSpan(record: MutableSpanRecord): void {
-    if (spans.length >= limit) {
-      const evicted = spans.shift()
-      overflowCount += 1
-      if (evicted !== undefined) {
-        const evictedId = evicted.attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
-        if (typeof evictedId === 'string') spansById.delete(evictedId)
-      }
-    }
-    spans.push(record)
-  }
-
   function createTracer(attribution: TelemetryAttribution): Tracer {
     tracerCount += 1
-    if (tracerFailure) {
-      throw new Error('recording provider: createTracer is configured to fail')
-    }
+    if (tracerFailure) throw new Error('recording provider: createTracer is configured to fail')
 
     function startSpan(name: string, spanOptions?: SpanOptions): Span {
       const attributes = spanOptions?.attributes ?? EMPTY_ATTRIBUTES
@@ -191,8 +122,52 @@ export function createRecordingTelemetryProvider(
       const spanId = attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
       if (typeof spanId === 'string') spansById.set(spanId, record)
 
-      pushSpan(record)
-      return createRecordingSpan(record, now)
+      if (spans.length >= limit) {
+        const evicted = spans.shift()
+        overflowCount += 1
+        const evictedId = evicted?.attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
+        if (typeof evictedId === 'string') spansById.delete(evictedId)
+      }
+      spans.push(record)
+
+      const span: Span = {
+        setAttribute: (key, value) => {
+          record.attributes = Object.freeze({ ...record.attributes, [key]: value })
+          return span
+        },
+        setAttributes: attributesToAdd => {
+          record.attributes = Object.freeze({ ...record.attributes, ...attributesToAdd })
+          return span
+        },
+        addEvent: (eventName, eventAttributes) => {
+          record.events.push({
+            name: eventName,
+            attributes: eventAttributes ?? EMPTY_ATTRIBUTES,
+            timestamp: now(),
+          })
+          return span
+        },
+        setStatus: status => {
+          record.status = status
+          return span
+        },
+        recordException: (error, exceptionAttributes) => {
+          record.exceptions.push(error)
+          // OpenTelemetry models an exception as an event on the span; mirroring
+          // that keeps the attributes visible to a test.
+          record.events.push({
+            name: 'exception',
+            attributes: exceptionAttributes ?? EMPTY_ATTRIBUTES,
+            timestamp: now(),
+          })
+          return span
+        },
+        end: endTime => {
+          if (record.endTime === undefined) record.endTime = endTime ?? now()
+        },
+        isRecording: () => record.endTime === undefined,
+      }
+      return span
     }
 
     // The host owns context and never calls this, but a provider must still
@@ -218,17 +193,32 @@ export function createRecordingTelemetryProvider(
     return { startSpan, startActiveSpan }
   }
 
+  /** Records of one kind, optionally narrowed by the field that names them. */
+  function selectRecords<K extends TelemetryRecordKind>(
+    kind: K,
+    field: 'name' | 'level' | 'operation',
+    match: string | undefined,
+  ): Extract<TelemetryRecord, { kind: K }>[] {
+    return records.filter(
+      record =>
+        record.kind === kind &&
+        (match === undefined || (record as unknown as Record<string, unknown>)[field] === match),
+    ) as Extract<TelemetryRecord, { kind: K }>[]
+  }
+
   const provider: RecordingTelemetryProvider = {
     record(record: TelemetryRecord): void {
       if (recordFailure !== null && recordFailure(record)) {
         throw new Error(`recording provider: record() is configured to fail for ${record.kind}`)
       }
-      pushRecord(record)
+      if (records.length >= limit) {
+        records.shift()
+        overflowCount += 1
+      }
+      records.push(record)
     },
     createTracer,
-    isLevelEnabled(level: TelemetryLevel): boolean {
-      return enabledLevels === undefined || enabledLevels.includes(level)
-    },
+    isLevelEnabled: level => enabledLevels === undefined || enabledLevels.includes(level),
 
     get records(): readonly TelemetryRecord[] {
       return records
@@ -243,43 +233,14 @@ export function createRecordingTelemetryProvider(
       return tracerCount
     },
 
-    recordsOfKind<K extends TelemetryRecordKind>(
-      kind: K,
-    ): readonly Extract<TelemetryRecord, { kind: K }>[] {
-      return records.filter(record => record.kind === kind) as Extract<
-        TelemetryRecord,
-        { kind: K }
-      >[]
-    },
-    events(name?: string): readonly TelemetryEventRecord[] {
-      return provider
-        .recordsOfKind('event')
-        .filter(record => name === undefined || record.name === name)
-    },
-    logs(level?: TelemetryLevel): readonly TelemetryLogRecord[] {
-      return provider
-        .recordsOfKind('log')
-        .filter(record => level === undefined || record.level === level)
-    },
-    measurements(name?: string): readonly TelemetryMeasurementRecord[] {
-      return provider
-        .recordsOfKind('measurement')
-        .filter(record => name === undefined || record.name === name)
-    },
-    frameworkRecords(operation?: string): readonly TelemetryFrameworkRecord[] {
-      return provider
-        .recordsOfKind('framework')
-        .filter(record => operation === undefined || record.operation === operation)
-    },
-    spansNamed(name: string): readonly SpanRecord[] {
-      return spans.filter(span => span.name === name)
-    },
-    endedSpans(): readonly SpanRecord[] {
-      return spans.filter(span => span.endTime !== undefined)
-    },
-    openSpans(): readonly SpanRecord[] {
-      return spans.filter(span => span.endTime === undefined)
-    },
+    recordsOfKind: kind => selectRecords(kind, 'name', undefined),
+    events: name => selectRecords('event', 'name', name),
+    logs: level => selectRecords('log', 'level', level),
+    measurements: name => selectRecords('measurement', 'name', name),
+    frameworkRecords: operation => selectRecords('framework', 'operation', operation),
+    spansNamed: name => spans.filter(span => span.name === name),
+    endedSpans: () => spans.filter(span => span.endTime !== undefined),
+    openSpans: () => spans.filter(span => span.endTime === undefined),
 
     clear(): void {
       records.length = 0

@@ -9,10 +9,6 @@ import {
 } from './legacy-container-loader.ts'
 import type { LegacyParcelConfig } from './single-spa-contract.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 const rule = createLegacyAdapterRule()
 
 function legacyRegistryEntry(overrides: Record<string, unknown> = {}): NeutralRegistryEntry {
@@ -55,10 +51,6 @@ function createRuntime(
 }
 
 const liveSignal = (): AbortSignal => new AbortController().signal
-
-/* -------------------------------------------------------------------------- */
-/* The preserved loading shape                                                 */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyContainerLoader', () => {
   it('registers the remote under the legacy name and loads its single-spa parcel', async () => {
@@ -122,10 +114,6 @@ describe('createLegacyContainerLoader', () => {
     expect(loadRemote).not.toHaveBeenCalled()
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Failures                                                                    */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyContainerLoader failures', () => {
   it('reports a registration failure against the manifest URL', async () => {

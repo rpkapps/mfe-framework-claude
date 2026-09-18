@@ -5,10 +5,6 @@ import { isMfeError } from '@company/mfe-core'
 import { LegacyParcelMount } from './parcel-mount.ts'
 import type { LegacyParcel, LegacyParcelConfig, LegacyParcelProps } from './single-spa-contract.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 /**
  * A stand-in for `mountRootParcel` and the parcel it returns.
  *
@@ -94,10 +90,6 @@ beforeEach(() => {
   double = createParcelDouble()
 })
 
-/* -------------------------------------------------------------------------- */
-/* Mount                                                                       */
-/* -------------------------------------------------------------------------- */
-
 describe('LegacyParcelMount mounting', () => {
   it('runs the parcel lifecycle and reports the app mounted', async () => {
     const mount = createMount(double)
@@ -149,10 +141,6 @@ describe('LegacyParcelMount mounting', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Unmount and remount                                                         */
-/* -------------------------------------------------------------------------- */
-
 describe('LegacyParcelMount unmounting', () => {
   it('unmounts through the parcel handle and becomes remountable', async () => {
     const mount = createMount(double)
@@ -188,10 +176,6 @@ describe('LegacyParcelMount unmounting', () => {
     expect(mount.status).toBe('mounted')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Failures                                                                    */
-/* -------------------------------------------------------------------------- */
 
 describe('LegacyParcelMount failures', () => {
   it('reports a failed mount as a structured error and keeps no parcel', async () => {
@@ -263,10 +247,6 @@ describe('LegacyParcelMount failures', () => {
     expect(mount.status).toBe('error')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Disposal                                                                    */
-/* -------------------------------------------------------------------------- */
 
 describe('LegacyParcelMount disposal', () => {
   it('unmounts the live parcel exactly once however often it is disposed', async () => {

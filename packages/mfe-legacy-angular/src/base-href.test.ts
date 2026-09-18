@@ -10,10 +10,6 @@ import {
   type LegacyBaseHrefSeam,
 } from './base-href.ts'
 
-/* -------------------------------------------------------------------------- */
-/* The first documented seam: the app provides its own APP_BASE_HREF           */
-/* -------------------------------------------------------------------------- */
-
 describe('the app-pinned base href seam', () => {
   it('resolves the base href the app provides to Angular', () => {
     const resolved = resolveLegacyBaseHref({ name: 'asset-tracker' })
@@ -35,10 +31,6 @@ describe('the app-pinned base href seam', () => {
     expect(resolved.source).toBe('app-pinned')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* The second documented seam: single-spa supplies it, with a fallback         */
-/* -------------------------------------------------------------------------- */
 
 describe('the delegated base href seam', () => {
   it('uses the base href single-spa supplied', () => {
@@ -87,10 +79,6 @@ describe('the delegated base href seam', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Unlisted apps and overrides                                                 */
-/* -------------------------------------------------------------------------- */
-
 describe('legacy apps outside the documented seams', () => {
   it('delegates to the shell and falls back to the app name', () => {
     const resolved = resolveLegacyBaseHref({ name: 'solutions-health' })
@@ -135,10 +123,6 @@ describe('legacy apps outside the documented seams', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Navigation ownership                                                        */
-/* -------------------------------------------------------------------------- */
-
 describe('navigation ownership', () => {
   it('declares shell-owned navigation for every legacy app, whichever seam applies', () => {
     const names = ['asset-tracker', 'rigstream', 'solutions-health']
@@ -150,10 +134,6 @@ describe('navigation ownership', () => {
     expect(owners).toEqual(['shell', 'shell', 'shell'])
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Validation and normalization                                                */
-/* -------------------------------------------------------------------------- */
 
 describe('resolveLegacyBaseHref validation', () => {
   it('refuses to guess a base href without an app name', () => {

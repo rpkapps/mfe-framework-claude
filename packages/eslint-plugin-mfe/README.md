@@ -60,6 +60,28 @@ want plain JavaScript linted too. Every object also registers the plugins for th
 rules it turns on, so re-scoping or dropping one object can never strand another
 object's rules.
 
+**`reactFiles` narrows the React rules to the packages that actually have React
+in them.** It defaults to all of `files`, and is always intersected with it, so
+nothing changes until you set it. Set it in a workspace that mixes React with
+anything else:
+
+```js
+mfe.framework({
+  files: ['packages/*/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
+  reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
+})
+```
+
+React rules applied to a package with no React in it do not merely find nothing —
+they produce false positives on any API that happens to share a name with a hook.
+`rules-of-hooks` treats a call to anything named `use` as a hook call, so an
+Rspack plugin building a module rule's `use:` loader list gets told it is calling
+a React Hook outside a component. The repair is not to suppress the rule at each
+site but to stop applying React rules to code that is not React. `reactFiles`
+governs every React block: the `react-hooks` recommended config and the React
+Compiler diagnostics alike, so no config object registers the `react-hooks`
+plugin outside that scope.
+
 ---
 
 ## The `framework` preset
@@ -114,6 +136,7 @@ It layers:
 mfe.framework({
   tsconfigRootDir: import.meta.dirname,
   files: ['**/*.ts', '**/*.tsx'],
+  reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
   storageAllowedScopes: ['packages/mfe-host/src/storage/**'],
   widgetScopes: [],
   extraRestrictedPaths: [],
@@ -153,6 +176,7 @@ Everything in the `framework` preset's general layers applies, and then:
 mfe.author({
   tsconfigRootDir: import.meta.dirname,
   files: ['**/*.ts', '**/*.tsx'],
+  reactFiles: ['src/**/*.{ts,tsx}'],
   widgetScopes: ['src/widgets/**'],
   storageAllowedScopes: [],
   routerFiles: mfe.DEFAULT_ROUTER_FILES,

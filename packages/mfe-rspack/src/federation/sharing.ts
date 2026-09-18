@@ -1,15 +1,8 @@
 /**
- * Module Federation sharing defaults.
- *
- * The adapter owns the candidate list, not the author. What an author can do is
- * add to it; there is no per-App removal, because a container that opts out of
- * sharing React is a container that loads a second React into a page that
- * already has one, and the symptom (hooks failing in a nested tree) never
- * points back at the config that caused it.
- *
- * The defaults are intersected with what the container actually depends on, so
- * a Widget container that never imports a router does not advertise a router
- * share the shell would then have to satisfy.
+ * The adapter owns the sharing candidate list; an author can only add to it.
+ * There is no per-App removal, because a container that opts out of sharing
+ * React loads a second React into a page that already has one, and the symptom
+ * — hooks failing in a nested tree — never points back at the config.
  */
 
 /** The packages the adapter shares when a container depends on them. */

@@ -1,17 +1,9 @@
 /**
- * Reading a Zod schema without running it.
- *
- * The generated runtime validates against the author's real schemas, so nothing
- * here affects what a container accepts. What this pass produces is the *build*
- * output that has to exist before anything runs: the JSON Schema a deployment
- * pipeline validates `runtime-config.json` against, the defaults documentation
- * in `.env.example`, and the field types the generated config module publishes.
- *
- * Because it reads syntax, the set of Zod it understands is bounded, and a
- * schema outside that set fails the build naming the method it could not read.
- * An unreadable schema silently producing an empty JSON Schema would be worse:
- * the pipeline would pass anything through and the failure would move to
- * production.
+ * Reading a Zod schema without running it, for the JSON Schema and the
+ * `.env.example` the build emits. The runtime still validates against the real
+ * schemas. The set of Zod this understands is bounded, and a schema outside it
+ * fails the build: an unreadable schema quietly producing an empty JSON Schema
+ * would let the pipeline pass anything through.
  */
 
 import { createBuildError } from '../diagnostics.ts'
@@ -23,11 +15,8 @@ export interface JsonObject {
   readonly [key: string]: JsonValue
 }
 
-/** A JSON Schema fragment for one configuration field. */
-export type JsonSchemaNode = JsonObject
-
 export interface StaticSchema {
-  readonly jsonSchema: JsonSchemaNode
+  readonly jsonSchema: JsonObject
   /** True when the deployment may omit the field entirely. */
   readonly optional: boolean
   readonly hasDefault: boolean
@@ -66,13 +55,12 @@ const TRANSPARENT_METHODS = new Set([
   'meta',
 ])
 
-export interface ReadSchemaContext {
+interface ReadSchemaContext {
   readonly file: string
   readonly field: string
   readonly sourceFile: ts.SourceFile
 }
 
-/** Reads one schema expression into its JSON Schema and its defaulting rules. */
 export function readStaticSchema(
   expression: ts.Expression,
   context: ReadSchemaContext,
@@ -126,13 +114,19 @@ export function readStaticSchema(
         schema = { ...schema, maximum: 0 }
         break
       case 'regex':
-        schema = { ...schema, pattern: readRegExpSource(step, context) }
+        schema = { ...schema, pattern: readPattern(step, context) }
         break
       case 'startsWith':
-        schema = { ...schema, pattern: `^${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}` }
+        schema = {
+          ...schema,
+          pattern: `^${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}`,
+        }
         break
       case 'endsWith':
-        schema = { ...schema, pattern: `${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}$` }
+        schema = {
+          ...schema,
+          pattern: `${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}$`,
+        }
         break
       case 'catch':
         throw reject(
@@ -165,9 +159,6 @@ export function readStaticSchema(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Chain decomposition                                                         */
-/* -------------------------------------------------------------------------- */
 
 function chainOf(
   expression: ts.Expression,
@@ -182,7 +173,7 @@ function chainOf(
         context,
         current,
         describeNode(context.sourceFile, current),
-        "Write the schema as a Zod call, for example z.string().url(). The build reads it to emit the JSON Schema for runtime-config.json.",
+        'Write the schema as a Zod call, for example z.string().url(). The build reads it to emit the JSON Schema for runtime-config.json.',
       )
     }
 
@@ -204,8 +195,10 @@ function chainOf(
       )
     }
 
+    // `z.string()` and `z.coerce.number()` are both bases: coercion widens what
+    // is accepted at runtime, not what the JSON is allowed to look like.
     const receiver = unwrapExpression(callee.expression)
-    if (ts.isIdentifier(receiver)) {
+    if (ts.isIdentifier(receiver) || ts.isPropertyAccessExpression(receiver)) {
       return {
         base: { name: callee.name.text, args: [...current.arguments], node: current },
         steps,
@@ -217,11 +210,8 @@ function chainOf(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Base schemas                                                                */
-/* -------------------------------------------------------------------------- */
 
-function readBase(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode {
+function readBase(base: ChainStep, context: ReadSchemaContext): JsonObject {
   switch (base.name) {
     case 'string':
       return { type: 'string' }
@@ -233,13 +223,33 @@ function readBase(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode {
       return { type: 'boolean' }
     case 'literal':
       return { const: readLiteralValue(base.args[0], context, base) }
-    case 'enum':
-      return { enum: readEnumValues(base, context) }
-    case 'array':
+    case 'enum': {
+      const members = base.args[0] === undefined ? undefined : unwrapExpression(base.args[0])
+      if (members === undefined || !ts.isArrayLiteralExpression(members)) {
+        throw reject(
+          context,
+          base,
+          'z.enum(…) without an array literal',
+          "Write the members inline, for example z.enum(['staging', 'production']).",
+        )
+      }
+      return { enum: members.elements.map(element => readLiteralValue(element, context, base)) }
+    }
+    case 'array': {
+      const element = base.args[0]
+      if (element === undefined) {
+        throw reject(
+          context,
+          base,
+          'z.array() without an element schema',
+          'Give the array an element schema, for example z.array(z.string()).',
+        )
+      }
       return {
         type: 'array',
-        items: readNested(base.args[0], context, base),
+        items: readStaticSchema(element, { ...context, field: `${context.field}[]` }).jsonSchema,
       }
+    }
     case 'object':
       return readObject(base, context)
     default: {
@@ -255,7 +265,7 @@ function readBase(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode {
   }
 }
 
-function readObject(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode {
+function readObject(base: ChainStep, context: ReadSchemaContext): JsonObject {
   const argument = base.args[0]
   if (argument === undefined || !ts.isObjectLiteralExpression(unwrapExpression(argument))) {
     throw reject(
@@ -274,7 +284,10 @@ function readObject(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode
     if (!ts.isPropertyAssignment(property)) continue
     const name = propertyName(property)
     if (name === null) continue
-    const nested = readStaticSchema(property.initializer, { ...context, field: `${context.field}.${name}` })
+    const nested = readStaticSchema(property.initializer, {
+      ...context,
+      field: `${context.field}.${name}`,
+    })
     properties[name] = nested.jsonSchema
     if (!nested.optional) required.push(name)
   }
@@ -287,45 +300,12 @@ function readObject(base: ChainStep, context: ReadSchemaContext): JsonSchemaNode
   }
 }
 
-function readNested(
-  argument: ts.Expression | undefined,
-  context: ReadSchemaContext,
-  step: ChainStep,
-): JsonSchemaNode {
-  if (argument === undefined) {
-    throw reject(
-      context,
-      step,
-      'z.array() without an element schema',
-      'Give the array an element schema, for example z.array(z.string()).',
-    )
-  }
-  return readStaticSchema(argument, { ...context, field: `${context.field}[]` }).jsonSchema
-}
-
-function readEnumValues(base: ChainStep, context: ReadSchemaContext): readonly JsonValue[] {
-  const argument = base.args[0]
-  const node = argument === undefined ? undefined : unwrapExpression(argument)
-  if (node === undefined || !ts.isArrayLiteralExpression(node)) {
-    throw reject(
-      context,
-      base,
-      'z.enum(…) without an array literal',
-      "Write the members inline, for example z.enum(['staging', 'production']).",
-    )
-  }
-  return node.elements.map(element => readLiteralValue(element, context, base))
-}
-
-/* -------------------------------------------------------------------------- */
-/* Literals                                                                    */
-/* -------------------------------------------------------------------------- */
 
 function applyBound(
-  schema: JsonSchemaNode,
+  schema: JsonObject,
   step: ChainStep,
   context: ReadSchemaContext,
-): JsonSchemaNode {
+): JsonObject {
   const value = readLiteralValue(step.args[0], context, step)
   if (typeof value !== 'number') {
     throw reject(
@@ -349,9 +329,8 @@ function applyBound(
   return { ...schema, [step.name === 'min' ? 'minimum' : 'maximum']: value }
 }
 
-function readRegExpSource(step: ChainStep, context: ReadSchemaContext): string {
-  const argument = step.args[0]
-  const node = argument === undefined ? undefined : unwrapExpression(argument)
+function readPattern(step: ChainStep, context: ReadSchemaContext): string {
+  const node = step.args[0] === undefined ? undefined : unwrapExpression(step.args[0])
   if (node === undefined || !ts.isRegularExpressionLiteral(node)) {
     throw reject(
       context,
@@ -361,11 +340,10 @@ function readRegExpSource(step: ChainStep, context: ReadSchemaContext): string {
     )
   }
   const text = node.getText(context.sourceFile)
-  const end = text.lastIndexOf('/')
-  return text.slice(1, end)
+  return text.slice(1, text.lastIndexOf('/'))
 }
 
-export function readLiteralValue(
+function readLiteralValue(
   argument: ts.Expression | undefined,
   context: ReadSchemaContext,
   step: ChainStep | ts.Node,
@@ -407,11 +385,8 @@ export function readLiteralValue(
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                     */
-/* -------------------------------------------------------------------------- */
 
-function nullable(schema: JsonSchemaNode): JsonSchemaNode {
+function nullable(schema: JsonObject): JsonObject {
   return { anyOf: [schema, { type: 'null' }] }
 }
 

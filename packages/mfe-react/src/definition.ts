@@ -1,9 +1,8 @@
 /**
  * `createApp` and `createWidget`: the one call an author makes in `src/mfe.ts`.
  *
- * Both return plain, side-effect-free descriptors. The build plugin discovers
- * them statically and never invokes a render function to read metadata, so a
- * module's evaluation cannot activate anything.
+ * Both return plain, side-effect-free descriptors, so the build plugin can
+ * discover them statically without invoking a render function to read metadata.
  */
 
 import {
@@ -63,8 +62,7 @@ export function createApp(options: AppOptions): AppDefinition {
       expected: 'a router factory function',
       observed: options.router === undefined ? 'nothing' : `a ${typeof options.router}`,
       declaredBy: 'The App definition contract',
-      repair:
-        'Pass the named factory that calls createRouter, for example `router: makeRouter`. The factory runs once per mount.',
+      repair: 'Pass the named factory that calls createRouter; it runs once per mount.',
     })
   }
 
@@ -126,7 +124,7 @@ export function createWidget<
       expected: 'a render function',
       observed: options.render === undefined ? 'nothing' : `a ${typeof options.render}`,
       declaredBy: 'The Widget definition contract',
-      repair: 'Pass a component function as `render`. Its props are typed from the schemas.',
+      repair: 'Pass a component function as `render`; its props are typed from the schemas.',
     })
   }
 
@@ -161,29 +159,32 @@ function assertValidId(id: unknown, operation: string): asserts id is string {
     observed:
       id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
     declaredBy: 'The framework identity rules',
-    repair:
-      'Give the definition a stable id. It is also its storage prefix and CSS scope value, so it must be unambiguous in both.',
+    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
   })
 }
 
 /**
- * Event names must be lower-camel-case and must not collide once mapped to
- * their `on`-prefixed consumer props, since two events mapping to one handler
- * prop would make a consumer's subscription ambiguous.
+ * Event names must be lower-camel-case and must stay distinct once mapped to
+ * their `on`-prefixed props, since two events mapping to one handler prop would
+ * make a consumer's subscription ambiguous.
  */
 function assertUsableEventNames(id: string, events: Record<string, ContractSchema<unknown>>): void {
   const handlerProps = new Map<string, string>()
 
   for (const name of Object.keys(events)) {
+    const declaration = {
+      code: 'contract/event-mismatch',
+      id,
+      operation: `declare event '${name}'`,
+      declaredBy: 'The Widget contract',
+    } as const
+
     if (!isValidEventName(name)) {
       throw createMfeError({
-        code: 'contract/event-mismatch',
-        id,
-        operation: `declare event '${name}'`,
-        expected: 'a lower-camel-case event name, for example "acknowledged" or "selectionChanged"',
+        ...declaration,
+        expected: 'a lower-camel-case event name, for example "acknowledged"',
         observed: JSON.stringify(name),
-        declaredBy: 'The Widget contract',
-        repair: `Rename the event. Consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
+        repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
       })
     }
 
@@ -191,12 +192,9 @@ function assertUsableEventNames(id: string, events: Record<string, ContractSchem
     const existing = handlerProps.get(handlerProp)
     if (existing !== undefined) {
       throw createMfeError({
-        code: 'contract/event-mismatch',
-        id,
-        operation: `declare event '${name}'`,
+        ...declaration,
         expected: 'event names that map to distinct handler props',
         observed: `'${existing}' and '${name}' both map to ${handlerProp}`,
-        declaredBy: 'The Widget contract',
         repair: `Rename one of them, for example '${name}Completed'.`,
       })
     }
@@ -205,8 +203,8 @@ function assertUsableEventNames(id: string, events: Record<string, ContractSchem
 }
 
 /**
- * Validates a Widget's input field names against the reserved host control
- * props. Called by the mount boundary, where the parsed input keys are known.
+ * Validates input field names against the reserved host control props. Called by
+ * the mount boundary, where the parsed input keys are known.
  */
 export function assertUsableInputNames(id: string, inputNames: readonly string[]): void {
   for (const name of inputNames) {
@@ -219,8 +217,7 @@ export function assertUsableInputNames(id: string, inputNames: readonly string[]
       expected: 'an input name that is not reserved for host control or event handlers',
       observed: `'${name}', which is reserved`,
       declaredBy: 'The Widget consumption contract',
-      repair:
-        'Rename the input. key, ref and fallback are host control props, and names starting with "on" followed by a capital letter are event handlers.',
+      repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
     })
   }
 }

@@ -1,12 +1,8 @@
 /**
- * `mfePlugin()` options, and what they resolve to.
- *
- * The list is deliberately short. Everything an author would otherwise write by
- * hand — Module Federation names, exposes, share scopes, singleton flags,
- * manifest settings, registration — is derived from the container's own sources
- * instead, because those settings only produce a working page when every
- * container in the page agrees on them, and agreement is not something a
- * per-repository config file can promise.
+ * `mfePlugin()` options. The list is deliberately short: federation names,
+ * exposes, share scopes, singleton flags and manifest settings only produce a
+ * working page when every container agrees on them, which is not something a
+ * per-repository config file can promise, so they are derived instead.
  */
 
 import { readFileSync } from 'node:fs'
@@ -53,7 +49,7 @@ export interface MfePluginOptions {
   readonly buildTime?: string
 }
 
-export interface ContainerManifest {
+interface ContainerManifest {
   readonly name?: string
   readonly version?: string
   readonly dependencies?: Readonly<Record<string, string>>
@@ -77,16 +73,13 @@ export interface ResolvedOptions {
   readonly buildTime: string
 }
 
-export const DEFAULT_GENERATED_DIR = '.mfe'
-export const DEFAULT_ROUTES_DIRECTORY = 'src/routes'
-export const DEFAULT_RUNTIME_CONFIG_FILE = 'runtime-config.json'
-export const DEFAULT_MANIFEST_FILE = 'mf-manifest.json'
-export const DEFAULT_REGISTRY_FILE = 'mfe-registry.json'
+const DEFAULT_GENERATED_DIR = '.mfe'
+const DEFAULT_ROUTES_DIRECTORY = 'src/routes'
+const DEFAULT_RUNTIME_CONFIG_FILE = 'runtime-config.json'
+const DEFAULT_MANIFEST_FILE = 'mf-manifest.json'
+const DEFAULT_REGISTRY_FILE = 'mfe-registry.json'
 
-export function resolveOptions(
-  options: MfePluginOptions,
-  containerRoot: string,
-): ResolvedOptions {
+export function resolveOptions(options: MfePluginOptions, containerRoot: string): ResolvedOptions {
   const root = resolve(options.containerRoot ?? containerRoot)
   const manifest = readManifest(root)
 
@@ -105,7 +98,8 @@ export function resolveOptions(
     dependencies: { ...manifest.peerDependencies, ...manifest.dependencies },
     sharedOverrides: options.shared ?? {},
     reactCompiler: options.reactCompiler !== false,
-    router: options.router === false ? false : options.router === true ? {} : (options.router ?? {}),
+    router:
+      options.router === false ? false : options.router === true ? {} : (options.router ?? {}),
     buildTime: options.buildTime ?? new Date().toISOString(),
   }
 }
@@ -118,10 +112,14 @@ function absolute(root: string, path: string): string {
  * A Module Federation container name has to be a legal JavaScript identifier,
  * because it also names the global the remote entry installs itself on.
  */
-export function sanitizeFederationName(packageName: string): string {
+function sanitizeFederationName(packageName: string): string {
   const withoutScope = packageName.startsWith('@') ? packageName.slice(1) : packageName
   const sanitized = withoutScope.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
-  return /^[0-9]/.test(sanitized) ? `mfe_${sanitized}` : sanitized === '' ? 'mfe_container' : sanitized
+  return /^[0-9]/.test(sanitized)
+    ? `mfe_${sanitized}`
+    : sanitized === ''
+      ? 'mfe_container'
+      : sanitized
 }
 
 function readManifest(root: string): ContainerManifest {

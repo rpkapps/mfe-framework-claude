@@ -1,10 +1,8 @@
 /**
- * Locating the one module the build reads definitions from.
- *
- * Discovery is deliberately not a repository scan. A container declares its
- * definitions in a designated entry — `src/mfe.ts`, or `src/mfe.tsx` when the
- * entry itself contains JSX — and nowhere else. Two entries would make "which
- * file wins" a deployment question, so exactly one may exist.
+ * Locating the one module definitions are read from. Not a repository scan: a
+ * container declares them in `src/mfe.ts`, or `src/mfe.tsx` when the entry
+ * itself contains JSX. Two entries would make "which file wins" a deployment
+ * question, so exactly one may exist.
  */
 
 import { existsSync } from 'node:fs'
@@ -12,8 +10,7 @@ import { join } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
 
-/** The designated entry module names, in the order they are reported. */
-export const ENTRY_MODULE_NAMES = ['src/mfe.ts', 'src/mfe.tsx'] as const
+const ENTRY_MODULE_NAMES = ['src/mfe.ts', 'src/mfe.tsx'] as const
 
 export function resolveEntryModule(containerRoot: string): string {
   const present = ENTRY_MODULE_NAMES.map(name => join(containerRoot, name)).filter(file =>

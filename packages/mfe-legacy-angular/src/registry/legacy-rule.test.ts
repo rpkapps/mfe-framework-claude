@@ -6,10 +6,6 @@ import { createMfeContractRule, normalizeRegistry } from '@company/mfe-host'
 import { readLegacyAdapterData } from './legacy-config.ts'
 import { createLegacyAdapterRule, deriveLegacyDefinitionId } from './legacy-rule.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 /**
  * A registry entry in the shape the legacy shell publishes, with every field
  * the old `AppConfig` carried populated. This is a contract fixture: the legacy
@@ -49,10 +45,6 @@ const rule = createLegacyAdapterRule()
 function normalized(source: Record<string, unknown>): NeutralRegistryEntry {
   return rule.normalize(source)
 }
-
-/* -------------------------------------------------------------------------- */
-/* Selection                                                                   */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyAdapterRule advertises', () => {
   it('claims an entry that has legacy metadata and no advertised framework contract', () => {
@@ -109,10 +101,6 @@ describe('createLegacyAdapterRule advertises', () => {
     expect(rule.advertises([legacyEntry()])).toBe(false)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Translation                                                                 */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyAdapterRule normalize', () => {
   it('translates identity, manifest URL and presentation into the neutral record', () => {
@@ -215,10 +203,6 @@ describe('deriveLegacyDefinitionId', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Validation failures                                                         */
-/* -------------------------------------------------------------------------- */
-
 describe('createLegacyAdapterRule normalize failures', () => {
   it('names the missing app name and what it is used for', () => {
     let thrown: unknown
@@ -283,10 +267,6 @@ describe('createLegacyAdapterRule normalize failures', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* readLegacyAdapterData                                                       */
-/* -------------------------------------------------------------------------- */
-
 describe('readLegacyAdapterData', () => {
   it('refuses an entry that belongs to another adapter', () => {
     const reactEntry: NeutralRegistryEntry = {
@@ -314,10 +294,6 @@ describe('readLegacyAdapterData', () => {
     )
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Selection table, end to end                                                 */
-/* -------------------------------------------------------------------------- */
 
 describe('the legacy rule inside the shell selection table', () => {
   const rules = [createMfeContractRule(), createLegacyAdapterRule()]

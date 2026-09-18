@@ -1,13 +1,8 @@
 /**
- * The container plan.
- *
- * Everything the plugin needs to configure a build is derived here, in one
- * synchronous pass over the container's own sources: what it exports, what it
- * advertises, what it shares, what gets generated and what the Module
- * Federation manifest will say about it.
- *
- * It is a plain function on purpose. The plugin wires a compiler; this decides
- * what the compiler is being asked to do, and can be tested without one.
+ * Everything the plugin needs to configure a build, derived in one synchronous
+ * pass over the container's own sources. A plain function on purpose: the
+ * plugin wires a compiler, this decides what the compiler is being asked to do,
+ * and it can be tested without one.
  */
 
 import { join } from 'node:path'
@@ -19,14 +14,13 @@ import { extractCapabilities } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
-import { containerDependencies, resolveShared, type SharedModuleConfig } from './federation/sharing.ts'
-import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
 import {
-  ALIASES,
-  entryModulePath,
-  exposeName,
-  type GenerateContext,
-} from './generate/modules.ts'
+  containerDependencies,
+  resolveShared,
+  type SharedModuleConfig,
+} from './federation/sharing.ts'
+import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
+import { ALIASES, entryModulePath, exposeName, type GenerateContext } from './generate/modules.ts'
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
 
@@ -56,6 +50,9 @@ export interface PlanContainerOptions extends MfePluginOptions {
 /** Reads the container and derives everything the build needs from it. */
 export function planContainer(options: PlanContainerOptions = {}): ContainerPlan {
   const resolved = resolveOptions(options, options.defaultRoot ?? process.cwd())
+
+  const sourceRoot = join(resolved.containerRoot, 'src')
+  const generatedDir = resolved.generatedDir
 
   const entryFile = resolveEntryModule(resolved.containerRoot)
   const discovery = discoverDefinitions(entryFile)
@@ -101,22 +98,11 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     aliases,
     scopes: discovery.definitions.map(definition => definition.id),
     generated,
-    diagnostics: collectDiagnostics(resolved, entryFile),
+    diagnostics: [
+      ...findStrayDefinitions(sourceRoot, { entryFile, ignoredDirectories: [generatedDir] }),
+      ...containerSourceFiles(sourceRoot, new Set([generatedDir])).flatMap(file =>
+        findNonContainerAwareAssetReferences(file),
+      ),
+    ],
   }
-}
-
-/**
- * The findings the plugin reports on the compilation rather than throwing:
- * definitions declared where discovery will never look, and asset references
- * the bundler cannot make container-relative.
- */
-function collectDiagnostics(options: ResolvedOptions, entryFile: string): readonly Error[] {
-  const sourceRoot = join(options.containerRoot, 'src')
-  const ignored = new Set([options.generatedDir])
-  const files = containerSourceFiles(sourceRoot, ignored)
-
-  return [
-    ...findStrayDefinitions(sourceRoot, { entryFile, ignoredDirectories: [options.generatedDir] }),
-    ...files.flatMap(file => findNonContainerAwareAssetReferences(file)),
-  ]
 }

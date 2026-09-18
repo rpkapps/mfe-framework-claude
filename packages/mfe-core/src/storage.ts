@@ -1,10 +1,8 @@
 /**
- * Browser-storage contracts and the persisted envelope.
- *
- * The public value an author declares is the payload. The framework wraps it in
- * an envelope carrying the schema version, the retention class and an opaque
- * session generation, so retention and migration decisions are made from the
- * record itself rather than from a parallel index that can drift.
+ * Browser-storage contracts and the persisted envelope. An author declares the
+ * payload; the framework wraps it with the schema version, retention class and
+ * session generation, so retention and migration decisions come from the record
+ * itself rather than from a parallel index that can drift.
  */
 
 import type { ContractSchema } from './contract.ts'
@@ -12,8 +10,7 @@ import type { ContractSchema } from './contract.ts'
 export type StorageArea = 'local' | 'session'
 
 /**
- * `storage` selects the browser store; `retention` independently selects data
- * lifetime. They are orthogonal on purpose: a preference may live in
+ * Orthogonal to `StorageArea` on purpose: a preference may live in
  * `localStorage` and survive a logout, while a scoped filter in the same store
  * must not.
  */
@@ -77,21 +74,6 @@ export function physicalStorageKey(definitionId: string, name: string): string {
 
 export function storagePrefix(definitionId: string): string {
   return `${definitionId}:`
-}
-
-/**
- * The declaration a key binding carries. Active declarations for one key must
- * agree on all of these; disagreement fails explicitly rather than resolving to
- * whichever hook rendered first.
- */
-export interface StorageKeyDeclaration<T = unknown> {
-  readonly name: string
-  readonly area: StorageArea
-  readonly schema: ContractSchema<T>
-  readonly retention: StorageRetention
-  readonly version: number
-  readonly defaultValue?: T
-  readonly migrate?: (value: unknown, fromVersion: number) => T
 }
 
 /**

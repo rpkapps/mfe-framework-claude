@@ -1,15 +1,13 @@
 /**
- * `@company/mfe-core` — neutral MFE contracts.
- *
- * Nothing here imports React, a router, single-spa or Module Federation
- *. Zod appears in type positions only: schemas arrive from the author's
- * own Zod instance and are validated through their `safeParse`.
+ * `@company/mfe-core` — neutral MFE contracts. Nothing here imports React, a
+ * router, single-spa or Module Federation. Zod appears in type positions only:
+ * schemas arrive from the author's own instance, validated through `safeParse`.
  */
 
 export {
   createMfeError,
+  createMfeErrorFactory,
   describeValue,
-  formatPath,
   isMfeError,
   toMfeError,
   type MfeError,
@@ -35,7 +33,6 @@ export {
   type MountHandle,
   type MountLifecycleOptions,
   type MountState,
-  type MountStatus,
 } from './lifecycle.ts'
 
 export {
@@ -54,7 +51,6 @@ export {
 
 export {
   eventNameToHandlerProp,
-  findNonSerializableValue,
   isReservedInputName,
   isValidEventName,
   RESERVED_INPUT_NAMES,
@@ -109,7 +105,6 @@ export {
   type MfeStorageKey,
   type StorageArea,
   type StorageEnvelope,
-  type StorageKeyDeclaration,
   type StorageKeyOptions,
   type StorageRetention,
   type StorageSnapshot,
@@ -120,14 +115,12 @@ export {
   isSupportedContractMajor,
   type AdapterKind,
   type AdapterSelectionRule,
-  type AdvertisedContract,
   type NeutralRegistryEntry,
   type NormalizedRegistry,
   type QuarantinedRegistryEntry,
 } from './registry.ts'
 
 export {
-  createTimeoutError,
   DEFAULT_DEADLINES,
   withDeadline,
   type DeadlineConfig,
@@ -136,12 +129,10 @@ export {
 
 export {
   allow,
-  breadcrumbItemEqual,
   breadcrumbTrailEqual,
   commandEntryEqual,
   deny,
   type BoundaryLocation,
-  type BreadcrumbContribution,
   type BreadcrumbItem,
   type CommandEntry,
   type CommandPlacement,

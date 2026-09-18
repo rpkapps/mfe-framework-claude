@@ -1,10 +1,8 @@
 /**
  * The runtime a shell installs once, and the per-mount context derived from it.
  *
- * The shell owns one runtime; every mount gets a context built from it. Keeping
- * the split explicit is what makes mount-scoped ownership traceable: anything
- * on `MfeMount` is created and destroyed with that mount, and anything on
- * `MfeRuntime` outlives it.
+ * The split is what makes ownership traceable: anything on `MfeMount` is created
+ * and destroyed with that mount, anything on `MfeRuntime` outlives it.
  */
 
 import type {
@@ -39,18 +37,13 @@ export interface MfeRuntime {
   readonly deadlines: DeadlineConfig
 }
 
-/**
- * Everything one mount owns.
- *
- * `mountToken` is an internal bookkeeping value used to isolate duplicate
- * mounts, scope DOM roots and attribute registrations. It is never public API:
- * authors neither set nor read it.
- */
+/** Everything one mount owns. */
 export interface MfeMount {
   readonly runtime: MfeRuntime
   readonly definitionId: string
   readonly definitionVersion: string | undefined
   readonly kind: 'app' | 'widget'
+  /** Internal bookkeeping that isolates duplicate mounts. Never public API. */
   readonly mountToken: string
   /** Shell is 0, a top-level App 1, an App nested inside it 2, and so on. */
   readonly depth: number
@@ -70,16 +63,8 @@ export interface MfeMount {
 
 let nextMountSequence = 0
 
-/**
- * Mount tokens only need to be unique within a document and stable for the
- * mount's life. A counter is enough and keeps them readable in diagnostics.
- */
+/** Unique per document and stable for the mount's life is all a token needs. */
 export function createMountToken(definitionId: string): string {
   nextMountSequence += 1
   return `${definitionId}#${nextMountSequence}`
-}
-
-/** Test-only reset so token values stay predictable across isolated tests. */
-export function resetMountTokenSequence(): void {
-  nextMountSequence = 0
 }

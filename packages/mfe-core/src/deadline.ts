@@ -1,8 +1,7 @@
 /**
- * Finite deadlines for loading, mounting and disposal.
- *
- * These are operational defaults, not performance targets. Each phase gets one
- * total deadline so individual substeps cannot reset the clock indefinitely.
+ * Finite deadlines for loading, mounting and disposal. These are operational
+ * defaults, not performance targets: each phase gets one total deadline so
+ * individual substeps cannot reset the clock indefinitely.
  */
 
 import { createMfeError, type MfeError, type MfeErrorCode } from './errors.ts'
@@ -36,28 +35,6 @@ const TIMEOUT_CODES: Record<DeadlineContext['phase'], MfeErrorCode> = {
   dispose: 'dispose/timeout',
 }
 
-export function createTimeoutError(
-  context: DeadlineContext,
-  elapsedMs: number,
-  deadlineMs: number,
-): MfeError {
-  return createMfeError({
-    code: TIMEOUT_CODES[context.phase],
-    id: context.id,
-    ...(context.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: context.definitionVersion }),
-    operation: context.operation,
-    expected: `the ${context.phase} phase to settle within ${deadlineMs}ms`,
-    observed: `it was still running after ${Math.round(elapsedMs)}ms`,
-    declaredBy: 'The shell-configured deadline policy',
-    repair:
-      context.phase === 'dispose'
-        ? 'The mount is disposed and late callbacks are fenced; check the diagnostics for the cleanup step that did not finish.'
-        : 'Check the network panel for the request that did not settle, then use the explicit retry action.',
-  })
-}
-
 /**
  * Races `work` against a total deadline.
  *
@@ -86,7 +63,21 @@ export async function withDeadline<T>(
   try {
     return await new Promise<T>((resolve, reject) => {
       timer = setTimeout(() => {
-        const error = createTimeoutError(context, Date.now() - startedAt, deadlineMs)
+        const error = createMfeError({
+          code: TIMEOUT_CODES[context.phase],
+          id: context.id,
+          ...(context.definitionVersion === undefined
+            ? {}
+            : { definitionVersion: context.definitionVersion }),
+          operation: context.operation,
+          expected: `the ${context.phase} phase to settle within ${deadlineMs}ms`,
+          observed: `it was still running after ${Math.round(Date.now() - startedAt)}ms`,
+          declaredBy: 'The shell-configured deadline policy',
+          repair:
+            context.phase === 'dispose'
+              ? 'The mount is disposed and late callbacks are fenced; check the diagnostics for the cleanup step that did not finish.'
+              : 'Check the network panel for the request that did not settle, then use the explicit retry action.',
+        })
         controller.abort(error)
         options.onTimeout?.(error)
         reject(error)

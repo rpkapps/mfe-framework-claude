@@ -13,10 +13,6 @@ import {
   type LegacyReleaseNotesFetch,
 } from './shell-routes.ts'
 
-/* -------------------------------------------------------------------------- */
-/* Fixtures                                                                    */
-/* -------------------------------------------------------------------------- */
-
 const rule = createLegacyAdapterRule()
 
 function legacyEntry(overrides: Record<string, unknown> = {}): NeutralRegistryEntry {
@@ -46,10 +42,6 @@ function okFetch(body: string): {
   }
   return { fetch, calls }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Shell-owned routes                                                          */
-/* -------------------------------------------------------------------------- */
 
 describe('the shell-owned legacy routes', () => {
   it('publishes the patterns in evaluation order, catch-all last', () => {
@@ -140,10 +132,6 @@ describe('the shell-owned legacy routes', () => {
   })
 })
 
-/* -------------------------------------------------------------------------- */
-/* Release notes: sibling resolution                                           */
-/* -------------------------------------------------------------------------- */
-
 describe('resolveLegacyReleaseNotesUrl', () => {
   it('resolves the document that sits next to the container manifest', () => {
     const url = resolveLegacyReleaseNotesUrl(
@@ -182,10 +170,6 @@ describe('resolveLegacyReleaseNotesUrl', () => {
     expect((thrown as Error).message).toContain('an absolute manifest URL')
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Release notes: fetching                                                     */
-/* -------------------------------------------------------------------------- */
 
 describe('createLegacyReleaseNotesSource', () => {
   it('fetches the sibling document through the injected fetch', async () => {
@@ -236,10 +220,6 @@ describe('createLegacyReleaseNotesSource', () => {
     expect((thrown as { cause?: unknown }).cause).toBe(cause)
   })
 })
-
-/* -------------------------------------------------------------------------- */
-/* Release notes: the new capability is additive                               */
-/* -------------------------------------------------------------------------- */
 
 describe('release notes when an App owns its own', () => {
   it('sends the shell into the App when it advertises the capability', () => {

@@ -1,12 +1,7 @@
 /**
- * The framework's only subscription primitives.
- *
- * Two invariants hold everywhere these are used. They are part of the public
- * contract rather than an optimization:
- *
- * 1. A snapshot is immutable and cached. An unchanged snapshot keeps its
- *    reference, so `useSyncExternalStore` consumers do not re-render.
- * 2. A no-op update notifies nobody. Equality is checked before publishing.
+ * The framework's only subscription primitives. Two invariants are public
+ * contract, not optimization: an unchanged snapshot keeps its reference, so
+ * `useSyncExternalStore` consumers do not re-render, and a no-op notifies nobody.
  */
 
 export type Unsubscribe = () => void
@@ -19,10 +14,9 @@ export interface Subscribable<T> {
 }
 
 /**
- * Notifies listeners, tolerating subscribe/unsubscribe during notification by
- * iterating a copy. A listener that throws must not prevent the remaining
- * listeners from running; the failure is reported through `onListenerError` so
- * it cannot be swallowed.
+ * Notifies listeners, iterating a copy so a listener may subscribe or
+ * unsubscribe during notification. A throwing listener must not stop the rest,
+ * and its failure goes to `onListenerError` so it cannot be swallowed.
  */
 export class ListenerSet {
   readonly #listeners = new Set<Listener>()
@@ -59,12 +53,7 @@ export class ListenerSet {
   }
 }
 
-/**
- * A single cached immutable snapshot with change-gated notification.
- *
- * `set` replaces the snapshot only when `areEqual` reports a difference, so
- * publishing an equivalent value is genuinely free for subscribers.
- */
+/** A single cached immutable snapshot, published only when `areEqual` sees a change. */
 export class SnapshotSource<T> implements Subscribable<T> {
   #snapshot: T
   readonly #listeners: ListenerSet
@@ -88,10 +77,6 @@ export class SnapshotSource<T> implements Subscribable<T> {
   /** Stable across the source's lifetime; safe to pass straight to React. */
   readonly subscribe = (listener: Listener): Unsubscribe => this.#listeners.add(listener)
 
-  get listenerCount(): number {
-    return this.#listeners.size
-  }
-
   /** Publishes `next` and returns whether subscribers were notified. */
   set(next: T): boolean {
     if (this.#areEqual(this.#snapshot, next)) return false
@@ -100,35 +85,16 @@ export class SnapshotSource<T> implements Subscribable<T> {
     return true
   }
 
-  /** Applies a pure update to the current snapshot. */
-  update(produce: (current: T) => T): boolean {
-    return this.set(produce(this.#snapshot))
-  }
-
-  /**
-   * Replaces the snapshot without notifying. Used only where a caller
-   * deliberately batches several changes and notifies once; see `notify`.
-   */
-  setSilently(next: T): void {
-    this.#snapshot = next
-  }
-
-  notify(): void {
-    this.#listeners.notify()
-  }
-
   dispose(): void {
     this.#listeners.clear()
   }
 }
 
 /**
- * Subscriptions partitioned by an exact string key.
- *
- * Storage and shell state both need this: writing one storage
- * key, or changing only the theme, must notify that key's subscribers and no
- * one else. A single shared listener list would broadcast every change to every
- * consumer, which the reactivity contract forbids.
+ * Subscriptions partitioned by an exact string key: writing one storage key, or
+ * changing only the theme, must notify that key's subscribers and no one else.
+ * A single shared listener list would broadcast every change to every consumer,
+ * which the reactivity contract forbids.
  */
 export class KeyedListeners {
   readonly #byKey = new Map<string, ListenerSet>()
@@ -144,6 +110,8 @@ export class KeyedListeners {
     const remove = listeners.add(listener)
     return () => {
       remove()
+      // Evicting the empty set keeps a long-lived map from growing one entry
+      // per key that was ever subscribed.
       const current = this.#byKey.get(key)
       if (current && current.size === 0) this.#byKey.delete(key)
     }
@@ -151,11 +119,6 @@ export class KeyedListeners {
 
   notify(key: string): void {
     this.#byKey.get(key)?.notify()
-  }
-
-  /** The keys that currently have at least one subscriber. */
-  activeKeys(): readonly string[] {
-    return [...this.#byKey.keys()]
   }
 
   listenerCount(key: string): number {

@@ -1,10 +1,8 @@
 /**
- * The diagnostics sink.
- *
- * Logging alone is insufficient: a dropped event is silent by design, and
- * nobody reads logs until they already suspect a problem. Every validation and
- * lifecycle failure therefore reaches a sink the shell wires to production
- * monitoring.
+ * The diagnostics sink. Logging alone is insufficient: a dropped event is
+ * silent by design, and nobody reads logs until they already suspect a problem,
+ * so every validation and lifecycle failure reaches a sink the shell wires to
+ * production monitoring.
  */
 
 import type { MfeError } from './errors.ts'
@@ -21,19 +19,9 @@ export interface Diagnostic {
 
 export type DiagnosticsSink = (diagnostic: Diagnostic) => void
 
-/**
- * Fans out to several sinks. A sink that throws must not prevent the others
- * from receiving the diagnostic, and must not recursively report itself
- *, so its failure is counted rather than re-reported.
- */
+/** Fans out to several sinks, none of which can stop the others from being called. */
 export class DiagnosticsHub {
   readonly #sinks = new Set<DiagnosticsSink>()
-  #sinkFailures = 0
-
-  /** Bounded local counter for sink failures; never re-reported through itself. */
-  get sinkFailureCount(): number {
-    return this.#sinkFailures
-  }
 
   add(sink: DiagnosticsSink): () => void {
     this.#sinks.add(sink)
@@ -62,7 +50,8 @@ export class DiagnosticsHub {
       try {
         sink(diagnostic)
       } catch {
-        this.#sinkFailures += 1
+        // A failing sink is never re-reported through the hub: that would
+        // recurse straight back into the sink that just threw.
       }
     }
   }

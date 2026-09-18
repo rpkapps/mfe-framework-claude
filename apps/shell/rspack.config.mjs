@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 
 import rspack from '@rspack/core'
 import { ModuleFederationPlugin } from '@module-federation/enhanced/rspack'
-import ReactRefreshPlugin from '@rspack/plugin-react-refresh'
+import { ReactRefreshRspackPlugin } from '@rspack/plugin-react-refresh'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -43,24 +43,20 @@ process.env.NODE_PATH = [
   ...(process.env.NODE_PATH ? [process.env.NODE_PATH] : []),
 ].join(delimiter)
 
-/** @type {{ dependencies: Record<string, string> }} */
-const pkg = require('./package.json')
+/** The installed version, not the `catalog:` range that package.json holds. */
+const installedVersion = (/** @type {string} */ name) =>
+  /** @type {{ version: string }} */ (require(`${name}/package.json`)).version
 
 const DEV_PORT = 3000
 
 /**
- * Strict singletons. A remote that resolves its own React would give the page a
- * second renderer, and a second copy of the design system would give it a
- * second set of React Aria contexts, so both are pinned to the host's copy and
- * a version mismatch is an error rather than a silent duplicate.
- *
- * `@tecton/react/` (with the trailing slash) shares every subpath of the design
- * system, which is how it is imported: the package publishes no root entry.
+ * A remote that resolves its own React would give the page a second renderer,
+ * so a version mismatch is an error rather than a silent duplicate.
  */
-const strictSingleton = (/** @type {string} */ requiredVersion) => ({
+const strictSingleton = (/** @type {string} */ name) => ({
   singleton: true,
   strictVersion: true,
-  requiredVersion,
+  requiredVersion: installedVersion(name),
 })
 
 export default function config(_env, argv) {
@@ -138,14 +134,16 @@ export default function config(_env, argv) {
       }),
       new ModuleFederationPlugin({
         name: 'shell',
-        // The host declares no static remotes: every remote is registered at
-        // runtime from the registry, after developer overrides were applied.
+        // No static remotes: each one is registered at runtime from the
+        // registry, after developer overrides were applied.
         remotes: {},
         shared: {
-          react: strictSingleton(pkg.dependencies.react),
-          'react-dom': strictSingleton(pkg.dependencies['react-dom']),
-          '@tanstack/react-router': strictSingleton(pkg.dependencies['@tanstack/react-router']),
-          '@tanstack/react-query': strictSingleton(pkg.dependencies['@tanstack/react-query']),
+          // The trailing slash shares every subpath of the design system,
+          // which is how it is imported; it publishes no root entry.
+          react: strictSingleton('react'),
+          'react-dom': strictSingleton('react-dom'),
+          '@tanstack/react-router': strictSingleton('@tanstack/react-router'),
+          '@tanstack/react-query': strictSingleton('@tanstack/react-query'),
           '@tecton/react/': {
             singleton: true,
             strictVersion: true,
@@ -154,7 +152,7 @@ export default function config(_env, argv) {
           },
         },
       }),
-      isDev ? new ReactRefreshPlugin() : null,
+      isDev ? new ReactRefreshRspackPlugin() : null,
     ].filter(Boolean),
 
     experiments: { css: true },

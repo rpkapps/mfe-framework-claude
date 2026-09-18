@@ -1,13 +1,7 @@
 /**
- * Build-time diagnostics.
- *
- * `createMfeError` in `@company/mfe-core` sets the rule every runtime failure
- * follows: name the subject, the operation, what was expected, what was
- * observed, who declared the expectation, and one concrete repair. A build
- * failure has one more thing worth naming — the file, and the line when the
- * parser knows it — because opening that file is the developer's next action.
- *
- * Nothing in this package throws a bare `Error`.
+ * Build-time diagnostics. Same rule as `createMfeError` in the neutral core —
+ * subject, operation, expectation, observation, one concrete repair — plus the
+ * file and line, because opening it is the developer's next action.
  */
 
 import type { MfeErrorCode } from '@company/mfe-core'
@@ -42,7 +36,7 @@ export interface BuildDiagnosticDetails {
  * A build failure. Rspack accepts `Error` instances in `compilation.errors`, so
  * this is both what the plugin throws and what it reports.
  */
-export class MfeBuildError extends Error {
+class MfeBuildError extends Error {
   readonly code: MfeErrorCode | undefined
   readonly file: string
   readonly line: number | undefined
@@ -62,14 +56,10 @@ export class MfeBuildError extends Error {
   }
 }
 
-/** `path/to/file.ts:12:4`, or just the path when no position is known. */
-export function formatLocation(file: string, line?: number, column?: number): string {
-  if (line === undefined) return file
-  return column === undefined ? `${file}:${line}` : `${file}:${line}:${column}`
-}
-
 function composeBuildMessage(details: BuildDiagnosticDetails): string {
-  const location = formatLocation(details.file, details.line, details.column)
+  const { file, line, column } = details
+  const location =
+    line === undefined ? file : column === undefined ? `${file}:${line}` : `${file}:${line}:${column}`
   const subject = details.id === undefined ? 'the build' : `'${details.id}'`
 
   const sentences = [

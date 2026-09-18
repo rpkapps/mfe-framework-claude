@@ -1,25 +1,9 @@
 /**
- * `mfePlugin()` — an ordinary Rspack plugin.
- *
- * ```ts
- * import { mfePlugin } from '@company/mfe-rspack'
- *
- * export default {
- *   entry: './src/main.ts',
- *   plugins: [mfePlugin()],
- * }
- * ```
- *
- * Not a `withMfe(config)` wrapper. A wrapper owns the whole config object, so
- * every ordinary Rspack option becomes something the wrapper has an opinion
- * about, and an author who needs one the wrapper did not anticipate has nowhere
- * to put it. A plugin composes with whatever else is in the array, and the rest
- * of the config stays ordinary Rspack.
- *
- * What it owns: discovery of the container's definitions, static validation of
- * the entry, capability extraction, the generated modules and entries,
- * container-relative asset URLs, scoped CSS, the supported React Compiler
- * transform, and every Module Federation setting the page depends on.
+ * `mfePlugin()` — an ordinary Rspack plugin, not a `withMfe(config)` wrapper: a
+ * wrapper would own the whole config object, and an author needing an option it
+ * did not anticipate would have nowhere to put it. It owns discovery, entry
+ * validation, capability extraction, the generated modules, asset URLs, scoped
+ * CSS, the React Compiler transform and every Module Federation setting.
  */
 
 import { createRequire } from 'node:module'
@@ -36,13 +20,9 @@ import { planContainer, type ContainerPlan } from './plan.ts'
 
 const require = createRequire(import.meta.url)
 
-export const PLUGIN_NAME = 'MfePlugin'
+const PLUGIN_NAME = 'MfePlugin'
 
-/**
- * The plugin instance. `mfePlugin()` is the way to construct one; the class is
- * exported so a host build can name the type.
- */
-export class MfeRspackPlugin implements RspackPluginInstance {
+class MfeRspackPlugin implements RspackPluginInstance {
   readonly name = PLUGIN_NAME
   readonly #options: MfePluginOptions
   #plan: ContainerPlan | undefined
@@ -51,14 +31,8 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     this.#options = options
   }
 
-  /** The plan for a container root, computed once and reused. */
-  plan(containerRoot: string): ContainerPlan {
-    this.#plan ??= planContainer({ ...this.#options, defaultRoot: containerRoot })
-    return this.#plan
-  }
-
   /** Re-reads the container's sources and rewrites what changed. */
-  refresh(containerRoot: string): ContainerPlan {
+  #refresh(containerRoot: string): ContainerPlan {
     const plan = planContainer({ ...this.#options, defaultRoot: containerRoot })
     this.#plan = plan
     writeGeneratedFiles(plan.generated.files)
@@ -67,7 +41,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
 
   apply(compiler: Compiler): void {
     const containerRoot = this.#options.containerRoot ?? compiler.context
-    const plan = this.refresh(containerRoot)
+    const plan = this.#refresh(containerRoot)
 
     // The route tree has to exist before anything reads it, including a
     // typecheck run, so the router plugin is applied ahead of everything here.
@@ -83,8 +57,11 @@ export class MfeRspackPlugin implements RspackPluginInstance {
       }).apply?.(compiler)
     }
 
-    applyResolve(compiler, plan)
-    applyOutput(compiler)
+    compiler.options.resolve.alias = { ...compiler.options.resolve.alias, ...plan.aliases }
+    // `auto` is what makes an imported asset and `new URL('./x.svg',
+    // import.meta.url)` resolve against the container's own deployed location
+    // rather than against the shell document.
+    compiler.options.output.publicPath ??= 'auto'
     applyReactCompiler(compiler, plan)
 
     new ModuleFederationPlugin(
@@ -94,12 +71,12 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     ).apply(compiler)
 
     compiler.hooks.beforeCompile.tap(PLUGIN_NAME, () => {
-      this.refresh(containerRoot)
+      this.#refresh(containerRoot)
     })
 
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, compilation => {
       const current = this.#plan ?? plan
-      reportDiagnostics(compilation, current)
+      for (const diagnostic of current.diagnostics) compilation.errors.push(diagnostic)
 
       compilation.hooks.processAssets.tap(
         {
@@ -115,37 +92,16 @@ export class MfeRspackPlugin implements RspackPluginInstance {
   }
 }
 
-/** Constructs the plugin. This is the documented entry point. */
-export function mfePlugin(options: MfePluginOptions = {}): MfeRspackPlugin {
+export function mfePlugin(options: MfePluginOptions = {}): RspackPluginInstance {
   return new MfeRspackPlugin(options)
 }
 
-/* -------------------------------------------------------------------------- */
-/* Compiler wiring                                                             */
-/* -------------------------------------------------------------------------- */
-
-function applyResolve(compiler: Compiler, plan: ContainerPlan): void {
-  const resolve = compiler.options.resolve
-  resolve.alias = { ...resolve.alias, ...plan.aliases }
-  resolve.extensions ??= ['.ts', '.tsx', '.js', '.jsx', '.json']
-}
 
 /**
- * `auto` is what makes an imported asset and `new URL('./x.svg',
- * import.meta.url)` resolve against the container's own deployed location
- * rather than against the shell document.
- */
-function applyOutput(compiler: Compiler): void {
-  compiler.options.output.publicPath ??= 'auto'
-}
-
-/**
- * The supported React Compiler transform.
- *
- * It runs `enforce: 'pre'`, ahead of the bundler's own TypeScript and JSX
+ * Runs `enforce: 'pre'`, ahead of the bundler's own TypeScript and JSX
  * handling, because the compiler reads the source structure those transforms
  * erase. Authors do not configure the compiler; `reactCompiler: false` turns it
- * off for a build so a repository can run its matrix compiled and uncompiled.
+ * off so a repository can run its matrix compiled and uncompiled.
  */
 function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
   if (!plan.options.reactCompiler) return
@@ -176,19 +132,8 @@ function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Compilation hooks                                                           */
-/* -------------------------------------------------------------------------- */
-
-function reportDiagnostics(compilation: Compilation, plan: ContainerPlan): void {
-  for (const diagnostic of plan.diagnostics) {
-    compilation.errors.push(diagnostic)
-  }
-}
 
 /**
- * Scopes every stylesheet the compilation produced.
- *
  * Working on the emitted asset rather than on each source file means the
  * container's resets and tokens are scoped once, in their final deduplicated
  * form, instead of once per module that imported them.
@@ -201,22 +146,18 @@ function scopeStyleSheets(compiler: Compiler, compilation: Compilation, plan: Co
     if (!asset.name.endsWith('.css')) continue
 
     try {
-      const result = transformScopedCss(asset.source.source().toString(), {
+      const scoped = transformScopedCss(asset.source.source().toString(), {
         scope: plan.scopes,
         from: asset.name,
       })
-      compilation.updateAsset(asset.name, new RawSource(result.css))
+      compilation.updateAsset(asset.name, new RawSource(scoped))
     } catch (error) {
       compilation.errors.push(error as Error)
     }
   }
 }
 
-/**
- * Ships the shell registry descriptor and the runtime configuration schema with
- * the container, so the deployment carries what the shell and the release
- * pipeline read.
- */
+/** Ships the registry descriptor and config schema with the container. */
 function emitContainerArtifacts(
   compiler: Compiler,
   compilation: Compilation,

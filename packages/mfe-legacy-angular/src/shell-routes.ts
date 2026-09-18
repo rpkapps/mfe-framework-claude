@@ -1,29 +1,16 @@
 /**
- * The shell-owned surfaces that legacy apps still depend on.
- *
- * Two things live here because they are the same promise from two directions:
- * the routes the shell keeps serving on a legacy app's behalf, and the release
- * notes it fetches from next to the app's manifest. Both are compatibility
- * paths. Neither is replaced by the new App capabilities — a migrated app that
- * starts owning its own release notes adds a capability, and that addition must
- * not take the fallback away from the apps that have not migrated.
- *
- * All of it is pure: route matching is string work, and the release-notes
- * source takes an injected fetch, so nothing here needs a network or a shell.
+ * The shell-owned surfaces legacy apps still depend on: the routes the shell
+ * serves for them, and the release notes beside their manifest. The new App
+ * capabilities add to these rather than replace them — an App that owns its
+ * release notes must not take the fallback from apps that have not migrated.
  */
 
-import { createMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
-
-/* -------------------------------------------------------------------------- */
-/* Shell-owned routes                                                          */
-/* -------------------------------------------------------------------------- */
+import { createMfeError, type MfeError, type NeutralRegistryEntry } from '@company/mfe-core'
 
 /**
- * The patterns the shell serves for legacy apps, in evaluation order.
- *
- * Order is part of the contract: the shell's own pages come before the
- * per-app forms, and the per-app catch-all comes last so it cannot swallow a
- * more specific legacy route.
+ * The patterns the shell serves for legacy apps, in evaluation order. Order is
+ * part of the contract: the shell's own pages come before the per-app forms,
+ * and the per-app catch-all is last so it cannot swallow a more specific route.
  */
 export const LEGACY_SHELL_ROUTE_PATTERNS = [
   'settings',
@@ -43,12 +30,6 @@ export interface LegacyShellRouteMatch {
   readonly name?: string
   /** What the catch-all swallowed. Empty when it matched the app root. */
   readonly rest?: string
-}
-
-/** Splits a path into segments, ignoring query, hash and repeated slashes. */
-function segmentsOf(pathname: string): readonly string[] {
-  const withoutQuery = pathname.split(/[?#]/, 1)[0] ?? ''
-  return withoutQuery.split('/').filter(segment => segment !== '')
 }
 
 function matchPattern(
@@ -80,13 +61,12 @@ function matchPattern(
 }
 
 /**
- * Matches a path against the shell-owned legacy routes, returning the first
- * pattern that claims it. Returns null when the shell should look elsewhere,
- * which is what keeps this usable as one branch of the shell's router rather
- * than a router of its own.
+ * Returns the first pattern that claims a path, or null when the shell should
+ * look elsewhere — which is what keeps this one branch of the shell's router
+ * rather than a router of its own. Query, hash and repeated slashes are ignored.
  */
 export function matchLegacyShellRoute(pathname: string): LegacyShellRouteMatch | null {
-  const segments = segmentsOf(pathname)
+  const segments = (pathname.split(/[?#]/, 1)[0] ?? '').split('/').filter(segment => segment !== '')
   if (segments.length === 0) return null
 
   for (const pattern of LEGACY_SHELL_ROUTE_PATTERNS) {
@@ -100,28 +80,17 @@ export function isLegacyShellRoute(pathname: string): boolean {
   return matchLegacyShellRoute(pathname) !== null
 }
 
-/* -------------------------------------------------------------------------- */
-/* Release notes                                                               */
-/* -------------------------------------------------------------------------- */
-
 /** Legacy release notes sit next to the container manifest under this name. */
-export const LEGACY_RELEASE_NOTES_FILENAME = 'release-notes.md'
-
-export interface ResolveReleaseNotesOptions {
-  /** Base for a manifest URL that is not absolute, such as a document URL. */
-  readonly base?: string | undefined
-}
+const RELEASE_NOTES_FILENAME = 'release-notes.md'
 
 /**
- * Resolves the release-notes document that sits beside a legacy manifest.
- *
- * It is plain URL resolution — the sibling of the manifest, whatever directory
- * the manifest lives in — so a container that moves its manifest moves its
- * release notes with it and nothing has to be reconfigured.
+ * Plain URL resolution — the sibling of the manifest, in whatever directory the
+ * manifest lives — so a container that moves its manifest moves its release
+ * notes with it. A relative manifest URL needs an explicit `base`.
  */
 export function resolveLegacyReleaseNotesUrl(
   manifestUrl: string,
-  options: ResolveReleaseNotesOptions = {},
+  options: { readonly base?: string | undefined } = {},
 ): string {
   const { base } = options
 
@@ -139,12 +108,11 @@ export function resolveLegacyReleaseNotesUrl(
           : 'a manifest URL that resolves against the supplied base',
       observed: JSON.stringify(manifestUrl),
       declaredBy: 'The legacy adapter',
-      repair:
-        'Pass the manifest URL from the registry entry, and a base when the registry stores relative URLs.',
+      repair: 'Pass a base when the registry stores relative URLs.',
     })
   }
 
-  return new URL(LEGACY_RELEASE_NOTES_FILENAME, manifest).toString()
+  return new URL(RELEASE_NOTES_FILENAME, manifest).toString()
 }
 
 /** The minimum of `fetch` this source uses. Injected, never imported. */
@@ -156,10 +124,6 @@ export type LegacyReleaseNotesFetch = (
   readonly status: number
   text(): Promise<string>
 }>
-
-export interface LegacyReleaseNotesSourceOptions extends ResolveReleaseNotesOptions {
-  readonly fetch: LegacyReleaseNotesFetch
-}
 
 export interface LegacyReleaseNotes {
   readonly id: string
@@ -176,16 +140,28 @@ export interface LegacyReleaseNotesSource {
   ): Promise<LegacyReleaseNotes>
 }
 
+function unreachable(id: string, url: string, observed: string, cause?: unknown): MfeError {
+  return createMfeError({
+    code: 'config/unreachable',
+    id,
+    operation: 'fetch the legacy release notes',
+    expected: `a readable document at ${url}`,
+    observed,
+    declaredBy: 'The legacy adapter',
+    repair: `Publish ${RELEASE_NOTES_FILENAME} next to the container manifest.`,
+    ...(cause === undefined ? {} : { cause }),
+  })
+}
+
 /**
- * Fetches a legacy app's release notes from beside its manifest.
- *
- * This stays available for every entry, including one that also advertises the
- * App-owned release-notes capability: the capability is additive, and removing
- * the fallback would break every app that has not migrated yet.
+ * Stays available for every entry, including one that also advertises the
+ * App-owned capability: removing the fallback would break every app that has
+ * not migrated yet.
  */
-export function createLegacyReleaseNotesSource(
-  options: LegacyReleaseNotesSourceOptions,
-): LegacyReleaseNotesSource {
+export function createLegacyReleaseNotesSource(options: {
+  readonly fetch: LegacyReleaseNotesFetch
+  readonly base?: string | undefined
+}): LegacyReleaseNotesSource {
   return {
     load: async (entry, init) => {
       const url = resolveLegacyReleaseNotesUrl(entry.manifestUrl, { base: options.base })
@@ -195,29 +171,10 @@ export function createLegacyReleaseNotesSource(
       try {
         response = await options.fetch(url, signal === undefined ? {} : { signal })
       } catch (error) {
-        throw createMfeError({
-          code: 'config/unreachable',
-          id: entry.id,
-          operation: 'fetch the legacy release notes',
-          expected: `a readable document at ${url}`,
-          observed: 'a failed request',
-          declaredBy: 'The legacy adapter',
-          repair: `Check that ${LEGACY_RELEASE_NOTES_FILENAME} is published next to the container manifest and is readable from the shell's origin.`,
-          cause: error,
-        })
+        throw unreachable(entry.id, url, 'a failed request', error)
       }
 
-      if (!response.ok) {
-        throw createMfeError({
-          code: 'config/unreachable',
-          id: entry.id,
-          operation: 'fetch the legacy release notes',
-          expected: `a readable document at ${url}`,
-          observed: `HTTP ${response.status}`,
-          declaredBy: 'The legacy adapter',
-          repair: `Publish ${LEGACY_RELEASE_NOTES_FILENAME} next to the container manifest, or migrate the app to the App-owned release-notes capability.`,
-        })
-      }
+      if (!response.ok) throw unreachable(entry.id, url, `HTTP ${response.status}`)
 
       return { id: entry.id, url, markdown: await response.text(), source: 'legacy-sibling' }
     },
@@ -225,12 +182,8 @@ export function createLegacyReleaseNotesSource(
 }
 
 /**
- * Where the shell should read an entry's release notes from.
- *
- * An App that advertises the capability owns its release notes and the shell
- * navigates into it. Everything else keeps the legacy sibling document. This is
- * the additive rule in one place: the new capability is chosen when present,
- * and its absence changes nothing.
+ * Where the shell should read an entry's release notes from. The App-owned
+ * capability is chosen when present, and its absence changes nothing.
  */
 export type ReleaseNotesRoute =
   | { readonly kind: 'app-capability'; readonly path: string }
@@ -238,7 +191,7 @@ export type ReleaseNotesRoute =
 
 export function selectReleaseNotesRoute(
   entry: NeutralRegistryEntry,
-  options: ResolveReleaseNotesOptions = {},
+  options: { readonly base?: string | undefined } = {},
 ): ReleaseNotesRoute {
   const capability = entry.capabilities?.find(candidate => candidate.name === 'releaseNotes')
   if (capability) return { kind: 'app-capability', path: capability.path }

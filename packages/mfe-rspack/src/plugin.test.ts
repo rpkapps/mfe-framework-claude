@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
-import { mfePlugin, MfeRspackPlugin } from './plugin.ts'
+import { planContainer } from './plan.ts'
+import { mfePlugin } from './plugin.ts'
 import { cleanupContainers, createContainer } from './testing/fixtures.ts'
 
 afterEach(cleanupContainers)
@@ -33,7 +34,6 @@ describe('mfePlugin', () => {
       plugins: [mfePlugin()],
     }
 
-    expect(config.plugins[0]).toBeInstanceOf(MfeRspackPlugin)
     expect(typeof config.plugins[0]?.apply).toBe('function')
   })
 
@@ -45,7 +45,7 @@ describe('mfePlugin', () => {
 
   it('plans a container from its own sources', () => {
     const root = createContainer({ 'src/mfe.ts': ENTRY })
-    const plan = mfePlugin({ containerRoot: root }).plan(root)
+    const plan = planContainer({ containerRoot: root })
 
     expect(plan.discovery.definitions.map(definition => definition.id)).toEqual([
       'operations',
@@ -60,10 +60,10 @@ describe('mfePlugin', () => {
 
   it('keeps the sharing defaults when an author adds a package', () => {
     const root = createContainer({ 'src/mfe.ts': ENTRY })
-    const plan = mfePlugin({
+    const plan = planContainer({
       containerRoot: root,
       shared: { '@company/auth-client': '^3.0.0' },
-    }).plan(root)
+    })
 
     expect(Object.keys(plan.shared)).toEqual(['@company/auth-client', 'react', 'react-dom'])
     expect(plan.shared['react']).toMatchObject({ singleton: true, strictVersion: true })
@@ -75,7 +75,7 @@ describe('mfePlugin', () => {
       'src/logo.ts': 'export const logo = `./assets/logo.svg`\n',
     })
 
-    const plan = mfePlugin({ containerRoot: root }).plan(root)
+    const plan = planContainer({ containerRoot: root })
 
     expect(plan.diagnostics).toHaveLength(1)
     expect(plan.diagnostics[0]?.message).toContain('import.meta.url')
@@ -92,7 +92,7 @@ export const stray = createWidget({ id: 'stray', inputs: z.object({}), events: {
 `,
     })
 
-    const plan = mfePlugin({ containerRoot: root }).plan(root)
+    const plan = planContainer({ containerRoot: root })
 
     expect(plan.diagnostics).toHaveLength(1)
     expect(plan.diagnostics[0]?.message).toContain('stray.ts')
@@ -102,7 +102,7 @@ export const stray = createWidget({ id: 'stray', inputs: z.object({}), events: {
 describe('Module Federation options', () => {
   it('derives the container name, exposes and sharing', () => {
     const root = createContainer({ 'src/mfe.ts': ENTRY })
-    const plan = mfePlugin({ containerRoot: root }).plan(root)
+    const plan = planContainer({ containerRoot: root })
     const options = buildFederationOptions(plan)
 
     expect(options.name).toBe('acme_operations')
@@ -113,7 +113,7 @@ describe('Module Federation options', () => {
 
   it('embeds the framework metadata in the manifest metadata, not a second manifest', () => {
     const root = createContainer({ 'src/mfe.ts': ENTRY })
-    const plan = mfePlugin({ containerRoot: root, buildTime: '2026-01-02T03:04:05.000Z' }).plan(root)
+    const plan = planContainer({ containerRoot: root, buildTime: '2026-01-02T03:04:05.000Z' })
     const options = buildFederationOptions(plan)
 
     const manifest = options.manifest.additionalData({

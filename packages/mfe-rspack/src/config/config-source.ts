@@ -1,13 +1,7 @@
 /**
- * Reading `src/mfe.config.ts`.
- *
- * The author's configuration file names environment variables and the schema
- * each value has to satisfy. It is read statically, the same way definitions
- * are: the build never evaluates it, so the file cannot reach a network, a
- * secret store or a `process.env` at build time even by accident.
- *
- * The deployment values live in `runtime-config.json`, which the generated
- * `#mfe/config` module loads once per deployed container.
+ * Reading `src/mfe.config.ts` statically, the same way definitions are read, so
+ * the file cannot reach a network, a secret store or a `process.env` at build
+ * time even by accident. The deployment values live in `runtime-config.json`.
  */
 
 import { existsSync } from 'node:fs'
@@ -28,11 +22,8 @@ import {
 import { ENV_NAME_RULE } from './env.ts'
 import { readStaticSchema, type StaticSchema } from './zod-static.ts'
 
-/** Where a container declares its configuration. */
-export const CONFIG_MODULE_NAME = 'src/mfe.config.ts'
-
-/** Modules `env` may be imported from. */
-export const DEFAULT_ENV_MODULES = ['@company/mfe-rspack', '@company/mfe-rspack/env'] as const
+const CONFIG_MODULE_NAME = 'src/mfe.config.ts'
+const ENV_MODULES = ['@company/mfe-rspack', '@company/mfe-rspack/env']
 
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/
 const FIELD_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/
@@ -52,31 +43,21 @@ export interface ConfigSource {
   readonly fields: readonly ConfigField[]
 }
 
-export interface ReadConfigSourceOptions {
-  readonly envModules?: readonly string[]
-  /** Pre-read source, so callers can read a config without touching disk. */
-  readonly source?: string
-}
-
 /**
  * Reads the container's configuration declaration, or returns `undefined` when
  * the container declares none — a container with no configuration is normal and
  * gets no `#mfe/config` module.
  */
-export function readConfigSource(
-  containerRoot: string,
-  options: ReadConfigSourceOptions = {},
-): ConfigSource | undefined {
+export function readConfigSource(containerRoot: string): ConfigSource | undefined {
   const file = join(containerRoot, CONFIG_MODULE_NAME)
-  if (options.source === undefined && !existsSync(file)) return undefined
+  if (!existsSync(file)) return undefined
 
-  const sourceFile = parseSourceFile(file, options.source)
-  const envModules = options.envModules ?? DEFAULT_ENV_MODULES
+  const sourceFile = parseSourceFile(file)
   const imports = collectImportedBindings(sourceFile)
 
   const envLocals = new Set<string>()
   for (const [local, binding] of imports) {
-    if (binding.imported === 'env' && envModules.includes(binding.moduleSpecifier)) {
+    if (binding.imported === 'env' && ENV_MODULES.includes(binding.moduleSpecifier)) {
       envLocals.add(local)
     }
   }
@@ -296,19 +277,14 @@ function findDefaultExportObject(
     observed: 'a configuration module without one',
     declaredBy: 'The configuration contract',
     repair:
-      "Add `export default { … }` with one env() declaration per configuration field, or delete the file if this container needs no configuration.",
+      'Add `export default { … }` with one env() declaration per configuration field, or delete the file if this container needs no configuration.',
   })
 }
 
 /** The conventional variable name for a field, used in repair suggestions. */
-export function toEnvName(field: string): string {
+function toEnvName(field: string): string {
   return field
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .replace(/[^A-Za-z0-9]+/g, '_')
     .toUpperCase()
-}
-
-/** The API origin fields, in declaration order. */
-export function apiFields(source: ConfigSource | undefined): readonly ConfigField[] {
-  return source === undefined ? [] : source.fields.filter(field => field.api)
 }

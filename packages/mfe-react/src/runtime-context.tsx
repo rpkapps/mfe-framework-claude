@@ -1,9 +1,9 @@
 /**
  * The shell-level runtime provider.
  *
- * A Widget can be consumed by the shell itself, not only from inside another
- * mount, so the runtime has to be reachable without a surrounding mount. This
- * context carries it; `MfeMountProvider` carries the per-mount half.
+ * A Widget can be consumed by the shell itself, so the runtime has to be
+ * reachable without a surrounding mount. `MfeMountProvider` carries the
+ * per-mount half.
  */
 
 import { createContext, useContext, type ReactNode } from 'react'
@@ -24,9 +24,8 @@ export function MfeProvider({ runtime, children }: MfeProviderProps): ReactNode 
 }
 
 /**
- * Resolves the runtime from the nearest mount, falling back to the shell-level
- * provider. A mount always knows its runtime, so the lookup order avoids making
- * nested consumption depend on the shell provider being present.
+ * A mount always knows its runtime, so it is consulted before the shell-level
+ * provider: nested consumption then never depends on that provider existing.
  */
 export function useMfeRuntime(consumer: string): MfeRuntime {
   const mount = useOptionalMfeMount()
@@ -42,13 +41,6 @@ export function useMfeRuntime(consumer: string): MfeRuntime {
     expected: 'an MfeProvider above this component, or an enclosing App or Widget mount',
     observed: 'neither',
     declaredBy: 'The framework runtime boundary',
-    repair:
-      'Wrap the shell in <MfeProvider runtime={runtime}> once at boot. Components inside an App or Widget already have one.',
+    repair: 'Wrap the shell in <MfeProvider runtime={runtime}> once at boot.',
   })
-}
-
-export function useOptionalMfeRuntime(): MfeRuntime | null {
-  const mount = useOptionalMfeMount()
-  const runtime = useContext(RuntimeContext)
-  return mount?.runtime ?? runtime
 }

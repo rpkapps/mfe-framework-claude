@@ -1,15 +1,8 @@
 /**
- * The container loader for legacy apps.
- *
- * It implements the host's loader port with the loading shape the shell
- * already uses, unchanged: register the remote under the legacy app name, load
- * `<name>/single-spa-app` from it, and hand back the parcel lifecycles for the
- * parcel mount to drive. Replacing this with the new App loader would change
- * how every legacy app boots, so it is deliberately preserved rather than
- * reimplemented.
- *
- * The federation runtime is injected, exactly as in the React adapter's loader,
- * so this module has no import-time side effects and tests need no runtime.
+ * The container loader for legacy apps, implementing the host's loader port
+ * with the shell's existing loading shape unchanged: register the remote under
+ * the legacy app name, load `<name>/single-spa-app`, hand back the lifecycles.
+ * The federation runtime is injected, so importing this module starts nothing.
  */
 
 import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -35,27 +28,20 @@ export interface LegacyFederationRuntime {
   loadRemote<T>(id: string): Promise<T | null>
 }
 
-export interface LegacyContainerLoaderOptions {
-  /**
-   * The federation runtime. Injected so tests and local development never have
-   * to load the real one, and so importing this file starts nothing.
-   */
-  readonly runtime: LegacyFederationRuntime
-}
-
 /** What a legacy container yields: the parcel lifecycles plus how to mount them. */
 export interface LegacyParcelModule {
   readonly parcelConfig: LegacyParcelConfig
   /** The legacy name, needed again as the parcel's activity name. */
   readonly containerName: string
-  /** Legacy apps do not own their URL; the shell routes them. */
   readonly navigationOwnership: NavigationOwnership
 }
 
+const EXPOSE_PATH = LEGACY_PARCEL_EXPOSE_NAME.replace(/^\.\//, '')
+
 /**
  * A legacy container may export its lifecycles directly or behind `default`,
- * depending on how its build wrapped the single-spa Angular helper. Both are
- * accepted, because both exist in production and neither is worth a migration.
+ * depending on how its build wrapped the single-spa Angular helper. Both exist
+ * in production and neither is worth a migration.
  */
 function extractParcelConfig(
   moduleExports: unknown,
@@ -69,31 +55,27 @@ function extractParcelConfig(
     if (isLegacyParcelConfig(fromDefault)) return fromDefault
   }
 
-  const missing = missingParcelLifecycles(moduleExports)
   throw createMfeError({
     code: 'load/entry-failure',
     id: entry.id,
-    operation: `load ${containerName}/${LEGACY_PARCEL_EXPOSE_NAME.replace(/^\.\//, '')}`,
+    operation: `load ${containerName}/${EXPOSE_PATH}`,
     expected: 'a module exporting the single-spa lifecycles bootstrap, mount and unmount',
     observed:
       moduleExports === null || moduleExports === undefined
         ? 'nothing'
-        : `a module missing ${missing.join(', ')}`,
+        : `a module missing ${missingParcelLifecycles(moduleExports).join(', ')}`,
     declaredBy: 'The legacy adapter',
-    repair: `Check that ${containerName} still exposes "${LEGACY_PARCEL_EXPOSE_NAME}" from its federation config and that the exposed module returns the single-spa Angular lifecycles.`,
+    repair: `Check that ${containerName} still exposes "${LEGACY_PARCEL_EXPOSE_NAME}" from its federation config.`,
   })
 }
 
 /**
- * Creates the legacy loader.
- *
- * Registration is idempotent per container: the remote is registered the first
- * time one of its definitions is loaded, which is also why changing a
+ * Registration is idempotent per container, which is also why changing a
  * developer override needs a reload rather than a remount.
  */
-export function createLegacyContainerLoader(
-  options: LegacyContainerLoaderOptions,
-): ContainerLoader<LegacyParcelModule> {
+export function createLegacyContainerLoader(options: {
+  readonly runtime: LegacyFederationRuntime
+}): ContainerLoader<LegacyParcelModule> {
   const registered = new Set<string>()
 
   return {
@@ -117,7 +99,7 @@ export function createLegacyContainerLoader(
         }
       }
 
-      const remoteId = `${containerName}/${LEGACY_PARCEL_EXPOSE_NAME.replace(/^\.\//, '')}`
+      const remoteId = `${containerName}/${EXPOSE_PATH}`
 
       let moduleExports: unknown
       try {
@@ -128,14 +110,13 @@ export function createLegacyContainerLoader(
           id: entry.id,
           operation: `load ${remoteId}`,
           declaredBy: 'The federation runtime',
-          repair:
-            'Check the browser network panel for the failed chunk. The legacy expose path is unchanged by the migration, so a 404 here means the container was built without it.',
+          // The expose path is unchanged by the migration, so a 404 here means
+          // the container was built without it.
+          repair: 'Check the browser network panel for the failed chunk.',
         })
       }
 
       signal.throwIfAborted()
-
-      const parcelConfig = extractParcelConfig(moduleExports, entry, containerName)
 
       return {
         identity: {
@@ -143,7 +124,11 @@ export function createLegacyContainerLoader(
           kind: 'app',
           ...(entry.version === undefined ? {} : { version: entry.version }),
         },
-        module: { parcelConfig, containerName, navigationOwnership },
+        module: {
+          parcelConfig: extractParcelConfig(moduleExports, entry, containerName),
+          containerName,
+          navigationOwnership,
+        },
       }
     },
   }

@@ -1,11 +1,6 @@
 /**
- * Generating everything a container needs, in one deterministic pass.
- *
- * The build hash is a content hash of the generated files, so it changes
- * exactly when the container's generated shape changes. That means it is
- * computed in two steps: everything else is generated first, hashed, and then
- * the two files that carry the hash — `#mfe/meta` and the registry descriptor —
- * are generated from it.
+ * The build hash is a content hash of the generated files, so it is computed in
+ * two steps: everything else first, then the two files that carry it.
  */
 
 import type { CapabilityDescriptor, ContainerDescriptor } from '@company/mfe-core'
@@ -22,7 +17,6 @@ import {
 } from './artifacts.ts'
 import { contentHash, type GeneratedFile } from './emit.ts'
 import {
-  assetBaseModule,
   configModule,
   federationEntryModules,
   fetchModule,
@@ -45,7 +39,6 @@ export function generateContainerFiles(
   const base: GeneratedFile[] = [
     gitignoreFile(context),
     tsconfigPathsFile(context),
-    assetBaseModule(context),
     fetchModule(context),
     ...federationEntryModules(context),
     ...widgetContractModules(context),
@@ -63,7 +56,11 @@ export function generateContainerFiles(
   const buildHash = contentHash(base, context.options.generatedDir)
   const descriptor = containerDescriptor(context, capabilities, buildHash)
 
-  const files = [...base, metaModule(context, buildHash), registryDescriptorFile(context, descriptor)]
+  const files = [
+    ...base,
+    metaModule(context, buildHash),
+    registryDescriptorFile(context, descriptor),
+  ]
 
   return {
     files: [...files].sort((left, right) => (left.path < right.path ? -1 : 1)),
@@ -73,6 +70,3 @@ export function generateContainerFiles(
   }
 }
 
-export * from './artifacts.ts'
-export * from './emit.ts'
-export * from './modules.ts'

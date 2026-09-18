@@ -2,12 +2,9 @@
  * Reserved attribution: the identity the host binds onto every telemetry record
  * it emits for a mount.
  *
- * Authors pass their own attributes, but the definition id, kind, version,
- * build hash and the internal mount token are bound by the host and cannot be
- * overridden: an author attribute that collides with a reserved key loses. The
- * reserved values are merged *after* the author attributes have been clamped to
- * the documented limits, so a caller cannot crowd attribution out of a record by
- * sending sixty-four attributes of their own.
+ * An author attribute that collides with a reserved key loses, and the reserved
+ * values are merged *after* the author attributes have been clamped, so a
+ * caller cannot crowd attribution out by sending sixty-four of their own.
  */
 
 import {
@@ -39,42 +36,41 @@ export type ReservedAttributeKey =
 
 const RESERVED_KEYS: ReadonlySet<string> = new Set<string>(Object.values(RESERVED_ATTRIBUTE_KEYS))
 
+/** The attribution fields, paired with the attribute key each one renders as. */
+const ATTRIBUTION_FIELDS = [
+  ['definitionId', RESERVED_ATTRIBUTE_KEYS.definitionId],
+  ['definitionKind', RESERVED_ATTRIBUTE_KEYS.definitionKind],
+  ['definitionVersion', RESERVED_ATTRIBUTE_KEYS.definitionVersion],
+  ['buildHash', RESERVED_ATTRIBUTE_KEYS.buildHash],
+  ['mountToken', RESERVED_ATTRIBUTE_KEYS.mountToken],
+] as const satisfies readonly (readonly [keyof TelemetryAttribution, string])[]
+
 export function isReservedAttributeKey(key: string): boolean {
   return RESERVED_KEYS.has(key)
 }
 
 /**
- * Copies the attribution into a frozen record with only the fields that were
- * actually supplied, so records emitted before disposal keep exactly the
- * attribution they were emitted with even if the caller mutates its own object.
+ * Copies the supplied attribution fields into a frozen record and the matching
+ * frozen attributes. Copying is what keeps records emitted before disposal
+ * carrying exactly the attribution they were emitted with, even if the caller
+ * mutates its own object afterwards.
  */
-export function freezeAttribution(attribution: TelemetryAttribution): TelemetryAttribution {
-  return Object.freeze({
-    definitionId: attribution.definitionId,
-    definitionKind: attribution.definitionKind,
-    ...(attribution.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: attribution.definitionVersion }),
-    ...(attribution.buildHash === undefined ? {} : { buildHash: attribution.buildHash }),
-    ...(attribution.mountToken === undefined ? {} : { mountToken: attribution.mountToken }),
-  })
-}
-
-/** The attribution rendered as the attributes every record carries. */
-export function reservedAttributesFor(attribution: TelemetryAttribution): TelemetryAttributes {
-  return Object.freeze({
-    [RESERVED_ATTRIBUTE_KEYS.definitionId]: attribution.definitionId,
-    [RESERVED_ATTRIBUTE_KEYS.definitionKind]: attribution.definitionKind,
-    ...(attribution.definitionVersion === undefined
-      ? {}
-      : { [RESERVED_ATTRIBUTE_KEYS.definitionVersion]: attribution.definitionVersion }),
-    ...(attribution.buildHash === undefined
-      ? {}
-      : { [RESERVED_ATTRIBUTE_KEYS.buildHash]: attribution.buildHash }),
-    ...(attribution.mountToken === undefined
-      ? {}
-      : { [RESERVED_ATTRIBUTE_KEYS.mountToken]: attribution.mountToken }),
-  })
+export function bindAttribution(source: TelemetryAttribution): {
+  readonly attribution: TelemetryAttribution
+  readonly attributes: TelemetryAttributes
+} {
+  const attribution: Record<string, string> = {}
+  const attributes: Record<string, string> = {}
+  for (const [field, key] of ATTRIBUTION_FIELDS) {
+    const value = source[field]
+    if (value === undefined) continue
+    attribution[field] = value
+    attributes[key] = value
+  }
+  return {
+    attribution: Object.freeze(attribution) as unknown as TelemetryAttribution,
+    attributes: Object.freeze(attributes),
+  }
 }
 
 export interface MergedAttributes {

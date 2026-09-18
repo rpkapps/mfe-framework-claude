@@ -278,9 +278,6 @@ catalogs:
     react-dom:
       specifier: 19.3.0
       version: 19.3.0
-    single-spa:
-      specifier: 6.0.3
-      version: 6.0.3
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
@@ -424,10 +421,13 @@ importers:
         version: 1.63.0
       '@rspack/cli':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+      '@rspack/dev-server':
+        specifier: 2.2.1
+        version: 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
       '@rspack/plugin-react-refresh':
         specifier: 'catalog:'
         version: 2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.17.0)
@@ -482,7 +482,7 @@ importers:
         version: link:../../packages/mfe-rspack
       '@rspack/cli':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
@@ -534,7 +534,7 @@ importers:
         version: link:../../packages/mfe-rspack
       '@rspack/cli':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
@@ -589,7 +589,7 @@ importers:
         version: link:../../packages/mfe-rspack
       '@rspack/cli':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
@@ -695,9 +695,6 @@ importers:
       '@company/mfe-host':
         specifier: workspace:*
         version: link:../mfe-host
-      single-spa:
-        specifier: 'catalog:'
-        version: 6.0.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -1611,6 +1608,25 @@ packages:
       '@module-federation/runtime-tools':
         optional: true
       '@swc/helpers':
+        optional: true
+
+  '@rspack/dev-middleware@2.0.4':
+    resolution: {integrity: sha512-VCdT8hv9YvMPiBohhukD/OkGB+2GJ7mPRbeuDJ/jIT6hv5gvmJCnydMetJVARh6vXoBtfSHEd2gX78Dqaxh1NQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rspack/core': ^2.0.0
+    peerDependenciesMeta:
+      '@rspack/core':
+        optional: true
+
+  '@rspack/dev-server@2.2.1':
+    resolution: {integrity: sha512-Il8HbYGK3rH5rM0XmUOsOGZVw69BKRpBZ61P28Fy8ry35CtfniDBWtbo/rvJtIT/sK0qwijmNrhF498ltsV+uA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rspack/core': ^2.0.0
+      selfsigned: ^5.0.0
+    peerDependenciesMeta:
+      selfsigned:
         optional: true
 
   '@rspack/plugin-react-refresh@2.0.2':
@@ -3592,9 +3608,6 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
-  single-spa@6.0.3:
-    resolution: {integrity: sha512-pXlwHXHhs3hx/MnGQHBLdFCVAN2rlm9TLBKazbDMyZ25QRxoen2vlUZ47MyXKa9K8Gd5UZs/gkuQad4TGbViwg==}
-
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
@@ -4960,9 +4973,11 @@ snapshots:
       '@rspack/binding-win32-ia32-msvc': 2.2.6
       '@rspack/binding-win32-x64-msvc': 2.2.6
 
-  '@rspack/cli@2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
+  '@rspack/cli@2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))':
     dependencies:
       '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+    optionalDependencies:
+      '@rspack/dev-server': 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
 
   '@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)':
     dependencies:
@@ -4970,6 +4985,15 @@ snapshots:
     optionalDependencies:
       '@module-federation/runtime-tools': 2.9.0
       '@swc/helpers': 0.5.23
+
+  '@rspack/dev-middleware@2.0.4(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
+    optionalDependencies:
+      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+
+  '@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
+    dependencies:
+      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+      '@rspack/dev-middleware': 2.0.4(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
 
   '@rspack/plugin-react-refresh@2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.17.0)':
     dependencies:
@@ -6911,8 +6935,6 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
-
-  single-spa@6.0.3: {}
 
   sisteransi@1.0.5: {}
 

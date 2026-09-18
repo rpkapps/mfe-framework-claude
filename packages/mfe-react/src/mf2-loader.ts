@@ -145,7 +145,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
     },
   }
 
-  return loader as ContainerLoader
+  return loader
 }
 
 /**

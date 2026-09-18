@@ -1,21 +1,13 @@
 /**
- * `createMountTelemetry` - the mount-bound telemetry service handed to authors.
+ * `createMountTelemetry` — the mount-bound telemetry service handed to authors.
  *
- * The object returned is an `MfeTelemetry`: seven members, all imperative, none
- * of them reactive. Emitting telemetry subscribes to nothing, schedules
- * nothing, awaits nothing and therefore cannot cause a rerender. The host keeps
- * a few extra members on the same object - `dispose`, `counters`, `framework`,
- * `attribution`, `openSpanCount` - defined as non-enumerable properties so that
- * the author-visible surface, everything `Object.keys` reports, stays exactly
- * the seven documented members while the host still has its controls.
- *
- * Every member is created once and frozen: the service, each action and the
- * tracer keep their identity for the whole mount lifetime, so they can be
- * closed over or passed as a dependency without re-running an effect.
+ * The author surface is exactly seven imperative members. The host keeps its
+ * own controls on the same object as non-enumerable properties, so anything
+ * that walks the object still sees only those seven. Every member is created
+ * once and frozen, so it can be closed over without re-running an effect.
  */
 
 import type {
-  DiagnosticsSink,
   MeasurementUnit,
   MfeTelemetry,
   TelemetryAttributes,
@@ -24,18 +16,10 @@ import type {
   TelemetryProvider,
 } from '@company/mfe-core'
 
-import { MountTelemetryRuntime, type TelemetryCounters } from './runtime.ts'
+import { MountTelemetryRuntime, type TelemetryCounters, type TelemetryRuntimeOptions } from './runtime.ts'
 import { MountTracer } from './tracer.ts'
 
-export interface MountTelemetryOptions {
-  /** Development diagnostics sink. The host wires this to its diagnostics hub. */
-  readonly onDiagnostic?: DiagnosticsSink
-  /** Defaults to "not a production build". Diagnostics are silent when false. */
-  readonly dev?: boolean
-  /** Per-mount diagnostic budget, beyond which only the counters move. Defaults to 50. */
-  readonly maxDiagnostics?: number
-  /** Injectable clock, for deterministic tests. */
-  readonly now?: () => number
+export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
   /** False switches tracing off: every span is a non-recording handle. Defaults to true. */
   readonly tracing?: boolean
 }
@@ -72,13 +56,7 @@ export function createMountTelemetry(
   attribution: TelemetryAttribution,
   options: MountTelemetryOptions = {},
 ): MountTelemetryHandle {
-  const runtime = new MountTelemetryRuntime(provider, attribution, {
-    ...(options.onDiagnostic === undefined ? {} : { onDiagnostic: options.onDiagnostic }),
-    ...(options.dev === undefined ? {} : { dev: options.dev }),
-    ...(options.maxDiagnostics === undefined ? {} : { maxDiagnostics: options.maxDiagnostics }),
-    ...(options.now === undefined ? {} : { now: options.now }),
-  })
-
+  const runtime = new MountTelemetryRuntime(provider, attribution, options)
   const tracer = new MountTracer(runtime, { enabled: options.tracing ?? true })
 
   const surface: MfeTelemetry = {
@@ -115,17 +93,15 @@ export function createMountTelemetry(
     // allowed to touch the provider after disposal was requested.
     const leaked = tracer.finalizeOpenSpans()
     if (leaked.finalized > 0) {
+      const names = leaked.names.slice(0, 8).join(', ')
       runtime.diagnose({
         code: 'dispose/failure',
         operation: 'dispose the mount telemetry',
         expected: 'every span started by the mount to be ended by its author',
-        observed: `${leaked.finalized} span(s) still open: ${leaked.names.slice(0, 8).join(', ')}`,
+        observed: `${leaked.finalized} span(s) still open: ${names}`,
         repair:
           'End each span in a finally block. They were closed as cancelled, not as failures, so no alert fires.',
-        context: {
-          openSpans: leaked.finalized,
-          spanNames: leaked.names.slice(0, 8).join(', '),
-        },
+        context: { openSpans: leaked.finalized, spanNames: names },
       })
     }
     runtime.markDisposed()
@@ -134,7 +110,7 @@ export function createMountTelemetry(
   Object.defineProperties(handle, {
     attribution: { value: runtime.attribution, enumerable: false },
     disposed: { get: (): boolean => runtime.disposed, enumerable: false },
-    counters: { get: (): TelemetryCounters => runtime.counters.snapshot(), enumerable: false },
+    counters: { get: (): TelemetryCounters => runtime.counterSnapshot(), enumerable: false },
     openSpanCount: { get: (): number => tracer.openSpanCount, enumerable: false },
     framework: {
       value: (operation: string, details: FrameworkRecordDetails): void => {

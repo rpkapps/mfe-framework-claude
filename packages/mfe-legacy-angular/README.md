@@ -108,9 +108,9 @@ most once, a failed teardown still leaves the mount disposed, and a disposed
 mount cannot be resurrected.
 
 The parcel, its config and `mountRootParcel` are structurally typed in
-`src/parcel/single-spa-contract.ts`. `single-spa` may be installed alongside as
-an optional peer dependency, but nothing in this package imports it, which is
-what lets the whole lifecycle be tested without single-spa, Angular or a bundler.
+`src/parcel/single-spa-contract.ts`. `single-spa` is not a dependency of this
+package at all, not even an optional peer, which is what lets the whole
+lifecycle be tested without single-spa, Angular or a bundler.
 
 ## Base href and navigation ownership
 

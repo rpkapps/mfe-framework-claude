@@ -1,12 +1,8 @@
 /**
- * Emitting generated files.
- *
- * Everything the build writes is deterministic: the same sources produce the
- * same bytes, so a generated file never shows up in a diff because two machines
- * disagreed about key order or quoting. The TypeScript the generator writes is
- * already in the house style — no semicolons, single quotes, trailing commas —
- * because a developer will read it the first time something goes wrong, and
- * running a formatter over build output is not a step anyone remembers.
+ * Emitting generated files. The same sources produce the same bytes, and the
+ * TypeScript is written in the house style already, because a developer reads
+ * it the first time something goes wrong and running a formatter over build
+ * output is not a step anyone remembers.
  */
 
 import { createHash } from 'node:crypto'

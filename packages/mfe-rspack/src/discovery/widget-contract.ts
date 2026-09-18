@@ -1,17 +1,9 @@
 /**
- * Reading a Widget's contract without evaluating it.
- *
- * Two things come out of this pass. The first is the set of input and event
- * names, which the build checks against the reserved props and the handler-prop
- * mapping. The second is a description of *where the schemas live*, because the
- * generated Widget contract entry point has to reach them without importing the
- * container entry — importing the entry would drag the App, its router and the
- * route tree into a module a consumer imports only for types.
- *
- * So a schema is either re-exported from the module it already lives in, or
- * copied verbatim from the entry along with whatever top-level declarations and
- * imports it refers to. Anything the build cannot classify is a build error
- * naming the identifier, rather than a generated module that fails to resolve.
+ * Reading a Widget's contract without evaluating it: the input and event names,
+ * and where the schemas live. The generated contract entry has to reach them
+ * without importing the container entry, which would drag the App, its router
+ * and the route tree into a module a consumer imports only for types — so a
+ * schema is either re-exported from its own module or copied verbatim.
  */
 
 import { statSync } from 'node:fs'
@@ -66,7 +58,7 @@ export interface WidgetContractSource {
   readonly imports: readonly ContractImport[]
 }
 
-export interface WidgetContractReadResult {
+interface WidgetContractReadResult {
   readonly eventNames: readonly string[]
   readonly inputNames: readonly string[]
   readonly source: WidgetContractSource
@@ -82,18 +74,29 @@ interface CopyState {
   readonly fileImports: Set<string>
 }
 
+interface Ctx {
+  readonly sourceFile: ts.SourceFile
+  readonly entryFile: string
+  readonly factory: { readonly options: ts.ObjectLiteralExpression; readonly call: ts.CallExpression }
+  readonly id: string
+  readonly imports: ReadonlyMap<string, ImportedBinding>
+  readonly topLevel: ReadonlyMap<string, ts.Expression>
+  readonly state: CopyState
+}
+
 export function readWidgetContract(
   sourceFile: ts.SourceFile,
   entryFile: string,
-  factory: { readonly options: ts.ObjectLiteralExpression; readonly call: ts.CallExpression },
+  factory: Ctx['factory'],
   id: string,
   imports: ReadonlyMap<string, ImportedBinding>,
   topLevel: ReadonlyMap<string, ts.Expression>,
 ): WidgetContractReadResult {
   const state: CopyState = { prelude: new Map(), imports: new Map(), fileImports: new Set() }
+  const context: Ctx = { sourceFile, entryFile, factory, id, imports, topLevel, state }
 
-  const inputs = readSchemaProperty(sourceFile, entryFile, factory, id, 'inputs', imports, topLevel, state)
-  const events = readSchemaProperty(sourceFile, entryFile, factory, id, 'events', imports, topLevel, state)
+  const inputs = readSchemaProperty(context, 'inputs')
+  const events = readSchemaProperty(context, 'events')
 
   return {
     inputNames: readObjectKeys(inputs.expression, inputs.sourceFile, 'inputs'),
@@ -117,19 +120,11 @@ interface ResolvedSchema {
   readonly sourceFile: ts.SourceFile
 }
 
-function readSchemaProperty(
-  sourceFile: ts.SourceFile,
-  entryFile: string,
-  factory: { readonly options: ts.ObjectLiteralExpression; readonly call: ts.CallExpression },
-  id: string,
-  field: 'inputs' | 'events',
-  imports: ReadonlyMap<string, ImportedBinding>,
-  topLevel: ReadonlyMap<string, ts.Expression>,
-  state: CopyState,
-): ResolvedSchema {
-  const property = objectProperty(factory.options, field)
+function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedSchema {
+  const { sourceFile, entryFile, id, imports, topLevel } = context
+  const property = optionProperty(context.factory.options, field, topLevel)
   if (property === undefined) {
-    const { line, column } = positionOf(sourceFile, factory.call)
+    const { line, column } = positionOf(sourceFile, context.factory.call)
     throw createBuildError({
       code: 'contract/input-mismatch',
       file: entryFile,
@@ -142,8 +137,8 @@ function readSchemaProperty(
       declaredBy: 'The Widget contract',
       repair:
         field === 'inputs'
-          ? "Add an inputs schema, for example inputs: z.object({ orderId: z.string() }). Use z.object({}) when the Widget takes none."
-          : "Add an events map, for example events: { acknowledged: z.object({}) }. Use {} when the Widget emits none.",
+          ? 'Add an inputs schema, for example inputs: z.object({ orderId: z.string() }). Use z.object({}) when the Widget takes none.'
+          : 'Add an events map, for example events: { acknowledged: z.object({}) }. Use {} when the Widget emits none.',
     })
   }
 
@@ -177,14 +172,14 @@ function readSchemaProperty(
         observed: `an import of '${imported.imported}' from '${imported.moduleSpecifier}'`,
         declaredBy: 'Static discovery',
         repair:
-          "Declare the schema as an exported top-level const in a module of this container, for example `export const inputs = z.object({ … })` in src/contracts/<widget>.ts, and import it here.",
+          'Declare the schema as an exported top-level const in a module of this container, for example `export const inputs = z.object({ … })` in src/contracts/<widget>.ts, and import it here.',
       })
     }
 
     // A top-level const in the entry: copy it and whatever it refers to.
     const local = topLevel.get(initializer.text)
     if (local !== undefined) {
-      copyIdentifier(sourceFile, entryFile, id, field, initializer.text, imports, topLevel, state)
+      copyIdentifier(context, field, initializer.text)
       return {
         binding: { kind: 'inline', expression: initializer.text },
         expression: unwrapExpression(local),
@@ -194,9 +189,7 @@ function readSchemaProperty(
   }
 
   // Written at the call site: copy the expression text.
-  collectFreeIdentifiers(initializer).forEach(name => {
-    copyIdentifier(sourceFile, entryFile, id, field, name, imports, topLevel, state)
-  })
+  for (const name of collectFreeIdentifiers(initializer)) copyIdentifier(context, field, name)
 
   return {
     binding: { kind: 'inline', expression: initializer.getText(sourceFile) },
@@ -205,21 +198,40 @@ function readSchemaProperty(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Copying what an inline schema refers to                                     */
-/* -------------------------------------------------------------------------- */
+/**
+ * A Widget's options may spread a contract object declared beside them, which
+ * is how a container exports the contract for consumers to import. Resolving
+ * the spread is what lets `inputs` and `events` be found either way.
+ */
+function optionProperty(
+  options: ts.ObjectLiteralExpression,
+  field: string,
+  topLevel: ReadonlyMap<string, ts.Expression>,
+): ts.PropertyAssignment | undefined {
+  const direct = objectProperty(options, field)
+  if (direct !== undefined) return direct
+
+  for (const property of [...options.properties].reverse()) {
+    if (!ts.isSpreadAssignment(property)) continue
+    const spread = unwrapExpression(property.expression)
+    const target = ts.isIdentifier(spread) ? topLevel.get(spread.text) : spread
+    if (target === undefined) continue
+    const object = unwrapExpression(target)
+    if (!ts.isObjectLiteralExpression(object)) continue
+    const found = objectProperty(object, field)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
 
 function copyIdentifier(
-  sourceFile: ts.SourceFile,
-  entryFile: string,
-  id: string,
+  context: Ctx,
   field: string,
   name: string,
-  imports: ReadonlyMap<string, ImportedBinding>,
-  topLevel: ReadonlyMap<string, ts.Expression>,
-  state: CopyState,
   seen: Set<string> = new Set(),
 ): void {
+  const { entryFile, id, imports, topLevel, state } = context
   if (state.prelude.has(name) || seen.has(name)) return
   seen.add(name)
 
@@ -262,21 +274,21 @@ function copyIdentifier(
   }
 
   for (const referenced of collectFreeIdentifiers(unwrapExpression(declaration))) {
-    copyIdentifier(sourceFile, entryFile, id, field, referenced, imports, topLevel, state, seen)
+    copyIdentifier(context, field, referenced, seen)
   }
 
-  state.prelude.set(name, `const ${name} = ${unwrapExpression(declaration).getText(sourceFile)}`)
+  state.prelude.set(
+    name,
+    `const ${name} = ${unwrapExpression(declaration).getText(context.sourceFile)}`,
+  )
 }
 
 /**
- * Identifiers an expression refers to from outside itself.
- *
- * Property names, object keys and anything bound inside the expression — an
- * arrow parameter in a `.refine()` callback, for instance — are excluded, so
- * the result over-approximates nothing and the caller never reports a local as
- * an unresolvable reference.
+ * Identifiers an expression refers to from outside itself. Anything bound
+ * inside it — an arrow parameter in a `.refine()` callback, for instance — is
+ * excluded, so a local is never reported as an unresolvable reference.
  */
-export function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
+function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
   const bound = new Set<string>()
   const used = new Set<string>()
 
@@ -313,14 +325,11 @@ export function collectFreeIdentifiers(expression: ts.Expression): readonly stri
   return [...used]
 }
 
-/* -------------------------------------------------------------------------- */
-/* Reading key names                                                           */
-/* -------------------------------------------------------------------------- */
 
 /**
- * The declared field names of `z.object({ … })` or of an events map. Returns an
- * empty list when the shape is not a literal the build can read; the names are
- * used for validation, and inventing them would be worse than checking none.
+ * The declared field names of `z.object({ … })` or of an events map. Empty when
+ * the shape is not a literal the build can read: the names drive validation,
+ * and inventing them would be worse than checking none.
  */
 function readObjectKeys(
   expression: ts.Expression,
@@ -357,12 +366,9 @@ function literalKeys(object: ts.ObjectLiteralExpression): readonly string[] {
   return keys
 }
 
-/* -------------------------------------------------------------------------- */
-/* Module resolution                                                           */
-/* -------------------------------------------------------------------------- */
 
 /** Resolves a relative specifier to a file on disk, or `null` for a bare one. */
-export function resolveRelativeModule(fromFile: string, specifier: string): string | null {
+function resolveRelativeModule(fromFile: string, specifier: string): string | null {
   if (!specifier.startsWith('.')) return null
 
   const base = resolve(dirname(fromFile), specifier)

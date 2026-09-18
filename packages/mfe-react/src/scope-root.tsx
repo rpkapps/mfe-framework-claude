@@ -1,30 +1,24 @@
 /**
  * Scope and overlay roots.
  *
- * Every App and Widget mount renders inside an element carrying
- * `data-mfe-scope`, and the build emits its CSS as
- * `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`. The lower boundary
- * is what stops a parent App's rules matching inside a nested App's root, and
- * `@scope` does not block inheritance, so shell fonts, theme values and CSS
- * variables still flow down.
- *
- * Overlays need a second root: content portalled to the body would otherwise
- * escape the scope entirely. The framework creates one body-level root per
- * mount, carrying the same scope attribute, and hands it to the design
- * system's portal provider. Authors never pass portal targets.
+ * Every mount renders inside a `data-mfe-scope` element, and the build emits
+ * its CSS as `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`: the lower
+ * boundary stops a parent App's rules matching inside a nested App's root, and
+ * `@scope` does not block inheritance, so shell theme values still flow down.
+ * Overlays portalled to the body get a second root, or they escape the scope.
  */
 
-import { useEffect, useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 /** Reserved for App, Widget and framework portal roots. */
 export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
 
 /**
  * Internal mount discriminator, so two mounts of the same definition get
- * distinct DOM roots. The semantic scope value stays the public id, because
- * that is what the generated CSS selector matches.
+ * distinct DOM roots. The scope value stays the public id, because that is what
+ * the generated CSS selector matches.
  */
-export const MOUNT_ATTRIBUTE = 'data-mfe-mount'
+const MOUNT_ATTRIBUTE = 'data-mfe-mount'
 
 export interface ScopeRootProps {
   readonly definitionId: string
@@ -50,11 +44,8 @@ export function MfeScopeRoot({
 }
 
 /**
- * Creates the body-level overlay root for a mount.
- *
- * Returns the element and a disposer. The caller owns the disposer so overlay
- * cleanup runs on the same teardown path as everything else the mount owns,
- * rather than in a separate effect that could be skipped.
+ * The caller owns the disposer so overlay cleanup runs on the same teardown path
+ * as everything else the mount owns.
  */
 export function createOverlayRoot(
   definitionId: string,
@@ -73,21 +64,4 @@ export function createOverlayRoot(
       element.remove()
     },
   }
-}
-
-/**
- * Creates an overlay root bound to a React component's lifetime.
- *
- * Used where the adapter renders a mount as ordinary React rather than owning
- * an imperative root.
- */
-export function useOverlayRoot(definitionId: string, mountToken: string): HTMLElement {
-  const root = useMemo(
-    () => createOverlayRoot(definitionId, mountToken, document),
-    [definitionId, mountToken],
-  )
-
-  useEffect(() => root.dispose, [root])
-
-  return root.element
 }

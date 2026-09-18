@@ -1,23 +1,14 @@
 /**
- * The Module Federation options the plugin derives for a container.
- *
- * An author never writes any of this. Names, exposes, share scope, singleton
- * flags, the manifest and the framework metadata inside it only work when every
- * container in a page agrees on them, and a per-repository config file cannot
- * make that promise.
- *
- * The framework contract metadata rides in the MF2 manifest's own metadata
- * area, under an `mfe` key, rather than in a second manifest of our own. One
- * manifest means one thing to fetch, one thing to cache and one thing that can
- * be out of date; a competing manifest would eventually disagree with this one,
- * and nothing would say which was right.
+ * The Module Federation options, which an author never writes. The framework
+ * contract metadata rides in the MF2 manifest's own metadata area under an
+ * `mfe` key rather than in a second manifest: a competing manifest would
+ * eventually disagree with this one and nothing would say which was right.
  */
 
 import type { FrameworkManifestMetadata } from '../generate/artifacts.ts'
 import type { ContainerPlan } from '../plan.ts'
 
-/** The key the framework metadata occupies inside the manifest metadata. */
-export const MANIFEST_METADATA_KEY = 'mfe'
+const MANIFEST_METADATA_KEY = 'mfe'
 
 export interface FederationOptions {
   readonly name: string

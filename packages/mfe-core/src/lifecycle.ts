@@ -1,13 +1,11 @@
 /**
- * Mount lifecycle states and the state machine that owns their transitions
- *.
- *
- * One object owns the whole lifecycle so that a maintainer can read every legal
- * transition in one place, rather than reconstructing it from effects scattered
- * across the adapters.
+ * Mount lifecycle states and the state machine that owns their transitions. One
+ * object owns the whole lifecycle so a maintainer reads every legal transition
+ * in one place, instead of reconstructing it from effects scattered across the
+ * adapters.
  */
 
-import { createMfeError, type MfeError } from './errors.ts'
+import { createMfeError, type MfeError, type MfeErrorDetails } from './errors.ts'
 import { SnapshotSource, type Subscribable, type Unsubscribe } from './observable.ts'
 
 export type MountState =
@@ -16,10 +14,7 @@ export type MountState =
   | { readonly status: 'error'; readonly error: MfeError }
   | { readonly status: 'disposed' }
 
-export type MountStatus = MountState['status']
-
-/** `mounted` and `disposed` carry no data, so one frozen value each is enough
- * to keep snapshot identity stable across repeated transitions. */
+/** One frozen value each, so snapshot identity is stable across repeated transitions. */
 const MOUNTED_STATE: MountState = Object.freeze({ status: 'mounted' as const })
 const DISPOSED_STATE: MountState = Object.freeze({ status: 'disposed' as const })
 
@@ -44,10 +39,9 @@ export interface MountLifecycleOptions {
 
 /**
  * Owns the transitions between pending, mounted, error and disposed, together
- * with attempt generations and the mount-scoped abort signal.
- *
- * It deliberately knows nothing about React, routers or loading: the host's
- * mount controller drives it, and adapters observe it.
+ * with attempt generations and the mount-scoped abort signal. It knows nothing
+ * about React, routers or loading: the host's mount controller drives it, and
+ * adapters observe it.
  */
 export class MountLifecycle implements Subscribable<MountState> {
   readonly id: string
@@ -77,10 +71,6 @@ export class MountLifecycle implements Subscribable<MountState> {
   /** Alias matching the public mount-handle vocabulary. */
   readonly getState = (): MountState => this.#state.getSnapshot()
 
-  get state(): MountState {
-    return this.#state.getSnapshot()
-  }
-
   /** Stable reference; safe for `useSyncExternalStore`. */
   readonly subscribe = (listener: () => void): Unsubscribe => this.#state.subscribe(listener)
 
@@ -93,26 +83,25 @@ export class MountLifecycle implements Subscribable<MountState> {
     return this.#disposeController.signal
   }
 
-  get currentAttempt(): number {
-    return this.#attempt
-  }
-
   /**
-   * Starts a new attempt, superseding any attempt still running.
-   *
-   * The previous attempt's controller is aborted first so its in-flight work
-   * settles as cancelled rather than racing the new one.
+   * Starts a new attempt, superseding any attempt still running. The previous
+   * controller aborts first, so its in-flight work settles as cancelled rather
+   * than racing the new one.
    */
   beginAttempt(): AttemptToken {
-    this.#assertNotDisposed('begin a mount attempt')
+    if (this.#disposed) {
+      throw this.#fail({
+        operation: 'begin a mount attempt',
+        expected: 'a live mount',
+        observed: 'a disposed mount',
+        declaredBy: 'The framework mount lifecycle',
+        repair:
+          'Create a new mount instead of reusing a disposed handle. Disposal is terminal: retry() cannot resurrect disposed work.',
+      })
+    }
 
     this.#attemptController?.abort(
-      createMfeError({
-        code: 'mount/failure',
-        id: this.id,
-        ...(this.definitionVersion === undefined
-          ? {}
-          : { definitionVersion: this.definitionVersion }),
+      this.#fail({
         operation: 'supersede mount attempt',
         observed: 'a newer attempt started',
         repair: 'No action required; the superseded attempt was cancelled deliberately.',
@@ -148,7 +137,6 @@ export class MountLifecycle implements Subscribable<MountState> {
 
   /**
    * Transitions to `disposed` and aborts both the attempt and mount signals.
-   *
    * Idempotent: repeated calls observe the same terminal state. The caller owns
    * the asynchronous cleanup that follows; this only fences late work.
    */
@@ -162,9 +150,8 @@ export class MountLifecycle implements Subscribable<MountState> {
   }
 
   /**
-   * Memoizes the disposal promise so `dispose()` is idempotent in the sense
-   * the contract requires: every caller awaits the same cleanup, and a second call
-   * never starts a second teardown.
+   * Memoizes the disposal promise: every caller awaits the same cleanup, and a
+   * second call never starts a second teardown.
    */
   runDisposalOnce(cleanup: () => Promise<void>): Promise<void> {
     this.#disposalPromise ??= cleanup()
@@ -175,20 +162,14 @@ export class MountLifecycle implements Subscribable<MountState> {
     this.#state.dispose()
   }
 
-  #assertNotDisposed(operation: string): void {
-    if (!this.#disposed) return
-    throw createMfeError({
+  #fail(details: Omit<MfeErrorDetails, 'code' | 'id'> & Partial<MfeErrorDetails>): MfeError {
+    return createMfeError({
       code: 'mount/failure',
       id: this.id,
       ...(this.definitionVersion === undefined
         ? {}
         : { definitionVersion: this.definitionVersion }),
-      operation,
-      expected: 'a live mount',
-      observed: 'a disposed mount',
-      declaredBy: 'The framework mount lifecycle',
-      repair:
-        'Create a new mount instead of reusing a disposed handle. Disposal is terminal: retry() cannot resurrect disposed work.',
+      ...details,
     })
   }
 }
