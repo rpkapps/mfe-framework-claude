@@ -131,7 +131,7 @@ export function describeValue(value: unknown): string {
   if (value instanceof Date) return 'a Date'
   if (value instanceof Map) return 'a Map'
   if (value instanceof Set) return 'a Set'
-  const constructorName = (value as object).constructor?.name
+  const constructorName = value.constructor?.name
   if (constructorName && constructorName !== 'Object') return `a ${constructorName} instance`
   return 'an object'
 }

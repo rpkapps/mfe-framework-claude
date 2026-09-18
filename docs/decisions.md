@@ -79,7 +79,7 @@ leaking context into each other; each `Promise.all` operation's synchronous
 region parented to its own span; continuations explicitly wrapped with
 `bindTelemetryContext`.
 
-**Not supported:** a span created *after* an `await` inside an active callback.
+**Not supported:** a span created _after_ an `await` inside an active callback.
 It becomes a root with a fresh trace id.
 
 The decision that matters is the failure mode: an unsupported case produces **no
@@ -142,10 +142,10 @@ neutral shape stays free of that vocabulary.
 change, so the implementation did not add one. Two conditions therefore use the
 nearest available code:
 
-| Condition | Code used | Why it is approximate |
-|---|---|---|
-| Session refresh failed | `config/unreachable` | The session endpoint could not deliver a usable token. This is a session-level event and is *also* reported through a separate `SessionFailure` with a precise reason, so no information is lost — but a developer reading the code alone would be misled. |
-| A 401 response whose request cannot be replayed | `config/invalid` | The request as configured cannot be replayed. Nothing in the union describes replayability. |
+| Condition                                       | Code used            | Why it is approximate                                                                                                                                                                                                                                      |
+| ----------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session refresh failed                          | `config/unreachable` | The session endpoint could not deliver a usable token. This is a session-level event and is _also_ reported through a separate `SessionFailure` with a precise reason, so no information is lost — but a developer reading the code alone would be misled. |
+| A 401 response whose request cannot be replayed | `config/invalid`     | The request as configured cannot be replayed. Nothing in the union describes replayability.                                                                                                                                                                |
 
 If these are worth naming properly, `auth/session-expired` and
 `auth/not-replayable` are the natural additions, and there are exactly two call

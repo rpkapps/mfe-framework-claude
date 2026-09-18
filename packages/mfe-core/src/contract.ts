@@ -134,7 +134,7 @@ export function findNonSerializableValue(
       break
   }
 
-  const object = value as object
+  const object = value
   if (seen.has(object)) return { path, description: 'a circular reference' }
 
   if (object instanceof Date) return { path, description: 'a Date' }
@@ -146,7 +146,10 @@ export function findNonSerializableValue(
     return { path, description: 'a DOM node' }
   }
   // React elements are plain objects, so they need their own marker check.
-  if ('$$typeof' in object && typeof (object as { $$typeof: unknown }).$$typeof === 'symbol') {
+  if (
+    Object.hasOwn(object, '$$typeof') &&
+    typeof (object as { $$typeof: unknown }).$$typeof === 'symbol'
+  ) {
     return { path, description: 'a React element' }
   }
 

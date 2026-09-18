@@ -51,6 +51,14 @@ export interface CreateRuntimeOptions {
   readonly notifyCommandDenial?: CommandDenialNotifier
   /** Opaque, stable for a continuous session across reloads. */
   readonly sessionGeneration?: string
+  /**
+   * Mints the generation for a new session. It must never repeat a previous
+   * value: returning to an earlier user or group configuration must not
+   * resurrect the data that was invalidated with it. The default is a random
+   * identifier, which satisfies that; a shell that coordinates several tabs
+   * supplies its own instead.
+   */
+  readonly nextSessionGeneration?: () => string
   /** Where boot-time developer URL overrides are read from. */
   readonly overrideStorage?: Pick<Storage, 'getItem'>
 }
@@ -107,8 +115,11 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     diagnostics,
   })
 
+  const nextGeneration = options.nextSessionGeneration ?? defaultSessionGeneration
+
   // An identity or semantic group change retires persisted session state before
-  // any new-session value can be read back.
+  // any new-session value can be read back. The new generation is what fences
+  // records written under the old one, so it is minted here rather than reused.
   const stopWatchingSession = shellState.observeTransitions(change => {
     if (!requiresSessionRetirement(change.transitions)) return
 
@@ -117,6 +128,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
       identity
         ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
         : { kind: 'groups', groups: change.next.groups },
+      nextGeneration(),
     )
   })
 
@@ -226,4 +238,18 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
       await Promise.resolve()
     },
   }
+}
+
+/**
+ * A fresh opaque generation. `randomUUID` is used where available; the counter
+ * fallback keeps non-secure contexts and older test environments working, and
+ * uniqueness within a document is all a generation needs.
+ */
+let generationCounter = 0
+function defaultSessionGeneration(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  generationCounter += 1
+  return `session-${Date.now()}-${generationCounter}`
 }

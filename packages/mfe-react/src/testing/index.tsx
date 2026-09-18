@@ -160,13 +160,20 @@ export function createMfeTestEnvironment(
     deadlines: DEFAULT_DEADLINES,
   }
 
+  // Generations are minted per transition so a test can exercise the real
+  // fencing behaviour: records written under a retired generation must not come
+  // back when the same user or group set returns.
+  let generation = 0
   const stopWatchingSession = shellState.observeTransitions(change => {
     if (!requiresSessionRetirement(change.transitions)) return
+
+    generation += 1
     const identity = change.transitions.find(transition => transition.kind === 'identity')
     storage.applySessionTransition(
       identity
         ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
         : { kind: 'groups', groups: change.next.groups },
+      `test-session-${generation}`,
     )
   })
 
