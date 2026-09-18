@@ -10,7 +10,6 @@
 import {
   describeValue,
   isStorageEnvelope,
-  type ContractSchema,
   type MfeError,
   type MfeErrorDetails,
   type StorageArea,
@@ -19,6 +18,8 @@ import {
   type StorageSnapshot,
 } from '@company/mfe-core'
 
+import type { z } from 'zod'
+
 export type Detail = Omit<MfeErrorDetails, 'code' | 'id' | 'operation' | 'path'>
 
 export const DECLARATION = 'The storage declaration this consumer supplied'
@@ -26,7 +27,7 @@ export const SHELL = 'The shell, which owns session identity'
 
 export interface EnvelopeDeclaration {
   readonly name: string
-  readonly schema: ContractSchema<unknown>
+  readonly schema: z.ZodType
   readonly retention: StorageRetention
   readonly version: number
   readonly migrate?: (value: unknown, fromVersion: number) => unknown

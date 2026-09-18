@@ -17,7 +17,6 @@ import {
   physicalStorageKey,
   storagePrefix,
   toMfeError,
-  type ContractSchema,
   type DiagnosticsHub,
   type Listener,
   type MfeError,
@@ -30,6 +29,8 @@ import {
   type StorageSnapshot,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import type { z } from 'zod'
 
 import {
   DECLARATION,
@@ -116,7 +117,7 @@ function defaultEventTarget(): StorageEventTargetLike | null {
 interface ResolvedDeclaration {
   readonly name: string
   readonly area: StorageArea
-  readonly schema: ContractSchema<unknown>
+  readonly schema: z.ZodType
   readonly retention: StorageRetention
   readonly version: number
   readonly declaresDefault: boolean
@@ -385,7 +386,7 @@ export class MfeStorageStore {
     return {
       key: <T>(
         name: string,
-        schema: ContractSchema<T>,
+        schema: z.ZodType<T>,
         options?: StorageKeyOptions<T>,
       ): MfeStorageKey<T> => this.#imperativeKey(definitionId, area, name, schema, options),
       remove: (name: string): void => {
@@ -847,7 +848,7 @@ export class MfeStorageStore {
     definitionId: string,
     area: StorageArea,
     name: string,
-    schema: ContractSchema<T>,
+    schema: z.ZodType<T>,
     options: StorageKeyOptions<T> | undefined,
   ): MfeStorageKey<T> {
     const resolved = this.#resolveDeclaration(definitionId, {

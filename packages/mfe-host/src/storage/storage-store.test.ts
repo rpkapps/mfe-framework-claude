@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { DiagnosticsHub, isMfeError, type ContractSchema, type Diagnostic } from '@company/mfe-core'
+import { DiagnosticsHub, isMfeError, type Diagnostic } from '@company/mfe-core'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
@@ -54,18 +54,6 @@ function envelope(
     ...(retention === 'session' && generation !== null ? { g: generation } : {}),
     d: data,
   })
-}
-
-/** Counts validations, so the store needs no counter of its own to prove parse-once. */
-function countingSchema<T>(schema: ContractSchema<T>): ContractSchema<T> & { parses: number } {
-  const counted = {
-    parses: 0,
-    safeParse: (value: unknown) => {
-      counted.parses += 1
-      return schema.safeParse(value)
-    },
-  }
-  return counted
 }
 
 let harnesses: MfeStorageStore[] = []
@@ -750,17 +738,18 @@ describe('performance gates', () => {
     local.setItem('acme-orders:filters', envelope({ status: 'open', page: 1 }))
     const getItem = vi.spyOn(local, 'getItem')
 
-    const counted = countingSchema(filtersSchema)
+    // Spying the schema counts validations without the store exposing a counter.
+    const parses = vi.spyOn(filtersSchema, 'safeParse')
 
-    const filters = store.bind(ORDERS, { name: 'filters', schema: counted })
+    const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
     const readsAfterBind = local.calls.reads
     expect(getItem).toHaveBeenCalledTimes(1)
-    expect(counted.parses).toBe(1)
+    expect(parses).toHaveBeenCalledTimes(1)
 
     for (let index = 0; index < 100; index += 1) filters.getSnapshot()
 
     expect(getItem).toHaveBeenCalledTimes(1)
-    expect(counted.parses).toBe(1)
+    expect(parses).toHaveBeenCalledTimes(1)
     expect(local.calls.reads).toBe(readsAfterBind)
     expect(filters.getSnapshot()).toBe(filters.getSnapshot())
   })
@@ -768,11 +757,11 @@ describe('performance gates', () => {
   it('parses a changed representation once per key, not once per subscriber', () => {
     const { store, local } = harness()
     track(store)
-    const counted = countingSchema(filtersSchema)
-    const filters = store.bind(ORDERS, { name: 'filters', schema: counted })
+    const parses = vi.spyOn(filtersSchema, 'safeParse')
+    const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
     const listeners = Array.from({ length: 5 }, () => vi.fn())
     for (const listener of listeners) filters.subscribe(listener)
-    const parsesBefore = counted.parses
+    const parsesBefore = parses.mock.calls.length
 
     store.handleStorageEvent({
       key: 'acme-orders:filters',
@@ -780,7 +769,7 @@ describe('performance gates', () => {
       storageArea: local,
     })
 
-    expect(counted.parses).toBe(parsesBefore + 1)
+    expect(parses).toHaveBeenCalledTimes(parsesBefore + 1)
     for (const listener of listeners) expect(listener).toHaveBeenCalledTimes(1)
   })
 

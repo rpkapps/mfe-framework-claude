@@ -8,8 +8,9 @@
  * "unavailable" an unreachable branch instead of a first-class failure.
  */
 
+import type { z } from 'zod'
+
 import type {
-  ContractSchema,
   DiagnosticsHub,
   Listener,
   StorageArea,
@@ -82,7 +83,7 @@ export interface MfeStorageStoreOptions {
 export interface StorageKeyBinding<T> {
   readonly name: string
   readonly area?: StorageArea
-  readonly schema: ContractSchema<T>
+  readonly schema: z.ZodType<T>
   readonly retention?: StorageRetention
   readonly version?: number
   /** Schema-validated at bind time. Applies only to a missing key and is never persisted. */

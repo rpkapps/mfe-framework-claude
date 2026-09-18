@@ -6,7 +6,8 @@
  * imports nothing from Node, Rspack or the TypeScript compiler.
  */
 
-import { createMfeError, type ContractSchema, type InferContract } from '@company/mfe-core'
+import { createMfeError } from '@company/mfe-core'
+import type { z } from 'zod'
 
 /** Environment variable names are screaming snake case, as in a shell. */
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/
@@ -33,7 +34,7 @@ export interface EnvVarDescriptor<T = unknown> {
   /** The environment variable the deployment sets. */
   readonly name: string
   /** The author's own Zod schema. Validation runs through its `safeParse`. */
-  readonly schema: ContractSchema<T>
+  readonly schema: z.ZodType<T>
   /** True when `{ api: true }` declared this value as an API origin. */
   readonly api: boolean
 }
@@ -57,11 +58,11 @@ export type InferEnvConfig<D> = {
  * @param schema the author's Zod schema; defaults declared with `.default()`
  *               apply when the deployment omits the field
  */
-export function env<S extends ContractSchema<unknown>>(
+export function env<T>(
   name: string,
-  schema: S,
+  schema: z.ZodType<T>,
   options: EnvOptions = {},
-): EnvVarDescriptor<InferContract<S>> {
+): EnvVarDescriptor<T> {
   if (typeof name !== 'string' || !ENV_NAME_PATTERN.test(name)) {
     throw createMfeError({
       code: 'config/invalid',
@@ -90,7 +91,7 @@ export function env<S extends ContractSchema<unknown>>(
   return {
     kind: 'mfe-env-var',
     name,
-    schema: schema as ContractSchema<InferContract<S>>,
+    schema,
     api: options.api === true,
   }
 }
