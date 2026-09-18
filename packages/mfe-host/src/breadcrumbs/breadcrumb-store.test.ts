@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { DiagnosticsHub, type BreadcrumbItem, type Diagnostic } from '@company/mfe-core'
+import type { BreadcrumbItem } from '@company/mfe-core'
 
 import { BreadcrumbStore } from './breadcrumb-store.ts'
 import { recordingDiagnostics } from '../__tests__/harness.ts'

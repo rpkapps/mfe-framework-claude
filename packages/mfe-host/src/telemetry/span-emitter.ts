@@ -60,7 +60,7 @@ function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tra
       if (typeof callback !== 'function') return undefined as unknown as T
       return callback(options === undefined ? startSpan(name) : startSpan(name, options))
     },
-  }) as Tracer
+  })
 }
 
 /**
@@ -127,7 +127,8 @@ export function createSpanEmitter(
     const id = attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
     if (typeof id === 'string') {
       if (byId.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) {
-        byId.delete(at(byId.keys()))
+        const oldest = oldestKey(byId.keys())
+        if (oldest !== undefined) byId.delete(oldest)
       }
       byId.set(id, record)
     }
@@ -175,8 +176,8 @@ export function createSpanEmitter(
   })
 }
 
-/** The first key of an iterator, which a bounded map always has. */
-function at(keys: IterableIterator<string>): string {
-  const first: string | undefined = keys.next().value
-  return first ?? ''
+/** The oldest key in a Map, which iterates in insertion order. */
+function oldestKey(keys: Iterable<string>): string | undefined {
+  for (const key of keys) return key
+  return undefined
 }

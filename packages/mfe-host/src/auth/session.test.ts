@@ -5,7 +5,7 @@ import {
   type GetAccessToken,
   type SessionCallContext,
 } from './session.ts'
-import { at, deferred } from '../__tests__/harness.ts'
+import { deferred } from '../__tests__/harness.ts'
 
 type TokenCall = (context: SessionCallContext) => Promise<string | null>
 

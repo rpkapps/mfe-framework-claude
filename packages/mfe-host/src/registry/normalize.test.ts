@@ -100,6 +100,17 @@ function codeOf(error: Error): string {
   return isMfeError(error) ? error.code : `<plain Error: ${error.message}>`
 }
 
+/** The framework rule alone, which is what most cases exercise. */
+function normalize(
+  sources: readonly unknown[],
+  overrides?: ReadonlyMap<string, string>,
+): NormalizedRegistry {
+  return normalizeRegistry(sources, {
+    rules: [createMfeContractRule()],
+    ...(overrides === undefined ? {} : { overrides }),
+  })
+}
+
 describe('adapter selection', () => {
   it('selects the new adapter for an entry advertising a valid contract', () => {
     const legacy = createLegacyRule()
@@ -163,9 +174,7 @@ describe('adapter selection', () => {
   })
 
   it('reports an unsupported contract major rather than quietly skipping the entry', () => {
-    const registry = normalizeRegistry([advertisedEntry({ mfe: { contractMajor: 2 } })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ mfe: { contractMajor: 2 } })])
 
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'reports')
@@ -188,9 +197,7 @@ describe('adapter selection', () => {
   })
 
   it('labels an unrecognisable descriptor by position when it has no readable id', () => {
-    const registry = normalizeRegistry(['not-an-object', 42], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize(['not-an-object', 42])
 
     expect(registry.quarantined.map(entry => entry.id)).toEqual([
       '<entry at index 0>',
@@ -236,9 +243,7 @@ describe('per-entry validation', () => {
   })
 
   it('rejects a definition id that would not survive as a storage prefix or CSS scope', () => {
-    const registry = normalizeRegistry([advertisedEntry({ id: 'Reports_Archive' })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ id: 'Reports_Archive' })])
 
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'Reports_Archive')
@@ -248,17 +253,13 @@ describe('per-entry validation', () => {
   })
 
   it('rejects an entry whose kind is neither app nor widget', () => {
-    const registry = normalizeRegistry([advertisedEntry({ kind: 'page' })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ kind: 'page' })])
 
     expect(quarantinedEntry(registry, 'reports').error.message).toContain('"app" or "widget"')
   })
 
   it('rejects an entry that advertises the contract without an id', () => {
-    const registry = normalizeRegistry([advertisedEntry({ id: undefined })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ id: undefined })])
 
     expect(registry.entries.size).toBe(0)
     expect(quarantinedEntry(registry, '<entry at index 0>').error.message).toContain(
@@ -267,9 +268,7 @@ describe('per-entry validation', () => {
   })
 
   it('rejects an advertised contract marker that is not an object', () => {
-    const registry = normalizeRegistry([advertisedEntry({ mfe: true })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ mfe: true })])
 
     expect(quarantinedEntry(registry, 'reports').error.message).toContain('{ "contractMajor": 1 }')
   })
@@ -283,9 +282,7 @@ describe('duplicate definition ids', () => {
       manifestUrl: 'https://b.test/mf-manifest.json',
     })
 
-    const registry = normalizeRegistry([first, advertisedEntry({ id: 'billing' }), second], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([first, advertisedEntry({ id: 'billing' }), second])
 
     // Neither "last wins" nor "first wins": the id is unusable until a human
     // renames one of them.
@@ -298,9 +295,7 @@ describe('duplicate definition ids', () => {
     const second = advertisedEntry({ id: 'reports' })
     const third = advertisedEntry({ id: 'reports' })
 
-    const registry = normalizeRegistry([first, second, third], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([first, second, third])
 
     expect(registry.quarantined).toHaveLength(3)
     expect(registry.quarantined.map(entry => entry.source)).toEqual([first, second, third])
@@ -340,10 +335,10 @@ describe('duplicate definition ids', () => {
 
 describe('boot-time URL overrides', () => {
   it('replaces the manifest URL and marks the entry as overridden', () => {
-    const registry = normalizeRegistry([advertisedEntry({ id: 'reports' })], {
-      rules: [createMfeContractRule()],
-      overrides: new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
-    })
+    const registry = normalize(
+      [advertisedEntry({ id: 'reports' })],
+      new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
+    )
 
     expect(acceptedEntry(registry, 'reports')).toMatchObject({
       manifestUrl: 'http://localhost:3001/mf-manifest.json',
@@ -352,12 +347,9 @@ describe('boot-time URL overrides', () => {
   })
 
   it('leaves entries that were not overridden unmarked', () => {
-    const registry = normalizeRegistry(
+    const registry = normalize(
       [advertisedEntry({ id: 'reports' }), advertisedEntry({ id: 'billing' })],
-      {
-        rules: [createMfeContractRule()],
-        overrides: new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
-      },
+      new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
     )
 
     const billing = acceptedEntry(registry, 'billing')
@@ -366,10 +358,10 @@ describe('boot-time URL overrides', () => {
   })
 
   it('does not resurrect an entry that failed validation', () => {
-    const registry = normalizeRegistry([advertisedEntry({ id: 'reports', kind: 'page' })], {
-      rules: [createMfeContractRule()],
-      overrides: new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
-    })
+    const registry = normalize(
+      [advertisedEntry({ id: 'reports', kind: 'page' })],
+      new Map([['reports', 'http://localhost:3001/mf-manifest.json']]),
+    )
 
     expect(registry.entries.size).toBe(0)
   })
@@ -377,18 +369,15 @@ describe('boot-time URL overrides', () => {
 
 describe('advertised capabilities', () => {
   it('carries App capabilities through to the neutral entry', () => {
-    const registry = normalizeRegistry(
-      [
-        advertisedEntry({
-          capabilities: [
-            { name: 'settings', label: 'Report settings', path: '/settings' },
-            { name: 'help', label: 'Help', path: '/help', icon: 'question-mark' },
-            { name: 'releaseNotes', label: 'What is new', path: '/news', icon: { src: '/n.svg' } },
-          ],
-        }),
-      ],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({
+        capabilities: [
+          { name: 'settings', label: 'Report settings', path: '/settings' },
+          { name: 'help', label: 'Help', path: '/help', icon: 'question-mark' },
+          { name: 'releaseNotes', label: 'What is new', path: '/news', icon: { src: '/n.svg' } },
+        ],
+      }),
+    ])
 
     expect(acceptedEntry(registry, 'reports').capabilities).toEqual([
       { name: 'settings', label: 'Report settings', path: '/settings' },
@@ -398,16 +387,13 @@ describe('advertised capabilities', () => {
   })
 
   it('rejects a Widget that advertises capabilities', () => {
-    const registry = normalizeRegistry(
-      [
-        advertisedEntry({
-          id: 'alert-panel',
-          kind: 'widget',
-          capabilities: [{ name: 'settings', label: 'Settings', path: '/settings' }],
-        }),
-      ],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({
+        id: 'alert-panel',
+        kind: 'widget',
+        capabilities: [{ name: 'settings', label: 'Settings', path: '/settings' }],
+      }),
+    ])
 
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'alert-panel')
@@ -416,19 +402,17 @@ describe('advertised capabilities', () => {
   })
 
   it('rejects a Widget that advertises an empty capability list', () => {
-    const registry = normalizeRegistry(
-      [advertisedEntry({ id: 'alert-panel', kind: 'widget', capabilities: [] })],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({ id: 'alert-panel', kind: 'widget', capabilities: [] }),
+    ])
 
     expect(registry.entries.size).toBe(0)
   })
 
   it('rejects a capability name outside the closed set', () => {
-    const registry = normalizeRegistry(
-      [advertisedEntry({ capabilities: [{ name: 'billing', label: 'Billing', path: '/b' }] })],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({ capabilities: [{ name: 'billing', label: 'Billing', path: '/b' }] }),
+    ])
 
     expect(quarantinedEntry(registry, 'reports').error.message).toContain(
       'settings, help, releaseNotes',
@@ -436,22 +420,17 @@ describe('advertised capabilities', () => {
   })
 
   it('rejects an icon that is neither a shell icon name nor an asset reference', () => {
-    const registry = normalizeRegistry(
-      [
-        advertisedEntry({
-          capabilities: [{ name: 'help', label: 'Help', path: '/h', icon: { svg: '<svg/>' } }],
-        }),
-      ],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({
+        capabilities: [{ name: 'help', label: 'Help', path: '/h', icon: { svg: '<svg/>' } }],
+      }),
+    ])
 
     expect(quarantinedEntry(registry, 'reports').error.message).toContain('never SVG markup')
   })
 
   it('rejects capabilities that are not an array', () => {
-    const registry = normalizeRegistry([advertisedEntry({ capabilities: 'settings' })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ capabilities: 'settings' })])
 
     expect(quarantinedEntry(registry, 'reports').error.message).toContain(
       'an array of capability descriptors',
@@ -461,18 +440,15 @@ describe('advertised capabilities', () => {
 
 describe('optional descriptor fields', () => {
   it('carries version, title, icon and hidden through, and omits what was absent', () => {
-    const registry = normalizeRegistry(
-      [
-        advertisedEntry({
-          version: '2.1.0',
-          title: 'Reports',
-          icon: 'chart',
-          hidden: true,
-        }),
-        advertisedEntry({ id: 'billing' }),
-      ],
-      { rules: [createMfeContractRule()] },
-    )
+    const registry = normalize([
+      advertisedEntry({
+        version: '2.1.0',
+        title: 'Reports',
+        icon: 'chart',
+        hidden: true,
+      }),
+      advertisedEntry({ id: 'billing' }),
+    ])
 
     expect(acceptedEntry(registry, 'reports')).toMatchObject({
       version: '2.1.0',
@@ -488,9 +464,7 @@ describe('optional descriptor fields', () => {
   })
 
   it('treats hidden as an opt-in flag rather than any truthy value', () => {
-    const registry = normalizeRegistry([advertisedEntry({ hidden: 'yes' })], {
-      rules: [createMfeContractRule()],
-    })
+    const registry = normalize([advertisedEntry({ hidden: 'yes' })])
 
     expect(acceptedEntry(registry, 'reports').hidden).toBeUndefined()
   })

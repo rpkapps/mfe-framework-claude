@@ -100,6 +100,37 @@ runtime-config.local.json
 `,
     },
     {
+      path: 'vitest.config.ts',
+      contents: `import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+  },
+})
+`,
+    },
+    {
+      path: 'vitest.setup.ts',
+      contents: `import * as jestDom from '@testing-library/jest-dom/matchers'
+import { cleanup } from '@testing-library/react'
+import { afterEach, expect } from 'vitest'
+
+// The matchers are imported and extended here rather than through
+// '@testing-library/jest-dom/vitest'. That entry is CJS and calls
+// require('vitest').expect.extend(...), which can resolve a second vitest
+// instance; when it does, \`await expect(p).rejects.toThrow(/…/)\` fails with an
+// empty message for every rejection, including a plain Error.
+expect.extend(jestDom)
+
+// Nothing leaks from one test into the next.
+afterEach(() => {
+  cleanup()
+})
+`,
+    },
+    {
       path: '.prettierrc.json',
       contents: json({
         semi: false,
