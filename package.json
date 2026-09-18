@@ -23,12 +23,13 @@
     "dev:shell": "pnpm --filter @company/shell dev",
     "dev:mfes": "node tools/dev/dev.mjs --only-mfes",
     "build:mfes": "pnpm -r --filter \"./examples/*\" run build",
-    "e2e": "pnpm --filter @company/e2e test",
+    "verify:page": "pnpm run generate && node tools/dev/verify-page.mjs",
     "changeset": "changeset",
     "release": "changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@playwright/test": "catalog:",
     "@company/eslint-plugin-mfe": "workspace:*",
     "@tanstack/eslint-plugin-query": "catalog:",
     "@tanstack/eslint-plugin-router": "catalog:",

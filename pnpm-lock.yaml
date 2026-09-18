@@ -307,6 +307,9 @@ importers:
       '@company/eslint-plugin-mfe':
         specifier: workspace:*
         version: link:packages/eslint-plugin-mfe
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.63.0
       '@tanstack/eslint-plugin-query':
         specifier: 'catalog:'
         version: 5.103.1(eslint@10.10.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)

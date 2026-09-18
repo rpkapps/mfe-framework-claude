@@ -253,3 +253,34 @@ boot, a declared dependency instead of a loaded declaration.
 which now generate `.mfe/` without a bundler; the matcher augmentation lives in
 the same file as the `expect.extend` that makes it true at runtime; and a claim
 that the suite is green is not a claim that the software runs.
+
+---
+
+## 12. A federated page needs its own verification, because nothing else sees it
+
+**Status:** decided after five defects in a row, load-bearing.
+
+The first time the shell loaded a real container, five separate defects
+surfaced. All five compiled, type-checked, passed the whole unit suite and, in
+three cases, produced a clean production build.
+
+| Defect                                                        | Why every other check passed                                                                                                                                                                                                               |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The shell registry named containers that do not exist         | Nothing cross-checks a hand-written registry against the containers that exist. This is why the registry is now assembled from each container's own generated descriptor.                                                                  |
+| Containers advertised `requiredVersion: "catalog:"`           | Omitting `requiredVersion` reads as "no requirement" but makes Module Federation infer one from `package.json`, where a pnpm workspace protocol is not a version. The unit test asserted the omission — the broken behaviour — and passed. |
+| The shell rendered recursively inside every App               | `@tanstack/router-plugin` injects a development HMR shim reading `window.__TSR_ROUTER__`, and `RouterCore` publishes every router it builds there. The shim is absent from a production build, so only a dev page shows it.                |
+| Every framework hook failed with "rendered outside any mount" | A second copy of the React surface is invisible to a type-checker: both copies are correct, and only one page has both.                                                                                                                    |
+| Routes silently rendered nothing                              | Rspack's lazy compilation serves chunks from the dev server's own origin. A cross-origin remote's request never arrives, and nothing reports it.                                                                                           |
+
+Three of these come from the same root assumption, held by tools the framework
+does not own: **one application per page.** A shared global for "the current
+router", a dev-server endpoint on "the" origin, a bundler's idea of "the"
+package copy. A micro-frontend shell breaks that assumption by construction, so
+every such global is a place where two mounts can be confused for one.
+
+**Consequence:** `pnpm run verify:page` boots the shell and every container,
+loads the page in a real browser, and asserts that a container mounted, that a
+Widget from a _second_ container mounted inside it, that the shell chrome
+appears exactly once, and that no hook reported itself outside a mount. Each
+assertion is one of the defects above. A green unit suite is not evidence that
+the page works, and this repository no longer claims otherwise.
