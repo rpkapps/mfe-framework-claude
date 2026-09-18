@@ -142,10 +142,10 @@ neutral shape stays free of that vocabulary.
 change, so the implementation did not add one. Two conditions therefore use the
 nearest available code:
 
-| Condition                                       | Code used            | Why it is approximate                                                                                                                                                                                                                                      |
-| ----------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Condition                                       | Code used            | Why it is approximate                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Session refresh failed                          | `config/unreachable` | The session endpoint could not deliver a usable token. This is a session-level event. The `SessionFailure` channel that used to carry a precise reason alongside it was removed when session ownership moved to the shell, so the approximate code is now the only signal the framework gives. |
-| A 401 response whose request cannot be replayed | `config/invalid`     | The request as configured cannot be replayed. Nothing in the union describes replayability.                                                                                                                                                                |
+| A 401 response whose request cannot be replayed | `config/invalid`     | The request as configured cannot be replayed. Nothing in the union describes replayability.                                                                                                                                                                                                    |
 
 If these are worth naming properly, `auth/session-expired` and
 `auth/not-replayable` are the natural additions, and there are exactly two call
@@ -189,3 +189,67 @@ What it does not prove: that the real Asset Tracker and Rigstream applications
 mount, navigate and unmount correctly. That requires those repositories and is
 the entry condition for the legacy gate, not something fixtures can substitute
 for. No claim to the contrary appears anywhere in this repository.
+
+---
+
+## 10. The framework owns no session; the shell installs one and the container binds to it
+
+**Status:** decided after a course correction, load-bearing.
+
+An earlier slice had the framework implementing a session: storage, refresh,
+failure events, the lot. That was wrong, and the project owner said so. A shell
+already authenticates with Better Auth, Auth0 or MSAL, and a framework that
+implements a second session guarantees two sources of truth for one credential.
+
+What the framework legitimately owns is the interceptor: the token is attached
+at the request boundary, only to origins the author declared `{ api: true }`,
+and a replayable 401 is retried exactly once. `createSessionTokenService` stays
+only as an opt-in single-flight adapter for a shell with no library of its own.
+It is a convenience, not the path.
+
+That split created a real problem. A generated `#mfe/fetch` module is evaluated
+by the federation runtime with no host in scope, so the shell cannot pass it a
+token source and the build cannot know one. The seam is therefore two-sided:
+
+- `installShellAuth({ tokens })` — the shell's one call, made before any remote
+  is registered.
+- `createContainerTransport({ id, apiBaseUrl, apiOrigins })` — what the build
+  generates, carrying only the part the build knows.
+
+**A single host-wide session is the requirement, not a shortcut.** §10.5 makes
+refresh single-flight across every mount on the page; with rotating refresh
+tokens, a second concurrent refresh presents a credential the server already
+retired and logs the user out. A per-mount token source would be the bug.
+
+Resolution is deferred to the first request rather than done at module
+evaluation. Binding eagerly would turn a shell wiring mistake into an
+unloadable container instead of an actionable error on the request that needed
+the token.
+
+**Consequence:** the framework ships no session implementation, and
+`apps/shell/src/shell/session.ts` is shell code a real deployment deletes.
+
+---
+
+## 11. Three failures were reported green by checks that could not see them
+
+**Status:** finding, recorded so the class is recognised rather than the
+instances.
+
+Each of these passed every gate in this repository while being broken. None was
+found by a test; all three were found by running the thing.
+
+| Failure                                                                                                                                                                                               | Why the checks missed it                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `#mfe/fetch` imported a `createAuthenticatedFetch({ id, origins })` signature that does not exist, and a `getAccessToken` that `mfe-host` never exported                                              | The generation tests asserted on the _strings_ the generator emits, never that the emitted module resolves. Nothing type-checked generated output, because generation only ran inside a bundler. |
+| `boot.tsx` read `process.env['FARO_URL']`; there is no `process` in a browser and the shell config defined nothing, so the shell threw before rendering                                               | No test boots the shell in a browser. The expression compiles, type-checks and bundles; only the runtime disagrees.                                                                              |
+| Every jest-dom matcher was untyped: `@testing-library/jest-dom/vitest` augments `interface Assertion<T = any>`, but vitest 5 declares two type parameters, so declaration merging silently dropped it | TypeScript reports this at each call site, not at the import, and `mfe-react`'s `vitest.setup.ts` was not in its own tsconfig `include`, so the augmentation was never loaded to fail.           |
+
+The shared cause is that each check measured a proxy for the thing rather than
+the thing: emitted text instead of a resolving module, compilation instead of
+boot, a declared dependency instead of a loaded declaration.
+
+**Consequence:** generated output is type-checked by the example containers,
+which now generate `.mfe/` without a bundler; the matcher augmentation lives in
+the same file as the `expect.extend` that makes it true at runtime; and a claim
+that the suite is green is not a claim that the software runs.
