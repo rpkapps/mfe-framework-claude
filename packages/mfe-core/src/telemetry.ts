@@ -157,10 +157,7 @@ export interface TelemetryFrameworkRecord {
 }
 
 export type TelemetryRecord =
-  | TelemetryEventRecord
-  | TelemetryLogRecord
-  | TelemetryMeasurementRecord
-  | TelemetryFrameworkRecord
+  TelemetryEventRecord | TelemetryLogRecord | TelemetryMeasurementRecord | TelemetryFrameworkRecord
 
 /** Lifecycle of one span, as the provider observes it. */
 export interface SpanRecord {

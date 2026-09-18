@@ -67,9 +67,7 @@ export class MountLifecycle implements Subscribable<MountState> {
     this.definitionVersion = options.definitionVersion
     this.#state = new SnapshotSource<MountState>(
       { status: 'pending', attempt: 0 },
-      options.onListenerError === undefined
-        ? {}
-        : { onListenerError: options.onListenerError },
+      options.onListenerError === undefined ? {} : { onListenerError: options.onListenerError },
     )
   }
 

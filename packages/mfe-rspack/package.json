@@ -3,13 +3,21 @@
   "version": "0.1.0",
   "description": "mfePlugin(): definition and capability discovery, generated #mfe/* modules, container-relative assets, scoped CSS, React Compiler integration and Module Federation plumbing for MFE containers.",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./env": {
+      "types": "./src/config/env.ts",
+      "default": "./src/config/env.ts"
     }
   },
-  "files": ["src", "dist"],
+  "files": [
+    "src",
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -17,6 +25,7 @@
   },
   "dependencies": {
     "@babel/core": "catalog:",
+    "@company/mfe-core": "workspace:*",
     "@module-federation/enhanced": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "babel-loader": "catalog:",
@@ -27,6 +36,7 @@
   },
   "peerDependencies": {
     "@rspack/core": "catalog:",
+    "typescript": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

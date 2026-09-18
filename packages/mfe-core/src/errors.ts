@@ -146,7 +146,9 @@ function composeMessage(details: MfeErrorDetails): string {
 
   const target = field ? `${details.operation} ${field}` : details.operation
   if (details.expected !== undefined && details.observed !== undefined) {
-    sentences.push(`${subject} failed to ${target}: expected ${details.expected}, received ${details.observed}.`)
+    sentences.push(
+      `${subject} failed to ${target}: expected ${details.expected}, received ${details.observed}.`,
+    )
   } else if (details.expected !== undefined) {
     sentences.push(`${subject} failed to ${target}: expected ${details.expected}.`)
   } else if (details.observed !== undefined) {
@@ -155,7 +157,8 @@ function composeMessage(details: MfeErrorDetails): string {
     sentences.push(`${subject} failed to ${target}.`)
   }
 
-  if (details.declaredBy !== undefined) sentences.push(`${details.declaredBy} declares this expectation.`)
+  if (details.declaredBy !== undefined)
+    sentences.push(`${details.declaredBy} declares this expectation.`)
   if (details.repair !== undefined) sentences.push(details.repair)
   if (details.note !== undefined) sentences.push(details.note)
 

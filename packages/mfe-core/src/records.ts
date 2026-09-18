@@ -14,8 +14,7 @@
 export type CommandPlacement = 'command-palette'
 
 export type Decision =
-  | { readonly allowed: true }
-  | { readonly allowed: false; readonly reason: string }
+  { readonly allowed: true } | { readonly allowed: false; readonly reason: string }
 
 const ALLOWED: Decision = Object.freeze({ allowed: true as const })
 
@@ -158,11 +157,19 @@ export interface BoundaryLocation {
  */
 export interface NavigationBridge {
   read(): BoundaryLocation
+  /**
+   * The opaque state stored with the current entry. The boundary history keeps
+   * its own bookkeeping there so browser back and forward can be distinguished
+   * from each other without inspecting `window.history` directly.
+   */
+  readState?(): unknown
   subscribe(listener: (location: BoundaryLocation) => void): () => void
-  push(to: string): void
-  replace(to: string): void
+  push(to: string, state?: unknown): void
+  replace(to: string, state?: unknown): void
   back(): void
   forward(): void
+  /** Relative traversal. Optional: without it, only single steps are supported. */
+  go?(delta: number): void
   reload(): void
 }
 

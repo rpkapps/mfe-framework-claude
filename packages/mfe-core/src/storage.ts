@@ -34,11 +34,7 @@ export interface MfeStorageKey<T> {
 }
 
 export interface MfeStorage {
-  key<T>(
-    name: string,
-    schema: ContractSchema<T>,
-    options?: StorageKeyOptions<T>,
-  ): MfeStorageKey<T>
+  key<T>(name: string, schema: ContractSchema<T>, options?: StorageKeyOptions<T>): MfeStorageKey<T>
   remove(name: string): void
   /** Removes only the exact `<id>:` prefix; never unrelated shell or third-party keys. */
   clear(): void

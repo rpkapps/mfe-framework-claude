@@ -194,8 +194,7 @@ export interface ContractValidationContext {
 }
 
 export type ContractValidation<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: MfeError }
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
 
 function declaredBy(context: ContractValidationContext): string {
   return context.side === 'provider'

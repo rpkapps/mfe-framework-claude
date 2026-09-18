@@ -12,7 +12,11 @@
       "default": "./src/index.ts"
     }
   },
-  "files": ["src", "templates", "dist"],
+  "files": [
+    "src",
+    "templates",
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",

@@ -35,10 +35,14 @@ describe('validateAgainstContract', () => {
       alertId: string
     }>
 
-    const result = validateAgainstContract(schema, {}, {
-      ...inputContext,
-      note: 'The previous valid inputs remain displayed.',
-    })
+    const result = validateAgainstContract(
+      schema,
+      {},
+      {
+        ...inputContext,
+        note: 'The previous valid inputs remain displayed.',
+      },
+    )
 
     expect(result.ok).toBe(false)
     if (result.ok) return
@@ -59,12 +63,16 @@ describe('validateAgainstContract', () => {
       alertId: string
     }>
 
-    const result = validateAgainstContract(schema, { alertId: 42 }, {
-      id: 'alert-panel',
-      direction: 'event',
-      side: 'consumer',
-      eventName: 'acknowledged',
-    })
+    const result = validateAgainstContract(
+      schema,
+      { alertId: 42 },
+      {
+        id: 'alert-panel',
+        direction: 'event',
+        side: 'consumer',
+        eventName: 'acknowledged',
+      },
+    )
 
     expect(result.ok).toBe(false)
     if (result.ok) return

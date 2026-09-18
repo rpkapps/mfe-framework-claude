@@ -10,15 +10,18 @@
       "default": "./src/index.ts"
     },
     "./testing": {
-      "types": "./src/testing/index.ts",
-      "default": "./src/testing/index.ts"
+      "types": "./src/testing/index.tsx",
+      "default": "./src/testing/index.tsx"
     },
     "./shell": {
       "types": "./src/shell/index.ts",
       "default": "./src/shell/index.ts"
     }
   },
-  "files": ["src", "dist"],
+  "files": [
+    "src",
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -37,7 +40,9 @@
     "zod": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@module-federation/runtime": { "optional": true }
+    "@module-federation/runtime": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@module-federation/runtime": "catalog:",

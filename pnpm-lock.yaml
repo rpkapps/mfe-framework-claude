@@ -465,6 +465,9 @@ importers:
       '@babel/core':
         specifier: 'catalog:'
         version: 8.0.5
+      '@company/mfe-core':
+        specifier: workspace:*
+        version: link:../mfe-core
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.0(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0))(typescript@6.0.3)
