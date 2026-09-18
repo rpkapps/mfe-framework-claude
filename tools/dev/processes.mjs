@@ -22,21 +22,28 @@ export function spawnPnpm(args, options = {}) {
 
 /**
  * Stops a child and everything it started. A dev server is a pnpm process that
- * spawned a bundler, so killing only the process that was spawned leaves the
- * port held and the next run fails to bind.
+ * spawned a bundler, so signalling only the process that was spawned leaves the
+ * bundler holding the port and the next run fails to bind.
+ *
+ * `force` is the difference between asking and insisting. A bundler given
+ * SIGTERM closes its server and releases the port; one given SIGKILL cannot,
+ * and the operating system reclaims the port on its own schedule. So the first
+ * pass asks, and only what is still running afterwards is insisted upon.
  */
-export function killTree(child) {
+export function killTree(child, { force = true } = {}) {
   if (child.pid === undefined || child.exitCode !== null) return
 
   if (isWindows) {
-    // The only way to reach a descendant tree on Windows.
-    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    // The only way to reach a descendant tree on Windows. Without /F taskkill
+    // asks, which a console process is free to ignore.
+    const flags = force ? ['/T', '/F'] : ['/T']
+    spawn('taskkill', ['/pid', String(child.pid), ...flags], { stdio: 'ignore' })
     return
   }
 
   try {
     // Negative pid means the process group, which `detached` created.
-    process.kill(-child.pid, 'SIGKILL')
+    process.kill(-child.pid, force ? 'SIGKILL' : 'SIGTERM')
   } catch {
     // Already gone.
   }

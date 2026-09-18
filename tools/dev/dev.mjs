@@ -16,8 +16,8 @@
 
 import { spawn } from 'node:child_process'
 
-import { busyPortsMessage, findBusyPorts } from './ports.mjs'
-import { spawnPnpm } from './processes.mjs'
+import { busyPortsMessage, findBusyPorts, waitForPortsFree } from './ports.mjs'
+import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -147,6 +147,10 @@ function prefixOutput(stream, label, colour) {
     buffered += chunk.toString()
     const lines = buffered.split('\n')
     buffered = lines.pop() ?? ''
+    // A terminated server's last words are its runner reporting the
+    // termination. During a shutdown the developer asked for, that reads as a
+    // failure and is not one.
+    if (stopping) return
     for (const line of lines) {
       process.stdout.write(`${colour}${label.padEnd(14)}${RESET} ${line}\n`)
     }
@@ -173,20 +177,27 @@ function buildRegistry() {
   })
 }
 
+/** True from the first Ctrl-C, so a child's exit is expected rather than news. */
+let stopping = false
+
 function start(service, colour) {
   const child = spawnPnpm(['--filter', service.packageName, 'run', 'dev'], {
     cwd: repoRoot,
     env: { ...process.env, PORT: String(service.port), FORCE_COLOR: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
+    // Each child leads its own process group, which is what lets one signal
+    // reach the bundler pnpm started rather than only pnpm. It also means the
+    // terminal's Ctrl-C does not reach them, so shutdown below is the single
+    // path that stops anything — the same one on every platform.
+    detached: detachedForGroupKill,
   })
 
   prefixOutput(child.stdout, service.name, colour)
   prefixOutput(child.stderr, service.name, colour)
 
   child.on('exit', code => {
-    if (code !== 0 && code !== null) {
-      console.error(`${colour}${service.name.padEnd(14)}${RESET} exited with code ${code}`)
-    }
+    if (stopping || code === 0 || code === null) return
+    console.error(`${colour}${service.name.padEnd(14)}${RESET} exited with code ${code}`)
   })
 
   return child
@@ -231,16 +242,64 @@ async function main() {
   printConnectionInstructions(services)
 
   const children = services.map((service, index) => start(service, COLOURS[index % COLOURS.length]))
+  const ports = services.map(service => service.port)
 
-  // One Ctrl-C stops everything, so a developer never leaves orphaned servers
-  // holding the ports the next run needs.
-  const shutdown = signal => {
-    for (const child of children) child.kill(signal)
-    process.exitCode = 0
+  /**
+   * One Ctrl-C stops everything and waits for the ports to come back, so the
+   * next `pnpm dev` starts. Returning to the prompt while a socket is still
+   * winding down is what leaves a developer looking at EADDRINUSE for a port
+   * they just released.
+   */
+  const shutdown = async () => {
+    if (stopping) {
+      // A second Ctrl-C from someone who does not want to wait.
+      for (const child of children) killTree(child)
+      process.exit(130)
+    }
+    stopping = true
+
+    console.log(`\n${BOLD}Stopping ${children.length} dev server(s)${RESET}`)
+    for (const child of children) killTree(child, { force: false })
+    await Promise.all(children.map(exited))
+
+    // Anything that ignored the request. The port takes longer to come back
+    // this way, which is why it is the second attempt rather than the first.
+    for (const child of children) killTree(child)
+
+    const busy = await waitForPortsFree(ports)
+    if (busy.length > 0) {
+      console.error(
+        `${DIM}Still listening on ${busy.join(', ')} after stopping.${RESET}\n\n` +
+          busyPortsMessage(busy),
+      )
+      process.exit(1)
+    }
+
+    console.log(`${DIM}Ports ${ports.join(', ')} released.${RESET}`)
+    process.exit(0)
   }
 
-  process.on('SIGINT', () => shutdown('SIGINT'))
-  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => void shutdown())
+  process.on('SIGTERM', () => void shutdown())
+
+  // A crash in this process must not leave the servers behind either. Nothing
+  // can be awaited here, so this is the forceful path by necessity.
+  process.on('exit', () => {
+    for (const child of children) killTree(child)
+  })
+}
+
+/** Resolves when a child has exited, or after a grace period, whichever first. */
+function exited(child, graceMs = 5000) {
+  if (child.exitCode !== null) return Promise.resolve()
+
+  return new Promise(resolve => {
+    const timer = setTimeout(resolve, graceMs)
+    child.once('exit', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
 }
 
 await main()

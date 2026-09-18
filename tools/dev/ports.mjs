@@ -58,3 +58,22 @@ export function busyPortsMessage(busy) {
     `Find what holds ${busy.length === 1 ? 'it' : 'them'}:\n\n${command}`
   )
 }
+
+/**
+ * Waits until nothing answers on these ports.
+ *
+ * Stopping a server and its port becoming free are not the same event: a
+ * process can exit while the socket is still winding down. Returning before
+ * that has happened is what makes an immediate second `pnpm dev` fail on a port
+ * the developer just released.
+ */
+export async function waitForPortsFree(ports, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs
+
+  for (;;) {
+    const busy = await findBusyPorts(ports)
+    if (busy.length === 0) return []
+    if (Date.now() >= deadline) return busy
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+}
