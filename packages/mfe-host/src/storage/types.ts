@@ -155,19 +155,3 @@ export interface SessionTransitionResult {
   /** Active keys whose subscribers were notified of a reset value. */
   readonly notifiedKeys: number
 }
-
-/** Counters behind the performance gates. */
-export interface StorageStoreStats {
-  /** Keys with at least one active binding. */
-  readonly activeKeys: number
-  /** Bound handles held by consumers. */
-  readonly bindings: number
-  /** Listeners across all keys. */
-  readonly subscribers: number
-  /** `getItem` calls the store has made. */
-  readonly reads: number
-  /** Parse + validate passes; one per changed serialized representation, not per subscriber. */
-  readonly parses: number
-  /** `setItem` calls the store has made. */
-  readonly writes: number
-}

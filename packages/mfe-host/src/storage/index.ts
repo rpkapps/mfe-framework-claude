@@ -22,7 +22,6 @@ export type {
   StorageEventTargetLike,
   StorageKeyBinding,
   StorageSessionTransition,
-  StorageStoreStats,
   StorageUpdater,
   StorageWriteOptions,
 } from './types.ts'

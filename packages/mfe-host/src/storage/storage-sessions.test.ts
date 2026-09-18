@@ -131,7 +131,7 @@ describe('the generation must be established first', () => {
 
     const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
 
-    expect(store.hasSession).toBe(false)
+    expect(store.sessionGeneration).toBeNull()
     expect(draft.getSnapshot().status).toBe('error')
     expect(() => draft.read()).toThrow(/session generation to be established/)
     expect(() => draft.set('more')).toThrow(/session generation to be established/)

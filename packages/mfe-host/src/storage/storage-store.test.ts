@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { DiagnosticsHub, isMfeError, type Diagnostic } from '@company/mfe-core'
+import { DiagnosticsHub, isMfeError, type ContractSchema, type Diagnostic } from '@company/mfe-core'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
@@ -54,6 +54,18 @@ function envelope(
     ...(retention === 'session' && generation !== null ? { g: generation } : {}),
     d: data,
   })
+}
+
+/** Counts validations, so the store needs no counter of its own to prove parse-once. */
+function countingSchema<T>(schema: ContractSchema<T>): ContractSchema<T> & { parses: number } {
+  const counted = {
+    parses: 0,
+    safeParse: (value: unknown) => {
+      counted.parses += 1
+      return schema.safeParse(value)
+    },
+  }
+  return counted
 }
 
 let harnesses: MfeStorageStore[] = []
@@ -148,7 +160,7 @@ describe('defaults', () => {
     expect(theme.getSnapshot()).toEqual({ status: 'default', value: 'light' })
     expect(theme.read()).toBe('light')
     expect(local.snapshot()).toEqual({})
-    expect(store.stats().writes).toBe(0)
+    expect(local.calls.writes).toBe(0)
   })
 
   it('rejects a default that does not satisfy the declared schema', () => {
@@ -464,7 +476,6 @@ describe('subscriptions', () => {
     theme.set('light')
 
     expect(listener).toHaveBeenCalledTimes(1)
-    expect(store.subscriberCount(ORDERS, 'theme')).toBe(0)
   })
 
   it('notifies subscribers when the key is removed, with the declared default', () => {
@@ -677,7 +688,6 @@ describe('declaration conflicts', () => {
       /same schema object/,
     )
     expect(first.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-    expect(store.bindingCount(ORDERS, 'theme')).toBe(1)
   })
 
   it('rejects disagreement over the default, the retention and the version', () => {
@@ -740,26 +750,29 @@ describe('performance gates', () => {
     local.setItem('acme-orders:filters', envelope({ status: 'open', page: 1 }))
     const getItem = vi.spyOn(local, 'getItem')
 
-    const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
-    const afterBind = store.stats()
+    const counted = countingSchema(filtersSchema)
+
+    const filters = store.bind(ORDERS, { name: 'filters', schema: counted })
+    const readsAfterBind = local.calls.reads
     expect(getItem).toHaveBeenCalledTimes(1)
-    expect(afterBind.parses).toBe(1)
+    expect(counted.parses).toBe(1)
 
     for (let index = 0; index < 100; index += 1) filters.getSnapshot()
 
     expect(getItem).toHaveBeenCalledTimes(1)
-    expect(store.stats().parses).toBe(1)
-    expect(store.stats().reads).toBe(afterBind.reads)
+    expect(counted.parses).toBe(1)
+    expect(local.calls.reads).toBe(readsAfterBind)
     expect(filters.getSnapshot()).toBe(filters.getSnapshot())
   })
 
   it('parses a changed representation once per key, not once per subscriber', () => {
     const { store, local } = harness()
     track(store)
-    const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
+    const counted = countingSchema(filtersSchema)
+    const filters = store.bind(ORDERS, { name: 'filters', schema: counted })
     const listeners = Array.from({ length: 5 }, () => vi.fn())
     for (const listener of listeners) filters.subscribe(listener)
-    const parsesBefore = store.stats().parses
+    const parsesBefore = counted.parses
 
     store.handleStorageEvent({
       key: 'acme-orders:filters',
@@ -767,31 +780,34 @@ describe('performance gates', () => {
       storageArea: local,
     })
 
-    expect(store.stats().parses).toBe(parsesBefore + 1)
+    expect(counted.parses).toBe(parsesBefore + 1)
     for (const listener of listeners) expect(listener).toHaveBeenCalledTimes(1)
-    expect(store.stats().subscribers).toBe(5)
   })
 
-  it('reports active binding and subscription counts, and tears a key down on release', () => {
-    const { store } = harness()
+  it('keeps the key alive while any consumer holds it, and tears it down on the last release', () => {
+    const { store, local } = harness()
     track(store)
     const a = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     const b = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     const unsubscribe = a.subscribe(vi.fn())
+    const readsAfterBind = local.calls.reads
 
-    expect(store.stats().activeKeys).toBe(1)
-    expect(store.stats().bindings).toBe(2)
-    expect(store.subscriberCount(ORDERS, 'theme')).toBe(1)
+    // Two consumers, one key: the second binding read nothing of its own.
+    expect(b.getSnapshot()).toBe(a.getSnapshot())
 
     unsubscribe()
     a.release()
-    a.release()
-    expect(store.stats().bindings).toBe(1)
-    expect(store.stats().activeKeys).toBe(1)
+    a.release() // Idempotent: a double release must not drop b's hold.
+    const c = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    expect(c.getSnapshot()).toBe(b.getSnapshot())
+    expect(local.calls.reads).toBe(readsAfterBind)
 
     b.release()
-    expect(store.stats().activeKeys).toBe(0)
-    expect(store.activeKeys()).toEqual([])
+    c.release()
+    c.release()
+    // The last release tore the key down, so the next bind reads the store again.
+    store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    expect(local.calls.reads).toBeGreaterThan(readsAfterBind)
   })
 
   it('re-reads once after a key binding is torn down and re-created', () => {
