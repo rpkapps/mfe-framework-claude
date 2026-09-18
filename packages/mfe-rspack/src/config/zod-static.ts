@@ -90,7 +90,7 @@ export function readStaticSchema(
         schema = { ...schema, default: defaultValue }
         break
       case 'describe':
-        description = String(readLiteralValue(step.args[0], context, step))
+        description = readLiteralString(step, context)
         schema = { ...schema, description }
         break
       case 'min':
@@ -117,16 +117,10 @@ export function readStaticSchema(
         schema = { ...schema, pattern: readPattern(step, context) }
         break
       case 'startsWith':
-        schema = {
-          ...schema,
-          pattern: `^${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}`,
-        }
+        schema = { ...schema, pattern: `^${escapeRegExp(readLiteralString(step, context))}` }
         break
       case 'endsWith':
-        schema = {
-          ...schema,
-          pattern: `${escapeRegExp(String(readLiteralValue(step.args[0], context, step)))}$`,
-        }
+        schema = { ...schema, pattern: `${escapeRegExp(readLiteralString(step, context))}$` }
         break
       case 'catch':
         throw reject(
@@ -304,7 +298,7 @@ function applyBound(schema: JsonObject, step: ChainStep, context: ReadSchemaCont
     throw reject(
       context,
       step,
-      `.${step.name}(${String(value)})`,
+      `.${step.name}(${render(value)})`,
       `Pass a numeric bound, for example .${step.name}(1).`,
     )
   }
@@ -334,6 +328,32 @@ function readPattern(step: ChainStep, context: ReadSchemaContext): string {
   }
   const text = node.getText(context.sourceFile)
   return text.slice(1, text.lastIndexOf('/'))
+}
+
+/**
+ * A `JsonValue` rendered for an error message. `String()` would flatten an
+ * object to `[object Object]`, which tells an author nothing about what they
+ * actually wrote.
+ */
+function render(value: JsonValue): string {
+  return JSON.stringify(value) ?? 'undefined'
+}
+
+/**
+ * The argument of a step whose contract is a string. A non-string is the
+ * author's mistake and is reported as one: coercing it would put
+ * `[object Object]` into a description or a regular expression.
+ */
+function readLiteralString(step: ChainStep, context: ReadSchemaContext): string {
+  const value = readLiteralValue(step.args[0], context, step)
+  if (typeof value === 'string') return value
+
+  throw reject(
+    context,
+    step,
+    `.${step.name}(${render(value)})`,
+    `Pass a string literal, for example .${step.name}('example').`,
+  )
 }
 
 function readLiteralValue(

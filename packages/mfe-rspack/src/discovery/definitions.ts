@@ -25,7 +25,6 @@ import {
   objectProperty,
   parseSourceFile,
   positionOf,
-  propertyName,
   stringLiteralValue,
   ts,
   unwrapExpression,

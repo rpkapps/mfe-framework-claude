@@ -6,6 +6,7 @@
  */
 
 import { readdirSync } from 'node:fs'
+import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
@@ -88,7 +89,7 @@ export function containerSourceFiles(
   const files: string[] = []
 
   const visit = (directory: string): void => {
-    let entries: readonly import('node:fs').Dirent[]
+    let entries: readonly Dirent[]
     try {
       entries = readdirSync(directory, { withFileTypes: true })
     } catch {
