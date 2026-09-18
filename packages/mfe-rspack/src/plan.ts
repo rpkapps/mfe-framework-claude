@@ -21,7 +21,13 @@ import {
   type SharedModuleConfig,
 } from './federation/sharing.ts'
 import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
-import { ALIASES, entryModulePath, exposeName, type GenerateContext } from './generate/modules.ts'
+import {
+  ALIASES,
+  containerEntryPath,
+  entryModulePath,
+  exposeName,
+  type GenerateContext,
+} from './generate/modules.ts'
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
 
@@ -56,6 +62,8 @@ export interface ContainerPlan {
   readonly shared: Readonly<Record<string, SharedModuleConfig>>
   /** Module Federation exposes: generated names, not public API. */
   readonly exposes: Readonly<Record<string, string>>
+  /** The bundler entry, which a container has only because a bundler needs one. */
+  readonly entryStub: string
   /** `#mfe/*` to the generated module each one resolves to. */
   readonly aliases: Readonly<Record<string, string>>
   /** The `data-mfe-scope` values this container's CSS is scoped to. */
@@ -119,6 +127,7 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
       installedVersion: installedVersionFrom(resolved.containerRoot),
     }),
     exposes,
+    entryStub: containerEntryPath(context),
     aliases,
     scopes: discovery.definitions.map(definition => definition.id),
     generated,

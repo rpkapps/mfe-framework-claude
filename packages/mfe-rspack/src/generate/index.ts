@@ -18,6 +18,7 @@ import {
 import { contentHash, type GeneratedFile } from './emit.ts'
 import {
   configModule,
+  containerEntryModule,
   federationEntryModules,
   fetchModule,
   metaModule,
@@ -40,6 +41,7 @@ export function generateContainerFiles(
     gitignoreFile(context),
     tsconfigPathsFile(context),
     fetchModule(context),
+    containerEntryModule(context),
     ...federationEntryModules(context),
     ...widgetContractModules(context),
   ]

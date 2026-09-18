@@ -322,3 +322,15 @@ and were caught only by building and loading a real page:
 
 Both are the same shape as every other defect this repository has found: a tool
 that assumes one application per page, meeting a shell that has several.
+
+**A general hazard, worth stating separately.** Rsbuild's own federation plugin
+applies its defaults in a `modifyRsbuildConfig` hook guarded on
+`moduleFederation.options` already being present. A plugin's options arrive
+later than that hook, so for `pluginMfe()` the guard never passes and _none_ of
+those defaults are applied — silently, and only in ways that show up in a
+browser. Three were missing: `server.cors`, `dev.assetPrefix`, and
+`dev.client.port`, whose absence had every remote's hot-update client open a
+second socket to the shell's dev server and act on the shell's rebuilds.
+`pluginMfe()` therefore applies all three itself, skipping any the author set.
+Relying on the documented behaviour would have been wrong in a way no test
+states.

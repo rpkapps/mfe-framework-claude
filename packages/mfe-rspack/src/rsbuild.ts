@@ -40,8 +40,18 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
         // what keeps the generated modules current while a dev server runs.
         const plan = planContainer({ ...options, defaultRoot: containerRoot })
 
+        // Rsbuild's own federation plugin applies three defaults, but only for
+        // a config that already declares `moduleFederation.options` when its
+        // `modifyRsbuildConfig` runs. These arrive from a plugin, which is
+        // later, so its guard sees nothing and none of them are applied. They
+        // are repeated here rather than relied on, and each one is skipped
+        // when the author set it.
+        const original = api.getRsbuildConfig('original')
+
         return mergeRsbuildConfig(config, {
           moduleFederation: { options: buildFederationOptions(plan) },
+          // A remote is read cross-origin by a shell, always.
+          ...(original.server?.cors === undefined ? { server: { cors: true } } : {}),
           // A deployed container's assets resolve against wherever it was
           // deployed, which the build cannot know — `auto` is what defers that
           // to the browser. Rsbuild's own default is the serving path, and for
@@ -57,7 +67,25 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
           // plugin sets it.
           ...(api.context.action === 'build'
             ? { output: { assetPrefix: 'auto' as const } }
-            : { dev: { assetPrefix: true } }),
+            : {
+                dev: {
+                  ...(original.dev?.assetPrefix === undefined ? { assetPrefix: true } : {}),
+                  // The hot-update client reads the *page's* location for its
+                  // socket, and the page belongs to the shell. Without this a
+                  // remote opens a second connection to the shell's dev server
+                  // and acts on the shell's rebuilds as if they were its own.
+                  ...(original.dev?.client?.port === undefined && config.server?.port !== undefined
+                    ? { client: { port: config.server.port } }
+                    : {}),
+                },
+              }),
+          // Nothing ever requests a container's application entry: a shell
+          // reads the manifest, loads remoteEntry.js and pulls the exposed
+          // chunks. Pointing the bundler at the container's own source builds
+          // the whole application a second time into a graph no one loads.
+          ...(original.source?.entry === undefined
+            ? { source: { entry: { index: plan.entryStub } } }
+            : {}),
           tools: { rspack: { plugins: [new MfeRspackPlugin(options)] } },
         })
       })

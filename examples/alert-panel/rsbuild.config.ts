@@ -29,16 +29,11 @@ export default defineConfig({
   // supplies everything that makes this project a container.
   plugins: [pluginReact(), pluginMfe()],
 
-  source: { entry: { index: './src/mfe.tsx' } },
-
   // A remote is fetched by a shell, never browsed to, so it needs no document.
   tools: { htmlPlugin: false },
 
   server: {
     port: manifest.mfe.port,
-    // The shell serves the page from its own origin and reads this container's
-    // manifest, remote entry and chunks from here.
-    cors: true,
   },
 
   dev: {

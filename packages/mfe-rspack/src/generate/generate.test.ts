@@ -70,6 +70,9 @@ describe('generated inventory', () => {
       '.mfe/.gitignore',
       '.mfe/config.ts',
       '.mfe/entries/app.ts',
+      // The bundler entry. A container has one only because a bundler requires
+      // one; nothing ever requests it.
+      '.mfe/entries/container.ts',
       '.mfe/fetch.ts',
       '.mfe/meta.ts',
       '.mfe/mfe-registry.json',

@@ -345,6 +345,35 @@ export function entryModulePath(
     : generatedPath(context.options.generatedDir, 'entries', 'widgets', `${definition.id}.ts`)
 }
 
+/** Where the bundler entry lives. A container has one only because it must. */
+export function containerEntryPath(context: GenerateContext): string {
+  return generatedPath(context.options.generatedDir, 'entries', 'container.ts')
+}
+
+/**
+ * The bundler entry, which is deliberately empty.
+ *
+ * A container is only ever consumed through federation: a shell reads
+ * `mf-manifest.json`, loads `remoteEntry.js` and pulls the exposed chunks.
+ * Nothing ever requests an application entry. Pointing the bundler at the
+ * container's own source instead builds the whole application a second time,
+ * in a graph no one loads — around 220 kB of duplicate, deployed and never
+ * served. The bundler still requires *an* entry, so it gets this one.
+ */
+export function containerEntryModule(context: GenerateContext): GeneratedFile {
+  return {
+    path: containerEntryPath(context),
+    contents: joinBlocks([
+      banner(),
+      [
+        '// Intentionally empty. This container is loaded through remoteEntry.js and',
+        '// the exposed entries beside this file; nothing imports this module.',
+        'export {}',
+      ].join('\n'),
+    ]),
+  }
+}
+
 export function federationEntryModules(context: GenerateContext): readonly GeneratedFile[] {
   return context.discovery.definitions.map(definition => {
     const file = entryModulePath(context, definition)
