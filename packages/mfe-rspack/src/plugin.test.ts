@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
 import { planContainer } from './plan.ts'
-import { mfePlugin } from './plugin.ts'
+import { pluginMfe } from './rsbuild.ts'
 import { cleanupContainers, createContainer } from './testing/fixtures.ts'
 
 afterEach(cleanupContainers)
@@ -25,21 +25,20 @@ export const orderRow = createWidget({
 })
 `
 
-describe('mfePlugin', () => {
-  it('constructs against a realistic config object without touching the disk', () => {
+describe('pluginMfe', () => {
+  it('is an ordinary Rsbuild plugin, constructed without touching the disk', () => {
     const config = {
-      entry: './src/main.ts',
-      mode: 'production' as const,
-      output: { path: '/tmp/dist' },
-      plugins: [mfePlugin()],
+      source: { entry: { index: './src/mfe.ts' } },
+      plugins: [pluginMfe()],
     }
 
-    expect(typeof config.plugins[0]?.apply).toBe('function')
+    expect(config.plugins[0]?.name).toBe('mfe')
+    expect(typeof config.plugins[0]?.setup).toBe('function')
   })
 
   it('accepts the supported options', () => {
     expect(() =>
-      mfePlugin({ shared: { '@company/auth-client': '^3.0.0' }, reactCompiler: false }),
+      pluginMfe({ shared: { '@company/auth-client': '^3.0.0' }, reactCompiler: false }),
     ).not.toThrow()
   })
 
@@ -116,9 +115,14 @@ describe('Module Federation options', () => {
     const plan = planContainer({ containerRoot: root, buildTime: '2026-01-02T03:04:05.000Z' })
     const options = buildFederationOptions(plan)
 
-    const manifest = options.manifest.additionalData({
-      stats: { id: 'acme_operations', metaData: { name: 'acme_operations', type: 'app' } },
-    }) as { metaData: Record<string, unknown>; id: string }
+    // The plugin injects this into the emitted manifest rather than through
+    // the federation plugin's own hook, which Rsbuild replaces.
+    const manifest = withFrameworkMetadata(
+      { id: 'acme_operations', metaData: { name: 'acme_operations', type: 'app' } },
+      plan.generated.frameworkMetadata,
+    ) as { metaData: Record<string, unknown>; id: string }
+
+    expect(options.manifest.fileName).toBe('mf-manifest.json')
 
     expect(manifest.id).toBe('acme_operations')
     expect(manifest.metaData['name']).toBe('acme_operations')

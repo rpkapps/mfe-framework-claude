@@ -10,8 +10,8 @@
     ]
   },
   "scripts": {
-    "dev": "pnpm run generate && rspack serve",
-    "build": "pnpm run generate && rspack build",
+    "dev": "pnpm run generate && rsbuild dev",
+    "build": "pnpm run generate && rsbuild build",
     "generate": "mfe-generate",
     "typecheck": "pnpm run generate && tsc --noEmit",
     "test": "pnpm run generate && vitest run"
@@ -26,9 +26,8 @@
   },
   "devDependencies": {
     "@company/mfe-rspack": "workspace:*",
-    "@rspack/cli": "catalog:",
-    "@rspack/core": "catalog:",
-    "@rspack/dev-server": "catalog:",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",

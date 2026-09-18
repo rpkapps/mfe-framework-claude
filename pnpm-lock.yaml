@@ -179,18 +179,15 @@ catalogs:
     '@playwright/test':
       specifier: 1.63.0
       version: 1.63.0
-    '@rspack/cli':
-      specifier: 2.2.6
-      version: 2.2.6
+    '@rsbuild/core':
+      specifier: 2.2.8
+      version: 2.2.8
+    '@rsbuild/plugin-react':
+      specifier: 2.1.0
+      version: 2.1.0
     '@rspack/core':
       specifier: 2.2.6
       version: 2.2.6
-    '@rspack/dev-server':
-      specifier: 2.2.1
-      version: 2.2.1
-    '@rspack/plugin-react-refresh':
-      specifier: 2.0.2
-      version: 2.0.2
     '@tailwindcss/postcss':
       specifier: 4.3.3
       version: 4.3.3
@@ -304,6 +301,9 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.63.0
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
       '@tanstack/eslint-plugin-query':
         specifier: 'catalog:'
         version: 5.103.1(eslint@10.10.0(jiti@2.7.0)(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
@@ -422,18 +422,15 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.63.0
-      '@rspack/cli':
+      '@rsbuild/core':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
+      '@rsbuild/plugin-react':
+        specifier: 'catalog:'
+        version: 2.1.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@rspack/dev-server':
-        specifier: 'catalog:'
-        version: 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
-      '@rspack/plugin-react-refresh':
-        specifier: 'catalog:'
-        version: 2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.17.0)
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.3.3
@@ -455,9 +452,6 @@ importers:
       postcss-loader:
         specifier: 'catalog:'
         version: 8.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(postcss@8.5.28)(typescript@6.0.3)
-      react-refresh:
-        specifier: ^0.17.0
-        version: 0.17.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -483,15 +477,12 @@ importers:
       '@company/mfe-rspack':
         specifier: workspace:*
         version: link:../../packages/mfe-rspack
-      '@rspack/cli':
+      '@rsbuild/core':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
-      '@rspack/core':
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
+      '@rsbuild/plugin-react':
         specifier: 'catalog:'
-        version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@rspack/dev-server':
-        specifier: 'catalog:'
-        version: 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.1.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.1)
@@ -541,18 +532,15 @@ importers:
       '@company/mfe-rspack':
         specifier: workspace:*
         version: link:../../packages/mfe-rspack
-      '@rspack/cli':
+      '@rsbuild/core':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
-      '@rspack/core':
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
+      '@rsbuild/plugin-react':
         specifier: 'catalog:'
-        version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@rspack/dev-server':
-        specifier: 'catalog:'
-        version: 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.1.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
       '@tanstack/router-plugin':
         specifier: 'catalog:'
-        version: 1.168.40(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
+        version: 1.168.40(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.1)
@@ -599,18 +587,15 @@ importers:
       '@company/mfe-rspack':
         specifier: workspace:*
         version: link:../../packages/mfe-rspack
-      '@rspack/cli':
+      '@rsbuild/core':
         specifier: 'catalog:'
-        version: 2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))
-      '@rspack/core':
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
+      '@rsbuild/plugin-react':
         specifier: 'catalog:'
-        version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@rspack/dev-server':
-        specifier: 'catalog:'
-        version: 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
+        version: 2.1.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
       '@tanstack/router-plugin':
         specifier: 'catalog:'
-        version: 1.168.40(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
+        version: 1.168.40(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
       '@testing-library/jest-dom':
         specifier: 'catalog:'
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.1)
@@ -789,7 +774,7 @@ importers:
         version: 1.167.38(supports-color@10.2.2)
       '@tanstack/router-plugin':
         specifier: 'catalog:'
-        version: 1.168.40(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
+        version: 1.168.40(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
       babel-loader:
         specifier: 'catalog:'
         version: 10.1.1(@babel/core@8.0.5)(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
@@ -806,6 +791,9 @@ importers:
         specifier: 'catalog:'
         version: 8.5.28
     devDependencies:
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.2.8(@module-federation/runtime-tools@2.9.0)
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
@@ -1558,6 +1546,24 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
+  '@rsbuild/core@2.2.8':
+    resolution: {integrity: sha512-/htjYpZiqZFB/fELguE8nkqKDT/DqHXeXUgdf+X4UlP5BJc1EeolZ9ksDpCw9WNTlcn3zsPOj7UZ0dUUB4FAFA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+    peerDependencies:
+      core-js: '>= 3.0.0'
+    peerDependenciesMeta:
+      core-js:
+        optional: true
+
+  '@rsbuild/plugin-react@2.1.0':
+    resolution: {integrity: sha512-RQTIAWB/CwPjoWt9iAl+8HixeQVgZ7kEIBrWPCixfITyHdiD84h0YpUTpEUuz6kGHw1KXT9mHZ3Rwy6WG7aRDA==}
+    peerDependencies:
+      '@rsbuild/core': ^2.0.0
+    peerDependenciesMeta:
+      '@rsbuild/core':
+        optional: true
+
   '@rspack/binding-darwin-arm64@2.2.6':
     resolution: {integrity: sha512-y8I8MAeKAOYuLqEKYQSmNFcW4dI1u5O+xYQcjT1L3Gby02KEt0YxlmSPvzElSQJUjsJ8PkKqU3U1suDjA6xvkg==}
     cpu: [arm64]
@@ -1638,16 +1644,6 @@ packages:
   '@rspack/binding@2.2.6':
     resolution: {integrity: sha512-bCB4a7KKaQpPNlkExf27AmLJabeGjpjXlhnCdvmSIHHlT3YfpYz2CSKOLLLI/BcBez8zUBNDVmvswm3ggCCRqA==}
 
-  '@rspack/cli@2.2.6':
-    resolution: {integrity: sha512-A2Bb+5iGMrAp+YKgm3cN/3XfJfXed4GnoPlPRsjybyxrR+FyQmYMhxhKUfcQbD9JDHwXpQTOetwEBfzHSGJf+Q==}
-    hasBin: true
-    peerDependencies:
-      '@rspack/core': ^2.0.0-0
-      '@rspack/dev-server': ^2.0.0-0
-    peerDependenciesMeta:
-      '@rspack/dev-server':
-        optional: true
-
   '@rspack/core@2.2.6':
     resolution: {integrity: sha512-sqN75Fgf6v3tCmt8GAG/rdcYHOUDv/YZbQf24YCGDoMLmdNlXCosCHkBYWI8qdLs9IqSnGt7XgbcA39Zilg6UQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1658,25 +1654,6 @@ packages:
       '@module-federation/runtime-tools':
         optional: true
       '@swc/helpers':
-        optional: true
-
-  '@rspack/dev-middleware@2.0.4':
-    resolution: {integrity: sha512-VCdT8hv9YvMPiBohhukD/OkGB+2GJ7mPRbeuDJ/jIT6hv5gvmJCnydMetJVARh6vXoBtfSHEd2gX78Dqaxh1NQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    peerDependencies:
-      '@rspack/core': ^2.0.0
-    peerDependenciesMeta:
-      '@rspack/core':
-        optional: true
-
-  '@rspack/dev-server@2.2.1':
-    resolution: {integrity: sha512-Il8HbYGK3rH5rM0XmUOsOGZVw69BKRpBZ61P28Fy8ry35CtfniDBWtbo/rvJtIT/sK0qwijmNrhF498ltsV+uA==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    peerDependencies:
-      '@rspack/core': ^2.0.0
-      selfsigned: ^5.0.0
-    peerDependenciesMeta:
-      selfsigned:
         optional: true
 
   '@rspack/plugin-react-refresh@2.0.2':
@@ -3501,8 +3478,8 @@ packages:
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
-  react-refresh@0.17.0:
-    resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
+  react-refresh@0.18.0:
+    resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
 
   react-resizable-panels@4.12.4:
@@ -5028,6 +5005,22 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
+  '@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0)':
+    dependencies:
+      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+      '@swc/helpers': 0.5.23
+    transitivePeerDependencies:
+      - '@module-federation/runtime-tools'
+
+  '@rsbuild/plugin-react@2.1.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
+    dependencies:
+      '@rspack/plugin-react-refresh': 2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.18.0)
+      react-refresh: 0.18.0
+    optionalDependencies:
+      '@rsbuild/core': 2.2.8(@module-federation/runtime-tools@2.9.0)
+    transitivePeerDependencies:
+      - '@rspack/core'
+
   '@rspack/binding-darwin-arm64@2.2.6':
     optional: true
 
@@ -5091,12 +5084,6 @@ snapshots:
       '@rspack/binding-win32-ia32-msvc': 2.2.6
       '@rspack/binding-win32-x64-msvc': 2.2.6
 
-  '@rspack/cli@2.2.6(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)))':
-    dependencies:
-      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-    optionalDependencies:
-      '@rspack/dev-server': 2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
-
   '@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)':
     dependencies:
       '@rspack/binding': 2.2.6
@@ -5104,18 +5091,9 @@ snapshots:
       '@module-federation/runtime-tools': 2.9.0
       '@swc/helpers': 0.5.23
 
-  '@rspack/dev-middleware@2.0.4(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
-    optionalDependencies:
-      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-
-  '@rspack/dev-server@2.2.1(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))':
+  '@rspack/plugin-react-refresh@2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.18.0)':
     dependencies:
-      '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@rspack/dev-middleware': 2.0.4(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))
-
-  '@rspack/plugin-react-refresh@2.0.2(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-refresh@0.17.0)':
-    dependencies:
-      react-refresh: 0.17.0
+      react-refresh: 0.18.0
     optionalDependencies:
       '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
 
@@ -5258,7 +5236,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@tanstack/router-plugin@1.168.40(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))':
+  '@tanstack/router-plugin@1.168.40(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(rolldown@1.2.9)(supports-color@10.2.2)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/template': 7.29.7
@@ -5267,9 +5245,10 @@ snapshots:
       '@tanstack/router-generator': 1.167.38(supports-color@10.2.2)
       '@tanstack/router-utils': 1.162.3(supports-color@10.2.2)
       chokidar: 5.0.0
-      unplugin: 3.4.0(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(rolldown@1.2.9)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
+      unplugin: 3.4.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(rolldown@1.2.9)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1))
       zod: 4.6.5
     optionalDependencies:
+      '@rsbuild/core': 2.2.8(@module-federation/runtime-tools@2.9.0)
       '@tanstack/react-router': 1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       vite: 8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1)
     transitivePeerDependencies:
@@ -6831,7 +6810,7 @@ snapshots:
 
   react-is@17.0.2: {}
 
-  react-refresh@0.17.0: {}
+  react-refresh@0.18.0: {}
 
   react-resizable-panels@4.12.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
@@ -7219,12 +7198,13 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unplugin@3.4.0(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(rolldown@1.2.9)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1)):
+  unplugin@3.4.0(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(rolldown@1.2.9)(vite@8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
       picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
     optionalDependencies:
+      '@rsbuild/core': 2.2.8(@module-federation/runtime-tools@2.9.0)
       '@rspack/core': 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
       rolldown: 1.2.9
       vite: 8.3.0(@types/node@22.19.2)(jiti@2.7.0)(yaml@2.9.1)

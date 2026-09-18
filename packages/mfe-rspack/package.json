@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-rspack",
   "version": "0.1.0",
-  "description": "mfePlugin(): definition and capability discovery, generated #mfe/* modules, container-relative assets, scoped CSS, React Compiler integration and Module Federation plumbing for MFE containers.",
+  "description": "pluginMfe(): definition and capability discovery, generated #mfe/* modules, container-relative assets, scoped CSS, React Compiler integration and Module Federation plumbing for MFE containers, as an Rsbuild plugin.",
   "type": "module",
   "sideEffects": false,
   "bin": {
@@ -40,11 +40,13 @@
     "postcss": "catalog:"
   },
   "peerDependencies": {
+    "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
     "typescript": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",

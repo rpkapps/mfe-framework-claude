@@ -28,8 +28,9 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@playwright/test": "catalog:",
     "@company/eslint-plugin-mfe": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@rsbuild/core": "catalog:",
     "@tanstack/eslint-plugin-query": "catalog:",
     "@tanstack/eslint-plugin-router": "catalog:",
     "@tanstack/router-generator": "catalog:",

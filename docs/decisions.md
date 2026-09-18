@@ -281,3 +281,44 @@ Widget from a _second_ container mounted inside it, that the shell chrome
 appears exactly once, and that no hook reported itself outside a mount. Each
 assertion is one of the defects above. A green unit suite is not evidence that
 the page works, and this repository no longer claims otherwise.
+
+---
+
+## 13. The build integration is an Rsbuild plugin, not a bare Rspack plugin
+
+**Status:** deliberate deviation, at the project owner's direction.
+
+§10.7 and acceptance criterion 26 say `mfePlugin()` is a normal Rspack plugin
+and that ordinary Rspack options stay ordinary. The public entry is now
+`pluginMfe()`, an Rsbuild plugin, and a container's own Rspack options go under
+`tools.rspack`. Rsbuild is Rspack underneath, from the same team, so this is a
+change of layer rather than of engine.
+
+**What the spec was protecting, and how it survives.** The stated objection was
+to a wrapper that owns the whole config object, leaving an author with nowhere
+to put an option the wrapper did not anticipate. `pluginMfe()` is still one
+entry in a `plugins` array; it contributes configuration and never replaces it,
+and `tools.rspack` remains an escape hatch to raw Rspack. What it owns is what
+no author should write: discovery, the generated modules, scoped CSS, the
+React Compiler transform and every federation setting.
+
+**Why it was worth the deviation.** A container's configuration went from ~96
+lines to ~50, most of the removal being defaults Rsbuild already has. More
+importantly, declaring `moduleFederation.options` is what makes Rsbuild derive
+`output.publicPath`, `output.uniqueName` and the development asset prefix for a
+remote — the settings a container most often gets wrong, where the symptom is
+chunks resolving against the shell's origin and no error anywhere.
+
+**What the migration cost, and it is worth knowing.** Two things broke silently
+and were caught only by building and loading a real page:
+
+- Rsbuild replaces the federation plugin's `manifest` option when it registers
+  it, so `manifest.additionalData` is never called. The framework contract
+  metadata simply vanished from `mf-manifest.json`. The Rspack half now injects
+  it into the emitted asset, which depends on nothing but the file existing,
+  and reports an error if it does not.
+- Rsbuild's default asset prefix is the serving path, `/`. For a remote that is
+  the _shell's_ path, so `pluginMfe()` sets `output.assetPrefix: 'auto'`.
+
+Both are the same shape as every other defect this repository has found: a tool
+that assumes one application per page, meeting a shell that has several.

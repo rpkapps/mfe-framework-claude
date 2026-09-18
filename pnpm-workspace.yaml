@@ -31,6 +31,8 @@ catalog:
   '@module-federation/enhanced': 2.9.0
   '@module-federation/runtime': 2.9.0
   '@playwright/test': 1.63.0
+  '@rsbuild/core': 2.2.8
+  '@rsbuild/plugin-react': 2.1.0
   '@rspack/cli': 2.2.6
   '@rspack/core': 2.2.6
   '@rspack/dev-server': 2.2.1
@@ -91,3 +93,4 @@ minimumReleaseAgeExclude:
   - '@rspack/core@2.2.6'
   - prettier@3.9.8
   - '@rspack/cli@2.2.6'
+  - '@rsbuild/core@2.2.8'

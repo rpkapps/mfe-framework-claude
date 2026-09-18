@@ -232,9 +232,9 @@ export default [
 `,
     },
     {
-      path: 'rspack.config.ts',
+      path: 'rsbuild.config.ts',
       contents: `/**
- * An ordinary Rspack configuration. \`mfePlugin()\` is a normal plugin rather
+ * An ordinary Rsbuild configuration. \`pluginMfe()\` is a normal plugin rather
  * than a wrapper, so everything here is what it would be in any React project.
  *
  * The plugin owns what makes this a container: definition discovery, the
@@ -248,8 +248,9 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { mfePlugin } from '@company/mfe-rspack'
-import type { Configuration } from '@rspack/core'
+import { pluginMfe } from '@company/mfe-rspack'
+import { defineConfig } from '@rsbuild/core'
+import { pluginReact } from '@rsbuild/plugin-react'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -258,71 +259,36 @@ const manifest = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8'))
   readonly mfe: { readonly port: number }
 }
 
-export default function config(_env: unknown, argv: { readonly mode?: string }): Configuration {
-  const isDev = argv.mode !== 'production'
+export default defineConfig({
+  // pluginReact supplies the automatic JSX runtime and Fast Refresh; pluginMfe
+  // supplies everything that makes this project a container.
+  plugins: [pluginReact(), pluginMfe()],
 
-  return {
-    context: here,
-    mode: isDev ? 'development' : 'production',
-    target: 'browserslist',
-    entry: '${entry}',
+  source: { entry: { index: '${entry}' } },
 
-    output: {
-      path: resolve(here, 'dist'),
-      filename: isDev ? '[name].js' : '[name].[contenthash:8].js',
-      chunkFilename: isDev ? '[name].chunk.js' : '[name].[contenthash:8].chunk.js',
-      assetModuleFilename: 'assets/[name].[contenthash:8][ext]',
-      clean: true,
-    },
+  // A remote is fetched by a shell, never browsed to, so it needs no document.
+  tools: { htmlPlugin: false },
 
-    resolve: { extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'] },
+  server: {
+    port: manifest.mfe.port,
+    // The shell serves the page from its own origin and reads this container's
+    // manifest, remote entry and chunks from here.
+    cors: true,
+    // runtime-config.json carries a deployment's values, so it is never built
+    // into the container. In development this server publishes the container's
+    // own local copy next to its assets, which is where the generated loader
+    // resolves it from.
+    publicDir: { name: 'public' },
+  },
 
-    module: {
-      rules: [
-        {
-          test: /\\.[cm]?tsx?$/,
-          exclude: /[\\\\/]node_modules[\\\\/]/,
-          loader: 'builtin:swc-loader',
-          options: {
-            jsc: {
-              parser: { syntax: 'typescript', tsx: true },
-              transform: { react: { runtime: 'automatic', development: isDev } },
-              target: 'es2022',
-            },
-          },
-        },
-        { test: /\\.css$/, type: 'css' },
-        { test: /\\.(woff2?|png|svg|jpg|jpeg|gif)$/, type: 'asset/resource' },
-      ],
-    },
-
-    plugins: [mfePlugin()],
-
-    experiments: { css: true },
-
-    // A dev-server convenience that compiles a chunk the first time the page
-    // asks for it, over an endpoint on this server's own origin. A container is
-    // loaded by a shell on a different origin, so that request never arrives:
-    // the route renders nothing and reports nothing. The CLI turns this on
-    // whenever a config leaves it undefined, so a container has to say no.
+  dev: {
+    // Compiles a chunk the first time the page asks for it, over an endpoint on
+    // this server's own origin. A container is loaded by a shell on a different
+    // origin, so that request never arrives: the route renders nothing and
+    // reports nothing.
     lazyCompilation: false,
-
-    devServer: {
-      port: manifest.mfe.port,
-      // The shell serves the page from its own origin and reads this
-      // container's manifest, remote entry and chunks from here, so all of
-      // them have to be readable cross-origin.
-      headers: { 'Access-Control-Allow-Origin': '*' },
-      // A remote is fetched by the shell, never browsed to, so whichever local
-      // hostname the developer started the shell on has to be accepted.
-      allowedHosts: 'all',
-    },
-
-    devtool: isDev ? 'eval-cheap-module-source-map' : 'source-map',
-
-    stats: { preset: 'errors-warnings', assets: true, timings: true },
-  }
-}
+  },
+})
 `,
     },
   ]

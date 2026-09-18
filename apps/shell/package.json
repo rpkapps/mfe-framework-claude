@@ -5,8 +5,8 @@
   "description": "Test shell application: owns the Tecton header and mounts micro-frontends below it.",
   "type": "module",
   "scripts": {
-    "dev": "rspack serve --mode development",
-    "build": "rspack build --mode production",
+    "dev": "rsbuild dev",
+    "build": "rsbuild build",
     "typecheck": "node scripts/typecheck.mjs",
     "lint": "eslint ."
   },
@@ -38,10 +38,9 @@
     "@grafana/faro-web-sdk": "^2.11.0",
     "@module-federation/enhanced": "catalog:",
     "@playwright/test": "catalog:",
-    "@rspack/cli": "catalog:",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
     "@rspack/core": "catalog:",
-    "@rspack/dev-server": "catalog:",
-    "@rspack/plugin-react-refresh": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -49,7 +48,6 @@
     "eslint": "catalog:",
     "postcss": "catalog:",
     "postcss-loader": "catalog:",
-    "react-refresh": "^0.17.0",
     "tailwindcss": "catalog:",
     "typescript": "catalog:"
   }

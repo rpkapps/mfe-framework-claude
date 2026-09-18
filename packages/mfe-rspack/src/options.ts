@@ -1,5 +1,5 @@
 /**
- * `mfePlugin()` options. The list is deliberately short: federation names,
+ * `pluginMfe()` options. The list is deliberately short: federation names,
  * exposes, share scopes, singleton flags and manifest settings only produce a
  * working page when every container agrees on them, which is not something a
  * per-repository config file can promise, so they are derived instead.
@@ -13,7 +13,7 @@ import { createBuildError } from './diagnostics.ts'
 export interface MfePluginOptions {
   /**
    * The container root. Defaults to the compiler context, which is the
-   * directory holding `rspack.config.ts`.
+   * directory holding `rsbuild.config.ts`.
    */
   readonly containerRoot?: string
   /**
@@ -135,7 +135,7 @@ function readManifest(root: string): ContainerManifest {
       observed: 'no readable file',
       declaredBy: 'The build plugin',
       repair:
-        'Point mfePlugin({ containerRoot }) at the directory holding the container package.json. The manifest is what the sharing defaults are intersected with.',
+        'Point pluginMfe({ containerRoot }) at the directory holding the container package.json. The manifest is what the sharing defaults are intersected with.',
       cause,
     })
   }
