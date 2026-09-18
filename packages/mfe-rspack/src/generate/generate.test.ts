@@ -205,6 +205,11 @@ describe('shell registry descriptor', () => {
 
     expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual({
       manifestUrl: 'mf-manifest.json',
+      // Federation's name and expose path: a shell registers the remote under
+      // these before it can fetch anything, so a descriptor without them
+      // cannot produce a loadable registry entry.
+      container: 'acme_operations',
+      entries: { operations: './app' },
       contractMajor: 1,
       definitions: [
         {

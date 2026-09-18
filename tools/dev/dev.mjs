@@ -150,6 +150,26 @@ function prefixOutput(stream, label, colour) {
   })
 }
 
+/**
+ * The shell's registry is assembled from what each container generated, so a
+ * developer who adds an example never edits a registry by hand.
+ */
+function buildRegistry() {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/build-registry.mjs')], {
+      cwd: repoRoot,
+      stdio: 'inherit',
+    })
+    child.on('exit', code =>
+      code === 0
+        ? resolve()
+        : reject(
+            new Error('Could not assemble the shell registry. Run `pnpm run generate` first.'),
+          ),
+    )
+  })
+}
+
 function start(service, colour) {
   const child = spawn('pnpm', ['--filter', service.packageName, 'run', 'dev'], {
     cwd: repoRoot,
@@ -182,6 +202,10 @@ async function main() {
     process.exitCode = 1
     return
   }
+
+  // Before anything starts: the shell fetches this at boot, and it names the
+  // ports the servers below are about to listen on.
+  await buildRegistry()
 
   console.log(`${BOLD}Starting ${services.length} dev server(s)${RESET}`)
   for (const [index, service] of services.entries()) {

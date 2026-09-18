@@ -57,6 +57,41 @@ function readAdapterData(entry: NeutralRegistryEntry): {
 }
 
 /**
+ * Hides `window.__TSR_ROUTER__` while a container's modules evaluate.
+ *
+ * TanStack's router constructor publishes every router it builds there, and
+ * `@tanstack/router-plugin` injects a development HMR shim into each route
+ * module that reads it back: finding a route already registered under its own
+ * id, the module concludes it is a hot update of that route and copies the
+ * live route's component onto itself.
+ *
+ * Both halves assume one router per page. A shell has one per mount, and every
+ * App's root route is `__root__`, so a freshly loaded container recognised the
+ * *shell's* root as its own previous self and adopted the shell's component —
+ * which rendered the entire shell, recursively, inside the App that had just
+ * mounted. Nothing in a unit test or a production build shows this: the shim
+ * is emitted only in development.
+ *
+ * Removing the global for the duration of the load is enough, because the shim
+ * does nothing when it finds no router. It is restored afterwards only if
+ * nothing published a newer one in the meantime — that router is now the page's
+ * most recent, and overwriting it would resurrect a stale reference.
+ */
+async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
+  const owner = globalThis as { __TSR_ROUTER__?: unknown }
+  if (!('__TSR_ROUTER__' in owner)) return await load()
+
+  const previous = owner.__TSR_ROUTER__
+  delete owner.__TSR_ROUTER__
+
+  try {
+    return await load()
+  } finally {
+    if (!('__TSR_ROUTER__' in owner)) owner.__TSR_ROUTER__ = previous
+  }
+}
+
+/**
  * Registration is idempotent per container: several definitions exported by one
  * container register it once, which is also why a developer override has to be
  * consistent across that container's exports.
@@ -87,8 +122,8 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
 
       let moduleExports: unknown
       try {
-        moduleExports = await options.runtime.loadRemote(
-          `${containerName}/${exposeName.replace(/^\.\//, '')}`,
+        moduleExports = await withoutCurrentRouterGlobal(() =>
+          options.runtime.loadRemote(`${containerName}/${exposeName.replace(/^\.\//, '')}`),
         )
       } catch (error) {
         throw toMfeError(error, {

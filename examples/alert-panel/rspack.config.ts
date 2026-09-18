@@ -65,6 +65,13 @@ export default function config(_env: unknown, argv: { readonly mode?: string }):
 
     experiments: { css: true },
 
+    // A dev-server convenience that compiles a chunk the first time the page
+    // asks for it, over an endpoint on this server's own origin. A container is
+    // loaded by a shell on a different origin, so that request never arrives:
+    // the route renders nothing and reports nothing. The CLI turns this on
+    // whenever a config leaves it undefined, so a container has to say no.
+    lazyCompilation: false,
+
     devServer: {
       port: manifest.mfe.port,
       // The shell serves the page from its own origin and reads this

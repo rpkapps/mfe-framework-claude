@@ -1,0 +1,28 @@
+{
+  "$comment": "What the shell knows that a container cannot. Everything else in public/registry.json is assembled from each container's generated mfe-registry.json by tools/dev/build-registry.mjs — ids, kinds, versions, capabilities, container names and expose paths are never written here.",
+  "presentation": {
+    "operations": { "title": "Operations", "icon": "OPS" },
+    "reports": { "title": "Reports", "icon": "RPT" },
+    "alert-panel": { "title": "Alert Panel" }
+  },
+  "$fixtures": "Deliberately invalid entries. Each one proves a quarantine path stays per-entry: the shell keeps running and every other entry stays available.",
+  "fixtures": [
+    {
+      "id": "legacy-reports",
+      "kind": "app",
+      "mfe": { "contractMajor": 2 },
+      "manifestUrl": "http://localhost:3106/mf-manifest.json",
+      "container": "legacy_reports",
+      "expose": "./app",
+      "title": "Legacy Reports"
+    },
+    {
+      "id": "no-manifest",
+      "kind": "app",
+      "mfe": { "contractMajor": 1 },
+      "container": "no_manifest",
+      "expose": "./app",
+      "title": "Missing Manifest URL"
+    }
+  ]
+}

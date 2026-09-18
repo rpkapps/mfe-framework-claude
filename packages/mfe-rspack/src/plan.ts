@@ -5,6 +5,7 @@
  * and it can be tested without one.
  */
 
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
@@ -23,6 +24,28 @@ import { generateContainerFiles, type GeneratedOutput } from './generate/index.t
 import { ALIASES, entryModulePath, exposeName, type GenerateContext } from './generate/modules.ts'
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
+
+/**
+ * Reads a dependency's installed version from the container's own resolution,
+ * which is what a `catalog:` or `workspace:` range actually resolved to. It
+ * resolves from the container root rather than from this package, so a
+ * container that pins a different version advertises that one.
+ */
+function installedVersionFrom(containerRoot: string): (name: string) => string | undefined {
+  const require = createRequire(join(containerRoot, 'package.json'))
+
+  return name => {
+    try {
+      const manifest = require(`${name}/package.json`) as { readonly version?: unknown }
+      return typeof manifest.version === 'string' ? manifest.version : undefined
+    } catch {
+      // A shared candidate the container declares but has not installed. The
+      // build does not fail for it: the module is simply not resolvable here,
+      // and whatever imports it reports that itself.
+      return undefined
+    }
+  }
+}
 
 export interface ContainerPlan {
   readonly options: ResolvedOptions
@@ -93,6 +116,7 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     shared: resolveShared({
       dependencies: containerDependencies(resolved),
       overrides: resolved.sharedOverrides,
+      installedVersion: installedVersionFrom(resolved.containerRoot),
     }),
     exposes,
     aliases,

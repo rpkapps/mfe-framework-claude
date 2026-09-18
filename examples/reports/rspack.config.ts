@@ -65,8 +65,21 @@ export default function config(_env: unknown, argv: { readonly mode?: string }):
 
     experiments: { css: true },
 
+    // A dev-server convenience that compiles a chunk the first time the page
+    // asks for it, over an endpoint on this server's own origin. A container is
+    // loaded by a shell on a different origin, so that request never arrives:
+    // the route renders nothing and reports nothing. The CLI turns this on
+    // whenever a config leaves it undefined, so a container has to say no.
+    lazyCompilation: false,
+
     devServer: {
       port: manifest.mfe.port,
+      // runtime-config.json carries a deployment's values, so it is never
+      // built into the container (§10.3). In development the dev server
+      // publishes this container's own local copy next to its assets, which
+      // is where the generated loader resolves it from — a developer edits
+      // these values and never the deployed ones.
+      static: { directory: resolve(here, 'public'), publicPath: '/' },
       // The shell serves the page from its own origin and reads this
       // container's manifest, remote entry and chunks from here, so all of
       // them have to be readable cross-origin.

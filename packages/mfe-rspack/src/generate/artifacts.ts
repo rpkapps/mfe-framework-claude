@@ -45,24 +45,27 @@ export function containerDescriptor(
     }
   })
 
-  return {
-    manifestUrl: context.options.manifestFileName,
-    contractMajor: FRAMEWORK_CONTRACT_MAJOR,
-    definitions,
-    build: { hash: buildHash, time: context.options.buildTime },
-  }
-}
-
-export function frameworkMetadata(
-  context: GenerateContext,
-  descriptor: ContainerDescriptor,
-  buildHash: string,
-): FrameworkManifestMetadata {
   const entries: Record<string, string> = {}
   for (const definition of context.discovery.definitions) {
     entries[definition.id] = exposeName(definition)
   }
 
+  return {
+    manifestUrl: context.options.manifestFileName,
+    container: context.options.federationName,
+    contractMajor: FRAMEWORK_CONTRACT_MAJOR,
+    definitions,
+    entries,
+    build: { hash: buildHash, time: context.options.buildTime },
+  }
+}
+
+/** Read from the descriptor, so the manifest and the descriptor cannot disagree. */
+export function frameworkMetadata(
+  context: GenerateContext,
+  descriptor: ContainerDescriptor,
+  buildHash: string,
+): FrameworkManifestMetadata {
   return {
     kind: 'mfe',
     major: descriptor.contractMajor,
@@ -70,7 +73,7 @@ export function frameworkMetadata(
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,
     definitions: descriptor.definitions,
-    entries,
+    entries: descriptor.entries,
   }
 }
 

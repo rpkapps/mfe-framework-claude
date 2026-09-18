@@ -9,6 +9,7 @@ coverage/
 routeTree.gen.ts
 src/generated/
 .mfe/
+apps/shell/public/registry.json
 
 # Local developer values (§10.6)
 runtime-config.local.json

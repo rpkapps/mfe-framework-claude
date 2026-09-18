@@ -138,6 +138,13 @@ export default function config(_env, argv) {
         // registry, after developer overrides were applied.
         remotes: {},
         shared: {
+          // The framework packages carry React context across the boundary, so
+          // a second copy in a container makes every framework hook fail with
+          // "rendered outside any mount". They are shared for the same reason
+          // React is.
+          '@company/mfe-core': strictSingleton('@company/mfe-core'),
+          '@company/mfe-host': strictSingleton('@company/mfe-host'),
+          '@company/mfe-react': strictSingleton('@company/mfe-react'),
           // The trailing slash shares every subpath of the design system,
           // which is how it is imported; it publishes no root entry.
           react: strictSingleton('react'),

@@ -112,6 +112,11 @@ const { runtime, activeOverrides } = createMfeRuntime({
 
 notices.overrides = activeOverrides
 
+// Built once. Creating it inside the JSX below would hand RouterProvider a new
+// router on every render, and TanStack re-initialises a router it has not seen
+// — which remounts everything under the boundary on every pass.
+const router = createShellRouter(runtime)
+
 // Hot reload re-executes this module, and a second createRoot on the same
 // container orphans the first.
 declare global {
@@ -122,7 +127,7 @@ globalThis.shellRoot ??= createRoot(container)
 globalThis.shellRoot.render(
   <StrictMode>
     <MfeProvider runtime={runtime}>
-      <RouterProvider router={createShellRouter(runtime)} />
+      <RouterProvider router={router} />
     </MfeProvider>
   </StrictMode>,
 )

@@ -25,8 +25,14 @@ describe('resolveShared', () => {
     expect(resolveShared({ dependencies: { lodash: '^4.0.0' } })).toEqual({})
   })
 
-  it('covers React, TanStack Router and Query, and the design system', () => {
+  it('covers the framework, React, TanStack Router and Query, and the design system', () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
+      // The framework packages carry React context across the boundary; a
+      // second copy makes every framework hook fail with "rendered outside any
+      // mount", which is what a real federated page showed.
+      '@company/mfe-core',
+      '@company/mfe-host',
+      '@company/mfe-react',
       'react',
       'react-dom',
       '@tanstack/react-router',
@@ -36,15 +42,19 @@ describe('resolveShared', () => {
 
     const shared = resolveShared({
       dependencies: {
+        '@company/mfe-core': 'workspace:*',
+        '@company/mfe-host': 'workspace:*',
+        '@company/mfe-react': 'workspace:*',
         react: '^19.0.0',
         'react-dom': '^19.0.0',
         '@tanstack/react-router': '^1.170.0',
         '@tanstack/react-query': '^5.103.0',
         '@tecton/react': '^3.0.0',
       },
+      installedVersion: () => '0.1.0',
     })
 
-    expect(Object.keys(shared)).toHaveLength(5)
+    expect(Object.keys(shared)).toHaveLength(8)
     for (const entry of Object.values(shared)) {
       expect(entry.singleton).toBe(true)
       expect(entry.strictVersion).toBe(true)
@@ -66,10 +76,44 @@ describe('resolveShared', () => {
     expect(shared['react']?.requiredVersion).toBe('^19.0.0')
   })
 
-  it('omits a required version a resolver could not compare', () => {
-    const shared = resolveShared({ dependencies: { react: 'catalog:' } })
+  /**
+   * A regression: this used to omit `requiredVersion` for a workspace
+   * protocol, which reads as "no requirement" but is not. Module Federation
+   * infers one from the nearest package.json when the field is absent, so the
+   * container advertised that it required version "catalog:" and every shell
+   * failed the check — which is exactly what happened the first time the shell
+   * loaded a real container.
+   */
+  it('requires the version a workspace protocol resolved to', () => {
+    const shared = resolveShared({
+      dependencies: { react: 'catalog:' },
+      installedVersion: () => '19.3.0',
+    })
 
-    expect(shared['react']).toEqual({ singleton: true, strictVersion: true })
+    expect(shared['react']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '19.3.0',
+    })
+  })
+
+  it('disables the requirement explicitly when nothing is installed to read', () => {
+    const shared = resolveShared({ dependencies: { react: 'workspace:*' } })
+
+    expect(shared['react']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: false,
+    })
+  })
+
+  it('keeps a declared range that a resolver can compare', () => {
+    const shared = resolveShared({
+      dependencies: { react: '^19.0.0' },
+      installedVersion: () => '19.3.0',
+    })
+
+    expect(shared['react']?.requiredVersion).toBe('^19.0.0')
   })
 
   it('reads peer dependencies as well as dependencies', () => {

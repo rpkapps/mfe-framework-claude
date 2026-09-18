@@ -8,6 +8,7 @@
     "mfe-generate": "./src/cli/generate.ts"
   },
   "exports": {
+    "./package.json": "./package.json",
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
