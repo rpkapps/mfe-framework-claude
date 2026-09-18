@@ -1,9 +1,8 @@
 /**
- * The framework's only subscription primitives (§12.4: small purpose-specific
- * plain TypeScript structures, no general state-management dependency).
+ * The framework's only subscription primitives.
  *
- * Two invariants hold everywhere these are used, because §1.4 makes them part
- * of the public contract rather than an optimization:
+ * Two invariants hold everywhere these are used. They are part of the public
+ * contract rather than an optimization:
  *
  * 1. A snapshot is immutable and cached. An unchanged snapshot keeps its
  *    reference, so `useSyncExternalStore` consumers do not re-render.
@@ -23,7 +22,7 @@ export interface Subscribable<T> {
  * Notifies listeners, tolerating subscribe/unsubscribe during notification by
  * iterating a copy. A listener that throws must not prevent the remaining
  * listeners from running; the failure is reported through `onListenerError` so
- * it cannot be swallowed (§17.6: no silent catches).
+ * it cannot be swallowed.
  */
 export class ListenerSet {
   readonly #listeners = new Set<Listener>()
@@ -126,10 +125,10 @@ export class SnapshotSource<T> implements Subscribable<T> {
 /**
  * Subscriptions partitioned by an exact string key.
  *
- * Storage (§5.13) and shell state (§5.4.4) both need this: writing one storage
+ * Storage and shell state both need this: writing one storage
  * key, or changing only the theme, must notify that key's subscribers and no
  * one else. A single shared listener list would broadcast every change to every
- * consumer, which §1.4 forbids.
+ * consumer, which the reactivity contract forbids.
  */
 export class KeyedListeners {
   readonly #byKey = new Map<string, ListenerSet>()

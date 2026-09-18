@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createMfeError, describeValue, formatPath, isMfeError, toMfeError } from './errors.ts'
 
-describe('createMfeError message composition (§17.4)', () => {
+describe('createMfeError message composition', () => {
   it('names the definition, field, expectation, observation, owning side and repair step', () => {
     const error = createMfeError({
       code: 'contract/input-mismatch',
@@ -25,7 +25,7 @@ describe('createMfeError message composition (§17.4)', () => {
     )
   })
 
-  it('includes the definition version so a failure identifies which build was running (§4.2)', () => {
+  it('includes the definition version so a failure identifies which build was running', () => {
     const error = createMfeError({
       code: 'mount/failure',
       id: 'operations',
@@ -37,7 +37,7 @@ describe('createMfeError message composition (§17.4)', () => {
     expect(error.message).toContain('operations@2.1.0')
   })
 
-  it('carries structured fields for exhaustive host handling (§7.3)', () => {
+  it('carries structured fields for exhaustive host handling', () => {
     const cause = new Error('underlying')
     const error = createMfeError({
       code: 'contract/event-mismatch',
@@ -68,7 +68,7 @@ describe('formatPath', () => {
 })
 
 describe('describeValue', () => {
-  it('describes shapes rather than dumping payloads (§5.16.4)', () => {
+  it('describes shapes rather than dumping payloads', () => {
     expect(describeValue({ secret: 'token' })).toBe('an object')
     expect(describeValue([1, 2, 3])).toBe('an array of length 3')
     expect(describeValue('x'.repeat(50))).toBe('a string of length 50')

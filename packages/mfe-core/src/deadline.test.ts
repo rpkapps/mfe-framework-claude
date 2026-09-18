@@ -10,7 +10,7 @@ const loadContext: DeadlineContext = {
   phase: 'load',
 }
 
-describe('withDeadline (§7.4)', () => {
+describe('withDeadline', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })

@@ -1,5 +1,5 @@
 /**
- * The diagnostics sink (§5.8 drift detection, §7.3).
+ * The diagnostics sink.
  *
  * Logging alone is insufficient: a dropped event is silent by design, and
  * nobody reads logs until they already suspect a problem. Every validation and
@@ -24,7 +24,7 @@ export type DiagnosticsSink = (diagnostic: Diagnostic) => void
 /**
  * Fans out to several sinks. A sink that throws must not prevent the others
  * from receiving the diagnostic, and must not recursively report itself
- * (§5.16.4), so its failure is counted rather than re-reported.
+ *, so its failure is counted rather than re-reported.
  */
 export class DiagnosticsHub {
   readonly #sinks = new Set<DiagnosticsSink>()

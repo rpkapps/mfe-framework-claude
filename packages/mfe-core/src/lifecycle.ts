@@ -1,10 +1,10 @@
 /**
  * Mount lifecycle states and the state machine that owns their transitions
- * (§7.1, §7.2, §7.4).
+ *.
  *
  * One object owns the whole lifecycle so that a maintainer can read every legal
  * transition in one place, rather than reconstructing it from effects scattered
- * across the adapters (§17.6).
+ * across the adapters.
  */
 
 import { createMfeError, type MfeError } from './errors.ts'
@@ -19,14 +19,14 @@ export type MountState =
 export type MountStatus = MountState['status']
 
 /** `mounted` and `disposed` carry no data, so one frozen value each is enough
- * to keep snapshot identity stable across repeated transitions (§1.4). */
+ * to keep snapshot identity stable across repeated transitions. */
 const MOUNTED_STATE: MountState = Object.freeze({ status: 'mounted' as const })
 const DISPOSED_STATE: MountState = Object.freeze({ status: 'disposed' as const })
 
 /**
  * A token for one mount attempt. Every asynchronous step carries its token and
  * checks `isCurrent` before touching shared state, so a timed-out import or a
- * superseded retry can never attach UI or overwrite a newer attempt (§7.4).
+ * superseded retry can never attach UI or overwrite a newer attempt.
  */
 export interface AttemptToken {
   readonly attempt: number
@@ -54,7 +54,7 @@ export class MountLifecycle implements Subscribable<MountState> {
   readonly definitionVersion: string | undefined
 
   readonly #state: SnapshotSource<MountState>
-  /** Aborts once, on disposal. Exposed to authors as `useMfeSignal` (§5.14). */
+  /** Aborts once, on disposal. Exposed to authors as `useMfeSignal`. */
   readonly #disposeController = new AbortController()
 
   #attempt = 0
@@ -76,7 +76,7 @@ export class MountLifecycle implements Subscribable<MountState> {
   /** Stable reference; safe for `useSyncExternalStore`. */
   readonly getSnapshot = (): MountState => this.#state.getSnapshot()
 
-  /** Alias matching the public handle vocabulary in §7.1. */
+  /** Alias matching the public mount-handle vocabulary. */
   readonly getState = (): MountState => this.#state.getSnapshot()
 
   get state(): MountState {
@@ -90,7 +90,7 @@ export class MountLifecycle implements Subscribable<MountState> {
     return this.#disposed
   }
 
-  /** Mount-scoped signal: aborts on disposal only (§5.14). */
+  /** Mount-scoped signal: aborts on disposal only. */
   get signal(): AbortSignal {
     return this.#disposeController.signal
   }
@@ -165,7 +165,7 @@ export class MountLifecycle implements Subscribable<MountState> {
 
   /**
    * Memoizes the disposal promise so `dispose()` is idempotent in the sense
-   * §7.1 requires: every caller awaits the same cleanup, and a second call
+   * the contract requires: every caller awaits the same cleanup, and a second call
    * never starts a second teardown.
    */
   runDisposalOnce(cleanup: () => Promise<void>): Promise<void> {
@@ -195,13 +195,13 @@ export class MountLifecycle implements Subscribable<MountState> {
   }
 }
 
-/** The public lifecycle surface a host component or non-React host observes (§7.1). */
+/** The public lifecycle surface a host component or non-React host observes. */
 export interface MountHandle {
   readonly id: string
   readonly state: MountState
   getState(): MountState
   subscribe(listener: () => void): Unsubscribe
-  /** Starts a fresh attempt using the latest committed inputs (§7.2). */
+  /** Starts a fresh attempt using the latest committed inputs. */
   retry(): void
   /** Idempotent; resolves when cleanup finishes, rejects with `dispose/timeout`. */
   dispose(): Promise<void>

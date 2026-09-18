@@ -19,7 +19,7 @@ const inputContext: ContractValidationContext = {
   side: 'provider',
 }
 
-describe('validateAgainstContract (§5.8)', () => {
+describe('validateAgainstContract', () => {
   it('accepts a valid payload and returns the parsed value', () => {
     const schema = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
       alertId: string
@@ -30,7 +30,7 @@ describe('validateAgainstContract (§5.8)', () => {
     expect(result).toEqual({ ok: true, value: { alertId: 'a-1' } })
   })
 
-  it('produces the §17.4 diagnostic for a missing field', () => {
+  it('produces an actionable diagnostic for a missing field', () => {
     const schema = z.object({ alertId: z.string() }) as unknown as ContractSchema<{
       alertId: string
     }>
@@ -102,7 +102,7 @@ describe('validateAgainstContract (§5.8)', () => {
   })
 })
 
-describe('serializable values only (§5.8)', () => {
+describe('serializable values only', () => {
   it.each([
     ['a function', { onSelect: () => {} }, 'a function'],
     ['a Date', { at: new Date() }, 'a Date'],
@@ -148,7 +148,7 @@ describe('serializable values only (§5.8)', () => {
   })
 })
 
-describe('reserved names (§5.7)', () => {
+describe('reserved names', () => {
   it.each(['key', 'ref', 'fallback', 'onAcknowledged', 'onX'])('reserves %s', name => {
     expect(isReservedInputName(name)).toBe(true)
   })

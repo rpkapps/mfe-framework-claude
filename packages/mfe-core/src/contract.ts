@@ -1,5 +1,5 @@
 /**
- * Widget contract primitives and two-sided validation (§5.8).
+ * Widget contract primitives and two-sided validation.
  *
  * Contracts are Zod schemas, and the schemas are the source of truth for both
  * runtime validation and author-facing types — there are no parallel type
@@ -64,7 +64,7 @@ export type ContractEvents<C extends WidgetContract> = {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Host control props that are never forwarded as Widget inputs (§5.7).
+ * Host control props that are never forwarded as Widget inputs.
  * `on` + uppercase is reserved separately because those are event handlers.
  */
 export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback'] as const
@@ -78,7 +78,7 @@ export function isReservedInputName(name: string): boolean {
   )
 }
 
-/** Maps a contract event name to its consumer-facing handler prop (§5.7). */
+/** Maps a contract event name to its consumer-facing handler prop. */
 export function eventNameToHandlerProp(eventName: string): string {
   return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`
 }
@@ -92,7 +92,7 @@ export function isValidEventName(name: string): boolean {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Inputs and event payloads must be JSON-serializable (§5.8). Prohibiting
+ * Inputs and event payloads must be JSON-serializable. Prohibiting
  * functions, class instances, DOM nodes, elements, `Date`, `Map` and `Set`
  * keeps iframe or worker isolation available later, and validation cannot
  * meaningfully check them anyway.
@@ -183,7 +183,7 @@ export function findNonSerializableValue(
 export interface ContractValidationContext {
   readonly id: string
   readonly definitionVersion?: string
-  /** `'input'` or `'event'` — recorded on the structured error (§7.3). */
+  /** `'input'` or `'event'` — recorded on the structured error. */
   readonly direction: 'input' | 'event'
   /** `'provider'` validates its own declaration; `'consumer'` validates what it subscribed to. */
   readonly side: 'provider' | 'consumer'
@@ -219,7 +219,7 @@ function repairFor(context: ContractValidationContext, field: string): string {
 
 /**
  * Validates a value against a contract schema and turns any failure into a
- * structured error whose message satisfies §17.4.
+ * structured error whose message names the field, the expectation and the repair.
  *
  * The first issue drives the message. Reporting every issue at once reads worse
  * and buries the actionable one; the underlying parse error stays on `cause`.

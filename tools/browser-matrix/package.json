@@ -2,7 +2,7 @@
   "name": "@company/browser-matrix",
   "version": "0.1.0",
   "private": true,
-  "description": "§9.2 browser support policy: derives the supported browser matrix from the required native feature floor and checks aggregate global usage coverage.",
+  "description": "Browser support policy: derives the supported browser matrix from the required native feature floor and checks aggregate global usage coverage.",
   "type": "module",
   "exports": {
     ".": {
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

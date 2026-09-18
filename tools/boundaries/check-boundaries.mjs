@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Package boundary check for the import DAG in §12.2.
+ * Package boundary check for the framework import DAG.
  *
  * ESLint's restricted-import rules cover source files that ESLint is pointed at.
  * This check is the mechanical backstop that also reads each package manifest,
@@ -39,7 +39,7 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      '§12.2: the neutral core cannot import a framework or router; §12.1 and §5.16.2: no OTel or Faro; §12.4: no general state-management dependency.',
+      'The neutral core cannot import a framework or router, carries no OTel or Faro dependency, and uses no general state-management library.',
   },
   {
     package: '@company/mfe-host',
@@ -61,18 +61,18 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      '§12.2: the neutral host cannot import React, TanStack Router, single-spa or MF2; §12.1: no OTel or Faro; §12.4: no general state-management dependency.',
+      'The neutral host cannot import React, TanStack Router, single-spa or Module Federation, carries no OTel or Faro dependency, and uses no general state-management library.',
   },
   {
     package: '@company/mfe-react',
     forbidden: ['single-spa', '@opentelemetry/', '@grafana/faro'],
     reason:
-      '§12.1: the legacy adapter is the only package that knows the legacy single-spa contract; §5.16.2: vendor telemetry stays shell-owned.',
+      'The legacy adapter is the only package that knows the legacy single-spa contract, and vendor telemetry stays shell-owned.',
   },
   {
     package: '@company/mfe-legacy-angular',
     forbidden: ['react', 'react-dom', '@tanstack/react-router', '@company/mfe-react'],
-    reason: '§12.2: the legacy adapter is a sibling of the React adapter, not a consumer of it.',
+    reason: 'The legacy adapter is a sibling of the React adapter, not a consumer of it.',
   },
 ]
 

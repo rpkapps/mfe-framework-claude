@@ -7,7 +7,7 @@ function disposalReason() {
   return createMfeError({ code: 'dispose/failure', id: 'operations', operation: 'dispose' })
 }
 
-describe('MountLifecycle transitions (§7.1)', () => {
+describe('MountLifecycle transitions', () => {
   it('starts pending at attempt 0 and reaches mounted through an attempt', () => {
     const lifecycle = new MountLifecycle({ id: 'operations' })
     expect(lifecycle.state).toEqual({ status: 'pending', attempt: 0 })
@@ -19,7 +19,7 @@ describe('MountLifecycle transitions (§7.1)', () => {
     expect(lifecycle.state).toEqual({ status: 'mounted' })
   })
 
-  it('reuses the mounted snapshot so an input update republishes nothing (§7.1)', () => {
+  it('reuses the mounted snapshot so an input update republishes nothing', () => {
     const lifecycle = new MountLifecycle({ id: 'alert-panel' })
     const listener = vi.fn()
     lifecycle.subscribe(listener)
@@ -45,7 +45,7 @@ describe('MountLifecycle transitions (§7.1)', () => {
   })
 })
 
-describe('attempt fencing (§7.2, §7.4)', () => {
+describe('attempt fencing', () => {
   it('ignores a superseded attempt settling after a retry started', () => {
     const lifecycle = new MountLifecycle({ id: 'operations' })
     const first = lifecycle.beginAttempt()
@@ -80,7 +80,7 @@ describe('attempt fencing (§7.2, §7.4)', () => {
   })
 })
 
-describe('disposal (§7.1)', () => {
+describe('disposal', () => {
   it('aborts the mount signal and moves to the terminal disposed state', () => {
     const lifecycle = new MountLifecycle({ id: 'operations' })
     const attempt = lifecycle.beginAttempt()

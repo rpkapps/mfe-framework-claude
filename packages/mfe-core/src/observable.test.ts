@@ -8,7 +8,7 @@ import {
   SnapshotSource,
 } from './observable.ts'
 
-describe('SnapshotSource (§1.4 cached snapshots, no-op updates)', () => {
+describe('SnapshotSource', () => {
   it('keeps the snapshot reference stable until the value actually changes', () => {
     const initial = { theme: 'dark' }
     const source = new SnapshotSource(initial)
@@ -89,7 +89,7 @@ describe('ListenerSet', () => {
   })
 })
 
-describe('KeyedListeners (§5.13 per-key fan-out)', () => {
+describe('KeyedListeners', () => {
   it('notifies only the subscribers for the written key', () => {
     const keyed = new KeyedListeners()
     const density = vi.fn()

@@ -1,5 +1,5 @@
 /**
- * The native feature floor of the framework (§9, §9.2).
+ * The native feature floor of the framework.
  *
  * Every id here is a caniuse feature id and is verified against the pinned
  * `caniuse-lite` by `required-features.test.ts`. The matrix is the intersection
@@ -17,16 +17,16 @@ export interface RequiredFeature {
 
 export const REQUIRED_FEATURES: readonly RequiredFeature[] = [
   {
-    // §9: style isolation is native `@scope` with no CSS fallback shipped, so a
+    // Style isolation is native `@scope` with no CSS fallback shipped, so a
     // browser without it renders every MFE's styles unscoped. This is the
     // binding constraint of the whole matrix.
     id: 'css-cascade-scope',
-    reason: '§9 style isolation is native CSS @scope and no fallback is shipped.',
+    reason: 'Style isolation is native CSS @scope and no fallback is shipped.',
   },
   {
     // packages/mfe-core/src/lifecycle.ts: every mount attempt carries an
     // AbortSignal, and disposal aborts it. There is no polyfill in the runtime
-    // bundle (§10.3).
+    // bundle.
     id: 'abortcontroller',
     reason: 'AbortController/AbortSignal drive the mount lifecycle in mfe-core.',
   },

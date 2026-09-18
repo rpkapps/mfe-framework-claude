@@ -60,6 +60,14 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
         },
       },
+      {
+        test: {
+          name: 'browser-matrix',
+          root: './tools/browser-matrix',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
     ],
   },
 })

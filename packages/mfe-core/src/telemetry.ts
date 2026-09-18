@@ -1,14 +1,14 @@
 /**
- * Provider-neutral telemetry and tracing contracts (§5.16).
+ * Provider-neutral telemetry and tracing contracts.
  *
  * These types, constants and record shapes are framework-owned. They follow
  * OpenTelemetry's tracing conventions for the supported surface, but nothing
- * here re-exports or aliases an upstream OTel or Faro type: §5.16.2 requires
+ * here re-exports or aliases an upstream OTel or Faro type, because the contract requires
  * that author declarations and remote bundles never resolve a vendor package.
  * The shell adapter translates these records into whichever provider it uses.
  */
 
-/** Attributes are small scalars. Bodies, credentials and raw URLs never belong here (§5.16.4). */
+/** Attributes are small scalars. Bodies, credentials and raw URLs never belong here. */
 export type TelemetryAttributes = Readonly<Record<string, string | number | boolean>>
 
 export type TelemetryLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -56,7 +56,7 @@ export interface Span {
   addEvent(name: string, attributes?: TelemetryAttributes): Span
   setStatus(status: SpanStatus): Span
   recordException(error: unknown, attributes?: TelemetryAttributes): Span
-  /** Repeated calls are harmless (§5.16.2). */
+  /** Repeated calls are harmless. */
   end(endTime?: number): void
   isRecording(): boolean
 }
@@ -65,7 +65,7 @@ export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
   /**
    * Runs `callback` with `span` active for context propagation. It does not end
-   * the span or record a thrown exception; authors do that explicitly (§5.16.2).
+   * the span or record a thrown exception; authors do that explicitly.
    * Return types, synchronous throws and asynchronous results propagate unchanged.
    */
   startActiveSpan<T>(name: string, callback: (span: Span) => T): T
@@ -99,20 +99,20 @@ export interface MfeTelemetry {
 
 /**
  * Attribution the host binds automatically. Authors cannot override it
- * (§5.16.3); an attribute collision resolves in favour of attribution.
+ *; an attribute collision resolves in favour of attribution.
  */
 export interface TelemetryAttribution {
   readonly definitionId: string
   readonly definitionKind: 'app' | 'widget'
   readonly definitionVersion?: string
   readonly buildHash?: string
-  /** Internal mount discriminator. Never public API (§4.2); diagnostics only. */
+  /** Internal mount discriminator. Never public API; diagnostics only. */
   readonly mountToken?: string
 }
 
 /**
  * Framework lifecycle diagnostics and author telemetry share one provider but
- * stay distinguishable (§5.16.4).
+ * stay distinguishable.
  */
 export type TelemetryRecordKind = 'event' | 'log' | 'measurement' | 'framework'
 
@@ -178,7 +178,7 @@ export interface SpanRecord {
 
 /**
  * What a shell plugs in. The shell owns redaction, sampling, rate limits,
- * batching, delivery and bounded buffering (§5.16.4); this seam only hands it
+ * batching, delivery and bounded buffering; this seam only hands it
  * normalized records.
  */
 export interface TelemetryProvider {
@@ -194,14 +194,14 @@ export interface TelemetryProvider {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Attribute limits (§5.16.4). Bounded counts and string lengths keep one
+ * Attribute limits. Bounded counts and string lengths keep one
  * misbehaving call from filling the shell's buffer.
  */
 export const TELEMETRY_LIMITS = {
   maxAttributeCount: 64,
   maxAttributeValueLength: 1024,
   maxNameLength: 256,
-  /** Bounded tracking that prevents forgotten spans from growing memory (§5.16.2). */
+  /** Bounded tracking that prevents forgotten spans from growing memory. */
   maxOpenSpansPerMount: 256,
 } as const
 

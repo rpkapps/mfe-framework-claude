@@ -1,5 +1,5 @@
 /**
- * Data access for the §9.2 browser support policy.
+ * Data access for the browser support policy.
  *
  * Everything the matrix needs from `browserslist` and `caniuse-lite` goes
  * through the {@link SupportData} port, so the intersection and coverage logic
@@ -26,7 +26,8 @@ export interface FeatureSupport {
 }
 
 export interface SupportData {
-  /** Exact `caniuse-lite` version the matrix was derived from (§9.2 records it). */
+  /** Exact `caniuse-lite` version the matrix was derived from; the policy
+   * requires recording it alongside the measured coverage. */
   readonly caniuseVersion: string
   /** Exact `browserslist` version whose query and usage data were used. */
   readonly browserslistVersion: string

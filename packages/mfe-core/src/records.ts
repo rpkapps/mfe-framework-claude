@@ -1,16 +1,16 @@
 /**
- * Neutral records shared by the host and its adapters: commands (§5.11),
- * breadcrumbs (§5.12), shell state (§5.4) and the navigation bridge (§6.2).
+ * Neutral records shared by the host and its adapters: commands,
+ * breadcrumbs, shell state and the navigation bridge.
  *
  * They live in the core so the host can orchestrate them without knowing which
  * adapter produced them, and so a second adapter would need no new vocabulary.
  */
 
 /* -------------------------------------------------------------------------- */
-/* Commands (§5.11)                                                            */
+/* Commands                                                            */
 /* -------------------------------------------------------------------------- */
 
-/** Only `command-palette` is standardized (§3, §5.11). */
+/** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
 
 export type Decision =
@@ -32,7 +32,7 @@ export interface CommandRegistration {
   readonly name: string
   readonly label: string
   readonly execute: () => void | Promise<void>
-  /** A pure synchronous read of reactive state. Never an authorization boundary (§5.11). */
+  /** A pure synchronous read of reactive state. Never an authorization boundary. */
   readonly canExecute?: () => Decision
   readonly placements?: readonly CommandPlacement[]
 }
@@ -50,7 +50,7 @@ export interface CommandEntry {
   readonly decision: Decision
 }
 
-/** Compares only what the palette displays, so closure identity changes are invisible (§5.11). */
+/** Compares only what the palette displays, so closure identity changes are invisible. */
 export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
   if (a === b) return true
   if (a.id !== b.id || a.label !== b.label) return false
@@ -66,10 +66,10 @@ export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Breadcrumbs (§5.12)                                                         */
+/* Breadcrumbs                                                         */
 /* -------------------------------------------------------------------------- */
 
-/** The identifier field is `key`; `id` stays reserved for definition identity (§4.2). */
+/** The identifier field is `key`; `id` stays reserved for definition identity. */
 export interface BreadcrumbItem {
   readonly key: string
   readonly label: string
@@ -107,7 +107,7 @@ export interface BreadcrumbContribution {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Shell state (§5.4)                                                          */
+/* Shell state                                                          */
 /* -------------------------------------------------------------------------- */
 
 export interface ShellUser {
@@ -122,7 +122,7 @@ export type ShellTheme = 'light' | 'dark'
 
 /**
  * Data for rendering and UX decisions — explicitly not an authorization API
- * (§5.4). The host and backend remain responsible for authorization.
+ *. The host and backend remain responsible for authorization.
  */
 export interface ShellState {
   readonly user: ShellUser | null
@@ -133,7 +133,7 @@ export interface ShellState {
 /**
  * Why shell state changed. The host uses this to decide what to invalidate:
  * a theme change must not reload data, while an identity or semantic group
- * change must retire session-dependent work and persisted state (§5.4.1).
+ * change must retire session-dependent work and persisted state.
  */
 export type ShellTransition =
   | { readonly kind: 'theme' }
@@ -142,7 +142,7 @@ export type ShellTransition =
   | { readonly kind: 'groups' }
 
 /* -------------------------------------------------------------------------- */
-/* Navigation bridge (§6.2)                                                    */
+/* Navigation bridge                                                    */
 /* -------------------------------------------------------------------------- */
 
 export interface BoundaryLocation {
@@ -154,7 +154,7 @@ export interface BoundaryLocation {
 /**
  * The narrow internal bridge the shell provides at an App boundary. It is not
  * part of the author API and must never be implemented as a global History
- * patch (§6.2, §13.3).
+ * patch.
  */
 export interface NavigationBridge {
   read(): BoundaryLocation
@@ -169,7 +169,7 @@ export interface NavigationBridge {
 /**
  * A mount's answer when a navigation would leave or remove it. Blocking is
  * decided by the MFE through TanStack's native blocker; the bridge only asks
- * (§6.4).
+ *.
  */
 export interface NavigationIntent {
   readonly from: BoundaryLocation

@@ -1,5 +1,5 @@
 /**
- * Browser-storage contracts and the persisted envelope (§5.13, §5.13.1).
+ * Browser-storage contracts and the persisted envelope.
  *
  * The public value an author declares is the payload. The framework wraps it in
  * an envelope carrying the schema version, the retention class and an opaque
@@ -13,7 +13,7 @@ export type StorageArea = 'local' | 'session'
 
 /**
  * `storage` selects the browser store; `retention` independently selects data
- * lifetime. They are orthogonal on purpose (§5.13.1): a preference may live in
+ * lifetime. They are orthogonal on purpose: a preference may live in
  * `localStorage` and survive a logout, while a scoped filter in the same store
  * must not.
  */
@@ -27,7 +27,7 @@ export interface StorageKeyOptions<T> {
 }
 
 export interface MfeStorageKey<T> {
-  /** Returns `null` only for a missing key — never for an invalid one (§5.13). */
+  /** Returns `null` only for a missing key — never for an invalid one. */
   get(): T | null
   set(value: T): void
   remove(): void
@@ -74,7 +74,7 @@ export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
   )
 }
 
-/** Physical key layout: `<id>:<key>` (§5.13). Never scoped by mount token. */
+/** Physical key layout: `<id>:<key>`. Never scoped by mount token. */
 export function physicalStorageKey(definitionId: string, name: string): string {
   return `${definitionId}:${name}`
 }
@@ -86,7 +86,7 @@ export function storagePrefix(definitionId: string): string {
 /**
  * The declaration a key binding carries. Active declarations for one key must
  * agree on all of these; disagreement fails explicitly rather than resolving to
- * whichever hook rendered first (§5.13).
+ * whichever hook rendered first.
  */
 export interface StorageKeyDeclaration<T = unknown> {
   readonly name: string
@@ -100,7 +100,7 @@ export interface StorageKeyDeclaration<T = unknown> {
 
 /**
  * A subscriber's view of a stored value. `status` is explicit because an
- * invalid or unreadable value must not masquerade as a missing one (§5.13).
+ * invalid or unreadable value must not masquerade as a missing one.
  */
 export type StorageSnapshot<T> =
   | { readonly status: 'value'; readonly value: T }

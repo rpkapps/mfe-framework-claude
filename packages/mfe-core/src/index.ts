@@ -2,7 +2,7 @@
  * `@company/mfe-core` — neutral MFE contracts.
  *
  * Nothing here imports React, a router, single-spa or Module Federation
- * (§12.2). Zod appears in type positions only: schemas arrive from the author's
+ *. Zod appears in type positions only: schemas arrive from the author's
  * own Zod instance and are validated through their `safeParse`.
  */
 

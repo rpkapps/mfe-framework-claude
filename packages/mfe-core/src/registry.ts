@@ -1,26 +1,26 @@
 /**
- * The neutral registry record and the adapter-selection table (§8).
+ * The neutral registry record and the adapter-selection table.
  *
  * One normalized registry backs every shell surface. Legacy fields such as
  * `mfManifestUrl`, `routes`, `settings.routes` or `single-spa-app` never appear
- * here: the legacy adapter translates them at its own boundary (§8.3), which is
+ * here: the legacy adapter translates them at its own boundary, which is
  * what keeps the core free of a compatibility vocabulary it would otherwise
  * carry forever.
  */
 
 import type { CapabilityDescriptor, DefinitionKind } from './definition.ts'
 
-/** Which adapter mounts an entry. Extending this is a table entry (§12.3). */
+/** Which adapter mounts an entry. Extending this is a table entry. */
 export type AdapterKind = 'react' | 'legacy-angular'
 
 /**
  * What a registry entry advertises about its contract. This is the field
  * selection keys off, so a typo produces an explicit error instead of silently
- * changing loading behaviour (§8.2 rule 3).
+ * changing loading behaviour.
  */
 export interface AdvertisedContract {
   readonly kind: 'mfe'
-  /** The framework contract major the container was built against (§11). */
+  /** The framework contract major the container was built against. */
   readonly major: number
 }
 
@@ -31,9 +31,9 @@ export interface NeutralRegistryEntry {
   readonly adapter: AdapterKind
   readonly manifestUrl: string
   readonly version?: string
-  /** App-only. Extracted statically at build time (§5.10). */
+  /** App-only. Extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
-  /** Excluded from catalog and finder views. Not a security boundary (§4.3). */
+  /** Excluded from catalog and finder views. Not a security boundary. */
   readonly hidden?: boolean
   readonly title?: string
   readonly icon?: string
@@ -43,11 +43,11 @@ export interface NeutralRegistryEntry {
    * above stays framework-free.
    */
   readonly adapterData?: unknown
-  /** True when a developer override replaced `manifestUrl` at boot (§10.6). */
+  /** True when a developer override replaced `manifestUrl` at boot. */
   readonly overridden?: boolean
 }
 
-/** An entry that failed validation. It is quarantined, not dropped silently (§8.1). */
+/** An entry that failed validation. It is quarantined, not dropped silently. */
 export interface QuarantinedRegistryEntry {
   /** Best-effort: the `id` if one could be read, otherwise a positional label. */
   readonly id: string
@@ -62,7 +62,7 @@ export interface NormalizedRegistry {
 }
 
 /**
- * One selection rule. Ordered evaluation implements §8.2 exactly:
+ * One selection rule. Ordered evaluation implements adapter selection exactly:
  *
  * 1. valid advertised new contract  → the new adapter;
  * 2. no advertised new contract but required legacy metadata → the legacy adapter;
@@ -76,14 +76,14 @@ export interface AdapterSelectionRule<TSource = unknown> {
   readonly adapter: AdapterKind
   /** Does this entry advertise this adapter's contract at all? */
   readonly advertises: (source: TSource) => boolean
-  /** Translate and validate. Throwing produces a per-entry quarantine (§8.1). */
+  /** Translate and validate. Throwing produces a per-entry quarantine. */
   readonly normalize: (source: TSource) => NeutralRegistryEntry
 }
 
-/** The framework contract major this build implements (§11). */
+/** The framework contract major this build implements. */
 export const FRAMEWORK_CONTRACT_MAJOR = 1
 
-/** Accepts compatible minors/patches, rejects unsupported majors (§11). */
+/** Accepts compatible minors/patches, rejects unsupported majors. */
 export function isSupportedContractMajor(major: number): boolean {
   return Number.isInteger(major) && major === FRAMEWORK_CONTRACT_MAJOR
 }

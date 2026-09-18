@@ -1,5 +1,5 @@
 /**
- * Finite deadlines for loading, mounting and disposal (§7.4).
+ * Finite deadlines for loading, mounting and disposal.
  *
  * These are operational defaults, not performance targets. Each phase gets one
  * total deadline so individual substeps cannot reset the clock indefinitely.
@@ -16,7 +16,7 @@ export interface DeadlineConfig {
   readonly dispose: number
 }
 
-/** Documented initial defaults (§7.4). The shell may tune them centrally. */
+/** Documented initial defaults. The shell may tune them centrally. */
 export const DEFAULT_DEADLINES: DeadlineConfig = Object.freeze({
   load: 30_000,
   mount: 30_000,
@@ -64,7 +64,7 @@ export function createTimeoutError(
  * `onTimeout` runs before the returned promise rejects so the caller can abort
  * cancellable work and detach incomplete UI in the same turn. The underlying
  * promise is always observed, so a late rejection cannot surface as an
- * unhandled rejection (§7.4).
+ * unhandled rejection.
  */
 export async function withDeadline<T>(
   work: (signal: AbortSignal) => Promise<T>,
@@ -95,7 +95,7 @@ export async function withDeadline<T>(
       work(controller.signal).then(resolve, reject)
     })
   } finally {
-    // Cleared on every success, error and timeout path (§7.4).
+    // Cleared on every success, error and timeout path.
     if (timer !== undefined) clearTimeout(timer)
     options.signal?.removeEventListener('abort', abortOuter)
   }

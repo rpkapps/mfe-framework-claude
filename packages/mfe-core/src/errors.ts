@@ -1,5 +1,5 @@
 /**
- * Structured framework errors (§7.3) and the diagnostic message rules in §17.4.
+ * Structured framework errors and the rules their messages follow.
  *
  * Every developer-facing failure names the definition, the operation, the
  * relevant field or resource, what was expected, what was observed, and which
@@ -9,7 +9,7 @@
 
 /**
  * Closed union so hosts can handle each case exhaustively. Adding a code is a
- * deliberate contract change (§7.3).
+ * deliberate contract change.
  */
 export type MfeErrorCode =
   | 'registry/invalid-descriptor'
@@ -48,7 +48,7 @@ export interface MfeError extends Error {
 }
 
 /**
- * The parts of a diagnostic message that §17.4 requires. `expected`,
+ * The parts of a diagnostic message the contract requires. `expected`,
  * `observed`, `declaredBy` and `repair` are optional only because a few
  * failures (a bare transport error, for example) genuinely have nothing to say
  * for them; omitting one to save effort is a review defect, not a shortcut.
@@ -108,7 +108,7 @@ export function formatPath(path: readonly (string | number)[] | undefined): stri
 /**
  * Describes a runtime value for a diagnostic without dumping it. Strings are
  * quoted and truncated; objects report their shape rather than their contents,
- * because §5.16.4 and §17.4 both forbid logging whole payloads.
+ * because logging whole payloads is forbidden.
  */
 export function describeValue(value: unknown): string {
   if (value === null) return 'null'
@@ -163,7 +163,8 @@ function composeMessage(details: MfeErrorDetails): string {
 }
 
 /**
- * Builds a structured error with a message that satisfies §17.4. Use this
+ * Builds a structured error with a message that satisfies the diagnostic
+ * rules above. Use this
  * everywhere rather than `new Error`, so every failure carries the same fields
  * and reads the same way.
  */
