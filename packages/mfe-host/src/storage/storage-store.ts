@@ -20,7 +20,6 @@ import {
   type DiagnosticsHub,
   type Listener,
   type MfeError,
-  type MfeErrorDetails,
   type MfeStorage,
   type MfeStorageKey,
   type StorageArea,

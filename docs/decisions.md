@@ -144,7 +144,7 @@ nearest available code:
 
 | Condition                                       | Code used            | Why it is approximate                                                                                                                                                                                                                                      |
 | ----------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session refresh failed                          | `config/unreachable` | The session endpoint could not deliver a usable token. This is a session-level event and is _also_ reported through a separate `SessionFailure` with a precise reason, so no information is lost — but a developer reading the code alone would be misled. |
+| Session refresh failed                          | `config/unreachable` | The session endpoint could not deliver a usable token. This is a session-level event. The `SessionFailure` channel that used to carry a precise reason alongside it was removed when session ownership moved to the shell, so the approximate code is now the only signal the framework gives. |
 | A 401 response whose request cannot be replayed | `config/invalid`     | The request as configured cannot be replayed. Nothing in the union describes replayability.                                                                                                                                                                |
 
 If these are worth naming properly, `auth/session-expired` and

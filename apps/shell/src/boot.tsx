@@ -11,10 +11,16 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { createMf2ContainerLoader, createMfeRuntime, MfeProvider } from '@company/mfe-react'
-import { createBrowserNavigationBridge, createRecordingTelemetryProvider } from '@company/mfe-host'
+import {
+  createBrowserNavigationBridge,
+  createRecordingTelemetryProvider,
+  createSpanEmitter,
+  type TelemetryProvider,
+} from '@company/mfe-host'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
+import { createFaroProvider } from './shell/faro.ts'
 import { createShellRouter } from './shell/router.tsx'
 import './styles/app.css'
 
@@ -53,6 +59,20 @@ function overrideStorage(): Pick<Storage, 'getItem'> | undefined {
   }
 }
 
+/**
+ * Faro when a collector is configured, the recording provider otherwise. The
+ * span implementation is the framework's in both cases: a provider says what to
+ * do with a finished span, it never writes a second Tracer.
+ */
+function telemetryProvider(): TelemetryProvider {
+  const url = process.env['FARO_URL']
+  if (typeof url !== 'string' || url === '') return createRecordingTelemetryProvider()
+
+  return createFaroProvider(url, (attribution, onSpanEnd) =>
+    createSpanEmitter(attribution, { onSpanEnd }),
+  )
+}
+
 const container = document.getElementById('root')
 if (!container) throw new Error('index.html must contain <div id="root">')
 
@@ -71,8 +91,10 @@ const { runtime, activeOverrides } = createMfeRuntime({
     groups: ['geoscience', 'well-planning.read'],
     theme: 'dark',
   },
-  // A real deployment swaps this for the OTel or Faro adapter.
-  telemetryProvider: createRecordingTelemetryProvider(),
+  // The Faro adapter is the real path; this test shell has no collector to send
+  // to, so it records unless one is configured. Both satisfy the same seam,
+  // which is the point of the seam.
+  telemetryProvider: telemetryProvider(),
   navigationBridge: createBrowserNavigationBridge(),
   ...(storage === undefined ? {} : { overrideStorage: storage }),
   notifyCommandDenial: notice => toast.warning(notice.label, { description: notice.reason }),

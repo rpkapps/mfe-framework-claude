@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   SpanStatusCode,
-  type Diagnostic,
   type MfeTelemetry,
   type TelemetryAttribution,
   type TelemetryProvider,
@@ -137,11 +136,9 @@ describe('automatic attribution', () => {
   })
 
   it('omits attribution fields the host did not supply', () => {
-    const provider = createRecordingTelemetryProvider()
-    const telemetry = createMountTelemetry(
-      provider,
+    const { provider, telemetry } = setup(
+      {},
       { definitionId: 'alert-panel', definitionKind: 'widget' },
-      { dev: true },
     )
 
     telemetry.info('ready')
@@ -160,8 +157,7 @@ describe('automatic attribution', () => {
     const mutable: { -readonly [K in keyof TelemetryAttribution]: TelemetryAttribution[K] } = {
       ...ATTRIBUTION,
     }
-    const provider = createRecordingTelemetryProvider()
-    const telemetry = createMountTelemetry(provider, mutable, { dev: true })
+    const { provider, telemetry } = setup({}, mutable)
 
     telemetry.event('before')
     mutable.definitionId = 'someone-else'
@@ -353,12 +349,7 @@ describe('measurements', () => {
   })
 
   it('stays silent about invalid measurements outside development', () => {
-    const provider = createRecordingTelemetryProvider()
-    const diagnostics: Diagnostic[] = []
-    const telemetry = createMountTelemetry(provider, ATTRIBUTION, {
-      dev: false,
-      onDiagnostic: diagnostic => diagnostics.push(diagnostic),
-    })
+    const { diagnostics, telemetry } = setup({ dev: false })
 
     telemetry.measure('broken', Number.NaN, { unit: 'ms' })
 
@@ -410,11 +401,10 @@ describe('provider failures are contained', () => {
   })
 
   it('counts a throwing diagnostics sink without reporting it through itself', () => {
-    const provider = createRecordingTelemetryProvider()
     const sink = vi.fn(() => {
       throw new Error('sink exploded')
     })
-    const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true, onDiagnostic: sink })
+    const { telemetry } = setup({ onDiagnostic: sink })
 
     expect(() => telemetry.measure('broken', Number.NaN, { unit: 'ms' })).not.toThrow()
 
@@ -578,8 +568,7 @@ describe('provider replacement', () => {
   })
 
   it('carries a different attribution per mount against one shared provider', () => {
-    const provider = createRecordingTelemetryProvider()
-    const app = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
+    const { provider, telemetry: app } = setup()
     const widget = createMountTelemetry(
       provider,
       { definitionId: 'alert-panel', definitionKind: 'widget', mountToken: 'mount-9' },

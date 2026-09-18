@@ -39,12 +39,14 @@ export interface EnvelopeContext {
   readonly physicalKey: string
   readonly area: StorageArea
   readonly defaultSnapshot: StorageSnapshot<unknown>
+  // Declared as properties, not methods: `fail` is passed detached to
+  // serializeEnvelope, and a method signature would claim a `this` it never has.
   /** Live, because a synchronous migrate() can itself trigger a session transition. */
-  generation(): string | null
+  readonly generation: () => string | null
   /** Builds and reports the structured failure. */
-  fail(verb: string, detail: Detail): MfeError
+  readonly fail: (verb: string, detail: Detail) => MfeError
   /** Persists a migrated record, throwing the structured write failure. */
-  write(serialized: string): void
+  readonly write: (serialized: string) => void
 }
 
 /** `raw` is the string that now represents the stored state; a migration rewrites it. */

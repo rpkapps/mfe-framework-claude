@@ -15,7 +15,7 @@ import type {
   TelemetryRecord,
   Tracer,
 } from '@company/mfe-host'
-import { LogLevel, type Faro } from '@grafana/faro-web-sdk'
+import { initializeFaro, LogLevel, type Faro } from '@grafana/faro-web-sdk'
 
 /** Faro's context is string-valued, so scalars are rendered, never dropped. */
 function toContext(
@@ -124,4 +124,18 @@ export function createFaroTelemetryProvider({
       })
     },
   }
+}
+
+/**
+ * Initializes Faro and adapts it, so `@grafana/faro-web-sdk` is named in this
+ * file and nowhere else in the shell.
+ */
+export function createFaroProvider(
+  url: string,
+  createTracer: FaroProviderOptions['createTracer'],
+): TelemetryProvider {
+  return createFaroTelemetryProvider({
+    faro: initializeFaro({ url, app: { name: 'shell' } }),
+    createTracer,
+  })
 }

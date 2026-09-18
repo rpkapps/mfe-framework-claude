@@ -59,7 +59,7 @@ function createLegacyRule(): {
       Array.isArray(source['routes']),
   )
 
-  const normalize = vi.fn((source: unknown): NeutralRegistryEntry => {
+  const normalizeEntry = vi.fn((source: unknown): NeutralRegistryEntry => {
     const descriptor = source as Record<string, unknown>
     const id = descriptor['id']
     const manifestUrl = descriptor['mfManifestUrl']
@@ -81,7 +81,11 @@ function createLegacyRule(): {
     }
   })
 
-  return { rule: { adapter: 'legacy-angular', advertises, normalize }, advertises, normalize }
+  return {
+    rule: { adapter: 'legacy-angular', advertises, normalize: normalizeEntry },
+    advertises,
+    normalize: normalizeEntry,
+  }
 }
 
 function acceptedEntry(registry: NormalizedRegistry, id: string): NeutralRegistryEntry {

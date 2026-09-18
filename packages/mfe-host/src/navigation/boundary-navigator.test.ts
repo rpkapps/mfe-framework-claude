@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   isMfeError,
+  type DiagnosticsHub,
   type BoundaryLocation,
   type NavigationBridge,
   type NavigationIntent,
@@ -44,6 +45,14 @@ function createRecordingBridge(): NavigationBridge & {
   }
 }
 
+/** One navigator over a fresh recording bridge, which is what most cases need. */
+function createNavigator(diagnostics?: DiagnosticsHub): BoundaryNavigator {
+  return new BoundaryNavigator({
+    bridge: createRecordingBridge(),
+    ...(diagnostics === undefined ? {} : { diagnostics }),
+  })
+}
+
 /**
  * A blocker that records into `order` whenever the host asks it anything, so
  * evaluation order can be asserted across nesting depths.
@@ -71,7 +80,7 @@ function recordingBlocker(
 
 describe('requestNavigation', () => {
   it('commits exactly once when no mount wants to block', async () => {
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     const commit = vi.fn()
 
     const outcome = await navigator.requestNavigation(INTENT, commit)
@@ -82,7 +91,7 @@ describe('requestNavigation', () => {
 
   it('commits exactly once when every blocker agrees, not once per blocker', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('outer', 1, order))
     navigator.registerBlocker('mount-b', recordingBlocker('middle', 2, order))
     navigator.registerBlocker('mount-c', recordingBlocker('inner', 3, order))
@@ -97,7 +106,7 @@ describe('requestNavigation', () => {
   it('asks the innermost mount first and works outwards', async () => {
     // registration order deliberately does not match nesting depth.
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-middle', recordingBlocker('middle', 2, order))
     navigator.registerBlocker('mount-outer', recordingBlocker('outer', 1, order))
     navigator.registerBlocker('mount-inner', recordingBlocker('inner', 3, order))
@@ -109,7 +118,7 @@ describe('requestNavigation', () => {
 
   it('stops at the first refusal and never asks the shallower mounts', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-outer', recordingBlocker('outer', 1, order))
     navigator.registerBlocker(
       'mount-inner',
@@ -129,7 +138,7 @@ describe('requestNavigation', () => {
 
   it('never asks a mount that does not currently want to block', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-clean', recordingBlocker('clean', 3, order, { blocks: false }))
     navigator.registerBlocker('mount-dirty', recordingBlocker('dirty', 1, order))
 
@@ -142,7 +151,7 @@ describe('requestNavigation', () => {
     // the first navigation is waiting on the user.
     const order: string[] = []
     const answer = deferred<'proceed' | 'reset'>()
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker(
       'mount-a',
       recordingBlocker('inner', 1, order, { confirmWith: () => answer.promise }),
@@ -168,7 +177,7 @@ describe('requestNavigation', () => {
 
   it('accepts a new request once the previous negotiation finished', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('inner', 1, order, { decision: 'reset' }))
 
     await navigator.requestNavigation(INTENT, vi.fn())
@@ -184,7 +193,7 @@ describe('requestNavigation', () => {
 describe('misbehaving blockers', () => {
   it('treats a blocker whose check throws as non-blocking and diagnoses it', async () => {
     const { hub, records } = recordingDiagnostics()
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge(), diagnostics: hub })
+    const navigator = createNavigator(hub)
     const confirm = vi.fn(async () => 'reset' as const)
     navigator.registerBlocker('mount-a', {
       depth: 1,
@@ -207,7 +216,7 @@ describe('misbehaving blockers', () => {
 
   it('cancels the navigation when a confirmation rejects, rather than discarding work', async () => {
     const { hub, records } = recordingDiagnostics()
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge(), diagnostics: hub })
+    const navigator = createNavigator(hub)
     navigator.registerBlocker('mount-a', {
       depth: 1,
       shouldBlock: () => true,
@@ -227,7 +236,7 @@ describe('misbehaving blockers', () => {
   it('keeps asking the remaining mounts when one blocker opts out by throwing', async () => {
     const { hub } = recordingDiagnostics()
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge(), diagnostics: hub })
+    const navigator = createNavigator(hub)
     navigator.registerBlocker('mount-broken', {
       depth: 3,
       shouldBlock: () => {
@@ -247,7 +256,7 @@ describe('misbehaving blockers', () => {
 describe('blocker registration', () => {
   it('removes a blocker through its unsubscribe', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     const unregister = navigator.registerBlocker('mount-a', recordingBlocker('a', 1, order))
 
     expect(navigator.blockerCount).toBe(1)
@@ -259,7 +268,7 @@ describe('blocker registration', () => {
 
   it('removes a mount’s blocker as part of that mount’s disposal', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('a', 1, order, { decision: 'reset' }))
 
     navigator.removeMount('mount-a')
@@ -270,7 +279,7 @@ describe('blocker registration', () => {
 
   it('replaces a blocker when the same mount registers again', async () => {
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('first', 1, order))
     navigator.registerBlocker('mount-a', recordingBlocker('second', 1, order))
 
@@ -284,7 +293,7 @@ describe('blocker registration', () => {
     // forced cleanup follows session revocation or host disposal, and
     // is not a user navigation transaction.
     const order: string[] = []
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('a', 1, order, { decision: 'reset' }))
     navigator.registerBlocker('mount-b', recordingBlocker('b', 2, order, { decision: 'reset' }))
     const commit = vi.fn()
@@ -301,7 +310,7 @@ describe('blocker registration', () => {
   it('releases a stuck negotiation on forced cleanup', async () => {
     const order: string[] = []
     const answer = deferred<'proceed' | 'reset'>()
-    const navigator = new BoundaryNavigator({ bridge: createRecordingBridge() })
+    const navigator = createNavigator()
     navigator.registerBlocker(
       'mount-a',
       recordingBlocker('a', 1, order, { confirmWith: () => answer.promise }),

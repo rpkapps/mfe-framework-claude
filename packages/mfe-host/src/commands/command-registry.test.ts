@@ -125,7 +125,7 @@ describe('duplicate names', () => {
   })
 
   it('reports a duplicate name with the duplicate-name code and a rename instruction', () => {
-    const { register, registry } = setup()
+    const { register } = setup()
     register()
 
     try {
@@ -200,7 +200,7 @@ describe('update performance contract', () => {
   })
 
   it('does not re-evaluate another command while one command updates', () => {
-    const { register, registry } = setup()
+    const { register } = setup()
     const refreshCanExecute = vi.fn(allow)
     const exportCanExecute = vi.fn(allow)
     const refresh = register({ name: 'refresh', canExecute: refreshCanExecute })
@@ -308,7 +308,7 @@ describe('registration validation', () => {
     ['a name containing a space', 'refresh now'],
     ['a name containing an underscore', 'refresh_now'],
   ])('rejects %s', (_label, name) => {
-    const { register, registry } = setup()
+    const { register } = setup()
 
     expect(() => register({ name })).toThrow(/letters, digits and hyphens starting with a letter/)
   })
@@ -322,13 +322,13 @@ describe('registration validation', () => {
   })
 
   it('rejects an empty label because the palette has nothing to render', () => {
-    const { register, registry } = setup()
+    const { register } = setup()
 
     expect(() => register({ label: '' })).toThrow(/human-readable label/)
   })
 
   it('rejects a placement that is not standardized', () => {
-    const { register, registry } = setup()
+    const { registry } = setup()
 
     expect(() =>
       registry.register(

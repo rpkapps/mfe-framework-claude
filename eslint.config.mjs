@@ -29,6 +29,11 @@ export default [
   ...mfe.framework({
     tsconfigRootDir: import.meta.dirname,
     files: ['packages/*/src/**/*.{ts,tsx}', 'tools/*/src/**/*.ts', 'apps/shell/src/**/*.{ts,tsx}'],
+    // React rules apply only where React is. `rules-of-hooks` treats a call to
+    // anything named `use` as a hook call, so a bundler plugin building a module
+    // rule's `use:` loader list gets told it is calling a Hook outside a
+    // component. Narrowing is the repair; suppressing at each site is not.
+    reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
     // The storage adapter owns every read and write the framework makes, and
     // the shell's override bootstrap has to read localStorage before a store
     // exists to read it through. Both are named explicitly rather than inferred.
