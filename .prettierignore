@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+**/routeTree.gen.ts
+**/src/generated/
+**/.mfe/
+playwright-report/
+test-results/

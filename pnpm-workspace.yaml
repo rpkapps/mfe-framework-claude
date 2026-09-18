@@ -1,0 +1,91 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "examples/*"
+  - "tools/*"
+
+# §10.10 dependency build-script policy.
+# Only explicitly reviewed dependencies may run install/build scripts.
+# Unknown build scripts fail installation rather than executing silently.
+strictDepBuilds: true
+dangerouslyAllowAllBuilds: false
+allowBuilds:
+  # Reviewed: esbuild ships a prebuilt platform binary; its postinstall only
+  # links that binary into place. Required by Vitest's transform pipeline.
+  esbuild: true
+  # Reviewed: lightningcss postinstall selects the prebuilt native binding used
+  # by the Tailwind v4 pipeline.
+  lightningcss: true
+  # Reviewed: unrs-resolver postinstall selects a prebuilt native resolver
+  # binding used by eslint-plugin-import-x.
+  unrs-resolver: true
+  # Denied: msw's postinstall writes a service worker into a public directory.
+  # We do not use MSW (§15.1 keeps it optional), so its script must not run.
+  msw: false
+
+# §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
+# from every package so the toolchain cannot drift between workspaces.
+catalog:
+  "@babel/core": 8.0.5
+  "@changesets/cli": 3.0.3
+  "@module-federation/enhanced": 2.9.0
+  "@module-federation/runtime": 2.9.0
+  "@playwright/test": 1.63.0
+  "@rspack/cli": 2.2.6
+  "@rspack/core": 2.2.6
+  "@rspack/plugin-react-refresh": 2.0.2
+  "@tailwindcss/postcss": 4.3.3
+  "@tanstack/eslint-plugin-query": 5.103.1
+  "@tanstack/eslint-plugin-router": 1.162.0
+  "@tanstack/react-form": 1.33.5
+  "@tanstack/react-query": 5.103.1
+  "@tanstack/react-router": 1.170.38
+  "@tanstack/react-table": 9.2.4
+  "@tanstack/router-plugin": 1.168.40
+  "@testing-library/dom": 10.4.2
+  "@testing-library/jest-dom": 7.0.1
+  "@testing-library/react": 16.3.3
+  "@testing-library/user-event": 14.6.7
+  "@types/node": 22.19.2
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@vitest/coverage-v8": 5.0.1
+  babel-loader: 10.1.1
+  babel-plugin-react-compiler: 1.0.0
+  browserslist: 4.29.0
+  caniuse-lite: 1.0.30001810
+  concurrently: 10.0.5
+  eslint: 10.10.0
+  eslint-plugin-react-hooks: 7.1.1
+  globby: 16.2.4
+  jsdom: 30.1.0
+  picocolors: 1.1.1
+  postcss: 8.5.28
+  postcss-loader: 8.2.1
+  prettier: 3.9.8
+  react: 19.3.0
+  react-dom: 19.3.0
+  single-spa: 6.0.3
+  tailwindcss: 4.3.3
+  typescript: 6.0.3
+  typescript-eslint: 8.70.0
+  vitest: 5.0.1
+  zod: 4.6.5
+minimumReleaseAgeExclude:
+  - '@rspack/binding-darwin-arm64@2.2.6'
+  - '@rspack/binding-darwin-x64@2.2.6'
+  - '@rspack/binding-linux-arm64-gnu@2.2.6'
+  - '@rspack/binding-linux-arm64-musl@2.2.6'
+  - '@rspack/binding-linux-ppc64-gnu@2.2.6'
+  - '@rspack/binding-linux-riscv64-gnu@2.2.6'
+  - '@rspack/binding-linux-riscv64-musl@2.2.6'
+  - '@rspack/binding-linux-s390x-gnu@2.2.6'
+  - '@rspack/binding-linux-x64-gnu@2.2.6'
+  - '@rspack/binding-linux-x64-musl@2.2.6'
+  - '@rspack/binding-wasm32-wasi@2.2.6'
+  - '@rspack/binding-win32-arm64-msvc@2.2.6'
+  - '@rspack/binding-win32-ia32-msvc@2.2.6'
+  - '@rspack/binding-win32-x64-msvc@2.2.6'
+  - '@rspack/binding@2.2.6'
+  - '@rspack/core@2.2.6'
+  - prettier@3.9.8

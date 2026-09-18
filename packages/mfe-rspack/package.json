@@ -1,0 +1,39 @@
+{
+  "name": "@company/mfe-rspack",
+  "version": "0.1.0",
+  "description": "mfePlugin(): definition and capability discovery, generated #mfe/* modules, container-relative assets, scoped CSS, React Compiler integration and Module Federation plumbing for MFE containers.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src", "dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babel/core": "catalog:",
+    "@module-federation/enhanced": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "babel-loader": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
+    "globby": "catalog:",
+    "picocolors": "catalog:",
+    "postcss": "catalog:"
+  },
+  "peerDependencies": {
+    "@rspack/core": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@rspack/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

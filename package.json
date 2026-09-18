@@ -1,0 +1,46 @@
+{
+  "name": "@company/mfe-framework",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test",
+    "generate": "pnpm -r run generate",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -r run typecheck",
+    "boundaries": "node tools/boundaries/check-boundaries.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "browser-matrix": "node tools/browser-matrix/report.mjs",
+    "dev": "node tools/dev/dev.mjs",
+    "dev:shell": "pnpm --filter @company/shell dev",
+    "dev:mfes": "node tools/dev/dev.mjs --only-mfes",
+    "build:mfes": "pnpm -r --filter \"./examples/*\" run build",
+    "e2e": "pnpm --filter @company/e2e test",
+    "changeset": "changeset",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:",
+    "@company/eslint-plugin-mfe": "workspace:*",
+    "@tanstack/eslint-plugin-query": "catalog:",
+    "@tanstack/eslint-plugin-router": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "concurrently": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "jsdom": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}

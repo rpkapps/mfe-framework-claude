@@ -1,0 +1,30 @@
+{
+  "name": "@company/mfe-host",
+  "version": "0.1.0",
+  "description": "Neutral MFE host: registry normalization, table-driven adapter selection, loading and mount orchestration, retry, disposal, deadlines, shell state, validated storage, commands, breadcrumbs, navigation bridge, auth token single-flight and telemetry binding. No React, router, single-spa or Module Federation dependency.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": ["src", "dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

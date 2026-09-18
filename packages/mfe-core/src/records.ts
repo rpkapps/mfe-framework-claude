@@ -1,0 +1,179 @@
+/**
+ * Neutral records shared by the host and its adapters: commands (§5.11),
+ * breadcrumbs (§5.12), shell state (§5.4) and the navigation bridge (§6.2).
+ *
+ * They live in the core so the host can orchestrate them without knowing which
+ * adapter produced them, and so a second adapter would need no new vocabulary.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Commands (§5.11)                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** Only `command-palette` is standardized (§3, §5.11). */
+export type CommandPlacement = 'command-palette'
+
+export type Decision =
+  | { readonly allowed: true }
+  | { readonly allowed: false; readonly reason: string }
+
+const ALLOWED: Decision = Object.freeze({ allowed: true as const })
+
+/** Keeps a registration a single line, and keeps one allowed value cached. */
+export function allow(): Decision {
+  return ALLOWED
+}
+
+export function deny(reason: string): Decision {
+  return { allowed: false, reason }
+}
+
+export interface CommandRegistration {
+  readonly name: string
+  readonly label: string
+  readonly execute: () => void | Promise<void>
+  /** A pure synchronous read of reactive state. Never an authorization boundary (§5.11). */
+  readonly canExecute?: () => Decision
+  readonly placements?: readonly CommandPlacement[]
+}
+
+/**
+ * What the palette renders. `id` is the runtime-qualified `<definitionId>:<name>`;
+ * authors only ever provide the local `name`.
+ */
+export interface CommandEntry {
+  readonly id: string
+  readonly definitionId: string
+  readonly name: string
+  readonly label: string
+  readonly placements: readonly CommandPlacement[]
+  readonly decision: Decision
+}
+
+/** Compares only what the palette displays, so closure identity changes are invisible (§5.11). */
+export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
+  if (a === b) return true
+  if (a.id !== b.id || a.label !== b.label) return false
+  if (a.decision.allowed !== b.decision.allowed) return false
+  if (!a.decision.allowed && !b.decision.allowed && a.decision.reason !== b.decision.reason) {
+    return false
+  }
+  if (a.placements.length !== b.placements.length) return false
+  for (let index = 0; index < a.placements.length; index += 1) {
+    if (a.placements[index] !== b.placements[index]) return false
+  }
+  return true
+}
+
+/* -------------------------------------------------------------------------- */
+/* Breadcrumbs (§5.12)                                                         */
+/* -------------------------------------------------------------------------- */
+
+/** The identifier field is `key`; `id` stays reserved for definition identity (§4.2). */
+export interface BreadcrumbItem {
+  readonly key: string
+  readonly label: string
+  readonly href?: string
+  readonly current?: boolean
+}
+
+export function breadcrumbItemEqual(a: BreadcrumbItem, b: BreadcrumbItem): boolean {
+  return (
+    a === b ||
+    (a.key === b.key && a.label === b.label && a.href === b.href && a.current === b.current)
+  )
+}
+
+export function breadcrumbTrailEqual(
+  a: readonly BreadcrumbItem[],
+  b: readonly BreadcrumbItem[],
+): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index]
+    const right = b[index]
+    if (!left || !right || !breadcrumbItemEqual(left, right)) return false
+  }
+  return true
+}
+
+/** One definition's contribution to the composed trail. */
+export interface BreadcrumbContribution {
+  readonly definitionId: string
+  /** Depth in the mount tree; shell is 0, a top-level App 1, a nested App 2. */
+  readonly depth: number
+  readonly items: readonly BreadcrumbItem[]
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shell state (§5.4)                                                          */
+/* -------------------------------------------------------------------------- */
+
+export interface ShellUser {
+  readonly id: string
+  readonly name: string
+  readonly email?: string
+  readonly accountId?: string
+  readonly tenantId?: string
+}
+
+export type ShellTheme = 'light' | 'dark'
+
+/**
+ * Data for rendering and UX decisions — explicitly not an authorization API
+ * (§5.4). The host and backend remain responsible for authorization.
+ */
+export interface ShellState {
+  readonly user: ShellUser | null
+  readonly groups: readonly string[]
+  readonly theme: ShellTheme
+}
+
+/**
+ * Why shell state changed. The host uses this to decide what to invalidate:
+ * a theme change must not reload data, while an identity or semantic group
+ * change must retire session-dependent work and persisted state (§5.4.1).
+ */
+export type ShellTransition =
+  | { readonly kind: 'theme' }
+  | { readonly kind: 'token-refresh' }
+  | { readonly kind: 'identity'; readonly reason: 'login' | 'logout' | 'account' | 'tenant' }
+  | { readonly kind: 'groups' }
+
+/* -------------------------------------------------------------------------- */
+/* Navigation bridge (§6.2)                                                    */
+/* -------------------------------------------------------------------------- */
+
+export interface BoundaryLocation {
+  readonly pathname: string
+  readonly search: string
+  readonly hash: string
+}
+
+/**
+ * The narrow internal bridge the shell provides at an App boundary. It is not
+ * part of the author API and must never be implemented as a global History
+ * patch (§6.2, §13.3).
+ */
+export interface NavigationBridge {
+  read(): BoundaryLocation
+  subscribe(listener: (location: BoundaryLocation) => void): () => void
+  push(to: string): void
+  replace(to: string): void
+  back(): void
+  forward(): void
+  reload(): void
+}
+
+/**
+ * A mount's answer when a navigation would leave or remove it. Blocking is
+ * decided by the MFE through TanStack's native blocker; the bridge only asks
+ * (§6.4).
+ */
+export interface NavigationIntent {
+  readonly from: BoundaryLocation
+  readonly to: BoundaryLocation
+  /** True when the transition removes the mount rather than moving within it. */
+  readonly leavesBoundary: boolean
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@company/browser-matrix",
+  "version": "0.1.0",
+  "private": true,
+  "description": "§9.2 browser support policy: derives the supported browser matrix from the required native feature floor and checks aggregate global usage coverage.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "report": "node ./report.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "browserslist": "catalog:",
+    "caniuse-lite": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
