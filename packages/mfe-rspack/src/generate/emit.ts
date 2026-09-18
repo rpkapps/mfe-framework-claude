@@ -57,10 +57,11 @@ export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly G
   const written: GeneratedFile[] = []
 
   for (const file of files) {
-    let current: string | null = null
+    let current: string | null
     try {
       current = readFileSync(file.path, 'utf8')
     } catch {
+      // Nothing there yet, so nothing to compare against.
       current = null
     }
     if (current === file.contents) continue

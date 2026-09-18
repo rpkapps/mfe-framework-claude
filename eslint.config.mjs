@@ -71,4 +71,15 @@ export default [
       'no-console': 'off',
     },
   },
+
+  {
+    name: 'repo/generate-cli',
+    files: ['packages/mfe-rspack/src/cli/**/*.ts'],
+    rules: {
+      // Same reason as the scaffold: a command reports what it generated and
+      // which diagnostic to open on its own streams. Only the CLI directory is
+      // exempt, so the plugin and the generators around it keep the ban.
+      'no-console': 'off',
+    },
+  },
 ]

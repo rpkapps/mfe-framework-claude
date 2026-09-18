@@ -24,7 +24,7 @@ export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[
   const pascal = camel.charAt(0).toUpperCase() + camel.slice(1)
 
   return [
-    ...sharedFiles(),
+    ...sharedFiles('./src/mfe.tsx'),
 
     packageJsonFile(options, 3103, {
       devDependencies: { '@testing-library/user-event': 'catalog:' },
@@ -73,8 +73,11 @@ import { ${camel} } from './mfe.tsx'
 let cleanup: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  await cleanup?.()
+  // Cleared before the await, not after: a second test may have assigned a new
+  // handle by the time this one resolves, and clearing then would drop it.
+  const dispose = cleanup
   cleanup = null
+  await dispose?.()
 })
 
 it('emits a validated event when activated', async () => {

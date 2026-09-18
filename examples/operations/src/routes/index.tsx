@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useUser, useTheme, useStoredState, useCommand, allow, deny } from '@company/mfe-react'
+import { useState } from 'react'
 import { z } from 'zod'
 
 import { AlertPanel } from '../widgets.ts'
@@ -15,6 +16,7 @@ const densitySchema = z.enum(['comfortable', 'compact'])
 function Overview() {
   const user = useUser()
   const theme = useTheme()
+  const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null)
 
   // A subscribed value and a stable setter. No effect keeps it in sync.
   const [density, setDensity] = useStoredState('table-density', densitySchema, {
@@ -45,7 +47,7 @@ function Overview() {
       <AlertPanel
         alertId="a-1001"
         severity="warning"
-        onAcknowledged={event => console.info('acknowledged', event.alertId, event.acknowledgedAt)}
+        onAcknowledged={event => setAcknowledgedAt(event.acknowledgedAt)}
         fallback={({ error, retry }) => (
           <div role="alert" className="rounded-md border border-border p-4">
             <p className="text-sm">{error.message}</p>
@@ -55,6 +57,10 @@ function Overview() {
           </div>
         )}
       />
+
+      {acknowledgedAt === null ? null : (
+        <p className="text-sm text-muted-foreground">Acknowledged at {acknowledgedAt}.</p>
+      )}
     </div>
   )
 }

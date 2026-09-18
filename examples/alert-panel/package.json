@@ -9,12 +9,15 @@
       "alert-panel"
     ]
   },
+  "exports": {
+    "./contracts": "./.mfe/widgets/alert-panel.contract.ts"
+  },
   "scripts": {
-    "dev": "rspack serve",
-    "build": "rspack build",
-    "generate": "rspack build --env generate-only",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "dev": "pnpm run generate && rspack serve",
+    "build": "pnpm run generate && rspack build",
+    "generate": "mfe-generate",
+    "typecheck": "pnpm run generate && tsc --noEmit",
+    "test": "pnpm run generate && vitest run"
   },
   "dependencies": {
     "@company/mfe-react": "workspace:*",
@@ -26,6 +29,7 @@
     "@company/mfe-rspack": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
+    "@rspack/dev-server": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",

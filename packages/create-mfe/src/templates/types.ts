@@ -19,12 +19,18 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
+/**
+ * `generate` writes the #mfe/* modules and the route tree, and every script
+ * that reads them runs it first. It stays a documented command of its own
+ * because an editor opened on a fresh clone needs those files before anything
+ * has been developed, tested or built.
+ */
 const SCRIPTS: Record<string, string> = {
-  dev: 'rspack serve',
-  build: 'rspack build',
-  generate: 'mfe generate',
-  typecheck: 'tsc --noEmit',
-  test: 'vitest run',
+  dev: 'pnpm run generate && rspack serve',
+  build: 'pnpm run generate && rspack build',
+  generate: 'mfe-generate',
+  typecheck: 'pnpm run generate && tsc --noEmit',
+  test: 'pnpm run generate && vitest run',
   lint: 'eslint .',
   format: 'prettier --write .',
   'format:check': 'prettier --check .',
@@ -42,6 +48,7 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   '@company/mfe-rspack': 'workspace:*',
   '@rspack/cli': 'catalog:',
   '@rspack/core': 'catalog:',
+  '@rspack/dev-server': 'catalog:',
   '@testing-library/jest-dom': 'catalog:',
   '@testing-library/react': 'catalog:',
   '@types/react': 'catalog:',
@@ -82,8 +89,11 @@ export function packageJsonFile(
   }
 }
 
-/** The files every generated project gets, identical in both starters. */
-export function sharedFiles(): readonly TemplateFile[] {
+/**
+ * The files every generated project gets. `entry` is the starter's definitions
+ * module, which is `src/mfe.tsx` when the entry itself contains JSX.
+ */
+export function sharedFiles(entry: string): readonly TemplateFile[] {
   return [
     {
       path: '.gitignore',
@@ -113,15 +123,35 @@ export default defineConfig({
     },
     {
       path: 'vitest.setup.ts',
-      contents: `import * as jestDom from '@testing-library/jest-dom/matchers'
+      contents: `/**
+ * Installs jest-dom's matchers, and declares them, from this project's own
+ * vitest instance. Both halves live here so they cannot drift: the shipped
+ * \`@testing-library/jest-dom/vitest\` entry gets each one wrong in its own way.
+ *
+ * Runtime: that entry is CJS and calls \`require('vitest').expect.extend(...)\`,
+ * which can resolve a second vitest instance. When it does, the \`rejects\` chain
+ * lands on the other one and \`await expect(p).rejects.toThrow(/…/)\` fails with
+ * an empty message for every rejection, including a plain Error.
+ *
+ * Types: that entry augments \`interface Assertion<T = any>\`, which was jest's
+ * shape. Vitest declares two type parameters, and declaration merging needs
+ * them to match exactly, so the augmentation is dropped in silence and every
+ * matcher call is a type error at its own call site. The declaration below
+ * matches — \`R\` is the return type, \`T\` the asserted value — so it merges.
+ * Listing the entry in a tsconfig \`types\` array does nothing for either half.
+ */
+
+import * as jestDom from '@testing-library/jest-dom/matchers'
+import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 import { cleanup } from '@testing-library/react'
 import { afterEach, expect } from 'vitest'
 
-// The matchers are imported and extended here rather than through
-// '@testing-library/jest-dom/vitest'. That entry is CJS and calls
-// require('vitest').expect.extend(...), which can resolve a second vitest
-// instance; when it does, \`await expect(p).rejects.toThrow(/…/)\` fails with an
-// empty message for every rejection, including a plain Error.
+declare module 'vitest' {
+  interface Assertion<R extends void | Promise<void> = void, T = unknown>
+    extends TestingLibraryMatchers<T, R> {}
+  interface AsymmetricMatchersContaining extends TestingLibraryMatchers<unknown, void> {}
+}
+
 expect.extend(jestDom)
 
 // Nothing leaks from one test into the next.
@@ -163,25 +193,102 @@ export default [
         extends: '../../tsconfig.base.json',
         compilerOptions: {
           rootDir: '.',
-          types: ['node', '@testing-library/jest-dom/vitest'],
+          types: ['node'],
           paths: {
             '#mfe/config': ['./.mfe/config.ts'],
             '#mfe/fetch': ['./.mfe/fetch.ts'],
             '#mfe/meta': ['./.mfe/meta.ts'],
           },
         },
-        include: ['src/**/*', '.mfe/**/*', '*.config.ts'],
+        // vitest.setup.ts is in the program because it carries the matcher
+        // declarations; outside it, every matcher call is a type error.
+        include: ['src/**/*', '.mfe/**/*', 'vitest.setup.ts', '*.config.ts'],
       }),
     },
     {
       path: 'rspack.config.ts',
-      contents: `import { mfePlugin } from '@company/mfe-rspack'
+      contents: `/**
+ * An ordinary Rspack configuration. \`mfePlugin()\` is a normal plugin rather
+ * than a wrapper, so everything here is what it would be in any React project.
+ *
+ * The plugin owns what makes this a container: definition discovery, the
+ * generated \`#mfe/*\` modules, Module Federation's name, exposes and sharing,
+ * the registry descriptor, container-relative asset URLs, scoped CSS and the
+ * React Compiler transform. None of that is repeated here, and none of it is
+ * configurable per project — a page only works when every container agrees.
+ */
 
-// An ordinary Rspack configuration. mfePlugin is a normal plugin, not a
-// wrapper, so every other option here stays exactly what it would otherwise be.
-export default {
-  entry: './src/main.ts',
-  plugins: [mfePlugin()],
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { mfePlugin } from '@company/mfe-rspack'
+import type { Configuration } from '@rspack/core'
+
+const here = dirname(fileURLToPath(import.meta.url))
+
+/** The port is declared once, in the manifest \`pnpm dev\` reads it from too. */
+const manifest = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8')) as {
+  readonly mfe: { readonly port: number }
+}
+
+export default function config(_env: unknown, argv: { readonly mode?: string }): Configuration {
+  const isDev = argv.mode !== 'production'
+
+  return {
+    context: here,
+    mode: isDev ? 'development' : 'production',
+    target: 'browserslist',
+    entry: '${entry}',
+
+    output: {
+      path: resolve(here, 'dist'),
+      filename: isDev ? '[name].js' : '[name].[contenthash:8].js',
+      chunkFilename: isDev ? '[name].chunk.js' : '[name].[contenthash:8].chunk.js',
+      assetModuleFilename: 'assets/[name].[contenthash:8][ext]',
+      clean: true,
+    },
+
+    resolve: { extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'] },
+
+    module: {
+      rules: [
+        {
+          test: /\\.[cm]?tsx?$/,
+          exclude: /[\\\\/]node_modules[\\\\/]/,
+          loader: 'builtin:swc-loader',
+          options: {
+            jsc: {
+              parser: { syntax: 'typescript', tsx: true },
+              transform: { react: { runtime: 'automatic', development: isDev } },
+              target: 'es2022',
+            },
+          },
+        },
+        { test: /\\.css$/, type: 'css' },
+        { test: /\\.(woff2?|png|svg|jpg|jpeg|gif)$/, type: 'asset/resource' },
+      ],
+    },
+
+    plugins: [mfePlugin()],
+
+    experiments: { css: true },
+
+    devServer: {
+      port: manifest.mfe.port,
+      // The shell serves the page from its own origin and reads this
+      // container's manifest, remote entry and chunks from here, so all of
+      // them have to be readable cross-origin.
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      // A remote is fetched by the shell, never browsed to, so whichever local
+      // hostname the developer started the shell on has to be accepted.
+      allowedHosts: 'all',
+    },
+
+    devtool: isDev ? 'eval-cheap-module-source-map' : 'source-map',
+
+    stats: { preset: 'errors-warnings', assets: true, timings: true },
+  }
 }
 `,
     },

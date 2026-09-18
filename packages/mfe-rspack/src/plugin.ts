@@ -14,9 +14,10 @@ import type { Compilation, Compiler, RspackPluginInstance, RuleSetUse } from '@r
 
 import { transformScopedCss } from './css/scope-transform.ts'
 import { buildFederationOptions } from './federation/federation-options.ts'
-import { writeGeneratedFiles } from './generate/emit.ts'
+import { generateContainer } from './generate/container.ts'
+import { ownsRouteTree, routeTreeOptions } from './generate/route-tree.ts'
 import type { MfePluginOptions } from './options.ts'
-import { planContainer, type ContainerPlan } from './plan.ts'
+import type { ContainerPlan } from './plan.ts'
 
 const require = createRequire(import.meta.url)
 
@@ -31,11 +32,13 @@ class MfeRspackPlugin implements RspackPluginInstance {
     this.#options = options
   }
 
-  /** Re-reads the container's sources and rewrites what changed. */
+  /**
+   * The same generation `mfe-generate` performs, so what a build writes and
+   * what a developer's editor reads are produced by one function.
+   */
   #refresh(containerRoot: string): ContainerPlan {
-    const plan = planContainer({ ...this.#options, defaultRoot: containerRoot })
+    const { plan } = generateContainer({ ...this.#options, defaultRoot: containerRoot })
     this.#plan = plan
-    writeGeneratedFiles(plan.generated.files)
     return plan
   }
 
@@ -47,13 +50,10 @@ class MfeRspackPlugin implements RspackPluginInstance {
     // typecheck run, so the router plugin is applied ahead of everything here.
     // Pass `router: false` when the container's own config already applies it,
     // and apply it before mfePlugin() so the ordering is the same.
-    if (plan.options.router !== false && plan.discovery.app !== undefined) {
+    if (ownsRouteTree(plan)) {
       tanstackRouter({
-        target: 'react',
-        routesDirectory: plan.options.routesDirectory,
-        generatedRouteTree: `${plan.options.containerRoot}/src/routeTree.gen.ts`,
-        autoCodeSplitting: true,
-        ...plan.options.router,
+        ...routeTreeOptions(plan),
+        ...(plan.options.router === false ? {} : plan.options.router),
       }).apply?.(compiler)
     }
 

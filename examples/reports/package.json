@@ -5,12 +5,14 @@
   "type": "module",
   "mfe": {
     "port": 3002,
-    "definitions": ["reports"]
+    "definitions": [
+      "reports"
+    ]
   },
   "scripts": {
     "dev": "pnpm run generate && rspack serve",
     "build": "pnpm run generate && rspack build",
-    "generate": "node ../../tools/dev/generate-routes.mjs",
+    "generate": "mfe-generate",
     "typecheck": "pnpm run generate && tsc --noEmit",
     "test": "pnpm run generate && vitest run"
   },
@@ -26,6 +28,7 @@
     "@company/mfe-rspack": "workspace:*",
     "@rspack/cli": "catalog:",
     "@rspack/core": "catalog:",
+    "@rspack/dev-server": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",

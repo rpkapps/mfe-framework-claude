@@ -13,8 +13,11 @@ import { alertPanel } from './mfe.tsx'
 let cleanup: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  await cleanup?.()
+  // Cleared before the await, not after: a second test may have assigned a new
+  // handle by the time this one resolves, and clearing then would drop it.
+  const dispose = cleanup
   cleanup = null
+  await dispose?.()
 })
 
 describe('alert-panel', () => {

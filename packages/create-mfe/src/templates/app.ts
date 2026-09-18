@@ -17,7 +17,7 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
   const { id, packageName } = options
 
   return [
-    ...sharedFiles(),
+    ...sharedFiles('./src/mfe.ts'),
 
     packageJsonFile(options, 3101, {
       dependencies: { '@tanstack/react-query': 'catalog:', '@tanstack/react-router': 'catalog:' },
@@ -134,8 +134,11 @@ import { afterEach, expect, it } from 'vitest'
 let environment: ReturnType<typeof createMfeTestEnvironment> | null = null
 
 afterEach(async () => {
-  await environment?.dispose()
+  // Cleared before the await, not after: a second test may have assigned a new
+  // environment by the time this one resolves, and clearing then would drop it.
+  const current = environment
   environment = null
+  await current?.dispose()
 })
 
 it('reads the signed-in user from shell state', () => {

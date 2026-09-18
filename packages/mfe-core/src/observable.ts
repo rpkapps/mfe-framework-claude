@@ -20,8 +20,14 @@ export interface Subscribable<T> {
  */
 export class ListenerSet {
   readonly #listeners = new Set<Listener>()
+  readonly #onListenerError: ((error: unknown) => void) | undefined
 
-  constructor(private readonly onListenerError?: (error: unknown) => void) {}
+  // A constructor parameter property would read the same, but Node cannot strip
+  // one from a TypeScript source it is asked to run directly, and the generate
+  // CLI reaches these modules that way — with no bundler and no build step.
+  constructor(onListenerError?: (error: unknown) => void) {
+    this.#onListenerError = onListenerError
+  }
 
   get size(): number {
     return this.#listeners.size
@@ -43,7 +49,7 @@ export class ListenerSet {
       try {
         listener()
       } catch (error) {
-        this.onListenerError?.(error)
+        this.#onListenerError?.(error)
       }
     }
   }
@@ -98,13 +104,16 @@ export class SnapshotSource<T> implements Subscribable<T> {
  */
 export class KeyedListeners {
   readonly #byKey = new Map<string, ListenerSet>()
+  readonly #onListenerError: ((error: unknown) => void) | undefined
 
-  constructor(private readonly onListenerError?: (error: unknown) => void) {}
+  constructor(onListenerError?: (error: unknown) => void) {
+    this.#onListenerError = onListenerError
+  }
 
   subscribe(key: string, listener: Listener): Unsubscribe {
     let listeners = this.#byKey.get(key)
     if (!listeners) {
-      listeners = new ListenerSet(this.onListenerError)
+      listeners = new ListenerSet(this.#onListenerError)
       this.#byKey.set(key, listeners)
     }
     const remove = listeners.add(listener)

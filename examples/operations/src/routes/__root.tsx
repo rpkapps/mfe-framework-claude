@@ -21,7 +21,13 @@ function OperationsLayout() {
         <Link to="/assets" className="text-muted-foreground hover:text-foreground">
           Assets
         </Link>
-        <Link to="/reports" className="text-muted-foreground hover:text-foreground">
+        {/* The child App is delegated at a splat route, so the link names that
+            route with an empty splat and the child's own index renders. */}
+        <Link
+          to="/reports/$"
+          params={{ _splat: '' }}
+          className="text-muted-foreground hover:text-foreground"
+        >
           Reports
         </Link>
       </nav>

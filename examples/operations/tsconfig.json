@@ -1,7 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    // No rootDir: the shared vitest setup in "include" is the one place the
+    // jest-dom matchers are extended and declared, and it lives in the package
+    // that owns them rather than being copied into each example.
     "types": ["node"],
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],
