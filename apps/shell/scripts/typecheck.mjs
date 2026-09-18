@@ -11,7 +11,18 @@ import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { requireTecton } from './require-tecton.mjs'
+
 const shellRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+// Before tsc, so a missing checkout is one sentence rather than a page of
+// "cannot find module" from every file that imports a component.
+try {
+  requireTecton()
+} catch (error) {
+  console.error(error.message)
+  process.exit(1)
+}
 const result = spawnSync(
   resolve(shellRoot, 'node_modules/.bin/tsc'),
   ['--noEmit', '--pretty', 'false'],

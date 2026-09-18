@@ -16,8 +16,15 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+// @ts-expect-error -- a plain .mjs helper, shared with scripts/typecheck.mjs
+import { requireTecton } from './scripts/require-tecton.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
+
+// Fails the config, before a bundler reports the same thing as an unresolvable
+// import from whichever file happened to be read first.
+requireTecton()
 
 /**
  * Tailwind resolves a stylesheet's `@import`s from that stylesheet's own
