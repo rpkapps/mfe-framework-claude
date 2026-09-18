@@ -151,8 +151,12 @@ download a browser; run `pnpm exec playwright install chromium` once, or point
 
 Everything above works on Windows. Two things to know:
 
-- Ports 3000–3003 must be free. A dev server that did not shut down cleanly
-  keeps its port, and the next run fails to bind.
+- Ports 3000–3003 must be free, and `pnpm dev` checks that before it starts
+  anything. A container's port is written into the shell's registry by
+  generation, so it is part of its address: a container cannot be moved to
+  another port without the shell losing it. The usual cause is a dev server
+  from an earlier run that did not shut down — `netstat -ano | findstr :3001`
+  names the process, `taskkill /PID <pid> /F` stops it.
 - Generated output (`.mfe/`, `routeTree.gen.ts`, `apps/shell/public/registry.json`)
   is not in version control. If a build behaves as though a file is missing,
   `pnpm run generate` is the fix.

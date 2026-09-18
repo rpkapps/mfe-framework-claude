@@ -16,6 +16,7 @@
 
 import { spawn } from 'node:child_process'
 
+import { busyPortsMessage, findBusyPorts } from './ports.mjs'
 import { spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -205,8 +206,17 @@ async function main() {
     return
   }
 
-  // Before anything starts: the shell fetches this at boot, and it names the
-  // ports the servers below are about to listen on.
+  // Before anything starts, and before generation: a busy port is reported
+  // once, by name, rather than as one bundler's fallback and another's crash.
+  const busy = await findBusyPorts(services.map(service => service.port))
+  if (busy.length > 0) {
+    console.error(busyPortsMessage(busy))
+    process.exitCode = 1
+    return
+  }
+
+  // The shell fetches this at boot, and it names the ports the servers below
+  // are about to listen on.
   await buildRegistry()
 
   console.log(`${BOLD}Starting ${services.length} dev server(s)${RESET}`)

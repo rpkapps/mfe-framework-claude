@@ -50,8 +50,17 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
 
         return mergeRsbuildConfig(config, {
           moduleFederation: { options: buildFederationOptions(plan) },
-          // A remote is read cross-origin by a shell, always.
-          ...(original.server?.cors === undefined ? { server: { cors: true } } : {}),
+          server: {
+            // A remote is read cross-origin by a shell, always.
+            ...(original.server?.cors === undefined ? { cors: true } : {}),
+            // A container's port is written into the shell's registry by
+            // generation, so it is part of its address rather than a
+            // preference. The bundler's default is to pick another port when
+            // this one is busy, which produces a container the shell cannot
+            // find — and, when it lands on a sibling's port, stops that one
+            // too. Failing here names the real problem.
+            ...(original.server?.strictPort === undefined ? { strictPort: true } : {}),
+          },
           // A deployed container's assets resolve against wherever it was
           // deployed, which the build cannot know — `auto` is what defers that
           // to the browser. Rsbuild's own default is the serving path, and for

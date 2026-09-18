@@ -95,6 +95,9 @@ export default defineConfig({
 
   server: {
     port: DEV_PORT,
+    // The address a developer opens and every override snippet names. Moving
+    // it silently would point all of them at nothing.
+    strictPort: true,
     // Deep links below a boundary belong to the mounted App, so every unknown
     // path has to return the shell document.
     historyApiFallback: true,
