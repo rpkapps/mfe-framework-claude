@@ -13,7 +13,17 @@ import { fileURLToPath } from 'node:url'
 
 import { chromium } from '@playwright/test'
 
+/*
+ * `localhost`, never `127.0.0.1`: the dev server binds whichever family the
+ * host resolves to — `[::1]` on this machine — and a hardcoded IPv4 literal is
+ * refused outright by a server that is running perfectly well.
+ */
+const ORIGIN = 'http://localhost:3000'
+
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
+
+/** Where a shot lands. Ignored by git; see `shot` below for why. */
+const SHOT_DIR = 'screenshots'
 
 /**
  * This machine's preinstalled Chromium is a build behind the one this
@@ -36,8 +46,14 @@ export async function openShell({ width = 1500, height = 1000 } = {}) {
     problems.push(`pageerror: ${error.message}`)
   })
 
+  /**
+   * Writes to an ignored directory on purpose. A screenshot is a snapshot of
+   * something that keeps moving and no test asserts on it, so a tracked one is
+   * a stale picture the repository carries forever — undiffable, and heavier
+   * every time it is regenerated. Look at it, then let it go.
+   */
   const shot = async name => {
-    const file = resolve(repoRoot, 'apps/shell/docs', `${name}.png`)
+    const file = resolve(repoRoot, SHOT_DIR, `${name}.png`)
     await mkdir(dirname(file), { recursive: true })
     await page.screenshot({ path: file })
     return file
@@ -49,7 +65,7 @@ export async function openShell({ width = 1500, height = 1000 } = {}) {
    * actually says the page is ready.
    */
   const go = async (path, { settle = 2500 } = {}) => {
-    await page.goto(`http://127.0.0.1:3000${path}`, { waitUntil: 'load' })
+    await page.goto(`${ORIGIN}${path}`, { waitUntil: 'load' })
     await page.waitForSelector('[data-slot="shell-header"]', { timeout: 20_000 })
     await page.waitForTimeout(settle)
   }

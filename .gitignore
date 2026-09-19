@@ -20,3 +20,7 @@ runtime-config.local.json
 test-results/
 playwright-report/
 blob-report/
+
+# Screenshots are for looking at a change, never for keeping: nothing asserts
+# on one, so a tracked one is a stale picture of a page that has moved on.
+screenshots/

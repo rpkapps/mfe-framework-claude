@@ -22,10 +22,13 @@ the rest for itself.
 
 `tools/browser/session.mjs` opens a browser against the running servers, for
 looking at a change rather than asserting on it; `pnpm verify:page` is the
-assertion, and the one CI runs. `docs/` holds what the shell looks like as
-built: the dashboard, the input dialog it generates from a Widget's published
-schema, the registry's rejected entries, the command palette and the light
-theme.
+assertion, and the one CI runs. Both write any screenshot to `screenshots/`,
+which git ignores — nothing asserts on a picture, so a tracked one is only a
+stale view of a page that has moved on since. To take one:
+
+```
+node apps/shell/scripts/screenshot.mjs /operations/wells
+```
 
 ## The pages the shell owns
 
