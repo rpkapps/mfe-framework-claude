@@ -77,11 +77,18 @@ never sees the document boot dark and flip.
 ### Navigation an App can refuse
 
 The shell routes its own navigations through `runtime.navigator`, so a mounted
-App with unsaved work can object to one. The shell asks; the App answers in its
-own dialog, in its own design system, inside its own region — the shell neither
-draws that dialog nor decides what counts as unsaved. `/lab/unsaved` is the
-worked example, and a registered blocker also becomes the browser's
-`beforeunload` prompt, which a reload does not otherwise reach.
+App with unsaved work can object to one. The App does that with TanStack's own
+`useBlocker` and nothing else — the framework widens that registration to cover
+the navigations the App's router never sees, which is most of the ones that
+lose work: the application finder, a breadcrumb, the command palette, the
+browser's back button. The shell asks; the App answers in its own dialog, in
+its own design system, inside its own region — the shell neither draws that
+dialog nor decides what counts as unsaved. `/lab/unsaved` is the worked
+example.
+
+A reload is the one navigation nobody can negotiate, so the shell turns the
+App's own `enableBeforeUnload` into the browser's prompt, which is the only
+thing a page is allowed to show there.
 
 ### The widget dashboard
 

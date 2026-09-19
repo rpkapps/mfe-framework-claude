@@ -1,5 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useNavigationBlock } from '@company/mfe-react'
+import { createFileRoute, useBlocker } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -15,7 +14,7 @@ import { Textarea } from '@tecton/react/components/textarea'
 import { CheckIcon, SaveIcon, TriangleAlertIcon } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 
-import { DataList, DataRow, Flag, LabPage, LabSection } from '../lab-page.tsx'
+import { DataList, DataRow, Flag, Identifier, LabPage, LabSection } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/unsaved')({
   staticData: { breadcrumb: 'Unsaved edits' },
@@ -23,6 +22,13 @@ export const Route = createFileRoute('/unsaved')({
 })
 
 const SAVED = { name: 'Reduced DLS, 8½″ section', note: '' }
+
+/**
+ * TanStack's sentinel for "no route in this tree matched". It is what a
+ * navigation out of this App looks like from inside it: the shell is going
+ * somewhere this route tree has never heard of.
+ */
+const NO_MATCH = '__notFound__'
 
 function Unsaved(): ReactNode {
   const id = useId()
@@ -32,35 +38,52 @@ function Unsaved(): ReactNode {
   const isDirty = draft.name !== saved.name || draft.note !== saved.note
 
   /*
-   * The whole demonstration, in one line.
+   * The whole demonstration, in one hook — and it is TanStack's own.
    *
-   * This mount is the only thing that knows the edits exist, so it is the only
-   * thing that can object to a navigation that would lose them — including
-   * navigations it does not own: the shell's application finder, a breadcrumb,
-   * the browser's back button. It registers itself with the host's navigator;
-   * the host asks, innermost mount first, and renders nothing itself.
+   * There is no framework API here. `useBlocker` registers with this App's
+   * router, which is the only thing that knows the edits exist. The framework
+   * takes that registration and also puts the shell's navigations to it, so a
+   * click on the application finder, a breadcrumb or the browser's back button
+   * arrives as an ordinary `shouldBlockFn` call with `current`, `next` and
+   * `action` resolved against this App's own route tree.
+   *
+   * `withResolver` is what makes the answer this App's: the hook hands back a
+   * `proceed`/`reset` pair instead of taking a synchronous verdict, so the
+   * confirmation is a real dialog in this App's design system rather than a
+   * `window.confirm`.
    */
-  const block = useNavigationBlock(isDirty)
+  const blocker = useBlocker({
+    shouldBlockFn: () => isDirty,
+    // A reload is not a navigation and no page may draw its own UI for one, so
+    // this decides whether the browser offers its prompt. Without the
+    // condition a clean form would raise "leave site?" on every refresh.
+    enableBeforeUnload: () => isDirty,
+    withResolver: true,
+  })
 
   const save = (): void => {
     setSaved(draft)
   }
 
+  const target = blocker.status === 'blocked' ? blocker.next : null
+  const leavesApp = target !== null && String(target.routeId) === NO_MATCH
+
   return (
     <LabPage
       eyebrow="Navigation"
       title="An MFE can refuse to be navigated away from"
-      description="A mount with unsaved work is the only thing that knows it. The shell asks before it leaves, this application answers in its own dialog, and the decision is this application's — the shell neither draws the dialog nor decides what counts as unsaved."
+      description="A mount with unsaved work is the only thing that knows it. The App blocks with TanStack’s own useBlocker, the shell asks it before leaving, and this application answers in its own dialog — the shell neither draws the dialog nor decides what counts as unsaved."
       tryThis={
         <>
-          Type in the form below, then try to leave: switch application from the finder at the top
-          left, press <code className="font-mono">⌘K</code> and jump somewhere, or use the
-          browser&apos;s back button. This App&apos;s own dialog appears. Save, and the same
-          navigation goes straight through.
+          Type in the form below, then try to leave: pick another page from this App&apos;s own nav,
+          switch application from the finder at the top left, press{' '}
+          <code className="font-mono">⌘K</code> and jump somewhere, or use the browser&apos;s back
+          button. All four are refused by the same hook. Save, and the same navigation goes straight
+          through.
         </>
       }
     >
-      <LabSection title="A form with unsaved edits" note="useNavigationBlock">
+      <LabSection title="A form with unsaved edits" note="useBlocker">
         <div className="flex flex-wrap items-center gap-2">
           {isDirty ? (
             <Badge variant="warning" appearance="outline">
@@ -121,35 +144,43 @@ function Unsaved(): ReactNode {
         </div>
       </LabSection>
 
-      <LabSection title="What the host was told" note="NavigationIntent">
+      <LabSection title="What shouldBlockFn was given" note="BlockerResolver">
         <p className="text-sm text-muted-foreground">
-          The host hands the mount the navigation it is about to perform, including whether it
-          leaves this App&apos;s boundary. A wizard step inside the same App and a jump to another
-          application are not the same event, and an App may object to one and not the other.
+          The same fields whether the navigation came from this App&apos;s own router or from the
+          shell. A target the shell owns simply matches no route here, which is how an App tells a
+          wizard step apart from a jump to another application — and it may object to one and not
+          the other.
         </p>
         <DataList>
-          <DataRow label="pending" hint="a navigation waiting on this mount">
-            <Flag value={block.pending !== null} trueLabel="being asked" falseLabel="idle" />
+          <DataRow label="status" hint="is a navigation waiting on this App?">
+            <Flag value={blocker.status === 'blocked'} trueLabel="being asked" falseLabel="idle" />
           </DataRow>
-          <DataRow label="from" hint="where the page is now">
-            {block.pending === null ? (
-              <span className="text-sm text-muted-foreground">—</span>
+          <DataRow label="action" hint="what the user did">
+            {blocker.status === 'blocked' ? (
+              <Identifier value={blocker.action} />
             ) : (
-              <code className="font-mono text-xs break-all">{block.pending.from.pathname}</code>
+              <span className="text-sm text-muted-foreground">—</span>
             )}
           </DataRow>
-          <DataRow label="to" hint="where it would go">
-            {block.pending === null ? (
-              <span className="text-sm text-muted-foreground">—</span>
+          <DataRow label="current.routeId" hint="the page being left">
+            {blocker.status === 'blocked' ? (
+              <Identifier value={String(blocker.current.routeId)} />
             ) : (
-              <code className="font-mono text-xs break-all">{block.pending.to.pathname}</code>
+              <span className="text-sm text-muted-foreground">—</span>
             )}
           </DataRow>
-          <DataRow label="leavesBoundary" hint="does it unmount this App?">
-            {block.pending === null ? (
+          <DataRow label="next.pathname" hint="where it would go">
+            {target === null ? (
               <span className="text-sm text-muted-foreground">—</span>
             ) : (
-              <Flag value={block.pending.leavesBoundary} trueLabel="leaves" falseLabel="stays" />
+              <Identifier value={target.pathname} />
+            )}
+          </DataRow>
+          <DataRow label="next.routeId" hint={`${NO_MATCH} means it leaves this App`}>
+            {target === null ? (
+              <span className="text-sm text-muted-foreground">—</span>
+            ) : (
+              <Flag value={leavesApp} trueLabel="leaves this App" falseLabel="stays in this App" />
             )}
           </DataRow>
         </DataList>
@@ -158,9 +189,10 @@ function Unsaved(): ReactNode {
           <TriangleAlertIcon />
           <AlertTitle>A reload is not a navigation</AlertTitle>
           <AlertDescription>
-            Closing the tab or reloading discards the same edits, and the router never sees it. The
-            shell turns a registered blocker into the browser&apos;s own beforeunload prompt, which
-            is the only thing a page is allowed to show there.
+            Closing the tab or reloading discards the same edits, and no router sees it. This App
+            sets <code className="font-mono">enableBeforeUnload</code>, and the shell forwards that
+            answer to the browser&apos;s own prompt, which is the only thing a page is allowed to
+            show there.
           </AlertDescription>
         </Alert>
       </LabSection>
@@ -171,37 +203,47 @@ function Unsaved(): ReactNode {
        * blocking a navigation does not freeze the page, it declines one.
        */}
       <Dialog
-        isOpen={block.pending !== null}
+        isOpen={blocker.status === 'blocked'}
         isDismissable={false}
         showCloseButton={false}
         onOpenChange={open => {
-          if (!open) block.stay()
+          if (!open) blocker.reset?.()
         }}
       >
         <DialogHeader>
           <DialogTitle>Leave with unsaved changes?</DialogTitle>
           <DialogDescription>
-            {block.pending === null
+            {target === null
               ? null
-              : block.pending.to.pathname === '/'
-                ? 'This page has edits that are not saved. Leaving discards them.'
-                : `This page has edits that are not saved. Going to ${block.pending.to.pathname} discards them.`}
+              : leavesApp
+                ? `This page has edits that are not saved. Going to ${target.pathname} leaves this application and discards them.`
+                : `This page has edits that are not saved. Going to ${target.pathname} discards them.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onPress={block.stay}>
+          <Button
+            variant="outline"
+            onPress={() => {
+              blocker.reset?.()
+            }}
+          >
             Keep editing
           </Button>
           <Button
             variant="outline"
             onPress={() => {
               save()
-              block.proceed()
+              blocker.proceed?.()
             }}
           >
             <SaveIcon /> Save and leave
           </Button>
-          <Button variant="destructive" onPress={block.proceed}>
+          <Button
+            variant="destructive"
+            onPress={() => {
+              blocker.proceed?.()
+            }}
+          >
             Discard and leave
           </Button>
         </div>

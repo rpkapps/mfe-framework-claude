@@ -21,6 +21,7 @@ import { breadcrumbsFromMatches, type BreadcrumbMatch } from './breadcrumbs-from
 import { createBoundaryHistory } from './boundary-history.ts'
 import { MfeMountProvider } from './mount-context.tsx'
 import { MfeScopeRoot } from './scope-root.tsx'
+import { useRouterBlockerBridge } from './router-blockers.ts'
 import type { AppDefinition } from './definition.ts'
 import type { MfeContext, MfeRouterContext } from './router-contract.ts'
 import type { MfeMount } from './runtime.ts'
@@ -189,7 +190,19 @@ export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNod
     return { router: created, context: routerContext }
   }, [definition, mount, boundary])
 
-  useEffect(() => boundary.dispose, [boundary])
+  /*
+   * The bridge subscription is owned by the effect that ends it, not by the
+   * memo above. React tears an effect down and sets it up again without
+   * re-running that memo — StrictMode does it on every mount in development —
+   * and a history that subscribed at construction was therefore left deaf from
+   * the first cleanup onwards: the URL moved on a browser back and the App's
+   * router was never told, so the address bar and the page disagreed.
+   */
+  useEffect(() => boundary.attach(), [boundary])
+
+  // The App's own `useBlocker` registrations, extended to the navigations the
+  // shell performs. Nothing in the author's router knows this is happening.
+  useRouterBlockerBridge(boundary, mount)
 
   useShellStateSync(router, mount)
   useBreadcrumbContribution(router, mount, definition, context)

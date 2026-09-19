@@ -136,6 +136,7 @@ export {
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
+  type NavigationAction,
   type NavigationBridge,
   type NavigationIntent,
   type ShellState,

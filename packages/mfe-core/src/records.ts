@@ -146,6 +146,12 @@ export interface NavigationBridge {
 }
 
 /**
+ * How a navigation was started. The same strings TanStack's history uses, named
+ * here so `@company/mfe-core` does not depend on a router to describe one.
+ */
+export type NavigationAction = 'PUSH' | 'REPLACE' | 'BACK' | 'FORWARD' | 'GO'
+
+/**
  * A mount's answer when a navigation would leave or remove it. Blocking is
  * decided by the MFE through TanStack's native blocker; the bridge only asks.
  */
@@ -154,4 +160,11 @@ export interface NavigationIntent {
   readonly to: BoundaryLocation
   /** True when the transition removes the mount rather than moving within it. */
   readonly leavesBoundary: boolean
+  /**
+   * What the user did: a link, a redirect, the back button. An MFE's blocker
+   * reads it — refusing a back button and allowing a replace is a real
+   * distinction — so a host that knows the action passes it on. Absent means
+   * the host did not say, and a reader should treat it as an ordinary push.
+   */
+  readonly action?: NavigationAction
 }

@@ -107,14 +107,19 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   /*
    * The shell's half of the navigation-blocking contract.
    *
-   * A mount with unsaved edits registers itself with the runtime's navigator;
-   * this is what makes the shell's own navigations go past it. The router asks,
-   * the navigator negotiates with every affected mount innermost first, and the
-   * mount renders its own confirmation — the shell never draws that dialog and
-   * never decides the answer.
+   * A mount with unsaved edits is blocking through its own router's
+   * `useBlocker`, and the framework registers that with the runtime's
+   * navigator on its behalf; this is what makes the shell's own navigations go
+   * past it. The router asks, the navigator negotiates with every affected
+   * mount innermost first, and the mount renders its own confirmation — the
+   * shell never draws that dialog and never decides the answer.
+   *
+   * `action` is forwarded rather than dropped: the App's `shouldBlockFn`
+   * receives it, and refusing the back button while allowing a redirect is a
+   * distinction an author is entitled to make.
    */
   useBlocker({
-    shouldBlockFn: async ({ current, next }) => {
+    shouldBlockFn: async ({ current, next, action }) => {
       const outcome = await runtime.navigator.requestNavigation(
         createNavigationIntent(
           parseBoundaryLocation(current.pathname),
@@ -122,6 +127,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
           // The boundary of whatever is mounted now: the first segment is the
           // App's id, and everything under it is that App's own.
           `/${current.pathname.split('/').filter(Boolean)[0] ?? ''}`,
+          action,
         ),
         // The router commits for us when this resolves false, so there is
         // nothing to commit here — the negotiation's outcome is the answer.
@@ -130,8 +136,9 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       return outcome === 'blocked'
     },
     // A reload or a closed tab is not a navigation the router sees, and it
-    // discards the same edits. Only offered while something is registered.
-    enableBeforeUnload: () => runtime.navigator.blockerCount > 0,
+    // discards the same edits. Asked of the blockers rather than counted, so an
+    // App that says `enableBeforeUnload: false` is not overruled by the shell.
+    enableBeforeUnload: () => runtime.navigator.wantsUnloadPrompt(),
   })
 
   return (

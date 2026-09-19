@@ -23,13 +23,38 @@ URL.
 
 `createHistory()` is the supported seam for supplying a different backing store,
 so `packages/mfe-react/src/boundary-history.ts` builds each App's boundary
-history over the explicit navigation bridge instead. The router still gets a
-fully functional history, including native blocker support, because
-`createHistory` consults the blockers it is handed.
+history over the explicit navigation bridge instead.
+
+Building one by hand means supplying what `createBrowserHistory` would have.
+Three of those were missing, and all three failed silently:
+
+- **The blocker store.** `createHistory` consults `getBlockers` on every push
+  and replace, and `block()` returns a no-op unless it is also given
+  `setBlockers`. Without the pair, `useBlocker` inside an App registered
+  successfully and was never asked anything. The history now owns the array,
+  and hands it back through `getBlockers()` so the host can put the _shell's_
+  navigations to the same blockers — see decision 20.
+- **The entry state.** The bridge an App's history is built over is
+  `runtime.navigator`, whose `push`/`replace` took only a path. Every entry an
+  App pushed therefore had `history.state === null`, so neither the App's
+  history nor the shell's could compute a position delta: a browser back was
+  classified as a `GO` of zero, and a refused one had nothing to roll back by.
+  The navigator now forwards `state` and exposes `readState` and `go`.
+- **A subscription that did not survive a remount.** The history subscribed to
+  the bridge from its constructor, which ran in a `useMemo`, and unsubscribed
+  from an effect cleanup. React runs cleanup and setup again without re-running
+  the memo — decision 14, the same pairing, a different object — so from the
+  first remount the App's router was never told the URL had moved: browser back
+  and forward changed the address bar and left the page where it was.
+  Construction is now pure and `attach()` is what listens, owned by the effect
+  that ends it.
 
 **Consequence:** the framework never calls `createBrowserHistory`, and a
 contributor who reaches for it reintroduces the banned patch. The `mfe/no-global-patching`
 lint rule catches direct patching but cannot catch this, so it is written down here.
+The price of the hand-built history is that every capability it should have is
+ours to supply, and a missing one does not announce itself —
+`packages/mfe-react/src/boundary-history.test.ts` pins the three found so far.
 
 ---
 
@@ -368,6 +393,13 @@ found: the regression test hung.
 same rule. "Created in a memo, destroyed in an effect" is not a safe pairing in
 React 18 and later.
 
+The boundary history was the next instance of it, found much later: it
+subscribed to the navigation bridge from its constructor, in a memo, and
+unsubscribed from an effect cleanup. The symptom was the same shape — correct in
+production, silently broken in development — and this time it was browser back
+and forward moving the URL without moving the page. The remedy is the one above:
+the effect that ends the subscription is the effect that starts it.
+
 ---
 
 ## 15. A host composing the registry cannot call `lazyWidget`
@@ -519,3 +551,57 @@ of its inputs, because its outputs are among its inputs. A timestamp, a counter
 or a random id in generated code turns a watching build into a loop, and the
 symptom appears at the far end of the system — in the browser, as a hot update
 that cannot be fetched.
+
+---
+
+## 20. An App blocks navigation with TanStack's own `useBlocker`, and the framework widens it
+
+**Status:** decided, load-bearing.
+
+An editor with unsaved changes is the only thing that knows the changes exist.
+The navigation that discards them is usually one it does not own: a link in the
+shell's chrome, another application in the finder, the browser's back button.
+Those move the _shell's_ router, over the shell's own history, and an App's
+blockers are registered with neither.
+
+The first answer was a framework hook, `useNavigationBlock`, which registered
+directly with the host's navigator. It worked, and it was the wrong default: it
+is a second way to express something the author's router already expresses, it
+does not cover the App's own routes, and an author has to know it exists.
+
+So the mount now registers _one_ delegate with the navigator
+(`packages/mfe-react/src/router-blockers.ts`) and answers it out of whatever the
+App's router has registered. An author writes TanStack's `useBlocker` and
+nothing else; a navigation from the shell arrives as an ordinary `shouldBlockFn`
+call, with `current`, `next` and `action` resolved against that App's own route
+tree, and a target outside the App simply matches no route.
+
+Three details are forced rather than chosen:
+
+- **The delegate is registered for the mount's whole life**, not only while a
+  blocker exists. `shouldBlockFn: () => isDirty` is a new function on every
+  render, so TanStack unregisters and re-registers on every render — including
+  the render that opens the confirmation dialog. Anything keyed on the set being
+  non-empty, or on one blocker's identity, misreads that churn as removal and
+  lets the navigation through while the dialog is on screen.
+- **`enableBeforeUnload` is asked, not counted.** A reload is not a navigation
+  and no page may draw its own UI for one, so the host asks its blockers a
+  separate synchronous question (`shouldBlockUnload`). Counting registrations
+  instead — which is what the shell did — armed the browser's "leave site?"
+  prompt on every reload of any page that merely had a blocker mounted.
+- **An external navigation is held until the negotiation settles.** A browser
+  back moves the URL before anyone is asked, so a mount told about it straight
+  away leaves the page the user is still being asked about: the confirmation
+  appears over the next screen with the unsaved form already gone. The navigator
+  holds those events while it negotiates and releases them only on a proceed —
+  a refusal is followed by the host restoring the URL, which arrives as an event
+  of its own. It is deferred by a microtask so it does not depend on the order
+  the host's popstate listener and the mount's were registered in.
+
+`useNavigationBlock` remains for a mount with no router of its own: a Widget,
+or anything mounted outside one.
+
+**Consequence:** the supported way for an App to refuse a navigation is the
+router's, and the framework's job is to make it cover navigations the router
+cannot see. A host opts in by routing its own navigations through
+`runtime.navigator.requestNavigation(...)`.

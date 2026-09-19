@@ -1,5 +1,11 @@
 /**
- * Blocking a navigation the mount would lose, from inside the mount.
+ * Blocking a navigation the mount would lose, from inside a mount with no
+ * router of its own.
+ *
+ * An App does not need this: its router already has `useBlocker`, and the
+ * framework extends those registrations to the shell's navigations — see
+ * `router-blockers.ts`. A Widget has no router, and neither does anything
+ * mounted outside one, so this is the same contract expressed directly.
  *
  * The case is always the same: an editor with unsaved changes, and a
  * navigation — a link in the shell's own chrome, another application in the
@@ -41,6 +47,9 @@ export interface NavigationBlock {
 /**
  * Registers this mount as a navigation blocker for as long as it is rendered.
  *
+ * Inside an App, prefer TanStack's own `useBlocker`: it covers the App's own
+ * routes as well, and the framework already puts the shell's navigations to it.
+ *
  * ```tsx
  * const block = useNavigationBlock(isDirty)
  * // …
@@ -77,6 +86,15 @@ export function useNavigationBlock(shouldBlock: ShouldBlockNavigation): Navigati
       shouldBlock: intent => {
         const current = predicate.current
         return typeof current === 'function' ? current(intent) : current
+      },
+
+      // A reload has no intent to hand a predicate, so a mount that decides per
+      // navigation is asked for the prompt and a mount that answered a plain
+      // boolean is taken at its word — which is what stops a clean form from
+      // raising "leave site?" on every refresh.
+      shouldBlockUnload: () => {
+        const current = predicate.current
+        return typeof current === 'function' ? true : current
       },
 
       confirm: intent =>
