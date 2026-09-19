@@ -2,12 +2,12 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import config from '#mfe/config'
 import { fetch } from '#mfe/fetch'
-import { Badge } from '@tecton/react/components/badge'
+import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
-import { Spinner } from '@tecton/react/components/spinner'
+import { Skeleton } from '@tecton/react/components/skeleton'
 import type { ReactNode } from 'react'
 
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { Fields, LabPage, LabSection } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/config')({
   staticData: { breadcrumb: 'Config & fetch' },
@@ -47,7 +47,7 @@ function Config(): ReactNode {
           Typed, validated at boot, and impossible to read before it has loaded. A missing or
           malformed value fails here rather than at the first request that needed it.
         </p>
-        <Readout label="config" value={config} />
+        <Fields value={config} />
       </LabSection>
 
       <LabSection title="An authenticated request" note="#mfe/fetch">
@@ -55,23 +55,48 @@ function Config(): ReactNode {
           Standard <code className="font-mono">fetch</code>. The generated module resolves a
           relative URL against <code className="font-mono">apiBaseUrl</code> and attaches the
           shell&apos;s session — but only to the origins this container declared as APIs, so a token
-          cannot leak to a third party by writing a different URL. The response below is the
-          development API saying what it received.
+          cannot leak to a third party by writing a different URL.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
+            isDisabled={probe.isFetching}
             onPress={() => {
               void probe.refetch()
             }}
           >
-            Send a probe request
+            {probe.isFetching ? 'Sending…' : 'Send a probe request'}
           </Button>
-          {probe.isFetching ? <Spinner /> : null}
-          {probe.isError ? <Badge variant="destructive">failed</Badge> : null}
+          <span className="font-mono text-xs text-muted-foreground">
+            GET {String(config.apiBaseUrl)}lab/probe
+          </span>
         </div>
-        {probe.data === undefined ? null : <Readout label="response" value={probe.data} />}
-        {probe.error === null || probe.error === undefined ? null : (
-          <Readout label="error" value={probe.error.message} />
+
+        {/*
+         * The result keeps the same room whichever way it lands: a skeleton
+         * while the request is out, then the response or the failure in its
+         * place. A panel that grows by 120px when an answer arrives moves the
+         * button the reader just pressed.
+         */}
+        {probe.isFetching ? (
+          <div className="flex flex-col gap-2" role="status" aria-label="Waiting for the response">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : probe.error !== null && probe.error !== undefined ? (
+          <Alert variant="destructive" appearance="outline">
+            <AlertTitle>The probe did not answer</AlertTitle>
+            <AlertDescription>
+              {probe.error.message} This lab has no API behind it unless one is running at the
+              configured base, so a failure here is the expected result — the point is the request
+              that went out.
+            </AlertDescription>
+          </Alert>
+        ) : probe.data === undefined ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing sent yet. The response is rendered here as fields.
+          </p>
+        ) : (
+          <Fields value={probe.data} />
         )}
       </LabSection>
     </LabPage>

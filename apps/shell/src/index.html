@@ -14,5 +14,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- The theme, before first paint. The shell remembers it, and a document
+         that boots dark and then flips to light on hydration is a flash every
+         light-theme user sees on every load. The module below decides the same
+         value the same way; this only applies it early. -->
+    <script>
+      ;(function () {
+        try {
+          var stored = window.localStorage.getItem('company:shell:theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.classList.toggle('dark', theme === 'dark')
+          document.documentElement.style.colorScheme = theme
+        } catch (error) {
+          // Storage blocked for the origin: the class in <html> already stands.
+        }
+      })()
+    </script>
   </body>
 </html>

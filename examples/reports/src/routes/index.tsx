@@ -22,7 +22,9 @@ function Reports(): ReactNode {
       <PageHeader>
         <PageHeaderContent>
           <PageHeaderEyebrow>Reports</PageHeaderEyebrow>
-          <PageHeaderTitle>Alternatives ranking</PageHeaderTitle>
+          <PageHeaderTitle className="text-clip whitespace-normal">
+            Alternatives ranking
+          </PageHeaderTitle>
           <PageHeaderDescription>
             This whole page is a second application, deployed on its own. Reached directly it owns
             the boundary; reached through Operations it is delegated at a route and reads its own

@@ -1,25 +1,21 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { WellsListPage } from '@tecton/react/blocks/list-01/page.tsx'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 /**
- * A whole page composed from one design-system block. An MFE does not earn its
- * keep by re-drawing tables; it earns it by owning a routable surface that
- * deploys on its own.
+ * The layout for everything under `/wells`, and nothing else.
+ *
+ * It renders only an outlet, and that is the point of it existing. This file
+ * used to *be* the list, which made it the parent of `/wells/$wellId` with no
+ * outlet in it — so opening a well matched the detail route, rendered the list
+ * instead, and the detail page was unreachable from anywhere in the
+ * application. A non-index route file with children is a layout whether or not
+ * it was written as one; the list belongs in `wells.index.tsx`.
  */
 export const Route = createFileRoute('/wells')({
   staticData: { breadcrumb: 'Wells' },
-  component: Wells,
+  component: WellsLayout,
 })
 
-function Wells(): ReactNode {
-  const navigate = useNavigate()
-
-  return (
-    <WellsListPage
-      onOpen={well => {
-        void navigate({ to: '/wells/$wellId', params: { wellId: well.id } })
-      }}
-    />
-  )
+function WellsLayout(): ReactNode {
+  return <Outlet />
 }

@@ -7,7 +7,7 @@
  * going in and declared events coming out.
  */
 
-import { memo, Suspense, type ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { DynamicWidget, type NeutralRegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@tecton/react/components/dropdown-menu'
-import { Spinner } from '@tecton/react/components/spinner'
+import { Skeleton } from '@tecton/react/components/skeleton'
 import {
   Panel,
   PanelActions,
@@ -131,22 +131,49 @@ export function Tile({
           </PanelActions>
         </PanelHeader>
 
+        {/*
+         * The skeleton below is what keeps the canvas still while a container
+         * is on the wire. A spinner in an empty box is the height of a spinner,
+         * so the canvas jumped every time a Widget arrived and every tile below
+         * it moved — and a page that rearranges itself under the pointer is a
+         * page you cannot click.
+         *
+         * The floor is on the fallback rather than on this content, because a
+         * minimum height here would also apply to a Widget that has finished
+         * and is genuinely small, padding every alert panel out to the size of
+         * the largest thing the canvas might have mounted.
+         */}
         <PanelContent>
           {entry === undefined ? (
             <MissingEntry widgetId={tile.widgetId} />
           ) : (
-            <Suspense
-              fallback={
-                <div className="flex justify-center py-6">
-                  <Spinner />
-                </div>
-              }
-            >
-              <MountedWidget tile={tile} events={entry.contract?.events ?? []} onEvent={onEvent} />
-            </Suspense>
+            <MountedWidget tile={tile} events={entry.contract?.events ?? []} onEvent={onEvent} />
           )}
         </PanelContent>
       </Panel>
+    </div>
+  )
+}
+
+/**
+ * What a tile looks like while its container is still loading.
+ *
+ * Shaped like the thing that is coming — a heading, a couple of lines, a
+ * figure — rather than a centred spinner, because the point is that the tile
+ * occupies the same room before and after. It carries the accessible status
+ * the spinner used to.
+ */
+function MountingSkeleton(): ReactNode {
+  return (
+    <div role="status" aria-label="Loading the Widget" className="flex min-h-56 flex-col gap-3">
+      <Skeleton className="h-4 w-2/5" />
+      <Skeleton className="h-3 w-4/5" />
+      <Skeleton className="h-3 w-3/5" />
+      <Skeleton className="h-28 w-full" />
+      <div className="flex gap-2">
+        <Skeleton className="h-7 w-20" />
+        <Skeleton className="h-7 w-16" />
+      </div>
     </div>
   )
 }
@@ -169,6 +196,7 @@ const MountedWidget = memo(function TileWidget({
       widgetId={tile.widgetId}
       {...tile.inputs}
       {...handlerPropsFor(events, onEvent)}
+      pending={<MountingSkeleton />}
       fallback={({ error, retry }) => (
         <div role="alert" className="flex flex-col gap-3">
           <div className="flex items-center gap-2 text-destructive">

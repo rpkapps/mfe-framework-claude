@@ -22,8 +22,10 @@ import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
 import { createFaroProvider } from './shell/faro.ts'
+import { preferredTheme } from './shell/preferences.ts'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
+import { sessionGeneration } from './shell/session-generation.ts'
 import { notices } from './shell/workspace.ts'
 import './styles/app.css'
 
@@ -76,6 +78,15 @@ installShellAuth({
 })
 
 const storage = overrideStorage()
+
+/**
+ * The signed-in user. Declared before the runtime because the session
+ * generation is derived from it: a shell that boots with somebody in force owes
+ * the framework the generation that session's storage is fenced by, and without
+ * it every `retention: 'session'` write is refused.
+ */
+const user = { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' }
+
 const { runtime, activeOverrides } = createMfeRuntime({
   registryEntries: await readRegistry(),
   // The only place in the shell that knows federation exists.
@@ -86,15 +97,21 @@ const { runtime, activeOverrides } = createMfeRuntime({
     },
   }),
   shellState: {
-    user: { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' },
+    user,
     groups: ['geoscience', 'well-planning.read'],
-    theme: 'dark',
+    // The choice this browser last made, or the operating system's. The same
+    // function decides it in the inline script in index.html, so the document
+    // never paints in one theme and then switches to the other.
+    theme: preferredTheme(),
   },
   // The Faro adapter is the real path; this test shell has no collector to send
   // to, so it records unless one is configured. Both satisfy the same seam,
   // which is the point of the seam.
   telemetryProvider: telemetryProvider(),
   navigationBridge: createBrowserNavigationBridge(),
+  // Stable across a reload, fresh for a new tab — the same lifetime as the
+  // session-retained data it fences.
+  sessionGeneration: sessionGeneration(user.id),
   ...(storage === undefined ? {} : { overrideStorage: storage }),
   notifyCommandDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })

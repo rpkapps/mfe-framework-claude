@@ -3,7 +3,7 @@ import { SpanStatusCode, useTelemetry } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
 import { useState, type ReactNode } from 'react'
 
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { EventLog, LabPage, LabSection, type LogTone } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/telemetry')({
   staticData: { breadcrumb: 'Telemetry' },
@@ -12,10 +12,12 @@ export const Route = createFileRoute('/telemetry')({
 
 function Telemetry(): ReactNode {
   const telemetry = useTelemetry()
-  const [log, setLog] = useState<readonly string[]>([])
+  const [log, setLog] = useState<readonly { at: string; text: string; tone: LogTone }[]>([])
 
-  const note = (line: string): void => {
-    setLog(current => [line, ...current].slice(0, 10))
+  const note = (text: string, tone: LogTone = 'default'): void => {
+    setLog(current =>
+      [{ at: new Date().toLocaleTimeString(), text, tone }, ...current].slice(0, 10),
+    )
   }
 
   return (
@@ -39,7 +41,7 @@ function Telemetry(): ReactNode {
                 span.setAttribute('lab.rows', 128)
                 span.setStatus({ code: SpanStatusCode.OK })
                 span.end()
-                note('span lab.compute ended OK')
+                note('Span lab.compute ended OK', 'success')
               })
             }}
           >
@@ -51,7 +53,7 @@ function Telemetry(): ReactNode {
               telemetry.tracer.startActiveSpan('lab.failing', span => {
                 span.setStatus({ code: SpanStatusCode.ERROR, message: 'Deliberate failure' })
                 span.end()
-                note('span lab.failing ended ERROR')
+                note('Span lab.failing ended ERROR', 'destructive')
               })
             }}
           >
@@ -66,7 +68,7 @@ function Telemetry(): ReactNode {
             variant="outline"
             onPress={() => {
               telemetry.info('Lab said hello', { where: 'telemetry page' })
-              note('info: Lab said hello')
+              note('info — Lab said hello')
             }}
           >
             Log info
@@ -75,13 +77,19 @@ function Telemetry(): ReactNode {
             variant="outline"
             onPress={() => {
               telemetry.warn('Lab is about to do something odd', { deliberate: true })
-              note('warn: Lab is about to do something odd')
+              note('warn — Lab is about to do something odd', 'warning')
             }}
           >
             Log a warning
           </Button>
         </div>
-        {log.length === 0 ? null : <Readout label="emitted" value={log.join('\n')} />}
+      </LabSection>
+
+      <LabSection title="What this page emitted" note="recorded here, not sent">
+        <EventLog
+          entries={log}
+          empty="Nothing yet. Start a span or log a line, and it is recorded here as well as handed to the provider."
+        />
       </LabSection>
     </LabPage>
   )

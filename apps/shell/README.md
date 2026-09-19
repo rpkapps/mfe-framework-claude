@@ -40,6 +40,49 @@ path the shell can claim without shadowing an App that might one day be called
 that. The registry view is a sheet rather than a route for the same reason —
 and because it is worth being able to open from wherever you already are.
 
+### The surfaces in the header
+
+Every control in the header does something, and each one is a sheet or a dialog
+rather than a route, for the same reason the registry is: they are opened from
+wherever you already are and dismissed back to it.
+
+| Surface         | Opened by              | What it is                                                                                  |
+| --------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| Command palette | `⌘K` / `Ctrl+K`        | every application, every capability page, the shell's own commands, the mounted App's       |
+| Registry        | the layers icon, `g r` | what loaded, what was rejected, and the descriptor as published                             |
+| Settings        | the gear, `g s`        | theme, the dashboard canvas, developer overrides, and links to each App's own settings page |
+| Help            | the question mark, `?` | what the pieces of the page are, and the live shortcut registry                             |
+| What's new      | the sparkle            | release notes                                                                               |
+| Report a bug    | the bug                | a report with the build, the route, the registry state and the overrides already filled in  |
+
+Below `lg` the last three move into an overflow menu rather than disappearing:
+a control that is hidden at one width and absent at another is a feature nobody
+can find.
+
+They are all opened through one small store (`ui-store.ts`) rather than through
+callbacks threaded down from the layout, which is what lets the palette open
+settings and settings open the registry without either knowing where the other
+lives.
+
+### The theme
+
+The shell owns it: one document class, one value published to every mount
+through the shell state. It is remembered in `localStorage` under the shell's
+own key — not through the framework's storage, which is scoped to a definition
+and retired on a session change, and the theme belongs to none of the
+definitions on the page and should survive a sign-out. An inline script in
+`index.html` applies the same choice before first paint, so a light-theme user
+never sees the document boot dark and flip.
+
+### Navigation an App can refuse
+
+The shell routes its own navigations through `runtime.navigator`, so a mounted
+App with unsaved work can object to one. The shell asks; the App answers in its
+own dialog, in its own design system, inside its own region — the shell neither
+draws that dialog nor decides what counts as unsaved. `/lab/unsaved` is the
+worked example, and a registered blocker also becomes the browser's
+`beforeunload` prompt, which a reload does not otherwise reach.
+
 ### The widget dashboard
 
 `/` composes a page out of Widgets the shell was never built against. It knows
@@ -48,8 +91,14 @@ input schema and a list of event names. Drag a Widget from the catalogue onto
 the canvas — or press its Add button, which is the same thing without a pointer
 — and a dialog asks for its inputs, with every control generated from the
 schema that Widget's own build published. Tiles are reorderable, resizable and
-saved in `localStorage`, and everything the Widgets emit appears in the events
-feed beside them.
+saved in `localStorage`, and everything the Widgets emit appears in the activity
+feed beside them — as named fields, because a Widget's event payload is the half
+of its contract a screenshot cannot show and `{"fdaId":"fda-1-02"}` is not
+something anyone should have to parse by eye.
+
+A mounting tile reserves its room with a skeleton rather than a spinner: a
+container arriving used to resize its tile and move every tile below it, and a
+canvas that rearranges itself under the pointer is one you cannot click.
 
 Adding a Widget to this dashboard is a registry change, not a shell release.
 

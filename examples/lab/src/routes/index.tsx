@@ -2,10 +2,18 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useBasePath, useMfeSignal, useTheme, useUser } from '@company/mfe-react'
 import { buildHash, buildTime, contractMajor, definitions } from '#mfe/meta'
 import { Badge } from '@tecton/react/components/badge'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tecton/react/components/table'
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
 import type { ReactNode } from 'react'
 
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { DataList, DataRow, Flag, Identifier, LabPage, LabSection } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/')({
   staticData: { breadcrumb: 'Overview' },
@@ -46,7 +54,7 @@ function Overview(): ReactNode {
         </Stat>
         <Stat>
           <StatLabel>Signed in</StatLabel>
-          <StatValue>{user?.name ?? 'nobody'}</StatValue>
+          <StatValue className="truncate">{user?.name ?? 'nobody'}</StatValue>
         </Stat>
       </StatGroup>
 
@@ -55,9 +63,52 @@ function Overview(): ReactNode {
           Generated at build time, so a deployed bundle can always say which build it is — which is
           the question every incident starts with.
         </p>
-        <Readout label="definitions" value={definitions} />
-        <Readout label="buildHash" value={buildHash} />
-        <Readout label="buildTime" value={buildTime} />
+
+        {/*
+         * A container may export several definitions, and which ones is a list
+         * with three fields per row. That is a table; it was an array of JSON
+         * objects, which is a table someone has to reassemble by eye.
+         */}
+        <Table aria-label="Definitions this container exports">
+          <TableHeader>
+            <TableHead id="id" isRowHeader>
+              Definition
+            </TableHead>
+            <TableHead id="kind">Kind</TableHead>
+            <TableHead id="version">Version</TableHead>
+          </TableHeader>
+          <TableBody>
+            {definitions.map(definition => (
+              <TableRow key={definition.id} id={definition.id}>
+                <TableCell>
+                  <Identifier value={definition.id} />
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={definition.kind === 'app' ? 'info' : 'secondary'}
+                    appearance="outline"
+                  >
+                    {definition.kind}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {definition.version ?? 'unversioned'}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
+        <DataList>
+          <DataRow label="buildHash" hint="the commit this bundle came from">
+            <Identifier value={buildHash} copy />
+          </DataRow>
+          <DataRow label="buildTime" hint="when it was produced">
+            {formatBuildTime(buildTime)}
+          </DataRow>
+        </DataList>
       </LabSection>
 
       <LabSection title="The mount's lifetime" note="useMfeSignal">
@@ -66,7 +117,11 @@ function Overview(): ReactNode {
           unmounting this App aborts it — which is what stops a disposed MFE writing to state that
           no longer exists.
         </p>
-        <Readout label="signal.aborted" value={signal.aborted} />
+        <DataList>
+          <DataRow label="signal.aborted" hint="true once this mount is disposed">
+            <Flag value={signal.aborted} trueLabel="aborted" falseLabel="live" />
+          </DataRow>
+        </DataList>
       </LabSection>
 
       <p className="text-sm text-muted-foreground">
@@ -75,4 +130,10 @@ function Overview(): ReactNode {
       </p>
     </LabPage>
   )
+}
+
+/** The reader's locale. An ISO string is a machine's format, not a person's. */
+function formatBuildTime(iso: string): string {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString()
 }

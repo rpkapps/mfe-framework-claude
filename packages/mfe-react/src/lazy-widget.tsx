@@ -8,7 +8,7 @@
  */
 
 import type { ContractEvents, ContractInputs, MfeError, WidgetContract } from '@company/mfe-core'
-import { use, useCallback, useState, type ReactNode } from 'react'
+import { Suspense, use, useCallback, useState, type ReactNode } from 'react'
 
 import { createMount, useOwnedMount } from './create-runtime.ts'
 import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
@@ -31,6 +31,13 @@ export type LazyWidgetProps<C extends WidgetContract | undefined> = (C extends W
   ? ContractInputs<C> & HandlerProps<C>
   : Record<string, unknown>) & {
   readonly fallback?: (props: WidgetFallbackProps) => ReactNode
+  /**
+   * What occupies this Widget's box while its container is being fetched. A
+   * skeleton of roughly the right size is the useful answer; the default is
+   * nothing, because the framework ships no CSS and will not guess at a
+   * consumer's design system.
+   */
+  readonly pending?: ReactNode
 }
 
 export interface LazyWidgetOptions<C extends WidgetContract> {
@@ -118,6 +125,7 @@ function WidgetBoundary({
   readonly props: Record<string, unknown>
 }): ReactNode {
   const fallback = props['fallback'] as ((props: WidgetFallbackProps) => ReactNode) | undefined
+  const pending = props['pending'] as ReactNode
   const runtime = useMfeRuntime(`the "${widgetId}" Widget`)
   const [attempt, setAttempt] = useState(0)
   const retry = useCallback(() => {
@@ -125,7 +133,21 @@ function WidgetBoundary({
     setAttempt(current => current + 1)
   }, [runtime, widgetId])
 
-  const body = <WidgetLoader key={attempt} widgetId={widgetId} contract={contract} props={props} />
+  /*
+   * A Widget's load suspends, and a suspension is caught by the nearest
+   * boundary above it — which, without this one, is whatever the consuming
+   * page happens to have. Mounting one Widget, or retrying one that failed,
+   * therefore replaced the entire page with its fallback and flickered
+   * everything else back in afterwards.
+   *
+   * The boundary belongs here, with the Widget, because the thing being loaded
+   * is this box and nothing else. `pending` is what fills the box meanwhile.
+   */
+  const body = (
+    <Suspense fallback={pending}>
+      <WidgetLoader key={attempt} widgetId={widgetId} contract={contract} props={props} />
+    </Suspense>
+  )
 
   return fallback ? (
     <RetryBoundary

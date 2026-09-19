@@ -10,7 +10,7 @@ import { ESLint } from 'eslint'
 import type { Linter } from 'eslint'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { author, framework } from '../index.ts'
 
@@ -71,6 +71,21 @@ function makeProject(files: Record<string, string>): string {
 afterAll(() => {
   for (const root of projects) rmSync(root, { recursive: true, force: true })
 })
+
+/**
+ * The file a result is for, named the one way these expectations spell it.
+ *
+ * ESLint reports the host's own path, so on Windows every `endsWith('src/x.ts')`
+ * below was matching against `src\x.ts` and finding nothing — and a lookup that
+ * returns nothing reads, at the assertion, as "the rule never fired". Four
+ * tests failed on Windows for a reason that had nothing to do with the rules.
+ */
+function resultFor(
+  results: readonly ESLint.LintResult[],
+  suffix: string,
+): ESLint.LintResult | undefined {
+  return results.find(result => result.filePath.split(sep).join('/').endsWith(suffix))
+}
 
 /** Every rule that reported, and every message ESLint could not attribute. */
 async function lint(
@@ -184,18 +199,18 @@ export default config
   it('leaves a TypeScript file outside the configured files untouched', async () => {
     const { results } = await lint(root, preset)
     const linted = results.map(result => result.filePath)
-    expect(linted.some(path => path.endsWith('vitest.config.ts'))).toBe(false)
+    expect(linted.some(path => path.split(sep).join('/').endsWith('vitest.config.ts'))).toBe(false)
   })
 
   it('reports nothing in a file that respects the boundaries', async () => {
     const { results } = await lint(root, preset)
-    const clean = results.find(result => result.filePath.endsWith('clean.ts'))
+    const clean = resultFor(results, 'clean.ts')
     expect(clean?.messages).toEqual([])
   })
 
   it('applies the test-scope exceptions in a test file', async () => {
     const { results } = await lint(root, preset)
-    const test = results.find(result => result.filePath.endsWith('service.test.ts'))
+    const test = resultFor(results, 'service.test.ts')
     const ruleIds = (test?.messages ?? []).map(message => message.ruleId)
     expect(ruleIds).not.toContain('@typescript-eslint/unbound-method')
     expect(ruleIds).not.toContain('@typescript-eslint/require-await')
@@ -206,7 +221,7 @@ export default config
 
   it('applies the React rules everywhere by default, hook-shaped API and all', async () => {
     const { results } = await lint(root, preset)
-    const plugin = results.find(result => result.filePath.endsWith('rspack/src/plugin.ts'))
+    const plugin = resultFor(results, 'rspack/src/plugin.ts')
     const ruleIds = (plugin?.messages ?? []).map(message => message.ruleId)
     // `rule.use(...)` is not a hook, but by default React rules apply here.
     expect(ruleIds).toContain('react-hooks/rules-of-hooks')
@@ -221,17 +236,17 @@ export default config
     const { results, fatal } = await lint(root, narrowed)
     expect(fatal).toEqual([])
 
-    const plugin = results.find(result => result.filePath.endsWith('rspack/src/plugin.ts'))
+    const plugin = resultFor(results, 'rspack/src/plugin.ts')
     const pluginRules = (plugin?.messages ?? []).map(message => message.ruleId ?? '')
     expect(pluginRules.filter(ruleId => ruleId.startsWith('react-hooks/'))).toEqual([])
 
     // The React package still gets them, and the rest of the preset still
     // applies to the non-React package.
-    const react = results.find(result => result.filePath.endsWith('mfe-react/src/use-thing.ts'))
+    const react = resultFor(results, 'mfe-react/src/use-thing.ts')
     expect((react?.messages ?? []).map(message => message.ruleId)).toContain(
       'react-hooks/rules-of-hooks',
     )
-    const host = results.find(result => result.filePath.endsWith('mfe-host/src/boot.ts'))
+    const host = resultFor(results, 'mfe-host/src/boot.ts')
     expect((host?.messages ?? []).map(message => message.ruleId)).toContain(
       '@typescript-eslint/no-floating-promises',
     )
@@ -302,7 +317,7 @@ export const Route = createFileRoute('/')({
 
   it('restricts framework internals and telemetry vendors but not zustand', async () => {
     const { results } = await lint(root, preset)
-    const boundaries = results.find(result => result.filePath.endsWith('boundaries.ts'))
+    const boundaries = resultFor(results, 'boundaries.ts')
     const restricted = (boundaries?.messages ?? []).filter(
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
@@ -310,7 +325,7 @@ export const Route = createFileRoute('/')({
     // and the deep path into @company/mfe-host.
     expect(restricted.length).toBe(3)
 
-    const store = results.find(result => result.filePath.endsWith('store.ts'))
+    const store = resultFor(results, 'store.ts')
     const zustand = (store?.messages ?? []).filter(
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
@@ -319,13 +334,13 @@ export const Route = createFileRoute('/')({
 
   it('reports Widget-owned global effects only inside the declared Widget scope', async () => {
     const { results } = await lint(root, preset)
-    const widget = results.find(result => result.filePath.endsWith('widgets/panel.ts'))
+    const widget = resultFor(results, 'widgets/panel.ts')
     const effects = (widget?.messages ?? []).filter(
       message => message.ruleId === 'mfe/no-widget-global-effects',
     )
     expect(effects.length).toBe(2)
 
-    const routes = results.find(result => result.filePath.endsWith('routes/index.ts'))
+    const routes = resultFor(results, 'routes/index.ts')
     expect(
       (routes?.messages ?? []).filter(message => message.ruleId === 'mfe/no-widget-global-effects'),
     ).toEqual([])
@@ -333,7 +348,7 @@ export const Route = createFileRoute('/')({
 
   it('reports nothing in a file that respects the boundaries', async () => {
     const { results } = await lint(root, preset)
-    const clean = results.find(result => result.filePath.endsWith('src/clean.ts'))
+    const clean = resultFor(results, 'src/clean.ts')
     expect(clean?.messages).toEqual([])
   })
 })

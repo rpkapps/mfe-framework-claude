@@ -248,7 +248,7 @@ export function partitionWidgetProps(
 
   for (const [name, value] of Object.entries(props)) {
     // Reserved control props are never forwarded as inputs.
-    if (name === 'fallback' || name === 'key' || name === 'ref') continue
+    if (name === 'fallback' || name === 'pending' || name === 'key' || name === 'ref') continue
 
     const event = handlerPropToEvent.get(name)
     if (event !== undefined) {

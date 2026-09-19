@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -64,7 +64,16 @@ describe('generated inventory', () => {
       'src/routes/settings.tsx': ROUTE,
     })
 
-    const names = plan.generated.files.map(file => file.path.slice(root.length + 1)).sort()
+    // A plan carries real OS paths, so Windows spells them with backslashes;
+    // the names below are the one spelling the generated imports use.
+    const names = plan.generated.files
+      .map(file =>
+        file.path
+          .slice(root.length + 1)
+          .split(sep)
+          .join('/'),
+      )
+      .sort()
 
     expect(names).toEqual([
       '.mfe/.env.example',

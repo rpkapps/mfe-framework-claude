@@ -33,19 +33,41 @@ export function AppBoundary(): ReactNode {
   // `fallback` covers an unresolvable id and a mount-time failure alike, and
   // its retry is a genuinely fresh attempt.
   return (
-    <Suspense
-      fallback={
-        <div className="m-auto">
-          <Spinner />
-        </div>
-      }
-    >
+    <Suspense fallback={<Loading appId={appId} />}>
       <AppHost
         appId={appId}
         basePath={`/${appId}`}
         fallback={props => <MountFailure error={props.error} retry={props.retry} />}
       />
     </Suspense>
+  )
+}
+
+/**
+ * What the boundary shows while a container is on the wire.
+ *
+ * A bare spinner in the middle of an empty region says nothing about what is
+ * happening or how long it might take — and on a slow connection it is the
+ * whole page for several seconds. This says which application is being
+ * fetched, in the same frame the failure and the empty states use, so the
+ * region keeps its shape whichever way the load ends.
+ */
+function Loading({ appId }: { readonly appId: string }): ReactNode {
+  return (
+    <div className="flex h-full w-full" role="status" aria-live="polite">
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Spinner />
+          </EmptyMedia>
+          <EmptyTitle>Loading {appId}</EmptyTitle>
+          <EmptyDescription>
+            Fetching the container this application is deployed in. Its code is not part of the
+            shell&apos;s build, so this is the first time this page has asked for it.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </div>
   )
 }
 

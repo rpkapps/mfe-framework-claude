@@ -7,7 +7,7 @@ import { Switch } from '@tecton/react/components/switch'
 import { useId, useState, type ReactNode } from 'react'
 import { z } from 'zod'
 
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { DataList, DataRow, Fields, LabPage, LabSection, Value } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/storage')({
   staticData: { breadcrumb: 'Storage' },
@@ -76,7 +76,10 @@ function Storage(): ReactNode {
           />
         </Field>
 
-        <Readout label="value" value={draft} />
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">What is stored right now</span>
+          <Fields value={draft} />
+        </div>
       </LabSection>
 
       <LabSection title="Session state, in session storage" note="retention: session">
@@ -127,7 +130,13 @@ function Storage(): ReactNode {
             Remove the key
           </Button>
         </div>
-        {readBack === undefined ? null : <Readout label="key('draft').get()" value={readBack} />}
+        {readBack === undefined ? null : (
+          <DataList>
+            <DataRow label="key('draft').get()" hint="a read, not a subscription">
+              <Value value={readBack} />
+            </DataRow>
+          </DataList>
+        )}
       </LabSection>
     </LabPage>
   )

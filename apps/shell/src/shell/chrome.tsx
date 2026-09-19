@@ -9,9 +9,10 @@
  * reload. The hooks live in `hooks.ts` and the boot facts in `workspace.ts`.
  */
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { useMatches, useNavigate } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import { useBlocker, useMatches, useNavigate } from '@tanstack/react-router'
 import { useMfeRuntime, type BreadcrumbItem, type MfeRuntime } from '@company/mfe-react'
+import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
 import {
   Breadcrumb,
   BreadcrumbItem as Crumb,
@@ -20,8 +21,13 @@ import {
   BreadcrumbPage,
 } from '@tecton/react/components/breadcrumb'
 import { Button } from '@tecton/react/components/button'
-import { DropdownMenuGroup, DropdownMenuItem } from '@tecton/react/components/dropdown-menu'
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@tecton/react/components/dropdown-menu'
 import { Toaster } from '@tecton/react/components/sonner'
+import { RouterProvider as AriaRouterProvider } from 'react-aria-components'
 import {
   AppFinder,
   AppFinderGroup,
@@ -43,12 +49,14 @@ import {
   ShellActions,
   ShellCommandTrigger,
   ShellDivider,
+  ShellOverflow,
   ShellUserMenu,
 } from '@tecton/react/tecton/shell-actions'
 import { ShortcutsProvider, useShortcut } from '@tecton/react/tecton/shortcuts'
 import {
   BugIcon,
   CircleHelpIcon,
+  ClipboardCopyIcon,
   LayoutDashboardIcon,
   LayersIcon,
   MoonIcon,
@@ -56,15 +64,33 @@ import {
   SparklesIcon,
   SunIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
-import { useApps, useTheme } from './hooks.ts'
+import { collectDiagnostics, formatReport } from './diagnostics.ts'
+import { HelpSheet } from './help-sheet.tsx'
+import { useApps, useShellSurface, useTheme } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
+import { writeTheme } from './preferences.ts'
 import { RegistryNotice, RegistrySheet } from './registry-sheet.tsx'
+import { ReleasesDialog } from './releases-dialog.tsx'
+import { ReportBugDialog } from './report-bug-dialog.tsx'
+import { SettingsSheet } from './settings-sheet.tsx'
+import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
+/**
+ * Every surface dismisses to the page underneath it. Declared once at module
+ * scope so each one is handed the same function rather than a new closure per
+ * render — and so none of them needs to know which surface it is.
+ */
+const closeOnDismiss = (open: boolean): void => {
+  if (!open) shellUi.close()
+}
+
 export function ShellLayout({ children }: { readonly children: ReactNode }): ReactNode {
-  const [paletteOpen, setPaletteOpen] = useState(false)
-  const [registryOpen, setRegistryOpen] = useState(false)
+  const runtime = useMfeRuntime('the shell layout')
+  const navigate = useNavigate()
+  const surface = useShellSurface()
   const theme = useTheme()
 
   useEffect(() => {
@@ -72,7 +98,41 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     // value through `useTheme()`, so the toggle is visible on both sides.
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.colorScheme = theme
+    // Remembered here rather than at each switch, because the theme has four
+    // ways to change — the menu, settings, the palette, a shortcut — and a
+    // fifth one added later would otherwise be the one that forgets.
+    writeTheme(theme)
   }, [theme])
+
+  /*
+   * The shell's half of the navigation-blocking contract.
+   *
+   * A mount with unsaved edits registers itself with the runtime's navigator;
+   * this is what makes the shell's own navigations go past it. The router asks,
+   * the navigator negotiates with every affected mount innermost first, and the
+   * mount renders its own confirmation — the shell never draws that dialog and
+   * never decides the answer.
+   */
+  useBlocker({
+    shouldBlockFn: async ({ current, next }) => {
+      const outcome = await runtime.navigator.requestNavigation(
+        createNavigationIntent(
+          parseBoundaryLocation(current.pathname),
+          parseBoundaryLocation(next.pathname),
+          // The boundary of whatever is mounted now: the first segment is the
+          // App's id, and everything under it is that App's own.
+          `/${current.pathname.split('/').filter(Boolean)[0] ?? ''}`,
+        ),
+        // The router commits for us when this resolves false, so there is
+        // nothing to commit here — the negotiation's outcome is the answer.
+        () => {},
+      )
+      return outcome === 'blocked'
+    },
+    // A reload or a closed tab is not a navigation the router sees, and it
+    // discards the same edits. Only offered while something is registered.
+    enableBeforeUnload: () => runtime.navigator.blockerCount > 0,
+  })
 
   return (
     // One registry for the page: the shell registers ⌘K here and a mounted App
@@ -86,43 +146,43 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
        * region it should have had.
        */}
       <AppShell>
-        <Header
-          onOpenPalette={() => {
-            setPaletteOpen(true)
-          }}
-          onOpenRegistry={() => {
-            setRegistryOpen(true)
-          }}
-        />
+        {/*
+         * The design system's links are React Aria links, and a React Aria link
+         * with an `href` is a document navigation unless a router is provided
+         * for it. Every breadcrumb click therefore tore the whole shell down
+         * and re-fetched every container, to arrive at a route the router could
+         * have reached without leaving the page.
+         *
+         * The provider is scoped to the chrome rather than to the document: a
+         * mounted App owns the URL below its boundary, and a link inside it
+         * belongs to its router, not to this one.
+         */}
+        <AriaRouterProvider navigate={to => void navigate({ to })}>
+          <Header />
+        </AriaRouterProvider>
         <AppShellBody className="flex-col">
-          <RegistryNotice
-            onOpen={() => {
-              setRegistryOpen(true)
-            }}
-          />
+          <RegistryNotice />
           <AppShellMain className="flex">{children}</AppShellMain>
         </AppShellBody>
       </AppShell>
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        onOpenRegistry={() => {
-          setRegistryOpen(true)
-        }}
-      />
-      <RegistrySheet isOpen={registryOpen} onOpenChange={setRegistryOpen} />
+
+      {/*
+       * Every shell surface is mounted here and opened from the store, so the
+       * palette can open settings and settings can open the registry without
+       * either one knowing where the other lives.
+       */}
+      <CommandPalette open={surface === 'palette'} onOpenChange={closeOnDismiss} />
+      <RegistrySheet isOpen={surface === 'registry'} onOpenChange={closeOnDismiss} />
+      <SettingsSheet isOpen={surface === 'settings'} onOpenChange={closeOnDismiss} />
+      <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
+      <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
+      <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
       <Toaster position="bottom-right" />
     </ShortcutsProvider>
   )
 }
 
-function Header({
-  onOpenPalette,
-  onOpenRegistry,
-}: {
-  readonly onOpenPalette: () => void
-  readonly onOpenRegistry: () => void
-}): ReactNode {
+function Header(): ReactNode {
   const runtime = useMfeRuntime('the shell header')
   const navigate = useNavigate()
   const apps = useApps()
@@ -134,7 +194,59 @@ function Header({
     keys: 'mod+k',
     label: 'Search or jump to…',
     group: 'Shell',
-    onAction: onOpenPalette,
+    onAction: () => {
+      shellUi.toggle('palette')
+    },
+  })
+
+  useShortcut({
+    id: 'shell.help',
+    keys: '?',
+    label: 'Help and keyboard shortcuts',
+    group: 'Shell',
+    onAction: () => {
+      shellUi.toggle('help')
+    },
+  })
+
+  useShortcut({
+    id: 'shell.registry',
+    keys: 'g r',
+    label: 'Open the registry',
+    group: 'Shell',
+    onAction: () => {
+      shellUi.toggle('registry')
+    },
+  })
+
+  useShortcut({
+    id: 'shell.settings',
+    keys: 'g s',
+    label: 'Open settings',
+    group: 'Shell',
+    onAction: () => {
+      shellUi.toggle('settings')
+    },
+  })
+
+  useShortcut({
+    id: 'shell.dashboard',
+    keys: 'g d',
+    label: 'Go to the Widget dashboard',
+    group: 'Shell',
+    onAction: () => {
+      void navigate({ to: '/' })
+    },
+  })
+
+  useShortcut({
+    id: 'shell.theme',
+    keys: 'mod+j',
+    label: 'Switch between light and dark',
+    group: 'Shell',
+    onAction: () => {
+      runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
+    },
   })
 
   const initials = (user?.name ?? '?')
@@ -205,23 +317,95 @@ function Header({
         <Breadcrumbs />
       </AppShellNav>
 
+      {/*
+       * Below `lg` the last three actions move into the overflow menu rather
+       * than disappearing. A button that is hidden at one width and absent at
+       * another is a feature the user cannot find; a menu is one more tap.
+       */}
       <ShellActions>
-        <ShellCommandTrigger onPress={onOpenPalette}>Search or jump to…</ShellCommandTrigger>
-        <ShellAction label="Registry" onPress={onOpenRegistry}>
+        <ShellCommandTrigger
+          onPress={() => {
+            shellUi.show('palette')
+          }}
+        >
+          Search or jump to…
+        </ShellCommandTrigger>
+        <ShellAction
+          label="Registry"
+          shortcut="g r"
+          onPress={() => {
+            shellUi.show('registry')
+          }}
+        >
           <LayersIcon />
         </ShellAction>
-        <ShellAction label="Help">
+        <ShellAction
+          label="Help"
+          shortcut="?"
+          onPress={() => {
+            shellUi.show('help')
+          }}
+        >
           <CircleHelpIcon />
         </ShellAction>
-        <ShellAction label="What's new" className="hidden lg:inline-flex">
+        <ShellAction
+          label="What’s new"
+          className="hidden lg:inline-flex"
+          onPress={() => {
+            shellUi.show('releases')
+          }}
+        >
           <SparklesIcon />
         </ShellAction>
-        <ShellAction label="Report a bug" className="hidden lg:inline-flex">
+        <ShellAction
+          label="Report a bug"
+          className="hidden lg:inline-flex"
+          onPress={() => {
+            shellUi.show('bug')
+          }}
+        >
           <BugIcon />
         </ShellAction>
-        <ShellAction label="Settings" className="hidden lg:inline-flex">
+        <ShellAction
+          label="Settings"
+          shortcut="g s"
+          className="hidden lg:inline-flex"
+          onPress={() => {
+            shellUi.show('settings')
+          }}
+        >
           <SettingsIcon />
         </ShellAction>
+
+        <ShellOverflow label="More" className="lg:hidden">
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              textValue="What's new"
+              onAction={() => {
+                shellUi.show('releases')
+              }}
+            >
+              <SparklesIcon /> What’s new
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue="Report a bug"
+              onAction={() => {
+                shellUi.show('bug')
+              }}
+            >
+              <BugIcon /> Report a bug
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue="Settings"
+              onAction={() => {
+                shellUi.show('settings')
+              }}
+            >
+              <SettingsIcon /> Settings
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </ShellOverflow>
+
         <ShellUserMenu user={{ name: user?.name ?? 'Unknown', initials }}>
           <DropdownMenuGroup>
             <DropdownMenuItem
@@ -232,6 +416,45 @@ function Header({
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
               {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue="Settings"
+              onAction={() => {
+                shellUi.show('settings')
+              }}
+            >
+              <SettingsIcon /> Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              textValue="Help and keyboard shortcuts"
+              onAction={() => {
+                shellUi.show('help')
+              }}
+            >
+              <CircleHelpIcon /> Help and keyboard shortcuts
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              textValue="Copy diagnostics"
+              onAction={() => {
+                const report = formatReport(
+                  'Shell diagnostics',
+                  'Copied from the account menu.',
+                  collectDiagnostics(runtime),
+                )
+                void navigator.clipboard
+                  .writeText(report)
+                  .then(() => {
+                    toast.success('Diagnostics copied to the clipboard.')
+                  })
+                  .catch(() => {
+                    toast.error('This browser would not give the page the clipboard.')
+                  })
+              }}
+            >
+              <ClipboardCopyIcon /> Copy diagnostics
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </ShellUserMenu>

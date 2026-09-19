@@ -29,6 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/componen
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { AppWindowIcon, BoxIcon, CircleCheckIcon, TriangleAlertIcon } from 'lucide-react'
 
+import { DataList, DataRow, Mono, ValueView } from './readout.tsx'
+import { shellUi } from './ui-store.ts'
 import { notices } from './workspace.ts'
 
 export interface RegistrySheetProps {
@@ -117,19 +119,21 @@ export function RegistrySheet({ isOpen, onOpenChange }: RegistrySheetProps): Rea
                        * The framework's own diagnostic: what was expected, what
                        * arrived, which rule declared it and the repair. Printed
                        * whole rather than summarised, because the repair line is
-                       * the part that is actually actionable.
+                       * the part that is actually actionable. It is prose, so it
+                       * is set as prose — a monospace block made a paragraph
+                       * look like a stack trace nobody reads.
                        */}
-                      <pre className="overflow-x-auto rounded-md bg-background/60 p-2 font-mono text-xs whitespace-pre-wrap">
+                      <p className="rounded-md bg-background/60 p-2 text-sm whitespace-pre-wrap text-foreground">
                         {entry.error.message}
-                      </pre>
+                      </p>
 
                       <details className="text-xs">
                         <summary className="cursor-pointer text-muted-foreground">
                           The descriptor as published
                         </summary>
-                        <pre className="mt-1 overflow-x-auto rounded-md bg-background/60 p-2 font-mono text-xs">
-                          {JSON.stringify(entry.source, null, 2)}
-                        </pre>
+                        <div className="mt-1.5">
+                          <Descriptor source={entry.source} />
+                        </div>
                       </details>
                     </li>
                   ))}
@@ -140,6 +144,34 @@ export function RegistrySheet({ isOpen, onOpenChange }: RegistrySheetProps): Rea
         </Tabs>
       </div>
     </Sheet>
+  )
+}
+
+/**
+ * What the container published, as fields.
+ *
+ * This is the one place in the shell where showing raw JSON is defensible —
+ * it is literally the document that failed — and it is still the wrong
+ * presentation: a rejected descriptor is read to find the one field that is
+ * wrong, and `JSON.stringify(…, null, 2)` buries it in punctuation. Rows,
+ * with the value rendered for what it is.
+ */
+function Descriptor({ source }: { readonly source: unknown }): ReactNode {
+  if (source === null || typeof source !== 'object' || Array.isArray(source))
+    return (
+      <div className="rounded-md border border-border-subtle bg-background/60 p-2">
+        <ValueView value={source} />
+      </div>
+    )
+
+  return (
+    <DataList className="bg-background/60">
+      {Object.entries(source as Record<string, unknown>).map(([name, value]) => (
+        <DataRow key={name} label={<Mono>{name}</Mono>}>
+          <ValueView value={value} />
+        </DataRow>
+      ))}
+    </DataList>
   )
 }
 
@@ -239,35 +271,65 @@ function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): Rea
  * the developer to stop reading the strip, which is the one place the override
  * warning also lives.
  */
-export function RegistryNotice({ onOpen }: { readonly onOpen: () => void }): ReactNode {
+export function RegistryNotice(): ReactNode {
   const { quarantined } = useMfeRuntime('the shell notices').registry
   const { overrides, registryError } = notices
   if (overrides.size === 0 && quarantined.length === 0 && registryError === null) return null
 
   const rejected = quarantined.length + (registryError === null ? 0 : 1)
 
+  /*
+   * Everything here wraps. A strip that is one non-breaking row is fine at
+   * 1440px and truncates its own link off the right edge of a phone — which
+   * takes the only route to the explanation with it.
+   */
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border-subtle px-3 py-1 text-xs">
+    <div className="flex shrink-0 flex-col gap-x-4 gap-y-1 border-b border-border-subtle px-3 py-1.5 text-xs sm:flex-row sm:flex-wrap sm:items-center">
       {overrides.size > 0 ? (
-        <span className="flex flex-wrap items-center gap-1.5 text-warning-surface-foreground">
-          <span className="font-medium">Developer overrides active:</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-warning-surface-foreground">
+          <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+          <span className="font-medium">
+            {overrides.size === 1
+              ? 'A developer override is'
+              : `${String(overrides.size)} developer overrides are`}{' '}
+            active:
+          </span>
           {[...overrides].map(([id, url]) => (
-            <Badge key={id} variant="warning" size="default">
+            <Badge key={id} variant="warning" appearance="outline" size="default">
               {id} → {url}
             </Badge>
           ))}
-          <code className="font-mono opacity-70">
-            localStorage.removeItem(&apos;company:mfe:overrides&apos;)
-          </code>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onPress={() => {
+              shellUi.show('settings')
+            }}
+          >
+            Manage
+          </Button>
         </span>
       ) : null}
 
       {rejected > 0 ? (
-        <Button variant="link" size="sm" onPress={onOpen}>
-          <TriangleAlertIcon />
-          {rejected} registry {rejected === 1 ? 'entry was' : 'entries were'} rejected — the rest of
-          the page is unaffected. See why
-        </Button>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 text-muted-foreground">
+            {rejected} registry {rejected === 1 ? 'entry was' : 'entries were'} rejected — the rest
+            of the page is unaffected.
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onPress={() => {
+              shellUi.show('registry')
+            }}
+          >
+            See why
+          </Button>
+        </span>
       ) : null}
     </div>
   )

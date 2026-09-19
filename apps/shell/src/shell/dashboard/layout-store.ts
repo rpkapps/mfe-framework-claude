@@ -66,7 +66,7 @@ function readTile(value: unknown): DashboardTile | null {
   }
 }
 
-export function readLayout(storage: Pick<Storage, 'getItem'> | undefined): DashboardLayout {
+function readStored(storage: Pick<Storage, 'getItem'> | undefined): DashboardLayout {
   if (storage === undefined) return EMPTY_LAYOUT
 
   try {
@@ -82,10 +82,7 @@ export function readLayout(storage: Pick<Storage, 'getItem'> | undefined): Dashb
 }
 
 /** Storage can be blocked for the origin, and writing then throws rather than no-ops. */
-export function writeLayout(
-  storage: Pick<Storage, 'setItem'> | undefined,
-  layout: DashboardLayout,
-): void {
+function writeStored(storage: Pick<Storage, 'setItem'> | undefined, layout: DashboardLayout): void {
   try {
     storage?.setItem(STORAGE_KEY, JSON.stringify(layout))
   } catch {
@@ -100,6 +97,45 @@ export function dashboardStorage(): Storage | undefined {
   } catch {
     return undefined
   }
+}
+
+/*
+ * The layout is a store rather than a component's state because the dashboard
+ * page is not the only thing that changes it: the command palette adds a Widget
+ * and settings resets the canvas, from outside the page and sometimes while it
+ * is not even mounted. A second copy in component state would show a stale
+ * canvas until the next navigation.
+ */
+
+let current: DashboardLayout | null = null
+const listeners = new Set<() => void>()
+
+/** Read once, then kept: `useSyncExternalStore` needs a stable reference. */
+export function getLayout(): DashboardLayout {
+  current ??= readStored(dashboardStorage())
+  return current
+}
+
+export function subscribeLayout(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export function setLayout(next: DashboardLayout): void {
+  current = next
+  writeStored(dashboardStorage(), next)
+  for (const listener of listeners) listener()
+}
+
+export function setTiles(tiles: readonly DashboardTile[]): void {
+  setLayout({ tiles })
+}
+
+/** Appends a tile, wherever the caller is — the palette, or the canvas itself. */
+export function addTile(tile: DashboardTile): void {
+  setTiles([...getLayout().tiles, tile])
 }
 
 export function moveTile(

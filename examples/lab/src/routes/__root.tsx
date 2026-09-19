@@ -1,10 +1,12 @@
 import { createRootRouteWithContext, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import type { MfeRouterContext } from '@company/mfe-react'
+import { ScrollArea } from '@tecton/react/components/scroll-area'
 import type { LucideIcon } from 'lucide-react'
 import {
   ActivityIcon,
   BoxIcon,
   DatabaseIcon,
+  FilePenLineIcon,
   KeyRoundIcon,
   LayersIcon,
   ShieldAlertIcon,
@@ -42,38 +44,73 @@ const NAV: readonly { to: string; label: string; hint: string; icon: LucideIcon 
     hint: 'composed with the shell',
     icon: SlidersHorizontalIcon,
   },
+  {
+    to: '/unsaved',
+    label: 'Unsaved edits',
+    hint: 'blocking the shell',
+    icon: FilePenLineIcon,
+  },
   { to: '/failure', label: 'Failure', hint: 'errors that stay contained', icon: ShieldAlertIcon },
 ]
 
 function LabLayout(): ReactNode {
   const matchRoute = useMatchRoute()
+  const isActive = (to: string): boolean => matchRoute({ to, fuzzy: to !== '/' }) !== false
 
   return (
-    <div className="flex min-h-0 w-full flex-1">
+    <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
+      {/*
+       * The rail is the only way into nine of this App's ten pages, so below
+       * `md` it becomes a scrolling strip of the same links rather than
+       * disappearing. Hiding navigation at a breakpoint and putting nothing in
+       * its place is not responsive; it is a dead end with a media query.
+       */}
+      <nav
+        aria-label="Framework features"
+        className="shrink-0 border-b border-border-subtle md:hidden"
+      >
+        <ScrollArea className="overflow-x-auto overflow-y-hidden">
+          <ul className="flex w-max gap-1 p-2">
+            {NAV.map(item => (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap transition-colors ${
+                    isActive(item.to)
+                      ? 'bg-accent font-medium text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  <item.icon className="size-4 shrink-0" />
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </ScrollArea>
+      </nav>
+
       <nav
         aria-label="Framework features"
         className="hidden w-64 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border-subtle p-2 md:flex"
       >
-        {NAV.map(item => {
-          const isActive = matchRoute({ to: item.to, fuzzy: item.to !== '/' }) !== false
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors ${
-                isActive
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              }`}
-            >
-              <item.icon className="mt-0.5 size-4 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-medium">{item.label}</span>
-                <span className="truncate text-xs opacity-70">{item.hint}</span>
-              </span>
-            </Link>
-          )
-        })}
+        {NAV.map(item => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={`flex items-start gap-2 rounded-md px-2 py-1.5 transition-colors ${
+              isActive(item.to)
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            }`}
+          >
+            <item.icon className="mt-0.5 size-4 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-medium">{item.label}</span>
+              <span className="truncate text-xs opacity-70">{item.hint}</span>
+            </span>
+          </Link>
+        ))}
       </nav>
 
       <main className="min-w-0 flex-1 overflow-auto">

@@ -41,7 +41,25 @@ export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode 
     setAttempt(current => current + 1)
   }, [runtime, appId])
 
-  const body = <AppLoader key={attempt} appId={appId} basePath={basePath} />
+  /*
+   * The key carries the App and its boundary, not just the retry counter.
+   *
+   * Without them React reconciles one `AppLoader` across a change of App: the
+   * new definition resolves, the component re-renders, and `useOwnedMount`
+   * still holds the *previous* App's mount — it only swaps in an effect. For
+   * that render `AppMount` builds the new App's router from the old App's
+   * mount, so the author's factory is handed the previous boundary, the router
+   * matches nothing, and the region goes blank. That is precisely what a shell
+   * does every time the user switches application from the finder.
+   *
+   * Keying makes the change a remount: the old subtree unmounts and disposes
+   * its mount, the new one starts from no mount at all, and the host's Suspense
+   * boundary covers the gap — which is the behaviour the rest of this file
+   * already assumes.
+   */
+  const body = (
+    <AppLoader key={`${String(attempt)}:${appId}:${basePath}`} appId={appId} basePath={basePath} />
+  )
 
   return fallback ? (
     <RetryBoundary

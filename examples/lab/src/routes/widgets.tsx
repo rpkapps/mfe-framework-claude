@@ -12,7 +12,7 @@ import { Input } from '@tecton/react/components/input'
 import { useId, useState, type ReactNode } from 'react'
 
 import { AlertPanel, MissingWidget, UntypedAlertPanel } from '../widgets.ts'
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { EventLog, LabPage, LabSection, WidgetSkeleton } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/widgets')({
   staticData: { breadcrumb: 'Widgets' },
@@ -26,11 +26,11 @@ function Widgets(): ReactNode {
   const [alertId, setAlertId] = useState('a-1001')
   const [severity, setSeverity] = useState<(typeof SEVERITIES)[number]>('warning')
   const [badSeverity, setBadSeverity] = useState('critical')
-  const [events, setEvents] = useState<readonly string[]>([])
+  const [events, setEvents] = useState<readonly { at: string; text: string }[]>([])
   const [showMissing, setShowMissing] = useState(false)
 
-  const record = (line: string): void => {
-    setEvents(current => [line, ...current].slice(0, 8))
+  const record = (text: string): void => {
+    setEvents(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
   }
 
   return (
@@ -85,6 +85,7 @@ function Widgets(): ReactNode {
         <AlertPanel
           alertId={alertId}
           severity={severity}
+          pending={<WidgetSkeleton />}
           onAcknowledged={event => {
             record(`acknowledged ${event.alertId} at ${event.acknowledgedAt}`)
           }}
@@ -96,7 +97,13 @@ function Widgets(): ReactNode {
           )}
         />
 
-        {events.length === 0 ? null : <Readout label="events received" value={events.join('\n')} />}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-muted-foreground">Events received from the Widget</span>
+          <EventLog
+            entries={events}
+            empty="Nothing yet. Acknowledge or dismiss the alert above — the payload is validated against the contract on its way out of the Widget."
+          />
+        </div>
       </LabSection>
 
       <LabSection title="An input the contract rejects" note="provider validation">
@@ -123,6 +130,7 @@ function Widgets(): ReactNode {
         <UntypedAlertPanel
           alertId="a-2002"
           severity={badSeverity}
+          pending={<WidgetSkeleton />}
           fallback={({ error, retry }) => (
             <WidgetFailure message={error.message} code={error.code} onRetry={retry} />
           )}
@@ -137,6 +145,7 @@ function Widgets(): ReactNode {
         </p>
         {showMissing ? (
           <MissingWidget
+            pending={<WidgetSkeleton />}
             fallback={({ error, retry }) => (
               <WidgetFailure message={error.message} code={error.code} onRetry={retry} />
             )}

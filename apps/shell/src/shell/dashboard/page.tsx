@@ -25,8 +25,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@tecton/react/components/empty'
-import { ScrollArea } from '@tecton/react/components/scroll-area'
-import { Separator } from '@tecton/react/components/separator'
 import {
   PageHeader,
   PageHeaderActions,
@@ -35,22 +33,29 @@ import {
   PageHeaderEyebrow,
   PageHeaderTitle,
 } from '@tecton/react/tecton/page-header'
-import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tecton/panel'
-import { LayoutDashboardIcon, MousePointerClickIcon, Trash2Icon, ZapIcon } from 'lucide-react'
+import {
+  Panel,
+  PanelActions,
+  PanelContent,
+  PanelHeader,
+  PanelTitle,
+} from '@tecton/react/tecton/panel'
+import {
+  ChevronDownIcon,
+  LayersIcon,
+  LayoutDashboardIcon,
+  MousePointerClickIcon,
+  Trash2Icon,
+  ZapIcon,
+} from 'lucide-react'
 
-import { useWidgets } from '../hooks.ts'
+import { useDashboardLayout, useIsCompact, useWidgets } from '../hooks.ts'
+import { ValueView } from '../readout.tsx'
+import { shellUi } from '../ui-store.ts'
 import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
 import { InputsDialog } from './inputs-dialog.tsx'
 import { initialValues, readInputFields, toInputs } from './input-schema.ts'
-import {
-  dashboardStorage,
-  moveTile,
-  readLayout,
-  tileKey,
-  writeLayout,
-  type DashboardTile,
-  type TileSpan,
-} from './layout-store.ts'
+import { moveTile, setTiles, tileKey, type DashboardTile, type TileSpan } from './layout-store.ts'
 import { Tile } from './tile.tsx'
 
 interface WidgetEvent {
@@ -70,8 +75,9 @@ const MAX_EVENTS = 40
 
 export function DashboardPage(): ReactNode {
   const widgets = useWidgets()
-  const storage = useMemo(() => dashboardStorage(), [])
-  const [tiles, setTiles] = useState<readonly DashboardTile[]>(() => readLayout(storage).tiles)
+  // The canvas is a store, not this component's state: the command palette adds
+  // a Widget and settings clears it, from outside this page.
+  const { tiles } = useDashboardLayout()
   const [editing, setEditing] = useState<Editing | null>(null)
   const [events, setEvents] = useState<readonly WidgetEvent[]>([])
   const [isDropTarget, setIsDropTarget] = useState(false)
@@ -80,13 +86,9 @@ export function DashboardPage(): ReactNode {
 
   const byId = useMemo(() => new Map(widgets.map(entry => [entry.id, entry] as const)), [widgets])
 
-  const commit = useCallback(
-    (next: readonly DashboardTile[]) => {
-      setTiles(next)
-      writeLayout(storage, { tiles: next })
-    },
-    [storage],
-  )
+  const commit = useCallback((next: readonly DashboardTile[]) => {
+    setTiles(next)
+  }, [])
 
   /**
    * A Widget whose inputs are all optional or defaulted needs nothing from the
@@ -134,7 +136,15 @@ export function DashboardPage(): ReactNode {
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderEyebrow>Shell · composition</PageHeaderEyebrow>
-            <PageHeaderTitle>Widget dashboard</PageHeaderTitle>
+            {/*
+             * Wrapping, not truncating. The design system's header is a single
+             * row by design and its title truncates to protect the actions
+             * beside it; a page title is the one thing on the page that must
+             * survive a phone, so every page here opts out of that.
+             */}
+            <PageHeaderTitle className="text-clip whitespace-normal">
+              Widget dashboard
+            </PageHeaderTitle>
             <PageHeaderDescription>
               Every Widget below is served by a different container on a different origin. The shell
               was not built against any of them: it reads their ids, their input schemas and their
@@ -142,6 +152,14 @@ export function DashboardPage(): ReactNode {
             </PageHeaderDescription>
           </PageHeaderContent>
           <PageHeaderActions>
+            <Button
+              variant="outline"
+              onPress={() => {
+                shellUi.show('registry')
+              }}
+            >
+              <LayersIcon /> Registry
+            </Button>
             {tiles.length === 0 ? null : (
               <Button
                 variant="outline"
@@ -155,19 +173,21 @@ export function DashboardPage(): ReactNode {
           </PageHeaderActions>
         </PageHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-12">
-          <div className="xl:col-span-3">
-            <Panel>
-              <PanelHeader>
-                <PanelTitle>Registered Widgets</PanelTitle>
-                <Badge variant="secondary" size="default">
-                  {widgets.length}
-                </Badge>
-              </PanelHeader>
-              <PanelContent>
-                <Catalogue widgets={widgets} onAdd={add} />
-              </PanelContent>
-            </Panel>
+        {/*
+         * Three regions, and which one is the page changes with the width. On a
+         * wide screen the catalogue and the activity feed flank the canvas; from
+         * `lg` down the feed moves under it; in one column the catalogue folds
+         * into its own header so the canvas is never pushed below five Widgets'
+         * worth of published contract.
+         *
+         * `items-start`, and no `flex-1`: each column is as tall as its own
+         * content. Stretching them to a shared row height sized by the
+         * viewport left the canvas shorter than the tiles inside it, and a
+         * tall Widget ran straight out through the dashed border.
+         */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
+          <div className="lg:col-span-4 xl:col-span-3">
+            <CataloguePanel widgets={widgets} onAdd={add} />
           </div>
 
           <section
@@ -189,7 +209,7 @@ export function DashboardPage(): ReactNode {
               const entry = widgetId === '' ? undefined : byId.get(widgetId)
               if (entry !== undefined) add(entry)
             }}
-            className={`min-h-96 rounded-xl border border-dashed p-3 transition-colors xl:col-span-6 ${
+            className={`min-h-96 rounded-xl border border-dashed p-3 transition-colors lg:col-span-8 xl:col-span-6 ${
               isDropTarget ? 'border-primary bg-primary/5' : 'border-border-subtle'
             }`}
           >
@@ -233,7 +253,7 @@ export function DashboardPage(): ReactNode {
             )}
           </section>
 
-          <div className="xl:col-span-3">
+          <div className="lg:col-span-12 xl:col-span-3">
             <ActivityFeed
               events={events}
               onClear={() => {
@@ -279,6 +299,58 @@ export function DashboardPage(): ReactNode {
   )
 }
 
+/**
+ * The catalogue, and how much room it is allowed to take.
+ *
+ * On a wide screen it is a column beside the canvas and stays open. In one
+ * column it is a disclosure, closed: five Widgets' worth of published contract
+ * above the canvas means the canvas is off the bottom of a phone, and capping
+ * the list with a scrollbar instead only sliced the last card in half — which
+ * reads as a rendering bug rather than as "there is more".
+ */
+function CataloguePanel({
+  widgets,
+  onAdd,
+}: {
+  readonly widgets: readonly NeutralRegistryEntry[]
+  readonly onAdd: (entry: NeutralRegistryEntry) => void
+}): ReactNode {
+  const isCompact = useIsCompact()
+  const [isOpen, setIsOpen] = useState(false)
+  const isExpanded = !isCompact || isOpen
+
+  return (
+    <Panel className="lg:max-h-[calc(100svh-18rem)]">
+      <PanelHeader>
+        <PanelTitle>Registered Widgets</PanelTitle>
+        <PanelActions>
+          <Badge variant="secondary" size="default">
+            {widgets.length}
+          </Badge>
+          {isCompact ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-expanded={isOpen}
+              aria-label={isOpen ? 'Hide the catalogue' : 'Show the catalogue'}
+              onPress={() => {
+                setIsOpen(current => !current)
+              }}
+            >
+              <ChevronDownIcon className={isOpen ? 'rotate-180' : ''} />
+            </Button>
+          ) : null}
+        </PanelActions>
+      </PanelHeader>
+      {isExpanded ? (
+        <PanelContent>
+          <Catalogue widgets={widgets} onAdd={onAdd} />
+        </PanelContent>
+      ) : null}
+    </Panel>
+  )
+}
+
 function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNode {
   return (
     <div className="flex h-full">
@@ -320,46 +392,86 @@ function ActivityFeed({
   readonly onClear: () => void
 }): ReactNode {
   return (
-    <Panel>
+    <Panel className="xl:max-h-[calc(100svh-18rem)]">
       <PanelHeader>
-        <PanelTitle>Events</PanelTitle>
-        {events.length === 0 ? null : (
-          <Button variant="ghost" size="icon-sm" aria-label="Clear events" onPress={onClear}>
-            <Trash2Icon />
-          </Button>
-        )}
+        <PanelTitle>Activity</PanelTitle>
+        <PanelActions>
+          {events.length === 0 ? null : (
+            <>
+              <Badge variant="secondary" size="default">
+                {events.length}
+              </Badge>
+              <Button variant="ghost" size="icon-sm" aria-label="Clear events" onPress={onClear}>
+                <Trash2Icon />
+              </Button>
+            </>
+          )}
+        </PanelActions>
       </PanelHeader>
-      <PanelContent>
+      <PanelContent className="max-h-96 xl:max-h-none">
         {events.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Nothing yet. Acknowledge an alert, select a design — anything a Widget declares as an
             event arrives here, validated against its schema on the way out.
           </p>
         ) : (
-          <ScrollArea>
-            <ul className="flex max-h-96 flex-col overflow-y-auto">
-              {events.map((event, index) => (
-                <li key={event.key} className="flex flex-col gap-1 py-2">
-                  {index === 0 ? null : <Separator emphasis="subtle" className="-mt-2 mb-1" />}
-                  <div className="flex items-center gap-1.5">
-                    <ZapIcon aria-hidden className="size-3.5 text-info-surface-foreground" />
-                    <span className="truncate text-xs font-medium">{event.name}</span>
-                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
-                      {event.at}
-                    </span>
-                  </div>
-                  <p className="truncate font-mono text-xs text-muted-foreground">
-                    {event.widgetId}
-                  </p>
-                  <pre className="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
-                    {JSON.stringify(event.payload)}
-                  </pre>
-                </li>
-              ))}
-            </ul>
-          </ScrollArea>
+          <ul className="flex flex-col gap-2">
+            {events.map(event => (
+              <li
+                key={event.key}
+                className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-background/40 p-2.5"
+              >
+                <div className="flex items-center gap-1.5">
+                  <ZapIcon aria-hidden className="size-3.5 shrink-0 text-info" />
+                  <span className="truncate text-sm font-medium">{event.name}</span>
+                  <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                    {event.at}
+                  </span>
+                </div>
+                <span className="truncate font-mono text-xs text-muted-foreground">
+                  {event.widgetId}
+                </span>
+                {/*
+                 * The payload, read as fields rather than as a line of JSON.
+                 * This panel is the only place a Widget's events are visible at
+                 * all, and `{"fdaId":"fda-1-02","selected":true}` is not
+                 * something anyone should have to parse by eye.
+                 */}
+                <Payload payload={event.payload} />
+              </li>
+            ))}
+          </ul>
         )}
       </PanelContent>
     </Panel>
+  )
+}
+
+/** An event payload: named fields when it has them, one value when it does not. */
+function Payload({ payload }: { readonly payload: unknown }): ReactNode {
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload))
+    return (
+      <div className="rounded-md border border-border-subtle bg-card px-2.5 py-1.5">
+        <ValueView value={payload} />
+      </div>
+    )
+
+  const entries = Object.entries(payload as Record<string, unknown>)
+  if (entries.length === 0) return <span className="text-xs text-muted-foreground">no payload</span>
+
+  return (
+    <dl className="divide-y divide-border-subtle overflow-hidden rounded-md border border-border-subtle bg-card">
+      {entries.map(([name, value]) => (
+        <div
+          key={name}
+          className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-2.5 py-1.5"
+        >
+          <dt className="font-mono text-xs text-muted-foreground">{name}</dt>
+          <dd className="min-w-0">
+            <ValueView value={value} />
+          </dd>
+        </div>
+      ))}
+    </dl>
   )
 }

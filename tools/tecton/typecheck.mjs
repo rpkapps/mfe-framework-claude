@@ -14,7 +14,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { relative, resolve } from 'node:path'
 
 import { requireTecton } from './tecton-build.mjs'
@@ -31,18 +31,31 @@ try {
   process.exit(1)
 }
 
-/** A package may install tsc itself, or take the workspace root's. */
-const tsc = [
-  resolve(packageRoot, 'node_modules/.bin/tsc'),
-  resolve(packageRoot, '../../node_modules/.bin/tsc'),
-].find(candidate => existsSync(candidate))
+/**
+ * TypeScript's own entry, run with this Node — not the `.bin` shim.
+ *
+ * The shim is a shell script with no extension, and `spawnSync` cannot execute
+ * one on Windows: it reports ENOENT for a file that plainly exists, and every
+ * Windows machine fails the check with "Could not run tsc". Its `.CMD` sibling
+ * is refused too, because Node no longer spawns a batch file without a shell.
+ * Resolving the package and running its JavaScript needs neither, and it is
+ * the same command on every platform.
+ *
+ * Resolution starts from the package being checked, so a package that installs
+ * its own TypeScript gets that one and everything else falls through to the
+ * workspace root's.
+ */
+const requireFrom = createRequire(resolve(packageRoot, 'package.json'))
 
-if (tsc === undefined) {
-  console.error('No tsc found for this package or in the workspace root.')
+let tsc
+try {
+  tsc = requireFrom.resolve('typescript/bin/tsc')
+} catch {
+  console.error('No TypeScript found for this package or in the workspace root.')
   process.exit(1)
 }
 
-const result = spawnSync(tsc, ['--noEmit', '--pretty', 'false'], {
+const result = spawnSync(process.execPath, [tsc, '--noEmit', '--pretty', 'false'], {
   cwd: packageRoot,
   encoding: 'utf8',
 })

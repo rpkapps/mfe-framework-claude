@@ -27,12 +27,15 @@ describe('the account report route', () => {
   it('reads its path parameter from its own URL', async () => {
     setMfeConfig({ apiBaseUrl: 'https://api.example.test/v1/' })
 
-    const rendered = renderApp(reports, { initialEntries: ['/accounts/42'] })
+    const rendered = renderApp(reports, { initialEntries: ['/accounts/fda-1-02'] })
     mounted = rendered.dispose
 
     await waitFor(() => {
-      expect(screen.getByText('Account 42')).toBeInTheDocument()
+      expect(screen.getByText('Satellite drill locations')).toBeInTheDocument()
     })
+    // The parameter itself, as the page read it — not a name that could have
+    // come from anywhere.
+    expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
   })
 
   it('reads the same parameter whatever boundary it was mounted at', async () => {
@@ -42,12 +45,23 @@ describe('the account report route', () => {
     // assigned differs, and the child never sees it.
     const rendered = renderApp(reports, {
       basePath: '/workspace/reports',
-      initialEntries: ['/accounts/42'],
+      initialEntries: ['/accounts/fda-1-02'],
     })
     mounted = rendered.dispose
 
     await waitFor(() => {
-      expect(screen.getByText('Account 42')).toBeInTheDocument()
+      expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
+    })
+  })
+
+  it('reports an id it has no alternative for, rather than rendering an empty page', async () => {
+    setMfeConfig({ apiBaseUrl: 'https://api.example.test/v1/' })
+
+    const rendered = renderApp(reports, { initialEntries: ['/accounts/42'] })
+    mounted = rendered.dispose
+
+    await waitFor(() => {
+      expect(screen.getByText('No alternative with that id')).toBeInTheDocument()
     })
   })
 

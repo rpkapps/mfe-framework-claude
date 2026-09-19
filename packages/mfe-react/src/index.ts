@@ -51,6 +51,11 @@ export { useBasePath, useMfeSignal, useMfeStorage, useTelemetry } from './hooks/
 export { useCommand } from './hooks/use-command.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
+  useNavigationBlock,
+  type NavigationBlock,
+  type ShouldBlockNavigation,
+} from './hooks/use-navigation-block.ts'
+export {
   useStoredState,
   type StoredStateSetter,
   type UseStoredStateOptions,
@@ -99,6 +104,12 @@ export {
    */
   type JsonSchemaObject,
   type JsonSchemaValue,
+  /*
+   * What a mount is told about a navigation it may refuse. An App author reads
+   * it inside `useNavigationBlock`, so it belongs on the author surface.
+   */
+  type BoundaryLocation,
+  type NavigationIntent,
   type NeutralRegistryEntry,
   type NormalizedRegistry,
   type PublishedWidgetContract,

@@ -25,7 +25,7 @@ import {
 import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import { BoxIcon, GripVerticalIcon, PlusIcon, ZapIcon } from 'lucide-react'
 
-import { readInputFields } from './input-schema.ts'
+import { readInputFields, type InputField } from './input-schema.ts'
 
 /** The drag payload. A custom type keeps unrelated drops out of the canvas. */
 export const WIDGET_MEDIA_TYPE = 'application/x-mfe-widget'
@@ -84,41 +84,90 @@ function CatalogueItem({
         event.dataTransfer.setData('text/plain', entry.id)
         event.dataTransfer.effectAllowed = 'copy'
       }}
-      className="group/widget flex cursor-grab items-start gap-2 rounded-lg border border-border-subtle bg-card p-3 transition-colors hover:border-border hover:bg-accent/40 active:cursor-grabbing"
+      className="group/widget flex cursor-grab items-start gap-2 rounded-lg border border-border-subtle bg-card p-2.5 transition-colors hover:border-border hover:bg-accent/40 active:cursor-grabbing"
     >
       <GripVerticalIcon
         aria-hidden
-        className="mt-0.5 size-4 shrink-0 text-muted-foreground group-hover/widget:text-foreground"
+        className="mt-1 size-4 shrink-0 text-muted-foreground group-hover/widget:text-foreground"
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{entry.title ?? entry.id}</span>
-          {entry.version === undefined ? null : (
-            <span className="font-mono text-xs text-muted-foreground">{entry.version}</span>
-          )}
-          {entry.overridden === true ? (
-            <Badge variant="warning" size="default">
-              override
-            </Badge>
-          ) : null}
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        {/*
+         * The id goes under the name rather than beside it. Sharing one row
+         * meant the panel's width was split between two strings that both
+         * truncate, and at three columns the result was "FDA summ…" next to
+         * "fda-summa…" — two halves of an identifier and no whole one.
+         */}
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-sm font-medium">{entry.title ?? entry.id}</span>
+            <span className="ml-auto flex shrink-0 items-center gap-1">
+              {entry.overridden === true ? (
+                <Badge variant="warning" appearance="outline">
+                  override
+                </Badge>
+              ) : null}
+              {entry.version === undefined ? null : (
+                <span className="font-mono text-xs text-muted-foreground">{entry.version}</span>
+              )}
+            </span>
+          </div>
+          <span className="truncate font-mono text-xs text-muted-foreground">{entry.id}</span>
         </div>
 
-        <p className="truncate font-mono text-xs text-muted-foreground">{entry.id}</p>
+        {/*
+         * What it takes and what it emits, as two labelled lines rather than
+         * one run of differently coloured pills. The earlier version put
+         * required inputs, optional inputs and event names in the same wrapping
+         * row, in three variants, and at any width narrower than the panel it
+         * read as confetti: nothing in it said which word was a prop and which
+         * was an event. A row label costs eight characters and answers that.
+         */}
+        <Contract fields={fields} events={events} />
+      </div>
 
-        <div className="flex flex-wrap items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Add ${entry.title ?? entry.id} to the dashboard`}
+        className="opacity-70 transition-opacity group-hover/widget:opacity-100"
+        onPress={() => {
+          onAdd(entry)
+        }}
+      >
+        <PlusIcon />
+      </Button>
+    </li>
+  )
+}
+
+/** The published contract, in two lines: inputs in, events out. */
+function Contract({
+  fields,
+  events,
+}: {
+  readonly fields: readonly InputField[] | null
+  readonly events: readonly string[]
+}): ReactNode {
+  return (
+    <dl className="flex flex-col gap-1 text-xs">
+      <div className="flex min-w-0 gap-2">
+        <dt className="w-12 shrink-0 pt-0.5 text-muted-foreground">Takes</dt>
+        <dd className="flex min-w-0 flex-wrap gap-1">
           {fields === null ? (
-            <Badge variant="secondary" size="default">
-              schema not published
-            </Badge>
+            <span className="text-muted-foreground italic">no schema published</span>
+          ) : fields.length === 0 ? (
+            <span className="text-muted-foreground">nothing</span>
           ) : (
             fields.map(field => (
               <TooltipTrigger key={field.name}>
                 <Badge
-                  variant={field.required ? 'default' : 'secondary'}
+                  variant="outline"
                   render={props => <span {...props} tabIndex={0} />}
+                  className={field.required ? 'border-border-strong' : 'text-muted-foreground'}
                 >
                   {field.name}
+                  {field.required ? <span aria-hidden>*</span> : null}
                 </Badge>
                 <Tooltip>
                   {field.typeLabel}
@@ -127,24 +176,23 @@ function CatalogueItem({
               </TooltipTrigger>
             ))
           )}
-          {events.map(event => (
-            <Badge key={event} variant="info" size="default">
-              <ZapIcon /> {event}
-            </Badge>
-          ))}
-        </div>
+        </dd>
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Add ${entry.title ?? entry.id} to the dashboard`}
-        onPress={() => {
-          onAdd(entry)
-        }}
-      >
-        <PlusIcon />
-      </Button>
-    </li>
+      <div className="flex min-w-0 gap-2">
+        <dt className="w-12 shrink-0 pt-0.5 text-muted-foreground">Emits</dt>
+        <dd className="flex min-w-0 flex-wrap gap-1">
+          {events.length === 0 ? (
+            <span className="text-muted-foreground">nothing</span>
+          ) : (
+            events.map(event => (
+              <Badge key={event} variant="info" appearance="outline">
+                <ZapIcon aria-hidden /> {event}
+              </Badge>
+            ))
+          )}
+        </dd>
+      </div>
+    </dl>
   )
 }

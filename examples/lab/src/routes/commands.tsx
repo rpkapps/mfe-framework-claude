@@ -6,7 +6,7 @@ import { Switch } from '@tecton/react/components/switch'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { useId, useState, type ReactNode } from 'react'
 
-import { LabPage, LabSection, Readout } from '../lab-page.tsx'
+import { EventLog, LabPage, LabSection, Tags } from '../lab-page.tsx'
 
 export const Route = createFileRoute('/commands')({
   staticData: { breadcrumb: 'Commands' },
@@ -17,11 +17,11 @@ function Commands(): ReactNode {
   const id = useId()
   const user = useUser()
   const groups = useGroups()
-  const [log, setLog] = useState<readonly string[]>([])
+  const [log, setLog] = useState<readonly { at: string; text: string }[]>([])
   const [armed, setArmed] = useState(true)
 
-  const record = (line: string): void => {
-    setLog(current => [`${new Date().toLocaleTimeString()} — ${line}`, ...current].slice(0, 8))
+  const record = (text: string): void => {
+    setLog(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
   }
 
   // Registration is a hook, so scoping follows component lifetime: leave this
@@ -31,7 +31,7 @@ function Commands(): ReactNode {
     label: 'Run the simulation',
     canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
     execute: () => {
-      record('run-simulation executed')
+      record('Ran the simulation')
     },
   })
 
@@ -43,7 +43,7 @@ function Commands(): ReactNode {
         ? allow()
         : deny('You need the well-planning.read group to export.'),
     execute: () => {
-      record('export-results executed')
+      record('Exported the results')
     },
   })
 
@@ -75,30 +75,28 @@ function Commands(): ReactNode {
       <LabSection title="A command the session decides" note="groups">
         <p className="text-sm text-muted-foreground">
           &ldquo;Export results&rdquo; is allowed only for the{' '}
-          <code className="font-mono">well-planning.read</code> group. This session:
+          <code className="font-mono">well-planning.read</code> group.{' '}
+          {user === null ? 'Nobody is signed in' : `${user.name} is a member of`}:
         </p>
-        <div className="flex flex-wrap gap-1">
-          {groups.map(group => (
-            <Badge key={group} variant="secondary">
-              {group}
+        <Tags values={groups} variant="info" empty="No groups on this session." />
+        <p className="text-sm">
+          {groups.includes('well-planning.read') ? (
+            <Badge variant="success" appearance="outline">
+              allowed for this session
             </Badge>
-          ))}
-        </div>
-        <Readout label="user" value={user?.name ?? null} />
+          ) : (
+            <Badge variant="warning" appearance="outline">
+              denied for this session
+            </Badge>
+          )}
+        </p>
       </LabSection>
 
       <LabSection title="What ran" note="execute">
-        {log.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nothing yet. Run a command from the palette.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-1 font-mono text-xs">
-            {log.map(line => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        )}
+        <EventLog
+          entries={log}
+          empty="Nothing yet. Press ⌘K and run one of this page's commands from the palette."
+        />
       </LabSection>
     </LabPage>
   )
