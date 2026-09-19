@@ -31,6 +31,7 @@ function createRecordingBridge(): NavigationBridge & {
   return {
     listeners,
     read: vi.fn((): BoundaryLocation => ({ pathname: '/reports', search: '', hash: '' })),
+    readState: vi.fn((): unknown => ({ __TSR_index: 7 })),
     subscribe: vi.fn((listener: (location: BoundaryLocation) => void): Unsubscribe => {
       listeners.push(listener)
       return () => {
@@ -277,7 +278,11 @@ describe('blocker registration', () => {
     expect(order).toEqual([])
   })
 
-  it('replaces a blocker when the same mount registers again', async () => {
+  it('keeps every blocker one mount registers, and asks them all', async () => {
+    // One mount can have more than one thing to lose: the framework registers
+    // the App's router blockers under its token, and an author may register
+    // another beside them. Keying by the token deleted the first, and the
+    // failure was invisible until the wrong dialog did not appear.
     const order: string[] = []
     const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('first', 1, order))
@@ -285,8 +290,23 @@ describe('blocker registration', () => {
 
     await navigator.requestNavigation(INTENT, vi.fn())
 
+    expect(navigator.blockerCount).toBe(2)
+    expect(order).toEqual(['first', 'second'])
+  })
+
+  it('removes every blocker a mount registered when that mount is disposed', async () => {
+    const order: string[] = []
+    const navigator = createNavigator()
+    navigator.registerBlocker('mount-a', recordingBlocker('first', 1, order))
+    navigator.registerBlocker('mount-a', recordingBlocker('second', 1, order))
+    navigator.registerBlocker('mount-b', recordingBlocker('other', 1, order))
+
+    navigator.removeMount('mount-a')
+
+    await navigator.requestNavigation(INTENT, vi.fn())
+
     expect(navigator.blockerCount).toBe(1)
-    expect(order).toEqual(['second'])
+    expect(order).toEqual(['other'])
   })
 
   it('drops every blocker on forced cleanup, which cannot be vetoed', async () => {
@@ -326,6 +346,52 @@ describe('blocker registration', () => {
   })
 })
 
+describe('the browser unload prompt', () => {
+  it('is not offered when nothing is registered', () => {
+    expect(createNavigator().wantsUnloadPrompt()).toBe(false)
+  })
+
+  it('is offered by a blocker that has not said otherwise', () => {
+    const navigator = createNavigator()
+    navigator.registerBlocker('mount-a', recordingBlocker('a', 1, []))
+
+    // TanStack's `enableBeforeUnload` defaults to true, and a blocker that has
+    // not thought about reloads keeps that default rather than losing the
+    // prompt by omission.
+    expect(navigator.wantsUnloadPrompt()).toBe(true)
+  })
+
+  it('is refused only when every blocker refuses it', () => {
+    const navigator = createNavigator()
+    const quiet = { ...recordingBlocker('quiet', 1, []), shouldBlockUnload: () => false }
+    const loud = { ...recordingBlocker('loud', 1, []), shouldBlockUnload: () => true }
+
+    const drop = navigator.registerBlocker('mount-a', quiet)
+    expect(navigator.wantsUnloadPrompt()).toBe(false)
+
+    navigator.registerBlocker('mount-b', loud)
+    expect(navigator.wantsUnloadPrompt()).toBe(true)
+
+    drop()
+    expect(navigator.wantsUnloadPrompt()).toBe(true)
+  })
+
+  it('offers the prompt when the question throws, rather than losing work quietly', () => {
+    const { hub, records } = recordingDiagnostics()
+    const navigator = createNavigator(hub)
+    navigator.registerBlocker('mount-a', {
+      ...recordingBlocker('broken', 1, []),
+      shouldBlockUnload: () => {
+        throw new Error('broken')
+      },
+    })
+
+    expect(navigator.wantsUnloadPrompt()).toBe(true)
+    expect(records).toHaveLength(1)
+    expect(records[0]?.error.message).toContain('losing it silently discards work')
+  })
+})
+
 describe('bridge delegation', () => {
   it('forwards every navigation verb to the bridge it was given', () => {
     const bridge = createRecordingBridge()
@@ -337,11 +403,148 @@ describe('bridge delegation', () => {
     navigator.forward()
     navigator.reload()
 
-    expect(bridge.push).toHaveBeenCalledWith('/reports/42')
-    expect(bridge.replace).toHaveBeenCalledWith('/reports/43')
+    expect(bridge.push).toHaveBeenCalledWith('/reports/42', undefined)
+    expect(bridge.replace).toHaveBeenCalledWith('/reports/43', undefined)
     expect(bridge.back).toHaveBeenCalledTimes(1)
     expect(bridge.forward).toHaveBeenCalledTimes(1)
     expect(bridge.reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('carries the entry state through, because a mount’s history lives in it', () => {
+    // The navigator is itself the bridge an App's boundary history is built
+    // over. Dropping the state left every entry an App pushed with none, so
+    // neither history could tell a back from a forward and a refused back
+    // navigation had no delta to roll back by.
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+
+    navigator.push('/reports/42', { __TSR_index: 3 })
+    navigator.replace('/reports/43', { __TSR_index: 3 })
+
+    expect(bridge.push).toHaveBeenCalledWith('/reports/42', { __TSR_index: 3 })
+    expect(bridge.replace).toHaveBeenCalledWith('/reports/43', { __TSR_index: 3 })
+    expect(navigator.readState()).toEqual({ __TSR_index: 7 })
+  })
+
+  it('traverses through the bridge, and single-steps when it cannot', () => {
+    const withGo = { ...createRecordingBridge(), go: vi.fn() }
+    new BoundaryNavigator({ bridge: withGo }).go(-2)
+    expect(withGo.go).toHaveBeenCalledWith(-2)
+
+    // A bridge without `go` supports only single steps, and stranding a router
+    // mid-rollback is worse than the nearest one.
+    const withoutGo = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge: withoutGo })
+    navigator.go(-2)
+    navigator.go(1)
+    navigator.go(0)
+    expect(withoutGo.back).toHaveBeenCalledTimes(1)
+    expect(withoutGo.forward).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds an external navigation while one is being negotiated, and releases it', async () => {
+    // A browser back moves the URL before anyone is asked. A mount told about
+    // it straight away leaves the page the user is still being asked about,
+    // which is how the confirmation ends up over the wrong screen.
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+
+    const heard: BoundaryLocation[] = []
+    navigator.subscribe(location => heard.push(location))
+
+    const negotiation = navigator.requestNavigation(INTENT, vi.fn())
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(heard).toEqual([])
+
+    answer.resolve('proceed')
+    await negotiation
+
+    // Read fresh: what a mount needs is where the page ended up.
+    expect(heard).toEqual([{ pathname: '/reports', search: '', hash: '' }])
+  })
+
+  it('discards one the negotiation refused, because the host restores the URL', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+
+    const heard: BoundaryLocation[] = []
+    navigator.subscribe(location => heard.push(location))
+
+    const negotiation = navigator.requestNavigation(INTENT, vi.fn())
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+
+    answer.resolve('reset')
+    expect(await negotiation).toBe('blocked')
+    await Promise.resolve()
+
+    // Nothing happened, so nothing is reported. The restoration the host
+    // performs arrives as an event of its own.
+    expect(heard).toEqual([])
+
+    bridge.listeners[0]?.({ pathname: '/reports', search: '', hash: '' })
+    await Promise.resolve()
+    expect(heard).toHaveLength(1)
+  })
+
+  it('releases a held navigation on forced cleanup, rather than going deaf', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => new Promise(() => undefined),
+    })
+
+    const heard: BoundaryLocation[] = []
+    navigator.subscribe(location => heard.push(location))
+
+    void navigator.requestNavigation(INTENT, vi.fn())
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+    expect(heard).toEqual([])
+
+    navigator.clearBlockers()
+    expect(heard).toHaveLength(1)
+  })
+
+  it('stops holding anything for a listener that unsubscribed', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+
+    const heard: BoundaryLocation[] = []
+    const unsubscribe = navigator.subscribe(location => heard.push(location))
+
+    const negotiation = navigator.requestNavigation(INTENT, vi.fn())
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+    unsubscribe()
+
+    answer.resolve('proceed')
+    await negotiation
+
+    expect(heard).toEqual([])
   })
 
   it('reads and subscribes through the bridge', () => {

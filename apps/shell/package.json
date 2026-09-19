@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
-    "typecheck": "node scripts/typecheck.mjs",
+    "typecheck": "node ../../tools/tecton/typecheck.mjs apps/shell",
     "lint": "eslint ."
   },
   "dependencies": {

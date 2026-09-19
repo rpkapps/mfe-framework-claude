@@ -1,0 +1,52 @@
+{
+  "name": "@example/insights",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "mfe": {
+    "port": 3004,
+    "definitions": [
+      "fda-summary",
+      "well-design",
+      "cost-vs-risk",
+      "agent-panel"
+    ]
+  },
+  "exports": {
+    "./contracts/*": "./.mfe/widgets/*.contract.ts"
+  },
+  "scripts": {
+    "dev": "pnpm run generate && rsbuild dev",
+    "build": "pnpm run generate && rsbuild build",
+    "generate": "mfe-generate",
+    "typecheck": "pnpm run generate && node ../../tools/tecton/typecheck.mjs examples/insights",
+    "test": "pnpm run generate && vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-react": "workspace:*",
+    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.2.6",
+    "lucide-react": "^1.45.0",
+    "react": "catalog:",
+    "react-aria": "3.52.1",
+    "react-aria-components": "^1.21.1",
+    "react-dom": "catalog:",
+    "react-resizable-panels": "^4.12.4",
+    "recharts": "3.8.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@company/mfe-rspack": "workspace:*",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
+    "@tanstack/react-table": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

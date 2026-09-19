@@ -1,38 +1,192 @@
-import { createRootRouteWithContext, Link, Outlet } from '@tanstack/react-router'
-import type { MfeRouterContext } from '@company/mfe-react'
+import {
+  createRootRouteWithContext,
+  Link,
+  Outlet,
+  useMatchRoute,
+  useNavigate,
+} from '@tanstack/react-router'
+import { allow, deny, useCommand, useGroups, type MfeRouterContext } from '@company/mfe-react'
+import { ScrollArea } from '@tecton/react/components/scroll-area'
+import { ProjectTree, projectTree } from '@tecton/react/blocks/dashboard-01/page.tsx'
+import {
+  BoxesIcon,
+  DrillIcon,
+  FileBarChartIcon,
+  LayoutGridIcon,
+  SettingsIcon,
+  type LucideIcon,
+} from 'lucide-react'
+import type { ReactNode } from 'react'
 
 /**
  * A layout is a root route with an outlet, which is the native way to express
  * it. There is no layout or render option on createApp.
+ *
+ * The shell owns the header above this and renders nothing else, so the region
+ * below it is this App's to lay out — a navigation rail and its own scrolling
+ * body. An App that wanted a single centred column would render that instead;
+ * the framework has no opinion.
  */
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: OperationsLayout,
 })
 
-function OperationsLayout() {
+/**
+ * `basepath` makes every link resolve under whatever boundary the shell
+ * assigned, so the App writes ordinary absolute-looking paths and never sees
+ * its own mount prefix.
+ */
+const NAV: readonly { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/', label: 'Overview', icon: LayoutGridIcon },
+  { to: '/assets', label: 'Assets', icon: BoxesIcon },
+  { to: '/wells', label: 'Wells', icon: DrillIcon },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+]
+
+/** One class string for the compact strip's links, active or not. */
+function stripLink(isActive: boolean): string {
+  return `flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap transition-colors ${
+    isActive
+      ? 'bg-accent font-medium text-accent-foreground'
+      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+  }`
+}
+
+function OperationsLayout(): ReactNode {
+  const matchRoute = useMatchRoute()
+  const navigate = useNavigate()
+  const groups = useGroups()
+
+  /*
+   * Registered by the layout rather than by a page, so they live as long as
+   * this application is mounted: they are in the shell's palette on every
+   * Operations route and gone the moment another application takes the
+   * boundary. A page's own command (the density toggle on the overview) is
+   * scoped to that page instead — same hook, different lifetime.
+   */
+  useCommand({
+    name: 'open-wells',
+    label: 'Operations: open the wells inventory',
+    canExecute: () => allow(),
+    execute: () => {
+      void navigate({ to: '/wells' })
+    },
+  })
+
+  useCommand({
+    name: 'open-assets',
+    label: 'Operations: open the asset list',
+    canExecute: () => allow(),
+    execute: () => {
+      void navigate({ to: '/assets' })
+    },
+  })
+
+  useCommand({
+    name: 'open-settings',
+    label: 'Operations: open settings',
+    canExecute: () => allow(),
+    execute: () => {
+      void navigate({ to: '/settings' })
+    },
+  })
+
+  useCommand({
+    name: 'open-reports',
+    label: 'Operations: open the alternatives ranking',
+    // The ranking is the Reports application delegated at a route here, and it
+    // is the one surface in this App that a group actually gates.
+    canExecute: () =>
+      groups.includes('well-planning.read')
+        ? allow()
+        : deny('You need the well-planning.read group to open the ranking.'),
+    execute: () => {
+      void navigate({ to: '/reports/$', params: { _splat: '' } })
+    },
+  })
+
   return (
-    <div className="flex h-full flex-col">
-      <nav className="flex gap-4 border-b border-border px-6 py-3 text-sm">
-        {/* basepath makes these resolve under the assigned boundary, so the
-            App writes ordinary absolute-looking paths. */}
-        <Link to="/" className="text-muted-foreground hover:text-foreground">
-          Overview
-        </Link>
-        <Link to="/assets" className="text-muted-foreground hover:text-foreground">
-          Assets
-        </Link>
-        {/* The child App is delegated at a splat route, so the link names that
-            route with an empty splat and the child's own index renders. */}
-        <Link
-          to="/reports/$"
-          params={{ _splat: '' }}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          Reports
-        </Link>
+    <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
+      {/*
+       * The rail is the only way into this App's other pages, so below `lg` it
+       * becomes a scrolling strip of the same links rather than disappearing.
+       * Hiding navigation at a breakpoint and putting nothing in its place is
+       * not responsive; it is a dead end with a media query.
+       */}
+      <nav aria-label="Operations" className="shrink-0 border-b border-border-subtle lg:hidden">
+        <ScrollArea className="overflow-x-auto overflow-y-hidden">
+          <ul className="flex w-max gap-1 p-2">
+            {NAV.map(item => (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  className={stripLink(
+                    matchRoute({ to: item.to, fuzzy: item.to !== '/' }) !== false,
+                  )}
+                >
+                  <item.icon className="size-4 shrink-0" />
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+            {/* The delegated child App: the same link as the rail's, which
+                names the splat route with an empty splat. */}
+            <li>
+              <Link
+                to="/reports/$"
+                params={{ _splat: '' }}
+                className={stripLink(matchRoute({ to: '/reports/$', fuzzy: true }) !== false)}
+              >
+                <FileBarChartIcon className="size-4 shrink-0" />
+                Reports
+              </Link>
+            </li>
+          </ul>
+        </ScrollArea>
       </nav>
 
-      <main className="flex-1 overflow-auto p-6">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border-subtle lg:flex">
+        <nav className="flex flex-col gap-0.5 p-2" aria-label="Operations">
+          {NAV.map(item => {
+            const isActive = matchRoute({ to: item.to, fuzzy: item.to !== '/' }) !== false
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                  isActive
+                    ? 'bg-accent font-medium text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                }`}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </Link>
+            )
+          })}
+
+          {/*
+           * The child App is delegated at a splat route, so the link names that
+           * route with an empty splat and the child's own index renders.
+           */}
+          <Link
+            to="/reports/$"
+            params={{ _splat: '' }}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          >
+            <FileBarChartIcon className="size-4" />
+            Reports
+          </Link>
+        </nav>
+
+        <div className="flex min-h-0 flex-1 flex-col border-t border-border-subtle">
+          <ScrollArea>
+            <ProjectTree nodes={projectTree} />
+          </ScrollArea>
+        </div>
+      </aside>
+
+      <main className="min-w-0 flex-1 overflow-auto">
         <Outlet />
       </main>
     </div>

@@ -1,0 +1,305 @@
+/**
+ * Shell settings.
+ *
+ * Only what the shell actually owns is here — the theme, its own dashboard, and
+ * the developer overrides that decide where containers load from. An
+ * application's settings are the application's, so they are not reproduced: the
+ * list at the bottom links to the settings pages the registry says each
+ * application published, and those are ordinary routes inside it.
+ *
+ * Components only, so React Refresh can replace this module in place.
+ */
+
+import { useSyncExternalStore, type ReactNode } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useMfeRuntime } from '@company/mfe-react'
+import { Badge } from '@tecton/react/components/badge'
+import { Button } from '@tecton/react/components/button'
+import { Separator } from '@tecton/react/components/separator'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@tecton/react/components/item'
+import {
+  Sheet,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@tecton/react/components/sheet'
+import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
+import { CopyButton } from '@tecton/react/tecton/copy-button'
+import {
+  ExternalLinkIcon,
+  LayersIcon,
+  LayoutDashboardIcon,
+  MoonIcon,
+  SunIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
+import { collectDiagnostics, formatReport } from './diagnostics.ts'
+import { getLayout, setTiles, subscribeLayout } from './dashboard/layout-store.ts'
+import { useApps, useTheme } from './hooks.ts'
+import { clearOverrides } from './overrides.ts'
+import { DataList, DataRow, Mono } from './readout.tsx'
+import { shellUi } from './ui-store.ts'
+import { notices, workspace } from './workspace.ts'
+
+export function SettingsSheet({
+  isOpen,
+  onOpenChange,
+}: {
+  readonly isOpen: boolean
+  readonly onOpenChange: (open: boolean) => void
+}): ReactNode {
+  const runtime = useMfeRuntime('the shell settings')
+  const navigate = useNavigate()
+  const apps = useApps()
+  const theme = useTheme()
+  const layout = useSyncExternalStore(subscribeLayout, getLayout, getLayout)
+
+  const capabilities = apps.flatMap(app =>
+    (app.capabilities ?? []).map(capability => ({ app, capability })),
+  )
+
+  return (
+    <Sheet isOpen={isOpen} onOpenChange={onOpenChange} side="right" className="w-full sm:max-w-md">
+      <SheetHeader>
+        <SheetTitle>Settings</SheetTitle>
+        <SheetDescription>
+          What the shell owns for this page. Everything else belongs to the application that is
+          mounted in it.
+        </SheetDescription>
+      </SheetHeader>
+
+      {/* Scrolls between the sheet's fixed header and footer, at the padding
+          they use. */}
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
+        <div className="flex flex-col gap-6 pb-2">
+          <Section title="Appearance" hint="Shared with every mounted application">
+            <Item variant="outline" size="sm">
+              <ItemContent>
+                <ItemTitle>Theme</ItemTitle>
+                <ItemDescription className="whitespace-normal">
+                  Applied to the document, and published to every mount through the shell state.
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <ToggleGroup
+                  aria-label="Theme"
+                  selectionMode="single"
+                  disallowEmptySelection
+                  selectedKeys={[theme]}
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
+                  onSelectionChange={keys => {
+                    const next = [...keys][0]
+                    if (next === 'light' || next === 'dark')
+                      runtime.shellState.apply({ theme: next })
+                  }}
+                >
+                  <ToggleGroupItem id="light" aria-label="Light theme">
+                    <SunIcon /> Light
+                  </ToggleGroupItem>
+                  <ToggleGroupItem id="dark" aria-label="Dark theme">
+                    <MoonIcon /> Dark
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </ItemActions>
+            </Item>
+          </Section>
+
+          <Section title="Widget dashboard" hint={`${String(layout.tiles.length)} tiles saved`}>
+            <p className="text-sm text-muted-foreground">
+              The canvas on the shell’s own page. It is kept in this browser under the shell’s own
+              key, not under any Widget’s.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => {
+                  shellUi.close()
+                  void navigate({ to: '/' })
+                }}
+              >
+                <LayoutDashboardIcon /> Open the dashboard
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                isDisabled={layout.tiles.length === 0}
+                onPress={() => {
+                  setTiles([])
+                  toast.success('The dashboard canvas was cleared.')
+                }}
+              >
+                <Trash2Icon /> Clear the canvas
+              </Button>
+            </div>
+          </Section>
+
+          {capabilities.length === 0 ? null : (
+            <Section title="Application settings" hint="Published by each container">
+              <p className="text-sm text-muted-foreground">
+                A settings page is an ordinary route that its application marked as a capability.
+                The shell reads the mark from the registry and decides where it opens; it does not
+                know what is on the page.
+              </p>
+              <ItemGroup className="gap-1">
+                {capabilities.map(({ app, capability }) => (
+                  <Item
+                    key={`${app.id}:${capability.name}`}
+                    variant="muted"
+                    size="sm"
+                    role="button"
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => {
+                      shellUi.close()
+                      void navigate({
+                        to: '/$appId/$',
+                        params: { appId: app.id, _splat: capability.path.replace(/^\//, '') },
+                      })
+                    }}
+                  >
+                    <ItemMedia variant="icon">
+                      <ExternalLinkIcon aria-hidden className="text-muted-foreground" />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle className="font-normal">
+                        {capability.label ?? capability.name}
+                      </ItemTitle>
+                      <ItemDescription className="font-mono">
+                        /{app.id}
+                        {capability.path}
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </Section>
+          )}
+
+          <Section title="This page" hint="For a bug report or a support call">
+            <DataList>
+              <DataRow label="Workspace">{workspace.name}</DataRow>
+              <DataRow label="Applications">{apps.length}</DataRow>
+              <DataRow label="Registry">
+                <span className="flex flex-wrap items-center gap-1">
+                  <Badge variant="success" appearance="outline">
+                    {runtime.registry.entries.size} loaded
+                  </Badge>
+                  {runtime.registry.quarantined.length === 0 ? null : (
+                    <Badge variant="destructive" appearance="outline">
+                      {runtime.registry.quarantined.length} rejected
+                    </Badge>
+                  )}
+                </span>
+              </DataRow>
+              <DataRow label="Signed in">
+                <span className="flex min-w-0 flex-col">
+                  <span>{runtime.shellState.getUser()?.name ?? 'nobody'}</span>
+                  <Mono className="text-muted-foreground">
+                    {runtime.shellState.getUser()?.email ?? '—'}
+                  </Mono>
+                </span>
+              </DataRow>
+            </DataList>
+          </Section>
+
+          {notices.overrides.size === 0 ? null : (
+            <>
+              <Separator emphasis="subtle" />
+              <Section title="Developer overrides" hint="Active in this browser">
+                <p className="flex items-start gap-2 text-sm text-warning-surface-foreground">
+                  <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    These replace a container’s published manifest URL at boot. They are the first
+                    thing to remove when a page behaves unlike the deployment.
+                  </span>
+                </p>
+                <DataList>
+                  {[...notices.overrides].map(([id, url]) => (
+                    <DataRow key={id} label={<Mono>{id}</Mono>}>
+                      <Mono className="text-muted-foreground">{url}</Mono>
+                    </DataRow>
+                  ))}
+                </DataList>
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() => {
+                      if (clearOverrides())
+                        toast.success('Overrides cleared. Reload to load the published manifests.')
+                      else
+                        toast.error('This browser would not let the shell write to local storage.')
+                    }}
+                  >
+                    <Trash2Icon /> Clear the overrides
+                  </Button>
+                </div>
+              </Section>
+            </>
+          )}
+        </div>
+      </div>
+
+      <SheetFooter className="flex-row flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => {
+            shellUi.show('registry')
+          }}
+        >
+          <LayersIcon /> Open the registry
+        </Button>
+        <CopyButton
+          variant="outline"
+          size="sm"
+          value={formatReport(
+            'Shell diagnostics',
+            'Copied from settings.',
+            collectDiagnostics(runtime),
+          )}
+          onCopied={() => {
+            toast.success('Diagnostics copied to the clipboard.')
+          }}
+        >
+          Copy diagnostics
+        </CopyButton>
+      </SheetFooter>
+    </Sheet>
+  )
+}
+
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  readonly title: string
+  readonly hint?: string
+  readonly children: ReactNode
+}): ReactNode {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-medium">{title}</h3>
+        {hint === undefined ? null : <span className="text-xs text-muted-foreground">{hint}</span>}
+      </div>
+      {children}
+    </section>
+  )
+}

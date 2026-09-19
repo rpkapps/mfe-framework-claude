@@ -1,11 +1,9 @@
 /*
- * The shell's only stylesheet.
+ * The page's only stylesheet.
  *
  * Everything visual comes from the design system: `globals.css` pulls in
  * Tailwind v4, the Tecton tokens, the Tecton palette and the fonts, and it
- * already declares `@source "../**\/*.{ts,tsx}"` for its own components. What
- * it cannot know about is this application, so the shell adds its own sources
- * here.
+ * already declares `@source "../**\/*.{ts,tsx}"` for its own components.
  *
  * Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
  * `text-zinc-400`) generate no CSS at all. Use a semantic token
@@ -15,6 +13,27 @@
 @import '@tecton/react/globals.css';
 
 @source "../**/*.{ts,tsx}";
+
+/*
+ * The containers' sources, too.
+ *
+ * Tailwind emits a utility only when it has seen the class in a file it was
+ * told to scan, and the shell is the only thing on the page that ships CSS —
+ * the design system's theme, its preflight, its font faces and Tailwind's own
+ * `@property` registrations are all document-level, and a container that
+ * shipped a second copy would fight the first for the page. So the utilities an
+ * MFE uses have to be generated here, which means this build has to see its
+ * source.
+ *
+ * That works because every container is in this workspace. A real deployment
+ * has them in separate repositories on separate release trains, and the answer
+ * there is the usual one for a design system consumed by independent
+ * applications: publish a prebuilt stylesheet covering the system's own classes
+ * from `@tecton/react`, and let a container ship only what its own
+ * application-specific classes need. Recording the limit here rather than
+ * discovering it at the first deployment.
+ */
+@source "../../../../examples/*/src/**/*.{ts,tsx}";
 
 html,
 body,

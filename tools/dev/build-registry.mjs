@@ -53,6 +53,10 @@ function entriesFor(descriptor, presentation, origin) {
       expose,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
+      // What a Widget takes and emits. The shell's widget catalogue renders a
+      // form from this before anything is loaded, so it has to be in the
+      // registry rather than behind a container fetch.
+      ...(definition.contract === undefined ? {} : { contract: definition.contract }),
       ...(presentation[definition.id] ?? {}),
     }
   })

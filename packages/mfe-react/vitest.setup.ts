@@ -34,6 +34,25 @@ declare module 'vitest' {
 
 expect.extend(jestDom)
 
+/*
+ * jsdom has no ResizeObserver, and the design system's overflow row — the one
+ * behind every page header's actions — constructs one on mount. Without this,
+ * a route test for any page with header actions fails inside the design
+ * system's own component, and the failure reads as "the text is not in the
+ * document" rather than as the missing browser API it is.
+ *
+ * A no-op is the honest stub: nothing in a jsdom test ever resizes, so an
+ * observer that never fires reports exactly what happened. Anything measuring
+ * real layout needs a real browser, which is what the page verifier is for.
+ */
+if (!('ResizeObserver' in globalThis)) {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+}
+
 // Automatic cleanup after every test so no mount, root, subscription or
 // registration leaks into the next one. The generated-alias fixtures are
 // module state and would otherwise carry one test's configuration and request

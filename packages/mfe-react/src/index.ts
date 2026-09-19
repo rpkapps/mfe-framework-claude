@@ -37,7 +37,9 @@ export {
 } from './app-host.tsx'
 
 export {
+  DynamicWidget,
   lazyWidget,
+  type DynamicWidgetProps,
   type LazyWidgetOptions,
   type LazyWidgetProps,
   type WidgetFallbackProps,
@@ -48,6 +50,11 @@ export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 export { useBasePath, useMfeSignal, useMfeStorage, useTelemetry } from './hooks/services.ts'
 export { useCommand } from './hooks/use-command.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
+export {
+  useNavigationBlock,
+  type NavigationBlock,
+  type ShouldBlockNavigation,
+} from './hooks/use-navigation-block.ts'
 export {
   useStoredState,
   type StoredStateSetter,
@@ -76,6 +83,7 @@ export {
   allow,
   deny,
   type BreadcrumbItem,
+  type CapabilityDescriptor,
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
@@ -89,6 +97,23 @@ export {
   type ShellUser,
   type StorageKeyOptions,
   type WidgetContract,
+  /*
+   * The registry shapes. A host renders the registry — an app finder, a widget
+   * catalogue, a diagnostics view — so what a normalized entry and a
+   * quarantined one look like is part of the host surface, not an internal.
+   */
+  type JsonSchemaObject,
+  type JsonSchemaValue,
+  /*
+   * What a mount is told about a navigation it may refuse. An App author reads
+   * it inside `useNavigationBlock`, so it belongs on the author surface.
+   */
+  type BoundaryLocation,
+  type NavigationIntent,
+  type NeutralRegistryEntry,
+  type NormalizedRegistry,
+  type PublishedWidgetContract,
+  type QuarantinedRegistryEntry,
 } from '@company/mfe-core'
 
 /* Shell-facing composition */

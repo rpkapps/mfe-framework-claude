@@ -9,10 +9,10 @@
 
 import type { MfeError } from '@company/mfe-core'
 import { useParams } from '@tanstack/react-router'
-import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { use, useCallback, useState, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
-import { createMount } from './create-runtime.ts'
+import { createMount, useOwnedMount } from './create-runtime.ts'
 import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
 import { useOptionalMfeMount } from './mount-context.tsx'
@@ -41,7 +41,25 @@ export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode 
     setAttempt(current => current + 1)
   }, [runtime, appId])
 
-  const body = <AppLoader key={attempt} appId={appId} basePath={basePath} />
+  /*
+   * The key carries the App and its boundary, not just the retry counter.
+   *
+   * Without them React reconciles one `AppLoader` across a change of App: the
+   * new definition resolves, the component re-renders, and `useOwnedMount`
+   * still holds the *previous* App's mount — it only swaps in an effect. For
+   * that render `AppMount` builds the new App's router from the old App's
+   * mount, so the author's factory is handed the previous boundary, the router
+   * matches nothing, and the region goes blank. That is precisely what a shell
+   * does every time the user switches application from the finder.
+   *
+   * Keying makes the change a remount: the old subtree unmounts and disposes
+   * its mount, the new one starts from no mount at all, and the host's Suspense
+   * boundary covers the gap — which is the behaviour the rest of this file
+   * already assumes.
+   */
+  const body = (
+    <AppLoader key={`${String(attempt)}:${appId}:${basePath}`} appId={appId} basePath={basePath} />
+  )
 
   return fallback ? (
     <RetryBoundary
@@ -73,7 +91,7 @@ function AppLoader({
   // disposes the old mount and creates a new one; a change to child-owned path
   // or search parameters does not reach here at all, because that is an ordinary
   // route transition inside the child's own router.
-  const handle = useMemo(
+  const mount = useOwnedMount(
     () =>
       createMount({
         runtime,
@@ -86,13 +104,11 @@ function AppLoader({
     [runtime, definition, basePath, parent],
   )
 
-  useEffect(() => {
-    return () => {
-      void handle.dispose()
-    }
-  }, [handle])
+  // The one render before the effect has built the mount. A host renders this
+  // inside a Suspense boundary that is already showing a fallback.
+  if (mount === null) return null
 
-  return <AppMount definition={definition} mount={handle.mount} bridge={runtime.navigator} />
+  return <AppMount definition={definition} mount={mount} bridge={runtime.navigator} />
 }
 
 export interface MfeRouteOptions {

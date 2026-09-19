@@ -37,7 +37,9 @@ describe('resolveShared', () => {
       'react-dom',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      '@tecton/react',
+      // The trailing slash is load-bearing: the design system publishes no
+      // root entry, so every import of it is a subpath.
+      '@tecton/react/',
     ])
 
     const shared = resolveShared({
@@ -122,7 +124,26 @@ describe('resolveShared', () => {
       peerDependencies: { '@tecton/react': '^3.0.0' },
     })
 
-    expect(Object.keys(resolveShared({ dependencies }))).toEqual(['@tecton/react', 'react'])
+    expect(Object.keys(resolveShared({ dependencies }))).toEqual(['@tecton/react/', 'react'])
+  })
+
+  /**
+   * The shell shares `@tecton/react/` and a container that shared the bare
+   * specifier matched none of the subpath imports, so both sides believed they
+   * were sharing the design system while the container bundled its own.
+   */
+  it('shares the design system under the prefix its subpath imports use', () => {
+    const shared = resolveShared({
+      dependencies: { '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react' },
+      installedVersion: () => '0.0.0',
+    })
+
+    expect(Object.keys(shared)).toEqual(['@tecton/react/'])
+    expect(shared['@tecton/react/']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '0.0.0',
+    })
   })
 
   it('prefers the dependency range over the peer range for the same package', () => {

@@ -23,13 +23,38 @@ URL.
 
 `createHistory()` is the supported seam for supplying a different backing store,
 so `packages/mfe-react/src/boundary-history.ts` builds each App's boundary
-history over the explicit navigation bridge instead. The router still gets a
-fully functional history, including native blocker support, because
-`createHistory` consults the blockers it is handed.
+history over the explicit navigation bridge instead.
+
+Building one by hand means supplying what `createBrowserHistory` would have.
+Three of those were missing, and all three failed silently:
+
+- **The blocker store.** `createHistory` consults `getBlockers` on every push
+  and replace, and `block()` returns a no-op unless it is also given
+  `setBlockers`. Without the pair, `useBlocker` inside an App registered
+  successfully and was never asked anything. The history now owns the array,
+  and hands it back through `getBlockers()` so the host can put the _shell's_
+  navigations to the same blockers — see decision 20.
+- **The entry state.** The bridge an App's history is built over is
+  `runtime.navigator`, whose `push`/`replace` took only a path. Every entry an
+  App pushed therefore had `history.state === null`, so neither the App's
+  history nor the shell's could compute a position delta: a browser back was
+  classified as a `GO` of zero, and a refused one had nothing to roll back by.
+  The navigator now forwards `state` and exposes `readState` and `go`.
+- **A subscription that did not survive a remount.** The history subscribed to
+  the bridge from its constructor, which ran in a `useMemo`, and unsubscribed
+  from an effect cleanup. React runs cleanup and setup again without re-running
+  the memo — decision 14, the same pairing, a different object — so from the
+  first remount the App's router was never told the URL had moved: browser back
+  and forward changed the address bar and left the page where it was.
+  Construction is now pure and `attach()` is what listens, owned by the effect
+  that ends it.
 
 **Consequence:** the framework never calls `createBrowserHistory`, and a
 contributor who reaches for it reintroduces the banned patch. The `mfe/no-global-patching`
 lint rule catches direct patching but cannot catch this, so it is written down here.
+The price of the hand-built history is that every capability it should have is
+ours to supply, and a missing one does not announce itself —
+`packages/mfe-react/src/boundary-history.test.ts` pins the three found so far.
 
 ---
 
@@ -334,3 +359,249 @@ second socket to the shell's dev server and act on the shell's rebuilds.
 `pluginMfe()` therefore applies all three itself, skipping any the author set.
 Relying on the documented behaviour would have been wrong in a way no test
 states.
+
+---
+
+## 14. A mount built in `useMemo` does not survive a remount, and StrictMode remounts everything
+
+**Status:** fixed; pinned by `packages/mfe-react/src/strict-mode.test.tsx`.
+
+`AppHost` and `lazyWidget` built their mount in `useMemo` and disposed it in an
+effect cleanup. React mounts, unmounts and mounts again without re-rendering —
+StrictMode does it on every mount in development, and the same thing happens
+whenever React reuses state it had previously torn down. The memo is not
+re-evaluated across that, so the second setup ran against the mount the first
+cleanup had disposed.
+
+From then on the App ran on a dead mount: an aborted signal, a Query cache that
+had been cleared and cancelled every query put into it afterwards, a removed
+overlay root and a disposed tracer. The visible symptom was a route loader
+failing with `CancelledError` in development while the same code worked in
+production, which is the worst shape a defect can take.
+
+The mount is now created by the effect that destroys it (`useOwnedMount`),
+which is the pairing React supports: the same effect builds and tears down, so a
+remount builds a new one. It costs one render returning nothing before the mount
+exists, inside a Suspense boundary that was already showing a fallback.
+
+A generation counter bumped from the cleanup looks like the smaller fix and is
+not one. The re-render it schedules changes the memo's inputs, so the next
+cleanup bumps again, and the component renders forever — which is how this was
+found: the regression test hung.
+
+**Consequence:** anything else the framework builds per mount has to follow the
+same rule. "Created in a memo, destroyed in an effect" is not a safe pairing in
+React 18 and later.
+
+The boundary history was the next instance of it, found much later: it
+subscribed to the navigation bridge from its constructor, in a memo, and
+unsubscribed from an effect cleanup. The symptom was the same shape — correct in
+production, silently broken in development — and this time it was browser back
+and forward moving the URL without moving the page. The remedy is the one above:
+the effect that ends the subscription is the effect that starts it.
+
+---
+
+## 15. A host composing the registry cannot call `lazyWidget`
+
+**Status:** decided; `DynamicWidget` added.
+
+`lazyWidget(id)` is documented as a module-scope call, and enforced by
+`mfe/stable-definitions`, because the returned component's identity is what
+React uses to decide whether it is looking at the same element: building one
+during render remounts the Widget and throws its state away on every pass.
+
+That rule is unfollowable for a host that discovers its Widgets at runtime — a
+dashboard, a catalogue, a layout somebody assembled — because the ids are not
+known until the registry has been fetched. Caching the components in a Map at
+the call site is the obvious workaround and it is wrong twice over: it puts an
+invariant the framework owns into every host that needs one, and both the lint
+rule and React's own `static-components` rule read it as the defect it
+resembles.
+
+`DynamicWidget` takes the id as a prop instead. Nothing is created during
+render: `lazyWidget` and `DynamicWidget` now render the same module-scope
+component, which reads the id from props either way.
+
+It is the contract-free mode by construction, and deliberately so: a typed
+contract is a compile-time relationship between one consumer and one provider,
+and a host that discovers its Widgets at runtime has no such relationship. The
+provider still validates every input and every event payload, so the boundary is
+exactly as strong — only the consumer's types are weaker, which is why the
+registry publishes the input schema (§16).
+
+---
+
+## 16. The registry carries each Widget's contract, because a catalogue is rendered before anything is fetched
+
+**Status:** decided; emitted by the build, validated by the host.
+
+A host offering Widgets in a picker has to render the picker before it loads
+anything. If the only way to learn what a Widget takes is to load its container,
+a catalogue cannot exist — and a host that guesses the inputs gets them rejected
+at the provider boundary, correctly and unhelpfully.
+
+So the build reads each Widget's own Zod schemas statically — the same reader
+that produces the runtime-config JSON Schema — and publishes them in the
+container descriptor, which `tools/dev/build-registry.mjs` carries into the
+registry. The shell's dashboard renders its input form from that: a select for
+an enum, a switch for a boolean, defaults prefilled, required fields marked.
+
+`inputs` is absent when the schema is not statically readable, and that is not
+the same as an empty schema: a host can tell "takes nothing" from "not
+published" and offer raw JSON for the second. Unlike runtime configuration, an
+unreadable schema does **not** fail the build — a deployment that cannot
+validate its configuration ships broken, but a Widget still mounts and still
+validates its own inputs, so failing the build there would make an exotic but
+correct schema unshippable.
+
+---
+
+## 17. The page has one stylesheet, and it is the shell's
+
+**Status:** decided, with a stated limit.
+
+Tailwind emits a utility only when it has seen the class in a file it scanned.
+The obvious MFE answer — each container ships the CSS for the classes it uses —
+does not work here: the design system's theme, its preflight, its font faces and
+Tailwind's own `@property` registrations are all document-level, and the scoped
+CSS transform rejects exactly those, correctly, because a container cannot own
+them. A container that shipped a second copy would fight the first for the page.
+
+So the shell's stylesheet is the page's stylesheet, and it scans the containers'
+sources as well as its own. That works because every container is in this
+workspace, and it is the part that does not survive contact with a real
+deployment, where containers are in separate repositories on separate release
+trains.
+
+The answer there is the usual one for a design system consumed by independent
+applications: `@tecton/react` publishes a prebuilt stylesheet covering its own
+classes, the shell loads it once, and a container ships only what its own
+application-specific classes need. Recorded here rather than discovered at the
+first deployment.
+
+---
+
+## 18. React Refresh only replaces a module whose every export is a component
+
+**Status:** fixed in the shell; a rule for anything with a dev server.
+
+Editing the shell chrome reloaded the whole page instead of hot-updating the
+component. The cause was not the bundler: `chrome.tsx` exported two hooks beside
+its components, `router.tsx` exported a factory, and React Refresh treats a
+module with any non-component export as unable to accept an update. The update
+then propagates to the importer, and the importer, until it reaches the entry —
+which accepts nothing, so the page reloads.
+
+Splitting the hooks into `shell/hooks.ts` and the boot facts into
+`shell/workspace.ts` is what fixed it. `dev.lazyCompilation` is off for a
+related reason: it wraps the entry in a proxy module that is not a refresh
+boundary either, so every update reached the entry through it.
+
+The same rule reaches an MFE author, and there it is not optional: `src/mfe.ts`
+exports a definition and its contract by contract, so it can never be a refresh
+boundary. A Widget whose render function is written inline in the entry
+therefore reloads the page on every edit. Moving the render into its own module
+— every export a component — is what makes editing a Widget feel like editing a
+component, and it is measurable: `pnpm hmr:probe` reports "hot-updated in place"
+for `examples/alert-panel/src/alert-panel.tsx` and "the page reloaded" for the
+entry beside it.
+
+**Consequence:** in a module that exports components, export only components,
+and keep an MFE's render functions out of its entry. The failure is silent —
+everything works, just slower and with lost state — and it reads as a bundler
+problem rather than a module-shape one, which is why `pnpm hmr:probe` exists to
+answer the question directly.
+
+## 19. The generated build time advances with the build hash, not with the compilation
+
+**Status:** fixed in `@company/mfe-rspack`.
+
+Hot updates still failed after §18, and only in `lab` — the one container whose
+page imports `#mfe/meta` to display it. The browser logged
+`[rsbuild] HMR update failed, performing full reload: TypeError: Failed to
+fetch`, which reads as a bundler or a network problem and is neither.
+
+The build regenerates the container's modules before every compilation, so that
+what a build writes and what an editor reads come from one function. Two of
+those modules carried `new Date().toISOString()`: `meta.ts` and the registry
+descriptor. `writeGeneratedFiles` skips a file whose contents are unchanged, but
+a timestamp is never unchanged, so both were rewritten every time — and
+`meta.ts` is a module the container imports. Writing it was a source change; the
+watcher started the next compilation; that compilation rewrote it again. The
+container rebuilt forever, a few times a second, and each rebuild invalidated
+the hot update the page was in the middle of fetching. The dev server did the
+only thing left and reloaded the page.
+
+Nothing was wrong with the container that did not import `#mfe/meta`: a
+generated file outside the module graph is not watched, so the same rewrite
+cost nothing. The defect was invisible until something used the feature.
+
+The fix is to make the recorded time mean what the build hash already means.
+`buildHash` is a content hash of the generated files that carry no time, and is
+documented as stable across rebuilds of identical sources; the recorded time is
+now the time that hash was first generated, carried forward from the descriptor
+on disk whenever the hash matches. Identical sources therefore regenerate byte
+for byte, and the rewrite — with the rebuild loop behind it — stops. A caller
+that fixes `buildTime` still gets exactly that, so a reproducible build and the
+tests are unaffected.
+
+**Consequence:** a build that runs on every compilation must be a pure function
+of its inputs, because its outputs are among its inputs. A timestamp, a counter
+or a random id in generated code turns a watching build into a loop, and the
+symptom appears at the far end of the system — in the browser, as a hot update
+that cannot be fetched.
+
+---
+
+## 20. An App blocks navigation with TanStack's own `useBlocker`, and the framework widens it
+
+**Status:** decided, load-bearing.
+
+An editor with unsaved changes is the only thing that knows the changes exist.
+The navigation that discards them is usually one it does not own: a link in the
+shell's chrome, another application in the finder, the browser's back button.
+Those move the _shell's_ router, over the shell's own history, and an App's
+blockers are registered with neither.
+
+The first answer was a framework hook, `useNavigationBlock`, which registered
+directly with the host's navigator. It worked, and it was the wrong default: it
+is a second way to express something the author's router already expresses, it
+does not cover the App's own routes, and an author has to know it exists.
+
+So the mount now registers _one_ delegate with the navigator
+(`packages/mfe-react/src/router-blockers.ts`) and answers it out of whatever the
+App's router has registered. An author writes TanStack's `useBlocker` and
+nothing else; a navigation from the shell arrives as an ordinary `shouldBlockFn`
+call, with `current`, `next` and `action` resolved against that App's own route
+tree, and a target outside the App simply matches no route.
+
+Three details are forced rather than chosen:
+
+- **The delegate is registered for the mount's whole life**, not only while a
+  blocker exists. `shouldBlockFn: () => isDirty` is a new function on every
+  render, so TanStack unregisters and re-registers on every render — including
+  the render that opens the confirmation dialog. Anything keyed on the set being
+  non-empty, or on one blocker's identity, misreads that churn as removal and
+  lets the navigation through while the dialog is on screen.
+- **`enableBeforeUnload` is asked, not counted.** A reload is not a navigation
+  and no page may draw its own UI for one, so the host asks its blockers a
+  separate synchronous question (`shouldBlockUnload`). Counting registrations
+  instead — which is what the shell did — armed the browser's "leave site?"
+  prompt on every reload of any page that merely had a blocker mounted.
+- **An external navigation is held until the negotiation settles.** A browser
+  back moves the URL before anyone is asked, so a mount told about it straight
+  away leaves the page the user is still being asked about: the confirmation
+  appears over the next screen with the unsaved form already gone. The navigator
+  holds those events while it negotiates and releases them only on a proceed —
+  a refusal is followed by the host restoring the URL, which arrives as an event
+  of its own. It is deferred by a microtask so it does not depend on the order
+  the host's popstate listener and the mount's were registered in.
+
+`useNavigationBlock` remains for a mount with no router of its own: a Widget,
+or anything mounted outside one.
+
+**Consequence:** the supported way for an App to refuse a navigation is the
+router's, and the framework's job is to make it cover navigations the router
+cannot see. A host opts in by routing its own navigations through
+`runtime.navigator.requestNavigation(...)`.

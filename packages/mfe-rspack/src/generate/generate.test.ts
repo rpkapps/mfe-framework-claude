@@ -1,10 +1,11 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join, sep } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
-import { planContainer } from '../plan.ts'
+import { planContainer, type ContainerPlan } from '../plan.ts'
+import { generateContainer } from './container.ts'
 import { writeGeneratedFiles } from './emit.ts'
 
 afterEach(cleanupContainers)
@@ -63,7 +64,16 @@ describe('generated inventory', () => {
       'src/routes/settings.tsx': ROUTE,
     })
 
-    const names = plan.generated.files.map(file => file.path.slice(root.length + 1)).sort()
+    // A plan carries real OS paths, so Windows spells them with backslashes;
+    // the names below are the one spelling the generated imports use.
+    const names = plan.generated.files
+      .map(file =>
+        file.path
+          .slice(root.length + 1)
+          .split(sep)
+          .join('/'),
+      )
+      .sort()
 
     expect(names).toEqual([
       '.mfe/.env.example',
@@ -199,6 +209,71 @@ describe('#mfe/meta', () => {
   })
 })
 
+describe('the recorded build time', () => {
+  const recordedTime = (plan: ContainerPlan): string => {
+    const meta = plan.generated.files.find(file => file.path.endsWith('meta.ts'))
+    const match = /export const buildTime = '([^']+)'/.exec(meta?.contents ?? '')
+    if (match === null) throw new Error('no build time in the generated meta module')
+    return match[1] ?? ''
+  }
+
+  const wroteMeta = (written: readonly { readonly path: string }[]): boolean =>
+    written.some(file => file.path.endsWith('meta.ts'))
+
+  /*
+   * A watching build regenerates before every compilation, and `meta.ts` is a
+   * module the container imports. A time that advanced on every compilation
+   * would make every compilation a source change, so the container would
+   * rebuild forever — which a browser sees as hot updates it cannot fetch and
+   * answers with a full page reload.
+   */
+  it('stays put while the generated shape is unchanged', () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY })
+
+    const first = generateContainer({ containerRoot: root })
+    const second = generateContainer({ containerRoot: root })
+
+    expect(wroteMeta(first.written)).toBe(true)
+    expect(second.written).toEqual([])
+    expect(recordedTime(second.plan)).toBe(recordedTime(first.plan))
+  })
+
+  it('is taken again when the shape changes', () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY })
+    const first = generateContainer({ containerRoot: root })
+
+    // A container may export one App, so the shape changes by gaining a Widget.
+    writeFileSync(
+      join(root, 'src/mfe.ts'),
+      `${APP_ENTRY}
+import { createWidget } from '@company/mfe-react'
+import { z } from 'zod'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  inputs: z.object({}),
+  events: {},
+  render: () => null,
+})
+`,
+      'utf8',
+    )
+    const second = generateContainer({ containerRoot: root })
+
+    expect(second.plan.generated.buildHash).not.toBe(first.plan.generated.buildHash)
+    expect(wroteMeta(second.written)).toBe(true)
+  })
+
+  it('is whatever a caller fixed it to, regardless of what is on disk', () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY })
+    generateContainer({ containerRoot: root })
+
+    const pinned = planContainer({ containerRoot: root, buildTime: BUILD_TIME })
+
+    expect(recordedTime(pinned)).toBe(BUILD_TIME)
+  })
+})
+
 describe('shell registry descriptor', () => {
   it('names the definitions, the shared manifest and the contract major', () => {
     const { fileFor, plan } = planFixture({
@@ -250,6 +325,90 @@ export const orderRow = createWidget({
 
     expect(descriptor.definitions[0]?.capabilities).toHaveLength(1)
     expect(descriptor.definitions[1]).not.toHaveProperty('capabilities')
+  })
+})
+
+/**
+ * A host renders a Widget catalogue before it fetches any container, so what a
+ * Widget takes has to be legible from the descriptor alone.
+ */
+describe('published Widget contract', () => {
+  const WIDGET = `
+import { createWidget } from '@company/mfe-react'
+import { z } from 'zod'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  inputs: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+    muted: z.boolean().optional(),
+  }),
+  events: { acknowledged: z.object({ alertId: z.string() }) },
+  render: () => null,
+})
+`
+
+  it('publishes the inputs as JSON Schema and the declared event names', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': WIDGET })
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: Record<string, unknown> }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract).toEqual({
+      events: ['acknowledged'],
+      inputs: {
+        title: 'alert-panel inputs',
+        type: 'object',
+        properties: {
+          alertId: { type: 'string' },
+          severity: { enum: ['info', 'warning', 'critical'], default: 'info' },
+          muted: { type: 'boolean' },
+        },
+        // `severity` has a default and `muted` is optional, so neither is
+        // required: a catalogue can offer the Widget with only an alert id.
+        required: ['alertId'],
+        additionalProperties: false,
+      },
+    })
+  })
+
+  it('publishes nothing of the kind for an App', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: Record<string, unknown>[]
+    }
+
+    expect(descriptor.definitions[0]).not.toHaveProperty('contract')
+  })
+
+  /**
+   * Runtime configuration fails the build when its schema cannot be read,
+   * because a deployment that cannot be validated ships broken. A Widget is not
+   * that: it still mounts and still validates its own inputs, so an exotic
+   * schema costs it a catalogue form rather than the ability to ship.
+   */
+  it('publishes the events alone when the inputs schema is not statically readable', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@company/mfe-react'
+import { z } from 'zod'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputs: z.object({ when: z.string() }).refine(value => value.when !== ''),
+  events: { picked: z.object({}) },
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: Record<string, unknown> }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract).toEqual({ events: ['picked'] })
   })
 })
 

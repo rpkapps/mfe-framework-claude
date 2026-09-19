@@ -47,6 +47,9 @@ export {
   type DefinitionIdentity,
   type DefinitionKind,
   type ExportedDefinitionDescriptor,
+  type JsonSchemaObject,
+  type JsonSchemaValue,
+  type PublishedWidgetContract,
 } from './definition.ts'
 
 export {
@@ -133,6 +136,7 @@ export {
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
+  type NavigationAction,
   type NavigationBridge,
   type NavigationIntent,
   type ShellState,

@@ -9,6 +9,7 @@
 import { statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
+import { readStaticSchema, type JsonObject } from '../config/zod-static.ts'
 import { createBuildError } from '../diagnostics.ts'
 import {
   calleeName,
@@ -61,6 +62,13 @@ export interface WidgetContractSource {
 interface WidgetContractReadResult {
   readonly eventNames: readonly string[]
   readonly inputNames: readonly string[]
+  /**
+   * JSON Schema for the inputs object, when the schema is one the build can
+   * read. Absent otherwise, never an empty schema: a host uses this to collect
+   * inputs before the container is fetched, and "takes nothing" and "could not
+   * be read" call for different behaviour there.
+   */
+  readonly inputSchema?: JsonObject
   readonly source: WidgetContractSource
 }
 
@@ -104,6 +112,10 @@ export function readWidgetContract(
   return {
     inputNames: readObjectKeys(inputs.expression, inputs.sourceFile, 'inputs'),
     eventNames: readObjectKeys(events.expression, events.sourceFile, 'events'),
+    ...(() => {
+      const inputSchema = readInputSchema(inputs, id)
+      return inputSchema === undefined ? {} : { inputSchema }
+    })(),
     source: {
       inputs: inputs.binding,
       events: events.binding,
@@ -114,6 +126,29 @@ export function readWidgetContract(
         names: [...names].map(([local, imported]) => ({ local, imported })),
       })),
     },
+  }
+}
+
+/**
+ * The inputs schema as JSON Schema, or nothing.
+ *
+ * Unreadable is not a build failure here, which is the one place this differs
+ * from runtime configuration. A deployment that cannot validate its config
+ * ships broken, so `readStaticSchema` rightly fails the build for it; a Widget
+ * whose inputs the build cannot describe still mounts and still validates at
+ * its own boundary — only the catalogue loses the ability to offer a form for
+ * it. Failing the build would make an exotic-but-correct schema unshippable.
+ */
+function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undefined {
+  try {
+    const schema = readStaticSchema(inputs.expression, {
+      file: inputs.sourceFile.fileName,
+      field: 'inputs',
+      sourceFile: inputs.sourceFile,
+    }).jsonSchema
+    return schema['type'] === 'object' ? { title: `${id} inputs`, ...schema } : undefined
+  } catch {
+    return undefined
   }
 }
 

@@ -71,6 +71,13 @@ export interface ResolvedOptions {
   readonly reactCompiler: boolean
   readonly router: false | Readonly<Record<string, unknown>>
   readonly buildTime: string
+  /**
+   * Whether the caller fixed the build time. A fixed time is recorded exactly
+   * as given; otherwise the generation carries forward the time already
+   * recorded against an unchanged shape, so that a watching build does not
+   * rewrite its own input on every compilation.
+   */
+  readonly buildTimeFixed: boolean
 }
 
 const DEFAULT_GENERATED_DIR = '.mfe'
@@ -101,6 +108,7 @@ export function resolveOptions(options: MfePluginOptions, containerRoot: string)
     router:
       options.router === false ? false : options.router === true ? {} : (options.router ?? {}),
     buildTime: options.buildTime ?? new Date().toISOString(),
+    buildTimeFixed: options.buildTime !== undefined,
   }
 }
 

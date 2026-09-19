@@ -17,13 +17,14 @@ URL is a Widget, not an App.
 
 ## The whole getting-started surface
 
-| Concept                      | What it is                                           |
-| ---------------------------- | ---------------------------------------------------- |
-| `createApp` / `createWidget` | one call in `src/mfe.ts`                             |
-| `id`                         | a stable string                                      |
-| your route tree              | ordinary TanStack Router                             |
-| `#mfe/config`                | generated, typed configuration                       |
-| `#mfe/fetch`                 | standard `fetch` with authenticated request handling |
+| Concept                        | What it is                                           |
+| ------------------------------ | ---------------------------------------------------- |
+| `createApp` / `createWidget`   | one call in `src/mfe.ts`                             |
+| `id`                           | a stable string                                      |
+| your route tree                | ordinary TanStack Router                             |
+| `#mfe/config`                  | generated, typed configuration                       |
+| `#mfe/fetch`                   | standard `fetch` with authenticated request handling |
+| `lazyWidget` / `DynamicWidget` | consuming a Widget by name, or by value              |
 
 Everything else is discovered when a need arises and is absent from the
 quickstart.
@@ -86,6 +87,35 @@ const AlertPanel = lazyWidget('alert-panel', { contract: alertPanelContract })
 <AlertPanel alertId={id} onAcknowledged={event => acknowledge(event.alertId)} />
 ```
 
+`lazyWidget` is called at module scope, because the component's identity is what
+React uses to decide whether it is looking at the same element. A host that only
+learns which Widgets exist when it reads the registry cannot do that, so it uses
+`DynamicWidget` and passes the id as a prop:
+
+```tsx
+<DynamicWidget widgetId={tile.widgetId} {...tile.inputs} />
+```
+
+That form has no contract and therefore no consumer-side types; the provider
+still validates every input and every event payload. What the host needs in
+order to ask for the inputs at all — the schema, and the event names — is
+published by the Widget's build into the registry, which is how the shell's
+dashboard renders a form for a Widget it has never imported.
+
+---
+
+## The examples
+
+Five containers, all mounted by one shell, each on its own dev server:
+
+| Container              | Port | What it is                                                                  |
+| ---------------------- | ---- | --------------------------------------------------------------------------- |
+| `examples/operations`  | 3001 | an App: overview, assets over the authenticated fetch, wells, settings      |
+| `examples/reports`     | 3002 | an App, reached on its own and delegated inside Operations at a splat route |
+| `examples/alert-panel` | 3003 | one Widget                                                                  |
+| `examples/insights`    | 3004 | four Widgets in one container, because they change together                 |
+| `examples/lab`         | 3005 | an App with one page per framework feature and a control for each           |
+
 ---
 
 ## Running it
@@ -116,8 +146,20 @@ const AlertPanel = lazyWidget('alert-panel', { contract: alertPanelContract })
 ```sh
 pnpm install
 pnpm run generate   # the #mfe/* modules, route trees and the shell registry
-pnpm dev            # the shell plus every example, each on its own port
+pnpm dev            # the shell, every example and the dev API
 ```
+
+Then open <http://localhost:3000>:
+
+| Page                    | What it shows                                                             |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `/`                     | the widget dashboard — drag Widgets from three containers onto one canvas |
+| `/operations`           | an App, with a Widget from another container inside it                    |
+| `/operations/reports/…` | a second App delegated inside the first, reading its own URL              |
+| `/lab`                  | one page per framework feature, each with a control that makes it visible |
+
+The header's registry button (or ⌘K → "Open the registry") shows every entry
+the shell accepted, every entry it rejected, and why.
 
 `pnpm dev` runs generation itself, so the middle step is only needed when you
 want editor types before starting anything — a fresh clone has no
@@ -132,6 +174,13 @@ runtime under the same name, and its chunks and stylesheets are document-level,
 so disposing a mount touches none of that. The shell shows a visible indicator
 while any override is active.
 
+`pnpm dev` also starts a small stand-in API on port 3010, because a container
+whose requests all fail demonstrates nothing about the request boundary — the
+base URL it resolves against, the token it attaches and the origin allowlist
+that decides where the token goes are only observable when a request actually
+goes out and comes back. It is in `tools/dev/api.mjs` and is not part of the
+framework.
+
 Other entry points:
 
 ```sh
@@ -139,9 +188,29 @@ pnpm dev:shell     # the shell alone
 pnpm dev:mfes      # the examples alone, against a shell you started yourself
 pnpm check         # generate, format check, lint, typecheck, boundaries, tests
 pnpm verify:page   # boots everything and asserts in a real browser that a
-                   # container mounted and a Widget from a second container
-                   # mounted inside it
+                   # container mounted, that a Widget from a second container
+                   # mounted inside it, and that the shell mounted a Widget it
+                   # was never built against
+pnpm hmr:probe <file> [url]
+                   # against servers you already started: does editing that file
+                   # hot-update the page, or reload it?
 ```
+
+`pnpm hmr:probe` exists because the two are hard to tell apart by eye — the
+change appears either way, and only what was lost is different. It puts a value
+on `window` that a reload cannot carry, edits the file, and says which happened.
+
+One authoring rule follows from it. React Refresh replaces a module only when
+every one of its exports is a component, and `src/mfe.ts` exports a definition
+and its contract by contract — so a Widget whose render function is written
+inline in the entry reloads the page on every edit. Keep the render in its own
+module (`examples/alert-panel/src/alert-panel.tsx`) and it hot-updates.
+
+The build keeps its side of that bargain by generating the same bytes from the
+same sources: it regenerates before every compilation and the container imports
+what it generates, so a timestamp in a generated module would make every
+compilation a source change and the container would rebuild forever
+(`docs/decisions.md` §19).
 
 `pnpm verify:page` drives Chromium through Playwright. `pnpm install` does not
 download a browser; run `pnpm exec playwright install chromium` once, or point
@@ -151,7 +220,7 @@ download a browser; run `pnpm exec playwright install chromium` once, or point
 
 Everything above works on Windows. Two things to know:
 
-- Ports 3000–3003 must be free, and `pnpm dev` checks that before it starts
+- Ports 3000–3005 and 3010 must be free, and `pnpm dev` checks that before it starts
   anything. A container's port is written into the shell's registry by
   generation, so it is part of its address: a container cannot be moved to
   another port without the shell losing it. The usual cause is a dev server
@@ -197,7 +266,8 @@ by editing a manifest alone.
   hoped: native `@scope` browser coverage is currently below the target, and
   browser async context does not propagate across `await`.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — conventions, and what the checks enforce.
-- [`apps/shell/README.md`](apps/shell/README.md) — the test shell.
+- [`apps/shell/README.md`](apps/shell/README.md) — the shell: the widget
+  dashboard, the registry view, and what consuming the design system costs.
 - [`packages/eslint-plugin-mfe/README.md`](packages/eslint-plugin-mfe/README.md)
   — the presets and the four framework-specific rules.
 
@@ -220,3 +290,7 @@ Two scope limits are worth stating plainly rather than discovering later:
 2. **The browser support gate currently fails at 89.97% against a 91% target**,
    entirely because of native CSS `@scope`. It was left failing rather than
    tuned to pass, because the remedy is a policy decision.
+3. **The page's CSS is the shell's, and the shell scans the containers'
+   sources to build it.** That works because every container is in this
+   workspace and does not survive containers in separate repositories;
+   `docs/decisions.md` §17 records what a real deployment does instead.

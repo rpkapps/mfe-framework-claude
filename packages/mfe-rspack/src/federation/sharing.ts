@@ -22,8 +22,19 @@ export const DEFAULT_SHARED_CANDIDATES = [
   'react-dom',
   '@tanstack/react-router',
   '@tanstack/react-query',
-  '@tecton/react',
+  // The trailing slash shares every subpath, which is the only way the design
+  // system is ever imported: it publishes no root entry, so every import is
+  // `@tecton/react/components/<name>` or `@tecton/react/tecton/<name>`. Sharing
+  // the bare specifier matches none of them, and the container quietly bundles
+  // a second copy — which renders identically and then fails where it matters,
+  // because the overlay, sidebar and shortcut providers are React context.
+  '@tecton/react/',
 ] as const
+
+/** The dependency a candidate is satisfied by; a prefix names the package. */
+function packageOf(candidate: string): string {
+  return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate
+}
 
 /**
  * Ranges that name a workspace protocol rather than a version. They mean
@@ -73,9 +84,9 @@ export function resolveShared(
   const installed = options.installedVersion ?? (() => undefined)
 
   for (const name of candidates) {
-    const range = options.dependencies[name]
+    const range = options.dependencies[packageOf(name)]
     if (range === undefined) continue
-    shared[name] = entry(name, range, installed)
+    shared[name] = entry(packageOf(name), range, installed)
   }
 
   for (const [name, range] of Object.entries(options.overrides ?? {})) {

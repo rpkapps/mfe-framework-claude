@@ -42,6 +42,17 @@ export function containerDescriptor(
       kind: definition.kind,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
+      // A Widget publishes what it takes and what it emits, so a host can put
+      // it in a catalogue and collect its inputs without fetching the
+      // container first. An App publishes neither: it takes a URL.
+      ...(definition.kind === 'widget'
+        ? {
+            contract: {
+              events: definition.eventNames,
+              ...(definition.inputSchema === undefined ? {} : { inputs: definition.inputSchema }),
+            },
+          }
+        : {}),
     }
   })
 

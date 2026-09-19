@@ -34,6 +34,14 @@ export default [
 ]
 ```
 
+These rules are about being one fragment of a page. They are not about the
+design system, and they deliberately say nothing about it: a repository that
+renders with `@tecton/react` adds `@tecton/eslint-config` alongside them, which
+is what catches an application restyling a component the design system owns —
+and `bg-red-500`, which generates no CSS under Tecton's palette and therefore
+fails silently. This repository composes both; `eslint.config.mjs` at its root
+is the worked example.
+
 Both presets exist in two spellings that produce the same configuration:
 
 | Spelling                                        | Shape                           | Use it when                                       |

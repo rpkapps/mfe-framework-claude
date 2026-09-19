@@ -371,6 +371,70 @@ describe('boot-time URL overrides', () => {
   })
 })
 
+/**
+ * A host has to render a Widget catalogue before it fetches anything, so what a
+ * Widget takes travels in the registry rather than behind a container load.
+ */
+describe('published Widget contract', () => {
+  const contract = {
+    events: ['acknowledged', 'dismissed'],
+    inputs: {
+      type: 'object',
+      properties: { alertId: { type: 'string' }, severity: { enum: ['info', 'critical'] } },
+      required: ['alertId'],
+      additionalProperties: false,
+    },
+  }
+
+  it('carries the inputs schema and event names through to the neutral entry', () => {
+    const registry = normalize([advertisedEntry({ id: 'alert-panel', kind: 'widget', contract })])
+
+    expect(acceptedEntry(registry, 'alert-panel').contract).toEqual(contract)
+  })
+
+  /**
+   * "Takes nothing" and "the build could not read the schema" call for
+   * different behaviour in a catalogue, so an unread schema is absent rather
+   * than an empty object standing in for one.
+   */
+  it('accepts a contract that publishes events without an inputs schema', () => {
+    const registry = normalize([
+      advertisedEntry({ id: 'alert-panel', kind: 'widget', contract: { events: ['dismissed'] } }),
+    ])
+
+    const published = acceptedEntry(registry, 'alert-panel').contract
+    expect(published).toEqual({ events: ['dismissed'] })
+    expect(published && 'inputs' in published).toBe(false)
+  })
+
+  it('rejects a Widget contract on an App', () => {
+    const registry = normalize([advertisedEntry({ contract })])
+
+    expect(registry.entries.size).toBe(0)
+    expect(quarantinedEntry(registry, 'reports').error.message).toContain(
+      'Apps take URLs, Widgets take props',
+    )
+  })
+
+  it('rejects a contract whose events are not names', () => {
+    const registry = normalize([
+      advertisedEntry({ id: 'alert-panel', kind: 'widget', contract: { events: [{}] } }),
+    ])
+
+    expect(quarantinedEntry(registry, 'alert-panel').error.message).toContain(
+      'an array of event names',
+    )
+  })
+
+  it('rejects a contract that is not an object', () => {
+    const registry = normalize([
+      advertisedEntry({ id: 'alert-panel', kind: 'widget', contract: 'acknowledged' }),
+    ])
+
+    expect(registry.entries.size).toBe(0)
+  })
+})
+
 describe('advertised capabilities', () => {
   it('carries App capabilities through to the neutral entry', () => {
     const registry = normalize([

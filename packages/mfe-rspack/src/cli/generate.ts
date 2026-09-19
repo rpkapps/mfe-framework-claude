@@ -13,7 +13,7 @@
  * way the scaffold CLI does.
  */
 
-import { relative } from 'node:path'
+import { relative, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 
 import { generateContainer } from '../generate/container.ts'
@@ -39,13 +39,26 @@ export interface GenerateResult {
   readonly diagnostics: readonly Error[]
 }
 
+/**
+ * The path this command prints, in the one spelling every platform shares.
+ *
+ * `relative()` answers in the host's separator, so Windows printed
+ * `.mfe\fetch.ts` where the emitter, the generated imports and the
+ * documentation all say `.mfe/fetch.ts` — three spellings of one file in a
+ * tool whose whole output is file names. The emitter already normalizes; this
+ * is the same rule at the other end.
+ */
+function report(containerRoot: string, path: string): string {
+  return relative(containerRoot, path).split(sep).join('/')
+}
+
 /** Exported so a test can generate a container without spawning a process. */
 export async function generate(root: string): Promise<GenerateResult> {
   const { plan, written } = generateContainer({ containerRoot: root })
-  const paths = written.map(file => relative(plan.options.containerRoot, file.path))
+  const paths = written.map(file => report(plan.options.containerRoot, file.path))
 
   if (ownsRouteTree(plan)) {
-    paths.push(relative(plan.options.containerRoot, await generateRouteTree(plan)))
+    paths.push(report(plan.options.containerRoot, await generateRouteTree(plan)))
   }
 
   return {

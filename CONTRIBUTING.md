@@ -32,6 +32,37 @@ Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,
 - Every package's public surface goes through its `src/index.ts`. Deep imports
   into another package are a boundary violation and the lint preset rejects them.
 
+## Modules that export components
+
+React Refresh replaces a module in place only when it can prove **every** export
+is a component. One exported hook, constant or factory beside them makes the
+module unable to accept an update: the update propagates to whatever imported
+it, and to whatever imported that, until it reaches an entry — which accepts
+nothing, so the page reloads and every piece of state on it is lost.
+
+The failure is silent. Everything still works; it is only slower and starts
+over each time, which reads as a bundler problem rather than a module-shape one.
+
+So: in a module that exports components, export only components. Hooks,
+constants and factories go in their own module beside it. This applies to an
+MFE's render functions too — `src/mfe.ts` exports a definition and a contract by
+contract, so a Widget written inline in its entry reloads the page on every
+edit; `pnpm create-mfe` scaffolds the render into its own module for that
+reason.
+
+`pnpm hmr:probe <file> [url]`, against servers you already started, answers the
+question for one file: it puts a value on `window` that a reload cannot carry,
+edits the file, and reports whether the module was replaced or the page was.
+
+The second rule is for the build itself: **generated output must be a pure
+function of the sources.** The build regenerates before every compilation, and
+the container imports what it generates, so a timestamp, a counter or a random
+id in a generated module makes every compilation a source change and the
+container rebuilds forever — which reaches a developer as hot updates that fail
+to fetch and a page that reloads (`docs/decisions.md` §19). `writeGeneratedFiles`
+skips a file whose contents are unchanged, and that is only worth anything if
+unchanged sources produce unchanged bytes.
+
 ## Writing implementation code
 
 - Give each module one coherent responsibility, and keep package dependencies

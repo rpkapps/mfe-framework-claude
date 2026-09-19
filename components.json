@@ -1,0 +1,10 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "$comment": "Not a shadcn install target: nothing is ever added to this project from a registry. It exists so @tecton/eslint-config can find the Tailwind entry stylesheet and read the project's real theme, which is how it tells a Tecton token from a class that generates no CSS at all. The linter also prints a notice about aliases.ui not resolving to a directory: Tecton ships its components inside @tecton/react rather than in a components/ui folder, so there is no such directory, and @tecton/eslint-config names the component imports itself through componentImports. The notice is expected and the rules are active without it.",
+  "style": "aria-tecton",
+  "tailwind": {
+    "css": "apps/shell/src/styles/app.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  }
+}
