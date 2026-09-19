@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useMatches } from '@tanstack/react-router'
 import { useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
 
 import { getLayout, subscribeLayout, type DashboardLayout } from './dashboard/layout-store.ts'
@@ -23,6 +24,36 @@ export function useApps(): readonly NeutralRegistryEntry[] {
         entry => entry.definitionKind === 'app' && entry.hidden !== true,
       ),
     [runtime],
+  )
+}
+
+/** The App at the active boundary, and what the registry knows about it. */
+export interface ActiveApp {
+  /** The id in the URL, which is the one fact that is always true. */
+  readonly id: string
+  /** Undefined when the URL names an App the registry does not know. */
+  readonly entry: NeutralRegistryEntry | undefined
+}
+
+/**
+ * Which application the chrome is currently showing, or `null` on the shell's
+ * own page.
+ *
+ * Read from the route rather than remembered on a selection, because the URL is
+ * what decides: a deep link, a browser back and a click in the finder all have
+ * to arrive at the same answer.
+ */
+export function useActiveApp(): ActiveApp | null {
+  const matches = useMatches()
+  const apps = useApps()
+
+  const id = matches
+    .map(match => (match.params as { appId?: string }).appId)
+    .find(candidate => typeof candidate === 'string' && candidate !== '')
+
+  return useMemo(
+    () => (id === undefined ? null : { id, entry: apps.find(app => app.id === id) }),
+    [id, apps],
   )
 }
 

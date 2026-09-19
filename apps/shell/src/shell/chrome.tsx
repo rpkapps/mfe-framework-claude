@@ -10,8 +10,13 @@
  */
 
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from 'react'
-import { useBlocker, useMatches, useNavigate } from '@tanstack/react-router'
-import { useMfeRuntime, type BreadcrumbItem, type MfeRuntime } from '@company/mfe-react'
+import { useBlocker, useNavigate } from '@tanstack/react-router'
+import {
+  useMfeRuntime,
+  type BreadcrumbItem,
+  type MfeRuntime,
+  type NeutralRegistryEntry,
+} from '@company/mfe-react'
 import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
 import {
   Breadcrumb,
@@ -68,7 +73,7 @@ import { toast } from 'sonner'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
-import { useApps, useShellSurface, useTheme } from './hooks.ts'
+import { useActiveApp, useApps, useShellSurface, useTheme } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
 import { RegistryNotice, RegistrySheet } from './registry-sheet.tsx'
@@ -85,6 +90,35 @@ import { workspace } from './workspace.ts'
  */
 const closeOnDismiss = (open: boolean): void => {
   if (!open) shellUi.close()
+}
+
+/** The shell's own page, which the finder lists beside the applications. */
+const DASHBOARD = {
+  id: '@dashboard',
+  icon: 'DSH',
+  tone: 'violet',
+  name: 'Widget dashboard',
+} as const
+
+/**
+ * How one application looks in the finder — the same tile, tone and name
+ * whether it is being offered in the list or shown in the trigger as the
+ * current one. Derived rather than stored twice, so the two cannot disagree
+ * about what you are looking at.
+ *
+ * An id the registry does not know still gets a tile: the boundary below is
+ * already saying it could not be loaded, and a trigger reading "Widget
+ * dashboard" over that error would be the shell lying about where you are.
+ */
+function appFace(
+  id: string,
+  entry: NeutralRegistryEntry | undefined,
+): { readonly icon: string; readonly tone: 'blue' | 'saffron'; readonly name: string } {
+  return {
+    icon: entry?.icon ?? id.slice(0, 3).toUpperCase(),
+    tone: entry?.overridden === true ? 'saffron' : 'blue',
+    name: entry?.title ?? id,
+  }
 }
 
 export function ShellLayout({ children }: { readonly children: ReactNode }): ReactNode {
@@ -193,8 +227,11 @@ function Header(): ReactNode {
   const runtime = useMfeRuntime('the shell header')
   const navigate = useNavigate()
   const apps = useApps()
+  const active = useActiveApp()
   const theme = useTheme()
   const user = runtime.shellState.getUser()
+
+  const current = active === null ? DASHBOARD : appFace(active.id, active.entry)
 
   useShortcut({
     id: 'shell.palette',
@@ -266,8 +303,14 @@ function Header(): ReactNode {
   return (
     <AppShellHeader data-slot="shell-header" className="gap-1 sm:gap-2">
       <AppFinder>
-        <AppFinderTrigger name={workspace.name} tone="blue">
-          {workspace.code}
+        {/*
+         * The application you are in, not the workspace you are in. The
+         * workspace name is already the first breadcrumb, and a trigger that
+         * never changed made the one control that switches application look
+         * like it had nothing to switch.
+         */}
+        <AppFinderTrigger name={current.name} tone={current.tone}>
+          {current.icon}
         </AppFinderTrigger>
         <AppFinderMenu>
           <AppFinderInput />
@@ -281,10 +324,10 @@ function Header(): ReactNode {
           >
             <AppFinderGroup heading="Shell">
               <AppFinderItem
-                id="@dashboard"
-                icon="DSH"
-                tone="violet"
-                name="Widget dashboard"
+                id={DASHBOARD.id}
+                icon={DASHBOARD.icon}
+                tone={DASHBOARD.tone}
+                name={DASHBOARD.name}
                 description="Compose a page from registered Widgets"
                 keywords={['dashboard', 'widgets']}
               />
@@ -294,9 +337,7 @@ function Header(): ReactNode {
                 <AppFinderItem
                   key={app.id}
                   id={app.id}
-                  icon={app.icon ?? app.id.slice(0, 3).toUpperCase()}
-                  tone={app.overridden === true ? 'saffron' : 'blue'}
-                  name={app.title ?? app.id}
+                  {...appFace(app.id, app)}
                   description={app.manifestUrl}
                   keywords={[app.id]}
                 />
@@ -478,28 +519,27 @@ function Header(): ReactNode {
  */
 function Breadcrumbs(): ReactNode {
   const runtime = useMfeRuntime('the shell breadcrumbs')
-  const matches = useMatches()
-  const apps = useApps()
+  const active = useActiveApp()
   const handle = useRef<ReturnType<MfeRuntime['breadcrumbs']['registerMount']> | null>(null)
-
-  const appId = matches
-    .map(match => (match.params as { appId?: string }).appId)
-    .find(id => typeof id === 'string' && id !== '')
-  const entry = apps.find(app => app.id === appId)
 
   const items = useMemo(() => {
     const trail: BreadcrumbItem[] = [{ key: 'workspace', label: workspace.name, href: '/' }]
 
-    if (entry) trail.push({ key: entry.id, label: entry.title ?? entry.id, href: `/${entry.id}` })
-    // An id in the URL that the registry does not know is still that id. The
-    // boundary below is already saying it could not be loaded, and a crumb
-    // reading "Widget dashboard" over that error would be the shell lying about
-    // where you are.
-    else if (appId !== undefined) trail.push({ key: appId, label: appId })
-    else trail.push({ key: 'dashboard', label: 'Widget dashboard' })
+    // The same answer the finder's trigger shows, from the same hook: an id the
+    // registry does not know still names itself, because the boundary below is
+    // already saying it could not be loaded and a crumb reading "Widget
+    // dashboard" over that error would be the shell lying about where you are.
+    if (active === null) trail.push({ key: 'dashboard', label: DASHBOARD.name })
+    else {
+      trail.push({
+        key: active.id,
+        label: appFace(active.id, active.entry).name,
+        ...(active.entry === undefined ? {} : { href: `/${active.id}` }),
+      })
+    }
 
     return trail
-  }, [entry, appId])
+  }, [active])
 
   useEffect(() => {
     const registration = runtime.breadcrumbs.registerMount('shell', 'shell#0', 0)
