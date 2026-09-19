@@ -8,6 +8,7 @@
 import {
   breadcrumbTrailEqual,
   createMfeError,
+  DEV,
   SnapshotSource,
   type BreadcrumbItem,
   type DiagnosticsHub,
@@ -124,19 +125,22 @@ export class BreadcrumbStore {
     }
 
     if (hasLiveOverride && contribution.overrideOwner !== ownerToken) {
-      this.#options.diagnostics?.report(
-        createMfeError({
-          code: 'app/invalid-router',
-          id: contribution.definitionId,
-          operation: 'install a breadcrumb override',
-          expected: 'at most one active breadcrumb override per App mount',
-          observed: 'a second override while another is still mounted',
-          declaredBy: 'The breadcrumb contract',
-          repair:
-            'Unmount the first override before mounting the second, or lift the override into one component. Competing overrides would otherwise resolve by render order.',
-        }),
-        { severity: 'warning' },
-      )
+      // A developer mistake, reported and then ignored either way, so the
+      // report and its sentences leave a production build.
+      if (DEV) {
+        this.#options.diagnostics?.report(
+          createMfeError({
+            code: 'app/invalid-router',
+            id: contribution.definitionId,
+            operation: 'install a breadcrumb override',
+            expected: 'at most one active breadcrumb override per App mount',
+            observed: 'a second override while another is still mounted',
+            repair:
+              'Unmount the first override before mounting the second, or lift it into one component. Competing overrides would otherwise resolve by render order.',
+          }),
+          { severity: 'warning' },
+        )
+      }
       return
     }
 

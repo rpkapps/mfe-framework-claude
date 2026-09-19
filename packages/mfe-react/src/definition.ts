@@ -61,7 +61,6 @@ export function createApp(options: AppOptions): AppDefinition {
       operation: 'create App definition',
       expected: 'a router factory function',
       observed: options.router === undefined ? 'nothing' : `a ${typeof options.router}`,
-      declaredBy: 'The App definition contract',
       repair: 'Pass the named factory that calls createRouter; it runs once per mount.',
     })
   }
@@ -119,7 +118,6 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
       operation: 'create Widget definition',
       expected: 'a render function',
       observed: options.render === undefined ? 'nothing' : `a ${typeof options.render}`,
-      declaredBy: 'The Widget definition contract',
       repair: 'Pass a component function as `render`; its props are typed from the schemas.',
     })
   }
@@ -154,7 +152,6 @@ function assertValidId(id: unknown, operation: string): asserts id is string {
     expected: DEFINITION_ID_RULE,
     observed:
       id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
-    declaredBy: 'The framework identity rules',
     repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
   })
 }
@@ -172,7 +169,6 @@ function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): 
       code: 'contract/event-mismatch',
       id,
       operation: `declare event '${name}'`,
-      declaredBy: 'The Widget contract',
     } as const
 
     if (!isValidEventName(name)) {
@@ -212,7 +208,6 @@ export function assertUsableInputNames(id: string, inputNames: readonly string[]
       operation: `declare input '${name}'`,
       expected: 'an input name that is not reserved for host control or event handlers',
       observed: `'${name}', which is reserved`,
-      declaredBy: 'The Widget consumption contract',
       repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
     })
   }

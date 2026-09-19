@@ -28,9 +28,7 @@ function fail(context: AllowlistContext, observed: string, repair: string): neve
     operation: context.operation,
     expected: 'an absolute http(s) origin such as "https://api.example.test"',
     observed,
-    declaredBy: 'The author configuration that marks an origin { api: true }',
     repair,
-    note: 'Only declared origins receive the session bearer token, so the list is a security boundary rather than a convenience.',
   })
 }
 

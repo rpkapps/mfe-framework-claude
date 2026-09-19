@@ -5,12 +5,16 @@
  * Emitting is synchronous and returns nothing, so it can never rerender. A
  * provider that throws is contained here, and a failure of the telemetry path
  * is only ever counted — never reported back through the path that failed.
+ *
+ * Every `diagnose` call site is wrapped in `if (DEV)`, so in a production build
+ * the diagnostic and the prose it carries are dropped rather than skipped.
  */
 
 import {
   boundAttributes,
   boundName,
   createMfeError,
+  DEV,
   normalizeError,
   type Diagnostic,
   type DiagnosticsSink,
@@ -59,32 +63,51 @@ const ATTRIBUTION_FIELDS = [
   'mountToken',
 ] as const satisfies readonly (keyof TelemetryAttribution)[]
 
-const COUNTER_NAMES = [
-  'recorded',
-  'droppedAfterDispose',
-  'droppedByLevelFilter',
-  'invalidMeasurements',
-  // A framework report suppressed because the same error was already reported.
-  'deduplicatedErrors',
-  // A repeat report of an error instance the mount had already recorded.
-  'duplicateErrorReports',
-  // Attribute keys that tried to shadow host-bound attribution.
-  'reservedOverrideAttempts',
-  // Throws contained from the provider, its tracer, its spans or a sink.
-  'sinkFailures',
-  'spansStarted',
-  'spansDroppedAtLimit',
-  'spansFinalizedAtDisposal',
-  'mutationsAfterEnd',
-  'diagnosticsEmitted',
-  'diagnosticsSuppressed',
-] as const
-
 /**
  * Local, bounded accounting of everything the telemetry path swallowed. Each
  * one is a single integer, so the counters can never grow memory.
  */
-export type TelemetryCounters = Readonly<Record<(typeof COUNTER_NAMES)[number], number>>
+export interface TelemetryCounters {
+  readonly recorded: number
+  readonly droppedAfterDispose: number
+  readonly droppedByLevelFilter: number
+  readonly invalidMeasurements: number
+  /** A framework report suppressed because the same error was already reported. */
+  readonly deduplicatedErrors: number
+  /** A repeat report of an error instance the mount had already recorded. */
+  readonly duplicateErrorReports: number
+  /** Attribute keys that tried to shadow host-bound attribution. */
+  readonly reservedOverrideAttempts: number
+  /** Throws contained from the provider, its tracer, its spans or a sink. */
+  readonly sinkFailures: number
+  readonly spansStarted: number
+  readonly spansDroppedAtLimit: number
+  readonly spansFinalizedAtDisposal: number
+  readonly mutationsAfterEnd: number
+  readonly diagnosticsEmitted: number
+  readonly diagnosticsSuppressed: number
+}
+
+type MutableCounters = { -readonly [K in keyof TelemetryCounters]: number }
+
+function newCounters(): MutableCounters {
+  return {
+    recorded: 0,
+    droppedAfterDispose: 0,
+    droppedByLevelFilter: 0,
+    invalidMeasurements: 0,
+    deduplicatedErrors: 0,
+    duplicateErrorReports: 0,
+    reservedOverrideAttempts: 0,
+    sinkFailures: 0,
+    spansStarted: 0,
+    spansDroppedAtLimit: 0,
+    spansFinalizedAtDisposal: 0,
+    mutationsAfterEnd: 0,
+    diagnosticsEmitted: 0,
+    diagnosticsSuppressed: 0,
+  }
+}
 
 export interface DiagnosticDetails {
   readonly code: MfeErrorCode
@@ -120,9 +143,7 @@ export class MountTelemetryRuntime {
   readonly attribution: TelemetryAttribution
   /** Identity the context manager compares. Created per mount, never handed out. */
   readonly owner: object = Object.freeze({})
-  readonly counters = Object.fromEntries(COUNTER_NAMES.map(name => [name, 0])) as {
-    -readonly [K in keyof TelemetryCounters]: number
-  }
+  readonly counters: MutableCounters = newCounters()
 
   readonly #reserved: TelemetryAttributes
   readonly #onDiagnostic: DiagnosticsSink | undefined
@@ -152,7 +173,7 @@ export class MountTelemetryRuntime {
     this.attribution = Object.freeze(bound) as unknown as TelemetryAttribution
     this.#reserved = Object.freeze(reserved)
     this.#onDiagnostic = options.onDiagnostic
-    this.#dev = options.dev ?? globalThis.process?.env?.['NODE_ENV'] !== 'production'
+    this.#dev = options.dev ?? DEV
     this.#maxDiagnostics = options.maxDiagnostics ?? 50
     this.#clock = options.now ?? Date.now
   }
@@ -183,13 +204,15 @@ export class MountTelemetryRuntime {
       return call()
     } catch (failure) {
       this.counters.sinkFailures += 1
-      this.diagnose({
-        code: 'config/invalid',
-        operation,
-        expected: 'a telemetry provider that returns without throwing',
-        observed: `the provider threw ${normalizeError(failure).name}`,
-        repair: 'Fix the provider so it buffers or drops internally.',
-      })
+      if (DEV) {
+        this.diagnose({
+          code: 'config/invalid',
+          operation,
+          expected: 'a telemetry provider that returns without throwing',
+          observed: `the provider threw ${normalizeError(failure).name}`,
+          repair: 'Fix the provider so it buffers or drops internally.',
+        })
+      }
       return undefined
     }
   }
@@ -213,7 +236,6 @@ export class MountTelemetryRuntime {
       error: createMfeError({
         ...message,
         id: this.attribution.definitionId,
-        declaredBy: 'The host telemetry binding',
         ...(version === undefined ? {} : { definitionVersion: version }),
       }),
       ...(context === undefined ? {} : { context }),
@@ -249,13 +271,15 @@ export class MountTelemetryRuntime {
 
     if (collisions.length > 0) {
       this.counters.reservedOverrideAttempts += collisions.length
-      this.diagnose({
-        code: 'contract/input-mismatch',
-        operation,
-        expected: 'attribute keys outside the host-owned "mfe." attribution namespace',
-        observed: `reserved ${collisions.length === 1 ? 'key' : 'keys'} ${collisions.join(', ')}`,
-        repair: 'Rename the attribute; the supplied value was discarded.',
-      })
+      if (DEV) {
+        this.diagnose({
+          code: 'contract/input-mismatch',
+          operation,
+          expected: 'attribute keys outside the host-owned "mfe." attribution namespace',
+          observed: `reserved ${collisions.length === 1 ? 'key' : 'keys'} ${collisions.join(', ')}`,
+          repair: 'Rename the attribute; the supplied value was discarded.',
+        })
+      }
     }
     return Object.freeze({ ...authored, ...this.#reserved })
   }
@@ -264,13 +288,15 @@ export class MountTelemetryRuntime {
   #refused(operation: string): boolean {
     if (!this.#disposed) return false
     this.counters.droppedAfterDispose += 1
-    this.diagnose({
-      code: 'dispose/failure',
-      operation,
-      expected: 'telemetry only while the mount is live',
-      observed: 'a telemetry call arrived after the mount was disposed',
-      repair: 'Cancel the work that produced it with the mount abort signal.',
-    })
+    if (DEV) {
+      this.diagnose({
+        code: 'dispose/failure',
+        operation,
+        expected: 'telemetry only while the mount is live',
+        observed: 'a telemetry call arrived after the mount was disposed',
+        repair: 'Cancel the work that produced it with the mount abort signal.',
+      })
+    }
     return true
   }
 
@@ -365,13 +391,15 @@ export class MountTelemetryRuntime {
       // NaN and the infinities cannot be aggregated and would poison a
       // histogram downstream, so nothing is recorded at all.
       this.counters.invalidMeasurements += 1
-      this.diagnose({
-        code: 'contract/input-mismatch',
-        operation,
-        expected: 'a finite number',
-        observed: `${String(value)} for measurement "${boundName(name)}"`,
-        repair: 'Guard the computation before measuring; the observation was not recorded.',
-      })
+      if (DEV) {
+        this.diagnose({
+          code: 'contract/input-mismatch',
+          operation,
+          expected: 'a finite number',
+          observed: `${String(value)} for measurement "${boundName(name)}"`,
+          repair: 'Guard the computation before measuring; nothing was recorded.',
+        })
+      }
       return
     }
     this.#deliver(

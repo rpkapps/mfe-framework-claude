@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Span, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from './recording-provider.ts'
+import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 import { bindTelemetryContext, getActiveSpanContext } from './tracer.ts'
 import { setup as createMount, spanNamed as findSpan } from './__tests__/harness.ts'

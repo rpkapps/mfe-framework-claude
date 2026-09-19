@@ -8,7 +8,8 @@
  * and what a refused back navigation is rolled back by.
  */
 
-import { BoundaryNavigator, createMemoryNavigationBridge } from '@company/mfe-host'
+import { BoundaryNavigator } from '@company/mfe-host'
+import { createMemoryNavigationBridge } from '@company/mfe-host/testing'
 import { describe, expect, it } from 'vitest'
 
 import { createBoundaryHistory } from './boundary-history.ts'

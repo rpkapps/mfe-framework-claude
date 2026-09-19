@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createMfeError, describeValue, formatPath, isMfeError, toMfeError } from './errors.ts'
 
 describe('createMfeError message composition', () => {
-  it('names the definition, field, expectation, observation, owning side and repair step', () => {
+  it('names the definition, field, expectation, observation and repair step', () => {
     const error = createMfeError({
       code: 'contract/input-mismatch',
       id: 'alert-panel',
@@ -12,16 +12,12 @@ describe('createMfeError message composition', () => {
       path: ['alertId'],
       expected: 'a string',
       observed: 'undefined',
-      declaredBy: 'The Widget provider',
       repair: 'Check the alertId prop in the consuming component.',
-      note: 'The previous valid inputs remain displayed.',
     })
 
     expect(error.message).toBe(
       'alert-panel failed to accept input alertId: expected a string, received undefined. ' +
-        'The Widget provider declares this expectation. ' +
-        'Check the alertId prop in the consuming component. ' +
-        'The previous valid inputs remain displayed.',
+        'Check the alertId prop in the consuming component.',
     )
   })
 

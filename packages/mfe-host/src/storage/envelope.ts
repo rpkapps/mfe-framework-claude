@@ -8,12 +8,12 @@
  */
 
 import {
+  describeThrown,
   describeValue,
   isStorageEnvelope,
   type MfeError,
   type MfeErrorDetails,
   type StorageArea,
-  type StorageEnvelope,
   type StorageRetention,
   type StorageSnapshot,
 } from '@company/mfe-core'
@@ -21,9 +21,6 @@ import {
 import type { z } from 'zod'
 
 export type Detail = Omit<MfeErrorDetails, 'code' | 'id' | 'operation' | 'path'>
-
-export const DECLARATION = 'The storage declaration this consumer supplied'
-export const SHELL = 'The shell, which owns session identity'
 
 export interface EnvelopeDeclaration {
   readonly name: string
@@ -55,10 +52,6 @@ export interface ParseOutcome {
   readonly raw: string | null
 }
 
-export function describeThrown(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : describeValue(error)
-}
-
 /** The first issue, which is the one a developer acts on. */
 export function describeIssue(error: {
   readonly issues: readonly { expected?: string; message?: string }[]
@@ -81,9 +74,9 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
     parsed = JSON.parse(raw)
   } catch (error) {
     return bad('read', {
-      expected: 'a JSON record written through the framework storage boundary',
+      expected: 'a record written through the framework storage boundary',
       observed: `text that is not JSON (${describeThrown(error)})`,
-      repair: `Remove '${context.physicalKey}' from ${context.area} storage, or write it through the framework.`,
+      repair: `Remove '${context.physicalKey}' from ${context.area} storage.`,
       cause: error,
     })
   }
@@ -91,22 +84,20 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
   if (!isStorageEnvelope(parsed)) {
     if (declaration.migrate !== undefined) return migrateInto(context, parsed, 0, raw)
     return bad('read', {
-      expected: `a framework envelope { v, r, d } at version ${declaration.version}`,
+      expected: `a framework envelope at version ${declaration.version}`,
       observed: `an unversioned record (${describeValue(parsed)})`,
-      declaredBy: DECLARATION,
-      repair: `Declare migrate(value, fromVersion) on '${declaration.name}' to convert the pre-framework record, or remove the key.`,
+      repair: `Declare migrate() on '${declaration.name}' to convert it, or remove the key.`,
     })
   }
 
-  const envelope: StorageEnvelope = parsed
+  const envelope = parsed
   const generation = context.generation()
 
-  if (envelope.r === 'session') {
+  if (envelope.r === 'user') {
     if (generation === null) {
       return bad('read', {
-        expected: 'the session generation to be established before a session value is read',
-        observed: 'a session-retained record with no session in force',
-        declaredBy: SHELL,
+        expected: 'the session generation to be established before a user value is read',
+        observed: 'a record retained for the signed-in user, with no session in force',
         repair: 'Give the store its generation before mounting anything that reads session state.',
       })
     }
@@ -121,8 +112,7 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
     return bad('read', {
       expected: `a stored value matching the declared schema (${describeIssue(result.error)})`,
       observed: describeValue(envelope.d),
-      declaredBy: DECLARATION,
-      repair: `Raise the version of '${declaration.name}' and declare migrate(), or remove the key. The declared default does not stand in for a schema mismatch.`,
+      repair: `Raise the version of '${declaration.name}' and declare migrate(), or remove the key.`,
       cause: result.error,
     })
   }
@@ -131,9 +121,7 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
     return bad('read', {
       expected: `version ${declaration.version}`,
       observed: `version ${envelope.v}, written by a newer build`,
-      declaredBy: DECLARATION,
-      repair:
-        'Reload into the current build; a record from the future is never overwritten or replaced by the default.',
+      repair: 'Reload into the current build; a record from the future is never overwritten.',
     })
   }
 
@@ -141,8 +129,7 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
     return bad('read', {
       expected: `version ${declaration.version}`,
       observed: `version ${envelope.v} with no migrate() declared`,
-      declaredBy: DECLARATION,
-      repair: `Declare migrate(value, fromVersion) on '${declaration.name}' to convert version ${envelope.v}, or remove the key.`,
+      repair: `Declare migrate() on '${declaration.name}', or remove the key.`,
     })
   }
 
@@ -177,8 +164,7 @@ function migrateInto(
     return bad({
       expected: `a value at version ${declaration.version}`,
       observed: `migrate() threw (${describeThrown(error)})`,
-      declaredBy: DECLARATION,
-      repair: `Fix migrate() for '${declaration.name}' from version ${fromVersion}. The previous record is preserved.`,
+      repair: `Fix migrate() for '${declaration.name}'. The previous record is preserved.`,
       cause: error,
     })
   }
@@ -188,18 +174,16 @@ function migrateInto(
     return bad({
       expected: `a migrated value matching the declared schema (${describeIssue(result.error)})`,
       observed: describeValue(converted),
-      declaredBy: DECLARATION,
-      repair: `Fix migrate() for '${declaration.name}' so its result satisfies the schema. Nothing was overwritten.`,
+      repair: `Fix migrate() for '${declaration.name}'. Nothing was overwritten.`,
       cause: result.error,
     })
   }
 
-  if (declaration.retention === 'session' && context.generation() !== generationAtStart) {
+  if (declaration.retention === 'user' && context.generation() !== generationAtStart) {
     return bad({
-      expected: `the migration to commit in the generation it started in ('${String(generationAtStart)}')`,
-      observed: `the session moved on to '${String(context.generation())}'`,
-      repair:
-        "A retired session's data is never migrated into a new one. Nothing was written; the new session starts from the declared default.",
+      expected: `the migration to commit in the generation it started in`,
+      observed: 'the session moved on while it ran',
+      repair: "A retired session's data is never migrated into a new one. Nothing was written.",
     })
   }
 
@@ -225,23 +209,21 @@ export function serializeEnvelope(
   value: unknown,
   fail: (verb: string, detail: Detail) => MfeError,
 ): string {
-  const envelope: StorageEnvelope = {
-    v: declaration.version,
-    r: declaration.retention,
-    // Only the opaque generation is persisted: never a token, never a group list.
-    ...(declaration.retention === 'session' && generation !== null ? { g: generation } : {}),
-    d: value,
-  }
   try {
     // An object literal always stringifies to a string or throws, so there is no
     // undefined case to handle here.
-    return JSON.stringify(envelope)
+    return JSON.stringify({
+      v: declaration.version,
+      r: declaration.retention,
+      // Only the opaque generation is persisted: never a token, never a group list.
+      ...(declaration.retention === 'user' && generation !== null ? { g: generation } : {}),
+      d: value,
+    })
   } catch (error) {
     throw fail('write', {
       expected: 'a JSON-serializable value',
       observed: describeThrown(error),
-      repair:
-        'Store plain JSON. Functions, class instances, cycles and bigints cannot be persisted; the stored value is unchanged.',
+      repair: 'Store plain JSON; the stored value is unchanged.',
       cause: error,
     })
   }

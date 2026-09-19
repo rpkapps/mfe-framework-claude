@@ -31,9 +31,3 @@ export {
   nonRecordingSpan,
   type SpanEmitterOptions,
 } from './span-emitter.ts'
-
-export {
-  createRecordingTelemetryProvider,
-  type RecordingProviderOptions,
-  type RecordingTelemetryProvider,
-} from './recording-provider.ts'

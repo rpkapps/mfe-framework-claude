@@ -8,7 +8,6 @@
  */
 
 import {
-  createMfeError,
   toMfeError,
   type DefinitionIdentity,
   type MfeError,
@@ -118,7 +117,6 @@ function raceWithAbort<T>(
       id: entry.id,
       operation: 'load container',
       observed: 'the caller stopped waiting before the container finished loading',
-      declaredBy: 'The host mount controller',
       repair:
         'No action required when this follows a disposal or a retry. Other callers waiting on the same container are unaffected.',
     })
@@ -143,39 +141,4 @@ function raceWithAbort<T>(
   return Promise.race([shared, cancelled]).finally(() => {
     if (abandon !== undefined) signal.removeEventListener('abort', abandon)
   })
-}
-
-/** An in-process loader: definitions registered directly, no bundler or network. */
-export function createInProcessLoader<TModule>(
-  definitions: ReadonlyMap<string, LoadedDefinition<TModule>>,
-): ContainerLoader<TModule> {
-  return {
-    // `async` is load-bearing here rather than incidental. The ContainerLoader
-    // contract requires an already-aborted signal and a missing definition to
-    // arrive as a rejected promise, and this implementation resolves from a Map
-    // with nothing to await; without `async` both become a synchronous throw at
-    // the call site, which no caller of a Promise-returning port handles.
-    // eslint-disable-next-line @typescript-eslint/require-await -- the async signature is the port's contract and there is genuinely nothing to await
-    load: async (entry, options) => {
-      options.signal.throwIfAborted()
-
-      const loaded = definitions.get(entry.id)
-      if (!loaded) {
-        throw createMfeError({
-          code: 'load/entry-failure',
-          id: entry.id,
-          operation: 'resolve definition from the in-process loader',
-          expected: `a definition registered under "${entry.id}"`,
-          observed:
-            definitions.size === 0
-              ? 'an empty loader'
-              : `only ${[...definitions.keys()].join(', ')}`,
-          declaredBy: 'The in-process test loader',
-          repair: 'Register the definition with the test environment before mounting it.',
-        })
-      }
-
-      return loaded
-    },
-  }
 }

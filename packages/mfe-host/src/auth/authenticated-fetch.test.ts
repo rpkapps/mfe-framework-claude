@@ -277,7 +277,7 @@ describe('createAuthenticatedFetch: token attachment', () => {
     expect(diagnostic.error.message).toContain(THIRD_PARTY)
     expect(diagnostic.error.message).toContain('{ api: true }')
     expect(diagnostic.error.message).toContain('answers 401')
-    expect(diagnostic.error.message).toContain('not an expired or broken token')
+    expect(diagnostic.error.message).toContain('not a broken token')
   })
 
   it('warns once per origin so the console stays readable', async () => {
@@ -472,7 +472,7 @@ describe('createAuthenticatedFetch: requests that cannot be replayed', () => {
     expect(diagnostic.severity).toBe('warning')
     expect(diagnostic.error.message).toContain('ReadableStream')
     expect(diagnostic.error.message).toContain('cannot be read a second time')
-    expect(diagnostic.error.message).toContain('getAccessToken')
+    expect(diagnostic.error.message).toContain('handle the 401 at the call site')
     expect(diagnostic.context).toMatchObject({ origin: API, method: 'POST' })
 
     // The session is still renewed, so the next request is not doomed too.

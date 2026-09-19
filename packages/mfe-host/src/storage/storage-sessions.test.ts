@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { DiagnosticsHub, type Diagnostic, type StorageEnvelope } from '@company/mfe-core'
 
-import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
+import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
 
 const ORDERS = 'acme-orders'
@@ -43,15 +43,15 @@ function envelope(
   data: unknown,
   overrides: {
     readonly v?: number
-    readonly r?: 'session' | 'preference'
+    readonly r?: 'user' | 'browser'
     readonly g?: string
   } = {},
 ): string {
-  const retention = overrides.r ?? 'session'
+  const retention = overrides.r ?? 'user'
   return JSON.stringify({
     v: overrides.v ?? 1,
     r: retention,
-    ...(retention === 'session' ? { g: overrides.g ?? 'gen-1' } : {}),
+    ...(retention === 'user' ? { g: overrides.g ?? 'gen-1' } : {}),
     d: data,
   })
 }
@@ -82,45 +82,45 @@ describe('the persisted envelope', () => {
 
     const record = readEnvelope(local, 'acme-orders:theme')
     expect(Object.keys(record).sort()).toEqual(['d', 'g', 'r', 'v'])
-    expect(record).toEqual({ v: 1, r: 'session', g: 'gen-1', d: 'dark' })
+    expect(record).toEqual({ v: 1, r: 'user', g: 'gen-1', d: 'dark' })
   })
 
-  it('persists no generation for a preference record, and never a token or a group list', () => {
+  it('persists no generation for a browser-retained record, and never a token or a group list', () => {
     const { store, local } = harness({ groups: ['finance', 'admin'] })
     const theme = store.bind(ORDERS, {
       name: 'theme',
       schema: themeSchema,
-      retention: 'preference',
+      retention: 'browser',
     })
 
     theme.set('dark')
 
     const raw = local.getItem('acme-orders:theme') ?? ''
-    expect(JSON.parse(raw)).toEqual({ v: 1, r: 'preference', d: 'dark' })
+    expect(JSON.parse(raw)).toEqual({ v: 1, r: 'browser', d: 'dark' })
     expect(raw).not.toMatch(/finance|admin|token/)
   })
 
   it('keeps retention independent of the store the value lives in', () => {
     const { store, local, session } = harness()
-    const preferenceInSession = store.bind(ORDERS, {
+    const browserInSession = store.bind(ORDERS, {
       name: 'density',
       schema: z.string(),
-      area: 'session',
-      retention: 'preference',
+      storage: 'session',
+      retention: 'browser',
     })
     const sessionInLocal = store.bind(ORDERS, {
       name: 'draft',
       schema: draftSchema,
-      area: 'local',
-      retention: 'session',
+      storage: 'local',
+      retention: 'user',
     })
 
-    preferenceInSession.set('compact')
+    browserInSession.set('compact')
     sessionInLocal.set('half written')
 
-    expect(readEnvelope(session, 'acme-orders:density').r).toBe('preference')
+    expect(readEnvelope(session, 'acme-orders:density').r).toBe('browser')
     expect(readEnvelope(session, 'acme-orders:density').g).toBeUndefined()
-    expect(readEnvelope(local, 'acme-orders:draft')).toMatchObject({ r: 'session', g: 'gen-1' })
+    expect(readEnvelope(local, 'acme-orders:draft')).toMatchObject({ r: 'user', g: 'gen-1' })
   })
 })
 
@@ -138,12 +138,12 @@ describe('the generation must be established first', () => {
     expect(local.getItem('acme-orders:draft')).toBe(envelope('half written'))
   })
 
-  it('lets a preference-retained value work with no session at all', () => {
+  it('lets a browser-retained value work with no session at all', () => {
     const { store } = harness({ generation: null })
     const theme = store.bind(ORDERS, {
       name: 'theme',
       schema: themeSchema,
-      retention: 'preference',
+      retention: 'browser',
       defaultValue: 'light',
     })
 
@@ -190,7 +190,7 @@ describe('session transitions', () => {
 
     const result = store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
 
-    expect(result).toMatchObject({ outcome: 'invalidated', invalidated: true, generation: 'gen-2' })
+    expect(result).toMatchObject({ outcome: 'invalidated', generation: 'gen-2' })
     expect(result.removedRecords).toBe(1)
     expect(result.notifiedKeys).toBe(1)
     expect(listener).toHaveBeenCalledTimes(1)
@@ -214,12 +214,12 @@ describe('session transitions', () => {
     expect(observed).toEqual([{ status: 'default', value: 'untitled' }])
   })
 
-  it('preserves preference records and does not disturb their subscribers', () => {
+  it('preserves browser-retained records and does not disturb their subscribers', () => {
     const { store, local } = harness()
     const theme = store.bind(ORDERS, {
       name: 'theme',
       schema: themeSchema,
-      retention: 'preference',
+      retention: 'browser',
       defaultValue: 'light',
     })
     const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
@@ -240,7 +240,7 @@ describe('session transitions', () => {
   it('invalidates records of definitions that are not currently mounted', () => {
     const { store, local, session } = harness()
     local.setItem('never-mounted:draft', envelope('someone else'))
-    local.setItem('never-mounted:theme', envelope('dark', { r: 'preference' }))
+    local.setItem('never-mounted:theme', envelope('dark', { r: 'browser' }))
     session.setItem('also-unmounted:step', envelope(3))
     local.setItem('third-party-widget', 'not a framework record')
     local.setItem('legacy:blob', '{"not":"an envelope"}')
@@ -283,13 +283,12 @@ describe('session transitions', () => {
     })
     expect(reorder).toMatchObject({
       outcome: 'unchanged-group-set',
-      invalidated: false,
       generation: 'gen-1',
     })
     expect(draft.getSnapshot()).toEqual({ status: 'value', value: 'customer notes' })
 
     const change = store.applySessionTransition({ kind: 'groups', groups: ['finance'] }, 'gen-2')
-    expect(change.invalidated).toBe(true)
+    expect(change.outcome).toBe('invalidated')
     expect(draft.getSnapshot().status).toBe('default')
   })
 
@@ -302,10 +301,11 @@ describe('session transitions', () => {
 
     expect(store.applySessionTransition({ kind: 'theme' })).toMatchObject({
       outcome: 'not-session-affecting',
-      invalidated: false,
       generation: 'gen-1',
     })
-    expect(store.applySessionTransition({ kind: 'token-refresh' }).invalidated).toBe(false)
+    expect(store.applySessionTransition({ kind: 'token-refresh' }).outcome).toBe(
+      'not-session-affecting',
+    )
 
     expect(listener).not.toHaveBeenCalled()
     expect(draft.getSnapshot()).toEqual({ status: 'value', value: 'customer notes' })
@@ -363,7 +363,7 @@ describe('session transitions', () => {
 
     expect(readEnvelope(local, 'acme-orders:draft')).toEqual({
       v: 1,
-      r: 'session',
+      r: 'user',
       g: 'gen-2',
       d: 'a new note',
     })

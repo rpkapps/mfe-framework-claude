@@ -7,6 +7,7 @@
  * once and frozen, so it can be closed over without re-running an effect.
  */
 
+import { DEV } from '@company/mfe-core'
 import type {
   MeasurementUnit,
   MfeTelemetry,
@@ -88,15 +89,14 @@ export function createMountTelemetry(
     // Teardown finalization runs before the gate closes: it is the one thing
     // allowed to touch the provider after disposal was requested.
     const leaked = tracer.finalizeOpenSpans()
-    if (leaked.finalized > 0) {
+    if (DEV && leaked.finalized > 0) {
       const names = leaked.names.slice(0, 8).join(', ')
       runtime.diagnose({
         code: 'dispose/failure',
         operation: 'dispose the mount telemetry',
         expected: 'every span started by the mount to be ended by its author',
         observed: `${leaked.finalized} span(s) still open: ${names}`,
-        repair:
-          'End each span in a finally block. They were closed as cancelled, not as failures, so no alert fires.',
+        repair: 'End each span in a finally block; they were closed as cancelled.',
         context: { openSpans: leaked.finalized, spanNames: names },
       })
     }

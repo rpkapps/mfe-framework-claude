@@ -13,7 +13,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { createMf2ContainerLoader, createMfeRuntime, MfeProvider } from '@company/mfe-react'
 import {
   createBrowserNavigationBridge,
-  createRecordingTelemetryProvider,
+  createNoopTelemetryProvider,
   createSpanEmitter,
   installShellAuth,
   type TelemetryProvider,
@@ -53,13 +53,16 @@ function overrideStorage(): Pick<Storage, 'getItem'> | undefined {
 }
 
 /**
- * Faro when a collector is configured, the recording provider otherwise. The
- * span implementation is the framework's in both cases: a provider says what to
- * do with a finished span, it never writes a second Tracer.
+ * Faro when a collector is configured, a provider that keeps nothing otherwise.
+ * Deliberately not the recording provider: that one is a test double, and a
+ * shell with no collector would fill its bounded buffers for the life of the
+ * page with records nobody ever drains. The span implementation is the
+ * framework's either way — a provider says what to do with a finished span, it
+ * never writes a second Tracer.
  */
 function telemetryProvider(): TelemetryProvider {
   const url = process.env['FARO_URL']
-  if (typeof url !== 'string' || url === '') return createRecordingTelemetryProvider()
+  if (typeof url !== 'string' || url === '') return createNoopTelemetryProvider()
 
   return createFaroProvider(url, (attribution, onSpanEnd) =>
     createSpanEmitter(attribution, { onSpanEnd }),
@@ -83,7 +86,7 @@ const storage = overrideStorage()
  * The signed-in user. Declared before the runtime because the session
  * generation is derived from it: a shell that boots with somebody in force owes
  * the framework the generation that session's storage is fenced by, and without
- * it every `retention: 'session'` write is refused.
+ * it every `retention: 'user'` write is refused.
  */
 const user = { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' }
 

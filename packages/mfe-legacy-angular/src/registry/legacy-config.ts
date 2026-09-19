@@ -42,12 +42,11 @@ export function isStringArray(value: unknown): value is readonly string[] {
 
 export function failDescriptor(
   id: string,
-  details: Omit<Parameters<typeof createMfeError>[0], 'code' | 'id'> & { declaredBy?: string },
+  details: Omit<Parameters<typeof createMfeError>[0], 'code' | 'id'>,
 ): never {
   throw createMfeError({
     code: 'registry/invalid-descriptor',
     id,
-    declaredBy: 'The legacy adapter',
     ...details,
   })
 }

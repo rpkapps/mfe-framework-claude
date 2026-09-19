@@ -26,16 +26,18 @@ function Storage(): ReactNode {
   const local = useMfeStorage()
   const [readBack, setReadBack] = useState<unknown>(undefined)
 
-  // `retention: 'preference'` survives a sign-out; 'session' does not. The
-  // distinction is declared with the key rather than decided at write time.
+  // `retention: 'browser'` survives a sign-out — which also means the next
+  // person to sign in on this browser reads it. 'user' is the default and is
+  // what anything derived from the signed-in user wants. The distinction is
+  // declared with the key rather than decided at write time.
   const [draft, setDraft] = useStoredState('draft', draftSchema, {
     defaultValue: { note: '', pinned: false },
-    retention: 'preference',
+    retention: 'browser',
   })
 
   const [visits, setVisits] = useStoredState('visits', visitsSchema, {
     defaultValue: 0,
-    retention: 'session',
+    retention: 'user',
     storage: 'session',
   })
 
@@ -52,7 +54,7 @@ function Storage(): ReactNode {
         </>
       }
     >
-      <LabSection title="A preference that survives a reload" note="retention: preference">
+      <LabSection title="State that outlives a sign-out" note="retention: browser">
         <Field>
           <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
           <Input
@@ -62,7 +64,10 @@ function Storage(): ReactNode {
               setDraft(current => ({ ...current, note: event.target.value }))
             }}
           />
-          <FieldDescription>Stored under this App&apos;s own prefix.</FieldDescription>
+          <FieldDescription>
+            Stored under this App&apos;s own prefix. `retention: browser` means the framework never
+            clears it — so the next person to sign in on this browser reads it too.
+          </FieldDescription>
         </Field>
 
         <Field orientation="horizontal" className="justify-between">
@@ -82,7 +87,7 @@ function Storage(): ReactNode {
         </div>
       </LabSection>
 
-      <LabSection title="Session state, in session storage" note="retention: session">
+      <LabSection title="State that belongs to the signed-in user" note="retention: user">
         <p className="text-sm text-muted-foreground">
           Counted {visits} time{visits === 1 ? '' : 's'} this session. An identity or group change
           retires this before anything can read it back.
@@ -115,7 +120,7 @@ function Storage(): ReactNode {
           <Button
             variant="outline"
             onPress={() => {
-              setReadBack(local.key('draft', draftSchema, { retention: 'preference' }).get())
+              setReadBack(local.key('draft', draftSchema, { retention: 'browser' }).get())
             }}
           >
             Read it back

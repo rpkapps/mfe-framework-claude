@@ -18,7 +18,7 @@ import type {
   TelemetryRecord,
 } from '@company/mfe-core'
 
-import { createSpanEmitter } from './span-emitter.ts'
+import { createSpanEmitter } from '../telemetry/span-emitter.ts'
 
 export interface RecordingProviderOptions {
   /** Levels the provider admits. Omit for "everything". */

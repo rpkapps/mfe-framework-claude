@@ -94,9 +94,7 @@ export class MountLifecycle implements Subscribable<MountState> {
         operation: 'begin a mount attempt',
         expected: 'a live mount',
         observed: 'a disposed mount',
-        declaredBy: 'The framework mount lifecycle',
-        repair:
-          'Create a new mount instead of reusing a disposed handle. Disposal is terminal: retry() cannot resurrect disposed work.',
+        repair: 'Create a new mount; disposal is terminal and retry() cannot undo it.',
       })
     }
 

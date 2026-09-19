@@ -81,7 +81,6 @@ export function resolveLegacyBaseHref(
       operation: 'resolve the legacy base href',
       expected: 'a legacy app name',
       observed: 'an empty name',
-      declaredBy: 'The legacy adapter',
       repair: 'Pass the name from the registry entry.',
     })
   }

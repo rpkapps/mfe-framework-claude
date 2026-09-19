@@ -12,6 +12,7 @@
 import {
   boundAttributes,
   boundName,
+  DEV,
   SpanKind,
   TELEMETRY_LIMITS,
   type Span,
@@ -131,13 +132,15 @@ class MountSpan implements Span {
   #refuseAfterEnd(operation: string): boolean {
     if (!this.#ended) return false
     this.#runtime.counters.mutationsAfterEnd += 1
-    this.#runtime.diagnose({
-      code: 'config/invalid',
-      operation,
-      expected: 'changes only while the span is open',
-      observed: `a change to span "${this.name}" after it ended`,
-      repair: 'Move the call before end(), or start a new span. The change was ignored.',
-    })
+    if (DEV) {
+      this.#runtime.diagnose({
+        code: 'config/invalid',
+        operation,
+        expected: 'changes only while the span is open',
+        observed: `a change to span "${this.name}" after it ended`,
+        repair: 'Move the call before end(), or start a new span. The change was ignored.',
+      })
+    }
     return true
   }
 
@@ -170,13 +173,15 @@ class MountSpan implements Span {
     const operation = 'set a span attribute'
     if (this.#refuseAfterEnd(operation)) return this
     if (!isReservedAttributeKey(key) && boundAttributes({ [key]: value })[key] === undefined) {
-      this.#runtime.diagnose({
-        code: 'contract/input-mismatch',
-        operation,
-        expected: 'a string, a boolean or a finite number',
-        observed: `${String(value)} for attribute "${key}"`,
-        repair: 'Guard the value before setting it. The attribute was not set.',
-      })
+      if (DEV) {
+        this.#runtime.diagnose({
+          code: 'contract/input-mismatch',
+          operation,
+          expected: 'a string, a boolean or a finite number',
+          observed: `${String(value)} for attribute "${key}"`,
+          repair: 'Guard the value before setting it. The attribute was not set.',
+        })
+      }
       return this
     }
     return this.#applyAttributes({ [key]: value }, operation)
@@ -274,14 +279,16 @@ export class MountTracer implements Tracer {
 
     if (this.#open.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) {
       this.#runtime.counters.spansDroppedAtLimit += 1
-      this.#runtime.diagnose({
-        code: 'config/invalid',
-        operation: 'start a span',
-        expected: `at most ${TELEMETRY_LIMITS.maxOpenSpansPerMount} open spans for one mount`,
-        observed: `span "${boundName(name)}" while that many were already open`,
-        repair: 'End the spans you start, in a finally block. The new span does not record.',
-        context: { openSpans: this.#open.size },
-      })
+      if (DEV) {
+        this.#runtime.diagnose({
+          code: 'config/invalid',
+          operation: 'start a span',
+          expected: `at most ${TELEMETRY_LIMITS.maxOpenSpansPerMount} open spans for one mount`,
+          observed: `span "${boundName(name)}" while that many were already open`,
+          repair: 'End the spans you start, in a finally block. The new span does not record.',
+          context: { openSpans: this.#open.size },
+        })
+      }
       return nonRecordingSpan
     }
 
@@ -329,13 +336,15 @@ export class MountTracer implements Tracer {
     if (typeof callback !== 'function') {
       // Only reachable from untyped JavaScript. Throwing here would turn a
       // telemetry mistake into an application failure, so it is a diagnostic.
-      this.#runtime.diagnose({
-        code: 'contract/input-mismatch',
-        operation: 'start an active span',
-        expected: 'a callback as the last argument',
-        observed: 'no callback',
-        repair: 'Call startActiveSpan(name, callback) or startActiveSpan(name, options, callback).',
-      })
+      if (DEV) {
+        this.#runtime.diagnose({
+          code: 'contract/input-mismatch',
+          operation: 'start an active span',
+          expected: 'a callback as the last argument',
+          observed: 'no callback',
+          repair: 'Call startActiveSpan(name, callback) or (name, options, callback).',
+        })
+      }
       return undefined as unknown as T
     }
 

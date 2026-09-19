@@ -72,11 +72,10 @@ export async function withDeadline<T>(
           operation: context.operation,
           expected: `the ${context.phase} phase to settle within ${deadlineMs}ms`,
           observed: `it was still running after ${Math.round(Date.now() - startedAt)}ms`,
-          declaredBy: 'The shell-configured deadline policy',
           repair:
             context.phase === 'dispose'
-              ? 'The mount is disposed and late callbacks are fenced; check the diagnostics for the cleanup step that did not finish.'
-              : 'Check the network panel for the request that did not settle, then use the explicit retry action.',
+              ? 'Check the diagnostics for the cleanup step that did not finish.'
+              : 'Check the network panel for the request that did not settle, then retry.',
         })
         controller.abort(error)
         options.onTimeout?.(error)

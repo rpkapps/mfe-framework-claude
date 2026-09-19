@@ -75,7 +75,6 @@ function validateInto(
 
   const result = validateAgainstContract(definition.contract.inputs, inputs, {
     ...context,
-    note: 'The previous valid inputs remain displayed.',
   })
   if (!result.ok) return { checked: inputs, valid: previousValid, error: result.error }
 
@@ -162,7 +161,6 @@ export function WidgetMount({
           direction: 'event',
           expected: `one of the declared events (${Object.keys(declared).join(', ') || 'none'})`,
           observed: `'${event}', which this Widget does not declare`,
-          declaredBy: 'The Widget contract',
           repair: `Add '${event}' to the events schema, or emit a declared event.`,
         })
       }
@@ -193,7 +191,6 @@ export function WidgetMount({
       const accepted = validateAgainstContract(consumerSchema, validated.value, {
         ...providerContext,
         side: 'consumer',
-        note: 'The event was dropped and the handler was not called. The Widget mount is unaffected.',
       })
       if (!accepted.ok) {
         diagnostics.report(accepted.error, { context: { widget: definition.id, event } })
@@ -217,7 +214,6 @@ export function WidgetMount({
       direction: 'input',
       expected: 'inputs matching the declared schema',
       observed: 'none that passed validation',
-      declaredBy: 'The Widget provider',
       repair: 'Correct the props passed to this Widget, then use the retry action.',
     })
   }

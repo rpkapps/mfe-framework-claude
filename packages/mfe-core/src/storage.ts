@@ -5,19 +5,41 @@
  * itself rather than from a parallel index that can drift.
  */
 
-import { z } from 'zod'
+import type { z } from 'zod'
 
+/**
+ * Which browser store holds the record — the Web Storage spec's own term for
+ * `localStorage` and `sessionStorage`. It answers *how long* a record lives:
+ * a `session` area is emptied when the tab closes.
+ */
 export type StorageArea = 'local' | 'session'
 
 /**
- * Orthogonal to `StorageArea` on purpose: a preference may live in
- * `localStorage` and survive a logout, while a scoped filter in the same store
- * must not.
+ * Who a record belongs to, and so who can read it back. Orthogonal to
+ * `StorageArea`: that decides which store holds the bytes, this decides when
+ * the framework invalidates them.
+ *
+ * - `'user'` — the record belongs to whoever is signed in. It carries the
+ *   opaque session generation, and an identity or group change retires it.
+ *   This is the default, and it is the right answer for anything derived from
+ *   who the user is: filters, selections, drafts, last-viewed records.
+ *
+ * - `'browser'` — the record belongs to the browser, not to a person. The
+ *   framework never clears it, which also means **every user of this browser
+ *   profile reads the same value**: sign out, sign in as someone else, and it
+ *   is still there. Reserve it for genuinely impersonal state, and never put
+ *   anything derived from a user's data in it.
+ *
+ * The names are deliberately not `'session'` and `'preference'`. `'session'`
+ * collided with `StorageArea`'s own `'session'` while meaning something else
+ * entirely, and `'preference'` read as "this user's preference" while doing
+ * the opposite — which is exactly the mistake that leaks one user's state to
+ * the next.
  */
-const retentionSchema = z.enum(['session', 'preference'])
-export type StorageRetention = z.infer<typeof retentionSchema>
+export type StorageRetention = 'user' | 'browser'
 
 export interface StorageKeyOptions<T> {
+  /** Defaults to `'user'`; see `StorageRetention` before choosing `'browser'`. */
   readonly retention?: StorageRetention
   readonly version?: number
   /** Synchronous, side-effect-free conversion from a known older version. */
@@ -42,24 +64,36 @@ export interface MfeStorage {
  * The persisted record. Field names are short because they are written to every
  * key; their meaning is fixed here and nowhere else.
  */
-const storageEnvelopeSchema = z.object({
+export interface StorageEnvelope {
   /** Schema version the payload was written against. */
-  v: z.int().positive(),
+  readonly v: number
   /** Retention class, so a store-wide session reset can act on the record alone. */
-  r: retentionSchema,
-  /** Opaque session/access generation; absent on preference records. */
-  g: z.string().optional(),
-  /** The payload, validated against the author's own schema, not this one. */
-  d: z.unknown(),
-})
-
-export type StorageEnvelope = z.infer<typeof storageEnvelopeSchema>
+  readonly r: StorageRetention
+  /** Opaque session/access generation; absent on `'browser'` records. */
+  readonly g?: string
+  /** The payload, validated against the author's own schema, not this shape. */
+  readonly d: unknown
+}
 
 export const DEFAULT_SCHEMA_VERSION = 1
-export const DEFAULT_RETENTION: StorageRetention = 'session'
+/** The safe default: a record belongs to the signed-in user until declared otherwise. */
+export const DEFAULT_RETENTION: StorageRetention = 'user'
 
+/**
+ * Hand-written rather than a Zod schema: this runs on every read of every key,
+ * and the shape is four fields the framework itself writes. A schema here would
+ * pull Zod into the core bundle to re-check what `serializeEnvelope` produced.
+ */
 export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
-  return storageEnvelopeSchema.safeParse(value).success
+  if (value === null || typeof value !== 'object') return false
+  const { v, r, g } = value as Partial<StorageEnvelope>
+  return (
+    Number.isInteger(v) &&
+    (v as number) > 0 &&
+    (r === 'user' || r === 'browser') &&
+    (g === undefined || typeof g === 'string') &&
+    'd' in value
+  )
 }
 
 /** Physical key layout: `<id>:<key>`. Never scoped by mount token. */

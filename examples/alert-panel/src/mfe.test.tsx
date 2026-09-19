@@ -51,9 +51,9 @@ describe('alert-panel', () => {
 
   it('rejects an invalid input at the provider boundary with an actionable message', () => {
     expect(() => renderWidget(alertPanel, { props: { alertId: 7 } })).toThrowError(
-      // Names the field, the offending value, the owning side and the repair.
-      // The connective wording is zod's and is deliberately not pinned here.
-      /alert-panel@1\.4\.0 failed to accept input alertId.*\b7\b.*The Widget provider declares this expectation.*Check the alertId prop/s,
+      // Names the field, the offending value and the repair. The connective
+      // wording is zod's and is deliberately not pinned here.
+      /alert-panel@1\.4\.0 failed to accept input alertId.*\b7\b.*Check the alertId prop/s,
     )
   })
 

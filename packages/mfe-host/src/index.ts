@@ -11,7 +11,6 @@ export { normalizeRegistry, type NormalizeRegistryOptions } from './registry/nor
 export { createMfeContractRule } from './registry/mfe-contract-rule.ts'
 
 export {
-  createInProcessLoader,
   SharedContainerLoader,
   type ContainerLoader,
   type LoadedDefinition,
@@ -50,7 +49,6 @@ export {
 export {
   BoundaryNavigator,
   createBrowserNavigationBridge,
-  createMemoryNavigationBridge,
   createNavigationIntent,
   parseBoundaryLocation,
   type BoundaryNavigatorOptions,

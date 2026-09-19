@@ -8,7 +8,7 @@
  * cannot invent the *first* one — the shell owns session identity, so only the
  * shell can say which session the page opened in.
  *
- * Without this every `retention: 'session'` write failed with the framework
+ * Without this every `retention: 'user'` write failed with the framework
  * saying exactly that, and the lab's visit counter counted nothing.
  *
  * The value is kept in `sessionStorage`, which is the same lifetime the data it

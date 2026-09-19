@@ -7,7 +7,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from './recording-provider.ts'
+import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 import { createNonRecordingTracer } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'
@@ -108,7 +108,6 @@ describe('the surface the framework does not have', () => {
       'createMountTelemetry',
       'createNonRecordingTracer',
       'createNoopTelemetryProvider',
-      'createRecordingTelemetryProvider',
       'createSpanEmitter',
       'getActiveSpanContext',
       'isReservedAttributeKey',

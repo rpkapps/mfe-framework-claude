@@ -6,7 +6,7 @@
  * worse than a visible failure.
  */
 
-import type { StorageAreaLike } from './types.ts'
+import type { StorageAreaLike } from '../storage/types.ts'
 
 export interface MemoryStorageArea extends StorageAreaLike {
   reset(): void

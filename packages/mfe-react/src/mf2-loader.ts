@@ -41,7 +41,6 @@ function readAdapterData(entry: NeutralRegistryEntry): {
       operation: 'resolve federation container',
       expected: 'a container name in the generated registry descriptor',
       observed: 'none',
-      declaredBy: 'The build plugin, which emits the descriptor',
       repair: 'Rebuild the container; registry JSON is generated, never hand-written.',
     })
   }
@@ -114,7 +113,6 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
             code: 'load/manifest-failure',
             id: entry.id,
             operation: 'register federation container',
-            declaredBy: 'The federation runtime',
             repair: `Check that ${entry.manifestUrl} is reachable and serves a valid manifest.`,
           })
         }
@@ -130,7 +128,6 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
           code: 'load/entry-failure',
           id: entry.id,
           operation: 'load federation entry',
-          declaredBy: 'The federation runtime',
           repair:
             'Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.',
         })
@@ -147,7 +144,6 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
           operation: 'load definition',
           expected: `a ${entry.definitionKind} definition, as the registry advertises`,
           observed: `a ${definition.kind} definition`,
-          declaredBy: 'The shell registry',
           repair: 'Rebuild the container so its descriptor matches what src/mfe.ts exports.',
         })
       }
@@ -188,7 +184,6 @@ function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
         operation: 'resolve definition from the federation entry',
         expected: `exactly one definition, or one whose id is "${id}"`,
         observed: `${candidates.length} definitions (${candidates.map(c => c.id).join(', ')})`,
-        declaredBy: 'The framework definition contract',
         repair: 'Rebuild the container; the generated entry exposes one definition per path.',
       })
     }
@@ -200,7 +195,6 @@ function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
     operation: 'resolve definition from the federation entry',
     expected: 'a module exporting a createApp or createWidget result',
     observed: moduleExports === null ? 'null' : `a ${typeof moduleExports}`,
-    declaredBy: 'The framework definition contract',
     repair: 'Export the definition from src/mfe.ts and rebuild the container.',
   })
 }

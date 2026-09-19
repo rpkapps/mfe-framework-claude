@@ -77,12 +77,13 @@ export interface MfeStorageStoreOptions {
 }
 
 /**
- * What a consumer declares for one key. `area` defaults to `'local'`,
- * `retention` to `'session'` and `version` to `1`.
+ * What a consumer declares for one key. `storage` defaults to `'local'`,
+ * `retention` to `'user'` and `version` to `1`.
  */
 export interface StorageKeyBinding<T> {
   readonly name: string
-  readonly area?: StorageArea
+  /** Which browser store holds it. Named as `useStoredState` names it. */
+  readonly storage?: StorageArea
   readonly schema: z.ZodType<T>
   readonly retention?: StorageRetention
   readonly version?: number
@@ -114,7 +115,7 @@ export interface BoundStorageKey<T> {
   readonly key: string
   readonly definitionId: string
   readonly name: string
-  readonly area: StorageArea
+  readonly storage: StorageArea
   readonly retention: StorageRetention
   readonly version: number
   /** Pure cache read: never touches the browser store. */
@@ -148,7 +149,6 @@ export type SessionTransitionOutcome =
 
 export interface SessionTransitionResult {
   readonly outcome: SessionTransitionOutcome
-  readonly invalidated: boolean
   /** The generation in force after the transition. */
   readonly generation: string | null
   /** Session-retained records physically removed, across both stores. */

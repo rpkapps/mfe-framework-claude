@@ -35,7 +35,6 @@ function read(field: string): unknown {
       operation: `read the configuration field '${field}'`,
       expected: 'configuration installed by the test',
       observed: 'nothing installed',
-      declaredBy: 'The #mfe/config test fixture',
       repair: `Call setMfeConfig({ ${field}: … }) before rendering. It is reset after every test, so one test cannot inherit another's configuration.`,
     })
   }
@@ -50,7 +49,6 @@ function read(field: string): unknown {
         Object.keys(values).length === 0
           ? 'an empty configuration'
           : `only ${Object.keys(values).join(', ')}`,
-      declaredBy: 'The #mfe/config test fixture',
       repair: `Add ${field} to the setMfeConfig call for this test. Reading an undeclared field silently would let a test pass against configuration the deployment never supplies.`,
     })
   }

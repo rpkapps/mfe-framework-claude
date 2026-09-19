@@ -1,8 +1,7 @@
 /**
- * Structured framework errors. The code is the machine artifact; the message is
- * what a developer reads at 2am, so every failure names the definition, the
- * operation, the field, the expectation, what was observed, who declared it,
- * and one repair step.
+ * Structured framework errors. The code is the machine artifact; the message
+ * names the definition, the operation, the field, the expectation and what was
+ * observed, with one optional repair step.
  */
 
 /** Closed union: hosts handle it exhaustively, so adding a code is a contract change. */
@@ -42,11 +41,7 @@ export interface MfeError extends Error {
   readonly cause?: unknown
 }
 
-/**
- * `expected`, `observed`, `declaredBy` and `repair` are optional only because a
- * few failures (a bare transport error) genuinely have nothing to say for them;
- * omitting one to save effort is a review defect.
- */
+/** `expected`, `observed` and `repair` are omitted only when there is nothing to say. */
 export interface MfeErrorDetails {
   readonly code: MfeErrorCode
   readonly id: string
@@ -57,12 +52,8 @@ export interface MfeErrorDetails {
   readonly cause?: unknown
   readonly expected?: string
   readonly observed?: string
-  /** Which side declared the expectation, e.g. "The Widget provider". */
-  readonly declaredBy?: string
   /** One concrete next action. */
   readonly repair?: string
-  /** Appended verbatim, e.g. "The previous valid inputs remain displayed." */
-  readonly note?: string
 }
 
 class FrameworkError extends Error implements MfeError {
@@ -103,7 +94,7 @@ export function formatPath(path: readonly (string | number)[] | undefined): stri
  */
 export function describeValue(value: unknown): string {
   if (value === null) return 'null'
-  if (value === undefined) return 'undefined'
+
   switch (typeof value) {
     case 'string':
       return value.length > 40 ? `a string of length ${value.length}` : JSON.stringify(value)
@@ -111,48 +102,37 @@ export function describeValue(value: unknown): string {
     case 'boolean':
     case 'bigint':
       return String(value)
+    case 'symbol':
+      return value.toString()
+    // A function's `String` form is its whole source, which is exactly the kind
+    // of dump this function exists to avoid.
     case 'function':
       return 'a function'
-    case 'symbol':
-      return 'a symbol'
+    case 'undefined':
+      return 'undefined'
     default:
       break
   }
+
   if (Array.isArray(value)) return `an array of length ${value.length}`
-  if (value instanceof Date) return 'a Date'
-  if (value instanceof Map) return 'a Map'
-  if (value instanceof Set) return 'a Set'
-  const constructorName = value.constructor?.name
-  if (constructorName && constructorName !== 'Object') return `a ${constructorName} instance`
-  return 'an object'
+  const name = value.constructor?.name
+  return name !== undefined && name !== 'Object' ? `a ${name}` : 'an object'
 }
 
 function composeMessage(details: MfeErrorDetails): string {
-  const subject = details.definitionVersion
-    ? `${details.id}@${details.definitionVersion}`
-    : details.id
+  const { id, definitionVersion, operation, expected, observed, repair } = details
+  const subject = definitionVersion ? `${id}@${definitionVersion}` : id
   const field = formatPath(details.path)
-  const target = field ? `${details.operation} ${field}` : details.operation
+  let message = `${subject} failed to ${field ? `${operation} ${field}` : operation}`
 
-  const sentences: string[] = []
-  if (details.expected !== undefined && details.observed !== undefined) {
-    sentences.push(
-      `${subject} failed to ${target}: expected ${details.expected}, received ${details.observed}.`,
-    )
-  } else if (details.expected !== undefined) {
-    sentences.push(`${subject} failed to ${target}: expected ${details.expected}.`)
-  } else if (details.observed !== undefined) {
-    sentences.push(`${subject} failed to ${target}: ${details.observed}.`)
-  } else {
-    sentences.push(`${subject} failed to ${target}.`)
-  }
+  if (expected !== undefined) {
+    message +=
+      observed === undefined
+        ? `: expected ${expected}.`
+        : `: expected ${expected}, received ${observed}.`
+  } else message += observed === undefined ? '.' : `: ${observed}.`
 
-  if (details.declaredBy !== undefined)
-    sentences.push(`${details.declaredBy} declares this expectation.`)
-  if (details.repair !== undefined) sentences.push(details.repair)
-  if (details.note !== undefined) sentences.push(details.note)
-
-  return sentences.join(' ')
+  return repair === undefined ? message : `${message} ${repair}`
 }
 
 /** Use everywhere instead of `new Error`, so every failure reads the same way. */
@@ -161,9 +141,9 @@ export function createMfeError(details: MfeErrorDetails): MfeError {
 }
 
 /**
- * Fixes the fields a module repeats — typically `code`, `id` and `declaredBy` —
- * so a throw site carries only what differs. Whatever `fixed` omits stays
- * required at the call site, and any fixed field can be overridden there.
+ * Fixes the fields a module repeats — typically `code` and `id` — so a throw
+ * site carries only what differs. Whatever `fixed` omits stays required at the
+ * call site, and any fixed field can be overridden there.
  */
 export function createMfeErrorFactory<Fixed extends Partial<MfeErrorDetails>>(
   fixed: Fixed,
@@ -190,8 +170,14 @@ export function toMfeError(
   fallback: Omit<MfeErrorDetails, 'cause' | 'observed'> & { readonly observed?: string },
 ): MfeError {
   if (isMfeError(value)) return value
-  const observed =
-    fallback.observed ??
-    (value instanceof Error ? `${value.name}: ${value.message}` : describeValue(value))
-  return createMfeError({ ...fallback, observed, cause: value })
+  return createMfeError({
+    ...fallback,
+    observed: fallback.observed ?? describeThrown(value),
+    cause: value,
+  })
+}
+
+/** How a thrown value is named in a diagnostic: `Name: message`, or its shape. */
+export function describeThrown(value: unknown): string {
+  return value instanceof Error ? `${value.name}: ${value.message}` : describeValue(value)
 }

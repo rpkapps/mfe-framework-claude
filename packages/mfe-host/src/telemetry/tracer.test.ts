@@ -9,7 +9,7 @@ import {
   type Tracer,
 } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from './recording-provider.ts'
+import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 import { nonRecordingSpan } from './span-emitter.ts'
 import { at, ATTRIBUTION, setup, spanNamed } from './__tests__/harness.ts'

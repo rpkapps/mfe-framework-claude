@@ -36,7 +36,7 @@ describe('withDeadline', () => {
       expect(isMfeError(error)).toBe(true)
       expect((error as Error).message).toContain('operations@2.1.0')
       expect((error as Error).message).toContain('within 30000ms')
-      expect((error as Error).message).toContain('explicit retry action')
+      expect((error as Error).message).toContain('then retry')
     })
   })
 

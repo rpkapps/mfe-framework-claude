@@ -42,7 +42,6 @@ const NO_HANDLER: MfeFetchHandler = input => {
     operation: `answer ${input instanceof Request ? input.url : String(input)}`,
     expected: 'a request handler installed by the test',
     observed: 'nothing installed',
-    declaredBy: 'The #mfe/fetch test fixture',
     repair:
       'Call setMfeFetch(request => new Response(…)) before rendering. A test that reaches the network is not a component test.',
   })

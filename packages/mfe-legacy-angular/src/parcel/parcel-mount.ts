@@ -82,7 +82,6 @@ export class LegacyParcelMount {
       operation: 'mount the legacy parcel',
       expected,
       observed,
-      declaredBy: 'The legacy parcel lifecycle',
       repair,
     })
   }
@@ -99,7 +98,6 @@ export class LegacyParcelMount {
       id: this.id,
       ...(this.#options.version === undefined ? {} : { definitionVersion: this.#options.version }),
       operation,
-      declaredBy: 'The legacy parcel lifecycle',
       repair,
     })
     this.#error = mfeError
