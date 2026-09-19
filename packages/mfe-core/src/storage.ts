@@ -7,16 +7,39 @@
 
 import type { z } from 'zod'
 
+/**
+ * Which browser store holds the record — the Web Storage spec's own term for
+ * `localStorage` and `sessionStorage`. It answers *how long* a record lives:
+ * a `session` area is emptied when the tab closes.
+ */
 export type StorageArea = 'local' | 'session'
 
 /**
- * Orthogonal to `StorageArea` on purpose: a preference may live in
- * `localStorage` and survive a logout, while a scoped filter in the same store
- * must not.
+ * Who a record belongs to, and so who can read it back. Orthogonal to
+ * `StorageArea`: that decides which store holds the bytes, this decides when
+ * the framework invalidates them.
+ *
+ * - `'user'` — the record belongs to whoever is signed in. It carries the
+ *   opaque session generation, and an identity or group change retires it.
+ *   This is the default, and it is the right answer for anything derived from
+ *   who the user is: filters, selections, drafts, last-viewed records.
+ *
+ * - `'browser'` — the record belongs to the browser, not to a person. The
+ *   framework never clears it, which also means **every user of this browser
+ *   profile reads the same value**: sign out, sign in as someone else, and it
+ *   is still there. Reserve it for genuinely impersonal state, and never put
+ *   anything derived from a user's data in it.
+ *
+ * The names are deliberately not `'session'` and `'preference'`. `'session'`
+ * collided with `StorageArea`'s own `'session'` while meaning something else
+ * entirely, and `'preference'` read as "this user's preference" while doing
+ * the opposite — which is exactly the mistake that leaks one user's state to
+ * the next.
  */
-export type StorageRetention = 'session' | 'preference'
+export type StorageRetention = 'user' | 'browser'
 
 export interface StorageKeyOptions<T> {
+  /** Defaults to `'user'`; see `StorageRetention` before choosing `'browser'`. */
   readonly retention?: StorageRetention
   readonly version?: number
   /** Synchronous, side-effect-free conversion from a known older version. */
@@ -46,14 +69,15 @@ export interface StorageEnvelope {
   readonly v: number
   /** Retention class, so a store-wide session reset can act on the record alone. */
   readonly r: StorageRetention
-  /** Opaque session/access generation; absent on preference records. */
+  /** Opaque session/access generation; absent on `'browser'` records. */
   readonly g?: string
   /** The payload, validated against the author's own schema, not this shape. */
   readonly d: unknown
 }
 
 export const DEFAULT_SCHEMA_VERSION = 1
-export const DEFAULT_RETENTION: StorageRetention = 'session'
+/** The safe default: a record belongs to the signed-in user until declared otherwise. */
+export const DEFAULT_RETENTION: StorageRetention = 'user'
 
 /**
  * Hand-written rather than a Zod schema: this runs on every read of every key,
@@ -66,7 +90,7 @@ export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
   return (
     Number.isInteger(v) &&
     (v as number) > 0 &&
-    (r === 'session' || r === 'preference') &&
+    (r === 'user' || r === 'browser') &&
     (g === undefined || typeof g === 'string') &&
     'd' in value
   )

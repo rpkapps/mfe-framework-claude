@@ -38,9 +38,12 @@ function Overview(): ReactNode {
 
   // A subscribed value and a stable setter. No effect keeps it in sync, and the
   // value survives a reload because it is stored under this App's own prefix.
+  // `retention: 'browser'` deliberately: a display density belongs to the
+  // browser rather than to a person, so it is fine for everyone here to share
+  // it. Anything derived from the signed-in user takes the 'user' default.
   const [density, setDensity] = useStoredState('table-density', densitySchema, {
     defaultValue: 'comfortable',
-    retention: 'preference',
+    retention: 'browser',
   })
 
   // Registration is a hook, so mount scoping follows component lifetime: this

@@ -40,7 +40,7 @@ export function useStoredState<T>(
   }))
 
   const binding = useMemo(
-    () => storage.bind<T>(mount.definitionId, { name, area, schema, ...declaration }),
+    () => storage.bind<T>(mount.definitionId, { name, storage: area, schema, ...declaration }),
     [storage, mount.definitionId, name, area, schema, declaration],
   )
 

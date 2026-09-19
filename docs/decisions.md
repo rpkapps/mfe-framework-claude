@@ -605,3 +605,61 @@ or anything mounted outside one.
 router's, and the framework's job is to make it cover navigations the router
 cannot see. A host opts in by routing its own navigations through
 `runtime.navigator.requestNavigation(...)`.
+
+---
+
+## 21. Storage retention is named for who owns a record, not for how long it lives
+
+**Status:** decided, load-bearing.
+
+`StorageRetention` was `'session' | 'preference'`, alongside `StorageArea`'s
+`'local' | 'session'`. Two problems, and the second is the one that matters.
+
+**`'session'` meant two different things in one declaration.** `storage:
+'session'` selects `sessionStorage`, which the browser empties when the tab
+closes. `retention: 'session'` bound a record to the signed-in identity, which
+is unrelated — a `retention: 'session'` record in `localStorage` outlives every
+tab, and a `retention: 'preference'` record in `sessionStorage` still dies with
+the tab. All four combinations are legal and two of them read as tautologies
+that are not.
+
+**`'preference'` promised the opposite of what it did.** The physical key is
+`<definitionId>:<name>` with no user component, a `'preference'` record carries
+no generation stamp, and the store-wide purge removes only session-retained
+records. So a "preference" written while one person is signed in is read back
+by the next person to sign in on that browser profile. The word invites exactly
+the data it must not hold: an author reaches for `'preference'` _because_ they
+are storing something personal. `examples/operations` had already done it, for
+table density.
+
+The names are now `'user'` and `'browser'`, and the axis still reads
+`retention` because the property name is not where the confusion was:
+
+```ts
+{ storage: 'local',   retention: 'user'    } // wiped when identity or groups change
+{ storage: 'local',   retention: 'browser' } // survives, and everyone here reads it
+{ storage: 'session', retention: 'user'    } // dies with the tab, also wiped on sign-out
+{ storage: 'session', retention: 'browser' } // dies with the tab, survives a sign-out in it
+```
+
+Every row now says what it does, and `'browser'` carries the warning that
+`'preference'` concealed: nobody writes `retention: 'browser'` for something
+they believe is private to the signed-in user. `'user'` stays the default, so
+the safe answer is the one you get by not deciding.
+
+Two consequences were accepted rather than worked around:
+
+- **The persisted `r` field changed with the type.** Keeping `'session'` and
+  `'preference'` on the wire while the API said `'user'` and `'browser'` would
+  have rebuilt the same confusion one layer down — and the lab page tells
+  developers to open devtools and read the raw envelope. Nothing is published
+  yet (`initial-framework` is still an unconsumed changeset), so there is no
+  deployed data and no compatibility shim to carry forever. A record written by
+  an earlier build reports as unreadable rather than being silently replaced by
+  the declared default, which is the documented behaviour for any record the
+  framework cannot parse.
+- **The declaration property is `storage`, not `area`.** The same concept was
+  called `storage` by `useStoredState` and `area` by `MfeStorageStore.bind`, so
+  an author who moved between the two surfaces met a rename for no reason. The
+  `StorageArea` _type_ keeps its name: "storage area" is the Web Storage spec's
+  own term, and `StorageEvent.storageArea` is a real DOM property.

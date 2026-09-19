@@ -205,7 +205,7 @@ export class MfeStorageStore {
     this.#generation = generation
     // A session record means something different now, though its text is unchanged.
     for (const entry of this.#entries.values()) {
-      if (entry.declaration.retention !== 'session') continue
+      if (entry.declaration.retention !== 'user') continue
       this.#invalidateCache(entry)
       this.#refresh(entry)
     }
@@ -215,7 +215,8 @@ export class MfeStorageStore {
    * Theme and token refresh invalidate nothing, and a reordered but identical
    * group set is a no-op. An identity or semantic group change retires the
    * in-memory snapshots, drops the persisted session records of every definition
-   * whether mounted or not, then publishes the defaults. Preferences survive.
+   * whether mounted or not, then publishes the defaults. Browser-retained
+   * records survive, which is exactly why they must hold nothing personal.
    */
   applySessionTransition(
     transition: StorageSessionTransition,
@@ -240,7 +241,7 @@ export class MfeStorageStore {
 
     const stale = new Map<KeyEntry, StorageSnapshot<unknown>>()
     for (const entry of this.#entries.values()) {
-      if (entry.declaration.retention !== 'session') continue
+      if (entry.declaration.retention !== 'user') continue
       stale.set(entry, entry.snapshot)
       entry.snapshot = entry.defaultSnapshot
       this.#invalidateCache(entry)
@@ -293,7 +294,7 @@ export class MfeStorageStore {
   }
 
   /**
-   * Removes every record marked `r: 'session'` from both stores. Anything that is
+   * Removes every record marked `r: 'user'` from both stores. Anything that is
    * not a framework envelope is left alone: this store never removes what it did
    * not write.
    */
@@ -321,7 +322,7 @@ export class MfeStorageStore {
           } catch {
             continue // Not a framework record, so the framework does not own it.
           }
-          if (!isStorageEnvelope(parsed) || parsed.r !== 'session') continue
+          if (!isStorageEnvelope(parsed) || parsed.r !== 'user') continue
           store.removeItem(name)
           removed += 1
         } catch (error) {
@@ -349,7 +350,7 @@ export class MfeStorageStore {
       key: entry.physicalKey,
       definitionId,
       name: entry.name,
-      area: entry.area,
+      storage: entry.area,
       retention: resolved.retention,
       version: resolved.version,
       getSnapshot: entry.getSnapshot,
@@ -491,7 +492,7 @@ export class MfeStorageStore {
     definitionId: string,
     declaration: StorageKeyBinding<T>,
   ): ResolvedDeclaration {
-    const area = declaration.area ?? DEFAULT_AREA
+    const area = declaration.storage ?? DEFAULT_AREA
     const name = declaration.name
 
     if (typeof name !== 'string' || name.length === 0) {
@@ -709,11 +710,11 @@ export class MfeStorageStore {
   #setValue(entry: KeyEntry, next: unknown, options: StorageWriteOptions | undefined): void {
     this.#assertUsable('write a storage key')
     this.#assertGenerationFence(entry, 'write', options)
-    if (entry.declaration.retention === 'session' && this.#generation === null) {
+    if (entry.declaration.retention === 'user' && this.#generation === null) {
       throw this.#fail(entry.definitionId, entry.area, 'write', entry.name, {
-        expected: 'the session generation to be established before a session value is written',
+        expected: 'the session generation to be established before a user value is written',
         observed: 'no session in force',
-        repair: "Establish the generation before mounting, or declare retention: 'preference'.",
+        repair: "Establish the generation before mounting, or declare retention: 'browser'.",
       })
     }
 
@@ -823,7 +824,7 @@ export class MfeStorageStore {
   ): MfeStorageKey<T> {
     const resolved = this.#resolveDeclaration(definitionId, {
       name,
-      area,
+      storage: area,
       schema,
       ...(options?.retention === undefined ? {} : { retention: options.retention }),
       ...(options?.version === undefined ? {} : { version: options.version }),

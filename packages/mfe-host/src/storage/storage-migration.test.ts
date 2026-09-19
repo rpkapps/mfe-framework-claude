@@ -45,15 +45,15 @@ function envelope(
   data: unknown,
   overrides: {
     readonly v?: number
-    readonly r?: 'session' | 'preference'
+    readonly r?: 'user' | 'browser'
     readonly g?: string
   } = {},
 ): string {
-  const retention = overrides.r ?? 'session'
+  const retention = overrides.r ?? 'user'
   return JSON.stringify({
     v: overrides.v ?? 1,
     r: retention,
-    ...(retention === 'session' ? { g: overrides.g ?? 'gen-1' } : {}),
+    ...(retention === 'user' ? { g: overrides.g ?? 'gen-1' } : {}),
     d: data,
   })
 }
@@ -113,7 +113,7 @@ describe('migration', () => {
     })
     expect(readEnvelope(local, 'acme-orders:filters')).toEqual({
       v: 2,
-      r: 'session',
+      r: 'user',
       g: 'gen-1',
       d: { status: 'open', page: 1 },
     })
@@ -306,22 +306,22 @@ describe('migration', () => {
     expect(filters.getSnapshot()).toEqual({ status: 'default', value: null })
   })
 
-  it('migrates a preference record with no session in force, and keeps it unversioned by generation', () => {
+  it('migrates a browser-retained record with no session in force, and keeps it ungenerationed', () => {
     const { store, local } = harness({ generation: null })
-    local.setItem('acme-orders:filters', envelope('open', { r: 'preference' }))
+    local.setItem('acme-orders:filters', envelope('open', { r: 'browser' }))
 
     const filters = store.bind(ORDERS, {
       name: 'filters',
       schema: filtersV2,
       version: 2,
-      retention: 'preference',
+      retention: 'browser',
       migrate: migrateFilters,
     })
 
     expect(filters.getSnapshot()).toEqual({ status: 'value', value: { status: 'open', page: 1 } })
     expect(readEnvelope(local, 'acme-orders:filters')).toEqual({
       v: 2,
-      r: 'preference',
+      r: 'browser',
       d: { status: 'open', page: 1 },
     })
   })

@@ -42,16 +42,16 @@ function envelope(
   data: unknown,
   overrides: {
     readonly v?: number
-    readonly r?: 'session' | 'preference'
+    readonly r?: 'user' | 'browser'
     readonly g?: string | null
   } = {},
 ): string {
-  const retention = overrides.r ?? 'session'
+  const retention = overrides.r ?? 'user'
   const generation = overrides.g === undefined ? 'gen-1' : overrides.g
   return JSON.stringify({
     v: overrides.v ?? 1,
     r: retention,
-    ...(retention === 'session' && generation !== null ? { g: generation } : {}),
+    ...(retention === 'user' && generation !== null ? { g: generation } : {}),
     d: data,
   })
 }
@@ -83,7 +83,7 @@ describe('key scoping', () => {
     filters.set({ status: 'open', page: 1 })
 
     expect(filters.key).toBe('acme-orders:filters')
-    expect(filters.area).toBe('local')
+    expect(filters.storage).toBe('local')
     expect(Object.keys(local.snapshot())).toEqual(['acme-orders:filters'])
     expect(session.snapshot()).toEqual({})
   })
@@ -113,7 +113,7 @@ describe('key scoping', () => {
     const ordersSession = store.bind(ORDERS, {
       name: 'theme',
       schema: themeSchema,
-      area: 'session',
+      storage: 'session',
     })
 
     ordersLocal.set('dark')
@@ -400,7 +400,7 @@ describe('subscriptions', () => {
     const otherStore = store.bind(ORDERS, {
       name: 'theme',
       schema: themeSchema,
-      area: 'session',
+      storage: 'session',
     })
     const listener = vi.fn()
     watched.subscribe(listener)
@@ -541,7 +541,7 @@ describe('cross-tab storage events', () => {
     const sessionTheme = store.bind(REPORTS, {
       name: 'theme',
       schema: themeSchema,
-      area: 'session',
+      storage: 'session',
     })
     const localGetItem = vi.spyOn(local, 'getItem')
     const sessionGetItem = vi.spyOn(session, 'getItem')
@@ -562,7 +562,7 @@ describe('cross-tab storage events', () => {
   it('observes session-storage events for keys bound to the session store', () => {
     const { store, session } = harness()
     track(store)
-    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema, area: 'session' })
+    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema, storage: 'session' })
     const listener = vi.fn()
     theme.subscribe(listener)
 
@@ -691,7 +691,7 @@ describe('declaration conflicts', () => {
         name: 'theme',
         schema: themeSchema,
         defaultValue: 'light',
-        retention: 'preference',
+        retention: 'browser',
       }),
     ).toThrow(/retention/)
     expect(() =>

@@ -86,7 +86,7 @@ const storage = overrideStorage()
  * The signed-in user. Declared before the runtime because the session
  * generation is derived from it: a shell that boots with somebody in force owes
  * the framework the generation that session's storage is fenced by, and without
- * it every `retention: 'session'` write is refused.
+ * it every `retention: 'user'` write is refused.
  */
 const user = { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' }
 

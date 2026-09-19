@@ -102,6 +102,27 @@ order to ask for the inputs at all — the schema, and the event names — is
 published by the Widget's build into the registry, which is how the shell's
 dashboard renders a form for a Widget it has never imported.
 
+### One thing to know before you store anything
+
+`useStoredState` takes a `retention`, and it decides **who can read the value
+back**:
+
+```ts
+const [filters, setFilters] = useStoredState('filters', schema, {
+  defaultValue: { status: 'open' },
+  // retention: 'user' is the default — cleared when the signed-in identity
+  // or group set changes, so the next person to sign in starts clean.
+})
+```
+
+`retention: 'browser'` opts out of that: the framework never clears it, which
+also means **every user of that browser profile reads the same value**. It is
+for genuinely impersonal state — a display density, a collapsed panel — and
+never for anything derived from a user's data.
+
+The default is the safe one, so the only way to leak state between users is to
+ask for it.
+
 ---
 
 ## The examples

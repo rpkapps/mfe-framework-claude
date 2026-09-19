@@ -93,11 +93,11 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
   const envelope = parsed
   const generation = context.generation()
 
-  if (envelope.r === 'session') {
+  if (envelope.r === 'user') {
     if (generation === null) {
       return bad('read', {
-        expected: 'the session generation to be established before a session value is read',
-        observed: 'a session-retained record with no session in force',
+        expected: 'the session generation to be established before a user value is read',
+        observed: 'a record retained for the signed-in user, with no session in force',
         repair: 'Give the store its generation before mounting anything that reads session state.',
       })
     }
@@ -179,7 +179,7 @@ function migrateInto(
     })
   }
 
-  if (declaration.retention === 'session' && context.generation() !== generationAtStart) {
+  if (declaration.retention === 'user' && context.generation() !== generationAtStart) {
     return bad({
       expected: `the migration to commit in the generation it started in`,
       observed: 'the session moved on while it ran',
@@ -216,7 +216,7 @@ export function serializeEnvelope(
       v: declaration.version,
       r: declaration.retention,
       // Only the opaque generation is persisted: never a token, never a group list.
-      ...(declaration.retention === 'session' && generation !== null ? { g: generation } : {}),
+      ...(declaration.retention === 'user' && generation !== null ? { g: generation } : {}),
       d: value,
     })
   } catch (error) {
