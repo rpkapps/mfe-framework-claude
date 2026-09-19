@@ -7,7 +7,13 @@
 
 import { z } from 'zod'
 
-import { createMfeErrorFactory, describeValue, formatPath, type MfeError } from './errors.ts'
+import {
+  createMfeError,
+  describeValue,
+  formatPath,
+  type MfeError,
+  type MfeErrorDetails,
+} from './errors.ts'
 
 /**
  * A Widget's declared contract. `events` maps a lower-camel-case event name to
@@ -54,6 +60,9 @@ export function isValidEventName(name: string): boolean {
   return EVENT_NAME_PATTERN.test(name)
 }
 
+/** Built-ins whose instances cannot survive JSON, by the name they report. */
+const UNSERIALIZABLE_CLASSES = new Set(['Date', 'Map', 'Set', 'RegExp', 'Error'])
+
 /**
  * Inputs and event payloads must be JSON-serializable: prohibiting functions,
  * class instances, DOM nodes, elements, `Date`, `Map` and `Set` keeps iframe or
@@ -69,49 +78,45 @@ export function findNonSerializableValue(
 ): { readonly path: readonly (string | number)[]; readonly description: string } | null {
   if (value === null) return null
 
-  switch (typeof value) {
-    case 'string':
-    case 'boolean':
-      return null
-    case 'number':
-      return Number.isFinite(value)
-        ? null
-        : { path, description: `${String(value)} (not representable in JSON)` }
-    case 'undefined':
-      // `undefined` disappears through JSON; an explicitly absent optional field
-      // is fine, so it is only rejected inside an array where position matters.
-      return typeof path[path.length - 1] === 'number'
-        ? { path, description: 'undefined inside an array' }
-        : null
-    case 'bigint':
-      return { path, description: 'a bigint' }
-    case 'function':
-      return {
-        path,
-        description: 'a function. A consumer that needs a callback subscribes to an event instead',
-      }
-    case 'symbol':
-      return { path, description: 'a symbol' }
-    default:
-      break
+  const type = typeof value
+  if (type === 'string' || type === 'boolean') return null
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? null
+      : { path, description: `${String(value)} (not representable in JSON)` }
   }
 
-  const object = value
+  if (type === 'undefined') {
+    // `undefined` disappears through JSON; an explicitly absent optional field
+    // is fine, so it is only rejected inside an array where position matters.
+    return typeof path[path.length - 1] === 'number'
+      ? { path, description: 'undefined inside an array' }
+      : null
+  }
+
+  if (type !== 'object') {
+    return {
+      path,
+      description:
+        type === 'function'
+          ? 'a function. A consumer that needs a callback subscribes to an event instead'
+          : `a ${type}`,
+    }
+  }
+
+  const object = value as object
   if (seen.has(object)) return { path, description: 'a circular reference' }
 
-  if (object instanceof Date) return { path, description: 'a Date' }
-  if (object instanceof Map) return { path, description: 'a Map' }
-  if (object instanceof Set) return { path, description: 'a Set' }
-  if (object instanceof RegExp) return { path, description: 'a RegExp' }
-  if (object instanceof Error) return { path, description: 'an Error' }
+  const className = object.constructor?.name
+  if (className !== undefined && UNSERIALIZABLE_CLASSES.has(className)) {
+    return { path, description: `a ${className}` }
+  }
   if (typeof Node !== 'undefined' && object instanceof Node) {
     return { path, description: 'a DOM node' }
   }
   // React elements are plain objects, so they need their own marker check.
-  if (
-    Object.hasOwn(object, '$$typeof') &&
-    typeof (object as { $$typeof: unknown }).$$typeof === 'symbol'
-  ) {
+  if (typeof (object as { $$typeof?: unknown }).$$typeof === 'symbol') {
     return { path, description: 'a React element' }
   }
 
@@ -127,8 +132,7 @@ export function findNonSerializableValue(
 
     const prototype = Object.getPrototypeOf(object) as object | null
     if (prototype !== null && prototype !== Object.prototype) {
-      const name = (object as { constructor?: { name?: string } }).constructor?.name
-      return { path, description: `a ${name ?? 'class'} instance` }
+      return { path, description: `a ${className ?? 'class'} instance` }
     }
 
     for (const [key, entry] of Object.entries(object)) {
@@ -149,57 +153,35 @@ export interface ContractValidationContext {
   readonly side: 'provider' | 'consumer'
   /** Event name, when validating an event payload. */
   readonly eventName?: string
-  /** Appended to the message, e.g. "The previous valid inputs remain displayed." */
-  readonly note?: string
 }
 
 export type ContractValidation<T> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
 
-/** Fixes everything the context alone decides, so each failure adds only its own clauses. */
-function contractFailure(context: ContractValidationContext) {
-  return createMfeErrorFactory({
-    code: context.direction === 'input' ? 'contract/input-mismatch' : 'contract/event-mismatch',
+/** The identity every contract failure carries, decided by the context alone. */
+function failureBase(
+  context: ContractValidationContext,
+): Pick<MfeErrorDetails, 'code' | 'id' | 'operation' | 'direction' | 'definitionVersion'> {
+  const isInput = context.direction === 'input'
+  return {
+    code: isInput ? 'contract/input-mismatch' : 'contract/event-mismatch',
     id: context.id,
     ...(context.definitionVersion === undefined
       ? {}
       : { definitionVersion: context.definitionVersion }),
-    operation:
-      context.direction === 'input'
-        ? 'accept input'
-        : `emit event '${context.eventName ?? 'unknown'}'`,
+    operation: isInput ? 'accept input' : `emit event '${context.eventName ?? 'unknown'}'`,
     direction: context.direction,
-  })
-}
-
-function declaredBy(context: ContractValidationContext): string {
-  if (context.side === 'consumer')
-    return 'The consuming component, through the runtime contract it supplied'
-  return context.direction === 'input'
-    ? 'The Widget provider'
-    : 'The Widget provider, at its emit call'
+  }
 }
 
 function repairFor(context: ContractValidationContext, field: string): string {
-  if (context.direction === 'input') {
-    return context.side === 'provider'
-      ? `Check the ${field || 'input'} prop in the consuming component.`
-      : `Check the ${field || 'input'} value passed to the Widget.`
-  }
+  if (context.direction === 'input') return `Check the ${field || 'input'} prop on the Widget.`
   const event = context.eventName ?? 'event'
   return context.side === 'provider'
     ? `Check the payload passed to emit('${event}', …).`
-    : `Check the '${event}' schema in the contract this consumer declared, or upgrade the contract package.`
+    : `Check the '${event}' schema this consumer declared.`
 }
 
-/**
- * Validates a value against a contract schema, turning a failure into a
- * structured error that names the field, the expectation and the repair.
- *
- * `z.prettifyError` renders every issue with its own path, which beats anything
- * re-derived here; the first issue's path fills the structured `path` field,
- * and the `ZodError` itself stays on `cause`.
- */
 /**
  * Zod names the received *type* ("received number"); the concrete value is the
  * one detail the reader cannot re-derive from the message. Resolve it at the
@@ -223,6 +205,14 @@ function describeObserved(
   return `${describeValue(observed)}; ${rendered}`
 }
 
+/**
+ * Validates a value against a contract schema, turning a failure into a
+ * structured error that names the field, the expectation and the repair.
+ *
+ * `z.prettifyError` renders every issue with its own path, which beats anything
+ * re-derived here; the first issue's path fills the structured `path` field,
+ * and the `ZodError` itself stays on `cause`.
+ */
 export function validateAgainstContract<T>(
   schema: z.ZodType<T>,
   value: unknown,
@@ -237,12 +227,11 @@ export function validateAgainstContract<T>(
 
   return {
     ok: false,
-    error: contractFailure(context)({
+    error: createMfeError({
+      ...failureBase(context),
       ...(path.length > 0 ? { path } : {}),
       observed: describeObserved(value, path, result.error),
-      declaredBy: declaredBy(context),
       repair: repairFor(context, formatPath(path)),
-      ...(context.note === undefined ? {} : { note: context.note }),
       cause: result.error,
     }),
   }
@@ -259,12 +248,11 @@ export function validateSerializable(
   const offender = findNonSerializableValue(value)
   if (!offender) return null
 
-  return contractFailure(context)({
+  return createMfeError({
+    ...failureBase(context),
     ...(offender.path.length > 0 ? { path: offender.path } : {}),
     expected: 'a JSON-serializable value',
     observed: offender.description,
-    declaredBy: 'The framework contract boundary',
-    repair:
-      'Replace it with plain JSON data (strings, numbers, booleans, null, arrays and plain objects). Functions, class instances, DOM nodes, React elements, Date, Map and Set cannot cross the boundary.',
+    repair: 'Only JSON data crosses the boundary: no functions, class instances or DOM nodes.',
   })
 }

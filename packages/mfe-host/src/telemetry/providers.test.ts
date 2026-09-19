@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { SpanKind, SpanStatusCode, type Span, type TelemetryRecord } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from './recording-provider.ts'
+import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
 import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'

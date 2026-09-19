@@ -113,7 +113,6 @@ export function createLegacyAdapterRule(): AdapterSelectionRule {
           path: ['name'],
           expected: 'a non-empty app name',
           observed: rawName === undefined ? 'nothing' : typeof rawName,
-          declaredBy: 'The legacy adapter, which uses the name as the container name too',
           repair:
             'Set the app name in the shell registry entry. The loader registers the remote under it and loads its parcel from it.',
         })
@@ -126,7 +125,6 @@ export function createLegacyAdapterRule(): AdapterSelectionRule {
           path: ['name'],
           expected: `a name that reduces to ${DEFINITION_ID_RULE}`,
           observed: JSON.stringify(rawName),
-          declaredBy: 'The framework identity rules',
           repair: 'Rename the app to a hyphenated lower-case name, for example "asset-tracker".',
         })
       }

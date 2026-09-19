@@ -107,7 +107,6 @@ export function resolveLegacyReleaseNotesUrl(
           ? 'an absolute manifest URL, or a base to resolve a relative one against'
           : 'a manifest URL that resolves against the supplied base',
       observed: JSON.stringify(manifestUrl),
-      declaredBy: 'The legacy adapter',
       repair: 'Pass a base when the registry stores relative URLs.',
     })
   }
@@ -147,7 +146,6 @@ function unreachable(id: string, url: string, observed: string, cause?: unknown)
     operation: 'fetch the legacy release notes',
     expected: `a readable document at ${url}`,
     observed,
-    declaredBy: 'The legacy adapter',
     repair: `Publish ${RELEASE_NOTES_FILENAME} next to the container manifest.`,
     ...(cause === undefined ? {} : { cause }),
   })

@@ -471,7 +471,7 @@ describe('disposal', () => {
 
     expect(controller.state).toEqual({ status: 'disposed' })
     expect(records).toHaveLength(1)
-    expect(records[0]?.error.message).toContain('Disposal is terminal')
+    expect(records[0]?.error.message).toContain('disposal is terminal')
   })
 
   it('disposes a mount that never started', async () => {

@@ -17,18 +17,20 @@ import {
   BoundaryNavigator,
   BreadcrumbStore,
   CommandRegistry,
-  createInProcessLoader,
-  createMemoryNavigationBridge,
-  createMemoryStorageArea,
-  createRecordingTelemetryProvider,
   MfeStorageStore,
   requiresSessionRetirement,
   SharedContainerLoader,
   ShellStateStore,
   type LoadedDefinition,
+} from '@company/mfe-host'
+import {
+  createInProcessLoader,
+  createMemoryNavigationBridge,
+  createMemoryStorageArea,
+  createRecordingTelemetryProvider,
   type MemoryStorageArea,
   type RecordingTelemetryProvider,
-} from '@company/mfe-host'
+} from '@company/mfe-host/testing'
 import { act, render, type RenderResult } from '@testing-library/react'
 
 import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'

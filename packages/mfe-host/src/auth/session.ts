@@ -76,9 +76,7 @@ function abortReason(id: string, signal: AbortSignal): Error {
     id,
     operation: 'wait for an access token',
     expected: 'the caller to abort with an Error, so the rejection carries a name and a message',
-    declaredBy: 'The shell code that owns the aborting controller',
     repair: 'Call AbortController.abort() with no argument, or pass an Error.',
-    note: 'The shared renewal is unaffected: only this caller stopped waiting for it.',
   })
 }
 

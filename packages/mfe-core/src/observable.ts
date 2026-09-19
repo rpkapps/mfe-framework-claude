@@ -20,13 +20,13 @@ export interface Subscribable<T> {
  */
 export class ListenerSet {
   readonly #listeners = new Set<Listener>()
-  readonly #onListenerError: ((error: unknown) => void) | undefined
+  readonly #onError: ((error: unknown) => void) | undefined
 
   // A constructor parameter property would read the same, but Node cannot strip
   // one from a TypeScript source it is asked to run directly, and the generate
   // CLI reaches these modules that way — with no bundler and no build step.
   constructor(onListenerError?: (error: unknown) => void) {
-    this.#onListenerError = onListenerError
+    this.#onError = onListenerError
   }
 
   get size(): number {
@@ -35,6 +35,8 @@ export class ListenerSet {
 
   add(listener: Listener): Unsubscribe {
     this.#listeners.add(listener)
+    // `active` is what keeps a stale unsubscribe from removing a listener that
+    // was added again after it: a Set holds one entry per function reference.
     let active = true
     return () => {
       if (!active) return
@@ -49,7 +51,7 @@ export class ListenerSet {
       try {
         listener()
       } catch (error) {
-        this.#onListenerError?.(error)
+        this.#onError?.(error)
       }
     }
   }
@@ -104,23 +106,24 @@ export class SnapshotSource<T> implements Subscribable<T> {
  */
 export class KeyedListeners {
   readonly #byKey = new Map<string, ListenerSet>()
-  readonly #onListenerError: ((error: unknown) => void) | undefined
+  readonly #onError: ((error: unknown) => void) | undefined
 
   constructor(onListenerError?: (error: unknown) => void) {
-    this.#onListenerError = onListenerError
+    this.#onError = onListenerError
   }
 
   subscribe(key: string, listener: Listener): Unsubscribe {
     let listeners = this.#byKey.get(key)
     if (!listeners) {
-      listeners = new ListenerSet(this.#onListenerError)
+      listeners = new ListenerSet(this.#onError)
       this.#byKey.set(key, listeners)
     }
     const remove = listeners.add(listener)
     return () => {
       remove()
       // Evicting the empty set keeps a long-lived map from growing one entry
-      // per key that was ever subscribed.
+      // per key that was ever subscribed. Re-read rather than close over the
+      // set, so a stale unsubscribe cannot evict a later subscription's entry.
       const current = this.#byKey.get(key)
       if (current && current.size === 0) this.#byKey.delete(key)
     }
@@ -135,7 +138,6 @@ export class KeyedListeners {
   }
 
   clear(): void {
-    for (const listeners of this.#byKey.values()) listeners.clear()
     this.#byKey.clear()
   }
 }
@@ -146,14 +148,11 @@ export function shallowEqual(a: unknown, b: unknown): boolean {
   if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
 
   const aKeys = Object.keys(a)
-  const bKeys = Object.keys(b)
-  if (aKeys.length !== bKeys.length) return false
-
+  if (aKeys.length !== Object.keys(b).length) return false
+  const right = b as Record<string, unknown>
   for (const key of aKeys) {
-    if (!Object.hasOwn(b, key)) return false
-    if (!Object.is((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
-      return false
-    }
+    if (!Object.hasOwn(right, key)) return false
+    if (!Object.is((a as Record<string, unknown>)[key], right[key])) return false
   }
   return true
 }
@@ -162,8 +161,5 @@ export function shallowEqual(a: unknown, b: unknown): boolean {
 export function arrayEqual<T>(a: readonly T[], b: readonly T[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
-  for (let index = 0; index < a.length; index += 1) {
-    if (!Object.is(a[index], b[index])) return false
-  }
-  return true
+  return a.every((entry, index) => Object.is(entry, b[index]))
 }

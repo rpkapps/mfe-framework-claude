@@ -5,7 +5,7 @@
  * itself rather than from a parallel index that can drift.
  */
 
-import { z } from 'zod'
+import type { z } from 'zod'
 
 export type StorageArea = 'local' | 'session'
 
@@ -14,8 +14,7 @@ export type StorageArea = 'local' | 'session'
  * `localStorage` and survive a logout, while a scoped filter in the same store
  * must not.
  */
-const retentionSchema = z.enum(['session', 'preference'])
-export type StorageRetention = z.infer<typeof retentionSchema>
+export type StorageRetention = 'session' | 'preference'
 
 export interface StorageKeyOptions<T> {
   readonly retention?: StorageRetention
@@ -42,24 +41,35 @@ export interface MfeStorage {
  * The persisted record. Field names are short because they are written to every
  * key; their meaning is fixed here and nowhere else.
  */
-const storageEnvelopeSchema = z.object({
+export interface StorageEnvelope {
   /** Schema version the payload was written against. */
-  v: z.int().positive(),
+  readonly v: number
   /** Retention class, so a store-wide session reset can act on the record alone. */
-  r: retentionSchema,
+  readonly r: StorageRetention
   /** Opaque session/access generation; absent on preference records. */
-  g: z.string().optional(),
-  /** The payload, validated against the author's own schema, not this one. */
-  d: z.unknown(),
-})
-
-export type StorageEnvelope = z.infer<typeof storageEnvelopeSchema>
+  readonly g?: string
+  /** The payload, validated against the author's own schema, not this shape. */
+  readonly d: unknown
+}
 
 export const DEFAULT_SCHEMA_VERSION = 1
 export const DEFAULT_RETENTION: StorageRetention = 'session'
 
+/**
+ * Hand-written rather than a Zod schema: this runs on every read of every key,
+ * and the shape is four fields the framework itself writes. A schema here would
+ * pull Zod into the core bundle to re-check what `serializeEnvelope` produced.
+ */
 export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
-  return storageEnvelopeSchema.safeParse(value).success
+  if (value === null || typeof value !== 'object') return false
+  const { v, r, g } = value as Partial<StorageEnvelope>
+  return (
+    Number.isInteger(v) &&
+    (v as number) > 0 &&
+    (r === 'session' || r === 'preference') &&
+    (g === undefined || typeof g === 'string') &&
+    'd' in value
+  )
 }
 
 /** Physical key layout: `<id>:<key>`. Never scoped by mount token. */

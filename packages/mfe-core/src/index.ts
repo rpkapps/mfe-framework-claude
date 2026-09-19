@@ -4,9 +4,12 @@
  * schemas arrive from the author's own instance, validated through `safeParse`.
  */
 
+export { DEV } from './dev.ts'
+
 export {
   createMfeError,
   createMfeErrorFactory,
+  describeThrown,
   describeValue,
   isMfeError,
   toMfeError,

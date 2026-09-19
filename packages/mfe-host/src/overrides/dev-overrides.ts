@@ -32,7 +32,6 @@ interface OverrideProblem {
 function overrideError(details: OverrideProblem): MfeError {
   return createMfeError({
     code: 'registry/invalid-descriptor',
-    declaredBy: `The local development override in localStorage["${OVERRIDES_STORAGE_KEY}"]`,
     ...details,
   })
 }

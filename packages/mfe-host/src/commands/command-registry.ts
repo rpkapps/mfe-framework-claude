@@ -32,7 +32,6 @@ function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id' | 'declar
   return createMfeError({
     code: 'command/duplicate-name',
     id,
-    declaredBy: 'The command registry',
     ...details,
   })
 }
@@ -207,7 +206,6 @@ export class CommandRegistry {
         code: 'mount/failure',
         id: command.definitionId,
         operation: `execute command '${command.registration.name}'`,
-        declaredBy: 'The command implementation',
         repair:
           'Handle the failure inside the command, or surface it through the App’s own error UI.',
       })
@@ -287,7 +285,6 @@ export class CommandRegistry {
           code: 'mount/failure',
           id: definitionId,
           operation: `evaluate canExecute for '${registration.name}'`,
-          declaredBy: 'The registering component',
           repair:
             'canExecute must be a pure synchronous read of reactive state. Move the failing work into execute.',
         }),

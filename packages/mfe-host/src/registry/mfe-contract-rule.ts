@@ -34,6 +34,9 @@ interface AdvertisedEntry {
   readonly contract?: unknown
 }
 
+/** Every descriptor failure has the same fix, so the sentence is written once. */
+const REBUILD = 'Rebuild the container; the registry descriptor is generated, never hand-written.'
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -51,8 +54,7 @@ function readContractMajor(id: string, mfe: unknown): number {
       operation: 'read the advertised framework contract',
       expected: 'an object such as { "contractMajor": 1 }',
       observed: mfe === undefined ? 'nothing' : typeof mfe,
-      declaredBy: 'The framework registry contract',
-      repair: 'Publish the registry descriptor emitted by the build rather than hand-writing it.',
+      repair: REBUILD,
     })
   }
 
@@ -62,7 +64,6 @@ function readContractMajor(id: string, mfe: unknown): number {
       operation: 'read the advertised framework contract major',
       expected: 'an integer',
       observed: major === undefined ? 'nothing' : typeof major,
-      declaredBy: 'The framework registry contract',
       repair: `Rebuild the container with a framework release that emits contractMajor ${FRAMEWORK_CONTRACT_MAJOR}.`,
     })
   }
@@ -74,10 +75,9 @@ function readContractMajor(id: string, mfe: unknown): number {
       operation: 'gate the advertised framework contract major',
       expected: `contract major ${FRAMEWORK_CONTRACT_MAJOR}`,
       observed: `contract major ${major}`,
-      declaredBy: 'The host framework contract gate',
       repair:
         major > FRAMEWORK_CONTRACT_MAJOR
-          ? 'Upgrade the shell to a framework release that supports this container, or redeploy the container against the shell’s major.'
+          ? 'Upgrade the shell, or redeploy the container against the shell’s major.'
           : 'Rebuild and redeploy the container against the current framework major.',
     })
   }
@@ -92,8 +92,7 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
       operation: 'read advertised capabilities',
       expected: 'an array of capability descriptors',
       observed: typeof value,
-      declaredBy: 'The build plugin, which extracts routes marked with staticData.capability',
-      repair: 'Rebuild the container; capability metadata is generated, never hand-written.',
+      repair: REBUILD,
     })
   }
 
@@ -103,8 +102,7 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
         operation: `read capability at index ${index}`,
         expected: 'a capability descriptor object',
         observed: typeof candidate,
-        declaredBy: 'The build plugin',
-        repair: 'Rebuild the container.',
+        repair: REBUILD,
       })
     }
 
@@ -114,7 +112,6 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
         operation: `read capability at index ${index}`,
         expected: `one of ${CAPABILITY_NAMES.join(', ')}`,
         observed: typeof name === 'string' ? JSON.stringify(name) : typeof name,
-        declaredBy: 'The framework capability contract: capabilities are App-only and closed',
         repair: 'Correct the staticData.capability value on the route and rebuild.',
       })
     }
@@ -126,7 +123,6 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
         operation: `read capability "${name}"`,
         expected: 'a string label and a string route path',
         observed: `label ${typeof label}, path ${typeof path}`,
-        declaredBy: 'The build plugin',
         repair: 'Add staticData.label to the marked route and rebuild.',
       })
     }
@@ -141,9 +137,7 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
         operation: `read capability "${name}" icon`,
         expected: 'an icon name from the shell icon set, or { src } for an asset URL',
         observed: typeof icon,
-        declaredBy: 'The capability icon contract: metadata carries a name, never SVG markup',
-        repair:
-          'Use a shell icon name, or supply { src: assetUrl } for a mark the shell set lacks.',
+        repair: 'Use a shell icon name, or { src: assetUrl } for a mark the set lacks.',
       })
     }
 
@@ -174,7 +168,6 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
       operation: 'read the published Widget contract',
       expected: 'an object with the declared event names and, when readable, an inputs schema',
       observed: typeof value,
-      declaredBy: 'The build plugin, which reads the Widget’s own Zod schemas',
       repair: 'Rebuild the container; the contract is generated, never hand-written.',
     })
   }
@@ -185,8 +178,7 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
       operation: 'read the published Widget contract events',
       expected: 'an array of event names',
       observed: Array.isArray(events) ? 'an array holding something else' : typeof events,
-      declaredBy: 'The build plugin',
-      repair: 'Rebuild the container.',
+      repair: REBUILD,
     })
   }
 
@@ -196,8 +188,7 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
       operation: 'read the published Widget input schema',
       expected: 'a JSON Schema object, or nothing when the build could not read one',
       observed: typeof inputs,
-      declaredBy: 'The build plugin',
-      repair: 'Rebuild the container.',
+      repair: REBUILD,
     })
   }
 
@@ -220,7 +211,6 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read registry entry',
           expected: 'an object',
           observed: typeof source,
-          declaredBy: 'The shell registry',
           repair: 'Publish the generated registry descriptor.',
         })
       }
@@ -235,7 +225,6 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read definition id',
           expected: 'a non-empty string',
           observed: entry.id === undefined ? 'nothing' : typeof entry.id,
-          declaredBy: 'The framework identity rules: the only public identity field is id',
           repair: 'Set a stable id on the createApp/createWidget call and rebuild.',
         })
       }
@@ -245,9 +234,7 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read manifest URL',
           expected: 'a non-empty URL string',
           observed: entry.manifestUrl === undefined ? 'nothing' : typeof entry.manifestUrl,
-          declaredBy: 'The framework registry contract',
-          repair:
-            'Point the entry at the container’s mf-manifest.json, or set a localStorage override for local development.',
+          repair: 'Point the entry at the container’s mf-manifest.json, or set a dev override.',
         })
       }
 
@@ -256,7 +243,6 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read definition kind',
           expected: '"app" or "widget"',
           observed: typeof entry.kind === 'string' ? JSON.stringify(entry.kind) : typeof entry.kind,
-          declaredBy: 'The framework definition contract',
           repair: 'Rebuild the container; the kind is derived from createApp/createWidget.',
         })
       }
@@ -267,7 +253,6 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read the published Widget contract',
           expected: 'no Widget contract on an App',
           observed: 'an inputs/events contract',
-          declaredBy: 'The authoring rules: Apps take URLs, Widgets take props',
           repair:
             'An App has no inputs and no events. Drop the contract, or declare the surface as a Widget.',
         })
@@ -279,8 +264,6 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
           operation: 'read advertised capabilities',
           expected: 'no capabilities on a Widget',
           observed: `${capabilities.length} capability descriptor(s)`,
-          declaredBy:
-            'The ownership rules: settings, help and release notes are App capabilities only',
           repair: 'Move the capability routes into an App, or drop them from the Widget.',
         })
       }

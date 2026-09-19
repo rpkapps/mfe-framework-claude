@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { DiagnosticsHub, type Diagnostic, type StorageEnvelope } from '@company/mfe-core'
 
-import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
+import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
 
 const ORDERS = 'acme-orders'

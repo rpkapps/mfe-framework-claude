@@ -30,14 +30,7 @@ describe('validateAgainstContract', () => {
   it('produces an actionable diagnostic for a missing field', () => {
     const schema = z.object({ alertId: z.string() })
 
-    const result = validateAgainstContract(
-      schema,
-      {},
-      {
-        ...inputContext,
-        note: 'The previous valid inputs remain displayed.',
-      },
-    )
+    const result = validateAgainstContract(schema, {}, inputContext)
 
     expect(result.ok).toBe(false)
     if (result.ok) return
@@ -48,9 +41,7 @@ describe('validateAgainstContract', () => {
     expect(result.error.message).toContain('alert-panel@1.4.0')
     expect(result.error.message).toContain('alertId')
     expect(result.error.message).toContain('received undefined')
-    expect(result.error.message).toContain('The Widget provider declares this expectation.')
-    expect(result.error.message).toContain('Check the alertId prop in the consuming component.')
-    expect(result.error.message).toContain('The previous valid inputs remain displayed.')
+    expect(result.error.message).toContain('Check the alertId prop on the Widget.')
   })
 
   it('attributes a consumer-side event failure to the consumer contract', () => {
@@ -71,7 +62,9 @@ describe('validateAgainstContract', () => {
     if (result.ok) return
     expect(result.error.code).toBe('contract/event-mismatch')
     expect(result.error.message).toContain("emit event 'acknowledged'")
-    expect(result.error.message).toContain('the runtime contract it supplied')
+    expect(result.error.message).toContain(
+      "Check the 'acknowledged' schema this consumer declared.",
+    )
     expect(result.error.message).toContain("Check the 'acknowledged' schema")
   })
 

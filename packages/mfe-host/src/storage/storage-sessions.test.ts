@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { DiagnosticsHub, type Diagnostic, type StorageEnvelope } from '@company/mfe-core'
 
-import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
+import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
 
 const ORDERS = 'acme-orders'
@@ -190,7 +190,7 @@ describe('session transitions', () => {
 
     const result = store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
 
-    expect(result).toMatchObject({ outcome: 'invalidated', invalidated: true, generation: 'gen-2' })
+    expect(result).toMatchObject({ outcome: 'invalidated', generation: 'gen-2' })
     expect(result.removedRecords).toBe(1)
     expect(result.notifiedKeys).toBe(1)
     expect(listener).toHaveBeenCalledTimes(1)
@@ -283,13 +283,12 @@ describe('session transitions', () => {
     })
     expect(reorder).toMatchObject({
       outcome: 'unchanged-group-set',
-      invalidated: false,
       generation: 'gen-1',
     })
     expect(draft.getSnapshot()).toEqual({ status: 'value', value: 'customer notes' })
 
     const change = store.applySessionTransition({ kind: 'groups', groups: ['finance'] }, 'gen-2')
-    expect(change.invalidated).toBe(true)
+    expect(change.outcome).toBe('invalidated')
     expect(draft.getSnapshot().status).toBe('default')
   })
 
@@ -302,10 +301,11 @@ describe('session transitions', () => {
 
     expect(store.applySessionTransition({ kind: 'theme' })).toMatchObject({
       outcome: 'not-session-affecting',
-      invalidated: false,
       generation: 'gen-1',
     })
-    expect(store.applySessionTransition({ kind: 'token-refresh' }).invalidated).toBe(false)
+    expect(store.applySessionTransition({ kind: 'token-refresh' }).outcome).toBe(
+      'not-session-affecting',
+    )
 
     expect(listener).not.toHaveBeenCalled()
     expect(draft.getSnapshot()).toEqual({ status: 'value', value: 'customer notes' })

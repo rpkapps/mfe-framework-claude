@@ -72,7 +72,6 @@ export class MountController<TLoaded> implements MountHandle {
             code: 'mount/failure',
             id: options.id,
             operation: 'notify a lifecycle subscriber',
-            declaredBy: 'A lifecycle subscriber',
             repair: 'Fix the subscriber; other subscribers were still notified.',
           }),
         )
@@ -166,7 +165,6 @@ export class MountController<TLoaded> implements MountHandle {
         ...this.#identity,
         code: 'mount/failure',
         operation: 'mount definition',
-        declaredBy: 'The framework mount controller',
         repair: 'Use the explicit retry action once the underlying cause is fixed.',
       })
 
@@ -206,7 +204,6 @@ export class MountController<TLoaded> implements MountHandle {
         ...this.#identity,
         code: 'dispose/failure',
         operation: 'complete asynchronous cleanup',
-        declaredBy: 'The framework mount controller',
         repair:
           'Check the diagnostics for the cleanup step that failed. Other mounts and shell navigation are unaffected.',
       })
@@ -234,7 +231,6 @@ export class MountController<TLoaded> implements MountHandle {
           code: 'dispose/failure',
           id: this.id,
           operation: 'detach mounted UI',
-          declaredBy: 'The owning adapter',
           repair: 'Fix the adapter’s detach step; remaining cleanup still ran.',
         }),
       )

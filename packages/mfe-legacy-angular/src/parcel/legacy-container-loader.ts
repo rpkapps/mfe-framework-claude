@@ -64,7 +64,6 @@ function extractParcelConfig(
       moduleExports === null || moduleExports === undefined
         ? 'nothing'
         : `a module missing ${missingParcelLifecycles(moduleExports).join(', ')}`,
-    declaredBy: 'The legacy adapter',
     repair: `Check that ${containerName} still exposes "${LEGACY_PARCEL_EXPOSE_NAME}" from its federation config.`,
   })
 }
@@ -93,7 +92,6 @@ export function createLegacyContainerLoader(options: {
             code: 'load/manifest-failure',
             id: entry.id,
             operation: 'register the legacy container',
-            declaredBy: 'The federation runtime',
             repair: `Check that ${entry.manifestUrl} is reachable and serves the manifest ${containerName} publishes.`,
           })
         }
@@ -109,7 +107,6 @@ export function createLegacyContainerLoader(options: {
           code: 'load/entry-failure',
           id: entry.id,
           operation: `load ${remoteId}`,
-          declaredBy: 'The federation runtime',
           // The expose path is unchanged by the migration, so a 404 here means
           // the container was built without it.
           repair: 'Check the browser network panel for the failed chunk.',

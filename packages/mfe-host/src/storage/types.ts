@@ -148,7 +148,6 @@ export type SessionTransitionOutcome =
 
 export interface SessionTransitionResult {
   readonly outcome: SessionTransitionOutcome
-  readonly invalidated: boolean
   /** The generation in force after the transition. */
   readonly generation: string | null
   /** Session-retained records physically removed, across both stores. */

@@ -40,7 +40,6 @@ export function useMfeRuntime(consumer: string): MfeRuntime {
     operation: `render ${consumer}`,
     expected: 'an MfeProvider above this component, or an enclosing App or Widget mount',
     observed: 'neither',
-    declaredBy: 'The framework runtime boundary',
     repair: 'Wrap the shell in <MfeProvider runtime={runtime}> once at boot.',
   })
 }

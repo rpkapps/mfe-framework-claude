@@ -412,7 +412,7 @@ describe('published Widget contract', () => {
 
     expect(registry.entries.size).toBe(0)
     expect(quarantinedEntry(registry, 'reports').error.message).toContain(
-      'Apps take URLs, Widgets take props',
+      'An App has no inputs and no events',
     )
   })
 
@@ -466,7 +466,7 @@ describe('advertised capabilities', () => {
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'alert-panel')
     expect(quarantined.error.message).toContain('no capabilities on a Widget')
-    expect(quarantined.error.message).toContain('App capabilities only')
+    expect(quarantined.error.message).toContain('Move the capability routes into an App')
   })
 
   it('rejects a Widget that advertises an empty capability list', () => {
@@ -494,7 +494,9 @@ describe('advertised capabilities', () => {
       }),
     ])
 
-    expect(quarantinedEntry(registry, 'reports').error.message).toContain('never SVG markup')
+    expect(quarantinedEntry(registry, 'reports').error.message).toContain(
+      'an icon name from the shell icon set',
+    )
   })
 
   it('rejects capabilities that are not an array', () => {

@@ -12,6 +12,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import {
   createMfeError,
   createMfeErrorFactory,
+  DEV,
   type BreadcrumbItem,
   type NavigationBridge,
 } from '@company/mfe-core'
@@ -65,7 +66,6 @@ function validateAuthoredRouter(
         router.options.basepath === undefined
           ? 'no basepath on the router'
           : JSON.stringify(router.options.basepath),
-      declaredBy: 'The App router contract',
       repair:
         'Forward the basePath your factory received: createRouter({ basepath: basePath, … }).',
     })
@@ -76,7 +76,6 @@ function validateAuthoredRouter(
       code: 'app/invalid-router',
       expected: 'the exact history instance the framework supplied',
       observed: 'a different history object',
-      declaredBy: 'The App router contract',
       repair:
         'Do not create, wrap, replace or mutate the history; forward the one your factory received.',
     })
@@ -93,7 +92,6 @@ function validateAuthoredRouter(
         : context['mfe'] === undefined
           ? 'no mfe key'
           : 'a replaced or rebuilt mfe namespace',
-      declaredBy: 'The framework router context contract',
       repair:
         'Spread the supplied context: add your own top-level keys freely, but do not replace mfe or add fields inside it.',
     })
@@ -105,7 +103,6 @@ function validateAuthoredRouter(
       expected: 'the supplied top-level queryClient, forwarded unchanged',
       observed:
         context['queryClient'] === undefined ? 'no queryClient key' : 'a different Query client',
-      declaredBy: 'The framework router context contract',
       repair:
         'Spread the supplied context rather than constructing your own Query client; the mount owns one.',
     })
@@ -259,19 +256,23 @@ function useBreadcrumbContribution(
     const handle = breadcrumbs.registerMount(definition.id, mount.mountToken, mount.depth)
 
     const publish = (): void => {
-      const conflict = findReservedKeyConflict(router, context)
-      if (conflict) {
-        diagnostics.report(
-          createMfeError({
-            code: 'app/invalid-router',
-            id: definition.id,
-            operation: `merge route context for ${conflict.routeId}`,
-            expected: `the reserved key "${conflict.key}" to be forwarded unchanged`,
-            observed: `route ${conflict.routeId} returned its own "${conflict.key}"`,
-            declaredBy: 'The framework router context contract',
-            repair: `Rename the key you return from beforeLoad in ${conflict.routeId}.`,
-          }),
-        )
+      // A development diagnostic, so the scan over every match on every
+      // navigation — and the sentences it would write — leave the production
+      // build entirely rather than running to report nothing.
+      if (DEV) {
+        const conflict = findReservedKeyConflict(router, context)
+        if (conflict) {
+          diagnostics.report(
+            createMfeError({
+              code: 'app/invalid-router',
+              id: definition.id,
+              operation: `merge route context for ${conflict.routeId}`,
+              expected: `the reserved key "${conflict.key}" to be forwarded unchanged`,
+              observed: `route ${conflict.routeId} returned its own "${conflict.key}"`,
+              repair: `Rename the key you return from beforeLoad in ${conflict.routeId}.`,
+            }),
+          )
+        }
       }
 
       const pathname = router.state.location.pathname

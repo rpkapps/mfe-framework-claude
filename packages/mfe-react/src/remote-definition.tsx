@@ -53,7 +53,6 @@ export function loadDefinition(
         id,
         operation: `resolve ${label}`,
         observed: 'no registry entry with this id',
-        declaredBy: 'The shell registry',
         repair:
           'Check the id against the generated registry descriptor, or add a localStorage override pointing at your dev server.',
       })
@@ -73,7 +72,6 @@ export function loadDefinition(
           : kind === 'app'
             ? 'a Widget definition, which owns no URL boundary'
             : 'an App definition',
-        declaredBy: 'The framework definition contract',
         repair: `Export the ${label} from src/mfe.ts and rebuild the container.`,
       })
     }

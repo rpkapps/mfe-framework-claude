@@ -70,7 +70,6 @@ export function normalizeRegistry(
             operation: 'read registry entry',
             expected: `a descriptor matching one of the registered adapters (${options.rules.map(candidate => candidate.adapter).join(', ')})`,
             observed: 'a descriptor that matched none of them',
-            declaredBy: 'The shell registry',
             repair:
               'Check the entry against the generated registry descriptor produced by its build. Nobody hand-writes registry JSON.',
           }),
@@ -92,7 +91,6 @@ export function normalizeRegistry(
             code: 'registry/invalid-descriptor',
             id: labelFor(source, index),
             operation: `validate ${rule.adapter} registry entry`,
-            declaredBy: `The ${rule.adapter} adapter`,
             repair:
               'Fix the advertised contract. An entry that advertises a contract is never reinterpreted as another adapter.',
           }),
@@ -113,7 +111,6 @@ export function normalizeRegistry(
             operation: 'read definition id',
             expected: DEFINITION_ID_RULE,
             observed: JSON.stringify(entry.id),
-            declaredBy: 'The framework identity rules',
             repair: 'Rename the definition id in its createApp/createWidget call and rebuild.',
           }),
         ),
@@ -144,7 +141,6 @@ export function normalizeRegistry(
       operation: 'register definition',
       expected: 'one registry entry per definition id',
       observed: `${claims.length} entries claiming "${id}" (at indexes ${claims.map(claim => claim.index).join(', ')})`,
-      declaredBy: 'The framework identity rules: ids are globally unique across Apps and Widgets',
       repair:
         'Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.',
     })

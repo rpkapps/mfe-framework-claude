@@ -65,10 +65,8 @@ function requireShellAuth(binding: ContainerAuthBinding): ShellAuthOptions {
     operation: 'attach the session to a request from #mfe/fetch',
     expected: 'a shell that installed its session before mounting a container',
     observed: 'no installed session',
-    declaredBy: 'The shell, which owns authentication',
     repair:
       'Call installShellAuth({ tokens }) during shell boot, before the registry is loaded. `tokens` is whatever the shell already authenticates with — Better Auth, Auth0, MSAL — or createSessionTokenService() when it has no library of its own.',
-    note: 'The framework deliberately implements no session of its own, so there is nothing for it to fall back to here.',
   })
 }
 

@@ -70,7 +70,6 @@ export function env<T>(
       operation: 'declare a configuration field',
       expected: ENV_NAME_RULE,
       observed: typeof name === 'string' ? JSON.stringify(name) : `a ${typeof name}`,
-      declaredBy: 'The env() declaration contract',
       repair:
         'Rename the variable. The same name appears in the generated .env.example and in runtime-config.json, so it has to be writable in a shell.',
     })
@@ -83,7 +82,6 @@ export function env<T>(
       operation: 'declare a configuration field',
       expected: 'a Zod schema',
       observed: schema === undefined ? 'nothing' : `a ${typeof schema}`,
-      declaredBy: 'The env() declaration contract',
       repair: `Pass a schema, for example env('${name}', z.string().url()). The build reads it to emit the JSON Schema for runtime-config.json, and the runtime validates against it.`,
     })
   }

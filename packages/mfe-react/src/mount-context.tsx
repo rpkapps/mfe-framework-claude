@@ -33,7 +33,6 @@ export function useMfeMount(hookName: string): MfeMount {
     operation: `call ${hookName}`,
     expected: 'a component rendered inside an App or Widget mount',
     observed: 'a component rendered outside any mount',
-    declaredBy: 'The framework mount boundary',
     repair: `Move the ${hookName} call into a component the App or Widget renders.`,
   })
 }

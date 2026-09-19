@@ -8,7 +8,7 @@
  * Attaching a token is not authorization: a 403 passes through untouched.
  */
 
-import { createMfeError } from '@company/mfe-core'
+import { createMfeError, DEV } from '@company/mfe-core'
 import type { DiagnosticsHub } from '@company/mfe-core'
 
 import { normalizeAllowedOrigins } from './origins.ts'
@@ -93,7 +93,6 @@ function parseApiBaseUrl(value: string | URL | undefined, id: string): URL | nul
       operation: 'accept apiBaseUrl',
       expected: 'an absolute http(s) URL such as "https://api.example.test/v1/"',
       observed,
-      declaredBy: 'The shell configuration that creates the authenticated fetch',
       repair,
     })
   }
@@ -148,10 +147,8 @@ function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: strin
       operation: 'resolve the request URL',
       expected: 'an absolute URL, or an apiBaseUrl to resolve a relative one against',
       observed: `the relative URL ${JSON.stringify(raw)} and no configured apiBaseUrl`,
-      declaredBy: 'The shell configuration that creates the authenticated fetch',
       repair:
-        'Set apiBaseUrl when creating the authenticated fetch (for example "https://api.example.test/v1/"), or pass an absolute URL to fetch.',
-      note: 'Relative URLs are never resolved against the shell document URL, so this request has no base at all and was not sent.',
+        'Set apiBaseUrl (for example "https://api.example.test/v1/"), or pass an absolute URL. A relative URL is never resolved against the shell document URL, so this request had no base and was not sent.',
     })
   }
 
@@ -164,7 +161,6 @@ function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: strin
       operation: 'resolve the request URL',
       expected: `a URL that resolves against the configured base ${JSON.stringify(base.href)}`,
       observed: `${JSON.stringify(raw)}, which is not a resolvable URL reference`,
-      declaredBy: 'The shell configuration that creates the authenticated fetch',
       repair: 'Correct the request URL; it was not sent.',
     })
   }
@@ -271,6 +267,10 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
   const warnedOrigins = new Set<string>()
 
   function warnUndeclaredOrigin(origin: string, method: string): void {
+    // Guarded at compile time as well as at run time: this warning only ever
+    // fires for a developer, so a production build drops the branch, the set it
+    // consults and the long sentence it would have written.
+    if (!DEV) return
     if (!isDevelopment || diagnostics === undefined) return
     if (warnedOrigins.has(origin)) return
     warnedOrigins.add(origin)
@@ -282,9 +282,7 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
         operation: `attach the access token for ${origin}`,
         expected: 'a request to an origin the author declared as an API with { api: true }',
         observed: `a request to ${origin}, which is not declared`,
-        declaredBy: 'The shell allowlist of declared API origins',
-        repair: `Declare ${origin} with { api: true } if it is your API, or leave it undeclared if it is a third-party endpoint that must never receive the session bearer token.`,
-        note: 'The request was sent without an Authorization header. An endpoint that requires one answers 401, and that 401 is this missing declaration — not an expired or broken token.',
+        repair: `Declare ${origin} with { api: true } if it is your API, or leave it undeclared if it must never receive the session bearer token. It was sent without one, so an endpoint that requires it answers 401 — that 401 is this missing declaration, not a broken token.`,
       }),
       { severity: 'warning', context: { origin, method } },
     )
@@ -298,10 +296,8 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
         operation: `retry ${method} ${origin} after 401`,
         expected: 'a request the framework can send a second time',
         observed: reason,
-        declaredBy: 'The framework 401 retry policy',
         repair:
-          'Buffer the body before sending it — a string, Blob, ArrayBuffer, FormData or URLSearchParams can be replayed — or handle 401 at the call site by awaiting getAccessToken() and re-issuing the request yourself.',
-        note: 'The original 401 response is returned unchanged. The session token was refreshed, so the next request is authenticated.',
+          'Buffer the body before sending it — a string, Blob, ArrayBuffer, FormData or URLSearchParams can be replayed — or handle the 401 at the call site. The original 401 is returned unchanged and the token was refreshed, so the next request is authenticated.',
       }),
       { severity: 'warning', context: { origin, method } },
     )

@@ -9,8 +9,6 @@
 
 export { MfeStorageStore } from './storage-store.ts'
 
-export { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
-
 export type {
   BoundStorageKey,
   MfeStorageStoreOptions,

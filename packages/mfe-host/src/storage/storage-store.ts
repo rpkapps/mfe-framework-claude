@@ -11,6 +11,7 @@ import {
   createMfeError,
   DEFAULT_RETENTION,
   DEFAULT_SCHEMA_VERSION,
+  describeThrown,
   describeValue,
   isStorageEnvelope,
   KeyedListeners,
@@ -32,12 +33,9 @@ import {
 import type { z } from 'zod'
 
 import {
-  DECLARATION,
   describeIssue,
-  describeThrown,
   readEnvelope,
   serializeEnvelope,
-  SHELL,
   type Detail,
   type EnvelopeContext,
 } from './envelope.ts'
@@ -59,29 +57,32 @@ import type {
 const AREAS = ['local', 'session'] as const
 const DEFAULT_AREA: StorageArea = 'local'
 
-/** `<id>:<name>` with a colon-free id, so prefix ownership is unambiguous. */
+/** `<id>:<key>` with a colon-free id, so prefix ownership is unambiguous. */
 const FRAMEWORK_KEY = /^[^:]+:.+$/
+
+/** Written once: both the read path and the resolve path report it. */
+const UNAVAILABLE =
+  'Storage is unavailable here — private mode, blocked cookies, or a disabled store. The framework never falls back to memory or to the declared default.'
 
 const NO_VALUE = '<no-value>'
 const NO_DEFAULT = '<no-default>'
 
-const BOUNDARY = 'The framework storage boundary'
+/** Sorts keys so a re-serialization compares equal to its original. */
+function sortKeys(_key: string, entry: unknown): unknown {
+  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return entry
+  const record = entry as Record<string, unknown>
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .map(key => [key, record[key]]),
+  )
+}
 
 /** Key-order-independent, so a re-serialization compares equal to its original. */
 function stableStringify(value: unknown): string {
   if (value === undefined) return NO_VALUE
   try {
-    return (
-      JSON.stringify(value, (_key, entry: unknown) => {
-        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return entry
-        const record = entry as Record<string, unknown>
-        return Object.fromEntries(
-          Object.keys(record)
-            .sort()
-            .map(key => [key, record[key]]),
-        )
-      }) ?? NO_VALUE
-    )
+    return JSON.stringify(value, sortKeys) ?? NO_VALUE
   } catch {
     return '<unserializable>'
   }
@@ -135,8 +136,7 @@ interface KeyEntry {
   /** One frozen object per key, so an unchanged "missing" stays reference-equal. */
   readonly defaultSnapshot: StorageSnapshot<unknown>
   bindings: number
-  loaded: boolean
-  /** False when the last read threw, so no raw string can be mistaken for the truth. */
+  /** False before the first read, and whenever a read threw: `raw` is then a guess. */
   rawKnown: boolean
   raw: string | null
   snapshot: StorageSnapshot<unknown>
@@ -226,20 +226,13 @@ export class MfeStorageStore {
     const outcome = this.#classifyTransition(transition)
     if (outcome !== 'invalidated') {
       this.#rememberGroups(transition)
-      return {
-        outcome,
-        invalidated: false,
-        generation: this.#generation,
-        removedRecords: 0,
-        notifiedKeys: 0,
-      }
+      return { outcome, generation: this.#generation, removedRecords: 0, notifiedKeys: 0 }
     }
 
     if (nextGeneration === undefined || nextGeneration === '') {
       throw this.#failStore('apply a session transition', {
         expected: 'a fresh opaque session generation for the new session',
         observed: nextGeneration === '' ? 'an empty string' : 'nothing',
-        declaredBy: SHELL,
         repair: 'Pass a new opaque generation — never a token, never a group list.',
       })
     }
@@ -266,13 +259,7 @@ export class MfeStorageStore {
       this.#listeners.notify(entry.entryKey)
     }
 
-    return {
-      outcome: 'invalidated',
-      invalidated: true,
-      generation: nextGeneration,
-      removedRecords,
-      notifiedKeys,
-    }
+    return { outcome, generation: nextGeneration, removedRecords, notifiedKeys }
   }
 
   #classifyTransition(transition: StorageSessionTransition): SessionTransitionOutcome {
@@ -301,8 +288,7 @@ export class MfeStorageStore {
     throw this.#failStore(operation, {
       expected: 'a generation this store has never seen before',
       observed: `the already-used generation '${generation}'`,
-      repair:
-        'Mint a new generation per session; reusing one would make its invalidated records readable again.',
+      repair: 'Mint a new generation per session; reusing one would unfence its retired records.',
     })
   }
 
@@ -417,7 +403,7 @@ export class MfeStorageStore {
           throw this.#fail(definitionId, target, 'clear', null, {
             expected: `to enumerate ${target} storage for keys under '${prefix}'`,
             observed: describeThrown(error),
-            repair: 'The framework never clears a store it cannot enumerate. Handle the failure.',
+            repair: 'The framework never clears a store it cannot enumerate.',
             cause: error,
           })
         }
@@ -429,7 +415,7 @@ export class MfeStorageStore {
             throw this.#fail(definitionId, target, 'clear', null, {
               expected: `to remove '${name}'`,
               observed: describeThrown(error),
-              repair: `Retry; keys already removed stay removed and nothing outside '${prefix}' was touched.`,
+              repair: `Retry; nothing outside '${prefix}' was touched.`,
               cause: error,
             })
           }
@@ -512,7 +498,6 @@ export class MfeStorageStore {
       throw this.#fail(definitionId, area, 'bind', null, {
         expected: 'a non-empty storage key name',
         observed: describeValue(name),
-        declaredBy: DECLARATION,
         repair: "Give the key a stable name, e.g. bind(id, { name: 'filters', schema }).",
       })
     }
@@ -529,7 +514,6 @@ export class MfeStorageStore {
       throw this.#fail(definitionId, area, 'bind', name, {
         expected: 'an integer schema version of 1 or more',
         observed: describeValue(declaration.version),
-        declaredBy: DECLARATION,
         repair: 'Start at 1 and raise it whenever the persisted shape changes, adding migrate().',
       })
     }
@@ -542,7 +526,6 @@ export class MfeStorageStore {
         throw this.#fail(definitionId, area, 'bind', name, {
           expected: `a default matching the declared schema (${describeIssue(result.error)})`,
           observed: describeValue(declaration.defaultValue),
-          declaredBy: DECLARATION,
           repair: 'Fix defaultValue; it is validated where it is declared, not on first use.',
           cause: result.error,
         })
@@ -599,7 +582,6 @@ export class MfeStorageStore {
       declaration,
       defaultSnapshot,
       bindings: 0,
-      loaded: false,
       rawKnown: false,
       raw: null,
       snapshot: defaultSnapshot,
@@ -627,41 +609,39 @@ export class MfeStorageStore {
         ? `the default ${stableStringify(declaration.defaultValue)}`
         : 'no declared default'
 
-    const checks: readonly (readonly [boolean, string, string, string])[] = [
-      [
-        active.schema !== incoming.schema,
+    if (active.schema !== incoming.schema) {
+      this.#incompatible(
+        entry,
         'schema',
         'the same schema object every active consumer already declared',
         'a different schema object',
-      ],
-      [
-        active.retention !== incoming.retention,
+      )
+    }
+    if (active.retention !== incoming.retention) {
+      this.#incompatible(
+        entry,
         'retention',
         `retention '${active.retention}'`,
         `retention '${incoming.retention}'`,
-      ],
-      [
-        active.version !== incoming.version,
+      )
+    }
+    if (active.version !== incoming.version) {
+      this.#incompatible(
+        entry,
         'version',
         `version ${active.version}`,
         `version ${incoming.version}`,
-      ],
-      [
-        compareDefault && active.defaultSignature !== incoming.defaultSignature,
-        'defaultValue',
-        shownDefault(active),
-        shownDefault(incoming),
-      ],
-    ]
+      )
+    }
+    if (compareDefault && active.defaultSignature !== incoming.defaultSignature) {
+      this.#incompatible(entry, 'defaultValue', shownDefault(active), shownDefault(incoming))
+    }
+  }
 
-    const mismatch = checks.find(([differs]) => differs)
-    if (mismatch === undefined) return
-    const [, field, expected, observed] = mismatch
-
+  #incompatible(entry: KeyEntry, field: string, expected: string, observed: string): never {
     throw this.#fail(entry.definitionId, entry.area, 'bind', entry.name, {
       expected,
       observed,
-      declaredBy: `Another active consumer of '${entry.physicalKey}', which declared it first`,
       repair: `Declare '${entry.physicalKey}' in one shared module so every consumer agrees on ${field}.`,
     })
   }
@@ -674,7 +654,6 @@ export class MfeStorageStore {
   }
 
   #invalidateCache(entry: KeyEntry): void {
-    entry.loaded = false
     entry.rawKnown = false
     entry.raw = null
   }
@@ -684,16 +663,13 @@ export class MfeStorageStore {
     try {
       raw = this.#resolveArea(entry.area).getItem(entry.physicalKey)
     } catch (error) {
-      entry.loaded = true
-      entry.rawKnown = false
-      entry.raw = null
+      this.#invalidateCache(entry)
       return this.#publish(
         entry,
         this.#errorSnapshot(entry, 'read', {
           expected: `${entry.area} storage to be readable`,
           observed: describeThrown(error),
-          repair:
-            'Storage is unavailable here — private mode, blocked cookies, or a disabled store. The framework never falls back to memory or to the declared default.',
+          repair: UNAVAILABLE,
           cause: error,
         }),
       )
@@ -703,11 +679,10 @@ export class MfeStorageStore {
 
   /** The only place a stored representation becomes a snapshot. */
   #applyRaw(entry: KeyEntry, raw: string | null): boolean {
-    if (entry.loaded && entry.rawKnown && entry.raw === raw) return false
+    if (entry.rawKnown && entry.raw === raw) return false
     const outcome = readEnvelope(this.#envelopeContext(entry), raw)
     entry.raw = outcome.raw
     entry.rawKnown = true
-    entry.loaded = true
     return this.#publish(entry, outcome.snapshot)
   }
 
@@ -738,7 +713,6 @@ export class MfeStorageStore {
       throw this.#fail(entry.definitionId, entry.area, 'write', entry.name, {
         expected: 'the session generation to be established before a session value is written',
         observed: 'no session in force',
-        declaredBy: SHELL,
         repair: "Establish the generation before mounting, or declare retention: 'preference'.",
       })
     }
@@ -767,7 +741,6 @@ export class MfeStorageStore {
       throw this.#fail(entry.definitionId, entry.area, 'write', entry.name, {
         expected: `a value matching the declared schema (${describeIssue(result.error)})`,
         observed: describeValue(candidate),
-        declaredBy: DECLARATION,
         repair: `Fix the value passed to set() for '${entry.name}'. The stored value is unchanged.`,
         cause: result.error,
       })
@@ -782,7 +755,6 @@ export class MfeStorageStore {
     this.#writeRaw(entry, serialized, 'write')
     entry.raw = serialized
     entry.rawKnown = true
-    entry.loaded = true
     this.#publish(entry, { status: 'value', value: result.data })
   }
 
@@ -792,7 +764,6 @@ export class MfeStorageStore {
     this.#removeRaw(entry.definitionId, entry.area, entry.name, entry.physicalKey)
     entry.raw = null
     entry.rawKnown = true
-    entry.loaded = true
     this.#publish(entry, entry.defaultSnapshot)
   }
 
@@ -819,7 +790,7 @@ export class MfeStorageStore {
         expected: `${entry.area} storage to accept ${serialized.length} characters`,
         observed: describeThrown(error),
         repair:
-          'The store is full or blocked. Persist less, or clear this definition. The stored value is unchanged and no other key was touched.',
+          'The store is full or blocked. Persist less, or clear this definition. The stored value is unchanged.',
         cause: error,
       })
     }
@@ -931,8 +902,7 @@ export class MfeStorageStore {
       throw this.#fail(definitionId, area, verb, name, {
         expected: `${area} storage to be available`,
         observed: describeThrown(error),
-        repair:
-          'Storage is unavailable here — private mode, blocked cookies, or a disabled store. The framework never falls back to another store or to memory.',
+        repair: UNAVAILABLE,
         cause: error,
       })
     }
@@ -976,7 +946,6 @@ export class MfeStorageStore {
     detail: Detail,
   ): MfeError {
     const error = createMfeError({
-      declaredBy: BOUNDARY,
       ...detail,
       code: 'storage/failure',
       id: definitionId,
@@ -991,26 +960,14 @@ export class MfeStorageStore {
   }
 
   #failStore(operation: string, detail: Detail): MfeError {
-    const error = createMfeError({
-      declaredBy: BOUNDARY,
-      ...detail,
-      code: 'storage/failure',
-      id: 'shell',
-      operation,
-    })
+    const error = createMfeError({ ...detail, code: 'storage/failure', id: 'shell', operation })
     this.#diagnostics?.report(error, { severity: 'error', context: { operation } })
     return error
   }
 
   #warn(operation: string, cause: unknown, detail: Detail): void {
     this.#diagnostics?.report(
-      toMfeError(cause, {
-        declaredBy: BOUNDARY,
-        ...detail,
-        code: 'storage/failure',
-        id: 'shell',
-        operation,
-      }),
+      toMfeError(cause, { ...detail, code: 'storage/failure', id: 'shell', operation }),
       { severity: 'warning', context: { operation } },
     )
   }
@@ -1018,8 +975,7 @@ export class MfeStorageStore {
   #reportAreaFailure(area: StorageArea, cause: unknown): void {
     this.#warn(`invalidate session records in ${area} storage`, cause, {
       expected: `${area} storage to be readable and writable`,
-      repair:
-        'A record that could not be removed stays fenced off by the generation, so it cannot be read into the new session.',
+      repair: 'A record that could not be removed stays fenced off by the generation.',
     })
   }
 

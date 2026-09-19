@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
 
 import {
-  createInProcessLoader,
   SharedContainerLoader,
   type ContainerLoader,
   type LoadedDefinition,
 } from './container-loader.ts'
+import { createInProcessLoader } from '../testing/in-process-loader.ts'
 import { deferred, type Deferred } from '../__tests__/harness.ts'
 
 interface TestModule {

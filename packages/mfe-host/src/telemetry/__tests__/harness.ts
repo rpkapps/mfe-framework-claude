@@ -2,7 +2,7 @@
 
 import type { Diagnostic, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from '../recording-provider.ts'
+import { createRecordingTelemetryProvider } from '../../testing/recording-provider.ts'
 import { createMountTelemetry, type MountTelemetryOptions } from '../service.ts'
 
 export const ATTRIBUTION: TelemetryAttribution = {
