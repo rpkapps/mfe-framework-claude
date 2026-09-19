@@ -58,7 +58,7 @@ describe('the account report route', () => {
     mounted = rendered.dispose
 
     await waitFor(() => {
-      expect(screen.getByText('Open account 42')).toBeInTheDocument()
+      expect(screen.getByText('Alternatives ranking')).toBeInTheDocument()
     })
   })
 })

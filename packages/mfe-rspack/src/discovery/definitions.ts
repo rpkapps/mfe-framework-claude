@@ -15,6 +15,7 @@ import {
   type DefinitionKind,
 } from '@company/mfe-core'
 
+import type { JsonObject } from '../config/zod-static.ts'
 import { createBuildError, listNames } from '../diagnostics.ts'
 import { readWidgetContract, type WidgetContractSource } from './widget-contract.ts'
 import {
@@ -51,6 +52,8 @@ export interface DiscoveredDefinition {
   readonly eventNames: readonly string[]
   /** Widget only. Input field names, when the schema could be read. */
   readonly inputNames: readonly string[]
+  /** Widget only. The inputs as JSON Schema, when the build could read them. */
+  readonly inputSchema?: JsonObject
   /** Widget only. How to reach the contract schemas without the App entry. */
   readonly contractSource?: WidgetContractSource
 }
@@ -247,6 +250,7 @@ function readDefinition(
     isDefaultExport: binding.isDefaultExport,
     eventNames: contract?.eventNames ?? [],
     inputNames: contract?.inputNames ?? [],
+    ...(contract?.inputSchema === undefined ? {} : { inputSchema: contract.inputSchema }),
     ...(contract === null ? {} : { contractSource: contract.source }),
   }
 }

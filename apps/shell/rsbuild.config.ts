@@ -3,39 +3,31 @@
  * is never one, so it does not use `pluginMfe()` from @company/mfe-rspack — it
  * only declares a share scope the remotes can join.
  *
- * @tecton/react is a link to a neighbouring checkout with no node_modules of
- * its own, which is why `resolve.modules` and `NODE_PATH` below name this
- * workspace's directories absolutely, and why its TSX is transpiled here rather
- * than excluded as a dependency.
+ * @tecton/react is a link to a neighbouring checkout, so its TSX is transpiled
+ * here rather than excluded as a dependency, and the resolution that needs is
+ * shared with every container in `tools/tecton/tecton-build.mjs`.
  */
 
 import { createRequire } from 'node:module'
-import { delimiter, dirname, resolve } from 'node:path'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
-// @ts-expect-error -- a plain .mjs helper, shared with scripts/typecheck.mjs
-import { requireTecton } from './scripts/require-tecton.mjs'
+import {
+  requireTecton,
+  tectonResolve,
+  useWorkspaceModules,
+} from '../../tools/tecton/tecton-build.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
 // Fails the config, before a bundler reports the same thing as an unresolvable
 // import from whichever file happened to be read first.
-requireTecton()
-
-/**
- * Tailwind resolves a stylesheet's `@import`s from that stylesheet's own
- * location, and adds `NODE_PATH` to its module directories. Set here rather
- * than in the scripts: cross-platform, and before Tailwind reads it.
- */
-process.env['NODE_PATH'] = [
-  resolve(here, 'node_modules'),
-  resolve(here, '../../node_modules'),
-  ...(process.env['NODE_PATH'] === undefined ? [] : [process.env['NODE_PATH']]),
-].join(delimiter)
+requireTecton(here, 'The shell')
+useWorkspaceModules(here)
 
 /** The installed version, not the `catalog:` range that package.json holds. */
 const installedVersion = (name: string): string =>
@@ -93,6 +85,15 @@ export default defineConfig({
     },
   },
 
+  dev: {
+    // Lazy compilation wraps the entry in a proxy module that is not a React
+    // Refresh boundary, so every hot update propagated through it to the entry
+    // and came back as a full page reload. The containers disable it for a
+    // different reason (their chunks are requested cross-origin); the effect
+    // here is that editing a component updates that component.
+    lazyCompilation: false,
+  },
+
   server: {
     port: DEV_PORT,
     // The address a developer opens and every override snippet names. Moving
@@ -106,15 +107,7 @@ export default defineConfig({
 
   tools: {
     rspack: {
-      resolve: {
-        // Symlinks stay resolved, so every other package still finds its own
-        // transitive dependencies the way pnpm's layout expects.
-        modules: [
-          'node_modules',
-          resolve(here, 'node_modules'),
-          resolve(here, '../../node_modules'),
-        ],
-      },
+      resolve: tectonResolve(here),
       plugins: [
         // `process` does not exist in a browser, so every `process.env.X` the
         // shell reads has to be substituted here or it survives into the bundle

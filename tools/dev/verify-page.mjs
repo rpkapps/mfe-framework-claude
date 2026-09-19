@@ -45,10 +45,41 @@ const PAGES = [
   },
   {
     // The child App is delegated at operations' own /reports/$ splat route, and
-    // /accounts/42 below that is the child's URL contract, not the parent's.
-    url: '/operations/reports/accounts/42',
+    // /accounts/fda-2-3 below that is the child's URL contract, not the parent's.
+    url: '/operations/reports/accounts/fda-2-3',
     mounts: ['operations', 'reports'],
-    nested: [{ parent: 'operations', child: 'reports', contains: 'Account 42' }],
+    nested: [{ parent: 'operations', child: 'reports', contains: 'Phased tie-back' }],
+  },
+  {
+    // The lab consumes a Widget from a third container and mounts it beside
+    // one consumed without a contract, so both consumption modes are on one
+    // page and both cross a container boundary.
+    url: '/lab/widgets',
+    mounts: ['lab'],
+    nested: [{ parent: 'lab', child: 'alert-panel', contains: 'Alert a-1001' }],
+  },
+  {
+    // The claim the dashboard exists to make: the shell mounts a Widget it was
+    // never built against, named only by a registry entry, and the inputs come
+    // from a form generated out of that Widget's published schema.
+    url: '/',
+    async prepare(page) {
+      await page.evaluate(() => {
+        localStorage.removeItem('company:shell:dashboard')
+      })
+      await page.reload({ waitUntil: 'load' })
+      await page.waitForTimeout(3000)
+      await page.getByRole('button', { name: /Add Well design/i }).click()
+      await page.waitForTimeout(1000)
+      // The one required input is an enum, so the dialog offers a select.
+      await page.locator('[data-slot="dialog-content"] [data-slot="select-trigger"]').click()
+      await page.waitForTimeout(500)
+      await page.locator('[data-slot="select-item"]').first().click()
+      await page.getByRole('button', { name: 'Add to dashboard' }).click()
+    },
+    mounts: ['well-design'],
+    nested: [],
+    contains: 'Reduced DLS',
   },
 ]
 
@@ -159,8 +190,14 @@ async function main() {
   for (const expected of pages) {
     pageErrors = []
 
-    await page.goto(`http://127.0.0.1:3000${expected.url}`, { waitUntil: 'networkidle' })
+    // `networkidle` never arrives: every dev server holds a websocket open for
+    // hot updates, so the load event plus a settle is what says "ready".
+    await page.goto(`http://127.0.0.1:3000${expected.url}`, { waitUntil: 'load' })
     await page.waitForTimeout(6000)
+    if (expected.prepare !== undefined) {
+      await expected.prepare(page)
+      await page.waitForTimeout(6000)
+    }
 
     const scopes = await page.evaluate(() =>
       [...document.querySelectorAll('[data-mfe-scope]')].map(node => ({
@@ -221,6 +258,14 @@ async function main() {
       !mounted.some(scope => scope.text.includes('outside any mount')),
       'a mount reported a hook called outside any mount',
     )
+
+    if (expected.contains !== undefined) {
+      check(
+        `the page rendered ${JSON.stringify(expected.contains)}`,
+        mounted.some(scope => scope.text.includes(expected.contains)),
+        `no mount contains it`,
+      )
+    }
 
     check('the page logged no errors', pageErrors.length === 0, pageErrors.join(' ;; '))
 

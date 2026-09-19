@@ -6,6 +6,15 @@
  * boundary stops a parent App's rules matching inside a nested App's root,
  * while inheritance still carries shell theme values down. Overlays portalled
  * to the body get a second root, or they would escape the scope.
+ *
+ * The scope root is a selector anchor, never a box. `display: contents` keeps
+ * it out of layout entirely, so the element the App or Widget renders is the
+ * direct child of whatever the host laid out — a flex item, a grid area, a
+ * table cell. Without it the wrapper is a block that shrinks to its content
+ * inside a flex parent, and every mounted App renders in a narrow column
+ * whatever width the host gave it, with `h-full` resolving against nothing.
+ * `@scope` matches on the DOM tree rather than on boxes, so the boundary is
+ * unaffected.
  */
 
 import type { ReactNode } from 'react'
@@ -27,6 +36,12 @@ export interface ScopeRootProps {
   readonly children: ReactNode
 }
 
+/**
+ * Inline rather than a class: the framework ships no stylesheet, and a class
+ * would only work for hosts that happened to load one.
+ */
+const LAYOUT_NEUTRAL = { display: 'contents' } as const
+
 export function MfeScopeRoot({
   definitionId,
   mountToken,
@@ -37,6 +52,7 @@ export function MfeScopeRoot({
     <div
       {...{ [SCOPE_ATTRIBUTE]: definitionId, [MOUNT_ATTRIBUTE]: mountToken }}
       data-mfe-kind={kind}
+      style={LAYOUT_NEUTRAL}
     >
       {children}
     </div>

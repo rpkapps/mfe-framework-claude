@@ -5,7 +5,7 @@
  * of a compatibility vocabulary it would otherwise carry forever.
  */
 
-import type { CapabilityDescriptor, DefinitionKind } from './definition.ts'
+import type { CapabilityDescriptor, DefinitionKind, PublishedWidgetContract } from './definition.ts'
 
 /** Which adapter mounts an entry. Extending this is a table entry. */
 export type AdapterKind = 'react' | 'legacy-angular'
@@ -19,6 +19,11 @@ export interface NeutralRegistryEntry {
   readonly version?: string
   /** App-only. Extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
+  /**
+   * Widget-only. What the Widget takes and emits, so a host can offer it in a
+   * catalogue and collect its inputs before the container is ever fetched.
+   */
+  readonly contract?: PublishedWidgetContract
   /** Excluded from catalog and finder views. Not a security boundary. */
   readonly hidden?: boolean
   readonly title?: string

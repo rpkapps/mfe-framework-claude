@@ -23,6 +23,7 @@
     "dev:mfes": "node tools/dev/dev.mjs --only-mfes",
     "build:mfes": "pnpm -r --filter \"./examples/*\" run build",
     "verify:page": "pnpm run generate && node tools/dev/verify-page.mjs",
+    "hmr:probe": "node tools/dev/hmr-probe.mjs",
     "changeset": "changeset",
     "release": "changeset publish"
   },
@@ -34,6 +35,7 @@
     "@tanstack/eslint-plugin-query": "catalog:",
     "@tanstack/eslint-plugin-router": "catalog:",
     "@tanstack/router-generator": "catalog:",
+    "@tecton/eslint-config": "link:../tecton-ui-1/packages/eslint-config-tecton",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "concurrently": "catalog:",

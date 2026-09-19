@@ -78,10 +78,28 @@ describe('the Widget starter', () => {
     const directory = await target()
     await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })
 
-    const entry = await readFile(join(directory, 'src/mfe.tsx'), 'utf8')
+    const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
     expect(entry).toContain('export const alertPanelContract')
     expect(entry).toContain("id: 'alert-panel'")
     expect(entry).toContain('...alertPanelContract')
+  })
+
+  /**
+   * React Refresh replaces a module only when every export is a component, and
+   * an entry exports a definition and a contract. A starter that writes the
+   * render inline would reload the whole page on every edit to it.
+   */
+  it('puts the render in its own module, so editing it hot-updates', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })
+
+    const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
+    expect(entry).toContain("import { AlertPanel } from './alert-panel.tsx'")
+    expect(entry).toContain('render: AlertPanel')
+    expect(entry).not.toContain('<button')
+
+    const render = await readFile(join(directory, 'src/alert-panel.tsx'), 'utf8')
+    expect(render).toContain('export function AlertPanel')
   })
 
   it('declares no routes and no base path', async () => {
@@ -91,7 +109,7 @@ describe('the Widget starter', () => {
     const files = widgetTemplate({ id: 'alert-panel', packageName: '@example/alert-panel' })
     expect(files.some(file => file.path.startsWith('src/routes/'))).toBe(false)
 
-    const entry = await readFile(join(directory, 'src/mfe.tsx'), 'utf8')
+    const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
     expect(entry).not.toContain('basePath')
     expect(entry).not.toContain('createRouter')
   })

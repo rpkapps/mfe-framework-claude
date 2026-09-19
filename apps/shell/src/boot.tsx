@@ -24,19 +24,8 @@ import { toast } from 'sonner'
 import { createFaroProvider } from './shell/faro.ts'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
+import { notices } from './shell/workspace.ts'
 import './styles/app.css'
-
-/** The workspace the shell represents, and the signed-in user, are shell facts. */
-export const workspace = { code: 'DSG', name: 'Discovery' } as const
-
-/**
- * Boot facts the chrome shows and the runtime does not carry. Decided once,
- * before anything is registered, so they are module state rather than a store.
- */
-export const notices: { overrides: ReadonlyMap<string, string>; registryError: Error | null } = {
-  overrides: new Map(),
-  registryError: null,
-}
 
 /** A registry that will not load is a diagnostic, not a crash: the shell still boots. */
 async function readRegistry(): Promise<readonly unknown[]> {
@@ -115,7 +104,7 @@ notices.overrides = activeOverrides
 // Built once. Creating it inside the JSX below would hand RouterProvider a new
 // router on every render, and TanStack re-initialises a router it has not seen
 // — which remounts everything under the boundary on every pass.
-const router = createShellRouter(runtime)
+const router = createShellRouter()
 
 // Hot reload re-executes this module, and a second createRoot on the same
 // container orphans the first.

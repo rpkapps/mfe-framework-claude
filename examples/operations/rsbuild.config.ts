@@ -7,6 +7,9 @@
  * the registry descriptor, container-relative asset URLs, scoped CSS and the
  * React Compiler transform. None of that is repeated here, and none of it is
  * configurable per project — a page only works when every container agrees.
+ *
+ * The one addition is the design system, which is a link to a sibling checkout
+ * rather than a published package.
  */
 
 import { readFileSync } from 'node:fs'
@@ -17,7 +20,16 @@ import { pluginMfe } from '@company/mfe-rspack'
 import { defineConfig } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+import {
+  requireTecton,
+  tectonResolve,
+  useWorkspaceModules,
+} from '../../tools/tecton/tecton-build.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
+
+requireTecton(here, 'The operations App')
+useWorkspaceModules(here)
 
 /** The port is declared once, in the manifest `pnpm dev` reads it from too. */
 const manifest = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8')) as {
@@ -30,7 +42,9 @@ export default defineConfig({
   plugins: [pluginReact(), pluginMfe()],
 
   // A remote is fetched by a shell, never browsed to, so it needs no document.
-  tools: { htmlPlugin: false },
+  // The design system is a link to a sibling checkout, and `tectonResolve` is
+  // the same resolution the shell uses so the two cannot drift.
+  tools: { htmlPlugin: false, rspack: { resolve: tectonResolve(here) } },
 
   server: {
     port: manifest.mfe.port,

@@ -47,6 +47,9 @@ export {
   type DefinitionIdentity,
   type DefinitionKind,
   type ExportedDefinitionDescriptor,
+  type JsonSchemaObject,
+  type JsonSchemaValue,
+  type PublishedWidgetContract,
 } from './definition.ts'
 
 export {

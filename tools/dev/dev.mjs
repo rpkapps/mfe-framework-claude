@@ -158,6 +158,49 @@ function prefixOutput(stream, label, colour) {
 }
 
 /**
+ * The stand-in API the examples fetch from. Started here rather than left to
+ * the developer, because a container whose requests all fail teaches nothing
+ * about the request boundary and looks like a broken example.
+ */
+function startDevApi() {
+  const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/api.mjs')], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: detachedForGroupKill,
+  })
+  prefixOutput(child.stdout, 'dev api', COLOURS[5] ?? '')
+  prefixOutput(child.stderr, 'dev api', COLOURS[5] ?? '')
+  return child
+}
+
+/**
+ * Regenerates every container's own artifacts before the registry is assembled
+ * from them.
+ *
+ * Each container's `dev` script generates too, but that happens after its
+ * server starts — which is after the registry has already been written. A
+ * Widget whose contract changed therefore reached the shell one `pnpm dev`
+ * late, and a clean clone had no descriptors to assemble from at all.
+ */
+function generateContainers(services) {
+  const containers = services.filter(service => !service.isShell)
+  if (containers.length === 0) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const filters = containers.flatMap(service => ['--filter', service.packageName])
+    const child = spawnPnpm([...filters, 'run', 'generate'], {
+      cwd: repoRoot,
+      stdio: 'inherit',
+    })
+    child.on('exit', code =>
+      code === 0
+        ? resolve()
+        : reject(new Error('A container failed to generate. Its own output above says why.')),
+    )
+  })
+}
+
+/**
  * The shell's registry is assembled from what each container generated, so a
  * developer who adds an example never edits a registry by hand.
  */
@@ -226,8 +269,10 @@ async function main() {
     return
   }
 
-  // The shell fetches this at boot, and it names the ports the servers below
-  // are about to listen on.
+  // Generation first, then the registry assembled from what it wrote. The shell
+  // fetches that at boot, and it names the ports the servers below are about to
+  // listen on.
+  await generateContainers(services)
   await buildRegistry()
 
   console.log(`${BOLD}Starting ${services.length} dev server(s)${RESET}`)
@@ -242,6 +287,7 @@ async function main() {
   printConnectionInstructions(services)
 
   const children = services.map((service, index) => start(service, COLOURS[index % COLOURS.length]))
+  children.push(startDevApi())
   const ports = services.map(service => service.port)
 
   /**

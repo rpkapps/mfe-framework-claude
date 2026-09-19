@@ -1,14 +1,30 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // No rootDir: the shared vitest setup in "include" is the one place the
-    // jest-dom matchers are extended and declared, and it lives in the package
-    // that owns them rather than being copied into each example.
     "types": ["node"],
+    /*
+     * The design system is consumed as unbuilt source from a linked checkout,
+     * and TypeScript resolves the symlink to that checkout — so the packages
+     * its files import have to be pointed back at this workspace's copies.
+     * This is the type-level counterpart of `tectonResolve` in the build.
+     */
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],
       "#mfe/fetch": ["./.mfe/fetch.ts"],
-      "#mfe/meta": ["./.mfe/meta.ts"]
+      "#mfe/meta": ["./.mfe/meta.ts"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"],
+      "react-aria": ["./node_modules/react-aria"],
+      "react-aria/*": ["./node_modules/react-aria/*"],
+      "react-aria-components": ["./node_modules/react-aria-components"],
+      "react-resizable-panels": ["./node_modules/react-resizable-panels"],
+      "class-variance-authority": ["./node_modules/class-variance-authority"],
+      "cn": ["./node_modules/cn"],
+      "lucide-react": ["./node_modules/lucide-react"],
+      "recharts": ["./node_modules/recharts"]
     }
   },
   "include": ["src/**/*", ".mfe/**/*", "*.config.ts", "../../packages/mfe-react/vitest.setup.ts"]

@@ -13,7 +13,9 @@ import {
   type AdapterSelectionRule,
   type CapabilityDescriptor,
   type CapabilityIconRef,
+  type JsonSchemaObject,
   type NeutralRegistryEntry,
+  type PublishedWidgetContract,
 } from '@company/mfe-core'
 
 /** The `mfe` property is the contract marker: its presence commits the entry here. */
@@ -29,6 +31,7 @@ interface AdvertisedEntry {
   readonly hidden?: unknown
   readonly title?: unknown
   readonly icon?: unknown
+  readonly contract?: unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -153,6 +156,57 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
   })
 }
 
+/**
+ * The published Widget contract: the input JSON Schema and the event names the
+ * build read from the Widget's own schemas.
+ *
+ * `inputs` is optional on purpose. A build that could not read the schema
+ * statically publishes the event names alone, and a host that needs the shape
+ * then knows it does not have it — which is a different situation from a Widget
+ * that genuinely takes nothing, and the two must not collapse into an empty
+ * object.
+ */
+function readWidgetContract(id: string, value: unknown): PublishedWidgetContract | undefined {
+  if (value === undefined) return undefined
+
+  if (!isRecord(value)) {
+    fail(id, {
+      operation: 'read the published Widget contract',
+      expected: 'an object with the declared event names and, when readable, an inputs schema',
+      observed: typeof value,
+      declaredBy: 'The build plugin, which reads the Widget’s own Zod schemas',
+      repair: 'Rebuild the container; the contract is generated, never hand-written.',
+    })
+  }
+
+  const events = value['events']
+  if (!Array.isArray(events) || events.some(name => typeof name !== 'string')) {
+    fail(id, {
+      operation: 'read the published Widget contract events',
+      expected: 'an array of event names',
+      observed: Array.isArray(events) ? 'an array holding something else' : typeof events,
+      declaredBy: 'The build plugin',
+      repair: 'Rebuild the container.',
+    })
+  }
+
+  const inputs = value['inputs']
+  if (inputs !== undefined && !isRecord(inputs)) {
+    fail(id, {
+      operation: 'read the published Widget input schema',
+      expected: 'a JSON Schema object, or nothing when the build could not read one',
+      observed: typeof inputs,
+      declaredBy: 'The build plugin',
+      repair: 'Rebuild the container.',
+    })
+  }
+
+  return {
+    events: events as readonly string[],
+    ...(inputs === undefined ? {} : { inputs: inputs as JsonSchemaObject }),
+  }
+}
+
 /** The adapter kind is a parameter, so a second authoring adapter is a table entry. */
 export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelectionRule {
   return {
@@ -207,6 +261,18 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         })
       }
 
+      const contract = readWidgetContract(id, entry.contract)
+      if (contract && entry.kind === 'app') {
+        fail(id, {
+          operation: 'read the published Widget contract',
+          expected: 'no Widget contract on an App',
+          observed: 'an inputs/events contract',
+          declaredBy: 'The authoring rules: Apps take URLs, Widgets take props',
+          repair:
+            'An App has no inputs and no events. Drop the contract, or declare the surface as a Widget.',
+        })
+      }
+
       const capabilities = readCapabilities(id, entry.capabilities)
       if (capabilities && entry.kind === 'widget') {
         fail(id, {
@@ -243,6 +309,7 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         ...(adapterData ? { adapterData } : {}),
         ...(typeof entry.version === 'string' ? { version: entry.version } : {}),
         ...(capabilities ? { capabilities } : {}),
+        ...(contract ? { contract } : {}),
         ...(entry.hidden === true ? { hidden: true } : {}),
         ...(typeof entry.title === 'string' ? { title: entry.title } : {}),
         ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),

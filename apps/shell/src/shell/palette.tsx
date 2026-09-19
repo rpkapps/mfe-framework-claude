@@ -22,16 +22,26 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@tecton/react/components/command'
-import { AppWindowIcon, BanIcon, MoonIcon, SunIcon, TerminalIcon } from 'lucide-react'
+import {
+  AppWindowIcon,
+  BanIcon,
+  LayersIcon,
+  LayoutDashboardIcon,
+  MoonIcon,
+  SunIcon,
+  TerminalIcon,
+} from 'lucide-react'
 
-import { useApps, useTheme } from './chrome.tsx'
+import { useApps, useTheme } from './hooks.ts'
 
 export function CommandPalette({
   open,
   onOpenChange,
+  onOpenRegistry,
 }: {
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
+  readonly onOpenRegistry: () => void
 }) {
   const runtime = useMfeRuntime('the shell command palette')
   const navigate = useNavigate()
@@ -54,12 +64,24 @@ export function CommandPalette({
       title="Search or jump to…"
       description="Switch application, or run a command the mounted application registered."
     >
-      <Command className="rounded-none bg-transparent">
+      <Command>
         <CommandInput placeholder="Search applications and commands…" />
-        <CommandList
-          className="max-h-[60svh]"
-          renderEmptyState={() => <CommandEmpty>No results found.</CommandEmpty>}
-        >
+        <CommandList renderEmptyState={() => <CommandEmpty>No results found.</CommandEmpty>}>
+          <CommandGroup heading="Shell pages">
+            <CommandItem
+              id="shell:dashboard"
+              textValue="Widget dashboard"
+              onAction={() => {
+                onOpenChange(false)
+                void navigate({ to: '/' })
+              }}
+            >
+              <LayoutDashboardIcon />
+              <span>Widget dashboard</span>
+            </CommandItem>
+          </CommandGroup>
+
+          <CommandSeparator />
           <CommandGroup heading="Applications">
             {apps.map(app => (
               <CommandItem
@@ -79,6 +101,17 @@ export function CommandPalette({
 
           <CommandSeparator />
           <CommandGroup heading="Shell">
+            <CommandItem
+              id="shell:registry"
+              textValue="Open the registry"
+              onAction={() => {
+                onOpenChange(false)
+                onOpenRegistry()
+              }}
+            >
+              <LayersIcon />
+              <span>Open the registry</span>
+            </CommandItem>
             <CommandItem
               id="shell:theme"
               textValue="Switch theme"

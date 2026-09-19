@@ -1,0 +1,208 @@
+/**
+ * Consuming a Widget whose id is a value.
+ *
+ * `lazyWidget` is for a consumer that knows at build time which Widget it
+ * consumes. A host composing what the registry advertises does not, and the
+ * documented rule for `lazyWidget` — call it once, at module scope — is
+ * unfollowable when the ids come from a registry fetched at boot. These are the
+ * claims that make the second form usable in place of the first.
+ */
+
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Suspense, useState, type ReactNode } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+
+import { createWidget } from './definition.ts'
+import { DynamicWidget } from './lazy-widget.tsx'
+import { MfeProvider } from './runtime-context.tsx'
+import {
+  createMfeTestEnvironment,
+  renderSuspending,
+  type MfeTestEnvironment,
+} from './testing/index.tsx'
+
+let environment: MfeTestEnvironment | null = null
+
+afterEach(async () => {
+  const current = environment
+  environment = null
+  await current?.dispose()
+})
+
+const counter = createWidget({
+  id: 'counter-widget',
+  version: '1.0.0',
+  inputs: z.object({ label: z.string() }),
+  events: { bumped: z.object({ at: z.string() }) },
+  render: function Counter({ inputs, emit }): ReactNode {
+    const [clicks, setClicks] = useState(0)
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setClicks(current => current + 1)
+          emit('bumped', { at: 'now' })
+        }}
+      >
+        {inputs.label}: {clicks}
+      </button>
+    )
+  },
+})
+
+const other = createWidget({
+  id: 'other-widget',
+  version: '2.0.0',
+  inputs: z.object({ label: z.string() }),
+  events: {},
+  render: ({ inputs }) => <p data-testid="other">{inputs.label}</p>,
+})
+
+function hosted(runtime: MfeTestEnvironment['runtime'], children: ReactNode): ReactNode {
+  return (
+    <MfeProvider runtime={runtime}>
+      <Suspense fallback={null}>{children}</Suspense>
+    </MfeProvider>
+  )
+}
+
+describe('DynamicWidget', () => {
+  it('mounts the Widget named by its prop', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+
+    await renderSuspending(
+      hosted(environment.runtime, <DynamicWidget widgetId="counter-widget" label="Clicks" />),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button')).toHaveTextContent('Clicks: 0')
+    })
+  })
+
+  /**
+   * The reason this exists at all. A host that called `lazyWidget` during
+   * render would hand React a new component type on every pass, and the Widget
+   * would lose its state each time — which looks like the Widget being buggy.
+   */
+  it('keeps the Widget mounted, and its state, across host re-renders', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+
+    function Host(): ReactNode {
+      const [renders, setRenders] = useState(0)
+      return (
+        <>
+          <button
+            type="button"
+            data-testid="rerender"
+            onClick={() => {
+              setRenders(current => current + 1)
+            }}
+          >
+            re-render {renders}
+          </button>
+          <DynamicWidget widgetId="counter-widget" label="Clicks" />
+        </>
+      )
+    }
+
+    await renderSuspending(hosted(environment.runtime, <Host />))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Clicks:/)).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByText(/Clicks:/))
+    expect(screen.getByText('Clicks: 1')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('rerender'))
+    await userEvent.click(screen.getByTestId('rerender'))
+
+    // Still 1: the host re-rendered twice and the Widget was never replaced.
+    expect(screen.getByText('Clicks: 1')).toBeInTheDocument()
+  })
+
+  it('routes a declared event to the matching onX prop', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+    const onBumped = vi.fn()
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget widgetId="counter-widget" label="Clicks" onBumped={onBumped} />,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button')).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button'))
+
+    // Contract-free consumption: the provider validated the payload, and the
+    // event still reached a handler the consumer was never typed against.
+    expect(onBumped).toHaveBeenCalledWith({ at: 'now' })
+  })
+
+  it('mounts two different ids independently', async () => {
+    environment = createMfeTestEnvironment({
+      definitionId: 'host',
+      definitions: [counter, other],
+    })
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <>
+          <DynamicWidget widgetId="counter-widget" label="Clicks" />
+          <DynamicWidget widgetId="other-widget" label="Other" />
+        </>,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('other')).toHaveTextContent('Other')
+    })
+    expect(screen.getByRole('button')).toHaveTextContent('Clicks: 0')
+  })
+
+  it('rejects an input the provider does not accept, at the provider', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget
+          widgetId="counter-widget"
+          label={7}
+          fallback={({ error }) => <p data-testid="error">{error.message}</p>}
+        />,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error')).toHaveTextContent('counter-widget')
+    })
+    // Contract-free means the consumer has no types, never that the boundary
+    // is weaker: the provider validated and named the field.
+    expect(screen.getByTestId('error')).toHaveTextContent('label')
+  })
+
+  it('reports an id that is not registered, with a retry', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [] })
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget
+          widgetId="not-registered"
+          fallback={({ error }) => <p data-testid="error">{error.message}</p>}
+        />,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error')).toHaveTextContent('not-registered')
+    })
+  })
+})

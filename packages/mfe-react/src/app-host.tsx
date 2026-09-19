@@ -9,10 +9,10 @@
 
 import type { MfeError } from '@company/mfe-core'
 import { useParams } from '@tanstack/react-router'
-import { use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { use, useCallback, useState, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
-import { createMount } from './create-runtime.ts'
+import { createMount, useOwnedMount } from './create-runtime.ts'
 import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
 import { useOptionalMfeMount } from './mount-context.tsx'
@@ -73,7 +73,7 @@ function AppLoader({
   // disposes the old mount and creates a new one; a change to child-owned path
   // or search parameters does not reach here at all, because that is an ordinary
   // route transition inside the child's own router.
-  const handle = useMemo(
+  const mount = useOwnedMount(
     () =>
       createMount({
         runtime,
@@ -86,13 +86,11 @@ function AppLoader({
     [runtime, definition, basePath, parent],
   )
 
-  useEffect(() => {
-    return () => {
-      void handle.dispose()
-    }
-  }, [handle])
+  // The one render before the effect has built the mount. A host renders this
+  // inside a Suspense boundary that is already showing a fallback.
+  if (mount === null) return null
 
-  return <AppMount definition={definition} mount={handle.mount} bridge={runtime.navigator} />
+  return <AppMount definition={definition} mount={mount} bridge={runtime.navigator} />
 }
 
 export interface MfeRouteOptions {

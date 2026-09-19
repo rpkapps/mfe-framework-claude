@@ -3,6 +3,12 @@
  * because that is what makes the consumer side real: a consumer importing the
  * contract gets prop and handler inference plus consumer-side event validation,
  * and neither side needs a coordinated build to get it.
+ *
+ * The render function is scaffolded into its own module rather than inline in
+ * the entry. React Refresh replaces a module only when every one of its exports
+ * is a component, and an entry exports a definition and a contract — so a
+ * Widget written inline in the entry reloads the whole page on every edit. A
+ * starter that begins that way teaches the shape that is slower to work in.
  */
 
 import {
@@ -24,19 +30,23 @@ export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[
   const pascal = camel.charAt(0).toUpperCase() + camel.slice(1)
 
   return [
-    ...sharedFiles('./src/mfe.tsx'),
+    ...sharedFiles('./src/mfe.ts'),
 
     packageJsonFile(options, 3103, {
       devDependencies: { '@testing-library/user-event': 'catalog:' },
     }),
 
     {
-      path: 'src/mfe.tsx',
+      path: 'src/mfe.ts',
       contents: `import { createWidget } from '@company/mfe-react'
 import { z } from 'zod'
 
+import { ${pascal} } from './${id}.tsx'
+
 // The schemas are the source of truth for runtime validation and for the
-// author-facing types, so inputs and emit below need no annotations.
+// author-facing types, so inputs and emit in the render need no annotations.
+// The build reads them statically too, and publishes them in the registry, so
+// a host can offer this Widget without loading this container.
 //
 // Exported separately so a consumer can import it: with the contract they get
 // inference and consumer-side event validation, without it they get neither.
@@ -49,15 +59,33 @@ export const ${camel} = createWidget({
   id: '${id}',
   version: '0.1.0',
   ...${camel}Contract,
-
-  render: function ${pascal}({ inputs, emit }) {
-    return (
-      <button type="button" onClick={() => emit('activated', { at: new Date().toISOString() })}>
-        {inputs.label}
-      </button>
-    )
-  },
+  render: ${pascal},
 })
+`,
+    },
+
+    {
+      path: `src/${id}.tsx`,
+      contents: `import type { WidgetRenderProps } from '@company/mfe-react'
+import type { ReactNode } from 'react'
+
+import type { ${camel}Contract } from './mfe.ts'
+
+/**
+ * Every export in this module is a component, which is what lets React Refresh
+ * replace it in place. The entry beside it cannot be — it exports a definition
+ * and a contract — so an edit there reloads the page instead.
+ */
+export function ${pascal}({
+  inputs,
+  emit,
+}: WidgetRenderProps<typeof ${camel}Contract>): ReactNode {
+  return (
+    <button type="button" onClick={() => emit('activated', { at: new Date().toISOString() })}>
+      {inputs.label}
+    </button>
+  )
+}
 `,
     },
 
@@ -68,7 +96,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { ${camel} } from './mfe.tsx'
+import { ${camel} } from './mfe.ts'
 
 let cleanup: (() => Promise<void>) | null = null
 

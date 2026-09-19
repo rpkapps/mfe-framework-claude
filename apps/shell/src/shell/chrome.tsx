@@ -2,17 +2,14 @@
  * The shell chrome: the header, and the notice strip under it. Below those two
  * rows the shell renders nothing of its own — no padding, no card, no page
  * title. The mounted App gets the region and chooses its own layout.
+ *
+ * Every export here is a component. That is not tidiness: React Refresh only
+ * replaces a module in place when it can prove every export is a component, and
+ * one exported hook beside them turns every edit to this file into a full page
+ * reload. The hooks live in `hooks.ts` and the boot facts in `workspace.ts`.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useMatches, useNavigate } from '@tanstack/react-router'
 import { useMfeRuntime, type BreadcrumbItem, type MfeRuntime } from '@company/mfe-react'
 import {
@@ -22,7 +19,6 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from '@tecton/react/components/breadcrumb'
-import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { DropdownMenuGroup, DropdownMenuItem } from '@tecton/react/components/dropdown-menu'
 import { Toaster } from '@tecton/react/components/sonner'
@@ -53,41 +49,22 @@ import { ShortcutsProvider, useShortcut } from '@tecton/react/tecton/shortcuts'
 import {
   BugIcon,
   CircleHelpIcon,
-  FlaskConicalIcon,
-  HomeIcon,
+  LayoutDashboardIcon,
+  LayersIcon,
   MoonIcon,
   SettingsIcon,
   SparklesIcon,
   SunIcon,
-  TriangleAlertIcon,
 } from 'lucide-react'
 
-import { notices, workspace } from '../boot.tsx'
+import { useApps, useTheme } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
-
-/** Registered Apps, in registry order. Widgets own no URL; hidden ones opt out. */
-export function useApps() {
-  const runtime = useMfeRuntime('the shell app finder')
-  return useMemo(
-    () =>
-      [...runtime.registry.entries.values()].filter(
-        entry => entry.definitionKind === 'app' && entry.hidden !== true,
-      ),
-    [runtime],
-  )
-}
-
-export function useTheme(): 'light' | 'dark' {
-  const runtime = useMfeRuntime('the shell theme')
-  const subscribe = useCallback(
-    (listener: () => void) => runtime.shellState.subscribeToField('theme', listener),
-    [runtime],
-  )
-  return useSyncExternalStore(subscribe, runtime.shellState.getTheme, runtime.shellState.getTheme)
-}
+import { RegistryNotice, RegistrySheet } from './registry-sheet.tsx'
+import { workspace } from './workspace.ts'
 
 export function ShellLayout({ children }: { readonly children: ReactNode }): ReactNode {
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [registryOpen, setRegistryOpen] = useState(false)
   const theme = useTheme()
 
   useEffect(() => {
@@ -101,21 +78,51 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     // One registry for the page: the shell registers ⌘K here and a mounted App
     // registers its own shortcuts into the same one.
     <ShortcutsProvider>
-      {/* Three rows, not the shell's default two: header, notices, App. */}
-      <AppShell className="grid-rows-[auto_auto_1fr]">
-        <Header onOpenPalette={() => setPaletteOpen(true)} />
-        <Notices />
-        <AppShellBody>
+      {/*
+       * The shell's frame is two rows — header, then everything else — and the
+       * notice strip goes inside the second one rather than becoming a third.
+       * A third child of the grid lands in the `1fr` row and stretches to fill
+       * it, which pushes the mounted App down the page by the height of the
+       * region it should have had.
+       */}
+      <AppShell>
+        <Header
+          onOpenPalette={() => {
+            setPaletteOpen(true)
+          }}
+          onOpenRegistry={() => {
+            setRegistryOpen(true)
+          }}
+        />
+        <AppShellBody className="flex-col">
+          <RegistryNotice
+            onOpen={() => {
+              setRegistryOpen(true)
+            }}
+          />
           <AppShellMain className="flex">{children}</AppShellMain>
         </AppShellBody>
       </AppShell>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onOpenRegistry={() => {
+          setRegistryOpen(true)
+        }}
+      />
+      <RegistrySheet isOpen={registryOpen} onOpenChange={setRegistryOpen} />
       <Toaster position="bottom-right" />
     </ShortcutsProvider>
   )
 }
 
-function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
+function Header({
+  onOpenPalette,
+  onOpenRegistry,
+}: {
+  readonly onOpenPalette: () => void
+  readonly onOpenRegistry: () => void
+}): ReactNode {
   const runtime = useMfeRuntime('the shell header')
   const navigate = useNavigate()
   const apps = useApps()
@@ -138,7 +145,7 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
     .toUpperCase()
 
   return (
-    <AppShellHeader data-slot="shell-header" className="gap-1 px-2 sm:gap-2">
+    <AppShellHeader data-slot="shell-header" className="gap-1 sm:gap-2">
       <AppFinder>
         <AppFinderTrigger name={workspace.name} tone="blue">
           {workspace.code}
@@ -146,15 +153,30 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
         <AppFinderMenu>
           <AppFinderInput />
           <AppFinderList
-            onAction={key => void navigate({ to: '/$appId', params: { appId: String(key) } })}
+            onAction={key => {
+              const id = String(key)
+              void (id === '@dashboard'
+                ? navigate({ to: '/' })
+                : navigate({ to: '/$appId', params: { appId: id } }))
+            }}
           >
+            <AppFinderGroup heading="Shell">
+              <AppFinderItem
+                id="@dashboard"
+                icon="DSH"
+                tone="violet"
+                name="Widget dashboard"
+                description="Compose a page from registered Widgets"
+                keywords={['dashboard', 'widgets']}
+              />
+            </AppFinderGroup>
             <AppFinderGroup heading="Applications">
               {apps.map(app => (
                 <AppFinderItem
                   key={app.id}
                   id={app.id}
                   icon={app.icon ?? app.id.slice(0, 3).toUpperCase()}
-                  tone={app.overridden ? 'saffron' : 'blue'}
+                  tone={app.overridden === true ? 'saffron' : 'blue'}
                   name={app.title ?? app.id}
                   description={app.manifestUrl}
                   keywords={[app.id]}
@@ -170,11 +192,13 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Home"
+        aria-label="Widget dashboard"
         className="hidden sm:inline-flex"
-        onPress={() => void navigate({ to: '/' })}
+        onPress={() => {
+          void navigate({ to: '/' })
+        }}
       >
-        <HomeIcon />
+        <LayoutDashboardIcon />
       </Button>
 
       <AppShellNav className="overflow-hidden">
@@ -183,6 +207,9 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
 
       <ShellActions>
         <ShellCommandTrigger onPress={onOpenPalette}>Search or jump to…</ShellCommandTrigger>
+        <ShellAction label="Registry" onPress={onOpenRegistry}>
+          <LayersIcon />
+        </ShellAction>
         <ShellAction label="Help">
           <CircleHelpIcon />
         </ShellAction>
@@ -199,9 +226,9 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
           <DropdownMenuGroup>
             <DropdownMenuItem
               textValue="Switch theme"
-              onAction={() =>
+              onAction={() => {
                 runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
-              }
+              }}
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
               {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
@@ -219,7 +246,7 @@ function Header({ onOpenPalette }: { readonly onOpenPalette: () => void }) {
  * registry says is mounted at the active boundary); a mounted App contributes
  * at depth 1 and the store composes the two.
  */
-function Breadcrumbs() {
+function Breadcrumbs(): ReactNode {
   const runtime = useMfeRuntime('the shell breadcrumbs')
   const matches = useMatches()
   const apps = useApps()
@@ -232,9 +259,17 @@ function Breadcrumbs() {
 
   const items = useMemo(() => {
     const trail: BreadcrumbItem[] = [{ key: 'workspace', label: workspace.name, href: '/' }]
+
     if (entry) trail.push({ key: entry.id, label: entry.title ?? entry.id, href: `/${entry.id}` })
+    // An id in the URL that the registry does not know is still that id. The
+    // boundary below is already saying it could not be loaded, and a crumb
+    // reading "Widget dashboard" over that error would be the shell lying about
+    // where you are.
+    else if (appId !== undefined) trail.push({ key: appId, label: appId })
+    else trail.push({ key: 'dashboard', label: 'Widget dashboard' })
+
     return trail
-  }, [entry])
+  }, [entry, appId])
 
   useEffect(() => {
     const registration = runtime.breadcrumbs.registerMount('shell', 'shell#0', 0)
@@ -259,7 +294,7 @@ function Breadcrumbs() {
         {trail.map((item, index) =>
           index === trail.length - 1 || item.href === undefined ? (
             <Crumb key={item.key} className="min-w-0">
-              <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
+              <BreadcrumbPage>{item.label}</BreadcrumbPage>
             </Crumb>
           ) : (
             <Crumb key={item.key} className="hidden md:inline-flex">
@@ -269,54 +304,5 @@ function Breadcrumbs() {
         )}
       </BreadcrumbList>
     </Breadcrumb>
-  )
-}
-
-/**
- * Overrides and rejected registry entries, where they cannot be missed. A
- * forgotten override pointing at a dead dev server is the phantom bug the
- * override mechanism exists to prevent, so it is named with the snippet that
- * clears it. Renders nothing when there is nothing to report.
- */
-function Notices() {
-  const { quarantined } = useMfeRuntime('the shell notices').registry
-  const { overrides, registryError } = notices
-  if (overrides.size === 0 && quarantined.length === 0 && !registryError) return null
-
-  return (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border-subtle px-3 py-1.5 text-xs">
-      {overrides.size > 0 ? (
-        <span className="flex flex-wrap items-center gap-1.5 text-warning-surface-foreground">
-          <FlaskConicalIcon className="size-3.5" />
-          <span className="font-medium">Developer overrides active:</span>
-          {[...overrides].map(([id, url]) => (
-            <Badge key={id} variant="warning" size="md">
-              {id} → {url}
-            </Badge>
-          ))}
-          <code className="font-mono opacity-70">
-            localStorage.removeItem(&apos;company:mfe:overrides&apos;)
-          </code>
-        </span>
-      ) : null}
-
-      {registryError ? (
-        <span className="text-destructive">registry.json: {registryError.message}</span>
-      ) : null}
-
-      {quarantined.length > 0 ? (
-        <span className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-          <TriangleAlertIcon className="size-3.5" />
-          <span className="font-medium">
-            {quarantined.length} registry entr{quarantined.length === 1 ? 'y' : 'ies'} quarantined:
-          </span>
-          {quarantined.map(entry => (
-            <Badge key={entry.id} variant="destructive" size="md" title={entry.error.message}>
-              {entry.id} — {entry.reason}
-            </Badge>
-          ))}
-        </span>
-      ) : null}
-    </div>
   )
 }

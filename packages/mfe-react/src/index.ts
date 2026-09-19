@@ -37,7 +37,9 @@ export {
 } from './app-host.tsx'
 
 export {
+  DynamicWidget,
   lazyWidget,
+  type DynamicWidgetProps,
   type LazyWidgetOptions,
   type LazyWidgetProps,
   type WidgetFallbackProps,
@@ -76,6 +78,7 @@ export {
   allow,
   deny,
   type BreadcrumbItem,
+  type CapabilityDescriptor,
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
@@ -89,6 +92,17 @@ export {
   type ShellUser,
   type StorageKeyOptions,
   type WidgetContract,
+  /*
+   * The registry shapes. A host renders the registry — an app finder, a widget
+   * catalogue, a diagnostics view — so what a normalized entry and a
+   * quarantined one look like is part of the host surface, not an internal.
+   */
+  type JsonSchemaObject,
+  type JsonSchemaValue,
+  type NeutralRegistryEntry,
+  type NormalizedRegistry,
+  type PublishedWidgetContract,
+  type QuarantinedRegistryEntry,
 } from '@company/mfe-core'
 
 /* Shell-facing composition */

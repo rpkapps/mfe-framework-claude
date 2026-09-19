@@ -62,7 +62,39 @@ export interface ContainerDescriptor {
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]
+  /** Widget-only; the published contract, read statically at build time. */
+  readonly contract?: PublishedWidgetContract
 }
+
+/**
+ * What a host may know about a Widget without loading its container.
+ *
+ * A catalogue has to be rendered before anything is fetched: a host that must
+ * load a container to discover what the Widget takes cannot offer it in a
+ * picker, and a host that asks for inputs it invented gets them rejected at the
+ * provider boundary. So the build publishes the contract it can read — the same
+ * schemas the provider validates against, as JSON Schema — and the registry
+ * carries it.
+ *
+ * `inputs` is absent when the build could not read the schema statically. That
+ * is a real state, not an error: the Widget still mounts, and a host that wants
+ * to offer it has to collect inputs some other way. It is never an empty schema
+ * standing in for an unread one, because a host cannot tell those apart.
+ */
+export interface PublishedWidgetContract {
+  /** JSON Schema (draft 2020-12) for the inputs object, when readable. */
+  readonly inputs?: JsonSchemaObject
+  /** Declared event names, in declaration order. */
+  readonly events: readonly string[]
+}
+
+/** The subset of JSON Schema the build emits. Values only; no `$ref`. */
+export interface JsonSchemaObject {
+  readonly [key: string]: JsonSchemaValue
+}
+
+export type JsonSchemaValue =
+  string | number | boolean | null | readonly JsonSchemaValue[] | JsonSchemaObject
 
 /**
  * A definition ID is also a storage prefix and a CSS scope value, so it is kept

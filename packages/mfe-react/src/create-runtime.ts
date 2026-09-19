@@ -34,6 +34,7 @@ import {
   type ContainerLoader,
 } from '@company/mfe-host'
 import { QueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 
 import { createOverlayRoot } from './scope-root.tsx'
 import { createMountToken, type MfeMount, type MfeRuntime } from './runtime.ts'
@@ -235,6 +236,66 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
       await Promise.resolve()
     },
   }
+}
+
+/**
+ * The mount this component owns, created and destroyed as an effect.
+ *
+ * React may unmount a component and immediately mount it again without
+ * re-rendering it. StrictMode does exactly that on every mount in development,
+ * and it is deliberate: the same thing happens whenever React reuses state it
+ * had previously torn down.
+ *
+ * A mount built in `useMemo` and destroyed in an effect cleanup does not
+ * survive it. The cleanup disposes the mount; the second setup runs against the
+ * same memoized handle, because its inputs have not changed; and from then on
+ * the App is running on a disposed mount — an aborted signal, a Query cache
+ * that was cleared and now cancels everything put into it, a removed overlay
+ * root, a disposed tracer. The symptom is a route loader failing with
+ * `CancelledError` in development and working in production, which is the worst
+ * shape a defect can have.
+ *
+ * Creating it in the effect instead is the pairing React actually supports: the
+ * thing that tears a resource down and the thing that builds it are the same
+ * effect, so a remount builds a new one. It costs one render returning nothing
+ * before the mount exists, which is a frame inside a Suspense boundary that was
+ * already showing a fallback.
+ *
+ * A generation counter bumped from the cleanup looks like a smaller fix and is
+ * not one: the cleanup it schedules is itself a cleanup, so it bumps again, and
+ * the component renders forever.
+ */
+export function useOwnedMount(
+  create: () => MountHandleWithCleanup,
+  deps: readonly unknown[],
+): MfeMount | null {
+  const [handle, setHandle] = useState<MountHandleWithCleanup | null>(null)
+
+  useEffect(
+    () => {
+      const created = create()
+
+      // The rule is right about the general case and this is the exception it
+      // names: an effect that connects to an external system has to publish the
+      // thing it connected to. Creating the mount during render instead is what
+      // React actually forbids — it appends an overlay root to the document,
+      // starts a tracer and allocates a Query client, none of which belong in a
+      // render React may discard.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+      setHandle(created)
+
+      return () => {
+        void created.dispose()
+      }
+    },
+    // `create` is called by the effect and is rebuilt on every render by every
+    // call site, so it is deliberately not a dependency; `deps` names what the
+    // mount is actually derived from.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    deps,
+  )
+
+  return handle?.mount ?? null
 }
 
 /** The counter fallback keeps non-secure contexts working; uniqueness per document is enough. */
