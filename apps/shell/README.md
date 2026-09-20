@@ -276,11 +276,17 @@ loader, which is handed `registerRemotes` and `loadRemote` in `src/boot.tsx`,
 the one file that knows federation exists.
 
 The share scope is the one part of this build every container also has, so
-`rsbuild.config.ts` asks the build package for it (`docs/decisions.md` §27):
+`rsbuild.config.ts` asks the build package for it (`docs/decisions.md` §27),
+together with the strategy shares in it are resolved by (§30):
 
 ```ts
-shared: hostShared({ root: here }) // @company/mfe-rspack/federation
+...hostFederation({ root: here }) // @company/mfe-rspack/federation
 ```
+
+That strategy is `loaded-first`. Under Module Federation's default the host
+would re-fetch every registered remote's manifest before resolving any share,
+so a single unreachable manifest brought down whatever the shell had not
+loaded yet — the chrome included.
 
 Against this install it resolves `react`, `react-dom`, `sonner`,
 `@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`,

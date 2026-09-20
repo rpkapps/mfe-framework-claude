@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
-import { hostShared } from '@company/mfe-rspack/federation'
+import { hostFederation } from '@company/mfe-rspack/federation'
 
 import {
   requireTecton,
@@ -50,12 +50,12 @@ export default defineConfig({
       remotes: {},
       // The one part of this build a container also has, and the one part both
       // sides have to agree on: which packages the page holds a single copy of,
-      // and on which version. Asked of the build integration rather than
-      // restated here, so the framework's candidates and the design system's
-      // published contract reach the shell and its remotes together. The
-      // versions are this install's — the copies the shell actually puts into
-      // the scope.
-      shared: hostShared({ root: here }),
+      // on which version, and how a share in that scope is resolved. Asked of
+      // the build integration rather than restated here, so the framework's
+      // candidates and the design system's published contract reach the shell
+      // and its remotes together. The versions are this install's — the copies
+      // the shell actually puts into the scope.
+      ...hostFederation({ root: here }),
     },
   },
 

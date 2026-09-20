@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { hostShared } from './host-shared.ts'
+import { hostFederation, hostShared } from './host-shared.ts'
 import { DEFAULT_SHARED_CANDIDATES } from './sharing.ts'
 
 const created: string[] = []
@@ -145,7 +145,31 @@ describe('hostShared', () => {
       /resolved none of them/,
     )
     expect(() => hostShared({ root: ROOT, installedVersion: () => undefined })).toThrow(
-      /hostShared\(\{ root \}\)/,
+      /Pass `root` the directory/,
     )
+  })
+})
+
+describe('hostFederation', () => {
+  /**
+   * The share scope and the strategy travel together because a host that took
+   * one without the other still loses the page to the first remote it cannot
+   * reach: under Module Federation's default, `version-first`, every
+   * `loadShare` the host performs first re-initialises every registered
+   * remote, so one unreachable manifest rejects the host's own resolution of
+   * `react`, the design system and the framework packages — and the chrome
+   * comes down with the entry that failed. It is also what keeps a remote's
+   * copy of a shared module from replacing the host's in the scope.
+   */
+  it('resolves shares against the scope rather than against every registered remote', () => {
+    const options = hostFederation({ root: ROOT, installedVersion: everything })
+
+    expect(options.shareStrategy).toBe('loaded-first')
+  })
+
+  it('carries the same share scope hostShared states', () => {
+    const options = hostFederation({ root: ROOT, installedVersion: everything })
+
+    expect(options.shared).toEqual(hostShared({ root: ROOT, installedVersion: everything }))
   })
 })

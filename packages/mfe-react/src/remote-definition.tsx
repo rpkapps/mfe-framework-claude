@@ -80,8 +80,17 @@ export function loadDefinition(
   })()
 
   // Marks the rejection handled without dropping it, so a cached failure does
-  // not surface as an unhandled rejection before a consumer suspends on it.
-  pending.catch(() => {})
+  // not surface as an unhandled rejection before a consumer suspends on it —
+  // and reports it, because a definition the registry advertised and the page
+  // could not load is exactly what a shell's telemetry exists to hear about.
+  // Reported off the cached promise, so one attempt is one diagnostic however
+  // many consumers suspend on it, and a retry — which drops the cache — is a
+  // new one.
+  pending.catch((error: unknown) => {
+    runtime.diagnostics.report(
+      toMfeError(error, { code: 'load/entry-failure', id, operation: `resolve ${label}` }),
+    )
+  })
   loads.set(id, pending)
   return pending
 }
