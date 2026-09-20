@@ -98,15 +98,16 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
             ? { source: { entry: { index: plan.entryStub } } }
             : {}),
           tools: {
-            // Tailwind expands the generated stylesheet, then the scope plugin
-            // wraps what it emitted. Appending them here rather than asking the
-            // container for a PostCSS config is what keeps the whole mechanism
-            // invisible: the stylesheet is generated, so nothing an author
-            // wrote would say how to compile it.
+            // Tailwind expands the generated stylesheet, then the design
+            // system's scope plugin wraps what it emitted. Appending them here
+            // rather than asking the container for a PostCSS config is what
+            // keeps the whole mechanism invisible: the stylesheet is generated,
+            // so nothing an author wrote would say how to compile it.
             postcss: (postcss, { addPlugins }) => {
               addPlugins(
                 containerPostcssPlugins({
                   scopes: plan.scopes,
+                  containerRoot: plan.options.containerRoot,
                   configured: postcss.postcssOptions,
                 }),
               )

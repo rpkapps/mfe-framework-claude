@@ -6,16 +6,8 @@
  * utility only when it has seen the class in a file it scanned, and a shell on
  * its own release train has not seen a container's source. What it must not
  * ship is a second copy of the page: no preflight, no font faces and not one
- * variable declaration. The theme values are the shell's and inherit into the
- * mounted subtree like any custom property, and the design system's scoped
- * entry is built for exactly that — utilities and the `@theme inline` mappings,
- * each with a fallback chain so a container still renders correctly against a
- * shell that predates one of its tokens.
- *
- * The stylesheet is generated rather than authored because nothing about it is
- * a decision: an author who wrote it could only get it wrong, and a container
- * that imported the design system's `globals.css` instead would repaint the
- * shell.
+ * variable declaration, because the shell owns the document and its theme
+ * values inherit into the mounted subtree like any custom property.
  */
 
 import { existsSync } from 'node:fs'

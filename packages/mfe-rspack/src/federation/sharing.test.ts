@@ -25,30 +25,25 @@ describe('resolveShared', () => {
     expect(resolveShared({ dependencies: { lodash: '^4.0.0' } })).toEqual({})
   })
 
-  it('covers the framework, React, TanStack Router and Query, and sonner as strict singletons, and the design system, React Aria and recharts as non-singletons', () => {
+  it("lists the framework's own candidates first, then the design system's contract in its order", () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
       // The framework packages carry React context across the boundary; a
       // second copy makes every framework hook fail with "rendered outside any
-      // mount", which is what a real federated page showed.
+      // mount", which is what a real federated page showed. The router and the
+      // query client carry their own.
       '@company/mfe-core',
       '@company/mfe-host',
       '@company/mfe-react',
-      'react',
-      'react-dom',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      // Sonner's queue is module state rather than React context, but a
-      // second copy fails the same way: the host's one Toaster never sees it.
+      // Then `@tecton/react/federation/shared`, verbatim and in its order: the
+      // reason for each of these is the design system's to state, and a change
+      // there is meant to reach a container without an edit here.
+      'react',
+      'react-dom',
       'sonner',
-      // The trailing slash is load-bearing: the design system publishes no
-      // root entry, so every import of it is a subpath. Not a singleton —
-      // host and remote may be built against different versions.
       '@tecton/react/',
-      // Not a singleton either: React Aria's contexts are not shared between
-      // copies, so host and remote may differ.
       'react-aria-components',
-      // Not a singleton, and never eager: only a container that charts should
-      // pay for it.
       'recharts',
     ])
 

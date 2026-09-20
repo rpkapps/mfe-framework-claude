@@ -1,14 +1,12 @@
 /**
- * What a Vitest project needs in order to render design-system components.
+ * What a Vitest project needs in order to render design-system components: the
+ * test-time counterpart of `tecton-build.mjs`.
  *
- * `@tecton/react` ships a built `dist/` now and `@tecton/blocks` still ships
- * unbuilt TSX, but both are a `link:` to a sibling checkout with its own
- * `node_modules` either way, so their files resolve their own React — a second
+ * `@tecton/react` and `@tecton/blocks` are a `link:` to a sibling checkout with
+ * its own `node_modules`, so their files resolve their own React — a second
  * copy, whose hooks throw the moment one of its components is rendered by this
- * project's renderer. A browser build never sees this, because Module
- * Federation collapses the shared packages at runtime; a test runner has no
- * such thing, so it is stated here. This is the test-time counterpart of
- * `tecton-build.mjs`.
+ * project's renderer. Module Federation collapses the shared packages in a
+ * browser build; a test runner has no such thing.
  */
 
 import { createRequire } from 'node:module'

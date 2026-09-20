@@ -218,7 +218,12 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
       <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
       <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
-      <Toaster position="bottom-right" />
+      {/*
+       * Passed explicitly: the design system's Toaster reads next-themes and
+       * falls back to the system preference when there is no provider, which
+       * the shell does not mount — its theme is shell state, applied above.
+       */}
+      <Toaster position="bottom-right" theme={theme} />
     </ShortcutsProvider>
   )
 }

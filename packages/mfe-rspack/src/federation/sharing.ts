@@ -3,7 +3,13 @@
  * There is no per-App removal, because a container that opts out of sharing
  * React loads a second React into a page that already has one, and the symptom
  * — hooks failing in a nested tree — never points back at the config.
+ *
+ * Half the list is not the framework's to write. Which of the design system's
+ * dependencies a page may hold two copies of follows from where that library
+ * keeps module state, so it publishes the answer as data and this reads it.
  */
+
+import { shared as designSystemShared } from '@tecton/react/federation/shared'
 
 /**
  * What a candidate needs, independent of any container: whether a second copy
@@ -26,54 +32,53 @@ interface SharingPolicy {
 const SINGLETON: SharingPolicy = { singleton: true, strictVersion: true }
 
 /**
- * The adapter's sharing policy, one entry per candidate it knows about.
- * `resolveShared` intersects the keys here with what a container actually
- * depends on, so a candidate below produces a `shared` entry only where it is
- * used.
+ * The framework's own candidates. They carry React context across the
+ * boundary: a shell renders the mount providers from its copy and the
+ * container's route components read them from theirs, so a second copy makes
+ * every hook fail with "rendered outside any mount" — while both copies look
+ * perfectly correct on their own. The router and the query client are the same
+ * story with their own contexts, and a boundary route reads both.
  */
-const CANDIDATE_POLICY: Readonly<Record<string, SharingPolicy>> = {
-  // The framework's own packages are here for the same reason React is: they
-  // carry React context across the boundary. A shell renders the mount
-  // providers from its copy and the container's route components read them
-  // from theirs, so a second copy makes every hook fail with "rendered
-  // outside any mount" — while both copies look perfectly correct on their
-  // own.
+const FRAMEWORK_POLICY: Readonly<Record<string, SharingPolicy>> = {
   '@company/mfe-core': SINGLETON,
   '@company/mfe-host': SINGLETON,
   '@company/mfe-react': SINGLETON,
-  // One renderer and one DOM binding per document, always.
-  react: SINGLETON,
-  'react-dom': SINGLETON,
   '@tanstack/react-router': SINGLETON,
   '@tanstack/react-query': SINGLETON,
-  // Sonner holds no React context, but its toast queue is module state, which
-  // fails the same way context does: the host mounts the one Toaster on the
-  // page, and a remote that resolves its own copy pushes onto a queue that
-  // Toaster never reads, so its toasts silently never appear.
-  sonner: SINGLETON,
-  // Not a singleton: the design system publishes no root export, so every
-  // import of it is a subpath, and the trailing slash shares each one under
-  // its own name rather than matching none of them and letting the container
-  // quietly bundle a second copy. Host and remote are allowed to be built
-  // against different @tecton/react versions — each renders correctly on its
-  // own copy's tokens and components, which is not true of the framework
-  // packages above, whose whole job is a provider every mount reads through
-  // the *same* context. Module Federation cannot infer this candidate's
-  // version from a package.json the way it can for an ordinary dependency —
-  // no package is literally named "@tecton/react/" — so `entry()` states one
-  // explicitly for every prefix share, this one included.
-  '@tecton/react/': { singleton: false, strictVersion: false },
-  // Not a singleton, for the same reason as the design system built against
-  // it: React Aria's contexts (a label wired to its field, a trigger to its
-  // popover) are not shared between copies either way, so host and remote are
-  // free to sit on different ~1.21 versions rather than being forced to the
-  // one the other happened to install.
-  'react-aria-components': { singleton: false, strictVersion: false },
-  // Not a singleton, and never eager: the chart component pulls in all of
-  // recharts (~145 KB gzipped), so sharing it keeps a page that mounts several
-  // charting containers from paying for it more than once, while `eager:
-  // false` keeps every container that never charts from paying for it at all.
-  recharts: { singleton: false, strictVersion: false, eager: false },
+}
+
+/**
+ * The design system's dependencies, as its own contract states them — React
+ * and its DOM binding included, since the library is where they are shared
+ * from. The reason for each entry lives there rather than being restated here,
+ * and so does the trailing slash on `@tecton/react/`: the package publishes no
+ * root export, so every import of it is a subpath and the prefix shares each
+ * one under its own name.
+ *
+ * `strictVersion` is the one thing the contract leaves out, and it follows
+ * from `singleton`: a version mismatch is an error exactly where a second copy
+ * would be.
+ */
+const DESIGN_SYSTEM_POLICY: Readonly<Record<string, SharingPolicy>> = Object.fromEntries(
+  Object.entries(designSystemShared).map(([name, policy]): [string, SharingPolicy] => [
+    name,
+    {
+      singleton: policy.singleton,
+      strictVersion: policy.singleton,
+      ...(policy.eager === false ? { eager: false as const } : {}),
+    },
+  ]),
+)
+
+/**
+ * The adapter's sharing policy, one entry per candidate it knows about: the
+ * framework's own, then the design system's. `resolveShared` intersects the
+ * keys here with what a container actually depends on, so a candidate below
+ * produces a `shared` entry only where it is used.
+ */
+const CANDIDATE_POLICY: Readonly<Record<string, SharingPolicy>> = {
+  ...FRAMEWORK_POLICY,
+  ...DESIGN_SYSTEM_POLICY,
 }
 
 /**

@@ -1,27 +1,26 @@
 /**
  * The PostCSS pipeline a container compiles its stylesheet with: Tailwind, then
- * the scope wrapper over what Tailwind emitted. The order is the whole point —
- * scoping a stylesheet before its utilities exist would scope nothing.
- *
- * Tailwind is added by the plugin rather than left to the container, because
- * the stylesheet is the plugin's too: an author never writes the entry that
- * imports Tailwind's theme and utilities, so nothing in the project would tell
- * the build to expand it. A container that declares `@tailwindcss/postcss` in
- * its own PostCSS config keeps that one, with the options it configured, and
- * only gets the scope plugin appended after it.
+ * the design system's scope plugin over what Tailwind emitted. The order is the
+ * whole point — scoping a stylesheet before its utilities exist would scope
+ * nothing. Tailwind is added here because the stylesheet is generated too, so
+ * nothing in the project would tell the build to expand it; a container that
+ * declares `@tailwindcss/postcss` in its own PostCSS config keeps that one,
+ * with the options it configured, and only gets the scope plugin after it.
  */
 
 import { createRequire } from 'node:module'
 
 import type { AcceptedPlugin } from 'postcss'
 
-import { scopedCssPlugin } from './scope-transform.ts'
+import { containerScopePlugin } from './scope.ts'
 
 const require = createRequire(import.meta.url)
 
 export interface ContainerPostcssOptions {
   /** The `data-mfe-scope` values this container's CSS is scoped to. */
   readonly scopes: readonly string[]
+  /** Where the scope plugin is resolved from, so the container's copy wins. */
+  readonly containerRoot: string
   /** What the container's own PostCSS config already contributes, if anything. */
   readonly configured?: unknown
 }
@@ -31,7 +30,9 @@ export function containerPostcssPlugins(options: ContainerPostcssOptions): Accep
   const plugins: AcceptedPlugin[] = []
 
   if (!declaresTailwind(options.configured)) plugins.push(tailwindPlugin())
-  plugins.push(scopedCssPlugin({ scope: options.scopes }))
+  plugins.push(
+    containerScopePlugin({ scopes: options.scopes, containerRoot: options.containerRoot }),
+  )
 
   return plugins
 }
