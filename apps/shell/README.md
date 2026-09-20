@@ -167,14 +167,14 @@ localStorage.removeItem('company:mfe:overrides')
 ```
 
 An active override is reported by the developer tools: the trigger carries a
-mark while one is in force, and the Overrides tab names every overridden id and
+mark while one is applied, and the Overrides tab names every overridden id and
 the URL it now resolves to.
 
 The shell itself shows nothing. It used to carry a strip under the header that
 said so on every page, on the grounds that a forgotten override pointing at a
 dead dev server is the failure worth making impossible to miss. That strip was
 removed deliberately — see `docs/decisions.md` §23 — and the cost is real: with
-the tools switched off, nothing on the page says an override is in force. The
+the tools switched off, nothing on the page says an override is applied. The
 bug report still carries them, so a report written from a page with one is not
 silent about it.
 

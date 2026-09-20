@@ -114,7 +114,7 @@ export function OverridesTab(): ReactNode {
     devtools.getSnapshot,
   )
   const entries = useRegistryEntries()
-  const inForce = useActiveOverrides()
+  const active = useActiveOverrides()
   const containerOf = useContainerLookup()
 
   const [origin, setOrigin] = useState('')
@@ -122,7 +122,7 @@ export function OverridesTab(): ReactNode {
   const devServerUrl = manifestUrlFor(origin)
 
   const problems = validateDraft(draft)
-  const conflicts = conflictingContainers(resolvedOverrides(inForce, draft), containerOf)
+  const conflicts = conflictingContainers(resolvedOverrides(active, draft), containerOf)
   const canApply = draft.size > 0 && problems.length === 0 && conflicts.length === 0
 
   return (
@@ -147,7 +147,7 @@ export function OverridesTab(): ReactNode {
           <ItemGroup className={ROW_GRID}>
             {entries.map(entry => {
               const staged = draft.get(entry.id)
-              const applied = inForce.get(entry.id)
+              const applied = active.get(entry.id)
               const problem = problems.find(candidate => candidate.id === entry.id)?.message
               const state: RowState =
                 problem !== undefined
@@ -204,13 +204,13 @@ export function OverridesTab(): ReactNode {
 
       <PendingBar
         pending={draft.size}
-        inForce={inForce.size}
+        active={active.size}
         canApply={canApply}
         {...(problems[0] === undefined
           ? {}
           : { problem: `${problems[0].id}: ${problems[0].message}` })}
         onApply={() => {
-          if (devtools.apply(browserStorage(), inForce)) window.location.reload()
+          if (devtools.apply(browserStorage(), active)) window.location.reload()
         }}
       />
     </div>
@@ -487,13 +487,13 @@ function OverrideRow({
  */
 function PendingBar({
   pending,
-  inForce,
+  active,
   canApply,
   problem,
   onApply,
 }: {
   readonly pending: number
-  readonly inForce: number
+  readonly active: number
   readonly canApply: boolean
   readonly problem?: string
   readonly onApply: () => void
@@ -501,7 +501,7 @@ function PendingBar({
   return (
     <ActionBar
       placement="toolbar"
-      isOpen={pending > 0 || inForce > 0}
+      isOpen={pending > 0 || active > 0}
       {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
       className="shrink-0 border-t border-border-subtle"
     >
@@ -515,7 +515,7 @@ function PendingBar({
         {problem ??
           (pending > 0
             ? `${String(pending)} pending — applied on reload`
-            : `${String(inForce)} override${inForce === 1 ? '' : 's'} in force`)}
+            : `${String(active)} override${active === 1 ? '' : 's'} applied at boot`)}
       </ActionBarMessage>
 
       <ActionBarActions>

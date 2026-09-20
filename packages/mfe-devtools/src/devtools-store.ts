@@ -9,7 +9,7 @@
  * The draft lives here rather than in the shell's boot facts on purpose. Those
  * are frozen — nothing there changes after boot, and that is correct, because
  * they describe what the runtime actually loaded. An edit made in the panel is a
- * different fact: what *will* be in force after a reload. Keeping the two apart
+ * different fact: what *will* apply after a reload. Keeping the two apart
  * is what lets the panel show the difference instead of lying about one of them.
  */
 
@@ -136,9 +136,9 @@ export const devtools = {
    */
   apply(
     storage: OverrideWritableStorage | undefined,
-    inForce: ReadonlyMap<string, string>,
+    active: ReadonlyMap<string, string>,
   ): boolean {
-    const merged = new Map(inForce)
+    const merged = new Map(active)
     for (const [id, url] of source.getSnapshot().draft) {
       if (url === null) merged.delete(id)
       else merged.set(id, url)
@@ -147,12 +147,12 @@ export const devtools = {
   },
 }
 
-/** The overrides that would be in force after a reload, for rendering the diff. */
+/** The overrides that would apply after the next reload, for rendering the diff. */
 export function resolvedOverrides(
-  inForce: ReadonlyMap<string, string>,
+  active: ReadonlyMap<string, string>,
   draft: ReadonlyMap<string, string | null>,
 ): ReadonlyMap<string, string> {
-  const merged = new Map(inForce)
+  const merged = new Map(active)
   for (const [id, url] of draft) {
     if (url === null) merged.delete(id)
     else merged.set(id, url)

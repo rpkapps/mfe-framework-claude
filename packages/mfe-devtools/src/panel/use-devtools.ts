@@ -18,7 +18,7 @@ export function useRegistryEntries(): readonly NeutralRegistryEntry[] {
 }
 
 /**
- * The overrides actually in force, read back off the registry rather than from
+ * The overrides that actually applied, read back off the registry rather than from
  * the host.
  *
  * `normalizeRegistry` stamps `overridden` on an entry whose manifest URL a

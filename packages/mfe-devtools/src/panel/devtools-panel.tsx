@@ -19,10 +19,13 @@ import {
   PanelHeader,
   PanelTitle,
 } from '@tecton/react/tecton/panel'
-import { OverflowDivider, Toolbar } from '@tecton/react/tecton/overflow'
+import { DropdownMenuItem, DropdownMenuLabel } from '@tecton/react/components/dropdown-menu'
+import { PortalProvider } from '@tecton/react/tecton/portal'
+import { OverflowDivider, OverflowItem, OverflowMenu, Toolbar } from '@tecton/react/tecton/overflow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
+  CheckIcon,
   LayersIcon,
   PanelBottomIcon,
   PanelLeftIcon,
@@ -36,6 +39,7 @@ import {
 import type { DevtoolsSide, DevtoolsTab } from '../devtools-settings.ts'
 import { devtools } from '../devtools-store.ts'
 import { dockStyle, handleSide, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
+import { useOverlayLayer } from './overlay-layer.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 import { RegistryTab } from './registry-tab.tsx'
 import { useActiveOverrides } from './use-devtools.ts'
@@ -54,9 +58,24 @@ const SIDE_LABEL: Readonly<Record<DevtoolsSide, string>> = {
   left: 'Dock to the left',
 }
 
+/**
+ * A rule on the one edge that faces the page.
+ *
+ * `flat` has no border of its own, and a shadow alone left the panel and the
+ * app sharing an edge with nothing on it — on a light theme especially, the
+ * two surfaces simply ran together. Only the docked edge gets one: the other
+ * three are against the viewport.
+ */
+const EDGE_BORDER: Readonly<Record<DevtoolsSide, string>> = {
+  top: 'border-b',
+  right: 'border-l',
+  bottom: 'border-t',
+  left: 'border-r',
+}
+
 export function DevtoolsPanel(): ReactNode {
   const state = useSyncExternalStore(devtools.subscribe, devtools.getSnapshot, devtools.getSnapshot)
-  const inForce = useActiveOverrides()
+  const active = useActiveOverrides()
 
   /*
    * The trigger is the way in, not a toggle that stays put: a panel docked
@@ -67,7 +86,7 @@ export function DevtoolsPanel(): ReactNode {
   return state.open ? (
     <DevtoolsDock side={state.side} size={state.size} tab={state.tab} />
   ) : (
-    <DevtoolsTrigger hasOverrides={inForce.size > 0} />
+    <DevtoolsTrigger hasOverrides={active.size > 0} />
   )
 }
 
@@ -115,123 +134,176 @@ function DevtoolsDock({
   readonly size: number
   readonly tab: DevtoolsTab
 }): ReactNode {
+  const overlays = useOverlayLayer()
+
   return (
-    <Panel
-      variant="flat"
-      size="sm"
-      aria-label="MFE developer tools"
-      data-mfe-devtools-panel
-      data-side={side}
-      style={dockStyle(side, size)}
-      className="@container fixed inset-0 z-[2147483000] rounded-none shadow-2xl max-sm:!inset-0 max-sm:!h-auto max-sm:!w-auto sm:inset-auto"
-    >
-      <ResizeHandle side={side} />
-
-      {/*
-       * The tabs wrap the whole panel so their list can sit in the header,
-       * beside the title, where a panel this short cannot afford to spend a
-       * row on navigation. `Tabs` only requires that the list and the panes
-       * share an ancestor; it does not require them to be siblings.
-       */}
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={key => {
-          devtools.setTab(String(key) as DevtoolsTab)
-        }}
-        className="flex min-h-0 flex-1 flex-col gap-0"
+    <PortalProvider container={overlays}>
+      <Panel
+        variant="flat"
+        size="sm"
+        aria-label="MFE developer tools"
+        data-mfe-devtools-panel
+        data-side={side}
+        style={dockStyle(side, size)}
+        className={`@container fixed inset-0 z-[2147483000] rounded-none border-border shadow-2xl max-sm:!inset-0 max-sm:!h-auto max-sm:!w-auto sm:inset-auto ${EDGE_BORDER[side]}`}
       >
-        <PanelHeader className="gap-3 border-b border-border-subtle">
-          <PanelTitle className="flex items-center gap-2 text-sm">
-            <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
-            {/* The name goes before the controls do: a narrow dock needs the
+        <ResizeHandle side={side} />
+
+        {/*
+         * The tabs wrap the whole panel so their list can sit in the header,
+         * beside the title, where a panel this short cannot afford to spend a
+         * row on navigation. `Tabs` only requires that the list and the panes
+         * share an ancestor; it does not require them to be siblings.
+         */}
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={key => {
+            devtools.setTab(String(key) as DevtoolsTab)
+          }}
+          className="flex min-h-0 flex-1 flex-col gap-0"
+        >
+          <PanelHeader className="gap-2 border-b border-border-subtle">
+            <PanelTitle className="flex items-center gap-2 text-sm">
+              <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
+              {/* The name goes before the controls do: a narrow dock needs the
                 tabs and the close button more than it needs the label. */}
-            <span className="@max-md:hidden">MFE devtools</span>
-          </PanelTitle>
+              <span className="@max-md:hidden">MFE devtools</span>
+            </PanelTitle>
 
-          {/*
-           * The height is set through the same variant the component sets it
-           * with. `TabsList` carries `group-data-horizontal/tabs:h-11`, which
-           * out-specifies a plain `h-7` and left the header 16px taller than
-           * the controls in it.
-           */}
-          <TabsList
-            variant="default"
-            aria-label="Developer tools"
-            className="shrink-0 p-0.5 group-data-horizontal/tabs:h-7"
-          >
-            <TabsTrigger id="overrides">
-              <SlidersHorizontalIcon /> Overrides
-            </TabsTrigger>
-            <TabsTrigger id="registry">
-              <LayersIcon /> Registry
-            </TabsTrigger>
-          </TabsList>
+            {/*
+             * The height is set through the same variant the component sets it
+             * with. `TabsList` carries `group-data-horizontal/tabs:h-11`, which
+             * out-specifies a plain `h-7` and left the header 16px taller than
+             * the controls in it.
+             *
+             * Below 32rem of panel the labels go `sr-only` and the icons carry
+             * the tabs. A 420px side dock — the default for left and right —
+             * cannot hold a 198px tab strip, a dock control and a close button
+             * at once, and the alternative is the dock control collapsing into
+             * a menu on exactly the docks where moving the panel is what you
+             * came to do. `sr-only` rather than `hidden`, so the tabs keep
+             * their names.
+             */}
+            <TabsList
+              variant="default"
+              aria-label="Developer tools"
+              className="shrink-0 p-0.5 group-data-horizontal/tabs:h-7"
+            >
+              <TabsTrigger id="overrides">
+                <SlidersHorizontalIcon />
+                <span className="@max-lg:sr-only">Overrides</span>
+              </TabsTrigger>
+              <TabsTrigger id="registry">
+                <LayersIcon />
+                <span className="@max-lg:sr-only">Registry</span>
+              </TabsTrigger>
+            </TabsList>
 
-          {/*
-           * A real toolbar: one tab stop, arrow keys between the controls, and
-           * `OverflowDivider` rather than a hand-placed `Separator` — which is
-           * what centres the rule, since a vertical separator stretches to its
-           * row unless something tells it not to. Nothing here may collapse
-           * into a menu, so the row carries none.
-           */}
-          <PanelActions>
-            <Toolbar aria-label="Developer tools panel" menu={false}>
-              <ToggleGroup
-                aria-label="Panel position"
-                selectionMode="single"
-                size="sm"
-                selectedKeys={[side]}
-                onSelectionChange={keys => {
-                  const next = [...keys][0]
-                  if (typeof next === 'string') devtools.setSide(next as DevtoolsSide)
-                }}
-                className="max-sm:hidden"
-              >
-                {SIDES.map(candidate => {
-                  const Icon = SIDE_ICON[candidate]
-                  return (
-                    <ToggleGroupItem
-                      key={candidate}
-                      id={candidate}
-                      aria-label={SIDE_LABEL[candidate]}
-                    >
-                      <Icon />
-                    </ToggleGroupItem>
-                  )
-                })}
-              </ToggleGroup>
+            {/*
+             * A real toolbar, and used for the thing it is for.
+             *
+             * The dock control is an `OverflowItem` carrying its own menu form,
+             * so a narrow dock moves it into the "more" menu and the header
+             * stays one row. Registering it is what makes that possible: the
+             * store writes the row's minimum size as an inline `min-inline-size`
+             * from its *fixed* children, so a toolbar of nothing but fixed
+             * children cannot shrink — it reported 188px into a 167px slot and
+             * wrapped the close button onto a second line, which is the one
+             * outcome an overflow row exists to avoid.
+             *
+             * The close button stays unwrapped, which is how this component
+             * spells "never leaves the row", and the menu is placed by hand so
+             * it sits before the close rather than after it.
+             */}
+            <PanelActions>
+              <Toolbar aria-label="Developer tools panel" menu={false}>
+                <OverflowItem
+                  id="dock"
+                  label="Panel position"
+                  labelBehavior="keep"
+                  className="max-sm:hidden"
+                  overflow={
+                    <>
+                      <DropdownMenuLabel>Panel position</DropdownMenuLabel>
+                      {SIDES.map(candidate => {
+                        const Icon = SIDE_ICON[candidate]
+                        return (
+                          <DropdownMenuItem
+                            key={candidate}
+                            id={candidate}
+                            onAction={() => {
+                              devtools.setSide(candidate)
+                            }}
+                          >
+                            <Icon />
+                            {SIDE_LABEL[candidate]}
+                            {candidate === side ? (
+                              <CheckIcon aria-hidden className="ml-auto size-4" />
+                            ) : null}
+                          </DropdownMenuItem>
+                        )
+                      })}
+                    </>
+                  }
+                >
+                  <ToggleGroup
+                    aria-label="Panel position"
+                    selectionMode="single"
+                    size="sm"
+                    selectedKeys={[side]}
+                    onSelectionChange={keys => {
+                      const next = [...keys][0]
+                      if (typeof next === 'string') devtools.setSide(next as DevtoolsSide)
+                    }}
+                  >
+                    {SIDES.map(candidate => {
+                      const Icon = SIDE_ICON[candidate]
+                      return (
+                        <ToggleGroupItem
+                          key={candidate}
+                          id={candidate}
+                          aria-label={SIDE_LABEL[candidate]}
+                        >
+                          <Icon />
+                        </ToggleGroupItem>
+                      )
+                    })}
+                  </ToggleGroup>
+                </OverflowItem>
 
-              <OverflowDivider className="max-sm:hidden" />
+                <OverflowDivider />
+                <OverflowMenu label="More panel actions" />
 
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Close the developer tools"
-                onPress={() => {
-                  devtools.close()
-                }}
-              >
-                <XIcon />
-              </Button>
-            </Toolbar>
-          </PanelActions>
-        </PanelHeader>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close the developer tools"
+                  onPress={() => {
+                    devtools.close()
+                  }}
+                >
+                  <XIcon />
+                </Button>
+              </Toolbar>
+            </PanelActions>
+          </PanelHeader>
 
-        <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
-          {/*
-           * The panes do not scroll; each tab does, so a tab with a pinned
-           * footer can keep it out of the scrolling region instead of floating
-           * it over the rows with a translucent background.
-           */}
-          <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
-            <OverridesTab />
-          </TabsContent>
-          <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
-            <RegistryTab />
-          </TabsContent>
-        </PanelContent>
-      </Tabs>
-    </Panel>
+          <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
+            {/*
+             * The panes do not scroll; each tab does, so a tab with a pinned
+             * footer can keep it out of the scrolling region instead of floating
+             * it over the rows with a translucent background.
+             */}
+            <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
+              <OverridesTab />
+            </TabsContent>
+            <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
+              <RegistryTab />
+            </TabsContent>
+          </PanelContent>
+        </Tabs>
+      </Panel>
+    </PortalProvider>
   )
 }
 

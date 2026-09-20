@@ -732,7 +732,7 @@ condition that is rare and self-inflicted, and because the strip was the loudest
 thing in the chrome on a page where nothing was wrong.
 
 What replaces it is weaker and that is the point of writing this down. The
-developer tools' trigger carries a mark while an override is in force, and the
+developer tools' trigger carries a mark while an override is applied, and the
 Overrides tab names each one — but both are behind the flag, so a developer who
 has never turned the tools on sees nothing at all. The failure the strip existed
 to prevent is now possible again: an override pointing at a dev server that is
