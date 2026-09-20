@@ -288,7 +288,7 @@ function Header(): ReactNode {
 
   useShortcut({
     id: 'shell.dashboard',
-    keys: 'g d',
+    keys: 'g w',
     label: 'Go to the Widget dashboard',
     group: 'Shell',
     onAction: () => {

@@ -258,7 +258,7 @@ export function CommandPalette({
       text: 'home widgets',
       icon: <LayoutDashboardIcon />,
       label: 'Widget dashboard',
-      hint: 'G D',
+      hint: 'G W',
       run: () => void navigate({ to: '/' }),
     },
     ...apps.map(app => ({
