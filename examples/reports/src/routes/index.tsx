@@ -8,7 +8,7 @@ import {
 } from '@tecton/react/tecton/page-header'
 import type { ReactNode } from 'react'
 
-import { FdaComparisonTable } from '../components/blocks/fda-comparison-table/page.tsx'
+import { FdaComparisonTable } from '../components/fda-comparison-table/page.tsx'
 
 export const Route = createFileRoute('/')({
   staticData: { breadcrumb: 'Reports' },

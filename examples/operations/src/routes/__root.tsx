@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { ProjectTree, projectTree } from '../components/blocks/dashboard-01/page.tsx'
+import { ProjectTree, projectTree } from '../components/dashboard-01/page.tsx'
 
 /**
  * A layout is a root route with an outlet, which is the native way to express

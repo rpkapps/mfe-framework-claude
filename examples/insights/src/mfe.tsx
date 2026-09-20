@@ -7,10 +7,10 @@
  * Nothing about consuming them changes: a host reaches each one by its own id
  * and never learns they are neighbours.
  *
- * Every Widget here is a thin wrapper over a Tecton block. That is the point:
- * the interesting part of a Widget is its contract — what it takes, what it
- * emits, and the fact that both are validated at this boundary — and not the
- * markup, which is the design system's.
+ * Every Widget here is a thin wrapper over a component built from the design
+ * system. That is the point: the interesting part of a Widget is its contract
+ * — what it takes, what it emits, and the fact that both are validated at this
+ * boundary — and not the markup.
  */
 
 import { createWidget } from '@company/mfe-react'

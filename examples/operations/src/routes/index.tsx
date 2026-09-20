@@ -19,7 +19,7 @@ import { CheckCircle2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
 
-import { FdaCard, fdaSummaries } from '../components/blocks/fda-card/page.tsx'
+import { FdaCard, fdaSummaries } from '../components/fda-card/page.tsx'
 import { AlertPanel } from '../widgets.ts'
 
 export const Route = createFileRoute('/')({

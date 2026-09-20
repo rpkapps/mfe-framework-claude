@@ -160,13 +160,13 @@ describe('the container stylesheet', () => {
     expect(stylesheet).not.toMatch(/^\s*--/m)
   })
 
-  it('scans the container source, blocks included', () => {
+  it('scans the container source', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
     const stylesheet = fileFor('styles.css')
 
-    // Blocks are registry copies living under the container's own src/, so
-    // the one entry below already covers a class only a block uses; nothing
-    // under node_modules needs a source of its own.
+    // Every class the container renders comes from its own src/, so the one
+    // entry below already covers them; nothing under node_modules needs a
+    // source of its own.
     expect(stylesheet).toContain('@source "../src/**/*.{ts,tsx}";')
   })
 

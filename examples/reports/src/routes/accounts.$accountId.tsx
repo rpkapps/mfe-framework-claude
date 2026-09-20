@@ -23,7 +23,7 @@ import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { alternatives, statusMeta } from '../components/blocks/fda-comparison-table/page.tsx'
+import { alternatives, statusMeta } from '../components/fda-comparison-table/page.tsx'
 
 /**
  * Per-instance data arrives through this App's own URL contract. Mounted at
