@@ -12,7 +12,6 @@
 
 import { useCallback, useRef, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react'
 import { Button } from '@tecton/react/components/button'
-import { Separator } from '@tecton/react/components/separator'
 import {
   Panel,
   PanelActions,
@@ -20,6 +19,7 @@ import {
   PanelHeader,
   PanelTitle,
 } from '@tecton/react/tecton/panel'
+import { OverflowDivider, Toolbar } from '@tecton/react/tecton/overflow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
@@ -127,58 +127,38 @@ function DevtoolsDock({
     >
       <ResizeHandle side={side} />
 
-      <PanelHeader className="border-b border-border-subtle">
-        <PanelTitle className="flex items-center gap-2 text-sm">
-          <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
-          MFE devtools
-        </PanelTitle>
+      {/*
+       * The tabs wrap the whole panel so their list can sit in the header,
+       * beside the title, where a panel this short cannot afford to spend a
+       * row on navigation. `Tabs` only requires that the list and the panes
+       * share an ancestor; it does not require them to be siblings.
+       */}
+      <Tabs
+        selectedKey={tab}
+        onSelectionChange={key => {
+          devtools.setTab(String(key) as DevtoolsTab)
+        }}
+        className="flex min-h-0 flex-1 flex-col gap-0"
+      >
+        <PanelHeader className="gap-3 border-b border-border-subtle">
+          <PanelTitle className="flex items-center gap-2 text-sm">
+            <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
+            {/* The name goes before the controls do: a narrow dock needs the
+                tabs and the close button more than it needs the label. */}
+            <span className="@max-md:hidden">MFE devtools</span>
+          </PanelTitle>
 
-        <PanelActions className="flex items-center justify-end gap-1.5">
-          <ToggleGroup
-            aria-label="Panel position"
-            selectionMode="single"
-            size="sm"
-            selectedKeys={[side]}
-            onSelectionChange={keys => {
-              const next = [...keys][0]
-              if (typeof next === 'string') devtools.setSide(next as DevtoolsSide)
-            }}
-            className="max-sm:hidden"
+          {/*
+           * The height is set through the same variant the component sets it
+           * with. `TabsList` carries `group-data-horizontal/tabs:h-11`, which
+           * out-specifies a plain `h-7` and left the header 16px taller than
+           * the controls in it.
+           */}
+          <TabsList
+            variant="default"
+            aria-label="Developer tools"
+            className="shrink-0 p-0.5 group-data-horizontal/tabs:h-7"
           >
-            {SIDES.map(candidate => {
-              const Icon = SIDE_ICON[candidate]
-              return (
-                <ToggleGroupItem key={candidate} id={candidate} aria-label={SIDE_LABEL[candidate]}>
-                  <Icon />
-                </ToggleGroupItem>
-              )
-            })}
-          </ToggleGroup>
-
-          <Separator orientation="vertical" className="h-4 max-sm:hidden" />
-
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Close the developer tools"
-            onPress={() => {
-              devtools.close()
-            }}
-          >
-            <XIcon />
-          </Button>
-        </PanelActions>
-      </PanelHeader>
-
-      <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
-        <Tabs
-          selectedKey={tab}
-          onSelectionChange={key => {
-            devtools.setTab(String(key) as DevtoolsTab)
-          }}
-          className="flex min-h-0 flex-1 flex-col gap-0"
-        >
-          <TabsList variant="line" aria-label="Developer tools" className="shrink-0 px-3">
             <TabsTrigger id="overrides">
               <SlidersHorizontalIcon /> Overrides
             </TabsTrigger>
@@ -187,6 +167,57 @@ function DevtoolsDock({
             </TabsTrigger>
           </TabsList>
 
+          {/*
+           * A real toolbar: one tab stop, arrow keys between the controls, and
+           * `OverflowDivider` rather than a hand-placed `Separator` — which is
+           * what centres the rule, since a vertical separator stretches to its
+           * row unless something tells it not to. Nothing here may collapse
+           * into a menu, so the row carries none.
+           */}
+          <PanelActions>
+            <Toolbar aria-label="Developer tools panel" menu={false}>
+              <ToggleGroup
+                aria-label="Panel position"
+                selectionMode="single"
+                size="sm"
+                selectedKeys={[side]}
+                onSelectionChange={keys => {
+                  const next = [...keys][0]
+                  if (typeof next === 'string') devtools.setSide(next as DevtoolsSide)
+                }}
+                className="max-sm:hidden"
+              >
+                {SIDES.map(candidate => {
+                  const Icon = SIDE_ICON[candidate]
+                  return (
+                    <ToggleGroupItem
+                      key={candidate}
+                      id={candidate}
+                      aria-label={SIDE_LABEL[candidate]}
+                    >
+                      <Icon />
+                    </ToggleGroupItem>
+                  )
+                })}
+              </ToggleGroup>
+
+              <OverflowDivider className="max-sm:hidden" />
+
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Close the developer tools"
+                onPress={() => {
+                  devtools.close()
+                }}
+              >
+                <XIcon />
+              </Button>
+            </Toolbar>
+          </PanelActions>
+        </PanelHeader>
+
+        <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
           {/*
            * The panes do not scroll; each tab does, so a tab with a pinned
            * footer can keep it out of the scrolling region instead of floating
@@ -198,8 +229,8 @@ function DevtoolsDock({
           <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
             <RegistryTab />
           </TabsContent>
-        </Tabs>
-      </PanelContent>
+        </PanelContent>
+      </Tabs>
     </Panel>
   )
 }

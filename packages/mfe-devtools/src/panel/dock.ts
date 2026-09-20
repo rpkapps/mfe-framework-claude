@@ -8,7 +8,14 @@
 import type { CSSProperties } from 'react'
 import type { DevtoolsSide } from '../devtools-settings.ts'
 
-export const SIDES: readonly DevtoolsSide[] = ['top', 'right', 'bottom', 'left']
+/**
+ * The order the dock control offers them in, which is the order they sit in on
+ * screen read left to right: the two vertical docks on the outside, the two
+ * horizontal ones between. Offering them clockwise from the top made the
+ * buttons a list of four positions rather than a picture of where the panel
+ * goes.
+ */
+export const SIDES: readonly DevtoolsSide[] = ['left', 'top', 'bottom', 'right']
 
 /** True when the side is resized by height rather than width. */
 export function isHorizontal(side: DevtoolsSide): boolean {
