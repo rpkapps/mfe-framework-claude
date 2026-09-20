@@ -27,6 +27,7 @@ import {
   widgetContractModules,
   type GenerateContext,
 } from './modules.ts'
+import { cssModuleTypes, styleRootModule, stylesheetFile } from './styles.ts'
 
 export interface GeneratedOutput {
   readonly files: readonly GeneratedFile[]
@@ -42,11 +43,16 @@ export function generateContainerFiles(
   const base: GeneratedFile[] = [
     gitignoreFile(context),
     tsconfigPathsFile(context),
+    cssModuleTypes(context),
+    stylesheetFile(context),
     fetchModule(context),
     containerEntryModule(context),
     ...federationEntryModules(context),
     ...widgetContractModules(context),
   ]
+
+  const styleRoot = styleRootModule(context)
+  if (styleRoot !== null) base.push(styleRoot)
 
   const config = configModule(context)
   if (config !== null) base.push(config)

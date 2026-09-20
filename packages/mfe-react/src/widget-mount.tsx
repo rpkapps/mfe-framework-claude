@@ -19,6 +19,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'reac
 import { assertUsableInputNames, type WidgetDefinition } from './definition.ts'
 import { MfeMountProvider } from './mount-context.tsx'
 import { MfeScopeRoot } from './scope-root.tsx'
+import { styleRootOf } from './style-root.ts'
 import type { MfeMount } from './runtime.ts'
 
 /** Shallow comparison over input names, so a handler change is not an input change. */
@@ -220,7 +221,13 @@ export function WidgetMount({
 
   return (
     <MfeMountProvider mount={mount}>
-      <MfeScopeRoot definitionId={definition.id} mountToken={mount.mountToken} kind="widget">
+      <MfeScopeRoot
+        definitionId={definition.id}
+        mountToken={mount.mountToken}
+        kind="widget"
+        overlayRoot={mount.overlayRoot}
+        styleRoot={styleRootOf(definition)}
+      >
         <WidgetBody definition={definition} inputs={validInputs} emit={emit} />
       </MfeScopeRoot>
     </MfeMountProvider>

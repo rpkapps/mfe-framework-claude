@@ -147,4 +147,10 @@ export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-con
 export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
 export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
+/**
+ * Generated plumbing, exported because the generated container entry imports
+ * it: the build attaches the design system's root to the definition it exposes,
+ * so a container's overlays are wired up by its own copy of the library.
+ */
+export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'

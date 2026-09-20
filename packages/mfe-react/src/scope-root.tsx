@@ -2,10 +2,12 @@
  * Scope and overlay roots.
  *
  * Every mount renders inside a `data-mfe-scope` element whose CSS the build
- * emits as `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`: the lower
- * boundary stops a parent App's rules matching inside a nested App's root,
- * while inheritance still carries shell theme values down. Overlays portalled
- * to the body get a second root, or they would escape the scope.
+ * emits as `@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])`: the
+ * lower boundary stops a parent App's rules matching inside a nested App's
+ * root, while inheritance still carries shell theme values down. Overlays
+ * portalled to the body get a second root, or they would escape the scope —
+ * it carries the same `data-mfe-scope`, so the container's own stylesheet
+ * reaches what a dialog or a popover renders into it.
  *
  * The scope root is a selector anchor, never a box. `display: contents` keeps
  * it out of layout entirely, so the element the App or Widget renders is the
@@ -18,6 +20,8 @@
  */
 
 import type { ReactNode } from 'react'
+
+import type { MfeStyleRoot } from './style-root.ts'
 
 /** Reserved for App, Widget and framework portal roots. */
 export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
@@ -33,6 +37,14 @@ export interface ScopeRootProps {
   readonly definitionId: string
   readonly mountToken: string
   readonly kind: 'app' | 'widget'
+  /** This mount's body-level overlay root, handed to the style root. */
+  readonly overlayRoot: HTMLElement
+  /**
+   * The component the container's own build attached to the definition, when it
+   * ships CSS that needs one. It renders inside the scope root rather than
+   * around it, so the scope element stays the framework's own anchor.
+   */
+  readonly styleRoot?: MfeStyleRoot | undefined
   readonly children: ReactNode
 }
 
@@ -46,6 +58,8 @@ export function MfeScopeRoot({
   definitionId,
   mountToken,
   kind,
+  overlayRoot,
+  styleRoot: StyleRoot,
   children,
 }: ScopeRootProps): ReactNode {
   return (
@@ -54,7 +68,11 @@ export function MfeScopeRoot({
       data-mfe-kind={kind}
       style={LAYOUT_NEUTRAL}
     >
-      {children}
+      {StyleRoot === undefined ? (
+        children
+      ) : (
+        <StyleRoot overlayContainer={overlayRoot}>{children}</StyleRoot>
+      )}
     </div>
   )
 }

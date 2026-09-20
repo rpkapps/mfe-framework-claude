@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SettingsPage } from '@tecton/react/blocks/settings-01/page.tsx'
+import { SettingsPage } from '@tecton/blocks/settings-01/page.tsx'
 import type { ReactNode } from 'react'
 
 /**

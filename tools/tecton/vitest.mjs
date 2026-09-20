@@ -1,12 +1,14 @@
 /**
  * What a Vitest project needs in order to render design-system components.
  *
- * The design system is a `link:` to a sibling checkout with its own
- * `node_modules`, so its files resolve their own React — a second copy, whose
- * hooks throw the moment one of its components is rendered by this project's
- * renderer. A browser build never sees this, because Module Federation collapses
- * the shared packages at runtime; a test runner has no such thing, so it is
- * stated here. This is the test-time counterpart of `tecton-build.mjs`.
+ * `@tecton/react` ships a built `dist/` now and `@tecton/blocks` still ships
+ * unbuilt TSX, but both are a `link:` to a sibling checkout with its own
+ * `node_modules` either way, so their files resolve their own React — a second
+ * copy, whose hooks throw the moment one of its components is rendered by this
+ * project's renderer. A browser build never sees this, because Module
+ * Federation collapses the shared packages at runtime; a test runner has no
+ * such thing, so it is stated here. This is the test-time counterpart of
+ * `tecton-build.mjs`.
  */
 
 import { createRequire } from 'node:module'
@@ -44,10 +46,12 @@ export const SINGLE_COPY = [
  * Processed by Vite rather than required by Node, so the aliases below actually
  * apply to them.
  *
- * A dependency Vitest externalizes is loaded with Node's own resolution, and a
- * CJS build inside the linked checkout then `require`s that checkout's React —
- * which is how a design-system icon ended up calling `useContext` on a second
- * copy of React while every alias said otherwise.
+ * A dependency Vitest externalizes is loaded with Node's own resolution.
+ * `@tecton/react`'s built `dist/` still `import`s `react` and its other peers
+ * bare, exactly as `@tecton/blocks`' unbuilt TSX does, and Node resolving that
+ * bare specifier from inside the linked checkout finds the checkout's own
+ * copy — which is how a design-system icon ended up calling `useContext` on a
+ * second copy of React while every alias said otherwise.
  */
 export const INLINE_DEPS = [
   /tecton-ui-1/,

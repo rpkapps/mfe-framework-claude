@@ -8,8 +8,9 @@
  * shared with every container in `tools/tecton/tecton-build.mjs`.
  */
 
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
@@ -29,9 +30,45 @@ const require = createRequire(import.meta.url)
 requireTecton(here, 'The shell')
 useWorkspaceModules(here)
 
-/** The installed version, not the `catalog:` range that package.json holds. */
-const installedVersion = (name: string): string =>
-  (require(`${name}/package.json`) as { version: string }).version
+/**
+ * The installed version, not the `catalog:` range that package.json holds.
+ *
+ * Three places to find a manifest, tried in order, because no single one covers
+ * every package shared here. `require('<name>/package.json')` needs the
+ * package's `exports` map to publish its manifest, and sonner's does not.
+ * Resolving the package's entry and walking up to its manifest needs an entry
+ * `require` can resolve at all. The link pnpm put in this package's own
+ * `node_modules` exists only for a direct dependency, and `@company/mfe-core` —
+ * shared here because the shell provides it — is reached through the adapter.
+ */
+const installedVersion = (name: string): string => {
+  const read = (file: string): { name?: string; version: string } =>
+    JSON.parse(readFileSync(file, 'utf8')) as { name?: string; version: string }
+
+  try {
+    return (require(`${name}/package.json`) as { version: string }).version
+  } catch {
+    // Not published by the exports map; the entry below usually is.
+  }
+
+  try {
+    let directory = dirname(require.resolve(name))
+    for (;;) {
+      const file = join(directory, 'package.json')
+      if (existsSync(file)) {
+        const manifest = read(file)
+        if (manifest.name === name) return manifest.version
+      }
+      const parent = dirname(directory)
+      if (parent === directory) break
+      directory = parent
+    }
+  } catch {
+    // No requirable entry either; the direct link is the last place to look.
+  }
+
+  return read(resolve(here, 'node_modules', name, 'package.json')).version
+}
 
 const DEV_PORT = 3000
 
@@ -42,6 +79,17 @@ const DEV_PORT = 3000
 const strictSingleton = (name: string) => ({
   singleton: true,
   strictVersion: true,
+  requiredVersion: installedVersion(name),
+})
+
+/**
+ * Host and a remote may be built against different versions of one of these,
+ * each rendering correctly on its own — unlike the framework packages above,
+ * whose whole job is a provider every mount reads through the *same* context.
+ */
+const nonSingleton = (name: string) => ({
+  singleton: false,
+  strictVersion: false,
   requiredVersion: installedVersion(name),
 })
 
@@ -69,18 +117,32 @@ export default defineConfig({
         '@company/mfe-core': strictSingleton('@company/mfe-core'),
         '@company/mfe-host': strictSingleton('@company/mfe-host'),
         '@company/mfe-react': strictSingleton('@company/mfe-react'),
-        // The trailing slash shares every subpath of the design system, which
-        // is how it is imported; it publishes no root entry.
         react: strictSingleton('react'),
         'react-dom': strictSingleton('react-dom'),
         '@tanstack/react-router': strictSingleton('@tanstack/react-router'),
         '@tanstack/react-query': strictSingleton('@tanstack/react-query'),
+        // Sonner's queue is module state, not React context, but a second copy
+        // fails the same way: the shell mounts the one Toaster on the page,
+        // and a remote that resolved its own copy would push its toasts onto
+        // a queue that Toaster never reads.
+        sonner: strictSingleton('sonner'),
+        // The trailing slash shares every subpath of the design system, which
+        // is how it is imported; it publishes no root entry. Not a singleton
+        // — a remote may be built against a different @tecton/react version
+        // and still render correctly on its own. Module Federation cannot
+        // infer this candidate's version from a package.json the way it can
+        // for an ordinary dependency, because no package is literally named
+        // "@tecton/react/", so `version` states it explicitly.
         '@tecton/react/': {
-          singleton: true,
-          strictVersion: true,
-          version: '0.0.0',
-          requiredVersion: '0.0.0',
+          singleton: false,
+          strictVersion: false,
+          version: installedVersion('@tecton/react'),
+          requiredVersion: installedVersion('@tecton/react'),
         },
+        // Not a singleton either: React Aria's contexts (a label wired to its
+        // field, a trigger to its popover) are not shared between copies, so
+        // the shell and a remote may sit on different ~1.21 versions.
+        'react-aria-components': nonSingleton('react-aria-components'),
       },
     },
   },

@@ -55,6 +55,9 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   '@types/react-dom': 'catalog:',
   eslint: 'catalog:',
   prettier: 'catalog:',
+  // The container compiles its own stylesheet: the build generates the entry
+  // and adds the PostCSS plugin, and this is the Tailwind that entry imports.
+  tailwindcss: 'catalog:',
   typescript: 'catalog:',
   vitest: 'catalog:',
 }
@@ -238,9 +241,11 @@ export default [
  * than a wrapper, so everything here is what it would be in any React project.
  *
  * The plugin owns what makes this a container: definition discovery, the
- * generated \`#mfe/*\` modules, Module Federation's name, exposes and sharing,
- * the registry descriptor, container-relative asset URLs, scoped CSS and the
- * React Compiler transform. None of that is repeated here, and none of it is
+ * generated \`#mfe/*\` modules and the stylesheet beside them, Module
+ * Federation's name, exposes and sharing, the registry descriptor,
+ * container-relative asset URLs, the PostCSS pipeline that compiles that
+ * stylesheet and scopes it to this container's mount roots, and the React
+ * Compiler transform. None of that is repeated here, and none of it is
  * configurable per project — a page only works when every container agrees.
  */
 

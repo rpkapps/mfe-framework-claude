@@ -4,9 +4,10 @@
  * It is one plugin rather than a `withMfe(config)` wrapper: an author's own
  * Rsbuild options stay theirs, and anything the plugin did not anticipate still
  * has somewhere to go. What it owns is what no author should have to write —
- * definition discovery, the generated `#mfe/*` modules, container-relative
- * asset URLs, scoped CSS, the React Compiler transform, and every Module
- * Federation setting.
+ * definition discovery, the generated `#mfe/*` modules and the stylesheet
+ * beside them, container-relative asset URLs, the PostCSS pipeline that
+ * compiles and scopes that stylesheet, the React Compiler transform, and every
+ * Module Federation setting.
  *
  * Federation reaches Rsbuild as `moduleFederation.options` rather than a
  * plugin this file registers. That is the difference that matters: declaring it
@@ -18,6 +19,7 @@
 
 import type { RsbuildPlugin } from '@rsbuild/core'
 
+import { containerPostcssPlugins } from './css/postcss-plugins.ts'
 import { buildFederationOptions } from './federation/federation-options.ts'
 import type { MfePluginOptions } from './options.ts'
 import { planContainer } from './plan.ts'
@@ -95,7 +97,22 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
           ...(original.source?.entry === undefined
             ? { source: { entry: { index: plan.entryStub } } }
             : {}),
-          tools: { rspack: { plugins: [new MfeRspackPlugin(options)] } },
+          tools: {
+            // Tailwind expands the generated stylesheet, then the scope plugin
+            // wraps what it emitted. Appending them here rather than asking the
+            // container for a PostCSS config is what keeps the whole mechanism
+            // invisible: the stylesheet is generated, so nothing an author
+            // wrote would say how to compile it.
+            postcss: (postcss, { addPlugins }) => {
+              addPlugins(
+                containerPostcssPlugins({
+                  scopes: plan.scopes,
+                  configured: postcss.postcssOptions,
+                }),
+              )
+            },
+            rspack: { plugins: [new MfeRspackPlugin(options)] },
+          },
         })
       })
     },

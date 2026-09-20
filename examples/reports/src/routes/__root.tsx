@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Outlet, useNavigate } from '@tanstack/react-router'
 import { allow, deny, useCommand, type MfeRouterContext } from '@company/mfe-react'
-import { alternatives } from '@tecton/react/blocks/fda-comparison-table/page.tsx'
+import { alternatives } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import type { ReactNode } from 'react'
 
 /**

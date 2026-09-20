@@ -79,6 +79,9 @@ describe('generated inventory', () => {
       '.mfe/.env.example',
       '.mfe/.gitignore',
       '.mfe/config.ts',
+      // Tells TypeScript that the stylesheet import below is a module; the
+      // bundler turns it into the side effect that injects it.
+      '.mfe/css.d.ts',
       '.mfe/entries/app.ts',
       // The bundler entry. A container has one only because a bundler requires
       // one; nothing ever requests it.
@@ -87,6 +90,9 @@ describe('generated inventory', () => {
       '.mfe/meta.ts',
       '.mfe/mfe-registry.json',
       '.mfe/runtime-config.schema.json',
+      // The container's own stylesheet. A container that renders the design
+      // system also gets .mfe/entries/style-root.tsx beside it.
+      '.mfe/styles.css',
       '.mfe/tsconfig.paths.json',
     ])
   })
@@ -122,6 +128,134 @@ describe('generated inventory', () => {
 
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(plan.generated.files.length)
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(0)
+  })
+})
+
+/**
+ * A container that renders the design system, with the blocks installed the way
+ * pnpm installs them: unbuilt TSX behind an exports map that does not publish
+ * the package manifest.
+ */
+const TECTON_MANIFEST = {
+  dependencies: {
+    react: '^19.0.0',
+    'react-dom': '^19.0.0',
+    '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
+    '@tecton/blocks': 'link:../../../tecton-ui-1/packages/tecton-blocks',
+  },
+}
+
+const INSTALLED_BLOCKS = {
+  'node_modules/@tecton/blocks/package.json': `${JSON.stringify(
+    {
+      name: '@tecton/blocks',
+      version: '0.0.0',
+      type: 'module',
+      exports: { '.': './src/blocks/index.ts' },
+    },
+    null,
+    2,
+  )}\n`,
+  'node_modules/@tecton/blocks/src/blocks/index.ts': 'export {}\n',
+}
+
+describe('the container stylesheet', () => {
+  it('compiles Tailwind and the design system without any page-level CSS', () => {
+    const { fileFor } = planFixture(
+      { 'src/mfe.ts': APP_ENTRY, ...INSTALLED_BLOCKS },
+      TECTON_MANIFEST,
+    )
+    const stylesheet = fileFor('styles.css')
+
+    expect(stylesheet).toContain('@layer theme, base, components, utilities;')
+    expect(stylesheet).toContain('@import "tailwindcss/theme.css" layer(theme);')
+    expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
+    expect(stylesheet).toContain('@import "@tecton/react/styles/scoped.css";')
+    // Preflight, the fonts and every variable belong to the shell: a second
+    // copy of those would repaint the page rather than the container.
+    expect(stylesheet).not.toContain('@import "tailwindcss";')
+    expect(stylesheet).not.toContain('globals.css')
+    expect(stylesheet).not.toContain(':root {')
+    expect(stylesheet).not.toMatch(/^\s*--/m)
+  })
+
+  it('scans the container source and the blocks it depends on', () => {
+    const { fileFor } = planFixture(
+      { 'src/mfe.ts': APP_ENTRY, ...INSTALLED_BLOCKS },
+      TECTON_MANIFEST,
+    )
+    const stylesheet = fileFor('styles.css')
+
+    expect(stylesheet).toContain('@source "../src/**/*.{ts,tsx}";')
+    // Nothing under node_modules is scanned by default, and a block is unbuilt
+    // TSX, so a class only a block uses would otherwise have no CSS at all.
+    expect(stylesheet).toContain('@tecton/blocks/src/**/*.{ts,tsx}";')
+  })
+
+  it('names no design system for a container that does not use one', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
+    const stylesheet = fileFor('styles.css')
+
+    expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
+    expect(stylesheet).not.toContain('@tecton/react')
+    expect(stylesheet).not.toContain('@tecton/blocks')
+  })
+})
+
+describe('the exposed federation entry', () => {
+  it('imports the stylesheet, so it loads with whichever expose is asked for', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
+    const source = fileFor('entries/app.ts')
+
+    expect(source).toContain("import '../styles.css'")
+    expect(source.indexOf("import '../styles.css'")).toBeLessThan(source.indexOf('src/mfe.ts'))
+  })
+
+  it('exposes the definition with the design system root attached', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
+    const source = fileFor('entries/app.ts')
+
+    expect(source).toContain("import { withStyleRoot } from '@company/mfe-react'")
+    expect(source).toContain("import { operations as authored } from '../../src/mfe.ts'")
+    expect(source).toContain("import { StyleRoot } from './style-root.tsx'")
+    expect(source).toContain('export const definition = withStyleRoot(authored, StyleRoot)')
+  })
+
+  it('re-exports the author definition unchanged without a design system', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
+    const source = fileFor('entries/app.ts')
+
+    expect(source).toContain("export { operations as definition } from '../../src/mfe.ts'")
+    expect(source).toContain("import '../styles.css'")
+    expect(source).not.toContain('withStyleRoot')
+  })
+
+  it('keeps the configuration import ahead of the application modules', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
+    const source = fileFor('entries/app.ts')
+
+    expect(source.indexOf("import '../config.ts'")).toBeLessThan(source.indexOf('src/mfe.ts'))
+  })
+})
+
+describe('the style root', () => {
+  it('renders the design system root from the container own bundle', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
+    const source = fileFor('entries/style-root.tsx')
+
+    expect(source).toContain("import { ThemeRoot } from '@tecton/react/tecton/theme-root'")
+    // The overlay container is the mount's own body-level root, so the design
+    // system's overlays land inside this container's scope.
+    expect(source).toContain('<ThemeRoot overlayContainer={overlayContainer}')
+    expect(source).toContain("overlayContainer.setAttribute('data-tecton-root', '')")
+    // Out of layout, exactly as the scope root above it is.
+    expect(source).toContain("const LAYOUT_NEUTRAL = { display: 'contents' } as const")
+  })
+
+  it('is not generated for a container that renders no design system', () => {
+    const { plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
+
+    expect(plan.generated.files.some(file => file.path.endsWith('style-root.tsx'))).toBe(false)
   })
 })
 

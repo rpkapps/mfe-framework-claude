@@ -22,6 +22,7 @@ import { breadcrumbsFromMatches, type BreadcrumbMatch } from './breadcrumbs-from
 import { createBoundaryHistory } from './boundary-history.ts'
 import { MfeMountProvider } from './mount-context.tsx'
 import { MfeScopeRoot } from './scope-root.tsx'
+import { styleRootOf } from './style-root.ts'
 import { useRouterBlockerBridge } from './router-blockers.ts'
 import type { AppDefinition } from './definition.ts'
 import type { MfeContext, MfeRouterContext } from './router-contract.ts'
@@ -207,7 +208,13 @@ export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNod
   return (
     <MfeMountProvider mount={mount}>
       <QueryClientProvider client={mount.queryClient}>
-        <MfeScopeRoot definitionId={definition.id} mountToken={mount.mountToken} kind="app">
+        <MfeScopeRoot
+          definitionId={definition.id}
+          mountToken={mount.mountToken}
+          kind="app"
+          overlayRoot={mount.overlayRoot}
+          styleRoot={styleRootOf(definition)}
+        >
           <RouterProvider router={router} />
         </MfeScopeRoot>
       </QueryClientProvider>

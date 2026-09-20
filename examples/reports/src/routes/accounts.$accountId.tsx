@@ -10,7 +10,7 @@ import {
 } from '@tecton/react/components/empty'
 import { Meter } from '@tecton/react/tecton/meter'
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
-import { alternatives, statusMeta } from '@tecton/react/blocks/fda-comparison-table/page.tsx'
+import { alternatives, statusMeta } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import {
   PageHeader,
   PageHeaderActions,
