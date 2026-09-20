@@ -50,18 +50,19 @@ export default [
       // definition: both are the page's, read before a store exists to read
       // them through. One accessor, named explicitly rather than inferred.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme belongs to the page rather than to any definition on it, and
-      // it has to outlive a sign-out — which is exactly what mount-scoped
-      // storage retires. Named explicitly, never inferred.
+      // The theme, and only the theme. The legacy Angular applications read
+      // `localStorage["theme"]` directly as the bare string "light" or "dark",
+      // so the shell has to write exactly that key with exactly that value —
+      // and the store writes an envelope under a scoped key, which is a shape
+      // and a name it cannot produce. An interoperability contract with code
+      // that is not ours, not a local convenience (docs/decisions.md §24).
       'apps/shell/src/shell/preferences.ts',
-      // The session generation is the fence mount-scoped storage is checked
-      // against, established at boot before any mount exists to store it
-      // through. It cannot be written through the thing it gates.
-      'apps/shell/src/shell/session-generation.ts',
-      // The dashboard the developer composed belongs to the shell, not to any
-      // definition on it, so it cannot go through the mount-scoped storage the
-      // rule exists to enforce. Named explicitly, never inferred.
-      'apps/shell/src/shell/dashboard/layout-store.ts',
+      // The dashboard canvas and the session generation used to be named here
+      // too. Both were host-owned state with nowhere to go: the store scoped
+      // every key to a definition id and gated it behind a mount. They now go
+      // through the store's reserved `@host` scope instead, so those
+      // exemptions were deleted rather than kept. Any further entry here
+      // should be read as evidence of another missing primitive.
     ],
   }),
 

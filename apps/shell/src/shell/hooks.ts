@@ -8,32 +8,22 @@
  * reload, the thing HMR exists to avoid.
  */
 
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
-import { useMatches } from '@tanstack/react-router'
-import { useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
+import { useCallback, useSyncExternalStore } from 'react'
+import { useLocation } from '@tanstack/react-router'
+import {
+  useActiveDefinition,
+  useStoredState,
+  type ActiveDefinition,
+  type StoredStateSetter,
+} from '@company/mfe-react'
 
-import { getLayout, subscribeLayout, type DashboardLayout } from './dashboard/layout-store.ts'
+import {
+  DashboardLayoutSchema,
+  EMPTY_LAYOUT,
+  migrateLayout,
+  type DashboardLayout,
+} from './dashboard/layout-store.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
-
-/** Registered Apps, in registry order. Widgets own no URL; hidden ones opt out. */
-export function useApps(): readonly NeutralRegistryEntry[] {
-  const runtime = useMfeRuntime('the shell app finder')
-  return useMemo(
-    () =>
-      [...runtime.registry.entries.values()].filter(
-        entry => entry.definitionKind === 'app' && entry.hidden !== true,
-      ),
-    [runtime],
-  )
-}
-
-/** The App at the active boundary, and what the registry knows about it. */
-export interface ActiveApp {
-  /** The id in the URL, which is the one fact that is always true. */
-  readonly id: string
-  /** Undefined when the URL names an App the registry does not know. */
-  readonly entry: NeutralRegistryEntry | undefined
-}
 
 /**
  * Which application the chrome is currently showing, or `null` on the shell's
@@ -41,58 +31,15 @@ export interface ActiveApp {
  *
  * Read from the route rather than remembered on a selection, because the URL is
  * what decides: a deep link, a browser back and a click in the finder all have
- * to arrive at the same answer.
+ * to arrive at the same answer. The shell supplies the path because the router
+ * above it is the shell's; the framework says what a path means, which is the
+ * same derivation it gives a mounted App's navigation blocker about the same
+ * URL — so the chrome and the boundary cannot disagree about which application
+ * is on screen.
  */
-export function useActiveApp(): ActiveApp | null {
-  const matches = useMatches()
-  const apps = useApps()
-
-  const id = matches
-    .map(match => (match.params as { appId?: string }).appId)
-    .find(candidate => typeof candidate === 'string' && candidate !== '')
-
-  return useMemo(
-    () => (id === undefined ? null : { id, entry: apps.find(app => app.id === id) }),
-    [id, apps],
-  )
-}
-
-/** Registered Widgets — what the dashboard catalogue offers. */
-export function useWidgets(): readonly NeutralRegistryEntry[] {
-  const runtime = useMfeRuntime('the shell widget catalogue')
-  return useMemo(
-    () =>
-      [...runtime.registry.entries.values()].filter(
-        entry => entry.definitionKind === 'widget' && entry.hidden !== true,
-      ),
-    [runtime],
-  )
-}
-
-/**
- * Every application's capability pages, flattened with the application that
- * published each one. The shell knows a settings page exists and where it
- * opens; it has never seen what is on it.
- */
-export function useCapabilityPages(): readonly {
-  readonly app: NeutralRegistryEntry
-  readonly name: string
-  readonly label: string
-  readonly path: string
-}[] {
-  const apps = useApps()
-  return useMemo(
-    () =>
-      apps.flatMap(app =>
-        (app.capabilities ?? []).map(capability => ({
-          app,
-          name: capability.name,
-          label: capability.label ?? capability.name,
-          path: capability.path,
-        })),
-      ),
-    [apps],
-  )
+export function useActiveApp(): ActiveDefinition | null {
+  const pathname = useLocation({ select: location => location.pathname })
+  return useActiveDefinition(pathname)
 }
 
 /**
@@ -123,16 +70,18 @@ export function useShellSurface(): ShellSurface | null {
   return useSyncExternalStore(shellUi.subscribe, shellUi.getSnapshot, shellUi.getSnapshot)
 }
 
-/** The dashboard canvas, wherever it is read from — the page, or the palette. */
-export function useDashboardLayout(): DashboardLayout {
-  return useSyncExternalStore(subscribeLayout, getLayout, getLayout)
-}
-
-export function useTheme(): 'light' | 'dark' {
-  const runtime = useMfeRuntime('the shell theme')
-  const subscribe = useCallback(
-    (listener: () => void) => runtime.shellState.subscribeToField('theme', listener),
-    [runtime],
-  )
-  return useSyncExternalStore(subscribe, runtime.shellState.getTheme, runtime.shellState.getTheme)
+/**
+ * The dashboard canvas, wherever it is read from — the page, the palette, or
+ * settings. All three bind the same key, so all three share one record and one
+ * subscription: a Widget added from the palette is on the canvas already.
+ */
+export function useDashboardLayout(): readonly [
+  DashboardLayout,
+  StoredStateSetter<DashboardLayout>,
+] {
+  return useStoredState('dashboard', DashboardLayoutSchema, {
+    defaultValue: EMPTY_LAYOUT,
+    retention: 'browser',
+    migrate: migrateLayout,
+  })
 }

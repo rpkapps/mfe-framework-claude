@@ -1,19 +1,14 @@
 /**
- * The dashboard the developer built, and where it is kept.
+ * The dashboard the developer built: its shape, and the pure moves over it.
  *
- * A dashboard assembled by dragging widgets around is worthless if a reload
- * throws it away, so it is persisted. It is persisted in the *shell's* own
- * storage rather than through `runtime.storage`, because the framework's
- * storage is scoped to a definition — `<id>:<key>`, retired when the session
- * changes — and this layout belongs to none of the definitions on it. Writing
- * it under a Widget's prefix would tie one Widget's storage to the presence of
- * every other tile.
- *
- * Nothing here is a component, so it is also the module React Refresh can
- * replace without touching the tiles that read it.
+ * It belongs to none of the definitions on it — writing it under a Widget's
+ * prefix would tie one Widget's storage to the presence of every other tile —
+ * so it is the shell's own `dashboard` key, kept across a sign-out. A stored
+ * layout is untrusted input, written by an older build or edited by hand, so
+ * anything unreadable is dropped tile by tile rather than failing the page.
  */
 
-const STORAGE_KEY = 'company:shell:dashboard'
+import { z } from 'zod'
 
 /** How wide a tile sits on the twelve-column canvas. */
 export const TILE_SPANS = [4, 6, 8, 12] as const
@@ -39,15 +34,6 @@ export function tileKey(widgetId: string): string {
   return `${widgetId}#${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
 }
 
-function isSpan(value: unknown): value is TileSpan {
-  return TILE_SPANS.some(span => span === value)
-}
-
-/**
- * A stored layout is untrusted input: it was written by an older build, or
- * edited by hand in devtools. Anything unreadable is dropped tile by tile
- * rather than failing the page — the same per-entry rule the registry uses.
- */
 function readTile(value: unknown): DashboardTile | null {
   if (value === null || typeof value !== 'object') return null
   const candidate = value as Record<string, unknown>
@@ -62,80 +48,28 @@ function readTile(value: unknown): DashboardTile | null {
     key: typeof key === 'string' && key !== '' ? key : tileKey(widgetId),
     widgetId,
     inputs: inputs as Record<string, unknown>,
-    span: isSpan(candidate['span']) ? candidate['span'] : 6,
+    span: TILE_SPANS.find(span => span === candidate['span']) ?? 6,
   }
 }
 
-function readStored(storage: Pick<Storage, 'getItem'> | undefined): DashboardLayout {
-  if (storage === undefined) return EMPTY_LAYOUT
-
-  try {
-    const raw = storage.getItem(STORAGE_KEY)
-    if (raw === null) return EMPTY_LAYOUT
-    const parsed: unknown = JSON.parse(raw)
-    const tiles = (parsed as { tiles?: unknown }).tiles
-    if (!Array.isArray(tiles)) return EMPTY_LAYOUT
-    return { tiles: tiles.map(readTile).filter((tile): tile is DashboardTile => tile !== null) }
-  } catch {
-    return EMPTY_LAYOUT
-  }
+function readTiles(values: readonly unknown[]): DashboardTile[] {
+  return values.map(readTile).filter((tile): tile is DashboardTile => tile !== null)
 }
 
-/** Storage can be blocked for the origin, and writing then throws rather than no-ops. */
-function writeStored(storage: Pick<Storage, 'setItem'> | undefined, layout: DashboardLayout): void {
-  try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(layout))
-  } catch {
-    // A dashboard that cannot be saved is still a dashboard that works.
-  }
-}
+/** Tolerant both ways: every read and every write is checked against it. */
+export const DashboardLayoutSchema: z.ZodType<DashboardLayout> = z.object({
+  tiles: z.array(z.unknown()).transform(readTiles),
+})
 
-/** Reading `localStorage` throws outright when storage is blocked for the origin. */
-export function dashboardStorage(): Storage | undefined {
-  try {
-    return window.localStorage
-  } catch {
-    return undefined
-  }
-}
-
-/*
- * The layout is a store rather than a component's state because the dashboard
- * page is not the only thing that changes it: the command palette adds a Widget
- * and settings resets the canvas, from outside the page and sometimes while it
- * is not even mounted. A second copy in component state would show a stale
- * canvas until the next navigation.
- */
-
-let current: DashboardLayout | null = null
-const listeners = new Set<() => void>()
-
-/** Read once, then kept: `useSyncExternalStore` needs a stable reference. */
-export function getLayout(): DashboardLayout {
-  current ??= readStored(dashboardStorage())
-  return current
-}
-
-export function subscribeLayout(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-export function setLayout(next: DashboardLayout): void {
-  current = next
-  writeStored(dashboardStorage(), next)
-  for (const listener of listeners) listener()
-}
-
-export function setTiles(tiles: readonly DashboardTile[]): void {
-  setLayout({ tiles })
+/** A record written before this key carried an envelope, read as tolerantly. */
+export function migrateLayout(value: unknown): DashboardLayout {
+  const tiles = (value as { tiles?: unknown } | null)?.tiles
+  return { tiles: Array.isArray(tiles) ? readTiles(tiles) : [] }
 }
 
 /** Appends a tile, wherever the caller is — the palette, or the canvas itself. */
-export function addTile(tile: DashboardTile): void {
-  setTiles([...getLayout().tiles, tile])
+export function addTile(layout: DashboardLayout, tile: DashboardTile): DashboardLayout {
+  return { tiles: [...layout.tiles, tile] }
 }
 
 export function moveTile(

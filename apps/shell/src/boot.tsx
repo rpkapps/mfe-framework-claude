@@ -5,6 +5,9 @@
  * the developer overrides and applies them to the manifest URLs *before* any
  * remote is registered. Registering first and overriding afterwards would mean
  * an overridden App still loaded from its deployed manifest once.
+ *
+ * The diagnostics hub is the one thing built before the runtime, because
+ * `installShellAuth` runs before a runtime exists to report into.
  */
 
 import { StrictMode } from 'react'
@@ -15,7 +18,9 @@ import {
   createBrowserNavigationBridge,
   createNoopTelemetryProvider,
   createSpanEmitter,
+  DiagnosticsHub,
   installShellAuth,
+  telemetryDiagnosticsSink,
   type TelemetryProvider,
 } from '@company/mfe-host'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
@@ -25,7 +30,6 @@ import { createFaroProvider } from './shell/faro.ts'
 import { preferredTheme } from './shell/preferences.ts'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
-import { sessionGeneration } from './shell/session-generation.ts'
 import { notices } from './shell/workspace.ts'
 import './styles/app.css'
 
@@ -56,9 +60,7 @@ function overrideStorage(): Pick<Storage, 'getItem'> | undefined {
  * Faro when a collector is configured, a provider that keeps nothing otherwise.
  * Deliberately not the recording provider: that one is a test double, and a
  * shell with no collector would fill its bounded buffers for the life of the
- * page with records nobody ever drains. The span implementation is the
- * framework's either way — a provider says what to do with a finished span, it
- * never writes a second Tracer.
+ * page with records nobody ever drains.
  */
 function telemetryProvider(): TelemetryProvider {
   const url = process.env['FARO_URL']
@@ -72,23 +74,19 @@ function telemetryProvider(): TelemetryProvider {
 const container = document.getElementById('root')
 if (!container) throw new Error('index.html must contain <div id="root">')
 
+const telemetry = telemetryProvider()
+const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry)])
+
 // Before any remote is registered: a container's generated #mfe/fetch resolves
 // this at its first request, and one session for the page is what keeps refresh
 // single-flight across every mount.
 installShellAuth({
   tokens: createDevSession(),
+  diagnostics,
   isDevelopment: process.env['NODE_ENV'] !== 'production',
 })
 
-const storage = overrideStorage()
-
-/**
- * The signed-in user. Declared before the runtime because the session
- * generation is derived from it: a shell that boots with somebody in force owes
- * the framework the generation that session's storage is fenced by, and without
- * it every `retention: 'user'` write is refused.
- */
-const user = { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' }
+const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
   registryEntries: await readRegistry(),
@@ -100,22 +98,17 @@ const { runtime, activeOverrides } = createMfeRuntime({
     },
   }),
   shellState: {
-    user,
+    user: { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' },
     groups: ['geoscience', 'well-planning.read'],
-    // The choice this browser last made, or the operating system's. The same
-    // function decides it in the inline script in index.html, so the document
-    // never paints in one theme and then switches to the other.
+    // Decided the same way the pre-paint script in index.html decided it, so
+    // shell state agrees with what the document is already painting. The
+    // chrome owns it from here and writes every later switch back.
     theme: preferredTheme(),
   },
-  // The Faro adapter is the real path; this test shell has no collector to send
-  // to, so it records unless one is configured. Both satisfy the same seam,
-  // which is the point of the seam.
-  telemetryProvider: telemetryProvider(),
+  telemetryProvider: telemetry,
   navigationBridge: createBrowserNavigationBridge(),
-  // Stable across a reload, fresh for a new tab — the same lifetime as the
-  // session-retained data it fences.
-  sessionGeneration: sessionGeneration(user.id),
-  ...(storage === undefined ? {} : { overrideStorage: storage }),
+  diagnostics,
+  ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
   notifyCommandDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })
 

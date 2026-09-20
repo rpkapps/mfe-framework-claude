@@ -539,3 +539,45 @@ describe('optional descriptor fields', () => {
     expect(acceptedEntry(registry, 'reports').hidden).toBeUndefined()
   })
 })
+
+/**
+ * The build a container came from is the "which build?" a bug report is
+ * otherwise written without. It reaches the registry from the container's own
+ * descriptor, so it is validated exactly as loosely as it is trusted: never
+ * gating the entry, never passed on as something it is not.
+ */
+describe('build provenance', () => {
+  it('carries the hash and the time through to the neutral entry', () => {
+    const registry = normalize([
+      advertisedEntry({ build: { hash: '1e485caec528f7fa', time: '2026-09-20T19:10:41.398Z' } }),
+    ])
+
+    expect(acceptedEntry(registry, 'reports').build).toEqual({
+      hash: '1e485caec528f7fa',
+      time: '2026-09-20T19:10:41.398Z',
+    })
+  })
+
+  it('carries a half-published build rather than losing the half that is there', () => {
+    const registry = normalize([advertisedEntry({ build: { hash: '1e485caec528f7fa' } })])
+
+    expect(acceptedEntry(registry, 'reports').build).toEqual({ hash: '1e485caec528f7fa' })
+  })
+
+  it('accepts an entry that names no build at all', () => {
+    const registry = normalize([advertisedEntry()])
+
+    expect(acceptedEntry(registry, 'reports').build).toBeUndefined()
+  })
+
+  it('drops a build it cannot read instead of failing the entry over it', () => {
+    const registry = normalize([
+      advertisedEntry({ build: 'yesterday' }),
+      advertisedEntry({ id: 'billing', build: { hash: 42 } }),
+    ])
+
+    expect(acceptedEntry(registry, 'reports').build).toBeUndefined()
+    expect(acceptedEntry(registry, 'billing').build).toBeUndefined()
+    expect(registry.quarantined).toEqual([])
+  })
+})

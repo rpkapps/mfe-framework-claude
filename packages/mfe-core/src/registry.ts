@@ -5,7 +5,12 @@
  * of a compatibility vocabulary it would otherwise carry forever.
  */
 
-import type { CapabilityDescriptor, DefinitionKind, PublishedWidgetContract } from './definition.ts'
+import type {
+  BuildProvenance,
+  CapabilityDescriptor,
+  DefinitionKind,
+  PublishedWidgetContract,
+} from './definition.ts'
 
 /** Which adapter mounts an entry. Extending this is a table entry. */
 export type AdapterKind = 'react' | 'legacy-angular'
@@ -24,6 +29,13 @@ export interface NeutralRegistryEntry {
    * catalogue and collect its inputs before the container is ever fetched.
    */
   readonly contract?: PublishedWidgetContract
+  /**
+   * Which build of the container this entry came from, when its descriptor
+   * carried one. It is the answer to "which build" in a bug report, and the
+   * registry is the only place a host can read it without loading the
+   * container — which is exactly the situation a report is written in.
+   */
+  readonly build?: BuildProvenance
   /** Excluded from catalog and finder views. Not a security boundary. */
   readonly hidden?: boolean
   readonly title?: string

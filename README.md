@@ -102,6 +102,9 @@ order to ask for the inputs at all — the schema, and the event names — is
 published by the Widget's build into the registry, which is how the shell's
 dashboard renders a form for a Widget it has never imported.
 
+A host that knows those names only as strings takes every event through
+`DynamicWidget`'s `onEvent(name, payload)` instead, alongside any `onX` props.
+
 ### One thing to know before you store anything
 
 `useStoredState` takes a `retention`, and it decides **who can read the value
@@ -122,6 +125,37 @@ never for anything derived from a user's data.
 
 The default is the safe one, so the only way to leak state between users is to
 ask for it.
+
+State the **host page** owns rather than any definition on it — a theme, a
+composed dashboard — goes in the reserved `@host` scope, which `useStoredState`
+binds when called outside a mount.
+
+---
+
+## If you are writing the host
+
+A shell is the one consumer that reads the registry instead of being listed in
+it. What it gets is deliberately small, and never anything renderable: the icon,
+the fallback title and the tone that marks an override stay the host's.
+
+| You need                             | What there is                                                                            |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| to list what the registry holds      | `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`               |
+| to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                          |
+| where an App keeps a capability page | `capabilityRoute(entry, name)`                                                           |
+| what a Widget takes                  | `describeWidgetInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
+| to store what the page owns          | `useStoredState` outside a mount, or `bindHost` / `hostStorage`                          |
+| to register the page's own commands  | `useCommand` outside a mount, or `CommandRegistry.registerHost`                          |
+| the share scope for the host's build | `hostShared({ root })`, from `@company/mfe-rspack/federation`                            |
+
+Chrome rendered above every mount is a first-class caller: `useTheme`,
+`useUser`, `useGroups`, `useBreadcrumbs`, `useCommand` and `useStoredState` all
+work outside one, given an `MfeProvider` above them, resolving to `@host` when
+they register or store. So the shell needs no store of its own before the
+runtime: `createMfeRuntime` builds one, establishes the first session
+generation for the identity in `shellState`, and adopts an existing
+`diagnostics` hub — `new DiagnosticsHub([telemetryDiagnosticsSink(provider)])`
+— that `installShellAuth` can already report into.
 
 ---
 
@@ -202,8 +236,10 @@ when generated output looks stale.
 dev servers, with real ids and real URLs. Changing an override requires a page
 reload: the old container's modules are already registered in the federation
 runtime under the same name, and its chunks and stylesheets are document-level,
-so disposing a mount touches none of that. The shell shows a visible indicator
-while any override is active.
+so disposing a mount touches none of that. Nothing on the page says an override
+is active unless the developer tools are on, where the trigger carries a mark
+and the Overrides tab names each one; the bug report carries them either way
+(`docs/decisions.md` §23).
 
 `pnpm dev` also starts a small stand-in API on port 3010, because a container
 whose requests all fail demonstrates nothing about the request boundary — the

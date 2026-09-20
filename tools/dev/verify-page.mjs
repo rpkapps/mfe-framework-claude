@@ -64,8 +64,14 @@ const PAGES = [
     // from a form generated out of that Widget's published schema.
     url: '/',
     async prepare(page) {
+      // The canvas has to start empty, or a layout left by an earlier run
+      // already holds the Widget this page is about to add. It lives in the
+      // framework store now, under the reserved host scope — the physical key
+      // is `@host:dashboard`, not the shell's old hand-rolled
+      // `company:shell:dashboard`. Removing the whole record is right: the
+      // store reads a missing key as the declared default, an empty canvas.
       await page.evaluate(() => {
-        localStorage.removeItem('company:shell:dashboard')
+        localStorage.removeItem('@host:dashboard')
       })
       await page.reload({ waitUntil: 'load' })
       await page.waitForTimeout(3000)

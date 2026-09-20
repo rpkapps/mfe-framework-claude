@@ -104,6 +104,17 @@ export function lazyWidget(
  */
 export interface DynamicWidgetProps extends LazyWidgetProps<undefined> {
   readonly widgetId: string
+  /**
+   * Every event this Widget declares, delivered by name. For the consumer that
+   * cannot write an `onX` prop because it knows the events only as strings read
+   * from a published contract; subscribing then meant rebuilding the
+   * framework's own `on` + capitalized-name mapping in the host.
+   *
+   * Deliberately not on `lazyWidget`, where a contract makes every event a
+   * typed prop and a catch-all would only be a weaker second way to say it. An
+   * event with its own `onX` prop reaches both.
+   */
+  readonly onEvent?: (name: string, payload: unknown) => void
 }
 
 export function DynamicWidget({ widgetId, ...props }: DynamicWidgetProps): ReactNode {
@@ -188,7 +199,8 @@ function WidgetLoader({
   )
 
   // Event names come from the provider's own contract, so a consumer without a
-  // runtime contract still gets its `onX` props routed correctly.
+  // runtime contract still gets its `onX` props — and its catch-all — routed
+  // correctly.
   const { inputs, handlers } = partitionWidgetProps(props, declaredEventNames(definition.contract))
 
   // The one render before the effect has built the mount.

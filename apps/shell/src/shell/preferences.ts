@@ -1,20 +1,19 @@
 /**
  * The shell's own preferences, and where they are kept.
  *
- * The theme is the shell's to own: one page, one document class, one value
- * published to every mount. It cannot go through the framework's storage for
- * the same reason the dashboard layout cannot — that storage is scoped to a
- * definition and retired when the session changes, and the theme belongs to
- * none of the definitions on the page and should survive a sign-out.
+ * The theme is written raw — the bare string `"light"` or `"dark"` under the
+ * bare key `theme` — because the legacy Angular applications read
+ * `localStorage["theme"]` directly and can be taught no other key or shape.
+ * The framework's store writes an envelope under a scoped key, so this one
+ * value stays outside it deliberately (§24).
  *
- * A stored value is untrusted: it was written by an older build or edited by
- * hand. Anything unreadable is treated as absent rather than trusted into the
- * document.
+ * A stored value is untrusted, so anything unreadable is treated as absent.
  */
 
 export type ShellTheme = 'light' | 'dark'
 
-const THEME_KEY = 'company:shell:theme'
+/** Exactly what the legacy applications read. Never `@host:theme`. */
+const THEME_KEY = 'theme'
 
 /** The theme the document starts in when nothing was ever chosen. */
 export const DEFAULT_THEME: ShellTheme = 'dark'
@@ -47,8 +46,8 @@ export function writeTheme(theme: ShellTheme): void {
 
 /**
  * What the document should boot in: the stored choice, then the operating
- * system's, then the default. Kept here rather than in the inline script so
- * both agree on the order — the script exists only to apply it before paint.
+ * system's, then the default — the order the inline script applies before
+ * paint, kept here too so the two cannot disagree about it.
  */
 export function preferredTheme(): ShellTheme {
   const stored = readTheme()

@@ -13,6 +13,7 @@ import {
   DEFAULT_SCHEMA_VERSION,
   describeThrown,
   describeValue,
+  HOST_SCOPE,
   isStorageEnvelope,
   KeyedListeners,
   physicalStorageKey,
@@ -340,6 +341,27 @@ export class MfeStorageStore {
   ): BoundStorageKey<T>
   bind<T>(definitionId: string, declaration: StorageKeyBinding<T>): BoundStorageKey<T | null>
   bind<T>(definitionId: string, declaration: StorageKeyBinding<T>): BoundStorageKey<T | null> {
+    this.#assertDefinitionScope(definitionId, 'bind a storage key')
+    return this.#bind(definitionId, declaration)
+  }
+
+  /**
+   * The same binding, in the reserved host scope: state the page owns rather
+   * than any definition on it. Declared exactly like a definition's key, and
+   * everything the store does for one it does for this — the envelope, the
+   * schema in both directions, versioning, the structured failure when the
+   * store is blocked, the `storage` events another tab raises.
+   *
+   * There is no mount to hang it off, so this is the one binding a host
+   * component can make; `useStoredState` called outside a mount binds here.
+   */
+  bindHost<T>(declaration: StorageKeyBinding<T> & { readonly defaultValue: T }): BoundStorageKey<T>
+  bindHost<T>(declaration: StorageKeyBinding<T>): BoundStorageKey<T | null>
+  bindHost<T>(declaration: StorageKeyBinding<T>): BoundStorageKey<T | null> {
+    return this.#bind(HOST_SCOPE, declaration)
+  }
+
+  #bind<T>(definitionId: string, declaration: StorageKeyBinding<T>): BoundStorageKey<T | null> {
     this.#assertUsable('bind a storage key')
     const resolved = this.#resolveDeclaration(definitionId, declaration)
     const entry = this.#acquireEntry(definitionId, resolved)
@@ -369,6 +391,20 @@ export class MfeStorageStore {
 
   /** The imperative surface. A write through it notifies the key's subscribers. */
   storageFor(definitionId: string, area: StorageArea = DEFAULT_AREA): MfeStorage {
+    this.#assertDefinitionScope(definitionId, 'open the storage surface')
+    return this.#storageFor(definitionId, area)
+  }
+
+  /**
+   * The same imperative surface for the reserved host scope. `bindHost` is what
+   * a React host uses through `useStoredState`; this is for a host that has no
+   * component to hang a binding off — a boot script, or a non-React shell.
+   */
+  hostStorage(area: StorageArea = DEFAULT_AREA): MfeStorage {
+    return this.#storageFor(HOST_SCOPE, area)
+  }
+
+  #storageFor(definitionId: string, area: StorageArea): MfeStorage {
     return {
       key: <T>(
         name: string,
@@ -379,7 +415,7 @@ export class MfeStorageStore {
         this.#imperativeRemove(definitionId, area, name)
       },
       clear: (): void => {
-        this.clearDefinition(definitionId, area)
+        this.#clearScope(definitionId, area)
       },
     }
   }
@@ -389,6 +425,11 @@ export class MfeStorageStore {
    * `acme-orders-legacy:`, the shell's keys, or a third party's.
    */
   clearDefinition(definitionId: string, area?: StorageArea): number {
+    this.#assertDefinitionScope(definitionId, 'clear storage')
+    return this.#clearScope(definitionId, area)
+  }
+
+  #clearScope(definitionId: string, area?: StorageArea): number {
     this.#assertUsable('clear storage')
     const areas = area === undefined ? AREAS : [area]
     const prefix = storagePrefix(definitionId)
@@ -960,15 +1001,21 @@ export class MfeStorageStore {
     return error
   }
 
+  /**
+   * A failure of the store itself rather than of one definition's key. Its
+   * subject is the host page, so it is named by the reserved host scope — the
+   * same id a host-owned record's failure carries — rather than by a made-up
+   * `'shell'`, which a definition could also be called.
+   */
   #failStore(operation: string, detail: Detail): MfeError {
-    const error = createMfeError({ ...detail, code: 'storage/failure', id: 'shell', operation })
+    const error = createMfeError({ ...detail, code: 'storage/failure', id: HOST_SCOPE, operation })
     this.#diagnostics?.report(error, { severity: 'error', context: { operation } })
     return error
   }
 
   #warn(operation: string, cause: unknown, detail: Detail): void {
     this.#diagnostics?.report(
-      toMfeError(cause, { ...detail, code: 'storage/failure', id: 'shell', operation }),
+      toMfeError(cause, { ...detail, code: 'storage/failure', id: HOST_SCOPE, operation }),
       { severity: 'warning', context: { operation } },
     )
   }
@@ -977,6 +1024,21 @@ export class MfeStorageStore {
     this.#warn(`invalidate session records in ${area} storage`, cause, {
       expected: `${area} storage to be readable and writable`,
       repair: 'A record that could not be removed stays fenced off by the generation.',
+    })
+  }
+
+  /**
+   * What makes the host scope reserved rather than conventional: one way in, so
+   * "this record belongs to the page" is declared at the call site instead of
+   * inferred from an id somebody chose.
+   */
+  #assertDefinitionScope(definitionId: string, operation: string): void {
+    if (definitionId !== HOST_SCOPE) return
+    throw this.#failStore(operation, {
+      expected: 'a definition id',
+      observed: `the reserved host scope '${HOST_SCOPE}'`,
+      repair:
+        'Use bindHost() or hostStorage() for state the host page owns; they reach the same scope deliberately.',
     })
   }
 

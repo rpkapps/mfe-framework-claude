@@ -134,9 +134,11 @@ function printConnectionInstructions(services) {
   console.log(`localStorage.setItem(key, JSON.stringify(overrides))`)
   console.log(`location.reload()\n`)
 
-  console.log(`${DIM}The shell shows an indicator while any override is active.${RESET}`)
   console.log(
-    `${DIM}It never carries tokens or configuration: the override is a URL only.${RESET}\n`,
+    `${DIM}The developer tools list every active override, and mark an overridden entry in the registry.${RESET}`,
+  )
+  console.log(
+    `${DIM}An override never carries tokens or configuration: it is a URL only.${RESET}\n`,
   )
 }
 

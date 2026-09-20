@@ -6,6 +6,7 @@
  */
 
 import { createMfeError, type MfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { capabilityRoute } from '@company/mfe-host'
 
 /**
  * The patterns the shell serves for legacy apps, in evaluation order. Order is
@@ -187,11 +188,20 @@ export type ReleaseNotesRoute =
   | { readonly kind: 'app-capability'; readonly path: string }
   | { readonly kind: 'legacy-sibling'; readonly url: string }
 
+/**
+ * Only the second branch is this package's. Reading a capability off an entry
+ * is a neutral registry question the host answers for every App, migrated or
+ * not, and it was answered here only because this was the first surface that
+ * needed it — which meant deleting the legacy adapter would have taken the
+ * capability with it. What is legacy is the fallback: a document published
+ * beside the container manifest, which stays for every app that has not
+ * migrated.
+ */
 export function selectReleaseNotesRoute(
   entry: NeutralRegistryEntry,
   options: { readonly base?: string | undefined } = {},
 ): ReleaseNotesRoute {
-  const capability = entry.capabilities?.find(candidate => candidate.name === 'releaseNotes')
-  if (capability) return { kind: 'app-capability', path: capability.path }
+  const path = capabilityRoute(entry, 'releaseNotes')
+  if (path !== undefined) return { kind: 'app-capability', path }
   return { kind: 'legacy-sibling', url: resolveLegacyReleaseNotesUrl(entry.manifestUrl, options) }
 }

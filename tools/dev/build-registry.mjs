@@ -57,6 +57,11 @@ function entriesFor(descriptor, presentation, origin) {
       // form from this before anything is loaded, so it has to be in the
       // registry rather than behind a container fetch.
       ...(definition.contract === undefined ? {} : { contract: definition.contract }),
+      // Which build this came from. It belongs to the container rather than to
+      // any one definition it exports, so every entry from that descriptor
+      // repeats it — a report names the build behind the surface that broke,
+      // and the shell has no other way to reach it without loading the thing.
+      ...(descriptor.build === undefined ? {} : { build: descriptor.build }),
       ...(presentation[definition.id] ?? {}),
     }
   })

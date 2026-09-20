@@ -15,10 +15,13 @@
  * Pure, and separate from the component, because reading a published JSON
  * Schema is the part with edge cases: `properties` may be absent, `required`
  * may be any JSON value at all, and neither can be trusted to be an object
- * just because the entry validated.
+ * just because the entry validated. Those edge cases are the framework's to
+ * know — `describeWidgetInputs` is the one reader of the format the build
+ * emits, and a second walk here is how this panel and the shell's dashboard
+ * came to disagree about what a published schema says.
  */
 
-import type { NeutralRegistryEntry } from '@company/mfe-react'
+import { describeWidgetInputs, type NeutralRegistryEntry } from '@company/mfe-react'
 
 export interface EntryFact {
   readonly label: string
@@ -59,18 +62,14 @@ export function factsOf(entry: NeutralRegistryEntry): readonly EntryFact[] {
  * TypeScript's mark rather than a second colour or a legend: everybody reading
  * this has spent the morning in a `.d.ts`, and it costs one character where a
  * badge would cost a row.
+ *
+ * A Widget that published no readable schema has no names to show, which is the
+ * same empty row as one that takes nothing — the distinction matters where
+ * inputs are collected, and this panel only lists what is there.
  */
 function inputNames(entry: NeutralRegistryEntry): readonly string[] {
-  const inputs = entry.contract?.inputs
-  if (inputs === undefined) return []
+  const fields = describeWidgetInputs(entry.contract)
+  if (fields === null) return []
 
-  const properties = inputs['properties']
-  if (properties === null || typeof properties !== 'object' || Array.isArray(properties)) return []
-
-  const required = inputs['required']
-  const isRequired = new Set(
-    Array.isArray(required) ? required.filter(name => typeof name === 'string') : [],
-  )
-
-  return Object.keys(properties).map(name => (isRequired.has(name) ? name : `${name}?`))
+  return fields.map(field => (field.required ? field.name : `${field.name}?`))
 }

@@ -11,6 +11,7 @@ import {
   isCapabilityName,
   isSupportedContractMajor,
   type AdapterSelectionRule,
+  type BuildProvenance,
   type CapabilityDescriptor,
   type CapabilityIconRef,
   type JsonSchemaObject,
@@ -32,6 +33,7 @@ interface AdvertisedEntry {
   readonly title?: unknown
   readonly icon?: unknown
   readonly contract?: unknown
+  readonly build?: unknown
 }
 
 /** Every descriptor failure has the same fix, so the sentence is written once. */
@@ -198,6 +200,29 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
   }
 }
 
+/**
+ * Which build the container came from.
+ *
+ * Carried rather than checked: a shell reads it to say which build a page was
+ * running when something went wrong, and a report that cannot name the build is
+ * the one that costs an engineer a day. It gates nothing, so a container that
+ * publishes a malformed `build` still loads — but the field is dropped rather
+ * than passed on, because a hash that is not a string would reach a bug report
+ * as `[object Object]` and be believed.
+ */
+function readBuildProvenance(value: unknown): BuildProvenance | undefined {
+  if (!isRecord(value)) return undefined
+
+  const hash = value['hash']
+  const time = value['time']
+  if (typeof hash !== 'string' && typeof time !== 'string') return undefined
+
+  return {
+    ...(typeof hash === 'string' ? { hash } : {}),
+    ...(typeof time === 'string' ? { time } : {}),
+  }
+}
+
 /** The adapter kind is a parameter, so a second authoring adapter is a table entry. */
 export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelectionRule {
   return {
@@ -258,6 +283,8 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         })
       }
 
+      const build = readBuildProvenance(entry.build)
+
       const capabilities = readCapabilities(id, entry.capabilities)
       if (capabilities && entry.kind === 'widget') {
         fail(id, {
@@ -293,6 +320,7 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         ...(typeof entry.version === 'string' ? { version: entry.version } : {}),
         ...(capabilities ? { capabilities } : {}),
         ...(contract ? { contract } : {}),
+        ...(build ? { build } : {}),
         ...(entry.hidden === true ? { hidden: true } : {}),
         ...(typeof entry.title === 'string' ? { title: entry.title } : {}),
         ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),

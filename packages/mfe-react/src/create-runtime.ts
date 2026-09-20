@@ -24,6 +24,8 @@ import {
   createBrowserNavigationBridge,
   createMfeContractRule,
   createMountTelemetry,
+  establishSessionGeneration,
+  mintSessionGeneration,
   normalizeRegistry,
   MfeStorageStore,
   findConflictingContainerOverrides,
@@ -49,9 +51,22 @@ export interface CreateRuntimeOptions {
   readonly telemetryProvider: TelemetryProvider
   readonly navigationBridge?: NavigationBridge
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
+  /**
+   * An existing hub to report into, rather than one made here. A shell that
+   * wires anything before this call needs the hub to exist first, and a second
+   * hub made here would mean half the framework's diagnostics never reach the
+   * sink it wired. The hub stays the caller's: `dispose()` removes only the
+   * sinks it added.
+   */
+  readonly diagnostics?: DiagnosticsHub
   readonly deadlines?: Partial<DeadlineConfig>
   readonly notifyCommandDenial?: CommandDenialNotifier
-  /** Opaque, stable for a continuous session across reloads. */
+  /**
+   * Opaque, stable for a continuous session across reloads. Omit it and this
+   * call establishes one for the identity in `shellState`, which is what every
+   * `retention: 'user'` record is fenced by; a shell that coordinates several
+   * tabs supplies its own instead.
+   */
   readonly sessionGeneration?: string
   /**
    * Mints the generation for a new session. It must never repeat a previous
@@ -70,6 +85,9 @@ export interface MfeRuntimeHandle {
   readonly activeOverrides: ReadonlyMap<string, string>
   dispose(): void
 }
+
+/** A page with nobody signed in still fences its own session-retained writes. */
+const ANONYMOUS_IDENTITY = '@anonymous'
 
 /**
  * Definition id → container name, read from the descriptors as published. The
@@ -91,8 +109,9 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
 }
 
 export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandle {
-  const diagnostics = new DiagnosticsHub()
-  for (const sink of options.diagnosticsSinks ?? []) diagnostics.add(sink)
+  const ownsDiagnostics = options.diagnostics === undefined
+  const diagnostics = options.diagnostics ?? new DiagnosticsHub()
+  const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
   // Read before anything is registered, so an overridden entry already points at
   // the developer's dev server the first time it loads.
@@ -128,12 +147,21 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
   }
 
   const shellState = new ShellStateStore(options.shellState)
+  const nextGeneration = options.nextSessionGeneration ?? mintSessionGeneration
   const storage = new MfeStorageStore({
     diagnostics,
     ...(options.sessionGeneration === undefined
       ? {}
       : { sessionGeneration: options.sessionGeneration }),
   })
+  if (options.sessionGeneration === undefined) {
+    // The one already in force for this identity in this tab, or a fresh one.
+    // Identity is opaque and compared for equality, never parsed, so a page
+    // nobody is signed in to still gets a generation of its own.
+    establishSessionGeneration(storage, shellState.getUser()?.id ?? ANONYMOUS_IDENTITY, {
+      mint: nextGeneration,
+    })
+  }
 
   const commands = new CommandRegistry({
     diagnostics,
@@ -146,8 +174,6 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     bridge: options.navigationBridge ?? createBrowserNavigationBridge(),
     diagnostics,
   })
-
-  const nextGeneration = options.nextSessionGeneration ?? defaultSessionGeneration
 
   // An identity or semantic group change retires persisted session state before
   // any new-session value can be read back. The new generation is what fences
@@ -187,7 +213,8 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
       navigator.clearBlockers()
       storage.dispose()
       shellState.dispose()
-      diagnostics.clear()
+      if (ownsDiagnostics) diagnostics.clear()
+      else for (const remove of removeSinks) remove()
     },
   }
 }
@@ -328,14 +355,4 @@ export function useOwnedMount(
   )
 
   return handle?.mount ?? null
-}
-
-/** The counter fallback keeps non-secure contexts working; uniqueness per document is enough. */
-let generationCounter = 0
-function defaultSessionGeneration(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  generationCounter += 1
-  return `session-${Date.now()}-${generationCounter}`
 }

@@ -51,7 +51,7 @@ wherever you already are and dismissed back to it.
 
 | Surface         | Opened by                  | What it is                                                                                 |
 | --------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
-| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, the shell's own commands, the mounted App's      |
+| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered command, host or mount      |
 | Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the descriptor as published    |
 | Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
 | Help            | the question mark, `?`     | what the pieces of the page are, and the live shortcut registry                            |
@@ -67,15 +67,32 @@ callbacks threaded down from the layout, which is what lets the palette open
 settings and settings open the registry without either knowing where the other
 lives.
 
+The shell's own commands are registered through `runtime.commands.registerHost`,
+so the palette renders one snapshot that holds the mounted App's as well. One
+table in `palette.tsx` says what each of the shell's commands is called, what is
+drawn beside it, whether it may run and what it does.
+
 ### The theme
 
-The shell owns it: one document class, one value published to every mount
-through the shell state. It is remembered in `localStorage` under the shell's
-own key — not through the framework's storage, which is scoped to a definition
-and retired on a session change, and the theme belongs to none of the
-definitions on the page and should survive a sign-out. An inline script in
-`index.html` applies the same choice before first paint, so a light-theme user
-never sees the document boot dark and flip.
+The shell owns it, and `runtime.shellState` holds it: every switch — the account
+menu, settings, the palette, `⌘J` — is a `shellState.apply({ theme })`, and the
+chrome, a mounted App and the design system's `Toaster` all read that one value
+back through the framework's `useTheme()`. One effect in `chrome.tsx` applies
+it: the `dark` class on `<html>`, `colorScheme`, and `writeTheme`.
+
+It is deliberately **not** a framework record. The legacy Angular applications
+read `localStorage["theme"]` directly as the bare string `light` or `dark`, so
+the shell writes exactly that key with exactly that value — the store would
+write an envelope under `@host:theme`, which is neither. `preferences.ts` is the
+one file that reads and writes it (`readTheme`, `writeTheme`, `preferredTheme`),
+and the one raw-storage exemption that survives the host scope
+(`docs/decisions.md` §24). Nothing is migrated from `company:shell:theme`.
+
+The inline script in `index.html` reads the same bare key before first paint, so
+a light-theme user never sees the document boot dark and flip. It takes only
+`light` or `dark` and otherwise falls back to `prefers-color-scheme`, then dark
+— the order `preferredTheme()` uses to decide the theme `createMfeRuntime` is
+given, so the class on `<html>` and the shell state agree.
 
 ### Navigation an App can refuse
 
@@ -99,12 +116,26 @@ thing a page is allowed to show there.
 three things about each one, all of them read from the registry: an id, an
 input schema and a list of event names. Drag a Widget from the catalogue onto
 the canvas — or press its Add button, which is the same thing without a pointer
-— and a dialog asks for its inputs, with every control generated from the
-schema that Widget's own build published. Tiles are reorderable, resizable and
-saved in `localStorage`, and everything the Widgets emit appears in the activity
-feed beside them — as named fields, because a Widget's event payload is the half
-of its contract a screenshot cannot show and `{"fdaId":"fda-1-02"}` is not
-something anyone should have to parse by eye.
+— and a dialog asks for its inputs.
+
+The form is generated over the framework's reflection of that published schema
+(`describeWidgetInputs`, with `needsInputPrompt` deciding whether to ask at
+all); which control each field becomes is this shell's, in
+`dashboard/input-schema.ts`, and a field the build could not describe gets a raw
+JSON box.
+
+Tiles are reorderable, resizable and kept at `@host:dashboard`, `retention:
+'browser'`, so a sign-out does not throw away a canvas somebody composed. The
+page, settings and the palette all read it through one `useDashboardLayout()`
+hook over `useStoredState`, so they bind the same record and stay in step
+without a store of the shell's own. The old `company:shell:dashboard` key is not
+migrated.
+
+Everything the Widgets emit appears in the activity feed beside them, subscribed
+through `DynamicWidget`'s `onEvent` since the shell knows these events only as
+strings — as named fields, because a Widget's event payload is the half of its
+contract a screenshot cannot show and `{"fdaId":"fda-1-02"}` is not something
+anyone should have to parse by eye.
 
 A mounting tile reserves its room with a skeleton rather than a spinner: a
 container arriving used to resize its tile and move every tile below it, and a
@@ -117,7 +148,12 @@ Adding a Widget to this dashboard is a registry change, not a shell release.
 `public/registry.json` is generated by `tools/dev/build-registry.mjs` from each
 container's own `.mfe/mfe-registry.json`, and fetched at boot. It is handed to
 `createMfeRuntime` raw: the runtime normalizes it, applies developer overrides
-and quarantines whatever fails validation.
+and quarantines whatever fails validation. Each entry also carries the build its
+container was produced from, which is what the bug report lists a line of.
+`boot.tsx` supplies the runtime's diagnostics hub, built with
+`telemetryDiagnosticsSink(telemetry)` so framework diagnostics reach the
+telemetry provider and `installShellAuth` can report into it before the runtime
+exists (`docs/decisions.md` §25).
 
 Nobody hand-writes it. The two things the shell genuinely owns are in
 `registry.source.json`: how an entry is presented in the chrome, and the
@@ -176,7 +212,8 @@ dead dev server is the failure worth making impossible to miss. That strip was
 removed deliberately — see `docs/decisions.md` §23 — and the cost is real: with
 the tools switched off, nothing on the page says an override is applied. The
 bug report still carries them, so a report written from a page with one is not
-silent about it.
+silent about it, and it names the build behind each registry entry as well —
+one line each, because every surface on the page was built separately.
 
 ## Consuming @tecton/react
 
@@ -236,18 +273,26 @@ The shell is the federation **host**: it consumes remotes and is not itself a
 container, so it does not use `pluginMfe()` from `@company/mfe-rspack`. It
 declares no static remotes — each is registered at runtime by the framework's
 loader, which is handed `registerRemotes` and `loadRemote` in `src/boot.tsx`,
-the one file that knows federation exists. `react`, `react-dom`, `sonner`,
+the one file that knows federation exists.
+
+The share scope is the one part of this build every container also has, so
+`rsbuild.config.ts` asks the build package for it (`docs/decisions.md` §27):
+
+```ts
+shared: hostShared({ root: here }) // @company/mfe-rspack/federation
+```
+
+Against this install it resolves `react`, `react-dom`, `sonner`,
 `@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`,
-`@tanstack/react-router` and `@tanstack/react-query` are shared as strict
+`@tanstack/react-router` and `@tanstack/react-query` as strict
 singletons, each holding module state a second copy would duplicate, so a
 remote that resolves its own is an error; `@tecton/react/` — a prefix share,
 since the package has no root export, with an explicit `version` because
 Module Federation cannot infer one for a prefix — and
-`react-aria-components` are shared without `singleton`, so a container may run
+`react-aria-components` without `singleton`, so a container may run
 its own version. The design system's half of that list comes from
-`@tecton/react/federation/shared`, which the build plugin
-(`packages/mfe-rspack/src/federation/sharing.ts`) reads too; the versions come
-from this install.
+`@tecton/react/federation/shared`, which the build plugin reads too;
+`@company/mfe-core` is in it although this shell never declares it.
 
 ## Hot updates
 

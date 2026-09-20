@@ -19,7 +19,7 @@ import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   AppShellBrand,
   AppShellHeader,
-  AppShellHeaderActions,
+  AppShellActions,
   AppShellNav,
 } from '@tecton/react/tecton/app-shell'
 import { CountBadge } from '@tecton/react/tecton/count-badge'
@@ -51,7 +51,7 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
           </Button>
         ))}
       </AppShellNav>
-      <AppShellHeaderActions className="gap-2">
+      <AppShellActions className="gap-2">
         <InputGroup className="hidden h-8 w-56 lg:flex" aria-label="Search project">
           <InputGroupInput placeholder="Search…" className="h-8 text-sm" />
           <InputGroupAddon align="inline-start">
@@ -65,7 +65,7 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
           </InputGroupAddon>
         </InputGroup>
         <TooltipTrigger>
-          <CountBadge count={project.unreadNotifications} color="error">
+          <CountBadge count={project.unreadNotifications} color="destructive">
             <Button variant="ghost" size="icon-sm" aria-label="Notifications">
               <BellIcon />
             </Button>
@@ -103,7 +103,7 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
             </DropdownMenuItem>
           </DropdownMenu>
         </DropdownMenuTrigger>
-      </AppShellHeaderActions>
+      </AppShellActions>
     </AppShellHeader>
   )
 }

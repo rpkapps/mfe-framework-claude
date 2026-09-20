@@ -48,6 +48,7 @@ export {
 
 export {
   BoundaryNavigator,
+  boundaryDefinitionId,
   createBrowserNavigationBridge,
   createNavigationIntent,
   parseBoundaryLocation,
@@ -84,3 +85,24 @@ export type {
   TelemetryRecord,
   Tracer,
 } from '@company/mfe-core'
+
+/**
+ * The diagnostics hub, for the same reason the provider contract is named
+ * above: a shell depends on this package rather than on core, and the hub is
+ * what a shell has to construct itself when auth and the runtime are to share
+ * one — `installShellAuth` is called before `createMfeRuntime` exists to make
+ * one, so a hub created inside the runtime is a hub auth never reaches.
+ */
+export {
+  DiagnosticsHub,
+  type Diagnostic,
+  type DiagnosticSeverity,
+  type DiagnosticsSink,
+} from '@company/mfe-core'
+
+/**
+ * Resolving an App's capability page to a route. Appended as its own block
+ * rather than beside the registry exports above, so a concurrent edit to that
+ * block and this one cannot collide.
+ */
+export { capabilityRoute } from './registry/capability-route.ts'

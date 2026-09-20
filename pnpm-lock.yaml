@@ -264,6 +264,9 @@ importers:
       '@company/eslint-plugin-mfe':
         specifier: workspace:*
         version: link:../../packages/eslint-plugin-mfe
+      '@company/mfe-rspack':
+        specifier: workspace:*
+        version: link:../../packages/mfe-rspack
       '@grafana/faro-web-sdk':
         specifier: ^2.11.0
         version: 2.11.0

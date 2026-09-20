@@ -372,13 +372,19 @@ describe('mount identity', () => {
 })
 
 describe('hooks outside a mount', () => {
-  it('names the hook and the repair rather than failing with a null context', () => {
+  /**
+   * Shell state is the runtime's, not a mount's, so reading it outside a mount
+   * is legitimate — the host publishes the theme and reads it back with the
+   * same hook its mounts use. What is not legitimate is reading it with no
+   * runtime at all, and the message names both ways to have one.
+   */
+  it('names both ways to reach a runtime rather than failing with a null context', () => {
     function Stray(): React.ReactNode {
       return <span>{useUser()?.name ?? 'none'}</span>
     }
 
     expect(() => render(<Stray />)).toThrowError(
-      /call useUser.*rendered outside any mount.*Move the useUser call/s,
+      /render useUser\(\).*an MfeProvider above this component, or an enclosing App or Widget mount.*MfeProvider runtime=/s,
     )
   })
 

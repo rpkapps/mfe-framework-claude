@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   allow,
   deny,
+  HOST_SCOPE,
   isMfeError,
   type CommandPlacement,
   type CommandRegistration,
@@ -422,7 +423,9 @@ describe('execution', () => {
     expect(result.status).toBe('unavailable')
     expect(records).toHaveLength(1)
     expect(records[0]?.severity).toBe('warning')
-    expect(records[0]?.error.message).toContain('unloaded or disposed')
+    // The text has to fit a host command as well as a mount's: either owner can
+    // go away between the palette's snapshot and the execute call.
+    expect(records[0]?.error.message).toContain('from a mount or from the host page')
   })
 
   it('reports a command from a disposed mount as unavailable', async () => {
@@ -523,5 +526,103 @@ describe('disposal', () => {
       status: 'unavailable',
     })
     expect(subscriber).not.toHaveBeenCalled()
+  })
+})
+
+describe('the host scope', () => {
+  it('publishes a host command qualified by the reserved scope', () => {
+    const { registry } = setup()
+
+    registry.registerHost(registration({ name: 'open-settings', label: 'Open settings' }))
+
+    expect(registry.getSnapshot()).toEqual([
+      {
+        id: '@host:open-settings',
+        definitionId: HOST_SCOPE,
+        name: 'open-settings',
+        label: 'Open settings',
+        placements: ['command-palette'],
+        decision: { allowed: true },
+      },
+    ])
+  })
+
+  it('rejects a duplicate name in the host scope, as it does within a mount', () => {
+    const { registry } = setup()
+    registry.registerHost(registration())
+
+    expect(() => registry.registerHost(registration())).toThrow(/one registration per command name/)
+    expect(registry.size).toBe(1)
+  })
+
+  /** A host command and a mount command can share a local name: the scope qualifies it. */
+  it('keeps a host command and a mount command of the same name apart', () => {
+    const { register, registry } = setup()
+
+    register()
+    registry.registerHost(registration())
+
+    expect(registry.getSnapshot().map(entry => entry.id)).toEqual([
+      'reports:refresh',
+      '@host:refresh',
+    ])
+  })
+
+  it('denies a host command through its own canExecute, with the reason it gave', async () => {
+    const { registry } = setup()
+    registry.registerHost(
+      registration({ name: 'clear', canExecute: () => deny('There is nothing on the canvas.') }),
+    )
+
+    const result = await registry.execute('@host:clear')
+
+    expect(result).toEqual({ status: 'denied', reason: 'There is nothing on the canvas.' })
+  })
+
+  /**
+   * The reason the host has a scope of its own rather than a made-up mount
+   * token: disposing a mount must not take the page's own commands with it.
+   */
+  it('keeps host commands when a mount is disposed', () => {
+    const { register, registry } = setup()
+    register(undefined, 'mount-1')
+    registry.registerHost(registration({ name: 'help' }))
+
+    registry.removeMount('mount-1')
+
+    expect(registry.getSnapshot().map(entry => entry.id)).toEqual(['@host:help'])
+  })
+
+  it('refuses the reserved scope from the mount path, and names the way in', () => {
+    const { registry } = setup()
+
+    expect(() => registry.register(HOST_SCOPE, 'mount-1', registration())).toThrow(/registerHost/)
+    expect(() => registry.register('reports', HOST_SCOPE, registration())).toThrow(/registerHost/)
+    expect(registry.size).toBe(0)
+  })
+
+  it('removes a host command when its handle is removed', () => {
+    const { registry } = setup()
+    const handle = registry.registerHost(registration())
+
+    handle.remove()
+
+    expect(registry.size).toBe(0)
+    expect(registry.getSnapshot()).toEqual([])
+  })
+
+  /**
+   * A host command outlives no mount, but it is still removed when the chrome
+   * that registered it unmounts — so `unavailable` has to read sensibly for it.
+   */
+  it('reports a removed host command as unavailable, without blaming a mount', async () => {
+    const { registry, records } = setup()
+    registry.registerHost(registration({ name: 'open-settings' })).remove()
+
+    const result = await registry.execute('@host:open-settings')
+
+    expect(result.status).toBe('unavailable')
+    expect(records[0]?.error.message).toContain('from a mount or from the host page')
+    expect(records[0]?.error.message).not.toContain('live mount')
   })
 })
