@@ -46,7 +46,6 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
@@ -54,6 +53,7 @@ import {
 import { ActionBar, ActionBarActions, ActionBarMessage } from '@tecton/react/tecton/action-bar'
 import {
   AppWindowIcon,
+  ArrowRightIcon,
   BoxIcon,
   LayersIcon,
   PencilIcon,
@@ -65,11 +65,28 @@ import {
 
 import { browserStorage } from '../browser-storage.ts'
 import { devtools, resolvedOverrides } from '../devtools-store.ts'
+import { OriginText } from './origin-text.tsx'
 import { conflictingContainers, manifestUrlFor, validateDraft } from './override-draft.ts'
 import { useActiveOverrides, useContainerLookup, useRegistryEntries } from './use-devtools.ts'
 
-/** What a row is: untouched, overridden at boot, or edited since. */
-type RowState = 'default' | 'overridden' | 'pending'
+/** What a row is: untouched, overridden at boot, edited since, or unusable. */
+type RowState = 'default' | 'overridden' | 'pending' | 'invalid'
+
+/**
+ * Columns, not rows stretched across the panel.
+ *
+ * A bottom dock on a wide monitor gave every row the full width: an id at the
+ * far left, a port at the far right, and a thousand pixels of nothing in
+ * between. No row background carries the eye that far, which is the same
+ * reason a table that wide needs rules. `auto-fill` holds each track between
+ * about 22rem and 44rem whatever the panel is doing, so width buys more rows on
+ * screen rather than longer ones — and `min(100%, …)` means a 320px left dock
+ * still gets one column, with no breakpoint anywhere.
+ *
+ * Tracks, not `auto-fit`: `auto-fit` collapses the empty ones, so two entries
+ * on a wide screen would stretch back to half the panel each.
+ */
+const ROW_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))]'
 
 /**
  * The left edge carries the state. A 2px rule the eye finds in a list of eight
@@ -80,12 +97,14 @@ const ROW_ACCENT: Readonly<Record<RowState, string>> = {
   default: '',
   overridden: 'border-l-2 border-l-warning bg-warning-surface/25',
   pending: 'border-l-2 border-l-info bg-info-surface/25',
+  invalid: 'border-l-2 border-l-destructive bg-destructive-surface/25',
 }
 
 const ROW_MEDIA: Readonly<Record<RowState, string>> = {
   default: 'text-muted-foreground',
   overridden: 'text-warning',
   pending: 'text-info',
+  invalid: 'text-destructive',
 }
 
 export function OverridesTab(): ReactNode {
@@ -112,7 +131,7 @@ export function OverridesTab(): ReactNode {
         <DevServerField origin={origin} onOriginChange={setOrigin} resolved={devServerUrl} />
 
         {entries.length === 0 ? (
-          <Empty>
+          <Empty className="max-w-3xl">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <LayersIcon />
@@ -125,12 +144,19 @@ export function OverridesTab(): ReactNode {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup>
+          <ItemGroup className={ROW_GRID}>
             {entries.map(entry => {
               const staged = draft.get(entry.id)
               const applied = inForce.get(entry.id)
+              const problem = problems.find(candidate => candidate.id === entry.id)?.message
               const state: RowState =
-                staged !== undefined ? 'pending' : applied === undefined ? 'default' : 'overridden'
+                problem !== undefined
+                  ? 'invalid'
+                  : staged !== undefined
+                    ? 'pending'
+                    : applied === undefined
+                      ? 'default'
+                      : 'overridden'
 
               return (
                 <OverrideRow
@@ -142,7 +168,7 @@ export function OverridesTab(): ReactNode {
                   staged={staged}
                   state={state}
                   devServerUrl={devServerUrl}
-                  problem={problems.find(problem => problem.id === entry.id)?.message}
+                  problem={problem}
                   isEditing={editing === entry.id}
                   onEdit={() => {
                     setEditing(entry.id)
@@ -157,7 +183,12 @@ export function OverridesTab(): ReactNode {
         )}
 
         {conflicts.map(conflict => (
-          <Alert key={conflict.container} variant="destructive" appearance="outline">
+          <Alert
+            key={conflict.container}
+            variant="destructive"
+            appearance="outline"
+            className="max-w-3xl"
+          >
             <TriangleAlertIcon />
             <AlertTitle>
               <span className="font-mono">{conflict.container}</span> cannot load from two URLs
@@ -175,6 +206,9 @@ export function OverridesTab(): ReactNode {
         pending={draft.size}
         inForce={inForce.size}
         canApply={canApply}
+        {...(problems[0] === undefined
+          ? {}
+          : { problem: `${problems[0].id}: ${problems[0].message}` })}
         onApply={() => {
           if (devtools.apply(browserStorage(), inForce)) window.location.reload()
         }}
@@ -210,7 +244,7 @@ function DevServerField({
    * with the input pushed into the right half. Inline, it is one row.
    */
   return (
-    <Field>
+    <Field className="max-w-md">
       <InputGroup>
         <InputGroupAddon align="inline-start">
           <ServerIcon />
@@ -227,7 +261,15 @@ function DevServerField({
           className="font-mono"
         />
       </InputGroup>
-      <FieldDescription className={isBad ? 'text-destructive' : 'truncate font-mono'}>
+      {/*
+       * The hint wraps and the URL truncates, which is not the same class list:
+       * a sentence under a capped field had its last clause cut off, and a
+       * resolved URL wrapped to a second line that moved every row below it.
+       */}
+      <FieldDescription
+        className={isBlank ? '' : isBad ? 'text-destructive' : 'truncate font-mono'}
+        {...(isBlank || isBad ? {} : { title: resolved })}
+      >
         {isBlank
           ? 'A port is enough — then “use” it on a row. Overrides apply on reload.'
           : isBad
@@ -272,32 +314,65 @@ function OverrideRow({
   readonly onDone: () => void
 }): ReactNode {
   const value = staged === undefined ? (applied ?? '') : (staged ?? '')
-  const showsInput = isEditing || state !== 'default'
   const Icon = isApp ? AppWindowIcon : BoxIcon
 
+  /*
+   * The box is the edit mode, and nothing else. Every overridden row used to
+   * carry one, which made a list of eight rows a wall of eight text boxes and
+   * said "type here" eight times over when the answer was already typed.
+   *
+   * An unusable value is the exception: leaving the row as text would hide the
+   * thing that has to be fixed behind a second click, so the box stays open
+   * until what is in it is a URL.
+   */
+  const showsInput = isEditing || problem !== undefined
+
+  /* What the row will point at once this is applied, and what that displaces. */
+  const effective = staged === undefined ? (applied ?? published) : (staged ?? published)
+  const replaces = staged === undefined ? undefined : (applied ?? published)
+
   return (
-    <Item variant="muted" size="xs" className={`group py-1.5 ${ROW_ACCENT[state]}`}>
+    <Item
+      variant="muted"
+      size="xs"
+      className={`group h-9 flex-nowrap py-0 ${ROW_ACCENT[state]}`}
+      /*
+       * Focus leaving the row ends the edit; moving around inside it does not.
+       * This sits on the row rather than on the input because pressing "use"
+       * moves focus to a button *beside* the input — with the check on the
+       * input, that press ended the edit before it landed, and with the input
+       * ignoring it the edit then never ended at all.
+       */
+      onBlur={event => {
+        const next = event.relatedTarget
+        if (next instanceof Node && event.currentTarget.contains(next)) return
+        onDone()
+      }}
+    >
       <ItemMedia variant="icon" className={ROW_MEDIA[state]}>
         <Icon />
       </ItemMedia>
 
       {/*
-       * One line. The id sits left, the origin right, and the path — the same
-       * `/mf-manifest.json` on every row — is dropped to the title attribute:
-       * eight repetitions of it was most of what made this list read as noise,
-       * and the port is the only part anyone is scanning for.
+       * One line, always, whatever state the row is in — a list whose rows
+       * change height as they change state cannot be scanned, and reads as
+       * damage rather than as information. The path is dropped to the title
+       * attribute: the same `/mf-manifest.json` on every row was most of what
+       * made this list look like noise, and the port is what anyone is
+       * scanning for.
        */}
-      <ItemContent className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-1">
+      <ItemContent className="min-w-0 flex-row items-center gap-x-2">
         <ItemTitle className="shrink-0 font-mono text-xs">{id}</ItemTitle>
 
         {showsInput ? (
-          <InputGroup className="ml-auto h-6 max-w-[26rem] min-w-0 flex-1">
+          <InputGroup className="ml-auto h-6 min-w-0 flex-1">
             <InputGroupInput
-              autoFocus={isEditing}
+              autoFocus
               aria-label={`Manifest URL for ${id}`}
+              aria-invalid={problem !== undefined}
+              title={problem ?? value}
               placeholder={published}
               value={value}
-              onBlur={onDone}
               onChange={event => {
                 devtools.stage(id, event.target.value)
               }}
@@ -318,38 +393,34 @@ function OverrideRow({
           </InputGroup>
         ) : (
           /*
-           * The origin as text, and as the edit affordance. A row nobody has
+           * The value as text, and as the edit affordance. A row nobody has
            * touched is something to read, so it is not a box; pressing it is
            * how it becomes one, and the pencil that appears on hover says so
            * without adding a control to every row.
+           *
+           * A pending row states the change on the same line — the old origin,
+           * an arrow, the new one. It was two lines and a sentence, which made
+           * the one row being worked on the tallest thing on screen.
            */
-          <button
-            type="button"
-            onClick={onEdit}
-            title={published}
-            className="ml-auto min-w-0 shrink cursor-text truncate rounded px-1 text-right font-mono text-xs text-muted-foreground hover:bg-ghost-hover hover:text-foreground"
-          >
-            <OriginText url={published} />
-          </button>
-        )}
+          <span className="ml-auto flex min-w-0 items-center gap-1 font-mono text-xs">
+            {replaces === undefined ? null : (
+              <>
+                <span className="truncate text-muted-foreground" title={replaces}>
+                  <OriginText url={replaces} dim />
+                </span>
+                <ArrowRightIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+              </>
+            )}
 
-        {/*
-         * Both notes take a line of their own — `w-full` against the row's
-         * wrap — rather than sharing the row with the input. As siblings in a
-         * one-line flex they squeezed it down to about sixty pixels, which is
-         * enough of a URL to read the word "json" and nothing else.
-         */}
-        {problem === undefined ? null : (
-          <ItemDescription className="w-full text-destructive">{problem}</ItemDescription>
-        )}
-
-        {staged === undefined ? null : (
-          <ItemDescription className="w-full">
-            {staged === null ? 'clears the override, back to ' : 'replaces '}
-            <span className="font-mono text-foreground/90">
-              <OriginText url={staged === null ? published : (applied ?? published)} />
-            </span>
-          </ItemDescription>
+            <button
+              type="button"
+              onClick={onEdit}
+              title={effective}
+              className="min-w-0 shrink-0 cursor-text truncate rounded px-1 text-right text-muted-foreground hover:bg-ghost-hover hover:text-foreground"
+            >
+              <OriginText url={effective} />
+            </button>
+          </span>
         )}
       </ItemContent>
 
@@ -406,32 +477,6 @@ function OverrideRow({
 }
 
 /**
- * The origin, which is the whole of what a row has to say.
- *
- * The scheme and the path are dropped: `http://` is on every row and
- * `/mf-manifest.json` is on every row, so between them they were most of the
- * width and none of the information. The full URL is the button's `title`, and
- * the input shows it whole the moment anyone edits.
- */
-function OriginText({ url }: { readonly url: string }): ReactNode {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return <>{url}</>
-  }
-
-  return (
-    <>
-      <span>{parsed.hostname}</span>
-      <span className="font-medium text-foreground">
-        {parsed.port === '' ? '' : `:${parsed.port}`}
-      </span>
-    </>
-  )
-}
-
-/**
  * The bar the design system already has for this.
  *
  * `ActionBar` calls itself transient — "rows selected in a table, unsaved
@@ -444,11 +489,13 @@ function PendingBar({
   pending,
   inForce,
   canApply,
+  problem,
   onApply,
 }: {
   readonly pending: number
   readonly inForce: number
   readonly canApply: boolean
+  readonly problem?: string
   readonly onApply: () => void
 }): ReactNode {
   return (
@@ -458,10 +505,17 @@ function PendingBar({
       {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
       className="shrink-0 border-t border-border-subtle"
     >
-      <ActionBarMessage>
-        {pending > 0
-          ? `${String(pending)} pending — applied on reload`
-          : `${String(inForce)} override${inForce === 1 ? '' : 's'} in force`}
+      {/*
+       * Why "apply" is refusing, in the same bar as the button that is
+       * refusing. The message used to sit under the offending row, which cost
+       * that row a second line and put the reason a panel's width away from
+       * the disabled control it explains.
+       */}
+      <ActionBarMessage className={problem === undefined ? '' : 'text-destructive'}>
+        {problem ??
+          (pending > 0
+            ? `${String(pending)} pending — applied on reload`
+            : `${String(inForce)} override${inForce === 1 ? '' : 's'} in force`)}
       </ActionBarMessage>
 
       <ActionBarActions>

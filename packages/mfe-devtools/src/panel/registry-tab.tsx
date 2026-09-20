@@ -16,9 +16,14 @@
  * find out which entry was rejected and what to do about it, which is what the
  * rejected tab is for — the diagnostics below are the framework's own error
  * records, not a message this file wrote.
+ *
+ * A loaded entry is drawn as the same row as the overrides tab draws it: the id
+ * in mono on the left, the origin on the right, the rest underneath. The two
+ * tabs are two views of one list, and printing the id and the URL two different
+ * ways was most of what made the second one feel like a different tool.
  */
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
@@ -43,7 +48,25 @@ import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { AppWindowIcon, BoxIcon, CircleCheckIcon, TriangleAlertIcon } from 'lucide-react'
 
 import { DescriptorView } from './descriptor-view.tsx'
+import { factsOf } from './entry-facts.ts'
+import { OriginText } from './origin-text.tsx'
 import { useRegistryEntries } from './use-devtools.ts'
+
+/**
+ * Columns rather than rows stretched to the panel — the same grid the overrides
+ * list uses, at a wider track because these rows carry a contract under them.
+ * See the note beside `ROW_GRID` there for why a docked panel has to do this.
+ *
+ * `auto-rows-fr` is what makes every card the same height. In a grid whose own
+ * height is auto there is no free space to divide, so each `1fr` row resolves
+ * to the tallest row's content and every card matches it — an entry with no
+ * contract lines up with one that has two, without a hard-coded height that
+ * would clip whichever entry turned out to have three.
+ */
+const ENTRY_GRID = 'grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))]'
+
+/** A block of prose keeps a readable measure however wide the dock is opened. */
+const PROSE = 'max-w-3xl'
 
 export function RegistryTab(): ReactNode {
   const { quarantined } = useMfeRuntime('the developer tools registry view').registry
@@ -55,12 +78,11 @@ export function RegistryTab(): ReactNode {
       className="flex min-h-0 flex-col gap-2.5"
     >
       {/*
-       * Segmented, not another underline bar. The panel's own tabs directly
-       * above these are `line`, and two identical tab strips stacked read as
-       * one confused control rather than as navigation and then a filter —
-       * which is what these two actually are.
+       * An underline bar, not another segmented one. The panel's own tabs are
+       * segmented and live up in the header now, so these read as a filter
+       * inside the view rather than as a second copy of the same control.
        */}
-      <TabsList variant="default" aria-label="Registry entries" className="h-8 p-1">
+      <TabsList variant="line" aria-label="Registry entries" className="h-8 w-fit">
         <TabsTrigger id="loaded">
           <CircleCheckIcon /> Loaded
           <Badge variant="secondary" size="default">
@@ -77,7 +99,7 @@ export function RegistryTab(): ReactNode {
 
       <TabsContent id="loaded">
         {accepted.length === 0 ? (
-          <Empty>
+          <Empty className={PROSE}>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <CircleCheckIcon />
@@ -89,7 +111,7 @@ export function RegistryTab(): ReactNode {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup>
+          <ItemGroup className={ENTRY_GRID}>
             {accepted.map(entry => (
               <AcceptedEntry key={entry.id} entry={entry} />
             ))}
@@ -99,7 +121,7 @@ export function RegistryTab(): ReactNode {
 
       <TabsContent id="rejected">
         {quarantined.length === 0 ? (
-          <Empty>
+          <Empty className={PROSE}>
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <CircleCheckIcon />
@@ -109,7 +131,7 @@ export function RegistryTab(): ReactNode {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className={`flex flex-col gap-2 ${PROSE}`}>
             {quarantined.map((entry, index) => (
               <Alert
                 key={`${entry.id}-${String(index)}`}
@@ -149,64 +171,74 @@ export function RegistryTab(): ReactNode {
   )
 }
 
-/** One accepted entry, as an `Item` rather than a hand-built card. */
+/**
+ * One accepted entry: identity on the first line, the human title on the
+ * second, and the contract underneath as labelled pairs.
+ *
+ * Only `overridden` is a badge. A badge is a claim that something is unusual,
+ * and when the version, every capability, every input and every event were all
+ * badges too, the one row that had actually been re-pointed at a dev server
+ * looked exactly like the seven that had not.
+ */
 function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): ReactNode {
-  const isApp = entry.definitionKind === 'app'
-  const Icon = isApp ? AppWindowIcon : BoxIcon
+  const Icon = entry.definitionKind === 'app' ? AppWindowIcon : BoxIcon
+  const overridden = entry.overridden === true
+  const facts = factsOf(entry)
 
   return (
-    <Item variant="muted" size="xs">
-      <ItemMedia variant="icon" className="text-muted-foreground">
+    <Item variant="muted" size="xs" className="group items-start py-1.5">
+      <ItemMedia variant="icon" className={overridden ? 'text-warning' : 'text-muted-foreground'}>
         <Icon />
       </ItemMedia>
 
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className="flex w-full flex-wrap items-center gap-2">
-          <span className="truncate text-xs">{entry.title ?? entry.id}</span>
-          <span className="truncate font-mono text-xs font-normal text-muted-foreground">
-            {entry.id}
-          </span>
+        <ItemTitle className="w-full min-w-0 gap-2">
+          <span className="truncate font-mono text-xs">{entry.id}</span>
+
           {entry.version === undefined ? null : (
-            <Badge variant="outline" size="default">
+            <span className="shrink-0 font-mono text-[11px] font-normal text-muted-foreground">
               {entry.version}
-            </Badge>
+            </span>
           )}
-          {entry.overridden === true ? (
+
+          {overridden ? (
             <Badge variant="warning" appearance="outline" size="default">
               overridden
             </Badge>
           ) : null}
+
+          {/*
+           * The origin sits where the overrides tab puts it — hard right, so
+           * the ports line up down the column and a row that points somewhere
+           * unexpected is found by scanning rather than by reading.
+           */}
+          <span
+            title={entry.manifestUrl}
+            className="ml-auto shrink-0 font-mono text-xs font-normal text-muted-foreground"
+          >
+            <OriginText url={entry.manifestUrl} />
+          </span>
         </ItemTitle>
 
-        <ItemDescription className="truncate font-mono text-xs">
-          {entry.manifestUrl}
-        </ItemDescription>
+        {entry.title === undefined ? null : (
+          <ItemDescription className="truncate">{entry.title}</ItemDescription>
+        )}
 
-        {entry.capabilities === undefined && entry.contract === undefined ? null : (
-          <div className="mt-0.5 flex flex-wrap items-center gap-1">
-            {entry.capabilities?.map(capability => (
-              <Badge key={capability.name} variant="outline" size="default">
-                {capability.name} → {capability.path}
-              </Badge>
+        {facts.length === 0 ? null : (
+          <dl className="mt-1 grid w-full grid-cols-[minmax(0,3.75rem)_minmax(0,1fr)] gap-x-2 text-[11px] leading-5">
+            {facts.map(fact => (
+              <Fragment key={fact.label}>
+                <dt className="truncate text-muted-foreground">{fact.label}</dt>
+                <dd className="min-w-0 font-mono break-words">{fact.values.join('  ')}</dd>
+              </Fragment>
             ))}
-            {entry.contract === undefined
-              ? null
-              : Object.keys((entry.contract.inputs?.['properties'] ?? {}) as object).map(name => (
-                  <Badge key={`in-${name}`} variant="secondary" size="default">
-                    {name}
-                  </Badge>
-                ))}
-            {entry.contract?.events.map(event => (
-              <Badge key={`ev-${event}`} variant="info" size="default">
-                {event}
-              </Badge>
-            ))}
-          </div>
+          </dl>
         )}
       </ItemContent>
 
-      <ItemActions>
+      <ItemActions className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100">
         <CopyButton
+          size="icon-xs"
           value={entry.manifestUrl}
           aria-label={`Copy the manifest URL for ${entry.id}`}
         />
