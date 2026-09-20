@@ -10,16 +10,13 @@
  * values inherit into the mounted subtree like any custom property.
  */
 
-import { existsSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 
 import { banner, generatedPath, joinBlocks, relativeSpecifier, type GeneratedFile } from './emit.ts'
 import type { GenerateContext } from './modules.ts'
 
-/** The design system, and the block compositions published beside it. */
+/** The design system. */
 const DESIGN_SYSTEM = '@tecton/react'
-const DESIGN_SYSTEM_BLOCKS = '@tecton/blocks'
 
 /** Where the generated stylesheet lives, next to the generated modules. */
 export function stylesheetPath(context: GenerateContext): string {
@@ -38,7 +35,6 @@ export function usesDesignSystem(context: GenerateContext): boolean {
 
 export function stylesheetFile(context: GenerateContext): GeneratedFile {
   const file = stylesheetPath(context)
-  const blocks = blockSources(context)
 
   return {
     path: file,
@@ -70,68 +66,15 @@ export function stylesheetFile(context: GenerateContext): GeneratedFile {
         '/*',
         ' * What Tailwind scans. Splitting the imports above turns automatic source',
         ' * detection off, so every directory holding classes this container renders',
-        ' * has to be named here — the library scans its own.',
+        ' * has to be named here — the library scans its own. Blocks are copied',
+        " * into this container's own `src/` (a shadcn registry consumer keeps its",
+        ' * own copies rather than depending on a package of them), so this one',
+        ' * entry already covers them; nothing under node_modules needs scanning.',
         ' */',
         `@source "${relativeSpecifier(file, join(context.options.containerRoot, 'src'))}/**/*.{ts,tsx}";`,
-        ...(blocks === null
-          ? []
-          : [
-              '',
-              '/*',
-              ' * The blocks are published as unbuilt TSX and installed like any other',
-              ' * dependency, and nothing under node_modules is scanned by default, so a',
-              ' * class only a block uses would otherwise have no CSS at all.',
-              ' */',
-              `@source "${blocks}/**/*.{ts,tsx}";`,
-            ]),
       ].join('\n'),
     ]),
   }
-}
-
-/**
- * Where the blocks' sources sit, relative to the generated stylesheet, or null
- * when this container does not depend on them.
- */
-function blockSources(context: GenerateContext): string | null {
-  if (!(DESIGN_SYSTEM_BLOCKS in context.options.dependencies)) return null
-
-  const root = packageRoot(context.options.containerRoot, DESIGN_SYSTEM_BLOCKS)
-  return root === null ? null : relativeSpecifier(stylesheetPath(context), join(root, 'src'))
-}
-
-/**
- * Resolved from the container rather than from this package, so a container
- * that installs its own copy gets that one.
- *
- * The manifest is asked for first and the package entry second: a package whose
- * `exports` map does not publish its own package.json cannot be resolved the
- * first way, and the design system's blocks are published exactly like that.
- */
-function packageRoot(containerRoot: string, name: string): string | null {
-  const require = createRequire(join(containerRoot, 'package.json'))
-
-  try {
-    return dirname(require.resolve(`${name}/package.json`))
-  } catch {
-    // Not installed, or not exported. The entry below decides which.
-  }
-
-  let directory: string
-  try {
-    directory = dirname(require.resolve(name))
-  } catch {
-    // A dependency the container declares but has not installed. Whatever
-    // imports it reports that itself, in terms the developer can act on.
-    return null
-  }
-
-  while (!existsSync(join(directory, 'package.json'))) {
-    const parent = dirname(directory)
-    if (parent === directory) return null
-    directory = parent
-  }
-  return directory
 }
 
 /**

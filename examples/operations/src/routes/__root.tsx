@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-router'
 import { allow, deny, useCommand, useGroups, type MfeRouterContext } from '@company/mfe-react'
 import { ScrollArea } from '@tecton/react/components/scroll-area'
-import { ProjectTree, projectTree } from '@tecton/blocks/dashboard-01/page.tsx'
 import {
   BoxesIcon,
   DrillIcon,
@@ -17,6 +16,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import { ProjectTree, projectTree } from '../components/blocks/dashboard-01/page.tsx'
 
 /**
  * A layout is a root route with an outlet, which is the native way to express

@@ -1,12 +1,7 @@
 #!/usr/bin/env node
 /**
- * Type-checks a package's own source, tolerating the diagnostics that come from
- * a dependency it consumes as unbuilt TSX.
- *
- * `tsc` cannot exclude a file it was asked to resolve, so consuming
- * `@tecton/blocks`' raw `.tsx` type-checks it too, under options it is not
- * written against. Those diagnostics are reported and do not fail the check;
- * anything under this package's own directories does.
+ * Type-checks a package: the design-system checkout is verified first, and
+ * `tsc` is run the one way that also works on Windows.
  *
  * Usage, from a package's `typecheck` script:
  *   node ../../tools/tecton/typecheck.mjs [label]
@@ -57,30 +52,10 @@ if (result.error) {
   process.exit(1)
 }
 
-// This package's own files: its source directories, and the configs at its root.
-const isOwn = line =>
-  /^(src|scripts|tests|\.mfe)[/\\]/.test(line) || /^[^/\\]+\.(ts|tsx|mts)\(/.test(line)
-const lines = `${result.stdout}${result.stderr}`.split('\n').filter(line => line.trim() !== '')
-// A diagnostic owns the indented lines that follow it.
-let own = false
-const ours = []
-const theirs = new Set()
-for (const line of lines) {
-  if (!/^\s/.test(line)) {
-    own = isOwn(line)
-    if (!own) theirs.add(line.slice(0, line.indexOf('(')))
-  }
-  if (own) ours.push(line)
-}
+const output = `${result.stdout}${result.stderr}`.trim()
 
-for (const line of ours) console.log(line)
-
-if (theirs.size > 0) {
-  console.log(`\nDependency source, not type-checked by this project:`)
-  for (const file of [...theirs].sort()) console.log(`  ${file}`)
-}
-
-if (ours.length > 0) {
+if (output !== '') {
+  console.log(output)
   console.error(`\nErrors in ${label}.`)
   process.exit(1)
 }

@@ -1,7 +1,8 @@
 import { createRootRouteWithContext, Outlet, useNavigate } from '@tanstack/react-router'
 import { allow, deny, useCommand, type MfeRouterContext } from '@company/mfe-react'
-import { alternatives } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import type { ReactNode } from 'react'
+
+import { alternatives } from '../components/blocks/fda-comparison-table/page.tsx'
 
 /**
  * A child App's layout. It renders no chrome of its own: this App is mounted

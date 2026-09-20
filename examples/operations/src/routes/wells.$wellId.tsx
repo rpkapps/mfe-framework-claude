@@ -9,12 +9,6 @@ import {
   EmptyTitle,
 } from '@tecton/react/components/empty'
 import {
-  WellDesignCard,
-  phaseMeta,
-  trajectoryMeta,
-  wellDesigns,
-} from '@tecton/blocks/well-design-card/page.tsx'
-import {
   PageHeader,
   PageHeaderActions,
   PageHeaderContent,
@@ -27,6 +21,13 @@ import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import {
+  WellDesignCard,
+  phaseMeta,
+  trajectoryMeta,
+  wellDesigns,
+} from '../components/blocks/well-design-card/page.tsx'
 
 /**
  * Per-instance data arrives through this App's own URL. Mounted at /operations

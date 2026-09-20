@@ -93,6 +93,35 @@ export default [
   // })),
 
   {
+    // These are registry copies — `shadcn add @tecton/<name>`'s own output,
+    // kept as close to byte-for-byte as this workspace allows, so a re-add is
+    // a diff against almost nothing rather than against local edits —
+    // written under the design system's own lint and TypeScript
+    // configuration, not this workspace's `author` preset or its stricter
+    // `tsconfig.base.json`. The rules below are exactly what that preset
+    // raises against them: a `style={{ … } as React.CSSProperties}` cast the
+    // consistent-type-assertions rule wants as a typed local instead,
+    // tuple-array indexing the design system's laxer strictness does not
+    // carry through as `any`, a ternary default value the newer
+    // `react-hooks` here flags for a fresh reference on every render, and the
+    // `@ts-nocheck` every copy carries (see the blocks `README.md`) so
+    // `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` — which the
+    // blocks were never written against — do not fail `pnpm typecheck` on
+    // every optional prop passed through as `T | undefined`. None of it is a
+    // defect in the block; it is a defect in editing it to satisfy
+    // configuration it was never written against.
+    name: 'repo/registry-block-copies',
+    files: ['examples/*/src/components/blocks/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/consistent-type-assertions': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      '@typescript-eslint/ban-ts-comment': 'off',
+    },
+  },
+
+  {
     // The telemetry ban exists so no framework package pins a vendor SDK version
     // for the whole page. Its own message says the shell adapts the neutral
     // contract to Faro, so the file that does exactly that is where the ban

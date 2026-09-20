@@ -3,12 +3,11 @@
   "compilerOptions": {
     "types": ["node"],
     /*
-     * @tecton/react ships built `.d.ts` files now, but @tecton/blocks is
-     * still unbuilt TSX — and both are `link:`ed checkouts, so TypeScript
-     * resolves the symlink to the checkout itself either way. The packages
-     * their files import bare (react, react-aria-components, recharts, …)
-     * have to be pointed back at this workspace's copies. This is the
-     * type-level counterpart of `tectonResolve` in the build.
+     * @tecton/react ships built `.d.ts` files now, but it is still a
+     * `link:`ed checkout, so TypeScript resolves the symlink to the checkout
+     * itself. The packages its files import bare (react, react-aria-components,
+     * recharts, …) have to be pointed back at this workspace's copies. This is
+     * the type-level counterpart of `tectonResolve` in the build.
      */
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],

@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { WellsListPage } from '@tecton/blocks/list-01/page.tsx'
 import type { ReactNode } from 'react'
+
+import { WellsListPage } from '../components/blocks/list-01/page.tsx'
 
 /**
  * A whole page composed from one design-system block. An MFE does not earn its

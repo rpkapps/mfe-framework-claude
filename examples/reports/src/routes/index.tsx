@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { FdaComparisonTable } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import {
   PageHeader,
   PageHeaderContent,
@@ -8,6 +7,8 @@ import {
   PageHeaderTitle,
 } from '@tecton/react/tecton/page-header'
 import type { ReactNode } from 'react'
+
+import { FdaComparisonTable } from '../components/blocks/fda-comparison-table/page.tsx'
 
 export const Route = createFileRoute('/')({
   staticData: { breadcrumb: 'Reports' },
