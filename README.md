@@ -157,9 +157,11 @@ Five containers, all mounted by one shell, each on its own dev server:
     tecton-ui-1/               git clone of the design system
   ```
 
-  It has to be on a revision that ships `@tecton/react` 0.1.0 or newer
-  (`tecton-ui-1` PR #28: built `dist/`, `styles/scoped.css`,
-  `tecton/theme-root`), and built:
+  It has to be on a revision that ships `@tecton/react` 0.1.0 or newer with
+  the micro-frontend ingredients this framework composes — built `dist/`,
+  `styles/scoped.css`, `tecton/theme-root`, `postcss/scope` and
+  `federation/shared` (`tecton-ui-1` `main` once its `claude/dazzling-hamilton-cq73dq`
+  branch is merged; that branch until then) — and built:
 
   ```sh
   cd ../tecton-ui-1 && pnpm install && pnpm --filter @tecton/react build
