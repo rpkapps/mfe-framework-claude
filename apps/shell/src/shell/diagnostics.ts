@@ -24,6 +24,13 @@ export interface Diagnostics {
   readonly groups: readonly string[]
   readonly registryLoaded: number
   readonly registryRejected: readonly string[]
+  /**
+   * Why `registry.json` itself would not load, when it would not. The strip
+   * that used to report this is gone, so the bug report is the only place it
+   * surfaces — a registry that never arrived explains an empty page better
+   * than any other line here.
+   */
+  readonly registryError: string | null
   readonly overrides: readonly string[]
   readonly viewport: string
   readonly userAgent: string
@@ -45,6 +52,7 @@ export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
     groups: runtime.shellState.getGroups(),
     registryLoaded: entries.size,
     registryRejected: quarantined.map(entry => `${entry.id}: ${entry.reason}`),
+    registryError: notices.registryError === null ? null : notices.registryError.message,
     overrides: [...notices.overrides].map(([id, url]) => `${id} → ${url}`),
     viewport: `${String(window.innerWidth)}×${String(window.innerHeight)}`,
     userAgent: navigator.userAgent,
@@ -76,6 +84,7 @@ export function formatReport(summary: string, detail: string, diagnostics: Diagn
     '',
     '## Registry',
     '',
+    `- registry.json: ${diagnostics.registryError ?? 'loaded'}`,
     `- Loaded: ${String(diagnostics.registryLoaded)}`,
     `- Rejected: ${
       diagnostics.registryRejected.length === 0

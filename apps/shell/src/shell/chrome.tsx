@@ -64,7 +64,6 @@ import {
   CircleHelpIcon,
   ClipboardCopyIcon,
   LayoutDashboardIcon,
-  LayersIcon,
   MoonIcon,
   SettingsIcon,
   SparklesIcon,
@@ -77,7 +76,6 @@ import { HelpSheet } from './help-sheet.tsx'
 import { useActiveApp, useApps, useShellSurface, useTheme } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
-import { RegistryNotice } from './registry-notice.tsx'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
@@ -203,7 +201,6 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
           <Header />
         </AriaRouterProvider>
         <AppShellBody className="flex-col">
-          <RegistryNotice />
           <AppShellMain className="flex">{children}</AppShellMain>
         </AppShellBody>
       </AppShell>
@@ -402,21 +399,6 @@ function Header(): ReactNode {
         >
           Search or jump to…
         </ShellCommandTrigger>
-        {/*
-         * Opening the registry turns the developer tools on if they are off.
-         * The view lives in the panel now, and a control that did nothing
-         * because of a flag the developer never set would be worse than no
-         * control.
-         */}
-        <ShellAction
-          label="Registry"
-          shortcut="g r"
-          onPress={() => {
-            devtools.open('registry')
-          }}
-        >
-          <LayersIcon />
-        </ShellAction>
         <ShellAction
           label="Help"
           shortcut="?"

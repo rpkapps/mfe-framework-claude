@@ -705,12 +705,9 @@ the tool still works.
 Two consequences worth naming.
 
 The registry view moved into the panel and is therefore behind the flag, so
-every control that used to open it — the header action, `g r`, the palette, the
-settings footer, the dashboard button and the notice strip's "See why" — now
-turns the tools on rather than assuming they are. The strip itself did **not**
-move: an override nobody can see is the phantom bug the override mechanism
-exists to prevent, and gating the warning behind a flag a developer has to know
-about would defeat it.
+every control that used to open it — `g r`, the palette, the settings footer and
+the dashboard button — turns the tools on rather than assuming they are. (The
+header action and the notice strip that also opened it were removed; §23.)
 
 And the shell's stylesheet now carries an `@source` for a `packages/*`
 directory. Tailwind emits a utility only for a file it scanned, the tools render
@@ -720,3 +717,30 @@ place for it. A host outside this workspace needs the same line pointing into
 its `node_modules`, until the package ships a prebuilt utilities sheet the way
 `@tecton/react` does. Recorded here rather than discovered at the first
 deployment.
+
+---
+
+## 23. The override strip was removed, and nothing replaced it on the page
+
+**Status:** decided, against the previous decision, with the cost stated.
+
+§22 kept the notice strip under the header on the grounds that an override
+nobody can see is the phantom bug the override mechanism exists to prevent. The
+strip is gone, along with the header's registry action, because a band of
+warning text above every page is a high price to pay on every page for a
+condition that is rare and self-inflicted, and because the strip was the loudest
+thing in the chrome on a page where nothing was wrong.
+
+What replaces it is weaker and that is the point of writing this down. The
+developer tools' trigger carries a mark while an override is in force, and the
+Overrides tab names each one — but both are behind the flag, so a developer who
+has never turned the tools on sees nothing at all. The failure the strip existed
+to prevent is now possible again: an override pointing at a dev server that is
+no longer running looks like a broken deployment.
+
+Two things keep it from being silent. `pnpm dev` still prints the snippets and
+still says the shell reports an active override, and `collectDiagnostics` now
+carries both the overrides and any `registry.json` failure into the bug report —
+the latter added here, because the strip had been its only reader and removing
+it would have made a registry that never loaded invisible rather than merely
+quiet.

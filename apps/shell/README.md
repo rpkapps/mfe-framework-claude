@@ -49,14 +49,14 @@ Every control in the header does something, and each one is a sheet or a dialog
 rather than a route, for the same reason the registry is: they are opened from
 wherever you already are and dismissed back to it.
 
-| Surface         | Opened by                      | What it is                                                                                 |
-| --------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
-| Command palette | `⌘K` / `Ctrl+K`                | every application, every capability page, the shell's own commands, the mounted App's      |
-| Developer tools | the layers icon, `g r` / `g d` | the override editor, and what loaded, what was rejected and the descriptor as published    |
-| Settings        | the gear, `g s`                | theme, the dashboard canvas, and links to each App's own settings page                     |
-| Help            | the question mark, `?`         | what the pieces of the page are, and the live shortcut registry                            |
-| What's new      | the sparkle                    | release notes                                                                              |
-| Report a bug    | the bug                        | a report with the build, the route, the registry state and the overrides already filled in |
+| Surface         | Opened by                  | What it is                                                                                 |
+| --------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
+| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, the shell's own commands, the mounted App's      |
+| Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the descriptor as published    |
+| Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
+| Help            | the question mark, `?`     | what the pieces of the page are, and the live shortcut registry                            |
+| What's new      | the sparkle                | release notes                                                                              |
+| Report a bug    | the bug                    | a report with the build, the route, the registry state and the overrides already filled in |
 
 Below `lg` the last three move into an overflow menu rather than disappearing:
 a control that is hidden at one width and absent at another is a feature nobody
@@ -166,10 +166,17 @@ Then reload — overrides are applied at boot, not per navigation. To clear:
 localStorage.removeItem('company:mfe:overrides')
 ```
 
-While any override is in force the shell shows a strip directly under the
-header naming every overridden id and the URL it now resolves to. A forgotten
-override pointing at a dead dev server is the failure this makes impossible to
-miss, so the indicator is not dismissible.
+An active override is reported by the developer tools: the trigger carries a
+mark while one is in force, and the Overrides tab names every overridden id and
+the URL it now resolves to.
+
+The shell itself shows nothing. It used to carry a strip under the header that
+said so on every page, on the grounds that a forgotten override pointing at a
+dead dev server is the failure worth making impossible to miss. That strip was
+removed deliberately — see `docs/decisions.md` §23 — and the cost is real: with
+the tools switched off, nothing on the page says an override is in force. The
+bug report still carries them, so a report written from a page with one is not
+silent about it.
 
 ## Consuming @tecton/react
 
