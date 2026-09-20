@@ -16,6 +16,10 @@
     "./env": {
       "types": "./src/config/env.ts",
       "default": "./src/config/env.ts"
+    },
+    "./federation": {
+      "types": "./src/federation/host-shared.ts",
+      "default": "./src/federation/host-shared.ts"
     }
   },
   "files": [

@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@company/eslint-plugin-mfe": "workspace:*",
+    "@company/mfe-rspack": "workspace:*",
     "@grafana/faro-web-sdk": "^2.11.0",
     "@module-federation/enhanced": "catalog:",
     "@playwright/test": "catalog:",

@@ -5,8 +5,6 @@
  * and it can be tested without one.
  */
 
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
@@ -16,6 +14,7 @@ import { extractCapabilities } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
+import { installedVersionFrom } from './federation/installed-version.ts'
 import {
   containerDependencies,
   resolveShared,
@@ -32,43 +31,6 @@ import {
 } from './generate/modules.ts'
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
-
-/**
- * Reads a dependency's installed version from the container's own resolution,
- * which is what a `catalog:` or `workspace:` range actually resolved to. It
- * resolves from the container root rather than from this package, so a
- * container that pins a different version advertises that one.
- */
-function installedVersionFrom(containerRoot: string): (name: string) => string | undefined {
-  const require = createRequire(join(containerRoot, 'package.json'))
-
-  const version = (manifest: unknown): string | undefined => {
-    const candidate = (manifest as { readonly version?: unknown } | null)?.version
-    return typeof candidate === 'string' ? candidate : undefined
-  }
-
-  return name => {
-    try {
-      return version(require(`${name}/package.json`))
-    } catch {
-      // Either not installed, or installed behind an `exports` map that does
-      // not publish the manifest — sonner is one — which `require` refuses the
-      // same way. A direct dependency's link is where pnpm put it, so the
-      // manifest is read from there before giving up.
-    }
-
-    try {
-      return version(
-        JSON.parse(readFileSync(join(containerRoot, 'node_modules', name, 'package.json'), 'utf8')),
-      )
-    } catch {
-      // A shared candidate the container declares but has not installed. The
-      // build does not fail for it: the module is simply not resolvable here,
-      // and whatever imports it reports that itself.
-      return undefined
-    }
-  }
-}
 
 export interface ContainerPlan {
   readonly options: ResolvedOptions

@@ -88,7 +88,7 @@ const CANDIDATE_POLICY: Readonly<Record<string, SharingPolicy>> = {
 export const DEFAULT_SHARED_CANDIDATES: readonly string[] = Object.keys(CANDIDATE_POLICY)
 
 /** The dependency a candidate is satisfied by; a prefix names the package. */
-function packageOf(candidate: string): string {
+export function packageOf(candidate: string): string {
   return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate
 }
 
