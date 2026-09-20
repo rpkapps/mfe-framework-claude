@@ -5,12 +5,11 @@
  * registers its own shortcuts into it and a mounted application registers its
  * own into the same one, so this list gains and loses rows as you navigate. A
  * hand-maintained table would be wrong the first time an application shipped.
- *
- * Components only, so React Refresh can replace this module in place.
  */
 
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useApps } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
@@ -32,7 +31,6 @@ import {
   TerminalIcon,
 } from 'lucide-react'
 
-import { useApps } from './hooks.ts'
 import { shellUi } from './ui-store.ts'
 
 const CONCEPTS: readonly {

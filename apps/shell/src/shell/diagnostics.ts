@@ -3,15 +3,12 @@
  *
  * A report that says "the page was broken" costs an engineer a day of asking
  * which build, which registry and which container. Everything below is already
- * known to the shell at the moment the report is written, so the reporter is
- * asked for none of it.
- *
- * Collected on demand rather than kept in state: it is read once, when someone
- * opens the report, and a snapshot held from boot would describe a page that no
- * longer exists.
+ * known to the shell when the report is written, so the reporter is asked for
+ * none of it — and it is collected on demand, because a snapshot held from boot
+ * would describe a page that no longer exists.
  */
 
-import type { MfeRuntime } from '@company/mfe-react'
+import type { MfeRuntime, NeutralRegistryEntry } from '@company/mfe-react'
 
 import { notices, workspace } from './workspace.ts'
 
@@ -25,11 +22,12 @@ export interface Diagnostics {
   readonly registryLoaded: number
   readonly registryRejected: readonly string[]
   /**
-   * Why `registry.json` itself would not load, when it would not. The strip
-   * that used to report this is gone, so the bug report is the only place it
-   * surfaces — a registry that never arrived explains an empty page better
-   * than any other line here.
+   * One line per accepted entry: every surface was built and deployed
+   * separately, so a list is the only honest answer. An entry that named no
+   * build says so, since a missing line reads as a missing container.
    */
+  readonly builds: readonly string[]
+  /** Why `registry.json` would not load: the only place that now surfaces. */
   readonly registryError: string | null
   readonly overrides: readonly string[]
   readonly viewport: string
@@ -52,6 +50,7 @@ export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
     groups: runtime.shellState.getGroups(),
     registryLoaded: entries.size,
     registryRejected: quarantined.map(entry => `${entry.id}: ${entry.reason}`),
+    builds: [...entries.values()].map(describeBuild),
     registryError: notices.registryError === null ? null : notices.registryError.message,
     overrides: [...notices.overrides].map(([id, url]) => `${id} → ${url}`),
     viewport: `${String(window.innerWidth)}×${String(window.innerHeight)}`,
@@ -60,10 +59,14 @@ export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
   }
 }
 
-/**
- * The report as text, ready for an issue tracker. Markdown because every
- * tracker in use renders it and the ones that do not still show it readably.
- */
+/** One entry's build, as `<id>: <hash> · <time>`. */
+function describeBuild(entry: NeutralRegistryEntry): string {
+  const build = entry.build
+  if (build === undefined) return `${entry.id}: no build published`
+  return `${entry.id}: ${build.hash ?? 'unknown hash'} · ${build.time ?? 'unknown time'}`
+}
+
+/** The report as text: Markdown, which every tracker in use renders. */
 export function formatReport(summary: string, detail: string, diagnostics: Diagnostics): string {
   const lines = [
     `# ${summary === '' ? 'Bug report' : summary}`,
@@ -86,17 +89,16 @@ export function formatReport(summary: string, detail: string, diagnostics: Diagn
     '',
     `- registry.json: ${diagnostics.registryError ?? 'loaded'}`,
     `- Loaded: ${String(diagnostics.registryLoaded)}`,
-    `- Rejected: ${
-      diagnostics.registryRejected.length === 0
-        ? 'none'
-        : `\n${diagnostics.registryRejected.map(line => `  - ${line}`).join('\n')}`
-    }`,
-    `- Developer overrides: ${
-      diagnostics.overrides.length === 0
-        ? 'none'
-        : `\n${diagnostics.overrides.map(line => `  - ${line}`).join('\n')}`
-    }`,
+    list('Rejected', diagnostics.registryRejected, 'none'),
+    list('Developer overrides', diagnostics.overrides, 'none'),
+    list('Builds', diagnostics.builds, 'nothing loaded'),
   ]
 
   return lines.join('\n')
+}
+
+/** A labelled list, indented under its own line, or a word when it is empty. */
+function list(label: string, lines: readonly string[], empty: string): string {
+  const body = lines.length === 0 ? empty : `\n${lines.map(line => `  - ${line}`).join('\n')}`
+  return `- ${label}: ${body}`
 }

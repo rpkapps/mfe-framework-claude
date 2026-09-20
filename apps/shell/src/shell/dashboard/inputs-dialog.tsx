@@ -8,7 +8,7 @@
  */
 
 import { useId, useState, type ReactNode } from 'react'
-import type { NeutralRegistryEntry } from '@company/mfe-react'
+import { coerceInputs, type NeutralRegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@tecton/react/components/dialog'
@@ -25,7 +25,7 @@ import { Switch } from '@tecton/react/components/switch'
 import { Textarea } from '@tecton/react/components/textarea'
 import { InfoIcon } from 'lucide-react'
 
-import { initialValues, readInputFields, toInputs, type InputField } from './input-schema.ts'
+import { initialValues, readInputFields, type InputField } from './input-schema.ts'
 
 export interface InputsDialogProps {
   readonly entry: NeutralRegistryEntry | null
@@ -39,8 +39,7 @@ export interface InputsDialogProps {
 /**
  * The caller gives this a `key` identifying what is being edited, so opening it
  * for a different tile mounts a fresh dialog with that tile's inputs as its
- * initial state. Copying props into state in an effect instead would render the
- * previous tile's values for one frame and re-render every time the parent did.
+ * initial state, rather than copying props into state in an effect.
  */
 export function InputsDialog({
   entry,
@@ -65,7 +64,7 @@ export function InputsDialog({
 
   const confirm = (): void => {
     if (fields !== null) {
-      onConfirm(toInputs(fields, values))
+      onConfirm(coerceInputs(fields, values))
       return
     }
 

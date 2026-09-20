@@ -1,18 +1,17 @@
 /**
  * Shell settings.
  *
- * Only what the shell actually owns is here — the theme, its own dashboard, and
- * the developer overrides that decide where containers load from. An
- * application's settings are the application's, so they are not reproduced: the
- * list at the bottom links to the settings pages the registry says each
- * application published, and those are ordinary routes inside it.
+ * Only what the shell actually owns — the theme, its own dashboard, and the
+ * developer overrides that decide where containers load from. An application's
+ * settings are the application's, so the list at the bottom links to the
+ * settings pages the registry says each one published.
  *
  * Components only, so React Refresh can replace this module in place.
  */
 
-import { useSyncExternalStore, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useMfeRuntime } from '@company/mfe-react'
+import { useApps, useCapabilityPages, useMfeRuntime, useStoredState } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -45,8 +44,9 @@ import {
 import { toast } from 'sonner'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
-import { getLayout, setTiles, subscribeLayout } from './dashboard/layout-store.ts'
-import { useApps, useTheme } from './hooks.ts'
+import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
+import { useDashboardLayout } from './hooks.ts'
+import { BOOT_THEME, ThemeSchema } from './preferences.ts'
 import { DataList, DataRow, Mono } from './readout.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
@@ -61,12 +61,15 @@ export function SettingsSheet({
   const runtime = useMfeRuntime('the shell settings')
   const navigate = useNavigate()
   const apps = useApps()
-  const theme = useTheme()
-  const layout = useSyncExternalStore(subscribeLayout, getLayout, getLayout)
+  const [theme, setTheme] = useStoredState('theme', ThemeSchema, {
+    defaultValue: BOOT_THEME,
+    retention: 'browser',
+  })
+  const [layout, setLayout] = useDashboardLayout()
 
-  const capabilities = apps.flatMap(app =>
-    (app.capabilities ?? []).map(capability => ({ app, capability })),
-  )
+  // Only the settings pages: flattening every capability put each
+  // application's help and release notes under the same heading.
+  const capabilities = useCapabilityPages('settings')
 
   return (
     <Sheet isOpen={isOpen} onOpenChange={onOpenChange} side="right" className="w-full sm:max-w-md">
@@ -101,8 +104,7 @@ export function SettingsSheet({
                   spacing={0}
                   onSelectionChange={keys => {
                     const next = [...keys][0]
-                    if (next === 'light' || next === 'dark')
-                      runtime.shellState.apply({ theme: next })
+                    if (next === 'light' || next === 'dark') setTheme(next)
                   }}
                 >
                   <ToggleGroupItem id="light" aria-label="Light theme">
@@ -137,7 +139,7 @@ export function SettingsSheet({
                 size="sm"
                 isDisabled={layout.tiles.length === 0}
                 onPress={() => {
-                  setTiles([])
+                  setLayout(EMPTY_LAYOUT)
                   toast.success('The dashboard canvas was cleared.')
                 }}
               >
@@ -174,9 +176,7 @@ export function SettingsSheet({
                       <ExternalLinkIcon aria-hidden className="text-muted-foreground" />
                     </ItemMedia>
                     <ItemContent>
-                      <ItemTitle className="font-normal">
-                        {capability.label ?? capability.name}
-                      </ItemTitle>
+                      <ItemTitle className="font-normal">{capability.label}</ItemTitle>
                       <ItemDescription className="font-mono">
                         /{app.id}
                         {capability.path}

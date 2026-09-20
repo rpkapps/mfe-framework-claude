@@ -37,7 +37,6 @@ import {
 
 import { summarizeInputs } from './input-schema.ts'
 import { TILE_SPANS, type DashboardTile, type TileSpan } from './layout-store.ts'
-import { handlerPropsFor } from './widget-events.ts'
 
 /** Twelve-column canvas. Static strings, because Tailwind cannot see a built name. */
 const SPAN_CLASS: Record<TileSpan, string> = {
@@ -132,22 +131,17 @@ export function Tile({
         </PanelHeader>
 
         {/*
-         * The skeleton below is what keeps the canvas still while a container
-         * is on the wire. A spinner in an empty box is the height of a spinner,
-         * so the canvas jumped every time a Widget arrived and every tile below
-         * it moved — and a page that rearranges itself under the pointer is a
-         * page you cannot click.
-         *
-         * The floor is on the fallback rather than on this content, because a
-         * minimum height here would also apply to a Widget that has finished
-         * and is genuinely small, padding every alert panel out to the size of
-         * the largest thing the canvas might have mounted.
+         * The skeleton keeps the canvas still while a container is on the wire:
+         * a spinner in an empty box is the height of a spinner, so every tile
+         * below moved as each Widget arrived. The floor is on the fallback
+         * rather than here, or a Widget that is genuinely small would be padded
+         * out to the size of the largest thing the canvas might have mounted.
          */}
         <PanelContent>
           {entry === undefined ? (
             <MissingEntry widgetId={tile.widgetId} />
           ) : (
-            <MountedWidget tile={tile} events={entry.contract?.events ?? []} onEvent={onEvent} />
+            <MountedWidget tile={tile} onEvent={onEvent} />
           )}
         </PanelContent>
       </Panel>
@@ -184,18 +178,21 @@ function MountingSkeleton(): ReactNode {
  */
 const MountedWidget = memo(function TileWidget({
   tile,
-  events,
   onEvent,
 }: {
   readonly tile: DashboardTile
-  readonly events: readonly string[]
   readonly onEvent: (event: string, payload: unknown) => void
 }): ReactNode {
   return (
     <DynamicWidget
       widgetId={tile.widgetId}
       {...tile.inputs}
-      {...handlerPropsFor(events, onEvent)}
+      /*
+       * Every event this Widget declares, by name. The shell has never been
+       * compiled against it and knows its events only as strings, so the one
+       * subscription it can honestly make is to all of them.
+       */
+      onEvent={onEvent}
       pending={<MountingSkeleton />}
       fallback={({ error, retry }) => (
         <div role="alert" className="flex flex-col gap-3">

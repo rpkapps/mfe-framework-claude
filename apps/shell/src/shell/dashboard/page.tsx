@@ -1,20 +1,23 @@
 /**
  * Compose a page out of Widgets that the shell was never built against.
  *
- * This is the framework's central claim made operable. The shell knows three
- * things about every tile on this canvas: an id, an input schema and a list of
- * event names — all of them read from the registry, none of them compiled in.
- * It has never imported any of these Widgets, it does not share a build with
- * them, and each one is served by a different origin. Adding a Widget to this
- * dashboard is a registry change, not a shell release.
+ * The shell knows three things about every tile on this canvas: an id, an input
+ * schema and a list of event names, all read from the registry and none
+ * compiled in. Adding a Widget here is a registry change, not a shell release.
  *
- * Drag a Widget from the catalogue onto the canvas, give it its inputs, and it
- * mounts. Everything it emits appears in the activity feed on the right,
- * because a Widget's events are as much a part of its contract as its props.
+ * Drag one from the catalogue onto the canvas, give it its inputs, and it
+ * mounts. Everything it emits appears in the activity feed, because a Widget's
+ * events are as much a part of its contract as its props.
  */
 
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { NeutralRegistryEntry } from '@company/mfe-react'
+import {
+  defaultInputsFor,
+  describeWidgetInputs,
+  needsInputPrompt,
+  useWidgets,
+  type NeutralRegistryEntry,
+} from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -50,12 +53,11 @@ import {
   ZapIcon,
 } from 'lucide-react'
 
-import { useDashboardLayout, useIsCompact, useWidgets } from '../hooks.ts'
+import { useDashboardLayout, useIsCompact } from '../hooks.ts'
 import { ValueView } from '../readout.tsx'
 import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
 import { InputsDialog } from './inputs-dialog.tsx'
-import { initialValues, readInputFields, toInputs } from './input-schema.ts'
-import { moveTile, setTiles, tileKey, type DashboardTile, type TileSpan } from './layout-store.ts'
+import { addTile, moveTile, tileKey, type DashboardTile, type TileSpan } from './layout-store.ts'
 import { Tile } from './tile.tsx'
 
 interface WidgetEvent {
@@ -75,9 +77,9 @@ const MAX_EVENTS = 40
 
 export function DashboardPage(): ReactNode {
   const widgets = useWidgets()
-  // The canvas is a store, not this component's state: the command palette adds
-  // a Widget and settings clears it, from outside this page.
-  const { tiles } = useDashboardLayout()
+  // Stored, not this component's state: the palette adds a Widget and settings
+  // clears the canvas, both from outside this page.
+  const [{ tiles }, setLayout] = useDashboardLayout()
   const [editing, setEditing] = useState<Editing | null>(null)
   const [events, setEvents] = useState<readonly WidgetEvent[]>([])
   const [isDropTarget, setIsDropTarget] = useState(false)
@@ -86,33 +88,35 @@ export function DashboardPage(): ReactNode {
 
   const byId = useMemo(() => new Map(widgets.map(entry => [entry.id, entry] as const)), [widgets])
 
-  const commit = useCallback((next: readonly DashboardTile[]) => {
-    setTiles(next)
-  }, [])
+  const commit = useCallback(
+    (next: readonly DashboardTile[]) => {
+      setLayout({ tiles: next })
+    },
+    [setLayout],
+  )
 
   /**
    * A Widget whose inputs are all optional or defaulted needs nothing from the
-   * developer, so asking would be ceremony. One that needs an id has to be
-   * asked, or it mounts straight into its own validation error.
+   * developer, so asking would be ceremony. One that needs an id is asked, or
+   * it mounts straight into its own validation error.
    */
   const add = useCallback(
     (entry: NeutralRegistryEntry) => {
-      const fields = readInputFields(entry.contract)
-      if (fields !== null && fields.every(field => !field.required)) {
-        commit([
-          ...tiles,
-          {
-            key: tileKey(entry.id),
-            widgetId: entry.id,
-            inputs: toInputs(fields, initialValues(fields, {})),
-            span: 6,
-          },
-        ])
+      if (needsInputPrompt(entry.contract)) {
+        setEditing({ mode: 'add', entry })
         return
       }
-      setEditing({ mode: 'add', entry })
+
+      setLayout(layout =>
+        addTile(layout, {
+          key: tileKey(entry.id),
+          widgetId: entry.id,
+          inputs: defaultInputsFor(describeWidgetInputs(entry.contract)),
+          span: 6,
+        }),
+      )
     },
-    [commit, tiles],
+    [setLayout],
   )
 
   const recordEvent = useCallback((widgetId: string, name: string, payload: unknown) => {
@@ -136,12 +140,9 @@ export function DashboardPage(): ReactNode {
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderEyebrow>Shell · composition</PageHeaderEyebrow>
-            {/*
-             * Wrapping, not truncating. The design system's header is a single
-             * row by design and its title truncates to protect the actions
-             * beside it; a page title is the one thing on the page that must
-             * survive a phone, so every page here opts out of that.
-             */}
+            {/* Wrapping, not truncating: the design system's title truncates
+                to protect the actions beside it, and a page title is the one
+                thing that must survive a phone. */}
             <PageHeaderTitle className="text-clip whitespace-normal">
               Widget dashboard
             </PageHeaderTitle>
@@ -174,16 +175,12 @@ export function DashboardPage(): ReactNode {
         </PageHeader>
 
         {/*
-         * Three regions, and which one is the page changes with the width. On a
-         * wide screen the catalogue and the activity feed flank the canvas; from
-         * `lg` down the feed moves under it; in one column the catalogue folds
-         * into its own header so the canvas is never pushed below five Widgets'
-         * worth of published contract.
+         * Three regions, and which one is the page changes with the width: the
+         * catalogue and the feed flank the canvas, then stack under it.
          *
          * `items-start`, and no `flex-1`: each column is as tall as its own
-         * content. Stretching them to a shared row height sized by the
-         * viewport left the canvas shorter than the tiles inside it, and a
-         * tall Widget ran straight out through the dashed border.
+         * content. A shared row height sized by the viewport left the canvas
+         * shorter than its tiles, and a tall Widget ran out through the border.
          */}
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
           <div className="lg:col-span-4 xl:col-span-3">
@@ -284,10 +281,14 @@ export function DashboardPage(): ReactNode {
         onConfirm={inputs => {
           if (editing === null) return
           if (editing.mode === 'add') {
-            commit([
-              ...tiles,
-              { key: tileKey(editing.entry.id), widgetId: editing.entry.id, inputs, span: 6 },
-            ])
+            setLayout(layout =>
+              addTile(layout, {
+                key: tileKey(editing.entry.id),
+                widgetId: editing.entry.id,
+                inputs,
+                span: 6,
+              }),
+            )
           } else {
             const target = editing.tile.key
             commit(tiles.map(tile => (tile.key === target ? { ...tile, inputs } : tile)))
@@ -300,13 +301,10 @@ export function DashboardPage(): ReactNode {
 }
 
 /**
- * The catalogue, and how much room it is allowed to take.
- *
- * On a wide screen it is a column beside the canvas and stays open. In one
- * column it is a disclosure, closed: five Widgets' worth of published contract
- * above the canvas means the canvas is off the bottom of a phone, and capping
- * the list with a scrollbar instead only sliced the last card in half — which
- * reads as a rendering bug rather than as "there is more".
+ * The catalogue, and how much room it is allowed to take. In one column it is a
+ * closed disclosure: five Widgets' worth of published contract above the canvas
+ * puts the canvas off the bottom of a phone, and capping the list with a
+ * scrollbar only sliced the last card in half.
  */
 function CataloguePanel({
   widgets,
@@ -431,12 +429,8 @@ function ActivityFeed({
                 <span className="truncate font-mono text-xs text-muted-foreground">
                   {event.widgetId}
                 </span>
-                {/*
-                 * The payload, read as fields rather than as a line of JSON.
-                 * This panel is the only place a Widget's events are visible at
-                 * all, and `{"fdaId":"fda-1-02","selected":true}` is not
-                 * something anyone should have to parse by eye.
-                 */}
+                {/* Fields rather than a line of JSON: this panel is the only
+                    place a Widget's events are visible at all. */}
                 <Payload payload={event.payload} />
               </li>
             ))}
