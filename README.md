@@ -146,7 +146,7 @@ the fallback title and the tone that marks an override stay the host's.
 | what a Widget takes                  | `describeWidgetInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
 | to store what the page owns          | `useStoredState` outside a mount, or `bindHost` / `hostStorage`                          |
 | to register the page's own commands  | `useCommand` outside a mount, or `CommandRegistry.registerHost`                          |
-| the share scope for the host's build | `hostShared({ root })`, from `@company/mfe-rspack/federation`                            |
+| the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                        |
 
 Chrome rendered above every mount is a first-class caller: `useTheme`,
 `useUser`, `useGroups`, `useBreadcrumbs`, `useCommand` and `useStoredState` all

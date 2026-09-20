@@ -104,6 +104,22 @@ async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T>
 }
 
 /**
+ * The manifest is fetched inside the first `loadRemote` for a container, not by
+ * `registerRemotes` — registration is bookkeeping and cannot fail on a URL. So
+ * the two failures a caller has to tell apart, a container that could not be
+ * found at all and a chunk of one that could, both surface from the same call.
+ * Module Federation reports the first as `RUNTIME-003` and throws a plain Error
+ * carrying that code in its message, which is the only machine-readable part of
+ * it; a runtime that stops saying so degrades to `load/entry-failure` rather
+ * than to a wrong repair step.
+ */
+const MANIFEST_ERROR_CODE = '#RUNTIME-003'
+
+function isManifestFailure(error: unknown): boolean {
+  return error instanceof Error && error.message.includes(MANIFEST_ERROR_CODE)
+}
+
+/**
  * Registration is idempotent per container: several definitions exported by one
  * container register it once, which is also why a developer override has to be
  * consistent across that container's exports.
@@ -137,13 +153,23 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
           options.runtime.loadRemote(`${containerName}/${exposeName.replace(/^\.\//, '')}`),
         )
       } catch (error) {
-        throw toMfeError(error, {
-          code: 'load/entry-failure',
-          id: entry.id,
-          operation: 'load federation entry',
-          repair:
-            'Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.',
-        })
+        throw toMfeError(
+          error,
+          isManifestFailure(error)
+            ? {
+                code: 'load/manifest-failure',
+                id: entry.id,
+                operation: 'load the container manifest',
+                repair: `Check that ${entry.manifestUrl} is reachable and serves a valid manifest.`,
+              }
+            : {
+                code: 'load/entry-failure',
+                id: entry.id,
+                operation: 'load federation entry',
+                repair:
+                  'Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.',
+              },
+        )
       }
 
       signal.throwIfAborted()

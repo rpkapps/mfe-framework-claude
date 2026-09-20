@@ -28,6 +28,12 @@ const { values } = parseArgs({
   options: { url: { type: 'string' }, 'keep-open': { type: 'boolean' } },
 })
 
+/** A port nothing listens on, so the manifest fetch fails rather than 404s. */
+const DEAD_MANIFEST_URL = 'http://127.0.0.1:9931/mf-manifest.json'
+
+/** The key the shell reads its boot-time manifest overrides from. */
+const OVERRIDES_KEY = 'company:mfe:overrides'
+
 /**
  * Each entry is a claim the framework makes, checked against a real page.
  *
@@ -36,6 +42,15 @@ const { values } = parseArgs({
  * scope; a child App mounted inside a parent App proves the same for a whole
  * routed boundary, and that the child reads its own URL rather than the prefix
  * the parent assigned it.
+ *
+ * `overrides` is written to the developer-override key before the document is
+ * fetched, so a scenario can point a definition wherever it needs — including
+ * at nothing. It is cleared for every page that does not ask for one, so the
+ * pages stay independent of each other's order. `pageContains` reads the whole
+ * document rather than a mount, for the scenarios where the claim is precisely
+ * that nothing mounted; `present` names elements that have to exist; and
+ * `allowedErrors` lists the console output a scenario deliberately provokes —
+ * every other page still has to log nothing at all.
  */
 const PAGES = [
   {
@@ -103,6 +118,39 @@ const PAGES = [
       scopeId: 'operations',
       contentSelector: '[data-slot="select-content"]',
     },
+  },
+  {
+    // An override pointing one App at a port nothing answers on is the
+    // everyday way a manifest becomes unloadable, and it must cost that App
+    // alone: the shell's own page is not downstream of any container.
+    url: '/',
+    overrides: { operations: DEAD_MANIFEST_URL },
+    mounts: [],
+    nested: [],
+    pageContains: ['Widget dashboard', 'Registered Widgets'],
+  },
+  {
+    // The defect this stands for: with that override applied, the boundary
+    // showed its failure and then the *next* chunk the shell fetched brought
+    // the whole page down with it — the chrome included. A registered remote
+    // used to be re-initialised on every share the host resolved, so one
+    // unreachable manifest rejected the shell's own modules.
+    //
+    // Opening the developer tools is that next chunk: it is the shell's only
+    // lazily fetched code, and it is what a developer reaches for when an
+    // override is pointing somewhere wrong. The chrome surviving it, with the
+    // panel open beside the failure, is the whole guarantee.
+    url: '/operations',
+    overrides: { operations: DEAD_MANIFEST_URL },
+    async prepare(page) {
+      await page.keyboard.press('g')
+      await page.keyboard.press('d')
+    },
+    mounts: [],
+    nested: [],
+    pageContains: ['operations could not be loaded', 'load/manifest-failure'],
+    present: ['[data-mfe-devtools-panel]'],
+    allowedErrors: [/RUNTIME-003/, /ERR_CONNECTION_REFUSED/, /could not be loaded/],
   },
 ]
 
@@ -356,8 +404,22 @@ async function main() {
 
   const pages = values.url === undefined ? PAGES : [{ url: values.url, mounts: [], nested: [] }]
 
+  // Overrides are read at boot, before any remote is registered, so they have
+  // to be in storage before the document that reads them is fetched — and
+  // storage needs an origin. One cheap visit puts the page there; every
+  // iteration below then writes the key its scenario needs, or clears it.
+  await page.goto('http://127.0.0.1:3000/', { waitUntil: 'domcontentloaded' })
+
   for (const expected of pages) {
     pageErrors = []
+
+    await page.evaluate(
+      ({ key, overrides }) => {
+        if (overrides === null) localStorage.removeItem(key)
+        else localStorage.setItem(key, JSON.stringify(overrides))
+      },
+      { key: OVERRIDES_KEY, overrides: expected.overrides ?? null },
+    )
 
     // `networkidle` never arrives: every dev server holds a websocket open for
     // hot updates, so the load event plus a settle is what says "ready".
@@ -397,7 +459,9 @@ async function main() {
         `no scope root named ${id} has content`,
       )
     }
-    if (expected.mounts.length === 0) {
+    // A page that states what the document has to contain is making its claim
+    // there; the rest have to mount something or they are checking nothing.
+    if (expected.mounts.length === 0 && expected.pageContains === undefined) {
       check('something mounted', mounted.length > 0, 'no scope root has content')
     }
 
@@ -484,7 +548,10 @@ async function main() {
       )
     }
 
-    if (expected.url === '/operations') {
+    // The page that actually mounts operations, not merely the one addressed
+    // at its URL: the scenario below points that App at a dead manifest on
+    // purpose, and a container that never loaded ships no stylesheet.
+    if (expected.url === '/operations' && expected.mounts.includes('operations')) {
       // `w-60` sizes the Operations layout's nav aside
       // (examples/operations/src/routes/__root.tsx: `<aside className="...
       // w-60 ...">`). It is absent from every other container's source, from
@@ -576,7 +643,37 @@ async function main() {
       )
     }
 
-    check('the page logged no errors', pageErrors.length === 0, pageErrors.join(' ;; '))
+    if (expected.pageContains !== undefined) {
+      const documentText = await page.evaluate(() =>
+        (document.body.innerText ?? '').replace(/\s+/g, ' '),
+      )
+      for (const text of expected.pageContains) {
+        check(
+          `the document says ${JSON.stringify(text)}`,
+          documentText.includes(text),
+          `saw ${JSON.stringify(documentText.slice(0, 200))}`,
+        )
+      }
+    }
+
+    for (const selector of expected.present ?? []) {
+      check(
+        `${selector} is on the page`,
+        (await page.locator(selector).count()) > 0,
+        'no element matched it',
+      )
+    }
+
+    // A scenario that provokes a failure says so, by pattern. Every other page
+    // still has to log nothing at all.
+    const unexpected = pageErrors.filter(
+      text => !(expected.allowedErrors ?? []).some(pattern => pattern.test(text)),
+    )
+    check(
+      'the page logged no errors it did not expect',
+      unexpected.length === 0,
+      unexpected.join(' ;; '),
+    )
 
     for (const scope of mounted) {
       console.log(

@@ -1,5 +1,6 @@
 /**
- * The share scope a federation *host* declares.
+ * The federation options a *host* declares: its share scope, and how shares in
+ * it are resolved.
  *
  * A host is not a container, but it joins the same share scope every container
  * on the page joins — and that is the one thing two hand-written lists cannot
@@ -75,11 +76,48 @@ export function hostShared(
       observed: 'a root that resolved none of them',
       declaredBy: 'The build integration',
       repair:
-        "Pass hostShared({ root }) the directory holding the host's package.json — in an Rsbuild config, dirname(fileURLToPath(import.meta.url)) — and install its dependencies.",
+        "Pass `root` the directory holding the host's package.json — in an Rsbuild config, dirname(fileURLToPath(import.meta.url)) — and install its dependencies.",
     })
   }
 
   // `resolveShared` keeps a candidate only where this map has an entry and
   // reads the requirement from it, so the installed version does both jobs.
   return resolveShared({ dependencies: installed, installedVersion })
+}
+
+/**
+ * How the host resolves a share once its remotes are registered.
+ *
+ * Module Federation's default, `version-first`, re-initialises **every**
+ * registered remote before resolving any share: each `loadShare` awaits every
+ * remote's manifest so the highest compatible version can win. One unreachable
+ * manifest therefore rejects the host's own share resolution — not that
+ * remote's, the host's — so the next chunk the shell loads after a dead remote
+ * was registered fails to resolve `react`, `@tecton/react/*` or the framework
+ * packages, and a chrome that had been running comes down with it. A registry
+ * is assembled from builds the host does not control, so one entry being
+ * unreachable is normal and must cost that entry alone.
+ *
+ * `loaded-first` resolves against the scope as it stands, so a registered
+ * remote is contacted only when something actually loads from it. It also
+ * settles the second half of the same question: a share the host provides is
+ * no longer replaced in the scope by a remote's copy of that module, so the
+ * shell renders the design system it was built against even when a container
+ * on the page was built against another version of it.
+ */
+const HOST_SHARE_STRATEGY = 'loaded-first' as const
+
+/** The federation options a host hands `moduleFederation.options`, whole. */
+export interface HostFederationOptions {
+  readonly shared: Readonly<Record<string, SharedModuleConfig>>
+  readonly shareStrategy: typeof HOST_SHARE_STRATEGY
+}
+
+/**
+ * The share scope and the resolution strategy together, because they are one
+ * policy: a host that took the scope and left the strategy would share the
+ * right modules and still lose the page to the first remote it cannot reach.
+ */
+export function hostFederation(options: HostSharedOptions): HostFederationOptions {
+  return { shared: hostShared(options), shareStrategy: HOST_SHARE_STRATEGY }
 }

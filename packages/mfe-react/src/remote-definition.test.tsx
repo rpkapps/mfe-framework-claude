@@ -100,4 +100,25 @@ describe('a load that fails', () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
     expect(screen.getByTestId('error')).toBeInTheDocument()
   })
+
+  /**
+   * The boundary shows it to whoever is looking at the page; the hub is how the
+   * shell's telemetry hears about it at all. One attempt is one diagnostic,
+   * however many consumers suspended on the same load.
+   */
+  it('reports the failure to the diagnostics hub, once', async () => {
+    environment = createMfeTestEnvironment({
+      definitionId: 'parent-app',
+      definitions: [notAnApp],
+    })
+
+    await renderFailing(environment)
+    await waitFor(() => expect(screen.getByTestId('error')).toBeInTheDocument())
+
+    await waitFor(() =>
+      expect(
+        environment?.diagnostics.filter(entry => entry.error.id === 'not-an-app'),
+      ).toHaveLength(1),
+    )
+  })
 })

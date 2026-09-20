@@ -986,3 +986,59 @@ Three details are forced rather than chosen:
 - **It is a list, not a value.** Every surface on the page was built separately,
   and the registry is the only place that answer can be read without loading the
   container — exactly the situation a bug report is written in.
+
+---
+
+## 30. A host resolves shares against the scope it has, not against every remote it knows
+
+**Status:** decided; the reported defect was "when I can't load an MFE manifest,
+the entire page is down".
+
+The framework's central promise is that a registry entry which fails costs the
+page that one surface (§11, and the two deliberately broken fixtures in the
+shell's registry). A developer override pointing one App at a dead port broke
+it, in a way that named nothing: the boundary rendered its `MountFailure`
+correctly, and then the next chunk the shell fetched — the developer tools, the
+one piece of shell code that is not in the boot graph — took the whole page
+down, chrome included. The overlay blamed the component whose import had failed
+to resolve, which was the shell's own header.
+
+Module Federation's default share strategy is `version-first`, and it means
+what it says: before resolving **any** share, the host re-initialises **every**
+remote it has registered, fetching each one's manifest so the highest
+compatible version can win. `SharedHandler.loadShare` awaits those promises
+first, so one unreachable manifest rejects the host's resolution of `react`,
+`@tecton/react/*` and the framework packages themselves — shares it had already
+loaded included. Measured directly in the page: with a dead remote registered,
+every subsequent `loadShare` on the shell's instance rejected with the dead
+remote's `RUNTIME-003`. The failure was not in the surface that failed; it was
+in every surface that had not been fetched yet.
+
+`hostFederation({ root })` therefore declares `shareStrategy: 'loaded-first'`
+alongside the share scope §27 already gave the host, and they travel together
+because a host that took one without the other still loses the page to the
+first remote it cannot reach. The strategy has to be declared at build time:
+the runtime stamps it onto every share when the instance initialises, which is
+before any of the framework's own code runs, and the per-share `strategy` field
+that could be changed afterwards is deprecated in favour of exactly this
+option.
+
+It also settles a second question the same mechanism decides. Under
+`version-first` a remote's copy of a shared module replaces the host's in the
+scope for any module the host has not loaded yet — observed on this page, where
+the shell's own developer tools rendered `@tecton/react/components/alert` out
+of the alert-panel container's build. A container built against a different
+version of the design system could therefore hand the shell components its own
+build never had, which is the same undefined-component crash arriving by
+another road. `loaded-first` keeps the host's copy.
+
+**Cost:** a remote that ships a _newer_ version of a shared package no longer
+wins the scope for a module the host has not loaded. That is the trade this
+host wants — the shell renders the design system it was built against — but it
+is a real change in which copy a page resolves, and it is the reason the
+strategy is stated in the build integration rather than left to a default.
+
+The loader keeps the other half: a container whose manifest could not be
+fetched or parsed now reports `load/manifest-failure` naming the manifest URL,
+rather than `load/entry-failure` pointing at a chunk that was never requested,
+and a failed load reaches the diagnostics hub as well as the boundary.
