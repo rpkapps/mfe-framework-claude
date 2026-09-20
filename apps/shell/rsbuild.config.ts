@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
+import { shared } from '@tecton/react/federation/shared'
 
 import {
   requireTecton,
@@ -70,6 +71,19 @@ const installedVersion = (name: string): string => {
   return read(resolve(here, 'node_modules', name, 'package.json')).version
 }
 
+/**
+ * The same, for a package the shell may not have at all. A share it cannot
+ * resolve is one it cannot provide, so the entry is dropped rather than
+ * advertised against a version nothing here could serve.
+ */
+const installedVersionOrNone = (name: string): string | undefined => {
+  try {
+    return installedVersion(name)
+  } catch {
+    return undefined
+  }
+}
+
 const DEV_PORT = 3000
 
 /**
@@ -83,15 +97,42 @@ const strictSingleton = (name: string) => ({
 })
 
 /**
- * Host and a remote may be built against different versions of one of these,
- * each rendering correctly on its own — unlike the framework packages above,
- * whose whole job is a provider every mount reads through the *same* context.
+ * The design system's dependencies, as its own contract states them: which of
+ * them the page may hold two copies of, and which must never be eager. The
+ * reason per entry is in `@tecton/react/federation/shared`; the versions are
+ * the shell's own install, which the library cannot see. `strictVersion`
+ * follows `singleton` — a mismatch is an error exactly where a second copy
+ * would be.
+ *
+ * A contract entry the shell has not installed (recharts: only a container
+ * that charts pulls it in) has no copy here to offer, so it is left out rather
+ * than advertised as one.
  */
-const nonSingleton = (name: string) => ({
-  singleton: false,
-  strictVersion: false,
-  requiredVersion: installedVersion(name),
-})
+const designSystemShares = Object.fromEntries(
+  Object.entries(shared).flatMap(([candidate, policy]) => {
+    // A trailing slash shares every subpath of a package that publishes no
+    // root export, and the package is what a version is read from.
+    const prefix = candidate.endsWith('/')
+    const version = installedVersionOrNone(prefix ? candidate.slice(0, -1) : candidate)
+    if (version === undefined) return []
+
+    return [
+      [
+        candidate,
+        {
+          singleton: policy.singleton,
+          strictVersion: policy.singleton,
+          ...(policy.eager === false ? { eager: false } : {}),
+          requiredVersion: version,
+          // Module Federation reads a share's version from its package.json,
+          // which it cannot do for a prefix: no package is literally named
+          // "@tecton/react/", so this one states it.
+          ...(prefix ? { version } : {}),
+        },
+      ],
+    ]
+  }),
+)
 
 export default defineConfig({
   plugins: [pluginReact()],
@@ -112,37 +153,16 @@ export default defineConfig({
       shared: {
         // The framework packages carry React context across the boundary, so a
         // second copy in a container makes every framework hook fail with
-        // "rendered outside any mount". They are shared for the same reason
-        // React is.
+        // "rendered outside any mount". The router and the query client carry
+        // their own, and a boundary route reads all of them.
         '@company/mfe-core': strictSingleton('@company/mfe-core'),
         '@company/mfe-host': strictSingleton('@company/mfe-host'),
         '@company/mfe-react': strictSingleton('@company/mfe-react'),
-        react: strictSingleton('react'),
-        'react-dom': strictSingleton('react-dom'),
         '@tanstack/react-router': strictSingleton('@tanstack/react-router'),
         '@tanstack/react-query': strictSingleton('@tanstack/react-query'),
-        // Sonner's queue is module state, not React context, but a second copy
-        // fails the same way: the shell mounts the one Toaster on the page,
-        // and a remote that resolved its own copy would push its toasts onto
-        // a queue that Toaster never reads.
-        sonner: strictSingleton('sonner'),
-        // The trailing slash shares every subpath of the design system, which
-        // is how it is imported; it publishes no root entry. Not a singleton
-        // — a remote may be built against a different @tecton/react version
-        // and still render correctly on its own. Module Federation cannot
-        // infer this candidate's version from a package.json the way it can
-        // for an ordinary dependency, because no package is literally named
-        // "@tecton/react/", so `version` states it explicitly.
-        '@tecton/react/': {
-          singleton: false,
-          strictVersion: false,
-          version: installedVersion('@tecton/react'),
-          requiredVersion: installedVersion('@tecton/react'),
-        },
-        // Not a singleton either: React Aria's contexts (a label wired to its
-        // field, a trigger to its popover) are not shared between copies, so
-        // the shell and a remote may sit on different ~1.21 versions.
-        'react-aria-components': nonSingleton('react-aria-components'),
+        // React, the design system and what it holds module state in: the
+        // contract's entries, on this install's versions.
+        ...designSystemShares,
       },
     },
   },

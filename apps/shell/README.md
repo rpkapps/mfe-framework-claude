@@ -239,19 +239,23 @@ declares no static remotes — each is registered at runtime by the framework's
 loader, which is handed `registerRemotes` and `loadRemote` in `src/boot.tsx`,
 the one file that knows federation exists.
 
-The sharing policy follows the design system's own contract for remotes
-(`packages/mfe-rspack/src/federation/sharing.ts`, mirrored here in
-`rsbuild.config.ts`). Strict singletons: `react`, `react-dom`,
-`@tanstack/react-router`, `@tanstack/react-query`, the framework packages
-(`@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`) and `sonner` —
-each carries either React context or, for sonner, module state that a second
-copy would silently duplicate, so a remote that resolves its own copy is an
-error. Not singletons: `@tecton/react/` (a prefix share, since the package has
-no root export, with an explicit `version` since Module Federation cannot infer
-one for a prefix candidate), `react-aria-components` and `recharts` — a remote
-may be built against a different design-system or React Aria version and still
-render correctly on its own copy, and `recharts` is additionally `eager: false`
-so only a container that actually charts pays for it.
+The sharing policy is two lists. The design system's dependencies come from
+`@tecton/react/federation/shared`, imported here and by the build plugin
+(`packages/mfe-rspack/src/federation/sharing.ts`): which of them a page may hold
+two copies of follows from where that library keeps module state, so it states
+the answer and neither side restates it. That covers `react`, `react-dom` and
+`sonner` as singletons, and `@tecton/react/` — a prefix share, since the
+package has no root export, with an explicit `version` since Module Federation
+cannot infer one for a prefix candidate — `react-aria-components` and `recharts`
+as non-singletons. The framework's own are the rest: `@company/mfe-core`,
+`@company/mfe-host`, `@company/mfe-react`, `@tanstack/react-router` and
+`@tanstack/react-query`, each carrying React context that a second copy would
+silently duplicate, so a remote that resolves its own is an error. Both sides
+take `strictVersion` from `singleton` — a mismatch is an error exactly where a
+second copy would be — and the versions from this install, which the design
+system cannot see. A contract entry the shell has not installed (`recharts`,
+which only a charting container pulls in) is left out: there is no copy here to
+offer.
 
 ## Hot updates
 

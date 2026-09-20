@@ -45,6 +45,14 @@ the shell having scanned every container's source.
   the container's own stylesheet. An author writes none of it, and a container
   that renders no design system gets none of it.
 
+The sharing policy for the design system's own dependencies now comes from
+`@tecton/react/federation/shared` as well, in `pluginMfe()` and in the shell:
+which of them a page may hold two copies of follows from where that library
+keeps module state, so it publishes the answer and neither build restates it.
+`strictVersion` follows `singleton` — a version mismatch is an error exactly
+where a second copy would be — and the versions still come from the container's
+own install. The framework's own singletons are unchanged.
+
 Two limits come with this, both stated rather than discovered later.
 `@property` and `@font-face` register a name for the whole page and cannot be
 scoped, so two containers defining the same name end up with whichever the
