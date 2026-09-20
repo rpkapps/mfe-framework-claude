@@ -9,31 +9,59 @@
  * And a URL is all an override carries: accepting configuration here is what
  * would turn a debugging aid into a second configuration surface.
  *
- * The layout went through two wrong answers before this one. A stack of cards
- * made eight definitions look equally interesting; replacing it with a table of
- * eight identical full-width text boxes was worse, because a wall of inputs
- * reads as a form to fill in rather than a list to scan, and the one row you
- * had actually changed disappeared into it.
+ * Everything structural is the design system's. Rows are `Item`, the origin is
+ * a `Field` around an `InputGroup`, a conflict is an `Alert`, an empty registry
+ * is `Empty`, and the pending bar is `ActionBar` — which exists for precisely
+ * this case, per its own doc comment: "unsaved changes in a form". Earlier
+ * versions of this file built all five out of `div`s and utility classes, and
+ * that is how it ended up first as a stack of look-alike cards and then as a
+ * wall of identical text boxes. The components already know what a row and a
+ * field are meant to look like here; the hand-rolled version was only ever
+ * going to approximate them.
  *
- * So a URL here is *information* until somebody decides to change it. Rows
- * render their URL as text, the actions appear on hover or focus, and an input
- * exists only where there is an edit or an override to see. What is left is a
- * list you can read down, with the interesting rows the only ones carrying any
- * weight.
+ * What stays local is the *state* colouring — a left edge and a tinted media
+ * slot per row — because "this one is overridden" is a fact about the override
+ * map rather than a variant the design system has an opinion about.
  */
 
-import { useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
-import { Input } from '@tecton/react/components/input'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@tecton/react/components/empty'
+import { Field, FieldDescription } from '@tecton/react/components/field'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+} from '@tecton/react/components/input-group'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+} from '@tecton/react/components/item'
+import { ActionBar, ActionBarActions, ActionBarMessage } from '@tecton/react/tecton/action-bar'
 import {
   AppWindowIcon,
   BoxIcon,
+  LayersIcon,
   PencilIcon,
   RotateCcwIcon,
   ServerIcon,
   Trash2Icon,
   TriangleAlertIcon,
-  XIcon,
 } from 'lucide-react'
 
 import { browserStorage } from '../browser-storage.ts'
@@ -55,8 +83,7 @@ const ROW_ACCENT: Readonly<Record<RowState, string>> = {
   pending: 'border-l-info bg-info-surface/10',
 }
 
-/** The row's icon says the same thing as its edge, in the same colour. */
-const ROW_ICON: Readonly<Record<RowState, string>> = {
+const ROW_MEDIA: Readonly<Record<RowState, string>> = {
   default: 'text-muted-foreground',
   overridden: 'text-warning',
   pending: 'text-info',
@@ -83,71 +110,74 @@ export function OverridesTab(): ReactNode {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <DevServerBar origin={origin} onOriginChange={setOrigin} resolved={devServerUrl} />
+        <DevServerField origin={origin} onOriginChange={setOrigin} resolved={devServerUrl} />
 
         {entries.length === 0 ? (
-          <p className="rounded-lg border border-border-subtle px-3 py-8 text-center text-sm text-muted-foreground">
-            The registry accepted no entries, so there is nothing to point anywhere. The Registry
-            tab says why.
-          </p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <LayersIcon />
+              </EmptyMedia>
+              <EmptyTitle>Nothing is registered</EmptyTitle>
+              <EmptyDescription>
+                There is nothing to point anywhere. The Registry tab says whether an entry was never
+                registered or was rejected, and why.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">
-            {entries.map(entry => {
+          <ItemGroup className="overflow-hidden rounded-lg border border-border-subtle">
+            {entries.map((entry, index) => {
               const staged = draft.get(entry.id)
               const applied = inForce.get(entry.id)
               const state: RowState =
                 staged !== undefined ? 'pending' : applied === undefined ? 'default' : 'overridden'
 
               return (
-                <OverrideRow
-                  key={entry.id}
-                  id={entry.id}
-                  isApp={entry.definitionKind === 'app'}
-                  published={entry.manifestUrl}
-                  applied={applied}
-                  staged={staged}
-                  state={state}
-                  devServerUrl={devServerUrl}
-                  problem={problems.find(problem => problem.id === entry.id)?.message}
-                  isEditing={editing === entry.id}
-                  onEdit={() => {
-                    setEditing(entry.id)
-                  }}
-                  onDone={() => {
-                    setEditing(current => (current === entry.id ? null : current))
-                  }}
-                />
+                <Fragment key={entry.id}>
+                  {index === 0 ? null : <ItemSeparator className="my-0" />}
+                  <OverrideRow
+                    id={entry.id}
+                    isApp={entry.definitionKind === 'app'}
+                    published={entry.manifestUrl}
+                    applied={applied}
+                    staged={staged}
+                    state={state}
+                    devServerUrl={devServerUrl}
+                    problem={problems.find(problem => problem.id === entry.id)?.message}
+                    isEditing={editing === entry.id}
+                    onEdit={() => {
+                      setEditing(entry.id)
+                    }}
+                    onDone={() => {
+                      setEditing(current => (current === entry.id ? null : current))
+                    }}
+                  />
+                </Fragment>
               )
             })}
-          </ul>
+          </ItemGroup>
         )}
 
-        {conflicts.length === 0 ? null : (
-          <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive-surface/25 p-3">
-            {conflicts.map(conflict => (
-              <p
-                key={conflict.container}
-                className="flex items-start gap-2 text-xs leading-relaxed"
-              >
-                <TriangleAlertIcon
-                  aria-hidden
-                  className="mt-0.5 size-3.5 shrink-0 text-destructive"
-                />
-                <span>
-                  <span className="font-mono font-medium">{conflict.container}</span> is one
-                  container, registered once — its definitions cannot load from two URLs. Point{' '}
-                  {conflict.entries.map(([id]) => id).join(' and ')} at the same one.
-                </span>
-              </p>
-            ))}
-          </div>
-        )}
+        {conflicts.map(conflict => (
+          <Alert key={conflict.container} variant="destructive" appearance="outline">
+            <TriangleAlertIcon />
+            <AlertTitle>
+              <span className="font-mono">{conflict.container}</span> cannot load from two URLs
+            </AlertTitle>
+            <AlertDescription>
+              One container is registered once, under one name. Point{' '}
+              {conflict.entries.map(([id]) => id).join(' and ')} at the same manifest, or only one
+              of them will apply.
+            </AlertDescription>
+          </Alert>
+        ))}
       </div>
 
-      <PendingFooter
+      <PendingBar
         pending={draft.size}
+        inForce={inForce.size}
         canApply={canApply}
-        hasOverrides={inForce.size > 0}
         onApply={() => {
           if (devtools.apply(browserStorage(), inForce)) window.location.reload()
         }}
@@ -157,14 +187,14 @@ export function OverridesTab(): ReactNode {
 }
 
 /**
- * The shortcut: one origin, then one click on the row you care about.
+ * The shortcut: one origin, then one press on the row you care about.
  *
  * This began as a multi-select — an origin, a toggle per definition, then a
  * "point" button — and the toggles overflowed the panel at any dock width
  * narrow enough to be useful. Typing a port and pressing "use" on one row is
  * both smaller and fewer steps.
  */
-function DevServerBar({
+function DevServerField({
   origin,
   onOriginChange,
   resolved,
@@ -176,46 +206,48 @@ function DevServerBar({
   const isBlank = origin.trim() === ''
   const isBad = !isBlank && resolved === undefined
 
+  /*
+   * The label is an addon inside the group rather than a `FieldLabel` above or
+   * beside it. A docked panel is short, so a label on its own row costs a row
+   * of the list; `orientation="horizontal"` instead stranded it at the far left
+   * with the input pushed into the right half. Inline, it is one row.
+   */
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-border-subtle bg-surface-alt/50 px-3 py-2.5">
-      <label
-        htmlFor="mfe-devtools-origin"
-        className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground"
-      >
-        <ServerIcon aria-hidden className="size-3.5" />
-        Dev server
-      </label>
-
-      <Input
-        id="mfe-devtools-origin"
-        placeholder="3001"
-        value={origin}
-        onChange={event => {
-          onOriginChange(event.target.value)
-        }}
-        className="h-8 w-40 shrink-0 font-mono text-xs"
-      />
-
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground @max-md:basis-full">
-        {isBlank ? (
-          'A port is enough. Then “use” it on any row.'
-        ) : isBad ? (
-          <span className="text-destructive">Not a URL — try a port, or host:port.</span>
-        ) : (
-          <span className="font-mono">{resolved}</span>
-        )}
-      </p>
-    </div>
+    <Field>
+      <InputGroup>
+        <InputGroupAddon align="inline-start">
+          <ServerIcon />
+          <InputGroupText>Dev server</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput
+          id="mfe-devtools-origin"
+          aria-label="Dev server origin"
+          placeholder="3001"
+          value={origin}
+          onChange={event => {
+            onOriginChange(event.target.value)
+          }}
+          className="font-mono"
+        />
+      </InputGroup>
+      <FieldDescription className={isBad ? 'text-destructive' : 'truncate font-mono'}>
+        {isBlank
+          ? 'A port is enough — then “use” it on a row. Overrides apply on reload.'
+          : isBad
+            ? 'Not a URL — try a port, or host:port.'
+            : resolved}
+      </FieldDescription>
+    </Field>
   )
 }
 
 /**
- * One definition, one line.
+ * One definition.
  *
  * `staged` is the pending edit — a string to set, `null` to clear, `undefined`
  * for no edit at all. Not just an empty string, because clearing an override
- * and never having touched one are different intentions, and the footer counts
- * them differently.
+ * and never having touched one are different intentions, and the bar below
+ * counts them differently.
  */
 function OverrideRow({
   id,
@@ -247,16 +279,17 @@ function OverrideRow({
   const Icon = isApp ? AppWindowIcon : BoxIcon
 
   return (
-    <li className={`group border-l-2 px-3 py-1.5 ${ROW_ACCENT[state]}`}>
-      <div className="grid gap-x-3 gap-y-1 @md:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] @md:items-center">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon aria-hidden className={`size-3.5 shrink-0 ${ROW_ICON[state]}`} />
-          <span className="truncate font-mono text-xs font-medium">{id}</span>
-        </div>
+    <Item size="xs" className={`group rounded-none border-l-2 ${ROW_ACCENT[state]}`}>
+      <ItemMedia variant="icon" className={ROW_MEDIA[state]}>
+        <Icon />
+      </ItemMedia>
 
-        <div className="flex min-w-0 items-center gap-1">
-          {showsInput ? (
-            <Input
+      <ItemContent className="gap-1">
+        <ItemTitle className="font-mono">{id}</ItemTitle>
+
+        {showsInput ? (
+          <InputGroup>
+            <InputGroupInput
               autoFocus={isEditing}
               aria-label={`Manifest URL for ${id}`}
               placeholder={published}
@@ -265,99 +298,115 @@ function OverrideRow({
               onChange={event => {
                 devtools.stage(id, event.target.value)
               }}
-              className="h-7 min-w-0 flex-1 font-mono text-xs"
+              className="font-mono text-xs"
             />
-          ) : (
-            /*
-             * The URL as text, and as the edit affordance. A row nobody has
-             * touched is something to read, so it is not a box; clicking it is
-             * how it becomes one, and the pencil that appears on hover is what
-             * says so without adding a control to every row.
-             */
-            <button
-              type="button"
-              onClick={onEdit}
-              title={published}
-              className="flex min-w-0 flex-1 cursor-text rounded px-1 py-1 text-left font-mono text-xs hover:bg-ghost-hover"
-            >
-              <UrlText url={published} />
-            </button>
-          )}
-
-          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100">
             {devServerUrl === undefined || value === devServerUrl ? null : (
-              <Button
-                variant="ghost"
-                size="xs"
-                aria-label={`Point ${id} at the dev server`}
-                onPress={() => {
-                  devtools.stage(id, devServerUrl)
-                }}
-              >
-                Use
-              </Button>
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="xs"
+                  onPress={() => {
+                    devtools.stage(id, devServerUrl)
+                  }}
+                >
+                  Use
+                </InputGroupButton>
+              </InputGroupAddon>
             )}
+          </InputGroup>
+        ) : (
+          /*
+           * The URL as text, and as the edit affordance. A row nobody has
+           * touched is something to read, so it is not a box; pressing it is
+           * how it becomes one, and the pencil that appears on hover says so
+           * without adding a control to every row.
+           */
+          <button
+            type="button"
+            onClick={onEdit}
+            title={published}
+            className="flex min-w-0 cursor-text rounded text-left font-mono text-xs text-muted-foreground hover:bg-ghost-hover"
+          >
+            <UrlText url={published} />
+          </button>
+        )}
 
-            {staged !== undefined ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Discard the pending edit for ${id}`}
-                onPress={() => {
-                  devtools.stage(id, undefined)
-                  onDone()
-                }}
-              >
-                <RotateCcwIcon />
-              </Button>
-            ) : applied !== undefined ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Clear the override for ${id}`}
-                onPress={() => {
-                  devtools.stage(id, null)
-                }}
-              >
-                <Trash2Icon />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Edit the manifest URL for ${id}`}
-                onPress={onEdit}
-              >
-                <PencilIcon />
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+        {problem === undefined ? null : (
+          <ItemDescription className="text-destructive">{problem}</ItemDescription>
+        )}
 
-      {problem === undefined ? null : (
-        <p className="mt-0.5 text-xs text-destructive @md:ml-[10.75rem]">{problem}</p>
-      )}
+        {staged === undefined ? null : (
+          <ItemDescription>
+            in force now:{' '}
+            <span className="font-mono text-foreground/90">
+              {applied ?? 'the published manifest'}
+            </span>
+          </ItemDescription>
+        )}
+      </ItemContent>
 
-      {/*
-       * Muted, not blue: the edge and the icon already say "pending", and the
-       * surface-foreground token is nearly the surface itself on this card.
-       */}
-      {staged === undefined ? null : (
-        <p className="mt-0.5 truncate text-xs text-muted-foreground @md:ml-[10.75rem]">
-          in force now:{' '}
-          <span className="font-mono text-foreground/90">
-            {applied ?? 'the published manifest'}
-          </span>
-        </p>
-      )}
-    </li>
+      <ItemActions className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-sm:opacity-100">
+        {devServerUrl !== undefined && !showsInput ? (
+          <Button
+            variant="ghost"
+            size="xs"
+            aria-label={`Point ${id} at the dev server`}
+            onPress={() => {
+              devtools.stage(id, devServerUrl)
+            }}
+          >
+            Use
+          </Button>
+        ) : null}
+
+        {staged !== undefined ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Discard the pending edit for ${id}`}
+            onPress={() => {
+              devtools.stage(id, undefined)
+              onDone()
+            }}
+          >
+            <RotateCcwIcon />
+          </Button>
+        ) : applied !== undefined ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Clear the override for ${id}`}
+            onPress={() => {
+              devtools.stage(id, null)
+            }}
+          >
+            <Trash2Icon />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Edit the manifest URL for ${id}`}
+            onPress={onEdit}
+          >
+            <PencilIcon />
+          </Button>
+        )}
+      </ItemActions>
+    </Item>
   )
 }
 
 /**
  * The origin is the part you read; the rest is the same eight times over.
- * Dimming it is what lets the list be scanned by port rather than by prefix.
+ *
+ * Two levels of contrast, not three: one muted token for the scheme and the
+ * path, the normal foreground for the host. An earlier version dimmed the
+ * button as a whole and then applied `opacity` to the spans inside it, which
+ * multiplies — the result was a row whose URL could not be read at all.
+ *
+ * Only the path may truncate. Truncating the line as a whole is what a narrow
+ * dock did before, and it ate the port — which is the entire question a
+ * developer opens this list to answer.
  */
 function UrlText({ url }: { readonly url: string }): ReactNode {
   let parsed: URL
@@ -369,65 +418,75 @@ function UrlText({ url }: { readonly url: string }): ReactNode {
 
   return (
     <>
-      <span className="shrink-0 text-muted-foreground">{parsed.protocol}//</span>
+      <span className="shrink-0">{parsed.protocol}//</span>
       <span className="shrink-0 font-medium text-foreground">{parsed.host}</span>
-      <span className="truncate text-muted-foreground">{parsed.pathname}</span>
+      <span className="truncate">{parsed.pathname}</span>
     </>
   )
 }
 
 /**
- * The reload is not a nicety and the copy says so. Remotes are registered once
- * per container name and their modules are already evaluated, so nothing about
- * an override applies until the page boots again.
+ * The bar the design system already has for this.
+ *
+ * `ActionBar` calls itself transient — "rows selected in a table, unsaved
+ * changes in a form" — owns its own enter transition and takes Escape to
+ * dismiss. So it appears when there is something to act on and not before,
+ * which is also why "overrides apply on reload" lives on the field above
+ * rather than in a permanent footer that spends a row saying nothing.
  */
-function PendingFooter({
+function PendingBar({
   pending,
+  inForce,
   canApply,
-  hasOverrides,
   onApply,
 }: {
   readonly pending: number
+  readonly inForce: number
   readonly canApply: boolean
-  readonly hasOverrides: boolean
   readonly onApply: () => void
 }): ReactNode {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border-subtle bg-card px-3 py-2">
-      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-        {pending === 0
-          ? 'Overrides are read at boot, so a change takes a reload.'
-          : `${String(pending)} pending ${pending === 1 ? 'change' : 'changes'}.`}
-      </p>
+    <ActionBar
+      placement="toolbar"
+      isOpen={pending > 0 || inForce > 0}
+      {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
+      className="shrink-0 border-t border-border-subtle"
+    >
+      <ActionBarMessage>
+        {pending > 0
+          ? `${String(pending)} pending — applied on reload`
+          : `${String(inForce)} override${inForce === 1 ? '' : 's'} in force`}
+      </ActionBarMessage>
 
-      {pending === 0 ? null : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => {
-            devtools.clearDraft()
-          }}
-        >
-          <XIcon /> Discard
-        </Button>
-      )}
-
-      {!hasOverrides || pending > 0 ? null : (
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={() => {
-            devtools.clearDraft()
-            if (devtools.apply(browserStorage(), new Map())) window.location.reload()
-          }}
-        >
-          <Trash2Icon /> Clear all
-        </Button>
-      )}
-
-      <Button size="sm" isDisabled={!canApply} onPress={onApply}>
-        Apply and reload
-      </Button>
-    </div>
+      <ActionBarActions>
+        {pending > 0 ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                devtools.clearDraft()
+              }}
+            >
+              Discard
+            </Button>
+            <Button size="sm" isDisabled={!canApply} onPress={onApply}>
+              Apply and reload
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => {
+              devtools.clearDraft()
+              if (devtools.apply(browserStorage(), new Map())) window.location.reload()
+            }}
+          >
+            <Trash2Icon /> Clear all
+          </Button>
+        )}
+      </ActionBarActions>
+    </ActionBar>
   )
 }

@@ -13,6 +13,13 @@
 import { useCallback, useRef, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react'
 import { Button } from '@tecton/react/components/button'
 import { Separator } from '@tecton/react/components/separator'
+import {
+  Panel,
+  PanelActions,
+  PanelContent,
+  PanelHeader,
+  PanelTitle,
+} from '@tecton/react/tecton/panel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
@@ -109,22 +116,24 @@ function DevtoolsDock({
   readonly tab: DevtoolsTab
 }): ReactNode {
   return (
-    <section
+    <Panel
+      variant="flat"
+      size="sm"
       aria-label="MFE developer tools"
       data-mfe-devtools-panel
       data-side={side}
       style={dockStyle(side, size)}
-      className="@container fixed inset-0 z-[2147483000] flex flex-col border-border-subtle bg-card text-card-foreground shadow-2xl max-sm:!inset-0 max-sm:!h-auto max-sm:!w-auto sm:inset-auto"
+      className="@container fixed inset-0 z-[2147483000] rounded-none shadow-2xl max-sm:!inset-0 max-sm:!h-auto max-sm:!w-auto sm:inset-auto"
     >
       <ResizeHandle side={side} />
 
-      <header className="flex h-10 shrink-0 items-center gap-x-3 border-b border-border-subtle px-3">
-        <span className="flex items-center gap-2 text-sm font-medium">
+      <PanelHeader className="border-b border-border-subtle">
+        <PanelTitle className="flex items-center gap-2 text-sm">
           <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
           MFE devtools
-        </span>
+        </PanelTitle>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <PanelActions className="flex items-center justify-end gap-1.5">
           <ToggleGroup
             aria-label="Panel position"
             selectionMode="single"
@@ -158,38 +167,40 @@ function DevtoolsDock({
           >
             <XIcon />
           </Button>
-        </div>
-      </header>
+        </PanelActions>
+      </PanelHeader>
 
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={key => {
-          devtools.setTab(String(key) as DevtoolsTab)
-        }}
-        className="flex min-h-0 flex-1 flex-col gap-0"
-      >
-        <TabsList variant="line" aria-label="Developer tools" className="shrink-0 px-3">
-          <TabsTrigger id="overrides">
-            <SlidersHorizontalIcon /> Overrides
-          </TabsTrigger>
-          <TabsTrigger id="registry">
-            <LayersIcon /> Registry
-          </TabsTrigger>
-        </TabsList>
+      <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={key => {
+            devtools.setTab(String(key) as DevtoolsTab)
+          }}
+          className="flex min-h-0 flex-1 flex-col gap-0"
+        >
+          <TabsList variant="line" aria-label="Developer tools" className="shrink-0 px-3">
+            <TabsTrigger id="overrides">
+              <SlidersHorizontalIcon /> Overrides
+            </TabsTrigger>
+            <TabsTrigger id="registry">
+              <LayersIcon /> Registry
+            </TabsTrigger>
+          </TabsList>
 
-        {/*
-         * The panes do not scroll; each tab does, so a tab with a pinned
-         * footer can keep it out of the scrolling region instead of floating
-         * it over the rows with a translucent background.
-         */}
-        <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
-          <OverridesTab />
-        </TabsContent>
-        <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
-          <RegistryTab />
-        </TabsContent>
-      </Tabs>
-    </section>
+          {/*
+           * The panes do not scroll; each tab does, so a tab with a pinned
+           * footer can keep it out of the scrolling region instead of floating
+           * it over the rows with a translucent background.
+           */}
+          <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
+            <OverridesTab />
+          </TabsContent>
+          <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
+            <RegistryTab />
+          </TabsContent>
+        </Tabs>
+      </PanelContent>
+    </Panel>
   )
 }
 

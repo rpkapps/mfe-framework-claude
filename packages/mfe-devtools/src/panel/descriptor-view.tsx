@@ -4,39 +4,61 @@
  * The shell has a richer vocabulary for this in `readout.tsx`, and this is
  * deliberately not it. Two of that module's four consumers are production
  * surfaces — the bug report and the dashboard — so moving it here would put a
- * devtools package on the import graph of code that runs for everybody. A few
- * dozen duplicated lines are the cheaper mistake than that inversion.
+ * devtools package on the import graph of code that runs for everybody.
+ *
+ * It is an `ItemGroup` of `Item`s rather than a description list built by hand:
+ * a key beside a value is what `ItemTitle` and `ItemDescription` are, and the
+ * group already owns the dividers and the spacing.
  *
  * Showing raw JSON is the tempting shortcut and it is the wrong answer even
  * here: a rejected descriptor is read to find the one field that is wrong, and
  * `JSON.stringify(…, null, 2)` buries it in punctuation.
  */
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import { Badge } from '@tecton/react/components/badge'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemSeparator,
+  ItemTitle,
+} from '@tecton/react/components/item'
 
 export function DescriptorView({ source }: { readonly source: unknown }): ReactNode {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     return (
-      <div className="rounded-md border border-border-subtle bg-background/60 p-2">
-        <DescriptorValue value={source} />
-      </div>
+      <ItemGroup className="overflow-hidden rounded-md border border-border-subtle">
+        <Item size="xs">
+          <ItemContent>
+            <ItemDescription>
+              <DescriptorValue value={source} />
+            </ItemDescription>
+          </ItemContent>
+        </Item>
+      </ItemGroup>
     )
   }
 
   return (
-    <dl className="divide-y divide-border-subtle overflow-hidden rounded-md border border-border-subtle bg-background/60">
-      {Object.entries(source as Record<string, unknown>).map(([name, value]) => (
-        <div
-          key={name}
-          className="grid gap-0.5 px-2.5 py-1.5 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] sm:gap-3"
-        >
-          <dt className="font-mono text-xs text-muted-foreground">{name}</dt>
-          <dd className="min-w-0 text-xs">
-            <DescriptorValue value={value} />
-          </dd>
-        </div>
+    <ItemGroup className="overflow-hidden rounded-md border border-border-subtle">
+      {Object.entries(source as Record<string, unknown>).map(([name, value], index) => (
+        <Fragment key={name}>
+          {index === 0 ? null : <ItemSeparator className="my-0" />}
+          <Item size="xs" className="rounded-none">
+            <ItemContent className="gap-0.5">
+              <ItemTitle className="font-mono text-xs font-normal text-muted-foreground">
+                {name}
+              </ItemTitle>
+              <ItemDescription className="text-foreground">
+                <DescriptorValue value={value} />
+              </ItemDescription>
+            </ItemContent>
+          </Item>
+        </Fragment>
       ))}
-    </dl>
+    </ItemGroup>
   )
 }
 
@@ -46,7 +68,11 @@ function DescriptorValue({ value }: { readonly value: unknown }): ReactNode {
   if (value === undefined) return <span className="text-muted-foreground">not set</span>
 
   if (typeof value === 'boolean') {
-    return <span className="font-mono">{value ? 'true' : 'false'}</span>
+    return (
+      <Badge variant={value ? 'success' : 'secondary'} size="default">
+        {value ? 'true' : 'false'}
+      </Badge>
+    )
   }
 
   if (typeof value === 'string' || typeof value === 'number') {
@@ -58,12 +84,9 @@ function DescriptorValue({ value }: { readonly value: unknown }): ReactNode {
     return (
       <span className="flex flex-wrap gap-1">
         {value.map((item, index) => (
-          <span
-            key={index}
-            className="rounded border border-border-subtle px-1 font-mono text-[0.7rem]"
-          >
+          <Badge key={index} variant="outline" size="default" className="font-mono">
             {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-          </span>
+          </Badge>
         ))}
       </span>
     )
