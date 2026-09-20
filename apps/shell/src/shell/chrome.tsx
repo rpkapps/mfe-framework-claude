@@ -18,6 +18,7 @@ import {
   type NeutralRegistryEntry,
 } from '@company/mfe-react'
 import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
+import { devtools, MfeDevtools } from '@company/mfe-devtools'
 import {
   Breadcrumb,
   BreadcrumbItem as Crumb,
@@ -63,7 +64,6 @@ import {
   CircleHelpIcon,
   ClipboardCopyIcon,
   LayoutDashboardIcon,
-  LayersIcon,
   MoonIcon,
   SettingsIcon,
   SparklesIcon,
@@ -76,7 +76,6 @@ import { HelpSheet } from './help-sheet.tsx'
 import { useActiveApp, useApps, useShellSurface, useTheme } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
-import { RegistryNotice, RegistrySheet } from './registry-sheet.tsx'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
@@ -202,7 +201,6 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
           <Header />
         </AriaRouterProvider>
         <AppShellBody className="flex-col">
-          <RegistryNotice />
           <AppShellMain className="flex">{children}</AppShellMain>
         </AppShellBody>
       </AppShell>
@@ -213,7 +211,6 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
        * either one knowing where the other lives.
        */}
       <CommandPalette open={surface === 'palette'} onOpenChange={closeOnDismiss} />
-      <RegistrySheet isOpen={surface === 'registry'} onOpenChange={closeOnDismiss} />
       <SettingsSheet isOpen={surface === 'settings'} onOpenChange={closeOnDismiss} />
       <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
       <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
@@ -223,6 +220,15 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
        * falls back to the system preference when there is no provider, which
        * the shell does not mount — its theme is shell state, applied above.
        */}
+      {/*
+       * The developer tools. Mounted unconditionally and gated at runtime: the
+       * component reads its flag and renders nothing when it is off, and the
+       * panel itself is a chunk that is only fetched once somebody has opted
+       * in. Not a member of `ShellSurface` — it owns its own open state,
+       * because the package cannot reach into the shell's store, and because
+       * unlike the sheets it is not modal and does not close the others.
+       */}
+      <MfeDevtools />
       <Toaster position="bottom-right" theme={theme} />
     </ShortcutsProvider>
   )
@@ -264,7 +270,17 @@ function Header(): ReactNode {
     label: 'Open the registry',
     group: 'Shell',
     onAction: () => {
-      shellUi.toggle('registry')
+      devtools.open('registry')
+    },
+  })
+
+  useShortcut({
+    id: 'shell.devtools',
+    keys: 'g d',
+    label: 'Open the developer tools',
+    group: 'Shell',
+    onAction: () => {
+      devtools.open('overrides')
     },
   })
 
@@ -383,15 +399,6 @@ function Header(): ReactNode {
         >
           Search or jump to…
         </ShellCommandTrigger>
-        <ShellAction
-          label="Registry"
-          shortcut="g r"
-          onPress={() => {
-            shellUi.show('registry')
-          }}
-        >
-          <LayersIcon />
-        </ShellAction>
         <ShellAction
           label="Help"
           shortcut="?"

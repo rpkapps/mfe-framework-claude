@@ -173,3 +173,27 @@ export function findConflictingContainerOverrides(
 
   return diagnostics
 }
+
+/** What writing an override needs. `getItem` too, so a write preserves the rest. */
+export type OverrideWritableStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+/**
+ * Replaces the whole override map. An empty map removes the key rather than
+ * leaving `{}` behind, so "no overrides" reads the same as never having set
+ * one. Returns false when the browser refuses storage for this origin, so the
+ * caller can say so instead of claiming it worked.
+ */
+export function writeDevOverrides(
+  storage: OverrideWritableStorage | undefined,
+  overrides: ReadonlyMap<string, string>,
+): boolean {
+  if (!storage) return false
+
+  try {
+    if (overrides.size === 0) storage.removeItem(OVERRIDES_STORAGE_KEY)
+    else storage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(Object.fromEntries(overrides)))
+    return true
+  } catch {
+    return false
+  }
+}

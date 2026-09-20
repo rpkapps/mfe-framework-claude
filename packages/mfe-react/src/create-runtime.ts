@@ -26,6 +26,7 @@ import {
   createMountTelemetry,
   normalizeRegistry,
   MfeStorageStore,
+  findConflictingContainerOverrides,
   readDevOverrides,
   requiresSessionRetirement,
   SharedContainerLoader,
@@ -70,6 +71,25 @@ export interface MfeRuntimeHandle {
   dispose(): void
 }
 
+/**
+ * Definition id → container name, read from the descriptors as published. The
+ * normalized entry hides the container in `adapterData`; the raw registry entry
+ * still states it, and a descriptor that names neither is simply left out —
+ * this map only exists to find a conflict, never to load anything.
+ */
+function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<string, string> {
+  const byId = new Map<string, string>()
+
+  for (const entry of entries) {
+    if (entry === null || typeof entry !== 'object') continue
+    const record = entry as { id?: unknown; container?: unknown }
+    if (typeof record.id !== 'string' || typeof record.container !== 'string') continue
+    byId.set(record.id, record.container)
+  }
+
+  return byId
+}
+
 export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandle {
   const diagnostics = new DiagnosticsHub()
   for (const sink of options.diagnosticsSinks ?? []) diagnostics.add(sink)
@@ -83,6 +103,18 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     rules: [createMfeContractRule()],
     overrides: overrides.overrides,
   })
+
+  // One container is registered once, under one name, so two of its definitions
+  // pointed at different URLs cannot both apply — whichever registered first
+  // wins and the other override silently does nothing. Reported from here
+  // rather than from the normalized entries, because the container name is
+  // adapter-private by then and the raw descriptors still carry it.
+  for (const error of findConflictingContainerOverrides(
+    overrides.overrides,
+    containersByDefinitionId(options.registryEntries),
+  )) {
+    diagnostics.report(error, { severity: 'warning' })
+  }
 
   // A quarantined entry never removes unrelated valid ones; it is reported and
   // the rest of the shell keeps working.

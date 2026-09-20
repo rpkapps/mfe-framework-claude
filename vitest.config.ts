@@ -52,6 +52,17 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'devtools',
+          root: './packages/mfe-devtools',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          setupFiles: ['../mfe-react/vitest.setup.ts'],
+          server: tectonServerForTests,
+        },
+        resolve: tectonResolveForTests,
+      },
+      {
+        test: {
           name: 'rspack',
           root: './packages/mfe-rspack',
           environment: 'node',

@@ -122,6 +122,22 @@ function packageZones(
       ],
       basePatterns,
     ),
+    zone(
+      'mfe-devtools',
+      [
+        {
+          name: '@company/mfe-rspack',
+          message:
+            'Package boundary: the developer tools read the runtime, never the build integration.',
+        },
+        {
+          name: 'single-spa',
+          message:
+            'Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract.',
+        },
+      ],
+      basePatterns,
+    ),
   ]
 }
 

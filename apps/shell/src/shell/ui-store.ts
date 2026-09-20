@@ -12,8 +12,13 @@
  * closing the one you are looking at.
  */
 
-/** Every surface the shell owns. `null` is "the page itself". */
-export type ShellSurface = 'palette' | 'registry' | 'settings' | 'help' | 'releases' | 'bug'
+/**
+ * Every surface the shell owns. `null` is "the page itself".
+ *
+ * The registry is not one of them any more: it lives in the developer tools,
+ * which are not modal and keep their own open state in their own package.
+ */
+export type ShellSurface = 'palette' | 'settings' | 'help' | 'releases' | 'bug'
 
 let open: ShellSurface | null = null
 const listeners = new Set<() => void>()

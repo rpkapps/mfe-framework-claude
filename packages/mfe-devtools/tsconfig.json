@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"],
+
+    /*
+     * The same mappings the shell carries, and for the same reason:
+     * @tecton/react ships built `.d.ts` now, but it is still a `link:`ed
+     * checkout that TypeScript resolves to the checkout itself, where a second
+     * copy of `@types/react` lives. Without these the design system's element
+     * types are a different `React.ReactNode` from this package's and every
+     * call site mismatches. The type-level counterpart of `tectonResolve` in
+     * the build.
+     */
+    "paths": {
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"],
+      "react-aria-components": ["./node_modules/react-aria-components"],
+      "class-variance-authority": ["./node_modules/class-variance-authority"],
+      "cn": ["./node_modules/cn"],
+      "lucide-react": ["./node_modules/lucide-react"]
+    }
+  },
+  "include": ["src/**/*", "*.config.ts"]
+}

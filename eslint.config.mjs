@@ -33,7 +33,11 @@ export default [
     // anything named `use` as a hook call, so a bundler plugin building a module
     // rule's `use:` loader list gets told it is calling a Hook outside a
     // component. Narrowing is the repair; suppressing at each site is not.
-    reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
+    reactFiles: [
+      'packages/mfe-react/src/**/*.{ts,tsx}',
+      'packages/mfe-devtools/src/**/*.{ts,tsx}',
+      'apps/shell/src/**/*.{ts,tsx}',
+    ],
     // The storage adapter owns every read and write the framework makes, and
     // the shell's override bootstrap has to read localStorage before a store
     // exists to read it through. Both are named explicitly rather than inferred.
@@ -41,9 +45,11 @@ export default [
       'packages/mfe-host/src/storage/**',
       'packages/mfe-host/src/overrides/**',
       'apps/shell/src/boot.tsx',
-      // The other end of the same bootstrap: the override key is the shell's
-      // own, so removing one cannot go through mount-scoped storage either.
-      'apps/shell/src/shell/overrides.ts',
+      // The other end of the same bootstrap. The devtools panel writes the
+      // override key and reads its own flag, and neither belongs to a
+      // definition: both are the page's, read before a store exists to read
+      // them through. One accessor, named explicitly rather than inferred.
+      'packages/mfe-devtools/src/browser-storage.ts',
       // The theme belongs to the page rather than to any definition on it, and
       // it has to outlive a sign-out — which is exactly what mount-scoped
       // storage retires. Named explicitly, never inferred.

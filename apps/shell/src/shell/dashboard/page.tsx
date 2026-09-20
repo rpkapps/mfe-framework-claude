@@ -15,6 +15,7 @@
 
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { NeutralRegistryEntry } from '@company/mfe-react'
+import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -51,7 +52,6 @@ import {
 
 import { useDashboardLayout, useIsCompact, useWidgets } from '../hooks.ts'
 import { ValueView } from '../readout.tsx'
-import { shellUi } from '../ui-store.ts'
 import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
 import { InputsDialog } from './inputs-dialog.tsx'
 import { initialValues, readInputFields, toInputs } from './input-schema.ts'
@@ -155,7 +155,7 @@ export function DashboardPage(): ReactNode {
             <Button
               variant="outline"
               onPress={() => {
-                shellUi.show('registry')
+                devtools.open('registry')
               }}
             >
               <LayersIcon /> Registry

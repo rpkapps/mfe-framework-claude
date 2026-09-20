@@ -30,6 +30,7 @@ const RULES = [
       '@module-federation/runtime',
       '@company/mfe-host',
       '@company/mfe-react',
+      '@company/mfe-devtools',
       '@opentelemetry/',
       '@grafana/faro',
       'zustand',
@@ -52,6 +53,7 @@ const RULES = [
       '@module-federation/enhanced',
       '@module-federation/runtime',
       '@company/mfe-react',
+      '@company/mfe-devtools',
       '@opentelemetry/',
       '@grafana/faro',
       'zustand',
@@ -65,14 +67,36 @@ const RULES = [
   },
   {
     package: '@company/mfe-react',
-    forbidden: ['single-spa', '@opentelemetry/', '@grafana/faro'],
+    forbidden: ['single-spa', '@opentelemetry/', '@grafana/faro', '@company/mfe-devtools'],
     reason:
       'The legacy adapter is the only package that knows the legacy single-spa contract, and vendor telemetry stays shell-owned.',
   },
   {
     package: '@company/mfe-legacy-angular',
-    forbidden: ['react', 'react-dom', '@tanstack/react-router', '@company/mfe-react'],
+    forbidden: [
+      'react',
+      'react-dom',
+      '@tanstack/react-router',
+      '@company/mfe-react',
+      '@company/mfe-devtools',
+    ],
     reason: 'The legacy adapter is a sibling of the React adapter, not a consumer of it.',
+  },
+  {
+    package: '@company/mfe-devtools',
+    forbidden: [
+      'single-spa',
+      '@opentelemetry/',
+      '@grafana/faro',
+      '@company/mfe-rspack',
+      'zustand',
+      'redux',
+      'mobx',
+      'jotai',
+      '@tanstack/store',
+    ],
+    reason:
+      'A developer tool reads the runtime and the design system, never the build integration or a vendor SDK, and it keeps its state in the framework subscription primitives like everything else.',
   },
 ]
 
