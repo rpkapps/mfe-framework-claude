@@ -8,8 +8,9 @@
  * shared with every container in `tools/tecton/tecton-build.mjs`.
  */
 
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
@@ -29,9 +30,45 @@ const require = createRequire(import.meta.url)
 requireTecton(here, 'The shell')
 useWorkspaceModules(here)
 
-/** The installed version, not the `catalog:` range that package.json holds. */
-const installedVersion = (name: string): string =>
-  (require(`${name}/package.json`) as { version: string }).version
+/**
+ * The installed version, not the `catalog:` range that package.json holds.
+ *
+ * Three places to find a manifest, tried in order, because no single one covers
+ * every package shared here. `require('<name>/package.json')` needs the
+ * package's `exports` map to publish its manifest, and sonner's does not.
+ * Resolving the package's entry and walking up to its manifest needs an entry
+ * `require` can resolve at all. The link pnpm put in this package's own
+ * `node_modules` exists only for a direct dependency, and `@company/mfe-core` —
+ * shared here because the shell provides it — is reached through the adapter.
+ */
+const installedVersion = (name: string): string => {
+  const read = (file: string): { name?: string; version: string } =>
+    JSON.parse(readFileSync(file, 'utf8')) as { name?: string; version: string }
+
+  try {
+    return (require(`${name}/package.json`) as { version: string }).version
+  } catch {
+    // Not published by the exports map; the entry below usually is.
+  }
+
+  try {
+    let directory = dirname(require.resolve(name))
+    for (;;) {
+      const file = join(directory, 'package.json')
+      if (existsSync(file)) {
+        const manifest = read(file)
+        if (manifest.name === name) return manifest.version
+      }
+      const parent = dirname(directory)
+      if (parent === directory) break
+      directory = parent
+    }
+  } catch {
+    // No requirable entry either; the direct link is the last place to look.
+  }
+
+  return read(resolve(here, 'node_modules', name, 'package.json')).version
+}
 
 const DEV_PORT = 3000
 

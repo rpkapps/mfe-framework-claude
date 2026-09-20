@@ -19,6 +19,7 @@ import {
   relativeSpecifier,
   type GeneratedFile,
 } from './emit.ts'
+import { styleRootPath, stylesheetPath, usesDesignSystem } from './styles.ts'
 
 export interface GenerateContext {
   readonly options: ResolvedOptions
@@ -374,29 +375,64 @@ export function containerEntryModule(context: GenerateContext): GeneratedFile {
   }
 }
 
+/**
+ * One module per exposed definition: what a shell actually loads.
+ *
+ * The stylesheet is imported here rather than from the application, so it is
+ * part of every exposed chunk and Module Federation brings it in with whichever
+ * expose a shell asks for first. It comes before the author's entry, so the
+ * container's own utilities are in the document before anything renders against
+ * them.
+ */
 export function federationEntryModules(context: GenerateContext): readonly GeneratedFile[] {
   return context.discovery.definitions.map(definition => {
     const file = entryModulePath(context, definition)
+    const authored = relativeSpecifier(file, context.entryFile)
     const exported = definition.isDefaultExport ? 'default' : definition.exportName
 
-    const configImport =
-      context.configSource === undefined
-        ? ''
+    const sideEffectImports = [
+      "// The container's own stylesheet: its utilities, scoped to this",
+      "// container's mount roots, and none of the page-level declarations the",
+      '// shell owns.',
+      `import ${quote(relativeSpecifier(file, stylesheetPath(context)))}`,
+      ...(context.configSource === undefined
+        ? []
         : [
-            '// Imported first, so a container whose configuration is missing or invalid',
-            '// fails before any application module of this container evaluates.',
+            '// Imported before the entry below, so a container whose configuration is',
+            '// missing or invalid fails before any application module evaluates.',
             `import ${quote(
               relativeSpecifier(file, generatedPath(context.options.generatedDir, 'config.ts')),
             )}`,
-          ].join('\n')
+          ]),
+    ].join('\n')
+
+    // Without a design system there is nothing to wrap the rendered tree in,
+    // so the definition the author wrote is the one the shell loads.
+    const exposed = usesDesignSystem(context)
+      ? [
+          "import { withStyleRoot } from '@company/mfe-react'",
+          [
+            definition.isDefaultExport
+              ? `import authored from ${quote(authored)}`
+              : `import { ${exported} as authored } from ${quote(authored)}`,
+            `import { StyleRoot } from ${quote(relativeSpecifier(file, styleRootPath(context)))}`,
+          ].join('\n'),
+          [
+            '// The mount renders the style root inside the scope root and hands it',
+            "// this mount's overlay container, so the design system's overlays portal",
+            '// into the container scope instead of a bare document body.',
+            'export const definition = withStyleRoot(authored, StyleRoot)',
+          ].join('\n'),
+        ]
+      : [`export { ${exported} as definition } from ${quote(authored)}`]
 
     return {
       path: file,
       contents: joinBlocks([
         banner(),
         `// Module Federation expose: '${exposeName(definition)}'. Generated, not a public name.`,
-        configImport,
-        `export { ${exported} as definition } from ${quote(relativeSpecifier(file, context.entryFile))}`,
+        sideEffectImports,
+        ...exposed,
       ]),
     }
   })

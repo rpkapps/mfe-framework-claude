@@ -5,6 +5,7 @@
  * and it can be tested without one.
  */
 
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
@@ -41,10 +42,25 @@ import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './o
 function installedVersionFrom(containerRoot: string): (name: string) => string | undefined {
   const require = createRequire(join(containerRoot, 'package.json'))
 
+  const version = (manifest: unknown): string | undefined => {
+    const candidate = (manifest as { readonly version?: unknown } | null)?.version
+    return typeof candidate === 'string' ? candidate : undefined
+  }
+
   return name => {
     try {
-      const manifest = require(`${name}/package.json`) as { readonly version?: unknown }
-      return typeof manifest.version === 'string' ? manifest.version : undefined
+      return version(require(`${name}/package.json`))
+    } catch {
+      // Either not installed, or installed behind an `exports` map that does
+      // not publish the manifest — sonner is one — which `require` refuses the
+      // same way. A direct dependency's link is where pnpm put it, so the
+      // manifest is read from there before giving up.
+    }
+
+    try {
+      return version(
+        JSON.parse(readFileSync(join(containerRoot, 'node_modules', name, 'package.json'), 'utf8')),
+      )
     } catch {
       // A shared candidate the container declares but has not installed. The
       // build does not fail for it: the module is simply not resolvable here,

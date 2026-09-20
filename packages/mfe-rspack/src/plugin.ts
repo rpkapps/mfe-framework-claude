@@ -1,7 +1,13 @@
 /**
  * The Rspack half of the framework's build integration: discovery, entry
- * validation, capability extraction, the generated modules, asset URLs, scoped
- * CSS and the React Compiler transform.
+ * validation, capability extraction, the generated modules, asset URLs and the
+ * React Compiler transform.
+ *
+ * Scoping the container's CSS is deliberately not here. It is a PostCSS plugin
+ * that runs after Tailwind on each stylesheet, registered by `pluginMfe()`
+ * through Rsbuild's own PostCSS options — which is what lets it see a
+ * stylesheet with its `@layer` structure intact, rather than the emitted asset
+ * after the bundler has concatenated and minified one.
  *
  * Module Federation is deliberately not here. Rsbuild registers the federation
  * plugin itself when a config declares `moduleFederation.options`, and doing it
@@ -18,7 +24,6 @@ import { relative, sep } from 'node:path'
 import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 import type { Compilation, Compiler, RspackPluginInstance, RuleSetUse } from '@rspack/core'
 
-import { transformScopedCss } from './css/scope-transform.ts'
 import { withFrameworkMetadata } from './federation/federation-options.ts'
 import { generateContainer } from './generate/container.ts'
 import { ownsRouteTree, routeTreeOptions } from './generate/route-tree.ts'
@@ -86,7 +91,6 @@ export class MfeRspackPlugin implements RspackPluginInstance {
           stage: compiler.rspack.Compilation.PROCESS_ASSETS_STAGE_DERIVED,
         },
         () => {
-          scopeStyleSheets(compiler, compilation, current)
           emitContainerArtifacts(compiler, compilation, current)
         },
       )
@@ -139,30 +143,6 @@ function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
     { test: /\.ts$/, exclude, enforce: 'pre', use: use(false) },
     { test: /\.jsx?$/, exclude, enforce: 'pre', use: use(true) },
   )
-}
-
-/**
- * Working on the emitted asset rather than on each source file means the
- * container's resets and tokens are scoped once, in their final deduplicated
- * form, instead of once per module that imported them.
- */
-function scopeStyleSheets(compiler: Compiler, compilation: Compilation, plan: ContainerPlan): void {
-  if (plan.scopes.length === 0) return
-  const { RawSource } = compiler.rspack.sources
-
-  for (const asset of compilation.getAssets()) {
-    if (!asset.name.endsWith('.css')) continue
-
-    try {
-      const scoped = transformScopedCss(asset.source.source().toString(), {
-        scope: plan.scopes,
-        from: asset.name,
-      })
-      compilation.updateAsset(asset.name, new RawSource(scoped))
-    } catch (error) {
-      compilation.errors.push(error as Error)
-    }
-  }
 }
 
 /**

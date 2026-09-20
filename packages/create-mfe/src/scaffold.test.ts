@@ -51,6 +51,22 @@ describe('the App starter', () => {
     }
   })
 
+  /**
+   * The container compiles its own stylesheet, which the build generates and
+   * which imports Tailwind's theme and utilities. Nothing in the project names
+   * that import, so nothing else would pull the dependency in.
+   */
+  it('installs the Tailwind the generated stylesheet imports', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>
+    }
+
+    expect(manifest.devDependencies['tailwindcss']).toBe('catalog:')
+  })
+
   it('does not check in generated output', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })

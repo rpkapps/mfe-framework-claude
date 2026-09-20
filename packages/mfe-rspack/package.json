@@ -31,13 +31,15 @@
     "@babel/core": "catalog:",
     "@company/mfe-core": "workspace:*",
     "@module-federation/enhanced": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
     "@tanstack/router-generator": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "babel-loader": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "globby": "catalog:",
     "picocolors": "catalog:",
-    "postcss": "catalog:"
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:"
   },
   "peerDependencies": {
     "@rsbuild/core": "catalog:",

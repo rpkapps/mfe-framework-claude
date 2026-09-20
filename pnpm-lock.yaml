@@ -871,6 +871,9 @@ importers:
       '@module-federation/enhanced':
         specifier: 'catalog:'
         version: 2.9.0(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(typescript@6.0.3)
+      '@tailwindcss/postcss':
+        specifier: 'catalog:'
+        version: 4.3.3
       '@tanstack/router-generator':
         specifier: 'catalog:'
         version: 1.167.38
@@ -892,6 +895,9 @@ importers:
       postcss:
         specifier: 'catalog:'
         version: 8.5.28
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.3
     devDependencies:
       '@rsbuild/core':
         specifier: 'catalog:'
