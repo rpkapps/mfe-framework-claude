@@ -50,19 +50,17 @@ import {
 } from '@tecton/react/tecton/app-finder'
 import {
   AppShell,
+  AppShellAction,
+  AppShellActions,
   AppShellBody,
+  AppShellCommandTrigger,
+  AppShellDivider,
   AppShellHeader,
   AppShellMain,
   AppShellNav,
+  AppShellOverflow,
+  AppShellUserMenu,
 } from '@tecton/react/tecton/app-shell'
-import {
-  ShellAction,
-  ShellActions,
-  ShellCommandTrigger,
-  ShellDivider,
-  ShellOverflow,
-  ShellUserMenu,
-} from '@tecton/react/tecton/shell-actions'
 import { ShortcutsProvider, useShortcut } from '@tecton/react/tecton/shortcuts'
 import {
   BugIcon,
@@ -358,7 +356,7 @@ function Header(): ReactNode {
         </AppFinderMenu>
       </AppFinder>
 
-      <ShellDivider className="hidden sm:block" />
+      <AppShellDivider className="hidden sm:block" />
 
       <Button
         variant="ghost"
@@ -381,15 +379,15 @@ function Header(): ReactNode {
        * than disappearing. A button that is hidden at one width and absent at
        * another is a feature the user cannot find; a menu is one more tap.
        */}
-      <ShellActions>
-        <ShellCommandTrigger
+      <AppShellActions>
+        <AppShellCommandTrigger
           onPress={() => {
             shellUi.show('palette')
           }}
         >
           Search or jump to…
-        </ShellCommandTrigger>
-        <ShellAction
+        </AppShellCommandTrigger>
+        <AppShellAction
           label="Help"
           shortcut="?"
           onPress={() => {
@@ -397,8 +395,8 @@ function Header(): ReactNode {
           }}
         >
           <CircleHelpIcon />
-        </ShellAction>
-        <ShellAction
+        </AppShellAction>
+        <AppShellAction
           label="What’s new"
           className="hidden lg:inline-flex"
           onPress={() => {
@@ -406,8 +404,8 @@ function Header(): ReactNode {
           }}
         >
           <SparklesIcon />
-        </ShellAction>
-        <ShellAction
+        </AppShellAction>
+        <AppShellAction
           label="Report a bug"
           className="hidden lg:inline-flex"
           onPress={() => {
@@ -415,8 +413,8 @@ function Header(): ReactNode {
           }}
         >
           <BugIcon />
-        </ShellAction>
-        <ShellAction
+        </AppShellAction>
+        <AppShellAction
           label="Settings"
           shortcut="g s"
           className="hidden lg:inline-flex"
@@ -425,9 +423,9 @@ function Header(): ReactNode {
           }}
         >
           <SettingsIcon />
-        </ShellAction>
+        </AppShellAction>
 
-        <ShellOverflow label="More" className="lg:hidden">
+        <AppShellOverflow label="More" className="lg:hidden">
           <DropdownMenuGroup>
             <DropdownMenuItem
               textValue="What's new"
@@ -454,9 +452,9 @@ function Header(): ReactNode {
               <SettingsIcon /> Settings
             </DropdownMenuItem>
           </DropdownMenuGroup>
-        </ShellOverflow>
+        </AppShellOverflow>
 
-        <ShellUserMenu user={{ name: user?.name ?? 'Unknown', initials }}>
+        <AppShellUserMenu user={{ name: user?.name ?? 'Unknown', initials }}>
           <DropdownMenuGroup>
             <DropdownMenuItem
               textValue="Switch theme"
@@ -507,8 +505,8 @@ function Header(): ReactNode {
               <ClipboardCopyIcon /> Copy diagnostics
             </DropdownMenuItem>
           </DropdownMenuGroup>
-        </ShellUserMenu>
-      </ShellActions>
+        </AppShellUserMenu>
+      </AppShellActions>
     </AppShellHeader>
   )
 }
