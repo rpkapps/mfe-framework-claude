@@ -19,14 +19,20 @@ the shell having scanned every container's source.
   generated federation entry imports the stylesheet first, so it loads with
   whichever expose a shell asks for.
 
-- **Scoping moved from the emitted asset to a PostCSS step.** It runs after
-  Tailwind on each stylesheet, where the `@layer` structure is still intact, and
-  wraps each run of rules in an `@scope` of its own, inside the layer and the
-  conditions it was written under, with the lower boundary that separates a
-  nested App from its parent. Tailwind's `:root, :host` block becomes `:scope`,
-  so a container's own defaults land on its scope root and its overlay root
-  instead of on the document. `transformScopedCss` is unchanged as the
-  string-level API.
+- **Scoping moved from the emitted asset to a PostCSS step, and the step is the
+  design system's own.** `@tecton/react/postcss/scope` runs after Tailwind on
+  each stylesheet, where the `@layer` structure is still intact, called with the
+  framework's selectors: `[data-mfe-scope="<id>"]` for every definition the
+  container exports, and the `[data-mfe-scope]` lower boundary that separates a
+  nested App from its parent. It wraps each run of rules in an `@scope` of its
+  own, inside the layer it was written under; Tailwind's `:root, :host` block
+  becomes `:scope`, so a container's own defaults land on its scope root and its
+  overlay root instead of on the document; and the keyframes a container's sheet
+  defines are renamed after its ids, along with every `animation`,
+  `animation-name` and `--animate-*` reference to them, so two containers that
+  define the same frames stop animating each other's elements. The plugin is
+  resolved from the container first, so a container built against an older
+  Tecton is scoped by that version's recipe.
 
 - **`withStyleRoot`, and the design system root wired by the build.** A
   container's overlays have to be created by that container's own copy of the
@@ -40,10 +46,10 @@ the shell having scanned every container's source.
   that renders no design system gets none of it.
 
 Two limits come with this, both stated rather than discovered later.
-`@property`, `@keyframes` and `@font-face` register a name for the whole page
-and cannot be scoped, so two containers defining the same name end up with
-whichever the browser parsed last; the names come from Tailwind and from the
-shared design system, so the definitions behind them agree in practice, and
-renaming them would break the utilities that read them back. And `@scope` itself
-needs Chrome/Edge 118, Safari 17.4 or Firefox 146 — the floor the browser
-matrix is already generated against, with no fallback and no polyfill.
+`@property` and `@font-face` register a name for the whole page and cannot be
+scoped, so two containers defining the same name end up with whichever the
+browser parsed last; the names come from Tailwind and from the shared design
+system, so the definitions behind them agree in practice, and renaming them
+would break the utilities that read them back. And `@scope` itself needs
+Chrome/Edge 118, Safari 17.4 or Firefox 146 — the floor the browser matrix is
+already generated against, with no fallback and no polyfill.

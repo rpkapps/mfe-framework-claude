@@ -905,6 +905,9 @@ importers:
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
+      '@tecton/react':
+        specifier: link:../../../tecton-ui-1/packages/tecton-react
+        version: link:../../../tecton-ui-1/packages/tecton-react
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.2

@@ -269,7 +269,7 @@ Everything above works on Windows. Two things to know:
 | `@company/mfe-core`           | Neutral contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or federation dependency.                                                             |
 | `@company/mfe-host`           | Neutral orchestration: registry normalization and adapter selection, mount lifecycle with deadlines, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. No React, router, single-spa or federation dependency. |
 | `@company/mfe-react`          | The author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                            |
-| `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                            |
+| `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own stylesheet — scoped by the design system's PostCSS plugin — asset URLs, federation plumbing.                                                                                   |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                                                                                                                                                                                                   |
 | `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules. Development-only.                                                                                                                                                                                   |
 
@@ -321,10 +321,12 @@ Two scope limits are worth stating plainly rather than discovering later:
    entirely because of native CSS `@scope`. It was left failing rather than
    tuned to pass, because the remedy is a policy decision.
 3. **Each container ships its own stylesheet, scoped to its mount root by the
-   build.** The shell keeps only the document-level half — preflight, fonts,
-   `@property` registrations and every theme variable on `:root` — which
-   inherits into every container. `docs/decisions.md` §17 records the model and
-   its two stated limits: it needs the `@scope` browser support item 2 already
-   describes, and `@property`, `@keyframes` and `@font-face` are
-   document-global by construction, so two containers registering the same
-   name still get whichever the browser parsed last.
+   build** — by the design system's own PostCSS plugin, called with the
+   framework's selectors. The shell keeps only the document-level half —
+   preflight, fonts, `@property` registrations and every theme variable on
+   `:root` — which inherits into every container. `docs/decisions.md` §17
+   records the model and its two stated limits: it needs the `@scope` browser
+   support item 2 already describes, and `@property` and `@font-face` are
+   document-global by construction, so two containers registering the same name
+   still get whichever the browser parsed last. Keyframes are the exception the
+   plugin handles: a container's own frames are renamed after its ids.

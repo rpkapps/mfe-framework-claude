@@ -497,8 +497,8 @@ and for `@tecton/blocks` when it depends on them — deliberately not
 federation entry imports that stylesheet first and renders the `ThemeRoot` the
 build attached to the definition, so a dialog or a popover a container raises
 portals into its own `@scope`, styled by its own stylesheet, using its own copy
-of the library. `packages/mfe-rspack/src/css/scope-transform.ts` does the
-wrapping, unchanged in kind from before: it still emits
+of the library. `packages/mfe-rspack/src/css/scope.ts` does the wrapping, and
+emits the same thing it always did:
 `@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])` around what the
 container compiled. The shell keeps exactly the document-level
 half this decision already said could not move to a container: preflight, font
@@ -506,33 +506,30 @@ faces, `@property` registrations and every theme variable on `:root`. Those
 still inherit into every container, so a tenant customisation or a mode flip in
 the shell reaches all of them with nothing wired up.
 
-One choice is not the design system's own recipe. `micro-frontends.mdx`
-(`tecton-ui-1`) leaves Tailwind's own `:root, :host` theme block at document
-level, on the grounds that Tailwind's defaults (`--spacing`, the `--text-*`
-scale, the `--animate-*` names) are identical across versions, so a duplicate
-copy is harmless. It has to: its scope root is the `ThemeRoot` element itself,
-and a plain selector inside `@scope` matches descendants only, so a rule meant
-for the root has no way to reach it short of a `:scope` twin, which the recipe
-adds for `[data-tecton-root]` alone. The transform here owns the scope root, so
-it rewrites any rule whose selector leads with `:root`, `html` or `body` to
-`:scope` instead. A container's defaults then land on its own scope root and on
-its overlay root, inherit into that container's subtree and no further, and a
-nested App's own `:scope` rule sets its own — which is what makes two
-containers on different Tailwind versions a non-event rather than a
-document-level race that the last-loaded stylesheet wins. Anything that still
-names `:root`, `:host`, `html` or `body` after the rewrite is a build error,
-because inside `@scope` it would match nothing.
+The wrapping itself is not the framework's code. `@tecton/react/postcss/scope`
+is the design system's own plugin, called here with the framework's selectors:
+`[data-mfe-scope="<id>"]` for every definition the container exports, and
+`[data-mfe-scope]` as the lower boundary that ends a parent App's scope at the
+root of a nested one. What a compiled stylesheet needs doing to it — hoisting
+the at-rules a browser ignores inside `@scope`, moving Tailwind's `:root, :host`
+defaults onto the scope root as `:scope`, refusing a selector that reaches the
+document because there it would match nothing — is the library's knowledge, and
+the framework has no version of it that could be right for a container built
+against a Tecton it has never seen; the design system owns every ingredient only
+it can know, and the framework composes them.
 
 Two limits are stated rather than fixed. `@scope` still needs the browser floor
 §5 already measured — Chrome below 118, Firefox below 146 or iOS Safari below
 17.4 gets the unscoped cascade, so the last container's stylesheet wins. And
-`@property`, `@keyframes` and `@font-face` register a name for the whole page;
-this transform used to rename them per container to avoid a collision, but a
-renamed property or keyframe stops being what Tailwind's own utilities and
-`tw-animate-css` read back, so it now leaves them unrenamed instead. Two
-containers registering the same name get whichever the browser parsed
-last — limited in practice by the names coming from Tailwind and from the
-shared design system, whose definitions of them agree.
+`@property` and `@font-face` register a name for the whole page, so two
+containers registering the same one get whichever the browser parsed last —
+limited in practice by the names coming from Tailwind and from the shared design
+system, whose definitions of them agree. `@keyframes` is document-global the
+same way, but it is the one the plugin does rename: every set of frames a
+container's own sheet defines is suffixed with its ids, and the `animation`,
+`animation-name` and `--animate-*` references to exactly those names follow, so
+two containers stop animating each other's elements. A name a sheet only reads
+is the host's and is left alone.
 
 ---
 

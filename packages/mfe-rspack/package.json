@@ -44,12 +44,19 @@
   "peerDependencies": {
     "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
+    "@tecton/react": ">=0.1.0",
     "typescript": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@tecton/react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
+    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
