@@ -30,8 +30,12 @@ state, registers commands and breadcrumbs, and reads the registry as itself.
 
 **No storage keys are migrated.** A host record's key is `@host:<name>`, so
 state kept under a shell's own key is neither read nor rewritten: clear it, or
-declare `migrate()`. A reader outside the store — a pre-paint script — gets the
-store's envelope rather than a bare value.
+declare `migrate()`. The test shell's dashboard canvas moved this way, and its
+old `company:shell:dashboard` key is left where it lies. A reader outside the
+store — a pre-paint script, say — gets the envelope rather than a bare value,
+which is why the shell's theme is not a framework record at all: the legacy
+Angular applications read `localStorage["theme"]` directly as a bare string, so
+the shell keeps writing that key itself.
 
 **`useTheme`, `useUser` and `useGroups` no longer require a mount**; with no
 runtime at all they report `useMfeRuntime`'s failure, not `useMfeMount`'s.

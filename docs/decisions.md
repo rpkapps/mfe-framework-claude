@@ -782,16 +782,34 @@ cannot be gated by the thing it establishes — so `establishSessionGeneration`
 writes it host-scoped, `retention: 'browser'`, in `sessionStorage`, and
 `createMfeRuntime` calls it for the identity in `shellState` (§25).
 
-Two costs. **The old keys are not migrated**: `company:shell:theme` and
+**The theme went back, and is the one exemption that survives.** Of the three it
+is the only one whose key was never ours to choose: the legacy Angular
+applications read `localStorage["theme"]` directly as the bare string `light` or
+`dark`, and they are not being rebuilt to read anything else. Writing an
+envelope under a scoped key is what the store is for — versioned,
+retention-tagged, fenced by a generation — so `@host:theme` is neither the name
+nor the shape that contract needs, and no option on the store would produce
+them. The shell therefore writes the key itself, in
+`apps/shell/src/shell/preferences.ts`, named in `storageAllowedScopes` with that
+reason beside it. Only the persistence is raw: `runtime.shellState` still holds
+the value, every switch is a `shellState.apply({ theme })`, and one effect in
+the chrome applies the class, `colorScheme` and `writeTheme`. The pre-paint
+script in `index.html` reads the same bare key, accepts only `light` or `dark`
+and falls back to `prefers-color-scheme` — it must never be why a page fails to
+paint.
+
+**The old keys are not migrated**: `company:shell:theme` and
 `company:shell:dashboard` are orphaned where they lie, on §21's reasoning that
 nothing is published yet — spent for the second time here, and not available
-again after a release. **The pre-paint script parses an envelope**: the inline
-script in `index.html` reads `@host:theme` through the store's shape, and treats
-anything it cannot parse as "nothing was chosen" — it must never be why a page
-fails to paint.
+again after a release. The dashboard canvas starts empty; the theme reads
+whatever is under `theme`, which is where the legacy applications were already
+writing it.
 
-**Consequence:** an entry added back to `storageAllowedScopes` is evidence of
-another missing primitive, not a local exception.
+**Consequence:** the allowlist is not empty, so what an entry has to prove is
+what changed. `preferences.ts` earns its line because the key's name and shape
+are fixed by code outside this repository. An entry that cannot say that much —
+one added because the store is scoped, or gated, or inconvenient — is evidence
+of another missing primitive, not a local exception.
 
 ---
 
@@ -819,12 +837,14 @@ forwarded unless the host asks, and the alternative was every shell writing the
 same twenty lines.
 
 Nothing else is adopted. The store option went with the ordering argument that
-justified it: the theme is now `useStoredState` in the chrome, the dashboard a
-hook over the same, and neither is read before the runtime exists — the theme
-the runtime is created with is the class the pre-paint script already put on
-`<html>` (§24). `createMfeRuntime` therefore builds the store, and establishes
-the first session generation itself for the identity in `shellState`, because
-that was the last thing a shell had to do in the right order and get right.
+justified it: the dashboard canvas is a hook over `useStoredState`, and no
+framework record is read before the runtime exists. The theme is not a
+framework record at all (§24) — the value the runtime is created with is
+decided by `preferredTheme()`, the same way and in the same order the pre-paint
+script decided the class already on `<html>`, without the store.
+`createMfeRuntime` therefore builds the store, and establishes the first session
+generation itself for the identity in `shellState`, because that was the last
+thing a shell had to do in the right order and get right.
 `dispose()` still tears down only what the call created: the store it made, and
 on a supplied hub only the sinks it added.
 

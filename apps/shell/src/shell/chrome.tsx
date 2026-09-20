@@ -13,7 +13,7 @@ import {
   useApps,
   useBreadcrumbs,
   useMfeRuntime,
-  useStoredState,
+  useTheme,
   useUser,
   type BreadcrumbItem,
   type NeutralRegistryEntry,
@@ -80,7 +80,7 @@ import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
 import { useActiveApp, useShellSurface } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
-import { BOOT_THEME, ThemeSchema } from './preferences.ts'
+import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
@@ -129,20 +129,21 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   const runtime = useMfeRuntime('the shell layout')
   const navigate = useNavigate()
   const surface = useShellSurface()
-  const [theme] = useStoredState('theme', ThemeSchema, {
-    defaultValue: BOOT_THEME,
-    retention: 'browser',
-  })
+  // Shell state is the theme's one source of truth: every switch goes through
+  // `shellState.apply`, and a mounted App reads the same value through the same
+  // hook, so the toggle is visible on both sides.
+  const theme = useTheme()
 
-  // One place applies the theme, because it has four ways to change — the menu,
-  // settings, the palette, a shortcut — and a fifth added later would otherwise
-  // be the one that forgets. `dark` is what the design system keys off, and
-  // shell state is how a mounted App sees the same value.
   useEffect(() => {
+    // `dark` is what the design system's variant keys off.
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.colorScheme = theme
-    runtime.shellState.apply({ theme })
-  }, [theme, runtime])
+    // Remembered here rather than at each switch, because the theme has four
+    // ways to change — the menu, settings, the palette, a shortcut — and a
+    // fifth one added later would otherwise be the one that forgets. The key
+    // is the bare `theme` the legacy Angular applications read.
+    writeTheme(theme)
+  }, [theme])
 
   // The shell's half of the navigation-blocking contract: its own router asks,
   // and the runtime's navigator answers for whatever is mounted. `action` is
@@ -225,10 +226,7 @@ function Header(): ReactNode {
   const navigate = useNavigate()
   const apps = useApps()
   const active = useActiveApp()
-  const [theme, setTheme] = useStoredState('theme', ThemeSchema, {
-    defaultValue: BOOT_THEME,
-    retention: 'browser',
-  })
+  const theme = useTheme()
   // Subscribed rather than read off the store: the avatar has to change when
   // the identity does, and a bare `getUser()` is a snapshot taken during one
   // render that nothing re-runs.
@@ -302,7 +300,7 @@ function Header(): ReactNode {
     label: 'Switch between light and dark',
     group: 'Shell',
     onAction: () => {
-      setTheme(theme === 'dark' ? 'light' : 'dark')
+      runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
     },
   })
 
@@ -463,7 +461,7 @@ function Header(): ReactNode {
             <DropdownMenuItem
               textValue="Switch theme"
               onAction={() => {
-                setTheme(theme === 'dark' ? 'light' : 'dark')
+                runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
               }}
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}

@@ -50,11 +50,18 @@ export default [
       // definition: both are the page's, read before a store exists to read
       // them through. One accessor, named explicitly rather than inferred.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme, the dashboard canvas and the session generation used to be
-      // named here too. All three were host-owned state with nowhere to go: the
-      // store scoped every key to a definition id and gated it behind a mount.
-      // They now go through the store's reserved `@host` scope instead, so the
-      // exemptions were deleted rather than kept. An entry added back here
+      // The theme, and only the theme. The legacy Angular applications read
+      // `localStorage["theme"]` directly as the bare string "light" or "dark",
+      // so the shell has to write exactly that key with exactly that value —
+      // and the store writes an envelope under a scoped key, which is a shape
+      // and a name it cannot produce. An interoperability contract with code
+      // that is not ours, not a local convenience (docs/decisions.md §24).
+      'apps/shell/src/shell/preferences.ts',
+      // The dashboard canvas and the session generation used to be named here
+      // too. Both were host-owned state with nowhere to go: the store scoped
+      // every key to a definition id and gated it behind a mount. They now go
+      // through the store's reserved `@host` scope instead, so those
+      // exemptions were deleted rather than kept. Any further entry here
       // should be read as evidence of another missing primitive.
     ],
   }),

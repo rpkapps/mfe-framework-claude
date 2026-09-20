@@ -16,29 +16,26 @@
     <div id="root"></div>
     <!-- The theme, before first paint. The shell remembers it, and a document
          that boots dark and then flips to light on hydration is a flash every
-         light-theme user sees on every load. The module below decides the same
+         light-theme user sees on every load. `preferences.ts` decides the same
          value the same way; this only applies it early.
 
-         What it reads is the store's envelope under `@host:theme` —
-         `{"v":1,"r":"browser","d":"light"}`, `d` being the payload — read
-         defensively, because this script must never be why a page fails to
-         paint. -->
+         What it reads is the bare string under the bare key `theme` — the key
+         the legacy Angular applications read too, which is why the shell writes
+         it raw rather than through the framework's store. Anything that is not
+         exactly "light" or "dark" counts as nothing chosen, and the whole thing
+         is guarded: this script must never be why a page fails to paint. -->
     <script>
       ;(function () {
         try {
-          var stored = null
-          var raw = window.localStorage.getItem('@host:theme')
-          if (raw) {
-            var record = JSON.parse(raw)
-            if (record && (record.d === 'light' || record.d === 'dark')) stored = record.d
-          }
+          var stored = window.localStorage.getItem('theme')
+          if (stored !== 'light' && stored !== 'dark') stored = null
           var theme =
             stored ||
             (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
           document.documentElement.classList.toggle('dark', theme === 'dark')
           document.documentElement.style.colorScheme = theme
         } catch (error) {
-          // Storage blocked, or a record this build cannot read: the class in
+          // Storage blocked, or a value this build cannot read: the class in
           // <html> already stands.
         }
       })()

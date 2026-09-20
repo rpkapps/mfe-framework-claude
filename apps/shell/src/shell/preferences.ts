@@ -1,26 +1,61 @@
 /**
- * The theme, declared once so every reader of `@host:theme` agrees.
+ * The shell's own preferences, and where they are kept.
  *
- * It is the shell's to own — one page, one document class, one value published
- * to every mount — and it has to outlive a sign-out, so it is kept with
- * `retention: 'browser'`. Nothing ever retires it.
+ * The theme is written raw — the bare string `"light"` or `"dark"` under the
+ * bare key `theme` — because the legacy Angular applications read
+ * `localStorage["theme"]` directly and can be taught no other key or shape.
+ * The framework's store writes an envelope under a scoped key, so this one
+ * value stays outside it deliberately (§24).
+ *
+ * A stored value is untrusted, so anything unreadable is treated as absent.
  */
-
-import { z } from 'zod'
 
 export type ShellTheme = 'light' | 'dark'
 
-export const ThemeSchema = z.enum(['light', 'dark'])
+/** Exactly what the legacy applications read. Never `@host:theme`. */
+const THEME_KEY = 'theme'
 
-/** What the pre-paint script in index.html falls back to. */
+/** The theme the document starts in when nothing was ever chosen. */
 export const DEFAULT_THEME: ShellTheme = 'dark'
 
+/** Reading `localStorage` throws outright when storage is blocked for the origin. */
+function storage(): Storage | undefined {
+  try {
+    return window.localStorage
+  } catch {
+    return undefined
+  }
+}
+
+export function readTheme(): ShellTheme | null {
+  try {
+    const stored = storage()?.getItem(THEME_KEY)
+    return stored === 'light' || stored === 'dark' ? stored : null
+  } catch {
+    return null
+  }
+}
+
+export function writeTheme(theme: ShellTheme): void {
+  try {
+    storage()?.setItem(THEME_KEY, theme)
+  } catch {
+    // A theme that cannot be remembered is still a theme that works.
+  }
+}
+
 /**
- * What the document is already painting. The inline script in index.html has
- * read the stored choice, the operating system's, then the default, and applied
- * it before this module ran — so the page needs no second reader before the
- * runtime exists, and read once here it cannot drift between components.
+ * What the document should boot in: the stored choice, then the operating
+ * system's, then the default — the order the inline script applies before
+ * paint, kept here too so the two cannot disagree about it.
  */
-export const BOOT_THEME: ShellTheme = document.documentElement.classList.contains('dark')
-  ? DEFAULT_THEME
-  : 'light'
+export function preferredTheme(): ShellTheme {
+  const stored = readTheme()
+  if (stored !== null) return stored
+
+  try {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : DEFAULT_THEME
+  } catch {
+    return DEFAULT_THEME
+  }
+}

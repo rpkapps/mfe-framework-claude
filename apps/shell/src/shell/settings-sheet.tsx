@@ -11,7 +11,7 @@
 
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useApps, useCapabilityPages, useMfeRuntime, useStoredState } from '@company/mfe-react'
+import { useApps, useCapabilityPages, useMfeRuntime, useTheme } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -46,7 +46,6 @@ import { toast } from 'sonner'
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
-import { BOOT_THEME, ThemeSchema } from './preferences.ts'
 import { DataList, DataRow, Mono } from './readout.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
@@ -61,10 +60,7 @@ export function SettingsSheet({
   const runtime = useMfeRuntime('the shell settings')
   const navigate = useNavigate()
   const apps = useApps()
-  const [theme, setTheme] = useStoredState('theme', ThemeSchema, {
-    defaultValue: BOOT_THEME,
-    retention: 'browser',
-  })
+  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
 
   // Only the settings pages: flattening every capability put each
@@ -104,7 +100,8 @@ export function SettingsSheet({
                   spacing={0}
                   onSelectionChange={keys => {
                     const next = [...keys][0]
-                    if (next === 'light' || next === 'dark') setTheme(next)
+                    if (next !== 'light' && next !== 'dark') return
+                    runtime.shellState.apply({ theme: next })
                   }}
                 >
                   <ToggleGroupItem id="light" aria-label="Light theme">

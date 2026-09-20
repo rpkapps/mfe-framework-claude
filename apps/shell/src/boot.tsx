@@ -27,7 +27,7 @@ import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
 import { createFaroProvider } from './shell/faro.ts'
-import { BOOT_THEME } from './shell/preferences.ts'
+import { preferredTheme } from './shell/preferences.ts'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
 import { notices } from './shell/workspace.ts'
@@ -100,9 +100,10 @@ const { runtime, activeOverrides } = createMfeRuntime({
   shellState: {
     user: { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' },
     groups: ['geoscience', 'well-planning.read'],
-    // What the page is already painting. The chrome owns the theme from here
-    // and republishes it, so nothing has to read storage before this call.
-    theme: BOOT_THEME,
+    // Decided the same way the pre-paint script in index.html decided it, so
+    // shell state agrees with what the document is already painting. The
+    // chrome owns it from here and writes every later switch back.
+    theme: preferredTheme(),
   },
   telemetryProvider: telemetry,
   navigationBridge: createBrowserNavigationBridge(),

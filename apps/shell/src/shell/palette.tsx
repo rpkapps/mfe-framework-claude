@@ -20,7 +20,7 @@ import {
   useApps,
   useCapabilityPages,
   useMfeRuntime,
-  useStoredState,
+  useTheme,
   useWidgets,
   type Decision,
   type MfeRuntime,
@@ -61,7 +61,7 @@ import {
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { addTile, EMPTY_LAYOUT, tileKey, type DashboardLayout } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
-import { BOOT_THEME, ThemeSchema, type ShellTheme } from './preferences.ts'
+import type { ShellTheme } from './preferences.ts'
 import { shellUi } from './ui-store.ts'
 
 type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
@@ -70,7 +70,6 @@ type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
 interface Live {
   readonly runtime: MfeRuntime
   readonly theme: ShellTheme
-  readonly setTheme: StoredStateSetter<ShellTheme>
   readonly layout: DashboardLayout
   readonly setLayout: StoredStateSetter<DashboardLayout>
 }
@@ -128,7 +127,7 @@ const HOST_COMMANDS: Readonly<Record<string, HostCommand>> = {
     icon: live.theme === 'dark' ? <SunIcon /> : <MoonIcon />,
     hint: '⌘J',
     text: 'switch light dark',
-    run: () => live.setTheme(live.theme === 'dark' ? 'light' : 'dark'),
+    run: () => live.runtime.shellState.apply({ theme: live.theme === 'dark' ? 'light' : 'dark' }),
   }),
   'copy-url': () => ({
     label: 'Copy a link to this page',
@@ -174,10 +173,7 @@ export function CommandPalette({
   const apps = useApps()
   const widgets = useWidgets()
   const pages = useCapabilityPages()
-  const [theme, setTheme] = useStoredState('theme', ThemeSchema, {
-    defaultValue: BOOT_THEME,
-    retention: 'browser',
-  })
+  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
   const commands = useSyncExternalStore(
     runtime.commands.subscribe,
@@ -189,7 +185,7 @@ export function CommandPalette({
     if (open) runtime.commands.evaluateAll()
   }, [open, runtime])
 
-  const current: Live = { runtime, theme, setTheme, layout, setLayout }
+  const current: Live = { runtime, theme, layout, setLayout }
   const live = useRef(current)
   useEffect(() => {
     live.current = current

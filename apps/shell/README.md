@@ -74,17 +74,25 @@ drawn beside it, whether it may run and what it does.
 
 ### The theme
 
-The shell owns it: one document class, one value published to every mount
-through the shell state. It is `useStoredState('theme', …, { retention:
-'browser' })` called outside any mount, so the record is the host page's, at
-`@host:theme`, and a sign-out does not retire it (`docs/decisions.md` §24); the
-old `company:shell:theme` key is not migrated. The chrome holds that one
-binding and a single effect applies it — the document class, `colorScheme`, and
-`shellState`, which is where a mounted App reads it. The inline script in
-`index.html` applies the choice before first paint, so a light-theme user never
-sees the document boot dark and flip; it parses the store's envelope, treats
-anything it cannot read as "nothing was chosen", and the class it leaves on
-`<html>` is what the runtime is created with.
+The shell owns it, and `runtime.shellState` holds it: every switch — the account
+menu, settings, the palette, `⌘J` — is a `shellState.apply({ theme })`, and the
+chrome, a mounted App and the design system's `Toaster` all read that one value
+back through the framework's `useTheme()`. One effect in `chrome.tsx` applies
+it: the `dark` class on `<html>`, `colorScheme`, and `writeTheme`.
+
+It is deliberately **not** a framework record. The legacy Angular applications
+read `localStorage["theme"]` directly as the bare string `light` or `dark`, so
+the shell writes exactly that key with exactly that value — the store would
+write an envelope under `@host:theme`, which is neither. `preferences.ts` is the
+one file that reads and writes it (`readTheme`, `writeTheme`, `preferredTheme`),
+and the one raw-storage exemption that survives the host scope
+(`docs/decisions.md` §24). Nothing is migrated from `company:shell:theme`.
+
+The inline script in `index.html` reads the same bare key before first paint, so
+a light-theme user never sees the document boot dark and flip. It takes only
+`light` or `dark` and otherwise falls back to `prefers-color-scheme`, then dark
+— the order `preferredTheme()` uses to decide the theme `createMfeRuntime` is
+given, so the class on `<html>` and the shell state agree.
 
 ### Navigation an App can refuse
 
