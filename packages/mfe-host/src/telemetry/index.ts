@@ -23,6 +23,8 @@ export {
 
 export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './tracer.ts'
 
+export { telemetryDiagnosticsSink } from './diagnostics-sink.ts'
+
 export { createNoopTelemetryProvider } from './tracer.ts'
 
 export {

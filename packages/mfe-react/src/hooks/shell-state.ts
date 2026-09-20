@@ -1,27 +1,32 @@
 /**
- * The live shell-state hooks, available in Apps and in independently mounted
- * Widgets alike.
+ * The live shell-state hooks, available in Apps, in independently mounted
+ * Widgets and in the host's own chrome alike.
  *
  * Each hook subscribes to one field, so a theme change cannot notify a consumer
  * that only reads the user, and a selector narrows it further. These are
  * readonly data for rendering, never an authorization API.
+ *
+ * They read through `useMfeRuntime` rather than through a mount because shell
+ * state is the runtime's: nothing here uses a mount's identity, and requiring
+ * one only meant the host publishing the theme could not read it back with the
+ * hook its mounts use.
  */
 
 import { useCallback } from 'react'
 import type { ShellTheme, ShellUser } from '@company/mfe-core'
 import type { ShellStateField } from '@company/mfe-host'
 
-import { useMfeMount } from '../mount-context.tsx'
+import { useMfeRuntime } from '../runtime-context.tsx'
+import type { MfeRuntime } from '../runtime.ts'
 import { identitySelector, useStoreSelector, type Selector } from './use-store-selector.ts'
 
 function useShellField<S, T>(
   hookName: string,
   field: ShellStateField,
-  read: (store: ReturnType<typeof useMfeMount>['runtime']['shellState']) => S,
+  read: (store: MfeRuntime['shellState']) => S,
   selector: Selector<S, T>,
 ): T {
-  const { runtime } = useMfeMount(hookName)
-  const store = runtime.shellState
+  const { shellState: store } = useMfeRuntime(`${hookName}()`)
 
   const subscribe = useCallback(
     (listener: () => void) => store.subscribeToField(field, listener),

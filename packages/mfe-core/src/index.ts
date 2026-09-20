@@ -154,3 +154,28 @@ export {
   type DiagnosticSeverity,
   type DiagnosticsSink,
 } from './diagnostics.ts'
+
+/**
+ * The one reserved scope the host page owns: its storage records, its commands,
+ * its breadcrumb root. Exported from its own module rather than beside either
+ * surface, because it belongs to both.
+ */
+export { HOST_SCOPE } from './scope.ts'
+
+/**
+ * Reflecting a published Widget input schema into field descriptors. Exported
+ * as its own block rather than inside the definition surface, so a concurrent
+ * edit to that block and this one cannot collide.
+ */
+export {
+  coerceInputs,
+  defaultInputsFor,
+  describeWidgetInputs,
+  needsInputPrompt,
+  type WidgetInputField,
+  type WidgetInputKind,
+  type WidgetInputType,
+} from './widget-inputs.ts'
+
+/** Which build a container was produced by, carried through the registry. */
+export type { BuildProvenance } from './definition.ts'

@@ -154,3 +154,44 @@ export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
  */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
+
+/**
+ * Reading what a Widget takes, for a host that composes the registry: the shell
+ * depends on this package rather than on the core, so a dashboard that renders
+ * a form from a published schema has to be able to name these from here.
+ * Appended as its own block so a concurrent edit to the neutral-contract block
+ * and this one cannot collide.
+ */
+export {
+  coerceInputs,
+  defaultInputsFor,
+  describeWidgetInputs,
+  needsInputPrompt,
+  type BuildProvenance,
+  type WidgetInputField,
+  type WidgetInputKind,
+  type WidgetInputType,
+} from '@company/mfe-core'
+
+/**
+ * Reading the registry, for the host that renders it. Appended here rather
+ * than beside the registry types so a concurrent edit to that block and this
+ * one cannot collide.
+ */
+export {
+  useActiveDefinition,
+  useApps,
+  useCapabilityPages,
+  useRegistryEntries,
+  useWidgets,
+  type ActiveDefinition,
+  type CapabilityPage,
+} from './registry-selectors.ts'
+
+/**
+ * The reserved scope the host's own commands, breadcrumbs and stored records
+ * live under, and the event-name mapping a host needs to name a Widget's
+ * handler prop. Both come from the neutral core; a host depends on this
+ * package.
+ */
+export { eventNameToHandlerProp, HOST_SCOPE, type CapabilityName } from '@company/mfe-core'

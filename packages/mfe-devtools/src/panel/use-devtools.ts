@@ -9,13 +9,15 @@
  */
 
 import { useMemo } from 'react'
-import { containerNameOf, useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
+import { containerNameOf, useRegistryEntries } from '@company/mfe-react'
 
-/** Every accepted entry, in registry order. */
-export function useRegistryEntries(): readonly NeutralRegistryEntry[] {
-  const { entries } = useMfeRuntime('the developer tools').registry
-  return useMemo(() => [...entries.values()], [entries])
-}
+/**
+ * Every accepted entry, in registry order. The framework's own selector, named
+ * here so the tabs beside this module go on reading everything they render
+ * through one import — and so the panel and its host cannot end up with two
+ * different ideas of what the registry holds.
+ */
+export { useRegistryEntries }
 
 /**
  * The overrides that actually applied, read back off the registry rather than from

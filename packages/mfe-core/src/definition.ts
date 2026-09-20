@@ -29,6 +29,21 @@ export interface CapabilityDescriptor {
   readonly path: string
 }
 
+/**
+ * Which build of a container this is. The hash is a content hash of the
+ * container's generated sources, and the time is when that hash was first
+ * produced — not when the compilation ran — so identical sources describe
+ * themselves identically and a rebuild of them is recognisably the same build.
+ *
+ * Both are optional because a descriptor is produced by a build the reader does
+ * not control, and neither ever gates loading: a container that names no build
+ * still mounts, it is only harder to report a bug against.
+ */
+export interface BuildProvenance {
+  readonly hash?: string
+  readonly time?: string
+}
+
 /** Identity and build provenance carried into every diagnostic. */
 export interface DefinitionIdentity {
   readonly id: string
@@ -53,10 +68,7 @@ export interface ContainerDescriptor {
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path, for the same reason. */
   readonly entries: Readonly<Record<string, string>>
-  readonly build?: {
-    readonly hash?: string
-    readonly time?: string
-  }
+  readonly build?: BuildProvenance
 }
 
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {

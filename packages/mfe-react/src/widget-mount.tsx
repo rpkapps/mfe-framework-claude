@@ -9,6 +9,7 @@
 
 import {
   createMfeError,
+  eventNameToHandlerProp,
   validateAgainstContract,
   validateSerializable,
   type MfeError,
@@ -234,6 +235,16 @@ export function WidgetMount({
   )
 }
 
+/**
+ * The catch-all handler prop: every declared event, by name, in one callback.
+ *
+ * A host composing the registry knows the event names only as strings, so
+ * writing `onX` props for them means building the prop names — which is the
+ * mapping this module already owns, done again at a distance, and wrong the
+ * first time a name maps differently from how the provider mapped it.
+ */
+const CATCH_ALL_HANDLER_PROP = 'onEvent'
+
 /** Splits consumer props into inputs, event handlers and host control props. */
 export function partitionWidgetProps(
   props: Readonly<Record<string, unknown>>,
@@ -243,19 +254,31 @@ export function partitionWidgetProps(
   readonly handlers: Record<string, (payload: unknown) => void>
 } {
   const inputs: Record<string, unknown> = {}
-  const handlers: Record<string, (payload: unknown) => void> = {}
+  const named: Record<string, (payload: unknown) => void> = {}
+  let catchAll: ((event: string, payload: unknown) => void) | undefined
 
   const handlerPropToEvent = new Map(
-    declaredEvents.map(event => [`on${event.charAt(0).toUpperCase()}${event.slice(1)}`, event]),
+    declaredEvents.map(event => [eventNameToHandlerProp(event), event]),
   )
 
   for (const [name, value] of Object.entries(props)) {
     // Reserved control props are never forwarded as inputs.
     if (name === 'fallback' || name === 'pending' || name === 'key' || name === 'ref') continue
 
+    // Read before the declared events, so an event named `event` — which maps
+    // to this same prop — cannot quietly take the catch-all's place. That
+    // Widget loses nothing: the catch-all delivers its event by name like any
+    // other.
+    if (name === CATCH_ALL_HANDLER_PROP) {
+      if (typeof value === 'function') {
+        catchAll = value as (event: string, payload: unknown) => void
+      }
+      continue
+    }
+
     const event = handlerPropToEvent.get(name)
     if (event !== undefined) {
-      if (typeof value === 'function') handlers[event] = value as (payload: unknown) => void
+      if (typeof value === 'function') named[event] = value as (payload: unknown) => void
       continue
     }
 
@@ -264,6 +287,28 @@ export function partitionWidgetProps(
     if (/^on[A-Z]/.test(name)) continue
 
     inputs[name] = value
+  }
+
+  if (catchAll === undefined) return { inputs, handlers: named }
+
+  // Every declared event reaches the catch-all, including one that also has a
+  // handler of its own: a consumer asking for all of them and for one in
+  // particular means both, and the alternative — the specific handler
+  // suppressing the general one — would make an activity feed lose exactly the
+  // events the page does something with.
+  const notify = catchAll
+  const handlers: Record<string, (payload: unknown) => void> = {}
+  for (const event of declaredEvents) {
+    const specific = named[event]
+    handlers[event] =
+      specific === undefined
+        ? payload => {
+            notify(event, payload)
+          }
+        : payload => {
+            specific(payload)
+            notify(event, payload)
+          }
   }
 
   return { inputs, handlers }

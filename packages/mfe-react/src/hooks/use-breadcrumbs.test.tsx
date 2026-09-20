@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { useState, type ReactNode } from 'react'
 import type { BreadcrumbItem } from '@company/mfe-core'
 
+import { MfeProvider } from '../runtime-context.tsx'
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
 import { useBreadcrumbs } from './use-breadcrumbs.ts'
 
@@ -99,6 +100,89 @@ describe('useBreadcrumbs', () => {
     screen.getByRole('button', { name: 'toggle' }).click()
     await waitFor(() => {
       expect(labels(created)).toEqual(['New study', 'Step 2'])
+    })
+
+    view.unmount()
+    await waitFor(() => {
+      expect(labels(created)).toEqual(['Breadcrumbs'])
+    })
+  })
+})
+
+/**
+ * The same hook outside any mount, which is where a host's own trail comes
+ * from. It had no way in before: the store is keyed by mount token and a host
+ * has none, so a shell wanting the workspace and the mounted application in
+ * the trail invented a token and registered itself as though it were a mount.
+ */
+describe('useBreadcrumbs outside a mount', () => {
+  function Chrome({ items }: { readonly items: readonly BreadcrumbItem[] }): ReactNode {
+    useBreadcrumbs(items)
+    return null
+  }
+
+  const WORKSPACE: readonly BreadcrumbItem[] = [{ key: 'workspace', label: 'North Sea', href: '/' }]
+
+  /** What an App's own route tree contributes, exactly as AppMount publishes it. */
+  function withMountedApp(created: MfeTestEnvironment): void {
+    const handle = created.runtime.breadcrumbs.registerMount('lab', created.mount.mountToken, 1)
+    handle.update([{ key: 'breadcrumbs', label: 'Breadcrumbs' }])
+  }
+
+  it('composes the host’s crumbs above the mount’s', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'lab', basePath: '/lab' })
+    const created = environment
+    withMountedApp(created)
+
+    render(
+      <MfeProvider runtime={created.runtime}>
+        <Chrome items={WORKSPACE} />
+      </MfeProvider>,
+    )
+
+    await waitFor(() => {
+      expect(labels(created)).toEqual(['North Sea', 'Breadcrumbs'])
+    })
+  })
+
+  it('republishes the host’s crumbs when they change', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'lab', basePath: '/lab' })
+    const created = environment
+
+    const view = render(
+      <MfeProvider runtime={created.runtime}>
+        <Chrome items={WORKSPACE} />
+      </MfeProvider>,
+    )
+
+    await waitFor(() => {
+      expect(labels(created)).toEqual(['North Sea'])
+    })
+
+    view.rerender(
+      <MfeProvider runtime={created.runtime}>
+        <Chrome items={[...WORKSPACE, { key: 'lab', label: 'Lab' }]} />
+      </MfeProvider>,
+    )
+
+    await waitFor(() => {
+      expect(labels(created)).toEqual(['North Sea', 'Lab'])
+    })
+  })
+
+  it('takes the host’s crumbs out of the trail when the chrome unmounts', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'lab', basePath: '/lab' })
+    const created = environment
+    withMountedApp(created)
+
+    const view = render(
+      <MfeProvider runtime={created.runtime}>
+        <Chrome items={WORKSPACE} />
+      </MfeProvider>,
+    )
+
+    await waitFor(() => {
+      expect(labels(created)).toEqual(['North Sea', 'Breadcrumbs'])
     })
 
     view.unmount()

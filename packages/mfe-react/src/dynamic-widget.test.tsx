@@ -52,6 +52,56 @@ const counter = createWidget({
   },
 })
 
+const feed = createWidget({
+  id: 'feed-widget',
+  version: '1.0.0',
+  inputs: z.object({ label: z.string() }),
+  events: { opened: z.object({ at: z.string() }), closed: z.object({ at: z.string() }) },
+  render: ({ inputs, emit }): ReactNode => (
+    <>
+      <span>{inputs.label}</span>
+      <button
+        type="button"
+        onClick={() => {
+          emit('opened', { at: 'now' })
+        }}
+      >
+        open
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          emit('closed', { at: 'later' })
+        }}
+      >
+        close
+      </button>
+    </>
+  ),
+})
+
+/**
+ * A Widget whose one event is called `event`, which maps to the same prop name
+ * as the catch-all. Exotic, and exactly the case that decides which of the two
+ * wins.
+ */
+const collides = createWidget({
+  id: 'collides-widget',
+  version: '1.0.0',
+  inputs: z.object({}),
+  events: { event: z.object({ n: z.number() }) },
+  render: ({ emit }): ReactNode => (
+    <button
+      type="button"
+      onClick={() => {
+        emit('event', { n: 1 })
+      }}
+    >
+      emit
+    </button>
+  ),
+})
+
 const other = createWidget({
   id: 'other-widget',
   version: '2.0.0',
@@ -204,5 +254,100 @@ describe('DynamicWidget', () => {
     await waitFor(() => {
       expect(screen.getByTestId('error')).toHaveTextContent('not-registered')
     })
+  })
+})
+
+/**
+ * A host composing the registry knows a Widget's events only as the strings its
+ * published contract lists. Building `on` + capitalized name to subscribe to
+ * them is the framework's own mapping done again in the host, and wrong the
+ * first time the two disagree — so the host asks for all of them instead.
+ */
+describe('DynamicWidget onEvent', () => {
+  it('delivers every declared event, by name, to one handler', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
+    const onEvent = vi.fn()
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget widgetId="feed-widget" label="Feed" onEvent={onEvent} />,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'open' })).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'open' }))
+    await userEvent.click(screen.getByRole('button', { name: 'close' }))
+
+    expect(onEvent.mock.calls).toEqual([
+      ['opened', { at: 'now' }],
+      ['closed', { at: 'later' }],
+    ])
+  })
+
+  it('delivers an event to its own handler and to the catch-all', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
+    const onEvent = vi.fn()
+    const onOpened = vi.fn()
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget widgetId="feed-widget" label="Feed" onOpened={onOpened} onEvent={onEvent} />,
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'open' })).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'open' }))
+
+    // Both: a consumer asking for all of them and for one in particular means
+    // both, and the alternative loses exactly the events the page acts on.
+    expect(onOpened).toHaveBeenCalledWith({ at: 'now' })
+    expect(onEvent).toHaveBeenCalledWith('opened', { at: 'now' })
+  })
+
+  it('never forwards the catch-all to the provider as an input', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+
+    await renderSuspending(
+      hosted(
+        environment.runtime,
+        <DynamicWidget
+          widgetId="counter-widget"
+          label="Clicks"
+          onEvent={() => undefined}
+          fallback={({ error }) => <p data-testid="error">{error.message}</p>}
+        />,
+      ),
+    )
+
+    // Inputs are validated as serializable, so a function reaching the provider
+    // as one would have been rejected here rather than ignored.
+    await waitFor(() => {
+      expect(screen.getByRole('button')).toHaveTextContent('Clicks: 0')
+    })
+    expect(screen.queryByTestId('error')).not.toBeInTheDocument()
+  })
+
+  it('still delivers an event whose name maps to the catch-all prop', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [collides] })
+    const onEvent = vi.fn()
+
+    await renderSuspending(
+      hosted(environment.runtime, <DynamicWidget widgetId="collides-widget" onEvent={onEvent} />),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button')).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button'))
+
+    // The prop is the catch-all's, so this Widget cannot be subscribed to by
+    // prop name — and loses nothing, because the catch-all names every event.
+    expect(onEvent).toHaveBeenCalledWith('event', { n: 1 })
   })
 })

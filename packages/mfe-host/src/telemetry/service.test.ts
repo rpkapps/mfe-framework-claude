@@ -112,6 +112,7 @@ describe('the surface the framework does not have', () => {
       'getActiveSpanContext',
       'isReservedAttributeKey',
       'nonRecordingSpan',
+      'telemetryDiagnosticsSink',
     ])
   })
 })

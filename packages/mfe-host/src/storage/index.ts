@@ -23,3 +23,14 @@ export type {
   StorageUpdater,
   StorageWriteOptions,
 } from './types.ts'
+
+/**
+ * The first generation of a page load, and how a later one is minted.
+ * `createMfeRuntime` calls both; a host assembling its own runtime out of these
+ * pieces needs them for the same reason it needs the store.
+ */
+export {
+  establishSessionGeneration,
+  mintSessionGeneration,
+  type EstablishSessionGenerationOptions,
+} from './session-generation.ts'

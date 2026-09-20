@@ -1,6 +1,9 @@
 /**
- * Mount-scoped command registration: hold the current set, publish a palette
- * snapshot. The performance contract is the interesting part — replacing
+ * Scoped command registration: hold the current set, publish a palette
+ * snapshot. A scope is one mount, or the host page itself — a palette that had
+ * to merge a registry snapshot with a hard-coded list of the host's own
+ * commands would be two code paths where the user sees one list. The
+ * performance contract is the interesting part — replacing
  * `execute`/`canExecute` closure identity must not change the public snapshot,
  * and updating one command must not re-evaluate any other.
  */
@@ -9,6 +12,7 @@ import {
   allow,
   commandEntryEqual,
   createMfeError,
+  HOST_SCOPE,
   SnapshotSource,
   toMfeError,
   type CommandEntry,
@@ -59,7 +63,8 @@ export type CommandDenialNotifier = (notice: {
 interface RegisteredCommand {
   qualifiedId: string
   readonly definitionId: string
-  readonly mountToken: string
+  /** The mount token that owns it, or the reserved host scope. */
+  readonly scopeToken: string
   registration: CommandRegistration
   /** The last published entry; reused when nothing visible changed. */
   entry: CommandEntry
@@ -71,11 +76,13 @@ export interface CommandRegistryOptions {
 }
 
 /**
- * Commands are stored per mount so duplicate-name validation is scoped the way
+ * Commands are stored per scope so duplicate-name validation is scoped the way
  * the contract describes: a name may repeat across mounts, never inside one.
+ * The host page is one more scope, so its own commands are validated by the
+ * same rule and cannot be removed by a mount's disposal.
  */
 export class CommandRegistry {
-  readonly #byMount = new Map<string, Map<string, RegisteredCommand>>()
+  readonly #byScope = new Map<string, Map<string, RegisteredCommand>>()
   readonly #snapshot = new SnapshotSource<readonly CommandEntry[]>(Object.freeze([]))
   readonly #options: CommandRegistryOptions
 
@@ -89,7 +96,7 @@ export class CommandRegistry {
 
   get size(): number {
     let total = 0
-    for (const commands of this.#byMount.values()) total += commands.size
+    for (const commands of this.#byScope.values()) total += commands.size
     return total
   }
 
@@ -103,47 +110,36 @@ export class CommandRegistry {
     mountToken: string,
     registration: CommandRegistration,
   ): CommandRegistrationHandle {
-    this.#assertValid(definitionId, registration)
-
-    const commands = this.#mountCommands(mountToken)
-    if (commands.has(registration.name)) {
-      throw this.#duplicateNameError(definitionId, registration.name)
+    if (definitionId === HOST_SCOPE || mountToken === HOST_SCOPE) {
+      throw fail(definitionId, {
+        operation: `register command '${registration.name}'`,
+        expected: 'a definition id and the mount token the runtime issued for it',
+        observed: `the reserved host scope ${HOST_SCOPE}`,
+        repair:
+          'Call registerHost instead. It is the one way into the host scope, so a host command and a mount command can never be confused for each other.',
+      })
     }
 
-    const qualifiedId = `${definitionId}:${registration.name}`
-    const command: RegisteredCommand = {
-      qualifiedId,
-      definitionId,
-      mountToken,
-      registration,
-      entry: this.#buildEntry(qualifiedId, definitionId, registration),
-    }
+    return this.#add(definitionId, mountToken, registration)
+  }
 
-    commands.set(registration.name, command)
-    this.#publish()
-
-    let active = true
-    return {
-      qualifiedId,
-      update: next => {
-        if (active) this.#update(command, next)
-      },
-      remove: () => {
-        if (!active) return
-        active = false
-        const owned = this.#byMount.get(mountToken)
-        if (owned) {
-          owned.delete(command.registration.name)
-          if (owned.size === 0) this.#byMount.delete(mountToken)
-        }
-        this.#publish()
-      },
-    }
+  /**
+   * Registers one command the host page itself owns, in the reserved host
+   * scope. A host has no definition id and no mount token, so reaching
+   * `register` meant inventing both — and a made-up token is indistinguishable
+   * from a real mount's, which puts the host's commands at the mercy of
+   * `removeMount`.
+   *
+   * Everything else is the mount path's, so a palette renders host and mount
+   * commands through one snapshot and one execute call.
+   */
+  registerHost(registration: CommandRegistration): CommandRegistrationHandle {
+    return this.#add(HOST_SCOPE, HOST_SCOPE, registration)
   }
 
   /** Removes every command owned by a mount. Used by disposal. */
   removeMount(mountToken: string): void {
-    if (!this.#byMount.delete(mountToken)) return
+    if (!this.#byScope.delete(mountToken)) return
     this.#publish()
   }
 
@@ -173,10 +169,10 @@ export class CommandRegistry {
     if (!command) {
       const error = fail(qualifiedId.split(':')[0] ?? qualifiedId, {
         operation: `execute command '${qualifiedId}'`,
-        expected: 'a command registered by a live mount',
-        observed: 'no registration, so its definition is unloaded or disposed',
+        expected: 'a live registration, from a mount or from the host page',
+        observed: 'no registration, so whoever registered it has gone away',
         repair:
-          'Re-open the surface that registers this command. Commands from a disposed mount are unavailable.',
+          'Re-open the surface that registers this command. A mount command goes with its mount, and a host command with the chrome that registered it.',
       })
       this.#options.diagnostics?.report(error, { severity: 'warning' })
       return { status: 'unavailable', error }
@@ -215,12 +211,55 @@ export class CommandRegistry {
   }
 
   dispose(): void {
-    this.#byMount.clear()
+    this.#byScope.clear()
     this.#snapshot.dispose()
   }
 
+  #add(
+    definitionId: string,
+    scopeToken: string,
+    registration: CommandRegistration,
+  ): CommandRegistrationHandle {
+    this.#assertValid(definitionId, registration)
+
+    const commands = this.#scopeCommands(scopeToken)
+    if (commands.has(registration.name)) {
+      throw this.#duplicateNameError(definitionId, registration.name)
+    }
+
+    const qualifiedId = `${definitionId}:${registration.name}`
+    const command: RegisteredCommand = {
+      qualifiedId,
+      definitionId,
+      scopeToken,
+      registration,
+      entry: this.#buildEntry(qualifiedId, definitionId, registration),
+    }
+
+    commands.set(registration.name, command)
+    this.#publish()
+
+    let active = true
+    return {
+      qualifiedId,
+      update: next => {
+        if (active) this.#update(command, next)
+      },
+      remove: () => {
+        if (!active) return
+        active = false
+        const owned = this.#byScope.get(scopeToken)
+        if (owned) {
+          owned.delete(command.registration.name)
+          if (owned.size === 0) this.#byScope.delete(scopeToken)
+        }
+        this.#publish()
+      },
+    }
+  }
+
   #update(command: RegisteredCommand, next: CommandRegistration): void {
-    const commands = this.#mountCommands(command.mountToken)
+    const commands = this.#scopeCommands(command.scopeToken)
 
     // Changing `name` replaces the local registration, with the same duplicate
     // validation as a fresh register.
@@ -250,17 +289,17 @@ export class CommandRegistry {
     this.#publish()
   }
 
-  #mountCommands(mountToken: string): Map<string, RegisteredCommand> {
-    let commands = this.#byMount.get(mountToken)
+  #scopeCommands(scopeToken: string): Map<string, RegisteredCommand> {
+    let commands = this.#byScope.get(scopeToken)
     if (!commands) {
       commands = new Map()
-      this.#byMount.set(mountToken, commands)
+      this.#byScope.set(scopeToken, commands)
     }
     return commands
   }
 
   *#allCommands(): Generator<RegisteredCommand> {
-    for (const commands of this.#byMount.values()) yield* commands.values()
+    for (const commands of this.#byScope.values()) yield* commands.values()
   }
 
   #find(qualifiedId: string): RegisteredCommand | undefined {

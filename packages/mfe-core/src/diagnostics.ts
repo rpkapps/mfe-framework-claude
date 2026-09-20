@@ -23,6 +23,11 @@ export type DiagnosticsSink = (diagnostic: Diagnostic) => void
 export class DiagnosticsHub {
   readonly #sinks = new Set<DiagnosticsSink>()
 
+  /** Sinks a host already has when it builds the hub, so none has to be added after. */
+  constructor(sinks: readonly DiagnosticsSink[] = []) {
+    for (const sink of sinks) this.#sinks.add(sink)
+  }
+
   add(sink: DiagnosticsSink): () => void {
     this.#sinks.add(sink)
     return () => {

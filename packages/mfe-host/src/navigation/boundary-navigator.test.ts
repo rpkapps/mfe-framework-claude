@@ -11,6 +11,7 @@ import {
 
 import {
   BoundaryNavigator,
+  boundaryDefinitionId,
   createBrowserNavigationBridge,
   createNavigationIntent,
   parseBoundaryLocation,
@@ -767,5 +768,42 @@ describe('parseBoundaryLocation', () => {
       expect(error.message).toContain('"/reports/42"')
       expect(error.cause).toBeInstanceOf(Error)
     }
+  })
+})
+
+describe('boundaryDefinitionId', () => {
+  it.each([
+    ['the host’s own page', '/', undefined],
+    ['an empty path', '', undefined],
+    ['an App at its root', '/operations', 'operations'],
+    ['a route inside an App', '/operations/wells/reduced-dls', 'operations'],
+    ['a trailing slash', '/operations/', 'operations'],
+    ['a query and a hash', '/operations?tab=a#b', 'operations'],
+    ['an absolute URL', 'https://app.example.test/operations/wells', 'operations'],
+  ])('reads %s as %s', (_label, path, expected) => {
+    expect(boundaryDefinitionId(path)).toBe(expected)
+  })
+
+  /**
+   * The boundary is whatever the first segment says, registered or not. A host
+   * that answered "nothing is mounted" here would put its chrome at odds with
+   * the boundary below it, which is already reporting that the id failed to
+   * load.
+   */
+  it('names a segment the registry has never heard of', () => {
+    expect(boundaryDefinitionId('/not-registered/anything')).toBe('not-registered')
+  })
+
+  it('agrees with the base path an intent is built against', () => {
+    const path = '/reports/42'
+    const basePath = `/${boundaryDefinitionId(path) ?? ''}`
+
+    expect(
+      createNavigationIntent(
+        parseBoundaryLocation(path),
+        parseBoundaryLocation('/reports/7'),
+        basePath,
+      ).leavesBoundary,
+    ).toBe(false)
   })
 })

@@ -386,6 +386,25 @@ export function createNavigationIntent(
   }
 }
 
+/**
+ * Which definition owns the boundary a path falls inside, or `undefined` for
+ * the host's own page.
+ *
+ * A host places each App at `/<id>` and everything below belongs to the App, so
+ * the first segment is the answer — one derivation, rather than a `split('/')`
+ * in the blocker and a scan of router matches in the chrome that can disagree.
+ *
+ * The segment is returned whatever it says: a path naming something the
+ * registry never heard of is a real state a host has to render, and the
+ * boundary below is already reporting that it could not be loaded.
+ */
+export function boundaryDefinitionId(url: string): string | undefined {
+  const [first] = parseBoundaryLocation(url)
+    .pathname.split('/')
+    .filter(segment => segment !== '')
+  return first
+}
+
 /** Parses a URL string into a boundary location without touching the document. */
 export function parseBoundaryLocation(
   url: string,
