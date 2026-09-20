@@ -674,3 +674,49 @@ Two consequences were accepted rather than worked around:
   an author who moved between the two surfaces met a rename for no reason. The
   `StorageArea` _type_ keeps its name: "storage area" is the Web Storage spec's
   own term, and `StorageEvent.storageArea` is a real DOM property.
+
+---
+
+## 22. The developer tools ship in production and are gated at runtime
+
+**Status:** decided, with a stated cost.
+
+Every other developer-only thing in the framework is guarded with `DEV` from
+`@company/mfe-core`, which folds to `false` in a production build and takes the
+guarded statement with it. `@company/mfe-devtools` deliberately is not.
+
+The reason is the use case. The panel's job is repointing a container at a dev
+server, and the page where that is hardest to do — and most worth doing — is a
+deployed one, where no rebuild is available and the question is which manifest a
+surface actually loaded. `DEV` would delete the answer exactly where it is
+needed. So the gate is a runtime flag instead: `localStorage["company:mfe:devtools"]`,
+or `?devtools=1`, which persists so the parameter is needed once.
+
+What that costs is a storage read and a `null` return on every page load, which
+is the whole of `devtools-mount.tsx`. Everything else — the trigger, the panel,
+the design-system subpaths only it reaches for — is behind a dynamic `import()`
+that is evaluated the first time the flag reads true, and never otherwise. A
+test asserts the loader is called zero times when the flag is off, and a second
+asserts nothing reachable from the package's barrel by a static import lives in
+`src/panel/`; a re-export there would put the chunk back in the host's initial
+bundle and leave the import doing nothing, which is invisible at runtime because
+the tool still works.
+
+Two consequences worth naming.
+
+The registry view moved into the panel and is therefore behind the flag, so
+every control that used to open it — the header action, `g r`, the palette, the
+settings footer, the dashboard button and the notice strip's "See why" — now
+turns the tools on rather than assuming they are. The strip itself did **not**
+move: an override nobody can see is the phantom bug the override mechanism
+exists to prevent, and gating the warning behind a flag a developer has to know
+about would defeat it.
+
+And the shell's stylesheet now carries an `@source` for a `packages/*`
+directory. Tailwind emits a utility only for a file it scanned, the tools render
+into the shell's own document rather than into a scoped mount, and §17 leaves
+the document-level half the shell's alone — so the one line is the correct
+place for it. A host outside this workspace needs the same line pointing into
+its `node_modules`, until the package ships a prebuilt utilities sheet the way
+`@tecton/react` does. Recorded here rather than discovered at the first
+deployment.

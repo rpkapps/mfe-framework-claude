@@ -28,6 +28,19 @@ export interface Mf2LoaderOptions {
   readonly runtime: FederationRuntime
 }
 
+/**
+ * The container a definition is exposed from, or nothing when the descriptor
+ * does not name one. The adapter is the package allowed to know this: the
+ * neutral record keeps it in `adapterData` on purpose, so a caller that needs
+ * it asks here rather than casting the private payload for itself.
+ */
+export function containerNameOf(entry: NeutralRegistryEntry): string | undefined {
+  const data = entry.adapterData as { containerName?: unknown } | undefined
+  return typeof data?.containerName === 'string' && data.containerName !== ''
+    ? data.containerName
+    : undefined
+}
+
 function readAdapterData(entry: NeutralRegistryEntry): {
   containerName: string
   exposeName: string

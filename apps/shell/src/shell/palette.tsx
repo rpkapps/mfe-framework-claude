@@ -17,6 +17,7 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMfeRuntime } from '@company/mfe-react'
+import { devtools } from '@company/mfe-devtools'
 import {
   Command,
   CommandDialog,
@@ -192,7 +193,7 @@ export function CommandPalette({
               id="shell:registry"
               textValue="Open the registry loaded rejected entries"
               onAction={() => {
-                shellUi.show('registry')
+                devtools.open('registry')
               }}
             >
               <LayersIcon />

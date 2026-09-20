@@ -60,7 +60,9 @@ export {
   findConflictingContainerOverrides,
   OVERRIDES_STORAGE_KEY,
   readDevOverrides,
+  writeDevOverrides,
   type DevOverridesResult,
+  type OverrideWritableStorage,
 } from './overrides/dev-overrides.ts'
 
 export * from './storage/index.ts'

@@ -13,9 +13,9 @@
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMfeRuntime } from '@company/mfe-react'
+import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
-import { Separator } from '@tecton/react/components/separator'
 import {
   Item,
   ItemActions,
@@ -41,17 +41,15 @@ import {
   MoonIcon,
   SunIcon,
   Trash2Icon,
-  TriangleAlertIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { getLayout, setTiles, subscribeLayout } from './dashboard/layout-store.ts'
 import { useApps, useTheme } from './hooks.ts'
-import { clearOverrides } from './overrides.ts'
 import { DataList, DataRow, Mono } from './readout.tsx'
 import { shellUi } from './ui-store.ts'
-import { notices, workspace } from './workspace.ts'
+import { workspace } from './workspace.ts'
 
 export function SettingsSheet({
   isOpen,
@@ -216,42 +214,6 @@ export function SettingsSheet({
               </DataRow>
             </DataList>
           </Section>
-
-          {notices.overrides.size === 0 ? null : (
-            <>
-              <Separator emphasis="subtle" />
-              <Section title="Developer overrides" hint="Active in this browser">
-                <p className="flex items-start gap-2 text-sm text-warning-surface-foreground">
-                  <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    These replace a container’s published manifest URL at boot. They are the first
-                    thing to remove when a page behaves unlike the deployment.
-                  </span>
-                </p>
-                <DataList>
-                  {[...notices.overrides].map(([id, url]) => (
-                    <DataRow key={id} label={<Mono>{id}</Mono>}>
-                      <Mono className="text-muted-foreground">{url}</Mono>
-                    </DataRow>
-                  ))}
-                </DataList>
-                <div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onPress={() => {
-                      if (clearOverrides())
-                        toast.success('Overrides cleared. Reload to load the published manifests.')
-                      else
-                        toast.error('This browser would not let the shell write to local storage.')
-                    }}
-                  >
-                    <Trash2Icon /> Clear the overrides
-                  </Button>
-                </div>
-              </Section>
-            </>
-          )}
         </div>
       </div>
 
@@ -260,10 +222,10 @@ export function SettingsSheet({
           variant="outline"
           size="sm"
           onPress={() => {
-            shellUi.show('registry')
+            devtools.open('registry')
           }}
         >
-          <LayersIcon /> Open the registry
+          <LayersIcon /> Registry and overrides
         </Button>
         <CopyButton
           variant="outline"

@@ -22,6 +22,15 @@
  */
 @source "../**/*.{ts,tsx}";
 
+/*
+ * And the developer tools, which are a package rather than a container: they
+ * render into the shell's own document, above every mount, so their utilities
+ * belong in this sheet rather than in a scoped one. A host outside this
+ * workspace needs the same line pointing into its node_modules, until the
+ * package ships a prebuilt sheet of its own the way the design system does.
+ */
+@source "../../../../packages/mfe-devtools/src/**/*.{ts,tsx}";
+
 html,
 body,
 #root {
