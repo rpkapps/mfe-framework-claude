@@ -1,8 +1,4 @@
-/**
- * The framework's only subscription primitives. Two invariants are public
- * contract, not optimization: an unchanged snapshot keeps its reference, so
- * `useSyncExternalStore` consumers do not re-render, and a no-op notifies nobody.
- */
+/** An unchanged snapshot keeps its reference and a no-op notifies nobody, both by contract. */
 
 export type Unsubscribe = () => void
 export type Listener = () => void
@@ -13,18 +9,13 @@ export interface Subscribable<T> {
   subscribe(listener: Listener): Unsubscribe
 }
 
-/**
- * Notifies listeners, iterating a copy so a listener may subscribe or
- * unsubscribe during notification. A throwing listener must not stop the rest,
- * and its failure goes to `onListenerError` so it cannot be swallowed.
- */
+/** Iterates a copy, so a listener may subscribe or unsubscribe during notification. */
 export class ListenerSet {
   readonly #listeners = new Set<Listener>()
   readonly #onError: ((error: unknown) => void) | undefined
 
-  // A constructor parameter property would read the same, but Node cannot strip
-  // one from a TypeScript source it is asked to run directly, and the generate
-  // CLI reaches these modules that way — with no bundler and no build step.
+  // A parameter property would read the same, but Node cannot strip one from the TypeScript
+  // source the generate CLI runs directly.
   constructor(onListenerError?: (error: unknown) => void) {
     this.#onError = onListenerError
   }
@@ -35,8 +26,7 @@ export class ListenerSet {
 
   add(listener: Listener): Unsubscribe {
     this.#listeners.add(listener)
-    // `active` is what keeps a stale unsubscribe from removing a listener that
-    // was added again after it: a Set holds one entry per function reference.
+    // `active` keeps a stale unsubscribe from removing a listener that was added again after it.
     let active = true
     return () => {
       if (!active) return
@@ -82,7 +72,6 @@ export class SnapshotSource<T> implements Subscribable<T> {
   /** Stable across the source's lifetime; safe to pass straight to React. */
   readonly getSnapshot = (): T => this.#snapshot
 
-  /** Stable across the source's lifetime; safe to pass straight to React. */
   readonly subscribe = (listener: Listener): Unsubscribe => this.#listeners.add(listener)
 
   /** Publishes `next` and returns whether subscribers were notified. */
@@ -98,12 +87,7 @@ export class SnapshotSource<T> implements Subscribable<T> {
   }
 }
 
-/**
- * Subscriptions partitioned by an exact string key: writing one storage key, or
- * changing only the theme, must notify that key's subscribers and no one else.
- * A single shared listener list would broadcast every change to every consumer,
- * which the reactivity contract forbids.
- */
+/** Partitioned by exact key, so one storage write cannot notify every other key's subscribers. */
 export class KeyedListeners {
   readonly #byKey = new Map<string, ListenerSet>()
   readonly #onError: ((error: unknown) => void) | undefined
@@ -121,9 +105,8 @@ export class KeyedListeners {
     const remove = listeners.add(listener)
     return () => {
       remove()
-      // Evicting the empty set keeps a long-lived map from growing one entry
-      // per key that was ever subscribed. Re-read rather than close over the
-      // set, so a stale unsubscribe cannot evict a later subscription's entry.
+      // Evicting the empty set bounds the map, and re-reading rather than closing over it keeps
+      // a stale unsubscribe from evicting a later subscription's entry.
       const current = this.#byKey.get(key)
       if (current && current.size === 0) this.#byKey.delete(key)
     }
@@ -142,7 +125,6 @@ export class KeyedListeners {
   }
 }
 
-/** Shallow equality by own enumerable keys, comparing values with `Object.is`. */
 export function shallowEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
   if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
@@ -157,7 +139,6 @@ export function shallowEqual(a: unknown, b: unknown): boolean {
   return true
 }
 
-/** Element-wise equality for readonly arrays, comparing with `Object.is`. */
 export function arrayEqual<T>(a: readonly T[], b: readonly T[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false

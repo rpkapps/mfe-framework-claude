@@ -1,21 +1,15 @@
-/**
- * Finite deadlines for loading, mounting and disposal. These are operational
- * defaults, not performance targets: each phase gets one total deadline so
- * individual substeps cannot reset the clock indefinitely.
- */
+/** Each phase gets one total deadline, so individual substeps cannot reset the clock. */
 
 import { createMfeError, type MfeError, type MfeErrorCode } from './errors.ts'
 
 export interface DeadlineConfig {
-  /** Loading, config fetch and bootstrap work. */
   readonly load: number
   /** One mount attempt, measured after its code is ready. */
   readonly mount: number
-  /** Asynchronous disposal. */
   readonly dispose: number
 }
 
-/** Documented initial defaults. The shell may tune them centrally. */
+/** Initial defaults; the shell may tune them centrally. */
 export const DEFAULT_DEADLINES: DeadlineConfig = Object.freeze({
   load: 30_000,
   mount: 30_000,
@@ -36,12 +30,8 @@ const TIMEOUT_CODES: Record<DeadlineContext['phase'], MfeErrorCode> = {
 }
 
 /**
- * Races `work` against a total deadline.
- *
- * `onTimeout` runs before the returned promise rejects so the caller can abort
- * cancellable work and detach incomplete UI in the same turn. The underlying
- * promise is always observed, so a late rejection cannot surface as an
- * unhandled rejection.
+ * `onTimeout` runs before the rejection so a caller can abort and detach in the same turn, and the
+ * underlying promise is always observed so a late rejection cannot surface as unhandled.
  */
 export async function withDeadline<T>(
   work: (signal: AbortSignal) => Promise<T>,
@@ -85,7 +75,6 @@ export async function withDeadline<T>(
       work(controller.signal).then(resolve, reject)
     })
   } finally {
-    // Cleared on every success, error and timeout path.
     if (timer !== undefined) clearTimeout(timer)
     options.signal?.removeEventListener('abort', abortOuter)
   }

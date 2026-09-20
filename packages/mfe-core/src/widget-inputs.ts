@@ -1,54 +1,38 @@
 /**
- * Reading the input schema a Widget publishes, without deciding anything about
- * how it is presented.
- *
- * The walk lives once, here, because three readers need it — a form, a
- * developer tool, a picker — and three separate walks drift apart as the
- * emitter learns constructs (`format`, `const`, a nullable `anyOf`) that a
- * reader then reports as unreadable. What comes out is data; which control to
- * draw belongs to whoever draws the page. Nothing here validates.
+ * Reading the input schema a Widget publishes: one walk for every reader, because three separate
+ * ones drifted as the emitter learned constructs a reader then reported as unreadable (§28).
  */
 
 import type { JsonSchemaObject, JsonSchemaValue, PublishedWidgetContract } from './definition.ts'
 
-/**
- * What kind of value a field takes, in the vocabulary the build emits. `const`
- * is a single literal, `unknown` a schema this cannot classify.
- */
+/** The vocabulary the build emits; `unknown` is a schema this cannot classify. */
 export type WidgetInputKind =
   'string' | 'number' | 'integer' | 'boolean' | 'enum' | 'const' | 'array' | 'object' | 'unknown'
 
-/** What one value may be. Also describes an array's elements. */
+/** What one value may be; also describes an array's elements. */
 export interface WidgetInputType {
   readonly kind: WidgetInputKind
   /** The schema admits `null` beside the value, from `.nullable()`/`.nullish()`. */
   readonly nullable: boolean
   /** JSON Schema `format` for a string kind: `uri`, `email`, `date-time`, … */
   readonly format?: string
-  /** The declared members, for `enum`. Order is the declaration order. */
+  /** The declared members, in declaration order. */
   readonly enumValues?: readonly JsonSchemaValue[]
-  /** The single declared value, for `const`. */
   readonly constValue?: JsonSchemaValue
-  /** The element type, for `array`. */
   readonly item?: WidgetInputType
   /** The field's own schema, with the nullable wrapper unwrapped. */
   readonly schema: JsonSchemaObject
 }
 
-/** One declared input of a Widget. */
 export interface WidgetInputField extends WidgetInputType {
   readonly name: string
-  /** Required by the schema. A defaulted field is not: the build marks it optional. */
+  /** A defaulted field is not required: the build marks it optional. */
   readonly required: boolean
   readonly defaultValue?: JsonSchemaValue
   readonly description?: string
 }
 
-/**
- * `Array.isArray` narrows to `any[]` and does not narrow a `readonly` array out
- * of the union, so these assert what the check in front of them established.
- * Every read below goes through them rather than through `any`.
- */
+/** `Array.isArray` narrows to `any[]`, so these assert what the preceding check established. */
 function asObject(value: JsonSchemaValue | undefined): JsonSchemaObject | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonSchemaObject)
@@ -62,11 +46,8 @@ function asArray(value: JsonSchemaValue | undefined): readonly JsonSchemaValue[]
 type Unwrapped = { readonly schema: JsonSchemaObject; readonly nullable: boolean }
 
 /**
- * A nullable field is published as the value schema and `{ type: 'null' }`
- * under `anyOf`, with whatever was chained after `.nullable()` on the wrapper;
- * merging the wrapper's keys over the value schema makes "a string" and "a
- * string or null" one field with one flag different. Any other `anyOf` is left
- * alone — a genuine union is not something a control can stand in for.
+ * A nullable field is published as the value schema beside `{ type: 'null' }` under `anyOf`; any
+ * other `anyOf` is left alone, because a genuine union is not something one control stands for.
  */
 function unwrapNullable(schema: JsonSchemaObject): Unwrapped {
   const members = asArray(schema['anyOf'])
@@ -93,12 +74,10 @@ function unwrapNullable(schema: JsonSchemaObject): Unwrapped {
   return { schema: merged, nullable: true }
 }
 
-/** The `type` values that name a kind directly. */
 const TYPED_KINDS = new Set(['string', 'number', 'integer', 'boolean', 'array', 'object'])
 
 function kindOf(schema: JsonSchemaObject): WidgetInputKind {
-  // Order matters: an enum and a literal carry their members instead of a
-  // `type`, so reading `type` first would classify both as unknown.
+  // An enum and a literal carry no `type`, so reading `type` first would classify both unknown.
   if (asArray(schema['enum']) !== undefined) return 'enum'
   if (schema['const'] !== undefined) return 'const'
 
@@ -125,12 +104,7 @@ function describeType(raw: JsonSchemaObject): WidgetInputType {
   }
 }
 
-/**
- * The fields a Widget declares, or `null` when its schema was not published or
- * cannot be read as an object of properties. The two are different answers: an
- * empty array is "this Widget takes nothing", `null` is "the build could not
- * describe what it takes", and a host offers a raw value for the second.
- */
+/** `null` is "the build could not describe this", where `[]` is "this Widget takes nothing" (§28). */
 export function describeWidgetInputs(
   contract: PublishedWidgetContract | undefined,
 ): readonly WidgetInputField[] | null {
@@ -140,8 +114,7 @@ export function describeWidgetInputs(
   const properties = asObject(inputs['properties'])
   if (properties === undefined) return null
 
-  // A descriptor comes from a build this side does not control, so `required`
-  // is only known to be some JSON value until it is read.
+  // A descriptor comes from a build this side does not control, so `required` is unvalidated JSON.
   const declared = asArray(inputs['required']) ?? []
   const required = new Set(declared.filter(name => typeof name === 'string'))
 
@@ -160,11 +133,7 @@ export function describeWidgetInputs(
   })
 }
 
-/**
- * The inputs a Widget can be mounted with when nobody is asked for anything:
- * the defaults its own schema declares, and nothing invented beside them. A
- * field with no default is left absent, which is what "optional" means.
- */
+/** Only the defaults the schema itself declares, with nothing invented beside them. */
 export function defaultInputsFor(
   fields: readonly WidgetInputField[] | null,
 ): Record<string, JsonSchemaValue> {
@@ -178,12 +147,8 @@ export function defaultInputsFor(
 }
 
 /**
- * Turns collected values — from a form, a query string, a stored layout — into
- * inputs of the declared types: `"12"` typed into a text box is not the number
- * the schema asks for. A blank optional field is left out so it arrives absent
- * rather than as an empty string the schema rejects; a blank *required* one is
- * kept and allowed to fail at the Widget's boundary. With no readable schema
- * the values pass through as they are.
+ * Collected values are text, and `"12"` is not the number the schema asks for; a blank optional
+ * field is left out so it arrives absent rather than as an empty string the schema rejects.
  */
 export function coerceInputs(
   fields: readonly WidgetInputField[] | null,
@@ -201,25 +166,15 @@ export function coerceInputs(
   return inputs
 }
 
-/**
- * Must a host ask for inputs before this Widget can be mounted? True when the
- * schema was not published — the host knows nothing — and when any field is
- * required. All-optional inputs need nothing from anybody, and asking is
- * ceremony.
- */
+/** An unpublished schema counts as needing a prompt, because the host then knows nothing. */
 export function needsInputPrompt(contract: PublishedWidgetContract | undefined): boolean {
   const fields = describeWidgetInputs(contract)
   return fields === null || fields.some(field => field.required)
 }
 
-/**
- * A value that cannot be converted is passed through unchanged rather than
- * replaced by `NaN` or dropped: the provider's own error names the field and
- * what it received, and it can only do that if it receives what was given.
- */
+/** An unconvertible value passes through unchanged, so the provider's error names what it got. */
 function coerceValue(type: WidgetInputType, value: unknown): unknown {
-  // Only text needs converting: anything already of a JSON type came from a
-  // control that knew the type, or from inputs coerced once already.
+  // Only text needs converting; a value already of a JSON type came from a control that knew it.
   if (typeof value !== 'string') return value
 
   switch (type.kind) {

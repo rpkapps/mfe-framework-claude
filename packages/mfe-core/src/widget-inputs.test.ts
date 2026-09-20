@@ -10,7 +10,6 @@ import {
   type WidgetInputKind,
 } from './widget-inputs.ts'
 
-/** A published contract carrying one object schema, the way a build emits it. */
 function contractOf(
   properties: Readonly<Record<string, JsonSchemaObject>>,
   required: readonly string[] = [],
@@ -229,20 +228,8 @@ describe('needsInputPrompt', () => {
 })
 
 /**
- * The drift guard.
- *
- * This reflector and the build's static Zod reader are two halves of one format:
- * the reader emits the JSON Schema, this reads it back, and nothing but a test
- * connects them — `@company/mfe-core` cannot import the build integration, and
- * should not. The failure mode is quiet. A construct the emitter learns to
- * publish and this does not falls through to `unknown`, which is honest and
- * useless: the host offers a raw JSON box for a field whose type was published
- * all along, and nothing reports it.
- *
- * So every construct `readStaticSchema` can produce is listed here, as the
- * shape it produces, with the Zod that produces it named beside it. Teaching
- * the emitter a new construct means adding a row; a row whose kind is `unknown`
- * is the reflector falling behind the format it reads.
+ * The drift guard: every construct `readStaticSchema` can emit is listed here, and a row whose kind
+ * comes back `unknown` is this reflector falling behind the emitter (§28).
  */
 interface EmittedConstruct {
   /** What an author wrote, for whoever has to repair this row. */
@@ -279,7 +266,6 @@ const EMITTED_CONSTRUCTS: readonly EmittedConstruct[] = [
     kind: 'object',
   },
 
-  // Every string format the reader maps, as a base call and as a chained one.
   { zod: 'z.url()', schema: { type: 'string', format: 'uri' }, kind: 'string' },
   { zod: 'z.email()', schema: { type: 'string', format: 'email' }, kind: 'string' },
   { zod: 'z.uuid()', schema: { type: 'string', format: 'uuid' }, kind: 'string' },
@@ -294,7 +280,6 @@ const EMITTED_CONSTRUCTS: readonly EmittedConstruct[] = [
   { zod: 'z.duration()', schema: { type: 'string', format: 'duration' }, kind: 'string' },
   { zod: 'z.string().email()', schema: { type: 'string', format: 'email' }, kind: 'string' },
 
-  // The chained steps. Each keeps the base's kind and adds a constraint.
   {
     zod: 'z.string().min(1).max(8)',
     schema: { type: 'string', minLength: 1, maxLength: 8 },
@@ -343,8 +328,6 @@ const EMITTED_CONSTRUCTS: readonly EmittedConstruct[] = [
   },
   { zod: "z.string().default('a-1')", schema: { type: 'string', default: 'a-1' }, kind: 'string' },
 
-  // Nullability: the wrapper the emitter puts around the value schema, on its
-  // own and carrying what was chained after it.
   {
     zod: 'z.string().nullable()',
     schema: { anyOf: [{ type: 'string' }, { type: 'null' }] },

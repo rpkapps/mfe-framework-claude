@@ -1,11 +1,6 @@
-/**
- * Provider-neutral telemetry and tracing contracts: OTel-shaped, but nothing
- * here re-exports or aliases an upstream OTel or Faro type, because author
- * declarations and remote bundles must never resolve a vendor package. The
- * shell adapter translates these records into whichever provider it uses.
- */
+/** OTel-shaped but vendor-free, because a remote bundle must never resolve a vendor package. */
 
-/** Attributes are small scalars. Bodies, credentials and raw URLs never belong here. */
+/** Small scalars only; bodies, credentials and raw URLs never belong here. */
 export type TelemetryAttributes = Readonly<Record<string, string | number | boolean>>
 
 export type TelemetryLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -37,7 +32,7 @@ export interface SpanStatus {
 export interface SpanOptions {
   readonly kind?: SpanKind
   readonly attributes?: TelemetryAttributes
-  /** Epoch milliseconds. Defaults to the creation time. */
+  /** Epoch milliseconds; defaults to the creation time. */
   readonly startTime?: number
 }
 
@@ -56,9 +51,8 @@ export interface Span {
 export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
   /**
-   * Runs `callback` with `span` active for context propagation. It does not end
-   * the span or record a thrown exception; authors do that explicitly. Return
-   * types, synchronous throws and asynchronous results propagate unchanged.
+   * Authors end the span and record a throw themselves, and a span created after an `await` inside
+   * the callback is a root rather than a child of it (§4).
    */
   startActiveSpan<T>(name: string, callback: (span: Span) => T): T
   startActiveSpan<T>(name: string, options: SpanOptions, callback: (span: Span) => T): T
@@ -81,16 +75,13 @@ export interface MfeTelemetry {
   readonly tracer: Tracer
 }
 
-/**
- * Attribution the host binds automatically. Authors cannot override it: an
- * attribute collision resolves in favour of attribution.
- */
+/** Authors cannot override it: an attribute collision resolves in favour of attribution. */
 export interface TelemetryAttribution {
   readonly definitionId: string
   readonly definitionKind: 'app' | 'widget'
   readonly definitionVersion?: string
   readonly buildHash?: string
-  /** Internal mount discriminator. Never public API; diagnostics only. */
+  /** Internal mount discriminator; never public API. */
   readonly mountToken?: string
 }
 
@@ -125,7 +116,6 @@ export interface TelemetryMeasurementRecord {
   readonly timestamp: number
 }
 
-/** A framework lifecycle diagnostic: load, mount, validation, disposal. */
 export interface TelemetryFrameworkRecord {
   readonly kind: 'framework'
   readonly level: TelemetryLevel
@@ -140,7 +130,6 @@ export interface TelemetryFrameworkRecord {
 export type TelemetryRecord =
   TelemetryEventRecord | TelemetryLogRecord | TelemetryMeasurementRecord | TelemetryFrameworkRecord
 
-/** Lifecycle of one span, as the provider observes it. */
 export interface SpanRecord {
   readonly name: string
   readonly kind: SpanKind
@@ -154,15 +143,11 @@ export interface SpanRecord {
   readonly parent?: SpanRecord
 }
 
-/**
- * What a shell plugs in. The shell owns redaction, sampling, rate limits,
- * batching, delivery and bounded buffering; this seam only hands it normalized
- * records.
- */
+/** The shell owns redaction, sampling, batching and delivery; this seam only normalizes records. */
 export interface TelemetryProvider {
   record(record: TelemetryRecord): void
   createTracer(attribution: TelemetryAttribution): Tracer
-  /** Called when the provider's level filter should drop a record before formatting. */
+  /** Lets a provider drop a record before it is formatted. */
   isLevelEnabled?(level: TelemetryLevel): boolean
 }
 
@@ -176,10 +161,7 @@ export const TELEMETRY_LIMITS = {
 
 export const EMPTY_ATTRIBUTES: TelemetryAttributes = Object.freeze({})
 
-/**
- * Clamps attributes to the limits, dropping the overflow rather than truncating
- * silently mid-set. Returns the same reference when nothing needed clamping.
- */
+/** Returns the same reference when nothing needed clamping. */
 export function boundAttributes(attributes: TelemetryAttributes | undefined): TelemetryAttributes {
   if (!attributes) return EMPTY_ATTRIBUTES
 
@@ -196,8 +178,7 @@ export function boundAttributes(attributes: TelemetryAttributes | undefined): Te
       continue
     }
     if (typeof value === 'number' && !Number.isFinite(value)) {
-      // Dropped under the same policy as a non-finite measurement: it cannot be
-      // serialized meaningfully.
+      // A non-finite number cannot be serialized meaningfully, as for a measurement.
       changed = true
       continue
     }
