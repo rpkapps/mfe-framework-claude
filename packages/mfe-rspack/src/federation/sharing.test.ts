@@ -25,7 +25,7 @@ describe('resolveShared', () => {
     expect(resolveShared({ dependencies: { lodash: '^4.0.0' } })).toEqual({})
   })
 
-  it('covers the framework, React, TanStack Router and Query, and the design system', () => {
+  it('covers the framework, React, TanStack Router and Query, and sonner as strict singletons, and the design system, React Aria and recharts as non-singletons', () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
       // The framework packages carry React context across the boundary; a
       // second copy makes every framework hook fail with "rendered outside any
@@ -37,9 +37,19 @@ describe('resolveShared', () => {
       'react-dom',
       '@tanstack/react-router',
       '@tanstack/react-query',
+      // Sonner's queue is module state rather than React context, but a
+      // second copy fails the same way: the host's one Toaster never sees it.
+      'sonner',
       // The trailing slash is load-bearing: the design system publishes no
-      // root entry, so every import of it is a subpath.
+      // root entry, so every import of it is a subpath. Not a singleton —
+      // host and remote may be built against different versions.
       '@tecton/react/',
+      // Not a singleton either: React Aria's contexts are not shared between
+      // copies, so host and remote may differ.
+      'react-aria-components',
+      // Not a singleton, and never eager: only a container that charts should
+      // pay for it.
+      'recharts',
     ])
 
     const shared = resolveShared({
@@ -51,7 +61,7 @@ describe('resolveShared', () => {
         'react-dom': '^19.0.0',
         '@tanstack/react-router': '^1.170.0',
         '@tanstack/react-query': '^5.103.0',
-        '@tecton/react': '^3.0.0',
+        sonner: '^2.0.8',
       },
       installedVersion: () => '0.1.0',
     })
@@ -61,6 +71,35 @@ describe('resolveShared', () => {
       expect(entry.singleton).toBe(true)
       expect(entry.strictVersion).toBe(true)
     }
+  })
+
+  it('shares the design system, React Aria and recharts as non-singletons', () => {
+    const shared = resolveShared({
+      dependencies: {
+        '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
+        'react-aria-components': '^1.21.1',
+        recharts: '3.8.0',
+      },
+      installedVersion: () => '0.1.0',
+    })
+
+    expect(shared['@tecton/react/']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '0.1.0',
+      version: '0.1.0',
+    })
+    expect(shared['react-aria-components']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '^1.21.1',
+    })
+    expect(shared['recharts']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      eager: false,
+      requiredVersion: '3.8.0',
+    })
   })
 
   it('keeps the defaults when an author adds a package', () => {
@@ -140,10 +179,22 @@ describe('resolveShared', () => {
 
     expect(Object.keys(shared)).toEqual(['@tecton/react/'])
     expect(shared['@tecton/react/']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '0.0.0',
+      version: '0.0.0',
     })
+  })
+
+  it('omits the version on a prefix share when nothing is installed to read', () => {
+    const shared = resolveShared({ dependencies: { '@tecton/react': 'workspace:*' } })
+
+    expect(shared['@tecton/react/']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: false,
+    })
+    expect(shared['@tecton/react/']).not.toHaveProperty('version')
   })
 
   it('prefers the dependency range over the peer range for the same package', () => {

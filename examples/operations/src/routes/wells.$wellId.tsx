@@ -13,7 +13,7 @@ import {
   phaseMeta,
   trajectoryMeta,
   wellDesigns,
-} from '@tecton/react/blocks/well-design-card/page.tsx'
+} from '@tecton/blocks/well-design-card/page.tsx'
 import {
   PageHeader,
   PageHeaderActions,

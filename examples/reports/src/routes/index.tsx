@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { FdaComparisonTable } from '@tecton/react/blocks/fda-comparison-table/page.tsx'
+import { FdaComparisonTable } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import {
   PageHeader,
   PageHeaderContent,

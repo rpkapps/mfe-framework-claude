@@ -12,10 +12,10 @@
  */
 
 import type { WidgetRenderProps } from '@company/mfe-react'
-import { AiAgentPanel } from '@tecton/react/blocks/ai-agent-panel/page.tsx'
-import { CostVsRiskPanel } from '@tecton/react/blocks/cost-vs-risk-panel/page.tsx'
-import { FdaCard, fdaSummaries } from '@tecton/react/blocks/fda-card/page.tsx'
-import { WellDesignCard, wellDesigns } from '@tecton/react/blocks/well-design-card/page.tsx'
+import { AiAgentPanel } from '@tecton/blocks/ai-agent-panel/page.tsx'
+import { CostVsRiskPanel } from '@tecton/blocks/cost-vs-risk-panel/page.tsx'
+import { FdaCard, fdaSummaries } from '@tecton/blocks/fda-card/page.tsx'
+import { WellDesignCard, wellDesigns } from '@tecton/blocks/well-design-card/page.tsx'
 import { useState, type ReactNode } from 'react'
 
 import type {

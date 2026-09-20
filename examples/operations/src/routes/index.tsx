@@ -14,7 +14,7 @@ import {
   PageHeaderTitle,
 } from '@tecton/react/tecton/page-header'
 import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tecton/panel'
-import { FdaCard, fdaSummaries } from '@tecton/react/blocks/fda-card/page.tsx'
+import { FdaCard, fdaSummaries } from '@tecton/blocks/fda-card/page.tsx'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { CheckCircle2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'

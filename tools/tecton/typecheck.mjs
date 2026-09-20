@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Type-checks a package's own source when it consumes the design system as
- * unbuilt TSX.
+ * Type-checks a package's own source, tolerating the diagnostics that come
+ * from a dependency it consumes as unbuilt TSX.
  *
- * `tsc` cannot exclude a file it was asked to resolve, so consuming unbuilt TSX
- * type-checks the dependency's source too, under options it is not written
- * against. Those diagnostics are reported but do not fail the check; anything
- * under this package's own directories does, including an error raised at a
- * call site here for misusing a design-system prop.
+ * `@tecton/react` now ships a `.d.ts` beside every module, so `tsc` reads
+ * declarations for it, the same as for any built package, and raises nothing
+ * from its source. `@tecton/blocks` has no build step and exports raw `.tsx`
+ * directly, so it is still unbuilt TSX: `tsc` cannot exclude a file it was
+ * asked to resolve, and consuming that source type-checks it too, under
+ * options it is not written against. Those diagnostics are reported but do
+ * not fail the check; anything under this package's own directories does,
+ * including an error raised at a call site here for misusing a design-system
+ * prop.
  *
  * Usage, from a package's `typecheck` script:
  *   node ../../tools/tecton/typecheck.mjs [label]

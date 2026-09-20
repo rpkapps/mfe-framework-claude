@@ -45,6 +45,17 @@ const strictSingleton = (name: string) => ({
   requiredVersion: installedVersion(name),
 })
 
+/**
+ * Host and a remote may be built against different versions of one of these,
+ * each rendering correctly on its own — unlike the framework packages above,
+ * whose whole job is a provider every mount reads through the *same* context.
+ */
+const nonSingleton = (name: string) => ({
+  singleton: false,
+  strictVersion: false,
+  requiredVersion: installedVersion(name),
+})
+
 export default defineConfig({
   plugins: [pluginReact()],
 
@@ -69,18 +80,32 @@ export default defineConfig({
         '@company/mfe-core': strictSingleton('@company/mfe-core'),
         '@company/mfe-host': strictSingleton('@company/mfe-host'),
         '@company/mfe-react': strictSingleton('@company/mfe-react'),
-        // The trailing slash shares every subpath of the design system, which
-        // is how it is imported; it publishes no root entry.
         react: strictSingleton('react'),
         'react-dom': strictSingleton('react-dom'),
         '@tanstack/react-router': strictSingleton('@tanstack/react-router'),
         '@tanstack/react-query': strictSingleton('@tanstack/react-query'),
+        // Sonner's queue is module state, not React context, but a second copy
+        // fails the same way: the shell mounts the one Toaster on the page,
+        // and a remote that resolved its own copy would push its toasts onto
+        // a queue that Toaster never reads.
+        sonner: strictSingleton('sonner'),
+        // The trailing slash shares every subpath of the design system, which
+        // is how it is imported; it publishes no root entry. Not a singleton
+        // — a remote may be built against a different @tecton/react version
+        // and still render correctly on its own. Module Federation cannot
+        // infer this candidate's version from a package.json the way it can
+        // for an ordinary dependency, because no package is literally named
+        // "@tecton/react/", so `version` states it explicitly.
         '@tecton/react/': {
-          singleton: true,
-          strictVersion: true,
-          version: '0.0.0',
-          requiredVersion: '0.0.0',
+          singleton: false,
+          strictVersion: false,
+          version: installedVersion('@tecton/react'),
+          requiredVersion: installedVersion('@tecton/react'),
         },
+        // Not a singleton either: React Aria's contexts (a label wired to its
+        // field, a trigger to its popover) are not shared between copies, so
+        // the shell and a remote may sit on different ~1.21 versions.
+        'react-aria-components': nonSingleton('react-aria-components'),
       },
     },
   },

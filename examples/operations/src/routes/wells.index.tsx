@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { WellsListPage } from '@tecton/react/blocks/list-01/page.tsx'
+import { WellsListPage } from '@tecton/blocks/list-01/page.tsx'
 import type { ReactNode } from 'react'
 
 /**

@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { allow, deny, useCommand, useGroups, type MfeRouterContext } from '@company/mfe-react'
 import { ScrollArea } from '@tecton/react/components/scroll-area'
-import { ProjectTree, projectTree } from '@tecton/react/blocks/dashboard-01/page.tsx'
+import { ProjectTree, projectTree } from '@tecton/blocks/dashboard-01/page.tsx'
 import {
   BoxesIcon,
   DrillIcon,
