@@ -675,6 +675,11 @@ Two consequences were accepted rather than worked around:
   `StorageArea` _type_ keeps its name: "storage area" is the Web Storage spec's
   own term, and `StorageEvent.storageArea` is a real DOM property.
 
+Retention stays a choice in the reserved host scope (§24), and it is the same
+choice: `'browser'` for impersonal page state, `'user'` for anything derived
+from who is signed in. The scope says whose record it is; retention says who
+may read it back.
+
 ---
 
 ## 22. The developer tools ship in production and are gated at runtime
@@ -744,3 +749,220 @@ carries both the overrides and any `registry.json` failure into the bug report �
 the latter added here, because the strip had been its only reader and removing
 it would have made a registry that never loaded invisible rather than merely
 quiet.
+
+A third was added afterwards, and it is what makes the other two an audit trail
+rather than a hope: every framework diagnostic now reaches the shell's telemetry
+provider (§25), where the hub the runtime built had no sinks at all. The report
+names the build behind each registry entry too (§29) — "which override" and
+"which build" are the same question asked twice.
+
+---
+
+## 24. The host page had no storage scope, and the lint allowlist was the evidence
+
+**Status:** decided, load-bearing.
+
+Three shell files were exempted from `mfe/no-raw-storage` by name, and the
+comment beside each said a version of one sentence: this state belongs to the
+page rather than to any definition on it. Between them they had rebuilt a
+validator, a listener set and an untyped JSON round trip, for state no less
+persisted than a definition's. An allowlist that grows for one reason is a
+missing primitive with its evidence written beside each entry.
+
+`bindHost()` and `hostStorage()` reach a reserved scope whose id is
+`HOST_SCOPE`, `'@host'`; `bind`, `storageFor` and `clearDefinition` refuse it
+and name them in the repair. The `@` is what makes it reserved rather than
+conventional: a definition id is lower-case letters, digits and single hyphens,
+so no registry entry can ever claim that name, where a shell that agreed with
+itself to use `"shell"` could not be told from a definition of that id.
+`useStoredState` resolves by position rather than gaining a sibling, the way
+`useCommand` does (§26). The session generation moved on a sharper version of
+the same argument — the record every `retention: 'user'` write is fenced by
+cannot be gated by the thing it establishes — so `establishSessionGeneration`
+writes it host-scoped, `retention: 'browser'`, in `sessionStorage`, and
+`createMfeRuntime` calls it for the identity in `shellState` (§25).
+
+Two costs. **The old keys are not migrated**: `company:shell:theme` and
+`company:shell:dashboard` are orphaned where they lie, on §21's reasoning that
+nothing is published yet — spent for the second time here, and not available
+again after a release. **The pre-paint script parses an envelope**: the inline
+script in `index.html` reads `@host:theme` through the store's shape, and treats
+anything it cannot parse as "nothing was chosen" — it must never be why a page
+fails to paint.
+
+**Consequence:** an entry added back to `storageAllowedScopes` is evidence of
+another missing primitive, not a local exception.
+
+---
+
+## 25. The runtime adopts the shell's hub, and owns everything else
+
+**Status:** decided, forced by a bug that dropped every diagnostic.
+
+`createMfeRuntime` built its own `DiagnosticsHub`, nothing ever added a sink to
+it, and `report()` returns on its first line when the sink set is empty. Every
+rejected override, every quarantined entry and every unreadable record was
+collected, attributed, structured and thrown away, while the shell had a Faro
+telemetry provider the whole time — the failure class §11 describes, landing on
+the diagnostics themselves.
+
+So the hub is the shell's and `createMfeRuntime({ diagnostics })` adopts it.
+Ordering forces that one option rather than taste: `installShellAuth` runs
+before any remote is registered, so a hub the runtime creates is one auth can
+never report into. What goes into the hub is the framework's too:
+`telemetryDiagnosticsSink(provider)` is the one translation from a `Diagnostic`
+to a `TelemetryRecord`, and `new DiagnosticsHub([sink])` takes it before
+anything can report. Putting that translation in a package whose telemetry
+contract has no diagnostics shape in it (§10) was the thing this entry once
+refused. A sink a host installs by name is not that refusal broken: nothing is
+forwarded unless the host asks, and the alternative was every shell writing the
+same twenty lines.
+
+Nothing else is adopted. The store option went with the ordering argument that
+justified it: the theme is now `useStoredState` in the chrome, the dashboard a
+hook over the same, and neither is read before the runtime exists — the theme
+the runtime is created with is the class the pre-paint script already put on
+`<html>` (§24). `createMfeRuntime` therefore builds the store, and establishes
+the first session generation itself for the identity in `shellState`, because
+that was the last thing a shell had to do in the right order and get right.
+`dispose()` still tears down only what the call created: the store it made, and
+on a supplied hub only the sinks it added.
+
+**Consequence:** a hub with no sinks is silent by design, and `createMfeRuntime`
+cannot warn about one because a host may supply its sinks later. It is written
+down here instead.
+
+---
+
+## 26. The host page is a scope, and reading the registry is a selector
+
+**Status:** decided; every disagreement below had already happened.
+
+The shell had invented whatever the framework would not give it. Breadcrumbs
+called `registerMount('shell', 'shell#0', 0)` — a made-up definition id and a
+token `removeMount` could not tell from a real one — and the palette hard-coded
+its own commands rather than registering them. `[...entries.values()].filter(…)`
+was written again in the shell's hooks, in the settings sheet and in the
+developer tools, and two of those copies already disagreed: one flattened
+`app.capabilities` unfiltered, offering each App's help and release-notes pages
+as settings, and the active application was derived one way from a router match
+and another from a path split. The one capability lookup nobody had rewritten
+sat inside `selectReleaseNotesRoute`, in the removable legacy adapter.
+
+`HOST_SCOPE` (§24) is the name the page should have had here too:
+`CommandRegistry.registerHost()` registers in it and `register()` refuses it,
+`useCommand` outside a mount registers there, and `useBreadcrumbs` outside one
+publishes at depth 0, the depth every mount composes below. `useTheme`,
+`useUser` and `useGroups` stopped requiring a mount at all, since none of them
+used the mount's identity and the host publishing the theme could not read it
+back. The reads are written once as `useRegistryEntries`, `useApps`,
+`useWidgets`, `useCapabilityPages(name?)` and `useActiveDefinition(pathname)`,
+over `boundaryDefinitionId(url)` and `capabilityRoute(entry, name)` in the
+neutral host; `selectReleaseNotesRoute` composes over `capabilityRoute` and
+keeps only its genuinely legacy branch, so deleting the legacy package no longer
+takes a core capability with it.
+
+Two limits are accepted. `useActiveDefinition` takes the pathname rather than
+reading the URL, because the host owns its router and the only thing the
+framework could subscribe to is the navigation bridge, which never hears the
+`pushState` a router performs. And the selectors select and nothing else: an
+icon, a fallback title and the tone that marks an override stay the host's,
+because a selector returning something renderable would be the first UI this
+framework ships outside the developer tools (§22).
+
+---
+
+## 27. A host asks the build integration for its share scope instead of writing it twice
+
+**Status:** decided; `@company/mfe-rspack/federation`.
+
+The shell's `rsbuild.config.ts` resolved a share scope of its own, out of the
+same candidate list, singleton rules and reading of
+`@tecton/react/federation/shared` that `pluginMfe()` already resolves one from
+for every container. Two copies of one policy, and the disagreement between them
+is silent: nothing fails at build time, the page loads, and then a remote mounts
+and a framework hook inside it fails with "rendered outside any mount" — a
+message about the mount and not about the share scope that caused it.
+
+`hostShared({ root })` applies that one policy to the host's own install. Two
+things differ from the container side, both because a host provides the
+modules rather than consuming them. It advertises the version it installed and
+never the range it declared, because the share scope describes the copy it is
+putting in. And it shares what it can resolve rather than what it lists, which
+is how `@company/mfe-core` — reached through the adapter, never a shell's
+declared dependency — is provided at all, and why a candidate that resolves
+nowhere is left out. Resolving none of them is a build error naming the repair:
+individual absences stay legal, but a host that shares nothing cannot mount
+anything.
+
+**Consequence:** this is deliberately the whole host-facing surface of the build
+package, and a subpath rather than part of the root, which is `pluginMfe()` and
+everything a container's build needs. A host's entry, document, dev server and
+define plugin stay its own; the share scope is the one thing it and every
+container have to agree about.
+
+---
+
+## 28. Reading a Widget's published inputs is headless, and a test is what keeps it honest
+
+**Status:** decided; the drift had already shipped.
+
+§16 records why the registry carries each Widget's contract. Three readers then
+walked that published JSON Schema for themselves — the shell's dashboard, the
+developer tools and the palette — and drifted. The build's static Zod reader
+publishes `const` for a literal and `anyOf: [<schema>, { type: 'null' }]` for a
+nullable one; the shell's copy classified a field by `enum` and `type` alone, so
+both fell through to the raw JSON box. Nothing reported it — a reader falling
+through to "I cannot classify this" is honest and useless in the same breath.
+
+`describeWidgetInputs(contract)` is that walk, once, beside the contract it
+reads, with `defaultInputsFor`, `coerceInputs` and `needsInputPrompt` for the
+questions a host asks next. §16's distinction is in the return type: `null` is
+"the build could not describe this", `[]` is "this Widget takes nothing", and a
+host rendering an empty form for the first tells the developer something untrue.
+Nothing here validates; the provider still parses every input.
+
+The drift guard is the part worth recording. `@company/mfe-core` cannot import
+the build integration and should not, so `widget-inputs.test.ts` lists every
+construct `zod-static.ts` can emit, as the shape it emits, and asserts the kind
+that comes back: a row reporting `unknown` is the reflector falling behind the
+emitter, and it is the cheapest substitute for a dependency the architecture
+forbids.
+
+Events are the same asymmetry on the other side of the contract, and the shell
+had reimplemented the framework's own `on` + capitalized-name mapping at a
+distance. `DynamicWidget` gains `onEvent?: (name, payload) => void`, routed by
+the events the provider declares, with `eventNameToHandlerProp` exported for a
+host that wants one named prop instead. `lazyWidget` deliberately gets none:
+with a contract every event is already a typed prop, and a catch-all would say
+the same with `string` and `unknown`. Names are all a consumer has only where
+there is no contract by construction (§15).
+
+**Cost:** which control to draw for a kind and what a blank one starts as stay
+in the host, because a framework that picked a select for an enum would be
+shipping a control set (§22).
+
+---
+
+## 29. A registry entry names the build it came from
+
+**Status:** decided; the bug report was the only reader that needed it.
+
+§23 left the bug report as the only place on the page where a developer can find
+out what the shell was running, and it could name no build at all.
+`BuildProvenance` (`hash`, `time`, meaning what §19 made them mean) is now a
+named type in the core, `NeutralRegistryEntry.build` carries it, the registry
+builder copies it from the container descriptor, and the shell's report lists
+one line per accepted entry.
+
+Three details are forced rather than chosen:
+
+- **It is validated loosely and never quarantines.** A container that cannot
+  describe its own build still mounts, but a malformed `build` is dropped rather
+  than passed on: a hash that is not a string would reach a bug report as
+  `[object Object]` and be believed.
+- **An entry whose descriptor named no build says so.** Leaving the line out
+  would read as a missing container, a much more alarming claim.
+- **It is a list, not a value.** Every surface on the page was built separately,
+  and the registry is the only place that answer can be read without loading the
+  container — exactly the situation a bug report is written in.
