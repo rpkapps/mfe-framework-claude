@@ -1,17 +1,12 @@
 #!/usr/bin/env node
 /**
- * Type-checks a package's own source, tolerating the diagnostics that come
- * from a dependency it consumes as unbuilt TSX.
+ * Type-checks a package's own source, tolerating the diagnostics that come from
+ * a dependency it consumes as unbuilt TSX.
  *
- * `@tecton/react` now ships a `.d.ts` beside every module, so `tsc` reads
- * declarations for it, the same as for any built package, and raises nothing
- * from its source. `@tecton/blocks` has no build step and exports raw `.tsx`
- * directly, so it is still unbuilt TSX: `tsc` cannot exclude a file it was
- * asked to resolve, and consuming that source type-checks it too, under
- * options it is not written against. Those diagnostics are reported but do
- * not fail the check; anything under this package's own directories does,
- * including an error raised at a call site here for misusing a design-system
- * prop.
+ * `tsc` cannot exclude a file it was asked to resolve, so consuming
+ * `@tecton/blocks`' raw `.tsx` type-checks it too, under options it is not
+ * written against. Those diagnostics are reported and do not fail the check;
+ * anything under this package's own directories does.
  *
  * Usage, from a package's `typecheck` script:
  *   node ../../tools/tecton/typecheck.mjs [label]
@@ -36,18 +31,11 @@ try {
 }
 
 /**
- * TypeScript's own entry, run with this Node — not the `.bin` shim.
- *
- * The shim is a shell script with no extension, and `spawnSync` cannot execute
- * one on Windows: it reports ENOENT for a file that plainly exists, and every
- * Windows machine fails the check with "Could not run tsc". Its `.CMD` sibling
- * is refused too, because Node no longer spawns a batch file without a shell.
- * Resolving the package and running its JavaScript needs neither, and it is
- * the same command on every platform.
- *
- * Resolution starts from the package being checked, so a package that installs
- * its own TypeScript gets that one and everything else falls through to the
- * workspace root's.
+ * TypeScript's own entry, run with this Node — not the `.bin` shim, which is an
+ * extensionless shell script `spawnSync` cannot execute on Windows (ENOENT for
+ * a file that plainly exists) and whose `.CMD` sibling Node refuses to spawn
+ * without a shell. Resolution starts from the package being checked, so one
+ * that installs its own TypeScript gets that copy.
  */
 const requireFrom = createRequire(resolve(packageRoot, 'package.json'))
 

@@ -165,28 +165,24 @@ miss, so the indicator is not dismissible.
 
 ## Consuming @tecton/react
 
-`@tecton/react` lives in a **separate git checkout** next to this one and is
-private, but it is no longer unbuilt source: it ships built output —
-unbundled ESM under `dist/` with a `.d.ts` beside every module, and an
-enumerated `exports` map, at version 0.1.0. Three things make it work:
+`@tecton/react` lives in a **separate git checkout** next to this one, is
+private, and ships built output: unbundled ESM under `dist/` with a `.d.ts`
+beside every module, behind an enumerated `exports` map. Three things make the
+link work:
 
 1. **`package.json`** depends on it as `link:../../../tecton-ui-1/packages/tecton-react`,
    and declares its peers (`react-aria-components`, `cn`,
    `class-variance-authority`, `lucide-react`, `next-themes`, `sonner`,
    `react-resizable-panels`, `react-aria`) plus what its stylesheet imports
    (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`). pnpm does not
-   install a linked package's own dependencies, so each consumer has to. The
-   blocks moved out into their own package, `@tecton/blocks`, still unbuilt
-   TSX and linked the same way; a container links it only if it renders one.
+   install a linked package's own dependencies, so each consumer has to.
 2. **`tools/tecton/tecton-build.mjs`** supplies the resolution: this
    workspace's `node_modules` named by absolute path, because walking up from
    the design system's real location finds a second copy of React; and
    `NODE_PATH` for Tailwind, which resolves `@import`s from the stylesheet's
-   own directory. Both are still needed because the linked checkout's `dist/`
-   resolves React and React Aria from its own `node_modules`, not this
-   workspace's. The shell and every container import the same helper, so the
-   two cannot drift. `requireTecton` also checks for a built `dist/` now, and
-   says in one sentence to build the checkout when it is present but is not:
+   own directory; the shell and every container import the same helper, so the
+   two cannot drift. `requireTecton` fails the config when the checkout is
+   missing or unbuilt, naming
    `pnpm install && pnpm --filter @tecton/react build` inside `tecton-ui-1`.
 3. **`tsconfig.json`** maps the same specifiers back at this workspace, which
    is the type-level counterpart of the above, and
@@ -198,14 +194,12 @@ relative path. A real deployment publishes `@tecton/react` as a versioned
 private package, at which point the `link:` becomes an ordinary version range
 and the resolution workarounds disappear. Nothing else changes.
 
-`pnpm typecheck` runs `tools/tecton/typecheck.mjs` rather than `tsc` directly.
-`@tecton/react`'s `.d.ts` files mean `tsc` no longer type-checks its source at
-all, the same as for any built package. `@tecton/blocks` still has no build
-step and exports raw `.tsx`, so it is the one dependency `tsc` still cannot
-exclude from resolution: consuming it type-checks its source too, under _this_
-workspace's stricter options rather than the ones it is written against. Those
-diagnostics are printed but do not fail the check; anything under this package
-does.
+`pnpm typecheck` runs `tools/tecton/typecheck.mjs` rather than `tsc` directly:
+`@tecton/react` has declarations, but `@tecton/blocks` exports raw `.tsx` and
+`tsc` cannot exclude a file it was asked to resolve, so its source is
+type-checked too, under _this_ workspace's stricter options rather than the
+ones it is written against. Those diagnostics are printed but do not fail the
+check; anything under this package does.
 
 Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
 `text-zinc-400`) generate **no CSS at all**. `@tecton/eslint-config` is wired
@@ -214,22 +208,14 @@ rather than something you discover by looking at the page.
 
 ## The page's stylesheet
 
-`src/styles/app.css` is the shell's own stylesheet, and it now scans only the
-shell's own sources. It imports the design system's `globals.css`, which
-carries the theme, the preflight, the font faces and Tailwind's own `@property`
-registrations — all of it document-level, and all of it this stylesheet's
-alone. Those values inherit into every mounted container like any other custom
-property, so a tenant customisation or a mode flip made here reaches every
-container with nothing wired up.
-
-Each container ships its own stylesheet instead of relying on the shell to scan
-its sources: `pluginMfe()` (`@company/mfe-rspack`) generates one from Tailwind's
-theme and utilities plus `@tecton/react/styles/scoped.css` — the design
-system's utilities-only entry, with no variable declarations of its own — and
-wraps the result in `@scope` at the container's mount root. `docs/decisions.md`
-§17 has the mechanism and its two stated limits: the `@scope` browser floor,
-and `@property`/`@keyframes`/`@font-face`, which stay document-global because a
-browser ignores them inside `@scope`.
+`src/styles/app.css` is the shell's stylesheet and scans the shell's own
+sources only. It imports the design system's `globals.css`, which carries the
+theme, the preflight, the font faces and Tailwind's `@property` registrations —
+the document-level half, this stylesheet's alone, which inherits into every
+mounted container, so a tenant customisation or a mode flip made here reaches
+all of them with nothing wired up. Each container compiles and scopes its own
+stylesheet for the classes it renders; `docs/decisions.md` §17 has the
+mechanism and its two limits.
 
 ## Federation
 
@@ -237,25 +223,18 @@ The shell is the federation **host**: it consumes remotes and is not itself a
 container, so it does not use `pluginMfe()` from `@company/mfe-rspack`. It
 declares no static remotes — each is registered at runtime by the framework's
 loader, which is handed `registerRemotes` and `loadRemote` in `src/boot.tsx`,
-the one file that knows federation exists.
-
-The sharing policy is two lists. The design system's dependencies come from
-`@tecton/react/federation/shared`, imported here and by the build plugin
-(`packages/mfe-rspack/src/federation/sharing.ts`): which of them a page may hold
-two copies of follows from where that library keeps module state, so it states
-the answer and neither side restates it. That covers `react`, `react-dom` and
-`sonner` as singletons, and `@tecton/react/` — a prefix share, since the
-package has no root export, with an explicit `version` since Module Federation
-cannot infer one for a prefix candidate — `react-aria-components` and `recharts`
-as non-singletons. The framework's own are the rest: `@company/mfe-core`,
-`@company/mfe-host`, `@company/mfe-react`, `@tanstack/react-router` and
-`@tanstack/react-query`, each carrying React context that a second copy would
-silently duplicate, so a remote that resolves its own is an error. Both sides
-take `strictVersion` from `singleton` — a mismatch is an error exactly where a
-second copy would be — and the versions from this install, which the design
-system cannot see. A contract entry the shell has not installed (`recharts`,
-which only a charting container pulls in) is left out: there is no copy here to
-offer.
+the one file that knows federation exists. `react`, `react-dom`, `sonner`,
+`@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`,
+`@tanstack/react-router` and `@tanstack/react-query` are shared as strict
+singletons, each holding module state a second copy would duplicate, so a
+remote that resolves its own is an error; `@tecton/react/` — a prefix share,
+since the package has no root export, with an explicit `version` because
+Module Federation cannot infer one for a prefix — and
+`react-aria-components` are shared without `singleton`, so a container may run
+its own version. The design system's half of that list comes from
+`@tecton/react/federation/shared`, which the build plugin
+(`packages/mfe-rspack/src/federation/sharing.ts`) reads too; the versions come
+from this install.
 
 ## Hot updates
 

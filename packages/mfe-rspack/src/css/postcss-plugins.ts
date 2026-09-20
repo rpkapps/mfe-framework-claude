@@ -2,14 +2,10 @@
  * The PostCSS pipeline a container compiles its stylesheet with: Tailwind, then
  * the design system's scope plugin over what Tailwind emitted. The order is the
  * whole point — scoping a stylesheet before its utilities exist would scope
- * nothing.
- *
- * Tailwind is added by the plugin rather than left to the container, because
- * the stylesheet is the plugin's too: an author never writes the entry that
- * imports Tailwind's theme and utilities, so nothing in the project would tell
- * the build to expand it. A container that declares `@tailwindcss/postcss` in
- * its own PostCSS config keeps that one, with the options it configured, and
- * only gets the scope plugin appended after it.
+ * nothing. Tailwind is added here because the stylesheet is generated too, so
+ * nothing in the project would tell the build to expand it; a container that
+ * declares `@tailwindcss/postcss` in its own PostCSS config keeps that one,
+ * with the options it configured, and only gets the scope plugin after it.
  */
 
 import { createRequire } from 'node:module'

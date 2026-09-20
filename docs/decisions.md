@@ -145,11 +145,9 @@ That is now a thing to know rather than a gate to pass.
 The neutral host must not import Module Federation, but something has to load
 containers. The host therefore defines a `ContainerLoader` port and the concrete
 federation implementation ships from the React adapter, which already depends on
-React — a strict singleton whose share scope has to resolve consistently — and
-on the design system, whose sharing policy the adapter states for the same
-reason even though it is not one: `@tecton/react/` is a prefix share with an
-explicit version, so a container may run a different design-system version from
-the shell and still render correctly on its own copy.
+React — the strict singleton whose share scope has to resolve consistently — and
+on the design system, which is not one and publishes its own sharing contract
+(`@tecton/react/federation/shared`).
 
 **Consequence:** the contract tracer bullet runs with an in-process loader, no
 bundler and no network, which is what let the contract risk be retired before
@@ -460,76 +458,38 @@ correct schema unshippable.
 
 ---
 
-## 17. The page has one stylesheet, and it is the shell's
+## 17. Each container ships its own stylesheet, scoped to its own mount roots
 
-**Status:** superseded, by the design system's own packaging (`tecton-ui-1` PR
-#28). The original decision and its stated limit are kept below, followed by
-what replaced it.
+**Status:** decided, with two stated limits.
 
-Tailwind emits a utility only when it has seen the class in a file it scanned.
-The obvious MFE answer — each container ships the CSS for the classes it uses —
-did not work at the time: the design system's theme, its preflight, its font
-faces and Tailwind's own `@property` registrations were all document-level, and
-the scoped CSS transform rejected exactly those, correctly, because a container
-cannot own them. A container that shipped a second copy would have fought the
-first for the page.
+A container compiles the CSS for the classes it uses: Tailwind's theme and
+utilities layers plus `@tecton/react/styles/scoped.css`, the design system's
+utilities-only entry, and deliberately not `@import "tailwindcss"`, which would
+bring preflight with it. `@tecton/react/postcss/scope` — the library's own
+plugin, called with the framework's selectors — then wraps the result in
+`@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])`: one selector per
+definition the container exports, and a lower boundary that ends a parent App's
+scope at the root of a nested one. The shell keeps the document-level half no
+container can own — preflight, font faces, `@property` registrations and every
+theme variable on `:root` — which inherits into every mount, so a tenant
+customisation or a mode flip in the shell reaches every container with nothing
+wired up. Each mount renders the `ThemeRoot` the build attached to its
+definition, from the container's own copy of the library, so a dialog or a
+popover portals into that mount's overlay root, which carries the same
+`data-mfe-scope` and is styled by the same stylesheet.
 
-So the shell's stylesheet was the page's stylesheet, and it scanned the
-containers' sources as well as its own. That worked only because every
-container was in this workspace, and it was the part that did not survive
-contact with a real deployment, where containers are in separate repositories
-on separate release trains.
+`@scope` is the feature with the narrowest support of anything the framework
+requires (§5), and below that floor the cascade is unscoped, so the last
+container's stylesheet on the page wins. `@property` and `@font-face` register
+a name for the whole page, so two containers registering the same one get
+whichever the browser parsed last — in practice those names come from Tailwind
+and from the shared design system, whose definitions of them agree — while
+`@keyframes`, document-global the same way, is renamed after the container's
+ids along with every reference to it.
 
-The answer there was already named: the usual fix for a design system consumed
-by independent applications is for it to publish a stylesheet covering its own
-classes, so a container ships only what its own application-specific classes
-need. `@tecton/react` now does exactly that.
-
-**What replaced it.** `@tecton/react` publishes `styles/scoped.css` — the
-`@theme inline` mappings and the library's own utilities, each with a fallback
-chain, and not one variable declaration — built from the same tokens as
-`globals.css`, plus a `ThemeRoot` component every mounted copy of the library
-renders. A container's build (`packages/mfe-rspack/src/generate/styles.ts`)
-composes its own stylesheet from that: Tailwind's theme and utilities layers,
-the design system's scoped entry, and `@source` for the container's own sources
-and for `@tecton/blocks` when it depends on them — deliberately not
-`@import "tailwindcss"`, which would also pull in preflight. The generated
-federation entry imports that stylesheet first and renders the `ThemeRoot` the
-build attached to the definition, so a dialog or a popover a container raises
-portals into its own `@scope`, styled by its own stylesheet, using its own copy
-of the library. `packages/mfe-rspack/src/css/scope.ts` does the wrapping, and
-emits the same thing it always did:
-`@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])` around what the
-container compiled. The shell keeps exactly the document-level
-half this decision already said could not move to a container: preflight, font
-faces, `@property` registrations and every theme variable on `:root`. Those
-still inherit into every container, so a tenant customisation or a mode flip in
-the shell reaches all of them with nothing wired up.
-
-The wrapping itself is not the framework's code. `@tecton/react/postcss/scope`
-is the design system's own plugin, called here with the framework's selectors:
-`[data-mfe-scope="<id>"]` for every definition the container exports, and
-`[data-mfe-scope]` as the lower boundary that ends a parent App's scope at the
-root of a nested one. What a compiled stylesheet needs doing to it — hoisting
-the at-rules a browser ignores inside `@scope`, moving Tailwind's `:root, :host`
-defaults onto the scope root as `:scope`, refusing a selector that reaches the
-document because there it would match nothing — is the library's knowledge, and
-the framework has no version of it that could be right for a container built
-against a Tecton it has never seen; the design system owns every ingredient only
-it can know, and the framework composes them.
-
-Two limits are stated rather than fixed. `@scope` still needs the browser floor
-§5 already measured — Chrome below 118, Firefox below 146 or iOS Safari below
-17.4 gets the unscoped cascade, so the last container's stylesheet wins. And
-`@property` and `@font-face` register a name for the whole page, so two
-containers registering the same one get whichever the browser parsed last —
-limited in practice by the names coming from Tailwind and from the shared design
-system, whose definitions of them agree. `@keyframes` is document-global the
-same way, but it is the one the plugin does rename: every set of frames a
-container's own sheet defines is suffixed with its ids, and the `animation`,
-`animation-name` and `--animate-*` references to exactly those names follow, so
-two containers stop animating each other's elements. A name a sheet only reads
-is the host's and is left alone.
+This supersedes the original decision, that the page had one stylesheet and the
+shell scanned every container's sources to build it, which held only while every
+container lived in this workspace.
 
 ---
 

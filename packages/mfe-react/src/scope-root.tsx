@@ -2,21 +2,14 @@
  * Scope and overlay roots.
  *
  * Every mount renders inside a `data-mfe-scope` element whose CSS the build
- * emits as `@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])`: the
- * lower boundary stops a parent App's rules matching inside a nested App's
- * root, while inheritance still carries shell theme values down. Overlays
- * portalled to the body get a second root, or they would escape the scope —
- * it carries the same `data-mfe-scope`, so the container's own stylesheet
- * reaches what a dialog or a popover renders into it.
- *
- * The scope root is a selector anchor, never a box. `display: contents` keeps
- * it out of layout entirely, so the element the App or Widget renders is the
- * direct child of whatever the host laid out — a flex item, a grid area, a
- * table cell. Without it the wrapper is a block that shrinks to its content
- * inside a flex parent, and every mounted App renders in a narrow column
- * whatever width the host gave it, with `h-full` resolving against nothing.
- * `@scope` matches on the DOM tree rather than on boxes, so the boundary is
- * unaffected.
+ * emits as `@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])`, and
+ * overlays portalled to the body get a second root carrying the same attribute,
+ * or they would escape that scope. The scope root is a selector anchor, never a
+ * box: `display: contents` keeps it out of layout, so the element the App or
+ * Widget renders is the direct child of whatever the host laid out — without
+ * it, a mount is a block that shrinks to its content inside a flex parent, with
+ * `h-full` resolving against nothing. `@scope` matches on the DOM tree rather
+ * than on boxes, so the boundary is unaffected.
  */
 
 import type { ReactNode } from 'react'

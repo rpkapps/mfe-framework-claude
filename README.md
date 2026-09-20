@@ -157,21 +157,20 @@ Five containers, all mounted by one shell, each on its own dev server:
     tecton-ui-1/               git clone of the design system
   ```
 
-  It has to be on a revision that ships `@tecton/react` 0.1.0 or newer with
-  the micro-frontend ingredients this framework composes — built `dist/`,
+  It has to be on a revision that ships `@tecton/react` 0.1.0 or newer, whose
   `styles/scoped.css`, `tecton/theme-root`, `postcss/scope` and
-  `federation/shared` (`tecton-ui-1` `main` once its `claude/dazzling-hamilton-cq73dq`
-  branch is merged; that branch until then) — and built:
+  `federation/shared` this framework composes (`main`, or its
+  `claude/dazzling-hamilton-cq73dq` branch until that lands), and it has to be
+  built:
 
   ```sh
   cd ../tecton-ui-1 && pnpm install && pnpm --filter @tecton/react build
   ```
 
-  Without the checkout, `pnpm install` still reports success — pnpm creates the
-  link and does not check that the target exists — and without a build,
-  `requireTecton` says so in one sentence instead of a page of "cannot find
-  module" errors. Only the framework packages under `packages/` build and test
-  without it; the shell and every example render its components.
+  pnpm creates the link without checking that its target exists, so
+  `pnpm install` here reports success either way, and `requireTecton` is what
+  says the checkout is missing or unbuilt. Only the framework packages under
+  `packages/` build and test without it.
 
 ### From a clean clone
 
@@ -271,7 +270,7 @@ Everything above works on Windows. Two things to know:
 | `@company/mfe-core`           | Neutral contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or federation dependency.                                                             |
 | `@company/mfe-host`           | Neutral orchestration: registry normalization and adapter selection, mount lifecycle with deadlines, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. No React, router, single-spa or federation dependency. |
 | `@company/mfe-react`          | The author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                            |
-| `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own stylesheet — scoped by the design system's PostCSS plugin — asset URLs, federation plumbing.                                                                                   |
+| `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                            |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                                                                                                                                                                                                   |
 | `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules. Development-only.                                                                                                                                                                                   |
 
@@ -322,13 +321,8 @@ Two scope limits are worth stating plainly rather than discovering later:
 2. **The browser support gate currently fails at 89.97% against a 91% target**,
    entirely because of native CSS `@scope`. It was left failing rather than
    tuned to pass, because the remedy is a policy decision.
-3. **Each container ships its own stylesheet, scoped to its mount root by the
-   build** — by the design system's own PostCSS plugin, called with the
-   framework's selectors. The shell keeps only the document-level half —
-   preflight, fonts, `@property` registrations and every theme variable on
-   `:root` — which inherits into every container. `docs/decisions.md` §17
-   records the model and its two stated limits: it needs the `@scope` browser
-   support item 2 already describes, and `@property` and `@font-face` are
-   document-global by construction, so two containers registering the same name
-   still get whichever the browser parsed last. Keyframes are the exception the
-   plugin handles: a container's own frames are renamed after its ids.
+3. **Each container ships its own stylesheet, scoped to its mount roots by the
+   build**, and the shell keeps only the document-level half — preflight,
+   fonts, `@property` registrations and the theme variables — which inherits
+   into every container. `docs/decisions.md` §17 records the model and its two
+   limits, one of which is the `@scope` support item 2 describes.

@@ -2,18 +2,12 @@
  * The style root: the seam a container's own bundle has into its mounts.
  *
  * A design system whose overlays portal out of the subtree needs a component
- * rendered by the *container's* copy of it. The components a mount renders read
- * their portal target from that copy's React context, and a shell running
- * another version holds a different module instance with a different context,
- * so an overlay wired up by the shell's copy would land outside the container's
- * scope and lose every utility that styles it.
- *
- * The framework cannot import that component itself: it does not know which
- * design system, and a framework package that depended on one would oblige
- * every container to. So the container's build generates it and attaches it to
- * the definition it exposes, and the mount renders it directly inside the scope
- * root with that mount's overlay container. It is generated plumbing at both
- * ends — an author neither writes it nor reads it.
+ * rendered by the *container's* copy of it, because the components a mount
+ * renders read their portal target from that copy's React context. The
+ * framework cannot import that component itself — it does not know which design
+ * system — so the container's build generates it and attaches it to the
+ * definition it exposes, and the mount renders it inside the scope root with
+ * that mount's overlay container. An author neither writes it nor reads it.
  */
 
 import type { ComponentType, ReactNode } from 'react'

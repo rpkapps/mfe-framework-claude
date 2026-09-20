@@ -2,24 +2,13 @@
  * The container's CSS, scoped — by the design system's own PostCSS plugin.
  *
  * What a compiled stylesheet needs doing to it before it can share a page is
- * the design system's knowledge, not the framework's: which at-rules a browser
- * ignores inside `@scope` and therefore have to be hoisted out of it, which of
- * Tailwind's document-root rules have to land on the mount root instead, which
- * keyframes the sheet defines rather than reads back from the host, and what
- * happens to the three places an animation names one.
- * `@tecton/react/postcss/scope` knows all of that, and is tested against it.
- * The framework knows the one thing the library cannot: the selectors.
- *
- * So this is an adapter and nothing else. The scope is one
+ * the library's knowledge, not the framework's, and
+ * `@tecton/react/postcss/scope` is tested against it. The framework supplies
+ * the one thing the library cannot know: the selectors. The scope is one
  * `[data-mfe-scope="<id>"]` per definition the container exports — the
  * attribute a mount root and its body-level overlay root carry — and the lower
- * boundary is `[data-mfe-scope]` itself, which is what ends a parent App's
- * scope at the root of a nested one. `@scope` does not block inheritance, so
- * the shell's fonts and theme values still flow down across that boundary.
- *
- * The keyframe suffix is the ids, joined. Left to derive one, the plugin would
- * build it out of the whole attribute selector; the ids are the stable token
- * the rest of the build already identifies a container by.
+ * boundary is `[data-mfe-scope]` itself, which ends a parent App's scope at the
+ * root of a nested one.
  */
 
 import { createRequire } from 'node:module'

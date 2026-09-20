@@ -13,14 +13,12 @@
 @import '@tecton/react/globals.css';
 
 /*
- * The shell's sources only. Each container compiles and ships its own
- * stylesheet — the utilities its classes need, wrapped in `@scope` at its mount
- * roots — so nothing here has to know what a container renders. What a
- * container deliberately does not ship is the document-level half, which is
- * this stylesheet's alone: the preflight, the font faces, Tailwind's `@property`
- * registrations and every theme variable on `:root`, which inherit into the
- * mounted subtrees like any custom property. A tenant customisation or a mode
- * flip made here therefore reaches every container with nothing wired up.
+ * The shell's sources only: each container compiles and ships the utilities its
+ * own classes need, scoped to its mount roots. What stays this stylesheet's
+ * alone is the document-level half — the preflight, the font faces, Tailwind's
+ * `@property` registrations and every theme variable on `:root` — which
+ * inherits into the mounted subtrees, so a tenant customisation or a mode flip
+ * made here reaches every container with nothing wired up.
  */
 @source "../**/*.{ts,tsx}";
 
