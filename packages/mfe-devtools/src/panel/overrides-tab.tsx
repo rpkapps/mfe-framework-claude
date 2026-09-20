@@ -287,11 +287,11 @@ function OverrideRow({
        * eight repetitions of it was most of what made this list read as noise,
        * and the port is the only part anyone is scanning for.
        */}
-      <ItemContent className="min-w-0 flex-row items-center gap-2">
+      <ItemContent className="min-w-0 flex-row flex-wrap items-center gap-x-2 gap-y-1">
         <ItemTitle className="shrink-0 font-mono text-xs">{id}</ItemTitle>
 
         {showsInput ? (
-          <InputGroup className="ml-auto h-6 max-w-[22rem] min-w-0 flex-1">
+          <InputGroup className="ml-auto h-6 max-w-[26rem] min-w-0 flex-1">
             <InputGroupInput
               autoFocus={isEditing}
               aria-label={`Manifest URL for ${id}`}
@@ -333,15 +333,21 @@ function OverrideRow({
           </button>
         )}
 
+        {/*
+         * Both notes take a line of their own — `w-full` against the row's
+         * wrap — rather than sharing the row with the input. As siblings in a
+         * one-line flex they squeezed it down to about sixty pixels, which is
+         * enough of a URL to read the word "json" and nothing else.
+         */}
         {problem === undefined ? null : (
-          <ItemDescription className="text-destructive">{problem}</ItemDescription>
+          <ItemDescription className="w-full text-destructive">{problem}</ItemDescription>
         )}
 
         {staged === undefined ? null : (
-          <ItemDescription>
-            in force now:{' '}
+          <ItemDescription className="w-full">
+            {staged === null ? 'clears the override, back to ' : 'replaces '}
             <span className="font-mono text-foreground/90">
-              {applied ?? 'the published manifest'}
+              <OriginText url={staged === null ? published : (applied ?? published)} />
             </span>
           </ItemDescription>
         )}
