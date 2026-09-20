@@ -24,7 +24,7 @@
  * map rather than a variant the design system has an opinion about.
  */
 
-import { Fragment, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -49,7 +49,6 @@ import {
   ItemDescription,
   ItemGroup,
   ItemMedia,
-  ItemSeparator,
   ItemTitle,
 } from '@tecton/react/components/item'
 import { ActionBar, ActionBarActions, ActionBarMessage } from '@tecton/react/tecton/action-bar'
@@ -78,9 +77,9 @@ type RowState = 'default' | 'overridden' | 'pending'
  * declares the border so nothing shifts as a row changes state.
  */
 const ROW_ACCENT: Readonly<Record<RowState, string>> = {
-  default: 'border-l-transparent',
-  overridden: 'border-l-warning bg-warning-surface/8',
-  pending: 'border-l-info bg-info-surface/10',
+  default: '',
+  overridden: 'border-l-2 border-l-warning bg-warning-surface/25',
+  pending: 'border-l-2 border-l-info bg-info-surface/25',
 }
 
 const ROW_MEDIA: Readonly<Record<RowState, string>> = {
@@ -126,34 +125,32 @@ export function OverridesTab(): ReactNode {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup className="overflow-hidden rounded-lg border border-border-subtle">
-            {entries.map((entry, index) => {
+          <ItemGroup>
+            {entries.map(entry => {
               const staged = draft.get(entry.id)
               const applied = inForce.get(entry.id)
               const state: RowState =
                 staged !== undefined ? 'pending' : applied === undefined ? 'default' : 'overridden'
 
               return (
-                <Fragment key={entry.id}>
-                  {index === 0 ? null : <ItemSeparator className="my-0" />}
-                  <OverrideRow
-                    id={entry.id}
-                    isApp={entry.definitionKind === 'app'}
-                    published={entry.manifestUrl}
-                    applied={applied}
-                    staged={staged}
-                    state={state}
-                    devServerUrl={devServerUrl}
-                    problem={problems.find(problem => problem.id === entry.id)?.message}
-                    isEditing={editing === entry.id}
-                    onEdit={() => {
-                      setEditing(entry.id)
-                    }}
-                    onDone={() => {
-                      setEditing(current => (current === entry.id ? null : current))
-                    }}
-                  />
-                </Fragment>
+                <OverrideRow
+                  key={entry.id}
+                  id={entry.id}
+                  isApp={entry.definitionKind === 'app'}
+                  published={entry.manifestUrl}
+                  applied={applied}
+                  staged={staged}
+                  state={state}
+                  devServerUrl={devServerUrl}
+                  problem={problems.find(problem => problem.id === entry.id)?.message}
+                  isEditing={editing === entry.id}
+                  onEdit={() => {
+                    setEditing(entry.id)
+                  }}
+                  onDone={() => {
+                    setEditing(current => (current === entry.id ? null : current))
+                  }}
+                />
               )
             })}
           </ItemGroup>
@@ -279,16 +276,22 @@ function OverrideRow({
   const Icon = isApp ? AppWindowIcon : BoxIcon
 
   return (
-    <Item size="xs" className={`group rounded-none border-l-2 ${ROW_ACCENT[state]}`}>
+    <Item variant="muted" size="xs" className={`group py-1.5 ${ROW_ACCENT[state]}`}>
       <ItemMedia variant="icon" className={ROW_MEDIA[state]}>
         <Icon />
       </ItemMedia>
 
-      <ItemContent className="gap-1">
-        <ItemTitle className="font-mono">{id}</ItemTitle>
+      {/*
+       * One line. The id sits left, the origin right, and the path — the same
+       * `/mf-manifest.json` on every row — is dropped to the title attribute:
+       * eight repetitions of it was most of what made this list read as noise,
+       * and the port is the only part anyone is scanning for.
+       */}
+      <ItemContent className="min-w-0 flex-row items-center gap-2">
+        <ItemTitle className="shrink-0 font-mono text-xs">{id}</ItemTitle>
 
         {showsInput ? (
-          <InputGroup>
+          <InputGroup className="ml-auto h-6 max-w-[22rem] min-w-0 flex-1">
             <InputGroupInput
               autoFocus={isEditing}
               aria-label={`Manifest URL for ${id}`}
@@ -315,7 +318,7 @@ function OverrideRow({
           </InputGroup>
         ) : (
           /*
-           * The URL as text, and as the edit affordance. A row nobody has
+           * The origin as text, and as the edit affordance. A row nobody has
            * touched is something to read, so it is not a box; pressing it is
            * how it becomes one, and the pencil that appears on hover says so
            * without adding a control to every row.
@@ -324,9 +327,9 @@ function OverrideRow({
             type="button"
             onClick={onEdit}
             title={published}
-            className="flex min-w-0 cursor-text rounded text-left font-mono text-xs text-muted-foreground hover:bg-ghost-hover"
+            className="ml-auto min-w-0 shrink cursor-text truncate rounded px-1 text-right font-mono text-xs text-muted-foreground hover:bg-ghost-hover hover:text-foreground"
           >
-            <UrlText url={published} />
+            <OriginText url={published} />
           </button>
         )}
 
@@ -361,7 +364,7 @@ function OverrideRow({
         {staged !== undefined ? (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             aria-label={`Discard the pending edit for ${id}`}
             onPress={() => {
               devtools.stage(id, undefined)
@@ -373,7 +376,7 @@ function OverrideRow({
         ) : applied !== undefined ? (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             aria-label={`Clear the override for ${id}`}
             onPress={() => {
               devtools.stage(id, null)
@@ -384,7 +387,7 @@ function OverrideRow({
         ) : (
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             aria-label={`Edit the manifest URL for ${id}`}
             onPress={onEdit}
           >
@@ -397,18 +400,14 @@ function OverrideRow({
 }
 
 /**
- * The origin is the part you read; the rest is the same eight times over.
+ * The origin, which is the whole of what a row has to say.
  *
- * Two levels of contrast, not three: one muted token for the scheme and the
- * path, the normal foreground for the host. An earlier version dimmed the
- * button as a whole and then applied `opacity` to the spans inside it, which
- * multiplies — the result was a row whose URL could not be read at all.
- *
- * Only the path may truncate. Truncating the line as a whole is what a narrow
- * dock did before, and it ate the port — which is the entire question a
- * developer opens this list to answer.
+ * The scheme and the path are dropped: `http://` is on every row and
+ * `/mf-manifest.json` is on every row, so between them they were most of the
+ * width and none of the information. The full URL is the button's `title`, and
+ * the input shows it whole the moment anyone edits.
  */
-function UrlText({ url }: { readonly url: string }): ReactNode {
+function OriginText({ url }: { readonly url: string }): ReactNode {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -418,9 +417,10 @@ function UrlText({ url }: { readonly url: string }): ReactNode {
 
   return (
     <>
-      <span className="shrink-0">{parsed.protocol}//</span>
-      <span className="shrink-0 font-medium text-foreground">{parsed.host}</span>
-      <span className="truncate">{parsed.pathname}</span>
+      <span>{parsed.hostname}</span>
+      <span className="font-medium text-foreground">
+        {parsed.port === '' ? '' : `:${parsed.port}`}
+      </span>
     </>
   )
 }

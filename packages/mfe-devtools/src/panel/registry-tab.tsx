@@ -18,7 +18,7 @@
  * records, not a message this file wrote.
  */
 
-import { Fragment, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
@@ -36,7 +36,6 @@ import {
   ItemDescription,
   ItemGroup,
   ItemMedia,
-  ItemSeparator,
   ItemTitle,
 } from '@tecton/react/components/item'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
@@ -53,9 +52,15 @@ export function RegistryTab(): ReactNode {
   return (
     <Tabs
       defaultSelectedKey={quarantined.length > 0 ? 'rejected' : 'loaded'}
-      className="flex min-h-0 flex-col gap-3"
+      className="flex min-h-0 flex-col gap-2.5"
     >
-      <TabsList variant="line" aria-label="Registry entries">
+      {/*
+       * Segmented, not another underline bar. The panel's own tabs directly
+       * above these are `line`, and two identical tab strips stacked read as
+       * one confused control rather than as navigation and then a filter —
+       * which is what these two actually are.
+       */}
+      <TabsList variant="default" aria-label="Registry entries" className="h-8 p-1">
         <TabsTrigger id="loaded">
           <CircleCheckIcon /> Loaded
           <Badge variant="secondary" size="default">
@@ -84,12 +89,9 @@ export function RegistryTab(): ReactNode {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup className="overflow-hidden rounded-lg border border-border-subtle">
-            {accepted.map((entry, index) => (
-              <Fragment key={entry.id}>
-                {index === 0 ? null : <ItemSeparator className="my-0" />}
-                <AcceptedEntry entry={entry} />
-              </Fragment>
+          <ItemGroup>
+            {accepted.map(entry => (
+              <AcceptedEntry key={entry.id} entry={entry} />
             ))}
           </ItemGroup>
         )}
@@ -116,16 +118,24 @@ export function RegistryTab(): ReactNode {
               >
                 <TriangleAlertIcon />
                 <AlertTitle className="font-mono">{entry.id}</AlertTitle>
-                <AlertDescription className="flex flex-col gap-2">
+                <AlertDescription className="flex flex-col gap-1.5">
                   {/*
                    * The framework's own diagnostic: what was expected, what
                    * arrived and the repair. Printed whole rather than
                    * summarised, because the repair line is the actionable part.
                    */}
                   <p className="whitespace-pre-wrap">{entry.error.message}</p>
-                  <details className="text-xs">
-                    <summary className="cursor-pointer">The descriptor as published</summary>
-                    <div className="mt-1.5">
+                  <details className="text-[11px]">
+                    <summary className="cursor-pointer text-muted-foreground">
+                      The descriptor as published
+                    </summary>
+                    {/*
+                     * Neutral text, inside a destructive alert. The descriptor
+                     * is data, and rendering every field in the alert's red
+                     * makes the one field that is actually wrong no easier to
+                     * find than the six that are fine.
+                     */}
+                    <div className="mt-1.5 rounded-md bg-background/60 p-2 text-foreground">
                       <DescriptorView source={entry.source} />
                     </div>
                   </details>
@@ -145,14 +155,14 @@ function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): Rea
   const Icon = isApp ? AppWindowIcon : BoxIcon
 
   return (
-    <Item size="sm" className="rounded-none">
+    <Item variant="muted" size="xs">
       <ItemMedia variant="icon" className="text-muted-foreground">
         <Icon />
       </ItemMedia>
 
-      <ItemContent className="gap-1">
-        <ItemTitle className="flex flex-wrap items-center gap-2">
-          <span className="truncate">{entry.title ?? entry.id}</span>
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="flex w-full flex-wrap items-center gap-2">
+          <span className="truncate text-xs">{entry.title ?? entry.id}</span>
           <span className="truncate font-mono text-xs font-normal text-muted-foreground">
             {entry.id}
           </span>
@@ -168,7 +178,9 @@ function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): Rea
           ) : null}
         </ItemTitle>
 
-        <ItemDescription className="font-mono">{entry.manifestUrl}</ItemDescription>
+        <ItemDescription className="truncate font-mono text-xs">
+          {entry.manifestUrl}
+        </ItemDescription>
 
         {entry.capabilities === undefined && entry.contract === undefined ? null : (
           <div className="mt-0.5 flex flex-wrap items-center gap-1">

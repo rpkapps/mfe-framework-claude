@@ -1,64 +1,45 @@
 /**
  * A published descriptor, rendered as fields.
  *
- * The shell has a richer vocabulary for this in `readout.tsx`, and this is
- * deliberately not it. Two of that module's four consumers are production
- * surfaces — the bug report and the dashboard — so moving it here would put a
- * devtools package on the import graph of code that runs for everybody.
+ * This one is deliberately not built from `Item`. A descriptor is read two
+ * levels down — inside a disclosure, inside a rejected entry's alert — to find
+ * the single field that is wrong, and `Item` is a row component: it brings a
+ * media slot, a filled block and 37px of height per pair, which turns six
+ * fields into a scroll. What is wanted here is a dense readout, and the
+ * design system has no component for one: `Table` is TanStack Table in this
+ * workspace, which is a data grid with sorting and pagination.
  *
- * It is an `ItemGroup` of `Item`s rather than a description list built by hand:
- * a key beside a value is what `ItemTitle` and `ItemDescription` are, and the
- * group already owns the dividers and the spacing.
+ * So it is a two-column grid, and the shell reached the same conclusion for the
+ * same reason — `apps/shell/src/shell/readout.tsx` is hand-built for exactly
+ * this shape. Only the colours come from the system.
  *
  * Showing raw JSON is the tempting shortcut and it is the wrong answer even
- * here: a rejected descriptor is read to find the one field that is wrong, and
+ * here: the one wrong field is what somebody is looking for, and
  * `JSON.stringify(…, null, 2)` buries it in punctuation.
  */
 
 import { Fragment, type ReactNode } from 'react'
-import { Badge } from '@tecton/react/components/badge'
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@tecton/react/components/item'
 
 export function DescriptorView({ source }: { readonly source: unknown }): ReactNode {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     return (
-      <ItemGroup className="overflow-hidden rounded-md border border-border-subtle">
-        <Item size="xs">
-          <ItemContent>
-            <ItemDescription>
-              <DescriptorValue value={source} />
-            </ItemDescription>
-          </ItemContent>
-        </Item>
-      </ItemGroup>
+      <p className="font-mono text-[11px] break-all">
+        <DescriptorValue value={source} />
+      </p>
     )
   }
 
   return (
-    <ItemGroup className="overflow-hidden rounded-md border border-border-subtle">
-      {Object.entries(source as Record<string, unknown>).map(([name, value], index) => (
+    <dl className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px] leading-5">
+      {Object.entries(source as Record<string, unknown>).map(([name, value]) => (
         <Fragment key={name}>
-          {index === 0 ? null : <ItemSeparator className="my-0" />}
-          <Item size="xs" className="rounded-none">
-            <ItemContent className="gap-0.5">
-              <ItemTitle className="font-mono text-xs font-normal text-muted-foreground">
-                {name}
-              </ItemTitle>
-              <ItemDescription className="text-foreground">
-                <DescriptorValue value={value} />
-              </ItemDescription>
-            </ItemContent>
-          </Item>
+          <dt className="truncate font-mono text-muted-foreground">{name}</dt>
+          <dd className="min-w-0 font-mono break-all">
+            <DescriptorValue value={value} />
+          </dd>
         </Fragment>
       ))}
-    </ItemGroup>
+    </dl>
   )
 }
 
@@ -68,29 +49,24 @@ function DescriptorValue({ value }: { readonly value: unknown }): ReactNode {
   if (value === undefined) return <span className="text-muted-foreground">not set</span>
 
   if (typeof value === 'boolean') {
-    return (
-      <Badge variant={value ? 'success' : 'secondary'} size="default">
-        {value ? 'true' : 'false'}
-      </Badge>
-    )
+    return <span className={value ? 'text-success' : 'text-muted-foreground'}>{String(value)}</span>
   }
 
-  if (typeof value === 'string' || typeof value === 'number') {
-    return <span className="font-mono break-all">{String(value)}</span>
-  }
+  if (typeof value === 'string' || typeof value === 'number') return <>{String(value)}</>
 
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-muted-foreground">empty</span>
     return (
-      <span className="flex flex-wrap gap-1">
+      <>
         {value.map((item, index) => (
-          <Badge key={index} variant="outline" size="default" className="font-mono">
+          <Fragment key={index}>
+            {index === 0 ? null : <span className="text-muted-foreground">, </span>}
             {typeof item === 'object' ? JSON.stringify(item) : String(item)}
-          </Badge>
+          </Fragment>
         ))}
-      </span>
+      </>
     )
   }
 
-  return <span className="font-mono break-all text-muted-foreground">{JSON.stringify(value)}</span>
+  return <span className="text-muted-foreground">{JSON.stringify(value)}</span>
 }
