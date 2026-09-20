@@ -145,8 +145,11 @@ That is now a thing to know rather than a gate to pass.
 The neutral host must not import Module Federation, but something has to load
 containers. The host therefore defines a `ContainerLoader` port and the concrete
 federation implementation ships from the React adapter, which already depends on
-React and the design system — the singletons whose share scope has to resolve
-consistently.
+React — a strict singleton whose share scope has to resolve consistently — and
+on the design system, whose sharing policy the adapter states for the same
+reason even though it is not one: `@tecton/react/` is a prefix share with an
+explicit version, so a container may run a different design-system version from
+the shell and still render correctly on its own copy.
 
 **Consequence:** the contract tracer bullet runs with an in-process loader, no
 bundler and no network, which is what let the contract risk be retired before
@@ -459,26 +462,77 @@ correct schema unshippable.
 
 ## 17. The page has one stylesheet, and it is the shell's
 
-**Status:** decided, with a stated limit.
+**Status:** superseded, by the design system's own packaging (`tecton-ui-1` PR
+#28). The original decision and its stated limit are kept below, followed by
+what replaced it.
 
 Tailwind emits a utility only when it has seen the class in a file it scanned.
 The obvious MFE answer — each container ships the CSS for the classes it uses —
-does not work here: the design system's theme, its preflight, its font faces and
-Tailwind's own `@property` registrations are all document-level, and the scoped
-CSS transform rejects exactly those, correctly, because a container cannot own
-them. A container that shipped a second copy would fight the first for the page.
+did not work at the time: the design system's theme, its preflight, its font
+faces and Tailwind's own `@property` registrations were all document-level, and
+the scoped CSS transform rejected exactly those, correctly, because a container
+cannot own them. A container that shipped a second copy would have fought the
+first for the page.
 
-So the shell's stylesheet is the page's stylesheet, and it scans the containers'
-sources as well as its own. That works because every container is in this
-workspace, and it is the part that does not survive contact with a real
-deployment, where containers are in separate repositories on separate release
-trains.
+So the shell's stylesheet was the page's stylesheet, and it scanned the
+containers' sources as well as its own. That worked only because every
+container was in this workspace, and it was the part that did not survive
+contact with a real deployment, where containers are in separate repositories
+on separate release trains.
 
-The answer there is the usual one for a design system consumed by independent
-applications: `@tecton/react` publishes a prebuilt stylesheet covering its own
-classes, the shell loads it once, and a container ships only what its own
-application-specific classes need. Recorded here rather than discovered at the
-first deployment.
+The answer there was already named: the usual fix for a design system consumed
+by independent applications is for it to publish a stylesheet covering its own
+classes, so a container ships only what its own application-specific classes
+need. `@tecton/react` now does exactly that.
+
+**What replaced it.** `@tecton/react` publishes `styles/scoped.css` — the
+`@theme inline` mappings and the library's own utilities, each with a fallback
+chain, and not one variable declaration — built from the same tokens as
+`globals.css`, plus a `ThemeRoot` component every mounted copy of the library
+renders. A container's build (`packages/mfe-rspack/src/generate/styles.ts`)
+composes its own stylesheet from that: Tailwind's theme and utilities layers,
+the design system's scoped entry, and `@source` for the container's own sources
+and for `@tecton/blocks` when it depends on them — deliberately not
+`@import "tailwindcss"`, which would also pull in preflight. The generated
+federation entry imports that stylesheet first and renders the `ThemeRoot` the
+build attached to the definition, so a dialog or a popover a container raises
+portals into its own `@scope`, styled by its own stylesheet, using its own copy
+of the library. `packages/mfe-rspack/src/css/scope-transform.ts` does the
+wrapping, unchanged in kind from before: it still emits
+`@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])` around what the
+container compiled. The shell keeps exactly the document-level
+half this decision already said could not move to a container: preflight, font
+faces, `@property` registrations and every theme variable on `:root`. Those
+still inherit into every container, so a tenant customisation or a mode flip in
+the shell reaches all of them with nothing wired up.
+
+One choice is not the design system's own recipe. `micro-frontends.mdx`
+(`tecton-ui-1`) leaves Tailwind's own `:root, :host` theme block at document
+level, on the grounds that Tailwind's defaults (`--spacing`, the `--text-*`
+scale, the `--animate-*` names) are identical across versions, so a duplicate
+copy is harmless. It has to: its scope root is the `ThemeRoot` element itself,
+and a plain selector inside `@scope` matches descendants only, so a rule meant
+for the root has no way to reach it short of a `:scope` twin, which the recipe
+adds for `[data-tecton-root]` alone. The transform here owns the scope root, so
+it rewrites any rule whose selector leads with `:root`, `html` or `body` to
+`:scope` instead. A container's defaults then land on its own scope root and on
+its overlay root, inherit into that container's subtree and no further, and a
+nested App's own `:scope` rule sets its own — which is what makes two
+containers on different Tailwind versions a non-event rather than a
+document-level race that the last-loaded stylesheet wins. Anything that still
+names `:root`, `:host`, `html` or `body` after the rewrite is a build error,
+because inside `@scope` it would match nothing.
+
+Two limits are stated rather than fixed. `@scope` still needs the browser floor
+§5 already measured — Chrome below 118, Firefox below 146 or iOS Safari below
+17.4 gets the unscoped cascade, so the last container's stylesheet wins. And
+`@property`, `@keyframes` and `@font-face` register a name for the whole page;
+this transform used to rename them per container to avoid a collision, but a
+renamed property or keyframe stops being what Tailwind's own utilities and
+`tw-animate-css` read back, so it now leaves them unrenamed instead. Two
+containers registering the same name get whichever the browser parsed
+last — limited in practice by the names coming from Tailwind and from the
+shared design system, whose definitions of them agree.
 
 ---
 

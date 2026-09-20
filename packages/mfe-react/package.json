@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-react",
   "version": "0.1.0",
-  "description": "React author and host surface for the MFE framework: createApp, createWidget, lazyWidget, mfeRoute, AppHost, shell-state and service hooks, scope and portal roots.",
+  "description": "React author and host surface for the MFE framework: createApp, createWidget, lazyWidget, mfeRoute, AppHost, shell-state and service hooks, scope and portal roots, and the style root a container's build attaches to its definition.",
   "type": "module",
   "sideEffects": false,
   "exports": {
