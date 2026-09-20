@@ -10,7 +10,6 @@ import {
 } from '@tecton/react/components/empty'
 import { Meter } from '@tecton/react/tecton/meter'
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
-import { alternatives, statusMeta } from '@tecton/blocks/fda-comparison-table/page.tsx'
 import {
   PageHeader,
   PageHeaderActions,
@@ -23,6 +22,8 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tect
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import { alternatives, statusMeta } from '../components/fda-comparison-table/page.tsx'
 
 /**
  * Per-instance data arrives through this App's own URL contract. Mounted at

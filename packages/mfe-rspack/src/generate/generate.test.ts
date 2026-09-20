@@ -132,39 +132,20 @@ describe('generated inventory', () => {
 })
 
 /**
- * A container that renders the design system, with the blocks installed the way
- * pnpm installs them: unbuilt TSX behind an exports map that does not publish
- * the package manifest.
+ * A container that renders the design system, installed the way pnpm installs
+ * a linked package.
  */
 const TECTON_MANIFEST = {
   dependencies: {
     react: '^19.0.0',
     'react-dom': '^19.0.0',
     '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
-    '@tecton/blocks': 'link:../../../tecton-ui-1/packages/tecton-blocks',
   },
-}
-
-const INSTALLED_BLOCKS = {
-  'node_modules/@tecton/blocks/package.json': `${JSON.stringify(
-    {
-      name: '@tecton/blocks',
-      version: '0.0.0',
-      type: 'module',
-      exports: { '.': './src/blocks/index.ts' },
-    },
-    null,
-    2,
-  )}\n`,
-  'node_modules/@tecton/blocks/src/blocks/index.ts': 'export {}\n',
 }
 
 describe('the container stylesheet', () => {
   it('compiles Tailwind and the design system without any page-level CSS', () => {
-    const { fileFor } = planFixture(
-      { 'src/mfe.ts': APP_ENTRY, ...INSTALLED_BLOCKS },
-      TECTON_MANIFEST,
-    )
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
     const stylesheet = fileFor('styles.css')
 
     expect(stylesheet).toContain('@layer theme, base, components, utilities;')
@@ -179,17 +160,14 @@ describe('the container stylesheet', () => {
     expect(stylesheet).not.toMatch(/^\s*--/m)
   })
 
-  it('scans the container source and the blocks it depends on', () => {
-    const { fileFor } = planFixture(
-      { 'src/mfe.ts': APP_ENTRY, ...INSTALLED_BLOCKS },
-      TECTON_MANIFEST,
-    )
+  it('scans the container source', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
     const stylesheet = fileFor('styles.css')
 
+    // Every class the container renders comes from its own src/, so the one
+    // entry below already covers them; nothing under node_modules needs a
+    // source of its own.
     expect(stylesheet).toContain('@source "../src/**/*.{ts,tsx}";')
-    // Nothing under node_modules is scanned by default, and a block is unbuilt
-    // TSX, so a class only a block uses would otherwise have no CSS at all.
-    expect(stylesheet).toContain('@tecton/blocks/src/**/*.{ts,tsx}";')
   })
 
   it('names no design system for a container that does not use one', () => {
@@ -198,7 +176,6 @@ describe('the container stylesheet', () => {
 
     expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
     expect(stylesheet).not.toContain('@tecton/react')
-    expect(stylesheet).not.toContain('@tecton/blocks')
   })
 })
 

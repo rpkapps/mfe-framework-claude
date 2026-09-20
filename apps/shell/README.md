@@ -194,12 +194,10 @@ relative path. A real deployment publishes `@tecton/react` as a versioned
 private package, at which point the `link:` becomes an ordinary version range
 and the resolution workarounds disappear. Nothing else changes.
 
-`pnpm typecheck` runs `tools/tecton/typecheck.mjs` rather than `tsc` directly:
-`@tecton/react` has declarations, but `@tecton/blocks` exports raw `.tsx` and
-`tsc` cannot exclude a file it was asked to resolve, so its source is
-type-checked too, under _this_ workspace's stricter options rather than the
-ones it is written against. Those diagnostics are printed but do not fail the
-check; anything under this package does.
+`pnpm typecheck` runs `tools/tecton/typecheck.mjs` rather than `tsc` directly,
+for the cross-platform way it spawns `tsc` and for the one sentence it prints
+when the design-system checkout is missing or unbuilt, in place of a page of
+"cannot find module" errors.
 
 Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
 `text-zinc-400`) generate **no CSS at all**. `@tecton/eslint-config` is wired

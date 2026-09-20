@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SettingsPage } from '@tecton/blocks/settings-01/page.tsx'
 import type { ReactNode } from 'react'
+
+import { SettingsPage } from '../components/settings-01/page.tsx'
 
 /**
  * Settings, help and release notes are pages, so they are routes. Marking a

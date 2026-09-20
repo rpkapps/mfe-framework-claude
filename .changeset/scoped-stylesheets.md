@@ -9,10 +9,9 @@ the shell having scanned every container's source.
 
 - **A generated stylesheet per container.** `pluginMfe()` writes
   `.mfe/styles.css` — Tailwind's theme and utilities layers, the design system's
-  `scoped.css`, and `@source` for the container's own `src` plus any
-  `@tecton/blocks` it depends on — compiles it with `@tailwindcss/postcss`,
-  added unless the container's own PostCSS config names it, and imports it from
-  every generated federation entry. Deliberately not `@import "tailwindcss"`:
+  `scoped.css`, and `@source` for the container's own `src` — compiles it with
+  `@tailwindcss/postcss`, added unless the container's own PostCSS config names
+  it, and imports it from every generated federation entry. Deliberately not `@import "tailwindcss"`:
   preflight, the fonts and the theme variables stay the document owner's and
   inherit into a mounted App.
 

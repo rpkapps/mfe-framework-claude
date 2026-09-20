@@ -2,11 +2,11 @@
  * What a Vitest project needs in order to render design-system components: the
  * test-time counterpart of `tecton-build.mjs`.
  *
- * `@tecton/react` and `@tecton/blocks` are a `link:` to a sibling checkout with
- * its own `node_modules`, so their files resolve their own React — a second
- * copy, whose hooks throw the moment one of its components is rendered by this
- * project's renderer. Module Federation collapses the shared packages in a
- * browser build; a test runner has no such thing.
+ * `@tecton/react` is a `link:` to a sibling checkout with its own
+ * `node_modules`, so its files resolve their own React — a second copy, whose
+ * hooks throw the moment one of its components is rendered by this project's
+ * renderer. Module Federation collapses the shared packages in a browser build;
+ * a test runner has no such thing.
  */
 
 import { createRequire } from 'node:module'
@@ -46,10 +46,10 @@ export const SINGLE_COPY = [
  *
  * A dependency Vitest externalizes is loaded with Node's own resolution.
  * `@tecton/react`'s built `dist/` still `import`s `react` and its other peers
- * bare, exactly as `@tecton/blocks`' unbuilt TSX does, and Node resolving that
- * bare specifier from inside the linked checkout finds the checkout's own
- * copy — which is how a design-system icon ended up calling `useContext` on a
- * second copy of React while every alias said otherwise.
+ * bare, and Node resolving that bare specifier from inside the linked
+ * checkout finds the checkout's own copy — which is how a design-system icon
+ * ended up calling `useContext` on a second copy of React while every alias
+ * said otherwise.
  */
 export const INLINE_DEPS = [
   /tecton-ui-1/,

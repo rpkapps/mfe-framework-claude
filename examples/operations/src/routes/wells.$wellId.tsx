@@ -9,12 +9,6 @@ import {
   EmptyTitle,
 } from '@tecton/react/components/empty'
 import {
-  WellDesignCard,
-  phaseMeta,
-  trajectoryMeta,
-  wellDesigns,
-} from '@tecton/blocks/well-design-card/page.tsx'
-import {
   PageHeader,
   PageHeaderActions,
   PageHeaderContent,
@@ -27,6 +21,13 @@ import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import {
+  WellDesignCard,
+  phaseMeta,
+  trajectoryMeta,
+  wellDesigns,
+} from '../components/well-design-card/page.tsx'
 
 /**
  * Per-instance data arrives through this App's own URL. Mounted at /operations
@@ -135,9 +136,9 @@ function WellDetail(): ReactNode {
       </StatGroup>
 
       {/*
-       * The card is a fixed-width design-system block, so it gets a column of
-       * its own and the rest of the width goes to the facts beside it rather
-       * than to 900px of background.
+       * The card is fixed-width, so it gets a column of its own and the rest
+       * of the width goes to the facts beside it rather than to 900px of
+       * background.
        */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <WellDesignCard design={design} />

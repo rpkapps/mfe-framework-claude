@@ -12,12 +12,12 @@
  */
 
 import type { WidgetRenderProps } from '@company/mfe-react'
-import { AiAgentPanel } from '@tecton/blocks/ai-agent-panel/page.tsx'
-import { CostVsRiskPanel } from '@tecton/blocks/cost-vs-risk-panel/page.tsx'
-import { FdaCard, fdaSummaries } from '@tecton/blocks/fda-card/page.tsx'
-import { WellDesignCard, wellDesigns } from '@tecton/blocks/well-design-card/page.tsx'
 import { useState, type ReactNode } from 'react'
 
+import { AiAgentPanel } from './components/ai-agent-panel/page.tsx'
+import { CostVsRiskPanel } from './components/cost-vs-risk-panel/page.tsx'
+import { FdaCard, fdaSummaries } from './components/fda-card/page.tsx'
+import { WellDesignCard, wellDesigns } from './components/well-design-card/page.tsx'
 import type {
   agentPanelContract,
   costVsRiskContract,
@@ -33,8 +33,8 @@ export function FdaSummaryWidget({
   const fda = fdaSummaries.find(candidate => candidate.id === inputs.fdaId)
 
   // The enum makes this unreachable through the contract, and the fallback is
-  // still here: the data this renders from is the block's, and a block update
-  // that renamed an alternative would otherwise crash the host's page.
+  // still here: the data this renders from is the component's, and a rename
+  // there would otherwise crash the host's page.
   if (fda === undefined) return <Unknown what={`alternative ${inputs.fdaId}`} />
 
   return (

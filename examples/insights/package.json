@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "@company/mfe-react": "workspace:*",
-    "@tecton/blocks": "link:../../../tecton-ui-1/packages/tecton-blocks",
     "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.6",

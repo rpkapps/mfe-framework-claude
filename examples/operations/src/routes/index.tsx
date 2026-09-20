@@ -14,12 +14,12 @@ import {
   PageHeaderTitle,
 } from '@tecton/react/tecton/page-header'
 import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tecton/panel'
-import { FdaCard, fdaSummaries } from '@tecton/blocks/fda-card/page.tsx'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { CheckCircle2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
 
+import { FdaCard, fdaSummaries } from '../components/fda-card/page.tsx'
 import { AlertPanel } from '../widgets.ts'
 
 export const Route = createFileRoute('/')({
