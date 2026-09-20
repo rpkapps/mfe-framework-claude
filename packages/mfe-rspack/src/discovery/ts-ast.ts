@@ -1,15 +1,11 @@
-/**
- * The slice of the TypeScript compiler API the build needs. Syntax only: one
- * `SourceFile` per entry, no program, no type checker, no module evaluation —
- * which is what makes it impossible for reading metadata to activate anything.
- */
+/** Syntax only: one `SourceFile` per entry, no program, no type checker, no module evaluation. */
 
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 
 export { ts }
 
-/** Parses one file into a standalone syntax tree. JSX is always enabled. */
+/** Parses one file into a standalone syntax tree, with JSX always enabled. */
 export function parseSourceFile(file: string, text?: string): ts.SourceFile {
   const contents = text ?? readFileSync(file, 'utf8')
   return ts.createSourceFile(file, contents, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TSX)

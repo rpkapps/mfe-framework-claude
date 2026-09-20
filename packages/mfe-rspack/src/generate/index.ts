@@ -1,7 +1,4 @@
-/**
- * The build hash is a content hash of the generated files, so it is computed in
- * two steps: everything else first, then the two files that carry it.
- */
+/** The build hash is a content hash of the generated files, so the two carrying it come last. */
 
 import { readFileSync } from 'node:fs'
 
@@ -65,8 +62,7 @@ export function generateContainerFiles(
 
   const buildHash = contentHash(base, context.options.generatedDir)
 
-  // The two files below are the only ones carrying a time, so they are the only
-  // ones built against the recorded one.
+  // These two are the only files carrying a time, so only they are built against it.
   const recorded: GenerateContext = {
     ...context,
     options: { ...context.options, buildTime: recordedBuildTime(context, buildHash) },
@@ -88,22 +84,8 @@ export function generateContainerFiles(
 }
 
 /**
- * The time recorded against this shape, which is deliberately not the time of
- * this compilation.
- *
- * A watching build regenerates before every compilation. A time that advanced
- * each time would rewrite `meta.ts` and the registry descriptor every time —
- * and `meta.ts` is a module the container imports, so writing it is a source
- * change, so the watcher starts the next compilation, which writes it again.
- * The container rebuilds forever; the page's hot updates chase a build hash
- * that is stale before the request lands; the dev server gives up and reloads
- * the page. It reads as "hot updates don't work in this framework" and it is
- * the build editing its own input.
- *
- * So the recorded time advances with the build hash and not otherwise: an
- * unchanged shape keeps the time already on disk and regenerates byte for byte,
- * which is also what makes `writeGeneratedFiles` able to skip it. A caller that
- * fixed the time — a reproducible build, a test — gets exactly that time.
+ * Deliberately not this compilation's time: `meta.ts` is a module the container imports, so a
+ * time that advanced every regeneration would have a watching build rewrite its own input (§19).
  */
 function recordedBuildTime(context: GenerateContext, buildHash: string): string {
   if (context.options.buildTimeFixed) return context.options.buildTime
@@ -114,12 +96,7 @@ function recordedBuildTime(context: GenerateContext, buildHash: string): string 
     : context.options.buildTime
 }
 
-/**
- * What the last generation recorded, read back from the descriptor it wrote.
- * Anything unreadable, or written by something other than this generator,
- * reads as no previous build rather than as an error: the only thing at stake
- * is whether a time is carried forward.
- */
+/** Anything unreadable reads as no previous build; only a carried-forward time is at stake. */
 function readPreviousBuild(context: GenerateContext): { hash: string; time: string } | null {
   const path = generatedPath(context.options.generatedDir, context.options.registryFileName)
 

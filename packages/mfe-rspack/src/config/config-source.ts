@@ -1,8 +1,4 @@
-/**
- * Reading `src/mfe.config.ts` statically, the same way definitions are read, so
- * the file cannot reach a network, a secret store or a `process.env` at build
- * time even by accident. The deployment values live in `runtime-config.json`.
- */
+/** Read statically, so the file cannot reach a network, a secret store or `process.env`. */
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -43,11 +39,7 @@ export interface ConfigSource {
   readonly fields: readonly ConfigField[]
 }
 
-/**
- * Reads the container's configuration declaration, or returns `undefined` when
- * the container declares none — a container with no configuration is normal and
- * gets no `#mfe/config` module.
- */
+/** `undefined` for a container that declares none, which is normal and gets no `#mfe/config`. */
 export function readConfigSource(containerRoot: string): ConfigSource | undefined {
   const file = join(containerRoot, CONFIG_MODULE_NAME)
   if (!existsSync(file)) return undefined

@@ -1,9 +1,4 @@
-/**
- * Everything the plugin needs to configure a build, derived in one synchronous
- * pass over the container's own sources. A plain function on purpose: the
- * plugin wires a compiler, this decides what the compiler is being asked to do,
- * and it can be tested without one.
- */
+/** One synchronous pass over the container's sources, so it can be tested without a compiler. */
 
 import { join } from 'node:path'
 
@@ -88,8 +83,7 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     exposes[exposeName(definition)] = entryModulePath(context, definition)
   }
 
-  // Built with the platform's own separator: these are filesystem paths the
-  // bundler resolves, not module specifiers.
+  // The platform's own separator: these are paths the bundler resolves, not module specifiers.
   const aliases: Record<string, string> = {
     [ALIASES.fetch]: generatedPath(resolved.generatedDir, 'fetch.ts'),
     [ALIASES.meta]: generatedPath(resolved.generatedDir, 'meta.ts'),

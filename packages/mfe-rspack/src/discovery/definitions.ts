@@ -1,9 +1,4 @@
-/**
- * Static discovery of the definitions a container exports. Everything is read
- * from syntax: no module is evaluated and no render function is ever called, so
- * reading metadata cannot activate anything or mint an identity that differs
- * between builds.
- */
+/** Everything is read from syntax: no module is evaluated and no render function is called. */
 
 import {
   DEFINITION_ID_RULE,
@@ -48,13 +43,13 @@ export interface DiscoveredDefinition {
   /** The entry's export name; `'default'` for a default export. */
   readonly exportName: string
   readonly isDefaultExport: boolean
-  /** Widget only. Contract event names, in declaration order. */
+  /** Widget only: contract event names, in declaration order. */
   readonly eventNames: readonly string[]
-  /** Widget only. Input field names, when the schema could be read. */
+  /** Widget only: input field names, when the schema could be read. */
   readonly inputNames: readonly string[]
-  /** Widget only. The inputs as JSON Schema, when the build could read them. */
+  /** Widget only: the inputs as JSON Schema, when the build could read them. */
   readonly inputSchema?: JsonObject
-  /** Widget only. How to reach the contract schemas without the App entry. */
+  /** Widget only: how to reach the contract schemas without the App entry. */
   readonly contractSource?: WidgetContractSource
 }
 
@@ -70,18 +65,13 @@ interface ExportedBinding {
   readonly expression: ts.Expression
 }
 
-/**
- * Only `entryFile` is parsed for definitions. Modules it imports are parsed at
- * most one level deep, and only to read a Widget's contract schemas, which is
- * what lets a contract live in its own side-effect-free module.
- */
+/** Only `entryFile` is parsed; an import is read one level deep to reach a contract's schemas. */
 export function discoverDefinitions(entryFile: string): DiscoveryResult {
   const sourceFile = parseSourceFile(entryFile)
   const imports = collectImportedBindings(sourceFile)
   const topLevel = collectTopLevelBindings(sourceFile)
 
-  // Resolved through the import bindings, so `createWidget as make` is
-  // recognised under its alias and a local function of the same name is not.
+  // Resolved through the import bindings, so `createWidget as make` is recognised by alias.
   const factories = new Map<string, DefinitionKind>()
   for (const [local, binding] of imports) {
     if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
@@ -189,11 +179,7 @@ function collectExportedBindings(
   return bindings
 }
 
-/**
- * A `createWidget` call the entry never exports is a definition the shell can
- * never load. It is almost always a forgotten `export`, so it is reported here
- * rather than silently producing a container with one definition fewer.
- */
+/** A `createWidget` call the entry never exports is almost always a forgotten `export`. */
 function assertEveryDefinitionIsExported(
   sourceFile: ts.SourceFile,
   factories: ReadonlyMap<string, DefinitionKind>,

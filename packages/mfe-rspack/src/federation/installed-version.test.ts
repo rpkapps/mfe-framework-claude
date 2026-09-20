@@ -17,32 +17,15 @@ afterEach(() => {
 
 interface InstalledPackage {
   readonly version: string
-  /**
-   * Where the install put it. `'root'` is the link pnpm writes into the
-   * reading package's own `node_modules`, which only a direct dependency
-   * gets; `'above'` is a directory the root resolves *through*, which is
-   * where everything reached indirectly actually sits.
-   */
+  /** `'root'` is pnpm's link for a direct dependency; `'above'` is a directory resolved through. */
   readonly at: 'root' | 'above'
-  /**
-   * How much of itself the package's `exports` map lets `require` reach, which
-   * is what decides which of the three lookups can answer:
-   *
-   * - `'everything'` publishes no map at all, so the manifest specifier works;
-   * - `'the entry'` is sonner's shape — a root export and no `./package.json`;
-   * - `'subpaths only'` is the design system's — neither specifier resolves.
-   */
+  /** How much of itself the `exports` map lets `require` reach, which decides the lookup. */
   readonly publishes?: 'everything' | 'the entry' | 'subpaths only'
   /** The file the root export points at, relative to the package. */
   readonly entry?: string
 }
 
-/**
- * Two real directories — a root, and a parent it resolves through — because
- * which lookup answers depends on what `require` does with a real `exports`
- * map. Returns the root that versions are read from; `dirname` of it is the
- * parent that `'above'` installs into.
- */
+/** Real directories, because which lookup answers depends on a real `exports` map. */
 function install(packages: Readonly<Record<string, InstalledPackage>>): string {
   const workspace = mkdtempSync(join(tmpdir(), 'mfe-install-'))
   created.push(workspace)
@@ -105,12 +88,6 @@ describe('installedVersionFrom', () => {
     expect(installedVersionFrom(root)('@tecton/react')).toBe('0.1.0')
   })
 
-  /**
-   * The walk up from a resolved entry passes every directory between it and
-   * the filesystem root, so it stops at the first manifest that *names* the
-   * package rather than at the first manifest it meets — a nested one marking
-   * a directory's module type is not the package's own.
-   */
   it('ignores a manifest that does not name the package being asked about', () => {
     const root = install({
       react: { version: '19.3.0', at: 'above', publishes: 'the entry', entry: 'dist/index.js' },
@@ -120,11 +97,6 @@ describe('installedVersionFrom', () => {
     expect(installedVersionFrom(root)('react')).toBe('19.3.0')
   })
 
-  /**
-   * Not installed is an answer rather than a failure: a container turns it
-   * into a share with no version requirement and a host leaves the share out,
-   * and neither of those decisions belongs here.
-   */
   it('answers undefined for a package that is not installed', () => {
     const root = install({})
 

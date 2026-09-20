@@ -1,9 +1,4 @@
-/**
- * An imported asset and `new URL('./x.svg', import.meta.url).href` resolve
- * against the deployed container because the bundler rewrites them. A bare
- * relative path in a string resolves against the shell document instead, so it
- * works in a dev server and 404s once the container is deployed elsewhere.
- */
+/** A bare relative path in a string resolves against the shell document, not the container. */
 
 import { createBuildError } from '../diagnostics.ts'
 import { parseSourceFile, positionOf, ts, walk } from '../discovery/ts-ast.ts'
@@ -35,12 +30,7 @@ const RELATIVE_ASSET_PATTERN = new RegExp(
   'i',
 )
 
-/**
- * Reports bare relative asset references in one module.
- *
- * Import specifiers and the first argument of `new URL(…, import.meta.url)` are
- * both container-aware already, so neither is reported.
- */
+/** Import specifiers and `new URL(…, import.meta.url)` are container-aware and not reported. */
 export function findNonContainerAwareAssetReferences(
   file: string,
   source?: string,
@@ -74,11 +64,7 @@ export function findNonContainerAwareAssetReferences(
   return errors
 }
 
-/**
- * True when the literal is already in a position the bundler rewrites: an
- * import or export specifier, a dynamic `import()`, or `new URL(…,
- * import.meta.url)`.
- */
+/** True in a position the bundler rewrites: a specifier, `import()`, or `new URL`. */
 function isContainerAware(node: ts.StringLiteralLike): boolean {
   const parent = node.parent
   if (parent === undefined) return false
