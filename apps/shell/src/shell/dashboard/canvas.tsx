@@ -50,7 +50,7 @@ export function DashboardCanvas({
     <Canvas
       aria-label={label}
       data-drop-target={isDropTarget ? '' : undefined}
-      className="rounded-lg border border-border-subtle transition-colors data-[drop-target]:border-primary"
+      className="rounded-lg border border-border-subtle transition-colors data-[drop-target]:border-primary lg:rounded-none lg:border-0 lg:data-[drop-target]:ring-2 lg:data-[drop-target]:ring-primary lg:data-[drop-target]:ring-inset"
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}

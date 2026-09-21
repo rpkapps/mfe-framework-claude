@@ -16,7 +16,6 @@ import {
   useWidgets,
   type NeutralRegistryEntry,
 } from '@company/mfe-react'
-import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -44,7 +43,6 @@ import { usePanelRef } from 'react-resizable-panels'
 import {
   ChevronsLeftIcon,
   ChevronsRightIcon,
-  LayersIcon,
   LayoutDashboardIcon,
   MousePointerClickIcon,
   Trash2Icon,
@@ -177,6 +175,10 @@ export function DashboardPage(): ReactNode {
     <CataloguePanel
       widgets={widgets}
       onAdd={add}
+      hasTiles={tiles.length > 0}
+      onClear={() => {
+        commit([])
+      }}
       onCollapse={() => cataloguePanel.current?.collapse()}
     />
   )
@@ -297,17 +299,10 @@ export function DashboardPage(): ReactNode {
   )
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-3 p-3">
-      <DashboardHeader
-        hasTiles={tiles.length > 0}
-        onClear={() => {
-          commit([])
-        }}
-      />
-
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       {/* One column below the breakpoint: a drag handle between panels is unusable on a phone. */}
       {isCompact ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
           {catalogue}
           <div className="flex min-h-96 flex-col">{canvas}</div>
           {activity}
@@ -315,7 +310,7 @@ export function DashboardPage(): ReactNode {
       ) : (
         <ResizablePanelGroup
           orientation="horizontal"
-          className="min-h-0 flex-1 gap-0"
+          className="min-h-0 flex-1"
           defaultLayout={panels}
           onLayoutChanged={(layout, meta) => {
             // Only what the user did: mount and constraint recomputes would overwrite their split.
@@ -340,11 +335,11 @@ export function DashboardPage(): ReactNode {
           >
             {catalogue}
           </ResizablePanel>
-          <ResizableHandle withHandle className="mx-1.5" />
+          <ResizableHandle withHandle />
           <ResizablePanel id={CANVAS_PANEL} minSize="30" className="flex min-h-0 flex-col">
             {canvas}
           </ResizablePanel>
-          <ResizableHandle withHandle className="mx-1.5" />
+          <ResizableHandle withHandle />
           <ResizablePanel
             id={ACTIVITY_PANEL}
             panelRef={activityPanel}
@@ -434,56 +429,32 @@ function useCanvasColumns(surface: React.RefObject<HTMLDivElement | null>): numb
   return width === 0 ? null : columnsIn(width)
 }
 
-/** A strip rather than the old page header: the panels below it need the height. */
-function DashboardHeader({
-  hasTiles,
-  onClear,
-}: {
-  readonly hasTiles: boolean
-  readonly onClear: () => void
-}): ReactNode {
-  return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2">
-      <h1 className="text-sm font-medium">Widget dashboard</h1>
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        Every Widget is served by a different container on a different origin, and the shell was
-        built against none of them.
-      </p>
-      <Button
-        variant="outline"
-        size="sm"
-        onPress={() => {
-          devtools.open('registry')
-        }}
-      >
-        <LayersIcon data-icon="inline-start" /> Registry
-      </Button>
-      {hasTiles ? (
-        <Button variant="outline" size="sm" onPress={onClear}>
-          <Trash2Icon data-icon="inline-start" /> Clear canvas
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
 function CataloguePanel({
   widgets,
   onAdd,
+  hasTiles,
+  onClear,
   onCollapse,
 }: {
   readonly widgets: readonly NeutralRegistryEntry[]
   readonly onAdd: (entry: NeutralRegistryEntry) => void
+  readonly hasTiles: boolean
+  readonly onClear: () => void
   readonly onCollapse: () => void
 }): ReactNode {
   return (
-    <Panel className="min-h-0 flex-1">
+    <Panel className="min-h-0 flex-1 lg:rounded-none lg:border-y-0 lg:border-l-0">
       <PanelHeader>
         <PanelTitle>Widgets</PanelTitle>
         <PanelActions>
           <Badge variant="secondary" size="default">
             {widgets.length}
           </Badge>
+          {hasTiles ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Clear the canvas" onPress={onClear}>
+              <Trash2Icon />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -541,7 +512,7 @@ function ActivityFeed({
   readonly onCollapse: () => void
 }): ReactNode {
   return (
-    <Panel className="min-h-0 flex-1">
+    <Panel className="min-h-0 flex-1 lg:rounded-none lg:border-y-0 lg:border-r-0">
       <PanelHeader>
         <PanelTitle>Activity</PanelTitle>
         <PanelActions>
