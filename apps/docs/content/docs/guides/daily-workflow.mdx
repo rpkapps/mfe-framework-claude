@@ -1,22 +1,18 @@
 ---
 title: '9. Daily workflow'
-description: 'Scaffolding a container, generating its modules, running it against the shell, keeping hot updates working, and the checks to run before you push.'
+description: 'The commands you run all day: scaffold a container, generate its modules, start everything, point the shell at it, and check before you push.'
 ---
 
-Your surface is one deployable among several on a page you do not own, so "run it and look at it"
-means running three things together: the <Term>shell</Term>, the one application on the page that
-owns the document and mounts the others into itself; the <Term>registry</Term>, the JSON file the
-shell reads at boot to learn which surfaces exist and where their code is; and at least one
-container. This page is the loop you will be in all day: scaffold, generate, `pnpm dev`, point the
-shell at your dev server, edit, test, check.
+Running your surface means running three things together: the <Term>shell</Term> that owns the page,
+the [registry](/docs/glossary) it reads at boot, and at least one container. `pnpm dev` starts all
+of them, and one `localStorage` override points the shell at your own dev server. Every command here
+comes from a `package.json` script or a file under `tools/dev/`.
 
-Every command here comes from a `package.json` script or a file under `tools/dev/`.
+## Scaffold a container
 
-## Scaffolding a container
+<Steps>
 
-A <Term>container</Term> is one deployable unit: one package, one build, its own port in
-development, its own deployed origin, and one `src/mfe.ts`. It exports at most one App and any
-number of Widgets.
+<Step>
 
 ```sh
 pnpm create @company/mfe <directory> --id <id> [--template app|widget]
@@ -38,17 +34,40 @@ Examples:
   pnpm create @company/mfe alert-panel --id alert-panel --template widget
 ```
 
-`--id` defaults to the last segment of the directory. The package name is derived rather than
-asked — `@example/<id>` — which keeps the id and the package aligned. A non-empty directory is
-refused unless you pass `--force`, and generation is deterministic: a second run produces identical
-files.
+</Step>
+
+<Step>
+
+```sh
+cd <directory>
+pnpm install
+```
+
+</Step>
+
+<Step>
+
+```sh
+pnpm run dev
+```
+
+This starts the container's own Rsbuild dev server on its `mfe.port`, and nothing else. There is no
+standalone preview harness, so seeing your surface on a page means starting the shell too.
+
+</Step>
+
+</Steps>
+
+`--id` defaults to the last segment of the directory, and the package name is derived from it as
+`@example/<id>`. A non-empty directory is refused unless you pass `--force`. Generation is
+deterministic, so a second run produces identical files.
 
 <Callout type="error" title="An id the framework cannot use">
   `"Order_Book" is not a usable definition id. Ids are lower-case letters, digits and single
   hyphens, for example "alert-panel". The id is also the storage prefix and the CSS scope value, so
   it has to be unambiguous in both.`
 
-**The fix:** pass `--id order-book`.
+**Fix.** Pass `--id order-book`.
 
 </Callout>
 
@@ -80,28 +99,28 @@ The eight scripts are the same in both templates:
 }
 ```
 
-The App template adds `public/runtime-config.json` (the local values, so a scaffolded App does not
-fail at boot with `config/missing`; the App's README points at that file, and the scaffold writes no
-example copy beside it), `src/mfe.ts` with the router factory and two
-`declare module '@tanstack/react-router'` augmentations, `src/mfe.config.ts`, three routes under
-`src/routes/`, a route test, and a README; its dependencies gain `@tanstack/react-router` and
-`@tanstack/react-query`. The second augmentation types a route's `staticData` with `MfeStaticData`,
-which [2. Declaring it](/docs/guides/declaring#the-one-file-the-framework-reads) shows. The Widget template adds `src/mfe.ts` holding the exported contract and the
-`createWidget` call, `src/<id>.tsx` holding the render function alone, `src/mfe.test.tsx`, an
-`exports` map pointing at the generated contract module, and a README. It writes no `src/routes/`,
-no `src/mfe.config.ts` and no router.
+The templates differ in what else they write:
 
-The split between `src/mfe.ts` and `src/<id>.tsx` is not stylistic; the hot-update section below is
-the reason.
+```text
+app                              widget
+  public/runtime-config.json       src/mfe.ts          the contract and createWidget
+  src/mfe.ts                       src/<id>.tsx        the render function alone
+  src/mfe.config.ts                src/mfe.test.tsx
+  src/routes/__root.tsx            README.md
+  src/routes/index.tsx
+  src/routes/settings.tsx
+  src/routes/index.test.tsx
+  README.md
+```
 
-A scaffolded container runs on its own, and that is all it does: `pnpm run dev` inside it starts its
-Rsbuild dev server on its `mfe.port` and nothing else, because there is no standalone preview
-harness. Seeing your surface means running the shell as well — `pnpm dev` at the workspace root
-starts every dev server and prints the override snippets — and then either dragging a Widget from
-the catalogue onto the dashboard at `/`, or pointing the shell at your container with the
-`localStorage` override below.
+An App's dependencies gain `@tanstack/react-router` and `@tanstack/react-query`. Its `src/mfe.ts`
+holds the router factory and two `declare module '@tanstack/react-router'` augmentations. The second
+types a route's `staticData` with `MfeStaticData`, which
+[2. Declaring it](/docs/guides/declaring#the-one-file-the-framework-reads) shows. Its
+`public/runtime-config.json` keeps a scaffolded App from failing at boot with `config/missing`.
 
-## The `mfe` block in package.json
+A Widget gets an `exports` map pointing at its generated contract module, and no router. Its render
+function lives in `src/<id>.tsx` for the reason under "Keep hot updates working" below.
 
 Every container declares its port and the ids it exports once, and the tooling reads it back:
 
@@ -113,46 +132,14 @@ Every container declares its port and the ids it exports once, and the tooling r
 ```
 
 The scaffold sets `port` to 3101 for an App and 3103 for a Widget, clear of the 3000–3005 the shell
-and the examples use, and the "Next steps" it prints repeats the same number in the override
-snippet.
-
-`port` is read by the container's own `rsbuild.config.ts`, by `pnpm dev`, by the registry builder
-and by `pnpm verify:page`. It is part of the container's address: generation writes
-`http://localhost:<port>/mf-manifest.json` into the shell's registry, so moving a container to
-another port loses it. `pluginMfe()` sets `server.strictPort: true` for that reason — "The shell's
-registry names this port; falling back to another hides the container."
+and the examples use. The port is part of the container's address: generation writes
+`http://localhost:<port>/mf-manifest.json` into the shell's registry, so a container moved to
+another port is lost. `pluginMfe()` sets `server.strictPort: true` for that reason.
 
 `definitions` decides which ids the override snippet assigns. Nothing validates it against what
-`src/mfe.ts` exports — discovery reads the entry module — so keeping it accurate is a convention.
+`src/mfe.ts` exports, so keeping it accurate is a convention.
 
-## `pnpm run generate`: what is generated and where
-
-The framework generates a container's `#mfe/*` modules, its registry descriptor and (for an App)
-its route tree. None of it is in version control, and none of it is edited by hand.
-
-| Command                         | Scope                                                            |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `pnpm run generate` (root)      | `pnpm -r run generate`, then `node tools/dev/build-registry.mjs` |
-| `mfe-generate` (in a container) | that container alone; `--root <directory>` for another           |
-
-What lands in `.mfe/`: `styles.css` (the container stylesheet), `fetch.ts` behind `#mfe/fetch`,
-`config.ts` behind `#mfe/config` when `src/mfe.config.ts` exists, `meta.ts` behind `#mfe/meta`, one
-federation entry per definition, a generated `style-root.tsx` when the container depends on
-`@tecton/react`, one contract module per Widget, `mfe-registry.json`, `runtime-config.schema.json`
-and `.env.example` when there is a config source, `tsconfig.paths.json`, `css.d.ts`, and a
-`.gitignore` that is itself generated. An App also gets `routeTree.gen.ts` at the container root.
-
-`mfe-generate` runs the same `generateContainer` the build runs, so the two cannot drift. When
-nothing changed it prints `@example/operations: generated output is already current.` Findings in
-your own sources — a stray definition, a bare relative asset path — go to stderr and fail the
-command with exit code 1.
-
-This is the one documented recovery command. From `README.md`:
-
-> Generated output (`.mfe/`, `routeTree.gen.ts`, `apps/shell/public/registry.json`) is not in
-> version control. If a build behaves as though a file is missing, `pnpm run generate` is the fix.
-
-## Starting everything with `pnpm dev`
+## Start everything: `pnpm dev`
 
 ```sh
 pnpm dev                                        # shell + every example
@@ -168,43 +155,46 @@ node tools/dev/dev.mjs --only=operations,alert-panel
 | the stand-in API (`tools/dev/api.mjs`)                             | 3010      |
 
 `pnpm dev` checks that 3000–3005 and 3010 are free **before** it starts anything, so a busy port is
-reported once, by name, rather than as one bundler's fallback and another's crash. The stand-in
-API's port is in that list because `pnpm dev` starts it too: `tools/dev/api.mjs` exports the number
-as `DEV_API_PORT`, so the port that is checked is the port that is listened on, and
-`MFE_DEV_API_PORT` moves both. Then it runs generation in every container, assembles the registry
-from the results, prints the service table and the override snippets, and starts the servers. One
-Ctrl-C stops every server and waits for those same ports to come back, so the next `pnpm dev` does
-not meet a socket that is still winding down.
+reported once and by name. It then runs generation in every container, assembles the registry from
+the results, prints the service table and the override snippets, and starts the servers. One Ctrl-C
+stops every server and waits for those ports to come back.
 
-```text
-Port 3001 already in use.
+The stand-in API is not part of the framework. A deployment brings its own, and this one makes the
+request boundary observable. It serves `GET /api/assets?site=north|south|central` and
+`GET /api/lab/probe`, whose answer is `{ sawAuthorization, scheme, path }` and never the token.
+`MFE_DEV_API_PORT` moves both the check and the server.
 
-These are not preferences: `pnpm run generate` writes each container's URL
-into the shell registry, so a container cannot be moved to another port
-without the shell losing it. Usually this is a dev server from an earlier
-run that did not shut down.
+<Diagram
+  src="/diagrams/dev-workflow.svg"
+  alt="pnpm dev starting one dev server per container, the localStorage override that points the shell at one of them, and the two module shapes an edit can land in."
+  caption="What pnpm dev starts, and what one edit costs."
+>
+`pnpm dev` is on the left, the processes it starts down the middle, two panels on the right.
 
-Find what holds it:
+- `pnpm dev` (`tools/dev/dev.mjs`), with arrows labelled "starts" to the middle column and
+  "generates" down to `registry.json`.
+- `registry.json`, written by `pnpm run generate`. A dotted arrow labelled "the shell reads" goes
+  to the same column.
+- "One dev server each", where the port is part of the address. The tiles are `apps/shell :3000`,
+  `examples/operations :3001`, `examples/reports :3002`, `examples/alert-panel :3003`,
+  `examples/insights :3004`, `examples/lab :3005` and `tools/dev/api.mjs :3010`.
+- `localStorage override`: `company:mfe:overrides`, then a reload. An arrow labelled "points the
+  shell" leads to `apps/shell :3000`.
+- "Why one edit reloads": `src/mfe.ts` holds a definition and reloads the page.
+  `src/alert-panel.tsx` holds only components and hot-updates in place.
+- A legend names six colours: the shell, a container, the stand-in API, and generated by the build.
+  The last two: what the browser keeps for you, and the edit that costs a reload.
 
-  lsof -i :3001
+</Diagram>
 
-then stop it with `kill <pid>`.
-```
+## Point the shell at your container
 
-On Windows the same message prints `netstat -ano | findstr :3001` and `taskkill /PID <pid> /F`
-instead.
+<Steps>
 
-The stand-in API is not part of the framework: a deployment brings its own, and this one exists so
-the request boundary is observable. It serves `GET /api/assets?site=north|south|central` and
-`GET /api/lab/probe`, the probe answering `{ sawAuthorization, scheme, path }` and never the token
-itself.
+<Step>
 
-## Pointing the shell at your container: the override
-
-The shell learns a container exists only from its registry, so a local dev server reaches it through
-a boot-time <Term>override</Term>: one entry in `localStorage`, definition id to absolute manifest
-URL, read before the registry is normalized and before any remote is registered. It is a URL only,
-never a token and never configuration. `pnpm dev` prints the snippet with real ids and URLs:
+Open the shell at `http://localhost:3000` and run the snippet `pnpm dev` printed, in the browser
+console:
 
 {/* prettier-ignore */}
 ```js
@@ -215,8 +205,23 @@ localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 ```
 
-To reset one id while keeping the others, the printed snippet replaces the middle line with
-`delete overrides["operations"]`.
+</Step>
+
+<Step>
+
+To reset one id and keep the others, run the same snippet with the middle line replaced:
+
+```js
+delete overrides['operations']
+```
+
+</Step>
+
+</Steps>
+
+An [override](/docs/glossary) is one entry in `localStorage`, from definition id to absolute
+manifest URL. The shell reads it before the registry is normalized and before any remote is
+registered. It is a URL only, never a token and never configuration.
 
 The reload is not optional. From `README.md`:
 
@@ -224,45 +229,64 @@ The reload is not optional. From `README.md`:
 > the federation runtime under the same name, and its chunks and stylesheets are document-level, so
 > disposing a mount touches none of that.
 
-Every way an override can be wrong is diagnosed at boot as a warning, because an override that
-silently did nothing is the bug this mechanism exists to prevent: unreadable storage, text that is
-not JSON, a value that is not an absolute URL string, a relative URL, or two definitions from one
-container pointed at different URLs. The last one reads:
+Every way an override can be wrong is reported at boot, as a warning. An override that silently did
+nothing is the bug this mechanism exists to prevent.
+
+| What you wrote                                     | What the shell does              |
+| -------------------------------------------------- | -------------------------------- |
+| storage it cannot read                             | warns, and registers no override |
+| text that is not JSON                              | warns, and registers no override |
+| a value that is not a string                       | warns, and skips that entry      |
+| a relative URL                                     | warns, and skips that entry      |
+| two definitions of one container at different URLs | warns, and skips them both       |
+
+The last one reads:
 
 > `expected one consistent override URL for every definition exported by a container … Point every
 definition from this container at the same manifest URL. One container is loaded once; conflicting
 URLs cannot both apply.`
 
-Nothing on the page itself says an override is active — the strip that used to say so was removed
+Nothing on the page says an override is active, because the strip that used to say so was removed
 (`docs/decisions.md` §23). An override pointing at a stopped dev server therefore looks exactly like
 a broken deployment. The developer tools and the bug report are where it shows.
 
-## Running one container against a shell you started yourself
+## Generate the `#mfe` modules
 
-`pnpm dev:shell` in one terminal and `pnpm dev:mfes` in another is the split; start a subset with
-`node tools/dev/dev.mjs --only=<names>` and run your own container's `pnpm dev` from its directory.
-The root `pnpm run generate` still has to have run, or the shell's registry does not name it.
-
-## Why one edit hot-updates and another reloads the page
-
-React Refresh replaces a module in place only when it can prove **every** export is a component. One
-exported hook, constant, schema or factory beside them makes the module unable to accept an update;
-the update propagates to whatever imported it until it reaches an entry, which accepts nothing, so
-the page reloads and every piece of state on it is lost.
-
-`src/mfe.ts` exports a definition and usually a contract, so it can never be a refresh boundary. A
-Widget written inline in its entry reloads the page on every edit. The examples say so in code:
-
-```ts title="examples/alert-panel/src/mfe.ts"
-/** The build reads these schemas statically and publishes them in the registry, so a host can offer
- * this Widget in a catalogue without loading the container (§16). The render function lives in
- * `alert-panel.tsx` because a module exporting a contract and a definition is no React Refresh
- * boundary, so an edit here would reload the page (§18). */
+```sh
+pnpm run generate           # every container, then the shell's registry
+mfe-generate                # this container alone
+mfe-generate --root <dir>   # another container
 ```
 
-The symptom is silent: everything still works, it is only slower and starts over each time, which
-reads as a bundler problem rather than a module-shape one. `pnpm hmr:probe` answers the question
-directly, by putting a value on `window` that a reload cannot carry:
+At the root, `pnpm run generate` is `pnpm -r run generate` followed by
+`node tools/dev/build-registry.mjs`. Inside a container, `mfe-generate` runs the same
+`generateContainer` the build runs, so the two cannot drift. None of the output is in version
+control, and none of it is edited by hand.
+
+| Generated file                                  | What it is                                | Written when                             |
+| ----------------------------------------------- | ----------------------------------------- | ---------------------------------------- |
+| `.mfe/styles.css`                               | the container stylesheet                  | always                                   |
+| `.mfe/fetch.ts`                                 | the module behind `#mfe/fetch`            | always                                   |
+| `.mfe/config.ts`                                | the module behind `#mfe/config`           | `src/mfe.config.ts` exists               |
+| `.mfe/meta.ts`                                  | the module behind `#mfe/meta`             | always                                   |
+| one federation entry per definition             | what the shell loads                      | always                                   |
+| `style-root.tsx`                                | the generated style root                  | the container depends on `@tecton/react` |
+| one contract module per Widget                  | the Widget's published inputs and events  | the container exports a Widget           |
+| `.mfe/mfe-registry.json`                        | this container's entries for the registry | always                                   |
+| `runtime-config.schema.json`, `.env.example`    | the shape of the deployment's values      | there is a config source                 |
+| `tsconfig.paths.json`, `css.d.ts`, `.gitignore` | the paths, the CSS types, the ignores     | always                                   |
+| `routeTree.gen.ts`, at the container root       | the route tree                            | the container exports an App             |
+
+When nothing changed, the command prints `@example/operations: generated output is already current.`
+Findings in your own sources go to stderr and fail the command with exit code 1. A stray definition
+and a bare relative asset path are two of them.
+
+This is the one documented recovery command. From `README.md`:
+
+> Generated output (`.mfe/`, `routeTree.gen.ts`, `apps/shell/public/registry.json`) is not in
+> version control. If a build behaves as though a file is missing, `pnpm run generate` is the fix.
+
+## Keep hot updates working
 
 ```sh
 pnpm hmr:probe examples/lab/src/routes/index.tsx /lab
@@ -275,72 +299,37 @@ result:    hot-updated in place
 console:   (nothing about hot updates)
 ```
 
-The other answer is `result:    (the page reloaded)`. Exit code 0 means a hot update, 1 a reload. It
-runs against servers you already started, appends a comment to the file, waits, and restores it.
+Keep your render function in a module that exports components alone. React Refresh replaces a module
+in place only when it can prove **every** export is a component. One exported hook, constant, schema
+or factory beside them makes the module unable to accept an update. The update then travels up to
+whatever imported it, as far as an entry, which accepts nothing. The page reloads, and every piece
+of state on it is lost.
 
-<Diagram
-  src="/diagrams/dev-workflow.svg"
-  alt="pnpm dev starting the shell, five example containers and a stand-in API, the localStorage override that points the shell at a local container, and the two module shapes that decide whether an edit hot-updates or reloads."
-  caption="What pnpm dev starts, how the shell is pointed at it, and what one edit costs."
->
-  Four panels: two stacked on the left, a column of processes in the middle, and two on the right.
+| Module                | What it exports                      | What an edit costs                      |
+| --------------------- | ------------------------------------ | --------------------------------------- |
+| `src/mfe.ts`          | a definition, and usually a contract | the page reloads, and its state is gone |
+| `src/alert-panel.tsx` | the render function alone            | a hot update in place, with state kept  |
 
-- **`pnpm dev`** (`tools/dev/dev.mjs`) checks that 3000–3005 and 3010 are free before it starts
-  anything: a container's port is part of its address, so it cannot be moved without the shell
-  losing it. Under it, **`registry.json`**, written by `pnpm run generate`, which
-  `pnpm dev` runs itself — the shell learns that a container exists only from this file. An arrow
-  from `pnpm dev` and a dotted arrow from `registry.json` both point into the middle column.
-- **One dev server each**, as a column of seven boxes: `apps/shell` on 3000, `examples/operations`
-  3001, `examples/reports` 3002, `examples/alert-panel` 3003, `examples/insights` 3004,
-  `examples/lab` 3005, and `tools/dev/api.mjs` on 3010. Each container's port comes from its own
-  `package.json` `mfe` block, so adding an example is a one-file change in it. A legend below names
-  the colours: the shell, a container, the stand-in API, generated by the build, and what the
-  browser keeps for you.
-- **Pointing the shell at a local container**: the `localStorage` snippet `pnpm dev` prints, with
-  the real ids and URLs — read the key `company:mfe:overrides`, assign
-  `overrides['operations'] = 'http://localhost:3001/mf-manifest.json'`, write it back, reload. The
-  reload is not optional: the old container is already registered under the same name, and
-  disposing a mount does not reach it.
-- **Why one edit hot-updates and another reloads**: React Refresh replaces a module only when every
-  export is a component. `src/mfe.ts`, exporting a definition and a contract, is never a refresh
-  boundary, so an edit there reloads the whole page. `src/alert-panel.tsx`, exporting only the
-  component, hot-updates in place and keeps the state the component held.
-  `pnpm hmr:probe <file> [url]` says which of the two happened: the change appears either way, and
-  only what was lost is different.
+The examples say the same thing in code:
 
-</Diagram>
+```ts title="examples/alert-panel/src/mfe.ts"
+/** The build reads these schemas statically and publishes them in the registry, so a host can offer
+ * this Widget in a catalogue without loading the container (§16). The render function lives in
+ * `alert-panel.tsx` because a module exporting a contract and a definition is no React Refresh
+ * boundary, so an edit here would reload the page (§18). */
+```
 
-## The developer tools overlay
+The symptom is silent: everything still works, it is only slower and starts over each time. The
+probe answers the question by putting a value on `window` that a reload cannot carry. The other
+result is `result:    (the page reloaded)`, and exit code 0 means a hot update, 1 a reload. It runs
+against servers you already started, appends a comment to the file, waits, and restores it.
 
-The tools ship in every build and are gated at runtime on one `localStorage` key, because the page
-where they are most needed is a deployed one.
+## Write tests
 
-| How                                                                          | What happens                                                |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `http://localhost:3000/?devtools=1`                                          | turns them on and persists it; `?devtools=0` turns them off |
-| <Kbd>g</Kbd> <Kbd>d</Kbd>                                                    | opens the panel on the **Overrides** tab                    |
-| <Kbd>g</Kbd> <Kbd>r</Kbd>, or <Kbd>⌘</Kbd><Kbd>K</Kbd> → "Open the registry" | opens it on the **Registry** tab                            |
-| the wrench, bottom left                                                      | toggles the panel                                           |
-
-**Overrides** lists every registered definition with the URL it loaded from, and gives each row
-"Point `<id>` at the dev server", "Edit the manifest URL for `<id>`" and "Clear the override for
-`<id>`". The action bar reads `<n> pending — applied on reload` or `<n> override(s) applied at boot`.
-It refuses a URL the boot reader would reject and says so before writing, rather than after the
-reload.
-
-**Registry** has two inner views with counts: **Loaded**, where an accepted entry shows its facts, a
-mark if it is overridden, and a "Copy the manifest URL" action; and **Rejected**, which names each
-quarantined entry, why it was rejected, and the descriptor as published. The empty states are
-`Nothing was registered` and `Every entry validated`.
-
-The **bug report** is the shell's own surface — the bug icon in the header, or <Kbd>⌘</Kbd><Kbd>K</Kbd>.
-It collects, on demand, the workspace, URL, mounted surface, theme, user, groups, viewport and user
-agent, then whether `registry.json` loaded, the accepted count, every rejected entry as
-`<id>: <reason>`, every override as `<id> → <url>`, and one line per accepted entry naming its build
-as `<id>: <hash> · <time>`, or `<id>: no build published`. It is Markdown, and since the override
-strip was removed it is the only place on the page that says what the shell was running.
-
-## Writing tests
+```sh
+pnpm test              # every workspace
+pnpm run test          # inside a container: generate, then vitest run
+```
 
 Container tests run on Vitest in jsdom. Generation runs first, because the test config resolves
 `#mfe/meta` to the real generated module while aliasing the other two to fixtures:
@@ -355,11 +344,11 @@ Your source keeps its production imports, and `tsconfig` still maps them to the 
 modules, so the types stay exact. `@company/mfe-react/testing` gives you:
 
 - `renderApp(definition, options)` and `renderWidget(definition, options)` — the real adapter and
-  the real validation path, over a memory history and in-memory stores;
+  the real validation path, over a memory history and in-memory stores.
 - `createMfeTestEnvironment(options)` — a runtime, a mount, a `wrapper` for hook tests, a typed
   `routerContext`, `setShellState`, and recorded `telemetry`, `diagnostics`, `navigation` and
-  `storageAreas`;
-- `renderSuspending(ui)` for a tree that will suspend;
+  `storageAreas`.
+- `renderSuspending(ui)` for a tree that will suspend.
 - the alias setters: `setMfeConfig`, `setMfeApiBaseUrl`, `setMfeApiOrigins`, `setMfeFetch`,
   `setMfeAccessToken`, `mfeRequests()` and `resetGeneratedAliases()`.
 
@@ -376,19 +365,15 @@ afterEach(async () => {
 })
 ```
 
-## Checking the page in a browser, and before you push
+## Check before you push
 
-`pnpm verify:page` generates, boots the shell and every example, and drives Chromium through
-Playwright. It exists because the first time the shell loaded a real container, five defects
-surfaced that compiled, type-checked and passed the whole suite while rendering nothing. Per page it
-asserts that each App mounted from its own container, that a Widget from a second container rendered
-inside one, that a child App delegated at a splat route reads its own URL, that a popover portals
-into its own container's overlay root, that an unloadable manifest costs that App alone, that the
-shell chrome renders exactly once, and every `@scope` fact on the page. `--url /operations` checks
-one page, `--keep-open` leaves the browser up, and it needs a Chromium
-(`pnpm exec playwright install chromium` once, or `PLAYWRIGHT_BROWSERS_PATH`).
+```sh
+pnpm check           # what CI runs
+pnpm verify:page     # the shell and every example, in a real browser
+pnpm diagrams:check  # every committed SVG still matches its scene
+```
 
-`pnpm check` is what CI runs:
+`pnpm check` is the CI command:
 
 ```json
 "check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
@@ -398,22 +383,81 @@ Generation, format check, lint, strict typecheck, package-boundary checks and th
 that order. The steps run individually too: `pnpm format`, `pnpm lint`, `pnpm typecheck`,
 `pnpm boundaries`, `pnpm test`.
 
-`pnpm diagrams:check` is not part of `pnpm check`, and is run on its own. It re-renders every
-Excalidraw scene and fails when a committed SVG no longer matches, which needs a Chromium; `pnpm check`
-is browser-free for the same reason `pnpm verify:page` is separate.
+`pnpm verify:page` generates, boots the shell and every example, and drives Chromium through
+Playwright. The first time the shell loaded a real container, five defects surfaced that compiled,
+type-checked and passed the whole suite while rendering nothing. Per page it asserts that:
+
+- each App mounted from its own container.
+- a Widget from a second container rendered inside one.
+- a child App delegated at a splat route reads its own URL.
+- a popover portals into its own container's overlay root.
+- an unloadable manifest costs that App alone.
+- the shell chrome renders exactly once.
+- every `@scope` fact on the page holds, as [8. Styling](/docs/guides/styling) lists them.
+
+Pass `--url /operations` to check one page, and `--keep-open` to leave the browser up. It needs a
+Chromium: `pnpm exec playwright install chromium` once, or `PLAYWRIGHT_BROWSERS_PATH`.
+
+`pnpm diagrams:check` re-renders every Excalidraw scene and fails when a committed SVG no longer
+matches. It needs a Chromium too. Neither it nor `pnpm verify:page` belongs to `pnpm check`, which
+stays browser-free.
+
+## Troubleshooting
+
+| Symptom                                        | Cause                                              | Fix                                          |
+| ---------------------------------------------- | -------------------------------------------------- | -------------------------------------------- |
+| `Port 3001 already in use.`                    | a dev server from an earlier run                   | `lsof -i :3001`, then `kill <pid>`           |
+| the shell never mentions your container        | the registry does not name it                      | `pnpm run generate` at the root              |
+| a build acts as though a file is missing       | the generated output is absent                     | `pnpm run generate`                          |
+| your surface fails to load, with no other sign | an override points at a stopped dev server         | start it, or clear the override              |
+| an override changed and nothing did            | the page was not reloaded                          | reload the page                              |
+| the page reloads on every edit                 | the module you edited exports more than components | move the render function into its own module |
+
+The busy-port message names the process for you:
+
+```text
+Port 3001 already in use.
+
+These are not preferences: `pnpm run generate` writes each container's URL
+into the shell registry, so a container cannot be moved to another port
+without the shell losing it. Usually this is a dev server from an earlier
+run that did not shut down.
+
+Find what holds it:
+
+  lsof -i :3001
+
+then stop it with `kill <pid>`.
+```
+
+The developer tools are where a container that did not load shows up. They ship in every build and
+are gated on one `localStorage` key, because the page where they are most needed is a deployed one.
+
+| How                                                                          | What happens                                                |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `http://localhost:3000/?devtools=1`                                          | turns them on and persists it. `?devtools=0` turns them off |
+| <Kbd>g</Kbd> <Kbd>d</Kbd>                                                    | opens the panel on the **Overrides** tab                    |
+| <Kbd>g</Kbd> <Kbd>r</Kbd>, or <Kbd>⌘</Kbd><Kbd>K</Kbd> → "Open the registry" | opens it on the **Registry** tab                            |
+| the wrench, bottom left                                                      | toggles the panel                                           |
+
+- **Overrides** lists every registered definition with the URL it loaded from. Each row offers
+  "Point `<id>` at the dev server", "Edit the manifest URL" and "Clear the override". It refuses a
+  URL the boot reader would reject, before writing it rather than after the reload.
+- **Registry** has two inner views with counts. **Loaded** gives each accepted entry's facts and
+  marks an overridden one. **Rejected** names each set-aside entry and its reason.
+- **The bug report** is the bug icon in the header, or <Kbd>⌘</Kbd><Kbd>K</Kbd>. It collects the
+  workspace, the URL, the mounted surface, the session, every rejected entry, every override and
+  each accepted entry's build, as Markdown.
 
 ## Windows
 
-Everything above runs on Windows; every script goes through node rather than a shell. Two things to
-know:
+Everything above runs on Windows, and every script goes through node rather than a shell. The
+busy-port message prints `netstat -ano | findstr :3001` and `taskkill /PID <pid> /F` instead. The
+port check probes both `127.0.0.1` and `::1`, because Windows resolves `localhost` to `::1` first. A
+server on one address and a check on the other would disagree about whether the port is free.
 
-- **Ports.** 3000–3005 must be free, and the busy-port message prints
-  `netstat -ano | findstr :3001` to name the process and `taskkill /PID <pid> /F` to stop it. The
-  port check probes both `127.0.0.1` and `::1`, because Windows resolves `localhost` to `::1` first
-  and a server on one with a check on the other disagree about whether the port is free.
-- **Generated output.** `.mfe/`, `routeTree.gen.ts` and `apps/shell/public/registry.json` are not in
-  version control, so a fresh clone has neither and an editor opened on it reports errors until
-  something generates them. `pnpm run generate` is the fix.
+A fresh clone has no generated output, so an editor opened on it reports errors until something
+generates them. `pnpm run generate` is the fix.
 
 ## Where next
 

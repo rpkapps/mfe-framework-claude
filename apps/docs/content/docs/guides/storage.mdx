@@ -1,56 +1,13 @@
 ---
 title: '7. Storage'
-description: 'Scoped keys, retention, and what survives a reload, a sign-out and another user on the same browser.'
+description: 'Declare a storage key with a schema, choose who may read the value back, and fix the errors it can raise.'
 ---
 
-You want to keep a filter, a draft or a collapsed panel across a reload, and `localStorage` is
-right there. Do not use it. One browser profile carries several people over a day, and one page
-carries several containers — a <Term>container</Term> is one independently deployed piece of that
-document. Web Storage is a single flat key space shared by all of them and by the application that
-owns the page, the <Term>shell</Term>. Keys collide, the shell cannot clear yours when somebody
-signs out, and a quota failure escapes as an unhandled exception in whichever container happened to
-write last.
+Declare a key with a schema and `useStoredState` hands you the stored value and a setter. Every key
+is prefixed with your definition id, and <Term>retention</Term> decides who may read the value back
+later. You write no `localStorage` call yourself.
 
-Instead you declare a key with a schema and get back a subscribed value and a stable setter. The
-key is namespaced under your definition id, and fenced to the signed-in identity unless you say
-otherwise.
-
-<Diagram
-  src="/diagrams/storage-retention.svg"
-  alt="A declaration on the left flows through the defaults it binds to into the single key and envelope actually stored, over a table of what each retention survives."
-  caption="How a stored key is composed, and who can read it back afterwards."
->
-Three panels across the top, joined left to right by arrows; a table below; two panels at the right;
-a colour legend at the bottom.
-
-- **What the author writes** — inside a mount, so the scope is the definition:
-  `const [filters, setFilters] = useStoredState('filters', schema, { defaultValue: { status: 'open' } })`.
-  An arrow leads right.
-- **What it binds to** — the defaults are the safe answers: `storage: 'local'`, `retention: 'user'`,
-  `version: 1`. An arrow leads right.
-- **What is actually stored** — one key, one envelope. Key `operations:filters`; value
-  `{ "v": 1, "r": "user", "g": "<session generation>", "d": { "status": "open" } }`.
-- Below those: the key is `<definitionId>:<name>`, never scoped by mount token, so two mounts of one
-  definition read one record. `g` fences a user-retained record to one session generation: a record
-  written under another generation reads as absent.
-- **What survives what** — storage decides how long the browser keeps it; retention decides who may
-  read it back. Two columns, `retention: 'user'` (default) and `retention: 'browser'`. The identity
-  changes (login, logout, account, tenant): wiped / kept, and the next person here reads it. The
-  group set changes: wiped / kept. A reload: kept / kept. The tab closes, with `storage: 'session'`:
-  gone with the tab / gone with the tab. The build raises `version`: `migrate()`, or unreadable, in
-  both columns.
-- **The page's own state** — `bindHost()` and `hostStorage()`. Outside a mount, `useStoredState`
-  resolves to the reserved `@host` scope. No definition can claim that name: `@` is not a legal
-  character in a definition id.
-- **The one thing to get right** — `retention: 'browser'` opts out of the wipe. Nothing clears it,
-  which also means every user of this browser profile reads the same value. It is for a display
-  density or a collapsed panel, never for anything derived from a user's data.
-- The legend marks four colours: what an author writes, the storage boundary, the host page's own
-  scope, and the choice that can leak state between users.
-
-</Diagram>
-
-## `useStoredState(name, schema, options)`
+## Store a value: `useStoredState`
 
 ```tsx title="src/routes/storage.tsx"
 import { useStoredState } from '@company/mfe-react'
@@ -68,55 +25,50 @@ export function Filters() {
 }
 ```
 
-**The name.** A non-empty string, stable across renders. The physical key is
-`<definitionId>:<name>` — `operations:filters` — so two definitions may use the same name without
-colliding. A <Term>mount</Term> is one live instance of a definition on the page, and two mounts of
-one definition read the same record: there is no mount token in the key. Your definition id may not contain a `:`, because that is what separates the id
-from the name. `local` and `session` are separate spaces, so `operations:filters` in each is two
-different records.
+Declare the schema at module scope. The framework compares schemas by reference when two components
+bind one key. A schema built inside a component body is a new object on every render, and that
+rebinds the key each time.
 
-**The schema.** A Zod schema, declared at **module scope**. It is the single source of truth for
-what is stored and for the type you get back, and the framework compares it **by reference** when
-two components bind the same key. A schema built inside a component body is a new object every
-render, which rebinds the key on every render.
+## The options
 
-**`defaultValue`** is required, and it is validated where it is declared rather than on first use.
-It is what you read when the key is absent, and what a user-retained record resets to when the
-session is retired.
+| Option         | What it is                                                                                     | Default   |
+| -------------- | ---------------------------------------------------------------------------------------------- | --------- |
+| `name`         | A non-empty string, stable across renders. The stored key is `<definitionId>:<name>`.          | required  |
+| `schema`       | A Zod schema at module scope. It types the value and validates every read and write.           | required  |
+| `defaultValue` | What you read while the key is absent. It is validated where you declare it, not on first use. | required  |
+| `storage`      | `'local'` or `'session'`. The two are separate spaces, so one name in each is two records.     | `'local'` |
+| `retention`    | `'user'` or `'browser'`. The next section compares them.                                       | `'user'`  |
+| `version`      | An integer of 1 or more. Raise it whenever the stored shape changes.                           | `1`       |
+| `migrate`      | `migrate(value, fromVersion)`, synchronous and free of side effects.                           | none      |
 
-**The setter** takes a value or an updater function, and its identity is stable across a rebinding.
-An unreadable stored value **throws** rather than falling back to the default, so a corrupt record
-reaches an error boundary instead of looking like missing data.
+The key carries no mount token, so two mounts of one definition read one record. Your definition id
+may not contain a `:`, because the colon separates the id from the name. The setter takes a value or
+an updater function, and keeps its identity across a rebinding. An unreadable stored value throws
+rather than falling back to the default, so a corrupt record reaches an error boundary.
 
-The remaining options are `storage` (`'local'`, the default, or `'session'`), `retention`,
-`version` and `migrate`.
+## Choose a retention
 
-## `retention`: who may read it back
+Leave `retention` unset unless the value is impersonal.
 
-A stored value outlives the session that wrote it, so the question that decides whether it is safe
-to keep is who may read it back afterwards. That is what <Term>retention</Term> answers; `storage`
-decides only how long the browser keeps the value.
+| What happens                                             | `retention: 'user'` (default) | `retention: 'browser'`                  |
+| -------------------------------------------------------- | ----------------------------- | --------------------------------------- |
+| the identity changes: sign-in, sign-out, account, tenant | deleted                       | kept, and the next person here reads it |
+| the group set changes                                    | deleted                       | kept                                    |
+| a reload                                                 | kept                          | kept                                    |
+| the tab closes, with `storage: 'session'`                | gone with the tab             | gone with the tab                       |
+| the build raises `version`                               | `migrate()`, or unreadable    | `migrate()`, or unreadable              |
 
-`retention: 'user'` is the default. Every such record is stamped with the <Term>session generation</Term>:
-an opaque string the shell mints once per signed-in identity per tab and stores at
-`@host:session-generation`. Identity is stored beside it, never baked into it, and
-callers compare it for equality and never parse it. A reload of the same tab with the same identity
-reuses the generation, so the record survives. When the shell reports that the identity changed
-(login, logout, an account or tenant switch) or that the group set genuinely changed, a fresh
-generation is minted and every `retention: 'user'` record in both stores is physically removed —
-including records belonging to definitions that are not mounted. A record that survives a failed
-delete still reads as absent, because its `g` no longer matches. A generation is never reused. A
-theme change and a token refresh are not identity changes and retire nothing, and a group list that
-was only reordered is the same set and retires nothing either.
+`storage` decides how long the browser keeps a value. Retention decides who may read it back.
 
-`retention: 'browser'` opts out of all of that. The framework never clears it, **which also means
-every user of that browser profile reads the same value**.
+Each `retention: 'user'` record carries the [session generation](/docs/glossary). It is an opaque
+string, created once per signed-in identity per tab and stored at `@host:session-generation`. A
+reload of the same tab under the same identity reuses that generation, so your record survives. When
+the shell reports an identity change or a changed group set, the framework creates a new generation.
 
-<Callout type="warning" title="The rule for choosing">
-  Use `retention: 'browser'` only for genuinely impersonal state — a display density, a collapsed
-  panel, a chosen tab. Anything derived from a signed-in user's data stays on the default. The
-  default is the safe answer, so the safe answer is the one you get by not deciding.
-</Callout>
+It then deletes every `retention: 'user'` record in both stores, including records for definitions
+that are not mounted. A record that survives a failed delete still reads as absent, because its
+generation no longer matches. A generation is never reused. A theme change, a token refresh and a
+reordered group list change nothing.
 
 ```ts title="src/routes/storage.tsx"
 // Survives a sign-out, so the next person on this browser reads it.
@@ -125,7 +77,7 @@ const [draft, setDraft] = useStoredState('draft', draftSchema, {
   retention: 'browser',
 })
 
-// Dies with the tab, and is wiped on sign-out.
+// Dies with the tab, and is deleted on sign-out.
 const [visits, setVisits] = useStoredState('visits', visitsSchema, {
   defaultValue: 0,
   retention: 'user',
@@ -133,30 +85,37 @@ const [visits, setVisits] = useStoredState('visits', visitsSchema, {
 })
 ```
 
-## The `@host` scope
-
-Outside any mount — shell chrome, a boot script — `useStoredState` resolves to the reserved scope
-`@host`, and the key becomes `@host:dashboard`. The `@` reserves it: a definition id is lower-case
-letters, digits and single hyphens, so no registry entry can ever claim that name.
-
-As an App or Widget author you never reach it, and cannot: you are always inside a mount, so the
-scope is always your definition. It matters to you as the reason the shell's own records can never
-collide with yours. Reaching `@host` deliberately through the definition surface is refused:
-
-<Callout type="error" title="storage/failure">
-  @host failed to bind a storage key: expected a definition id, received the reserved host scope
-  '@host'. Use bindHost() or hostStorage() for state the host page owns; they reach the same scope
-  deliberately.
-
-**Fix.** From inside a mount, drop the scope argument and let it resolve to your definition. Only
-shell code reaches `@host`, and it does so through `bindHost()` or `hostStorage()`.
-
+<Callout type="warning" title="Choose browser retention only for impersonal state">
+  Use `retention: 'browser'` for a display density, a collapsed panel or a chosen tab. Anything
+  derived from a signed-in user's data stays on the default. The framework never clears a `browser`
+  record, so every user of that browser profile reads the same value.
 </Callout>
 
-## `useMfeStorage` for imperative access
+<Diagram
+  src="/diagrams/storage-retention.svg"
+  alt="Three boxes compose one stored key, over a table of what each retention survives."
+  caption="How a stored key is composed, and who reads it back."
+>
+Three boxes compose one stored key. A table below compares the two retentions, and two panels sit
+on the right.
 
-When you need a value outside a render — in an event handler, a loader, a cleanup — take the
-imperative handle. `get()` does not subscribe, so anything you render still uses `useStoredState`.
+- `useStoredState('filters', schema)`, marked "what the author writes". An arrow labelled "binds to"
+  leads right.
+- "What it binds to": `storage 'local'`, `retention 'user'`, `version 1`. An arrow labelled "writes"
+  leads right.
+- `operations:filters`, marked "one key, one versioned envelope".
+- "What survives what": storage keeps it, retention decides who reads it. Two columns,
+  `retention: 'user'` and `retention: 'browser'`, over five rows. The identity changes and the group
+  set changes: wiped, or kept. A reload: kept in both. The tab closes: gone with it. The build
+  raises version: `migrate()`, or unreadable.
+- "The page's own scope": `@host — bindHost(), hostStorage()`.
+- `retention: 'browser'`: nothing clears it, everyone here reads it.
+- A legend names four colours: what an author writes, the storage boundary, the host page's own
+  scope, and the choice that can leak between users.
+
+</Diagram>
+
+## Read a value outside render: `useMfeStorage`
 
 ```ts title="src/export.ts"
 import { useMfeStorage } from '@company/mfe-react'
@@ -170,16 +129,35 @@ key.remove()
 storage.clear() // only keys under the exact `operations:` prefix
 ```
 
-`get()` forces a fresh read of the browser store where `useStoredState` serves a cached snapshot,
-and an imperative write notifies the reactive subscribers of that key. `clear()` removes only the
-exact `<id>:` prefix: `acme-orders` never touches `acme-orders-legacy:`, the shell's keys, or a
-third party's. The store never removes what it did not write.
+Take this handle for an event handler, a loader or a cleanup. `get()` does not subscribe, so
+anything you render still uses `useStoredState`. `get()` also forces a fresh read of the browser
+store, where `useStoredState` serves a cached snapshot, and an imperative write notifies that key's
+subscribers.
 
-## Versioning and migration
+`clear()` removes only the exact `<id>:` prefix. A definition called `acme-orders` never touches
+`acme-orders-legacy:`, the shell's keys, or another team's. The store never removes what it did not
+write.
 
-`version` defaults to `1` and must be an integer of 1 or more. Raise it whenever the persisted shape
-changes, and declare `migrate(value, fromVersion)` — synchronous and side-effect-free — to convert
-what is already on disk.
+## The `@host` scope
+
+Outside any mount, in shell chrome or a boot script, `useStoredState` resolves to the reserved scope
+`@host`, and the key becomes `@host:dashboard`. A definition id holds only lower-case letters,
+digits and single hyphens, so no registry entry can take that name. Inside a mount you always get
+your own definition, so the shell's records can never collide with yours.
+
+<Callout type="error" title="storage/failure">
+  @host failed to bind a storage key: expected a definition id, received the reserved host scope
+  '@host'. Use bindHost() or hostStorage() for state the host page owns; they reach the same scope
+  deliberately.
+
+**Fix.** From inside a mount, drop the scope argument and let it resolve to your definition. Only
+shell code reaches `@host`, through `bindHost()` or `hostStorage()`.
+
+</Callout>
+
+## Migrate a stored value
+
+Raise `version` whenever the stored shape changes, and declare `migrate` beside it.
 
 ```ts title="src/filters.ts"
 const [filters] = useStoredState('filters', filtersSchema, {
@@ -192,25 +170,30 @@ const [filters] = useStoredState('filters', filtersSchema, {
 })
 ```
 
-A record written by a **newer** build is an error and is never overwritten. An older one without a
-`migrate` is an error. A record that is valid JSON but not a framework envelope — anything written
-before this boundary existed — is handed to `migrate(parsed, 0)`. A migration converts, validates,
-then writes, and only while the generation it started in is still in force; nothing is written when
-the conversion throws, produces an invalid value, or the session moved on.
+Four rules govern what happens next.
 
-## Size and serialization
+- A record written by a **newer** build is an error, and is never overwritten.
+- An older record with no `migrate` declared is an error.
+- A record that is valid JSON but not a framework stored record goes to `migrate(parsed, 0)`. That
+  covers anything written before this boundary existed.
+- A migration converts, validates, then writes, and only while the generation it started in still
+  holds. Nothing is written when it throws, returns an invalid value, or the session moved on.
 
-There is no framework size limit; the limit is the browser's, and it surfaces as a quota error with
-the serialized character count in the message. The value is stored with `JSON.stringify`, so store
-plain JSON. Unlike a Widget's inputs, a stored value is not screened for non-serializable types
-first: a `Date` round-trips as a string and then fails your own schema on the next read.
+## Size limits and serialization
 
-## The lint rule
+The framework sets no size limit of its own. The browser's limit reaches you as a quota error
+carrying the serialized character count. Values are stored with `JSON.stringify`, so store plain
+JSON. A stored value is not screened for non-serializable types first, so a `Date` round-trips as a
+string and then fails your own schema.
 
-`mfe/no-raw-storage` is on in the `author` preset. It reports a global reference to `localStorage`
-or `sessionStorage`, and `window.localStorage`-style member access; a shadowing local of the same
-name and a type position are not runtime access. It is off in test files only, because a storage
-test has to reach the storage it verifies.
+## The lint rule: `mfe/no-raw-storage`
+
+Replace every `localStorage` and `sessionStorage` call with `useStoredState()` or `useMfeStorage()`.
+
+The rule is on in the `author` preset. It reports a global reference to `localStorage` or
+`sessionStorage`, and `window.localStorage`-style member access. A local variable of the same name
+and a type position are not runtime access, so neither is reported. The rule is off in test files
+alone, because a storage test has to reach the storage it verifies.
 
 <Callout type="error" title="mfe/no-raw-storage">
   `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in
@@ -219,34 +202,36 @@ test has to reach the storage it verifies.
   for imperative access, both from @company/mfe-react. The storage adapter and a documented shell
   override bootstrap opt out through this rule's `allowedScopes` option.
 
-The editor also offers a suggestion: "Read and write through the MFE storage boundary: replace
-`localStorage` with `storage` from `const storage = useMfeStorage()`." It is a suggestion rather
-than a fix because it only compiles once the file binds `useMfeStorage()`.
+**Fix.** Bind the key with `useStoredState()`, or take the handle with `useMfeStorage()`.
+
+The editor offers a suggestion rather than a fix. It reads: "Read and write through the MFE storage
+boundary: replace `localStorage` with `storage` from `const storage = useMfeStorage()`." A fix would
+compile only once the file binds `useMfeStorage()`.
 
 </Callout>
 
 ## Every storage failure, and its fix
 
-All of them carry `code: 'storage/failure'` and compose as
-`<id> failed to <verb> the <area> storage key <name>: expected …, received …. <repair>` — for
-example `lab failed to write the local storage key draft: …`. The verb is one of `bind`, `read`,
-`write`, `remove`, `migrate` or `clear`. Every one is also reported to the diagnostics hub with
+Every one carries `code: 'storage/failure'`. The message composes as
+`<id> failed to <verb> the <area> storage key <name>: expected …, received …. <repair>`, for example
+`lab failed to write the local storage key draft: …`. The verb is one of `bind`, `read`, `write`,
+`remove`, `migrate` or `clear`. Each failure also reaches the diagnostics hub with
 `context: { definitionId, area, key }` before it is thrown.
 
 **Binding a key**
 
-| You see: expected / received                                                                  | Do                                                                                |
-| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `a non-empty storage key name`                                                                | "Give the key a stable name, e.g. `bind(id, { name: 'filters', schema })`."       |
-| `a definition id without a colon`                                                             | "Use the registry definition id; the colon separates the id from the key name."   |
-| `an integer schema version of 1 or more`                                                      | "Start at 1 and raise it whenever the persisted shape changes, adding migrate()." |
-| `a default matching the declared schema (…)`                                                  | "Fix defaultValue; it is validated where it is declared, not on first use."       |
-| `the same schema object every active consumer already declared` / `a different schema object` | "Declare 'lab:draft' in one shared module so every consumer agrees on schema."    |
-| `retention 'user'` / `retention 'browser'` — or a differing `version` or default              | The same repair, naming the field that differs                                    |
+| You see: expected / received                                                                  | Do                                             |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `a non-empty storage key name`                                                                | Give the key a stable name.                    |
+| `a definition id without a colon`                                                             | Use your registry definition id.               |
+| `an integer schema version of 1 or more`                                                      | Start at `1`, and raise it with a `migrate()`. |
+| `a default matching the declared schema (…)`                                                  | Fix `defaultValue` to match the schema.        |
+| `the same schema object every active consumer already declared` / `a different schema object` | Export one schema from one module.             |
+| `retention 'user'` / `retention 'browser'`, or a differing `version` or default               | Make both consumers declare the same option.   |
 
-A disagreement is always reported to the consumer that disagrees, not to whoever rendered first. The
-schema comparison is by reference, which is the whole reason the schema belongs at module scope; the
-`defaultValue` comparison is structural, so an inline object literal is fine.
+A disagreement is reported to the consumer that disagrees, not to whoever rendered first. The schema
+comparison is by reference, and that is what puts the schema at module scope. The `defaultValue`
+comparison is structural, so an inline object literal is fine.
 
 <Callout type="error" title="storage/failure, at bind">
   lab failed to bind the local storage key draft: expected the same schema object every active
@@ -260,42 +245,47 @@ consumers import.
 
 **Reading a key**
 
-| You see: expected / received                                                            | Do                                                                                                                                                       |
-| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `a record written through the framework storage boundary` / `text that is not JSON (…)` | `Remove 'lab:draft' from local storage.`                                                                                                                 |
-| `a framework envelope at version 1` / `an unversioned record (an object)`               | `Declare migrate() on 'draft' to convert it, or remove the key.`                                                                                         |
-| `the session generation to be established before a user value is read`                  | "Give the store its generation before mounting anything that reads session state."                                                                       |
-| `a stored value matching the declared schema (…)`                                       | `Raise the version of 'draft' and declare migrate(), or remove the key.`                                                                                 |
-| `version 1` / `version 2, written by a newer build`                                     | "Reload into the current build; a record from the future is never overwritten."                                                                          |
-| `version 1` / `version 2 with no migrate() declared`                                    | `Declare migrate() on 'draft', or remove the key.`                                                                                                       |
-| `local storage to be readable`                                                          | "Storage is unavailable here — private mode, blocked cookies, or a disabled store. The framework never falls back to memory or to the declared default." |
+| You see: expected / received                                                            | Do                                            |
+| --------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `a record written through the framework storage boundary` / `text that is not JSON (…)` | Remove the key.                               |
+| `a framework envelope at version 1` / `an unversioned record (an object)`               | Declare `migrate()`, or remove the key.       |
+| `the session generation to be established before a user value is read`                  | Establish the generation before mounting.     |
+| `a stored value matching the declared schema (…)`                                       | Raise `version` and declare `migrate()`.      |
+| `version 1` / `version 2, written by a newer build`                                     | Reload into the current build.                |
+| `version 1` / `version 2 with no migrate() declared`                                    | Declare `migrate()`, or remove the key.       |
+| `local storage to be readable`                                                          | Nothing to fix in code: the store is blocked. |
+
+Storage that is blocked stays blocked. Private mode, blocked cookies and a disabled store all read
+this way, and the framework never falls back to memory or to your declared default.
 
 **Migrating**
 
-| You see: received                                          | Do                                                                                |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `migrate() threw (…)`                                      | `Fix migrate() for 'draft'. The previous record is preserved.`                    |
-| `a migrated value matching the declared schema (…)` failed | `Fix migrate() for 'draft'. Nothing was overwritten.`                             |
-| `the session moved on while it ran`                        | "A retired session's data is never migrated into a new one. Nothing was written." |
+| You see: received                                          | Do                                            |
+| ---------------------------------------------------------- | --------------------------------------------- |
+| `migrate() threw (…)`                                      | Fix `migrate()`. The old record is preserved. |
+| `a migrated value matching the declared schema (…)` failed | Fix `migrate()`. Nothing was overwritten.     |
+| `the session moved on while it ran`                        | Nothing was written. Expect the default.      |
 
 **Writing a key**
 
-| You see: expected / received                                                                      | Do                                                                                                                                          |
-| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `the session generation to be established before a user value is written` / `no session in force` | "Establish the generation before mounting, or declare retention: 'browser'."                                                                |
-| `a readable current value for the functional update to apply to`                                  | `Write an explicit value to 'draft', or remove the key first: a functional update has no valid base while the stored record is unreadable.` |
-| `a value matching the declared schema (…)`                                                        | `Fix the value passed to set() for 'draft'. The stored value is unchanged.`                                                                 |
-| `a JSON-serializable value`                                                                       | "Store plain JSON; the stored value is unchanged."                                                                                          |
-| `local storage to accept 2097152 characters` / `QuotaExceededError`                               | "The store is full or blocked. Persist less, or clear this definition. The stored value is unchanged."                                      |
-| `the write to commit in the generation it started in ('…')` / `the session moved on to '…'`       | "Drop the result: work started in a retired session never commits into the new one."                                                        |
-| `to remove 'lab:draft'`                                                                           | "Retry the removal; the stored value is unchanged."                                                                                         |
+| You see: expected / received                                                                      | Do                                                       |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `the session generation to be established before a user value is written` / `no session in force` | Establish the generation, or use `retention: 'browser'`. |
+| `a readable current value for the functional update to apply to`                                  | Write an explicit value, or remove the key first.        |
+| `a value matching the declared schema (…)`                                                        | Fix the value you pass to `set()`.                       |
+| `a JSON-serializable value`                                                                       | Store plain JSON.                                        |
+| `local storage to accept 2097152 characters` / `QuotaExceededError`                               | Persist less, or clear this definition.                  |
+| `the write to commit in the generation it started in ('…')` / `the session moved on to '…'`       | Drop the result and start again.                         |
+| `to remove 'lab:draft'`                                                                           | Retry the removal.                                       |
 
 **Clearing**
 
-| You see: expected                                  | Do                                                        |
-| -------------------------------------------------- | --------------------------------------------------------- |
-| `to enumerate local storage for keys under 'lab:'` | "The framework never clears a store it cannot enumerate." |
-| `to remove 'draft'`                                | `Retry; nothing outside 'lab:' was touched.`              |
+| You see: expected                                  | Do                                         |
+| -------------------------------------------------- | ------------------------------------------ |
+| `to enumerate local storage for keys under 'lab:'` | Check that the store is readable.          |
+| `to remove 'draft'`                                | Retry. Nothing outside `lab:` was touched. |
+
+In every write and clear failure above, the stored value is unchanged.
 
 <Callout type="error" title="storage/failure, at write">
   lab failed to write the local storage key draft: expected local storage to accept 2097152
@@ -307,14 +297,26 @@ definition. The previous stored value is untouched.
 
 </Callout>
 
+## Why `localStorage` is off limits
+
+One browser profile carries several people over a day, and one page carries several containers. Web
+Storage is a single flat key space, shared by every container and by the shell. Three things follow.
+
+- Keys collide, because two teams pick the same name.
+- The shell cannot clear your keys when somebody signs out.
+- A quota failure escapes as an unhandled exception, in whichever container wrote last.
+
+The framework's keys carry your definition id and, by default, the session generation. That is what
+makes a stored value yours and nobody else's.
+
 ## Where next
 
 - [5. What you must not do](/docs/guides/what-you-must-not-do) — the rest of the shared-page rules.
 - [6. Lifecycle](/docs/guides/lifecycle) — when a binding is released, and where a storage error
   goes.
 - [4. What the shell gives you](/docs/guides/what-the-shell-gives-you) — the identity and group
-  changes that retire a session.
+  changes that end a session.
 - [Decision 21](/docs/decisions#21-storage-retention-is-named-for-who-owns-a-record-not-for-how-long-it-lives)
   — why retention is named for who owns a record.
 - [Decision 24](/docs/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)
-  — why `@host` exists and why the lint allowlist is short on purpose.
+  — why `@host` exists, and why the lint allowlist is short.
