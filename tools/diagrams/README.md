@@ -454,25 +454,26 @@ disposed (§14).
 Subtitle: "How a stored key is composed, and who reads it back." Five boxes and one table. Across
 the top, three boxes joined by arrows labelled **binds to** and **writes**: a blue
 `useStoredState('filters', schema)` ("what the author writes"), a green **What it binds to**
-("storage 'local', retention 'user', version 1") and a green `operations:filters` ("one key, one
+("storage 'local', retention 'browser', version 1") and a green `operations:filters` ("one key, one
 versioned envelope"). Below, a panel **What survives what** ("storage keeps it; retention decides
 who reads it") holds a table with two columns, `retention: 'user'` and `retention: 'browser'`,
 and five rows: the identity changes — wiped / kept; the groups change — wiped / kept; a reload —
 kept / kept; the tab closes — gone with it / gone with it; version raised — `migrate()`, or
 unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own
-scope** (`@host — bindHost(), hostStorage()`) and a red **retention: 'browser'** ("nothing clears
-it; everyone here reads it"). A legend names the four colours.
+scope** (`@host — bindHost(), hostStorage()`) and a red **retention: 'user'** ("asked for when
+the data is personal"). A legend names the four colours.
 
 Not on the figure. The key is `<definitionId>:<name>`, never scoped by mount token, so two mounts
 of one definition read one record. The stored value is an envelope —
 `{ "v": 1, "r": "user", "g": "<session generation>", "d": { … } }` — and the `g` field fences a
-user-retained record to one session generation: a record written under another generation reads
-as absent. "The tab closes" is the row for `storage: 'session'`; with `storage: 'local'` a record
-outlives the tab, subject to its retention. Outside a mount, `useStoredState` resolves to the
-reserved `@host` scope, which no definition can claim because `@` is not a legal character in a
-definition id. `retention: 'browser'` opts out of the wipe: nothing clears it, which also means
-every user of this browser profile reads the same value, so it is for a display density or a
-collapsed panel and never for anything derived from a user's data (§21).
+user-retained record to one session generation, absent on a `'browser'` record: a record written
+under another generation reads as absent. "The tab closes" is the row for `storage: 'session'`;
+with `storage: 'local'` a record outlives the tab, subject to its retention. Outside a mount,
+`useStoredState` resolves to the reserved `@host` scope, which no definition can claim because `@`
+is not a legal character in a definition id. `retention: 'browser'` is the default: a key that
+declares none is never cleared, so every user of this browser profile reads the same value, which
+suits a display density or a collapsed panel. `retention: 'user'` is the opt-in for anything
+derived from a user's data (§21).
 
 ### styling-scope
 
