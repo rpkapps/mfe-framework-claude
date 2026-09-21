@@ -32,7 +32,7 @@ import {
 
 import type { DevtoolsSide, DevtoolsTab } from '../devtools-settings.ts'
 import { devtools } from '../devtools-store.ts'
-import { dockStyle, handleSide, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
+import { dockStyle, handleSide, handleStyle, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
 import { useOverlayLayer } from './overlay-layer.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 import { RegistryTab } from './registry-tab.tsx'
@@ -111,6 +111,8 @@ function DevtoolsDock({
 
   return (
     <PortalProvider container={overlays}>
+      <ResizeHandle side={side} size={size} />
+
       <Panel
         variant="flat"
         size="sm"
@@ -120,8 +122,6 @@ function DevtoolsDock({
         style={dockStyle(side, size)}
         className={`@container fixed inset-0 z-[2147483000] rounded-none border-border shadow-2xl max-sm:!inset-0 max-sm:!h-auto max-sm:!w-auto sm:inset-auto ${EDGE_BORDER[side]}`}
       >
-        <ResizeHandle side={side} />
-
         {/* Wrapped so the list can sit in the header: `Tabs` needs an ancestor in common, not siblings. */}
         <Tabs
           selectedKey={tab}
@@ -255,7 +255,13 @@ function DevtoolsDock({
  * Pointer capture rather than window listeners: the element that started the drag keeps receiving
  * the moves, so there is nothing to register on `window` and nothing to forget to remove.
  */
-function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
+function ResizeHandle({
+  side,
+  size,
+}: {
+  readonly side: DevtoolsSide
+  readonly size: number
+}): ReactNode {
   const dragging = useRef(false)
   const horizontal = isHorizontal(side)
   const edge = handleSide(side)
@@ -270,12 +276,10 @@ function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
     [horizontal, side],
   )
 
-  // The panel already draws the line along this edge, so the handle contributes the grip and a
-  // target wider than the line — the same shape `ResizableHandle` makes, which is what a
-  // draggable edge looks like everywhere else in the application.
-  const placement = horizontal
-    ? `inset-x-0 h-1.5 cursor-row-resize ${edge === 'top' ? 'top-0' : 'bottom-0'}`
-    : `inset-y-0 w-1.5 cursor-col-resize ${edge === 'left' ? 'left-0' : 'right-0'}`
+  // The panel draws the line along this edge; the handle contributes the grip and a target wider
+  // than the line — the same shape `ResizableHandle` makes. It is `fixed` on the seam rather than
+  // a child of the panel, which clips its overflow and would cut a grip in half.
+  const placement = horizontal ? 'h-1.5 cursor-row-resize' : 'w-1.5 cursor-col-resize'
 
   return (
     <div
@@ -283,7 +287,8 @@ function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
       aria-label="Resize the developer tools"
       aria-orientation={horizontal ? 'horizontal' : 'vertical'}
       data-edge={edge}
-      className={`absolute z-10 flex touch-none items-center justify-center max-sm:hidden ${placement}`}
+      style={handleStyle(side, size)}
+      className={`fixed z-[2147483001] flex touch-none items-center justify-center max-sm:hidden ${placement}`}
       onPointerDown={event => {
         dragging.current = true
         event.currentTarget.setPointerCapture(event.pointerId)

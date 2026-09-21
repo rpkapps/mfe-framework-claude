@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { dockStyle, handleSide, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
+import { dockStyle, handleSide, handleStyle, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
 
 describe('the docked box', () => {
   it('spans the full width and takes a height when docked bottom', () => {
@@ -51,5 +51,31 @@ describe('the resize handle', () => {
   it('measures a left panel from the left edge and a right one from the right', () => {
     expect(sizeFromPointer('left', 320, 1440)).toBe(320)
     expect(sizeFromPointer('right', 320, 1440)).toBe(1120)
+  })
+})
+
+describe('the resize strip', () => {
+  it('sits on the seam the panel ends at, not on the viewport edge', () => {
+    expect(handleStyle('bottom', 420)).toMatchObject({ bottom: '420px' })
+    expect(handleStyle('right', 360)).toMatchObject({ right: '360px' })
+  })
+
+  it('spans the cross axis, so the whole seam is draggable', () => {
+    expect(handleStyle('bottom', 420)).toMatchObject({ left: 0, right: 0 })
+    expect(handleStyle('right', 360)).toMatchObject({ top: 0, bottom: 0 })
+  })
+
+  it('is pulled back by half its own thickness, so it straddles the seam', () => {
+    for (const side of SIDES) {
+      const { transform } = handleStyle(side, 300)
+      expect(transform).toMatch(isHorizontal(side) ? /translateY/ : /translateX/)
+      expect(transform).toMatch(/50%/)
+    }
+  })
+
+  it('leans into the page rather than into the panel', () => {
+    // A panel docked bottom grows upwards, so its seam is above it and the strip moves down onto it.
+    expect(handleStyle('bottom', 420).transform).toBe('translateY(50%)')
+    expect(handleStyle('top', 420).transform).toBe('translateY(-50%)')
   })
 })

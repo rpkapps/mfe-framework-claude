@@ -27,6 +27,26 @@ export function dockStyle(side: DevtoolsSide, size: number): CSSProperties {
   }
 }
 
+/**
+ * The resize strip, centred on the seam between the panel and the page rather than placed inside
+ * the panel: a `Panel` clips its own overflow, so a grip drawn within it can only ever sit to one
+ * side of the edge it is supposed to straddle.
+ */
+export function handleStyle(side: DevtoolsSide, size: number): CSSProperties {
+  const seam = `${String(size)}px`
+
+  switch (side) {
+    case 'top':
+      return { top: seam, left: 0, right: 0, transform: 'translateY(-50%)' }
+    case 'bottom':
+      return { bottom: seam, left: 0, right: 0, transform: 'translateY(50%)' }
+    case 'left':
+      return { left: seam, top: 0, bottom: 0, transform: 'translateX(-50%)' }
+    case 'right':
+      return { right: seam, top: 0, bottom: 0, transform: 'translateX(50%)' }
+  }
+}
+
 /** The size a drag to `position` implies, in px from the panel's own edge; `viewport` is that axis in full. */
 export function sizeFromPointer(side: DevtoolsSide, position: number, viewport: number): number {
   switch (side) {
