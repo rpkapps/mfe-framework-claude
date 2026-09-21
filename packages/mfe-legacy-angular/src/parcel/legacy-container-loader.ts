@@ -1,8 +1,6 @@
 /**
- * The container loader for legacy apps, implementing the host's loader port
- * with the shell's existing loading shape unchanged: register the remote under
- * the legacy app name, load `<name>/single-spa-app`, hand back the lifecycles.
- * The federation runtime is injected, so importing this module starts nothing.
+ * The container loader for legacy apps: register the remote, load `<name>/single-spa-app`,
+ * hand back the lifecycles. The federation runtime is injected, so importing starts nothing.
  */
 
 import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -28,7 +26,6 @@ export interface LegacyFederationRuntime {
   loadRemote<T>(id: string): Promise<T | null>
 }
 
-/** What a legacy container yields: the parcel lifecycles plus how to mount them. */
 export interface LegacyParcelModule {
   readonly parcelConfig: LegacyParcelConfig
   /** The legacy name, needed again as the parcel's activity name. */
@@ -38,11 +35,7 @@ export interface LegacyParcelModule {
 
 const EXPOSE_PATH = LEGACY_PARCEL_EXPOSE_NAME.replace(/^\.\//, '')
 
-/**
- * A legacy container may export its lifecycles directly or behind `default`,
- * depending on how its build wrapped the single-spa Angular helper. Both exist
- * in production and neither is worth a migration.
- */
+/** A legacy container may export its lifecycles directly or behind `default`, depending on its build. */
 function extractParcelConfig(
   moduleExports: unknown,
   entry: NeutralRegistryEntry,
@@ -68,10 +61,7 @@ function extractParcelConfig(
   })
 }
 
-/**
- * Registration is idempotent per container, which is also why changing a
- * developer override needs a reload rather than a remount.
- */
+/** Registration is idempotent per container, which is why a changed override needs a reload. */
 export function createLegacyContainerLoader(options: {
   readonly runtime: LegacyFederationRuntime
 }): ContainerLoader<LegacyParcelModule> {

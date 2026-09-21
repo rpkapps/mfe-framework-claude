@@ -1,8 +1,6 @@
 /**
- * The selection rule for entries published by the previous shell registry. It
- * is second in the table and claims only entries that do not advertise the new
- * contract at all: reinterpreting a typo in new metadata as legacy would change
- * how an app loads without anyone noticing.
+ * Claims only entries that do not advertise the new contract at all, because reinterpreting
+ * a typo in new metadata as legacy would change how an app loads unnoticed (§9).
  */
 
 import {
@@ -27,10 +25,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== ''
 }
 
-/**
- * An id is also a storage prefix and a CSS scope value, so a legacy name that
- * is not already a slug is converted deterministically.
- */
+/** An id is also a storage prefix and a CSS scope value, so a non-slug name is converted here. */
 export function deriveLegacyDefinitionId(name: string): string {
   return name
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -75,19 +70,14 @@ function readOptionalString(
   return value
 }
 
-/**
- * Register this rule *after* the rule for the new contract: the normalizer
- * walks the table in order and the first rule that claims an entry owns it,
- * including when its translation then fails.
- */
+/** Register after the rule for the new contract: the first rule that claims an entry owns it. */
 export function createLegacyAdapterRule(): AdapterSelectionRule {
   return {
     adapter: 'legacy-angular',
 
     advertises: source => {
       if (!isRecord(source)) return false
-      // An advertised new contract commits the entry to the new adapter, valid
-      // or not. This rule never inspects how well-formed that advertisement is.
+      // An advertised new contract commits the entry to the new adapter, valid or not.
       if (NEW_CONTRACT_KEY in source) return false
       // Presentation fields stay optional: a missing icon must not remove a
       // working app from the shell.

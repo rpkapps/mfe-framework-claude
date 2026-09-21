@@ -1,8 +1,6 @@
 /**
- * The removable legacy adapter: the only package that knows the legacy
- * single-spa contract, registry vocabulary and `<name>/single-spa-app` expose
- * path. Nothing else imports it, so it is deleted whole once the last legacy
- * app is migrated.
+ * The only package that knows the legacy single-spa contract, registry vocabulary and
+ * expose path, so it is deleted whole once the last legacy app is migrated.
  */
 
 export { createLegacyAdapterRule } from './registry/legacy-rule.ts'

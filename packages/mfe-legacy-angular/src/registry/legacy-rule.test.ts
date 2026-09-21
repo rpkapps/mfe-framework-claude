@@ -7,9 +7,8 @@ import { readLegacyAdapterData } from './legacy-config.ts'
 import { createLegacyAdapterRule, deriveLegacyDefinitionId } from './legacy-rule.ts'
 
 /**
- * A registry entry in the shape the legacy shell publishes, with every field
- * the old `AppConfig` carried populated. This is a contract fixture: the legacy
- * applications are not available here, so it stands in for what they publish.
+ * A registry entry in the shape the legacy shell publishes; the legacy applications are not
+ * available here, so this fixture stands in for what they publish (§9).
  */
 function legacyEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -55,12 +54,7 @@ describe('createLegacyAdapterRule advertises', () => {
     expect(claimed).toBe(true)
   })
 
-  /**
-   * The no-silent-fallback guarantee. An entry that advertises the new contract
-   * belongs to the new adapter whatever state that advertisement is in; if this
-   * rule claimed it, a typo in new metadata would quietly change how the app
-   * loads instead of failing.
-   */
+  // A typo in new metadata must fail rather than quietly change how an app loads (§9).
   describe('never claims an entry that advertises the framework contract', () => {
     const malformed: readonly (readonly [string, unknown])[] = [
       ['a contract major of the wrong type', { contractMajor: 'one' }],

@@ -10,10 +10,8 @@ import {
 } from './migration-provider.ts'
 
 /**
- * Stands in for Angular's `Router`. It is the whole surface the seam touches,
- * which is what lets the migration be verified without Angular in the
- * workspace. The legacy applications are not available here, so this encodes
- * the contract they are expected to honour rather than observing them.
+ * Stands in for Angular's `Router`: the whole surface the seam touches, which is what lets
+ * the migration be verified without Angular in the workspace (§9).
  */
 function createRouterDouble(navigation: LegacyNavigation | null = { extras: {} }): {
   readonly router: LegacyRouterPort
