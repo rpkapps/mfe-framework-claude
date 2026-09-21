@@ -1,307 +1,14 @@
 ---
 title: '5. What you must not do'
-description: 'The page is shared, so these are the moves that break the containers around you.'
+description: 'The moves that break the other containers on a shared page, what enforces each one, and the fix.'
 ---
 
-Your App or Widget does not get a page to itself. It is loaded into a document the shell already
-owns, beside other people's code, and everything global on that page — the URL, the document head,
-the style cascade, one flat Web Storage key space — is shared with every other piece on it. A
-mistake that is invisible when you run your container alone is what breaks somebody else's product
-surface at three in the afternoon.
-
-This page is the list of those mistakes, grouped by the failure each one causes. A <Term>micro-frontend</Term>
-is a piece of a page that is built, versioned and deployed on its own and loaded into a page it does
-not own at run time; a <Term>container</Term> is one such deployable, with its own build and its own
-`src/mfe.ts`; the <Term>shell</Term> is the one application on the page that is not listed in the
-registry and that mounts the others into itself. An <Term>App</Term> owns a stretch of URL and routes
-below it; a <Term>Widget</Term> owns no URL and takes props. A <Term>mount</Term> is one live
-instance of a definition on the page, with its own abort signal, Query client, storage surfaces and
-overlay root.
-
-## How each rule is enforced
-
-Several of these are checked, and several are convention. Assuming the wrong one is how a rule gets
-broken, so each rule below names its mechanism.
-
-| Mechanism  | What it is                                                                                | What you see                                                   |
-| ---------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| lint       | a rule in the `author` ESLint preset (`packages/eslint-plugin-mfe/src/configs/author.ts`) | an error in the editor and in `pnpm lint`                      |
-| build      | `pluginMfe()` — a thrown build error or a compilation diagnostic                          | the build stops, with the file, line and repair                |
-| mount      | a structured `MfeError` thrown or reported at run time                                    | the consumer's failure box, and a diagnostic                   |
-| registry   | the shell's normalizer sets the entry aside                                               | your container never appears; the rest of the page still loads |
-| convention | nothing checks it                                                                         | nothing, until it bites                                        |
-
-`pnpm boundaries` guards the framework's own package graph — its manifests and its imports — not
-`examples/`. Nothing you write is covered by it.
-
-## Two routers fighting over the URL
-
-There is one address bar and one history stack. The shell owns them, and hands each App a <Term>boundary</Term>
-— the stretch of URL assigned to that mount — together with a history object built over the shell's
-navigation bridge.
-
-**Do not call `createBrowserHistory`, and do not assign to `window.history` or its methods.**
-TanStack's `createBrowserHistory()` reassigns `window.history.pushState` and `replaceState`, so
-anything else wrapping them breaks and two routers on the page start correcting each other's URL.
-
-<Callout type="error" title="mfe/no-global-patching">
-  Patching `window.history.pushState` hijacks navigation for the whole page, so the host router and
-  the other MFEs learn about a navigation only by accident. Navigate through the framework instead:
-  `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base
-  path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
-
-**Fix.** Forward the `history` your factory received into `createRouter`, and navigate with
-`Link` and `navigate` from your own router.
-
-</Callout>
-
-Reading a global is not patching, and calling one is not patching: the rule reports assignment,
-`delete` and `defineProperty` on `globalThis.fetch`, `history.pushState`, `history.replaceState`,
-`window.history`, and `addEventListener`/`removeEventListener` on `window`, `document` or
-`globalThis`. `window.location` is covered by no rule at all — writing to it reloads the whole page
-out from under every other container, so treat it as forbidden by convention.
-
-**Do not ignore `basePath`, and do not substitute the history, the `mfe` namespace or the Query
-client.** Your router factory runs once per mount and receives all four. The framework checks the
-router it gets back, so the failure names the one-line repair instead of rendering your App at the
-wrong boundary and surfacing an hour later.
-
-<Callout type="error" title="app/invalid-base-path, at mount">
-  operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
-  unchanged as createRouter(\{ basepath \}), received "/orders". Forward the basePath your factory
-  received: createRouter(\{ basepath: basePath, … \}).
-</Callout>
-
-```ts title="src/mfe.ts"
-import { createApp, type AppRouterOptions } from '@company/mfe-react'
-import { createRouter } from '@tanstack/react-router'
-
-import { routeTree } from './routeTree.gen'
-
-function makeRouter({ basePath, history, context }: AppRouterOptions) {
-  return createRouter({
-    routeTree,
-    basepath: basePath,
-    history,
-    context: { ...context },
-    defaultPreload: 'intent',
-  })
-}
-
-export default createApp({ id: 'lab', version: '1.0.0', router: makeRouter })
-```
-
-Three more rules follow from that factory.
-
-- **Spread the context; never replace `mfe` or `queryClient`.** `RESERVED_CONTEXT_KEYS` is
-  `['mfe', 'queryClient']`. Your own top-level keys survive every framework context update; a child
-  route returning its own `mfe` from `beforeLoad` is reported in development with the repair
-  `Rename the key you return from beforeLoad in /orders/$id.` Enforced at mount
-  (`app/invalid-router`).
-- **Write your routes relative to your boundary.** `/settings`, not `/operations/settings`:
-  `basepath` resolves them under whatever boundary the shell assigned. Convention; nothing checks
-  it, because there is nothing to check — the shell claims `/`, `/$appId` and `/$appId/$` and
-  nothing else, and a definition id may not contain a `/`.
-- **A Widget does not drive the URL or the document head.** Several Widgets can be on screen at
-  once, so the last one to render would win and the tab title would flicker. The rule has one
-  message per access, and each one names the event to declare instead.
-
-<Callout type="error" title="mfe/no-widget-global-effects">
-
-A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host router,
-the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in
-this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the
-owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the
-host `BoundaryNavigator`.
-
-`document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
-would win and the tab title would flicker. Declare a title event in this Widget's `events` contract
-and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle`
-and sets what it owns.
-
-Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches
-for `document.head` changes the page for every other MFE and leaves the change behind on unmount.
-Declare an event for the value in this Widget's `events` contract and `emit` it from the render
-props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also
-what reverts it.
-
-**Fix.** Declare the event in your `events` contract and `emit` it from the render props, the way
-[2. Declaring it](/docs/guides/declaring#createwidget) describes. The consuming App receives it as
-the matching `onX` prop — `onNavigate`, `onTitle` — and acts on it with its own router and its own
-document.
-
-</Callout>
-
-The rule covers `history.pushState`/`replaceState`/`back`/`forward`/`go`, assignment to
-`document.title`, and mutation of `document.head`. It is **inert until the repository declares
-`widgetScopes`**, and this repository declares `examples/alert-panel/src/**` and
-`examples/insights/src/**`. Declare your own Widget scopes, or the rule is silently off for your
-code. Reading is not mutating: `const current = document.title` is fine.
-
-## One user reading another user's state
-
-One browser profile can hold several people over a day, and every container in the origin writes
-into one flat Web Storage key space.
-
-<Callout type="error" title="mfe/no-raw-storage">
-  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in
-  this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure
-  escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()`
-  for imperative access, both from @company/mfe-react. The storage adapter and a documented shell
-  override bootstrap opt out through this rule's `allowedScopes` option.
-
-**Fix.** `useStoredState(name, schema, { defaultValue })` for rendered state,
-`useMfeStorage()` for imperative access. Both namespace the key under your definition id and
-fence it to the signed-in identity. See [Storage](/docs/guides/storage).
-
-</Callout>
-
-The rule is off in test files only, because a storage test has to reach the storage it verifies.
-
-## Styles that leak onto the rest of the page
-
-A container compiles only the CSS for its own classes, and the build wraps that sheet in
-`@scope ([data-mfe-scope="alert-panel"]) to ([data-mfe-scope])`. The shell owns the document-level
-half: preflight, fonts, `@property`, theme variables. All of it inherits into you.
-
-| Rule                                                                        | Why                                                                                                 | Enforced by                                    | Fix                                                                                            |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| No `:root`, `:host`, `html` or `body` selector except as a leading compound | The scope root is not the document root, so the selector matches nothing                            | build — the scope plugin throws                | Style your own subtree                                                                         |
-| No `@property` and no `@font-face` in a container                           | Both register page-wide; two containers defining the same one get whichever the browser parsed last | convention                                     | Ask the shell to define it                                                                     |
-| No stylesheet entry and no `postcss.config.mjs`                             | The build produces `.mfe/styles.css` from your TSX; a second entry ships an unscoped sheet          | convention — none of the five examples has one | Write utilities and design-system components in TSX                                            |
-| No stock Tailwind colour classes (`bg-red-500`)                             | The palette is the design system's; a stock colour generates no CSS at all                          | nothing in a scaffolded container              | Use a semantic token (`bg-primary`, `text-muted-foreground`) or a palette step (`bg-blue-120`) |
-
-`@keyframes` is safe, and only because the build renames the ones your sheet defines.
-[Styling](/docs/guides/styling) has the whole picture.
-
-## A page reload on every edit
-
-React Refresh replaces a module in place only when it can prove **every** export is a component.
-One exported hook, constant, schema or factory beside them makes the module unable to accept an
-update; the update propagates to whatever imported it until it reaches an entry, which accepts
-nothing — so the page reloads and every piece of state on it is lost. The failure is silent.
-
-`src/mfe.ts` exports a definition and usually its contract, so it can never be a refresh boundary.
-Keep the render function in its own module, where every export is a component.
-
-```ts title="src/mfe.ts"
-export const alertPanelContract = { inputs, events }
-export const alertPanel = createWidget({
-  id: 'alert-panel',
-  ...alertPanelContract,
-  render: AlertPanel,
-})
-```
-
-```tsx title="src/alert-panel.tsx"
-// Every export in this module is a component, so an edit here hot-updates.
-export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
-  return <section>{inputs.alertId}</section>
-}
-```
-
-Convention only: there is no `react-refresh/only-export-components` rule in this repository. The
-tool that answers the question is `pnpm hmr:probe <file>`, which reports `hot-updated in place` or
-`(the page reloaded)`.
-
-The same symptom has a second cause. **Generated output must be a pure function of its sources.**
-The build regenerates before every compilation and your container imports what it generates, so a
-timestamp, a counter or a random id in a generated module makes every compilation a source change
-and the container rebuilds forever — which reaches you as hot updates that fail to fetch and a page
-that reloads. That binds you only if you write your own generator. What binds every author is the
-banner on each generated file: **never edit generated output.**
-
-## A Widget that remounts on every render
-
-`lazyWidget(id)` returns a component, and a component's identity is what React uses to decide
-whether it is looking at the same element. One built during render is a new identity every pass.
-
-<Callout type="error" title="mfe/stable-definitions">
-  `lazyWidget` (`lazyWidget` from @company/mfe-react) has to be called once, at module scope.
-  Calling it in the body of `Panel` mints a new definition identity on every call, so the host
-  treats it as a different MFE: it unmounts the running instance, throws away its state and
-  refetches its data. Move the `lazyWidget(...)` call to the top level of this module and reference
-  the resulting definition here.
-</Callout>
-
-```ts title="src/widgets.ts"
-/** Built at module scope because one built during render remounts the Widget every pass. */
-import { lazyWidget } from '@company/mfe-react'
-
-import { events, inputs } from '@example/alert-panel/contracts'
-
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
-```
-
-The rule guards `createApp`, `createWidget` and `lazyWidget`, resolves aliased and namespaced
-imports through the scope manager, and reports a call inside a function body, an arrow function, a
-class static block or a class field initialiser. The one exception is a host that learns which
-Widgets exist only when it reads the registry: it uses `DynamicWidget`, which takes the id as a prop
-and builds nothing during render.
-
-## A contract nobody can check
-
-The build reads your definition **without running it**, so a host can render a catalogue entry
-before anything is fetched. That is only possible if the declarations are literals.
-
-| Rule                                                                                                     | Enforced by                                                                           | Fix                                                                                                      |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| A definition id is lower-case letters, digits and single hyphens (for example `alert-panel`)             | the scaffold, build, mount (`registry/invalid-descriptor`) and registry (quarantined) | Rename. The id is also a storage prefix and a CSS scope value                                            |
-| Two definitions may not share an id                                                                      | build inside one container; **both** entries quarantined across the registry          | Rename one                                                                                               |
-| An event name is lower camel case                                                                        | build and mount                                                                       | Consumers subscribe as `onYourEvent`, so the name has to survive that mapping                            |
-| An input may not be named `key`, `ref`, `fallback` or `onSomething`                                      | build and mount                                                                       | Rename the input; those names belong to the host                                                         |
-| Inputs and event payloads must be JSON-serializable                                                      | mount, before schema validation                                                       | Send data. A consumer that needs a callback subscribes to an event instead                               |
-| A Widget declares both `inputs` and `events`                                                             | build                                                                                 | `inputs: z.object({})` when it takes none                                                                |
-| The schema must be readable without running the module                                                   | build                                                                                 | Declare it inline in `src/mfe.ts`, or as an exported top-level const in another module of this container |
-| `title`, `description`, `version`, `tags` and `id` are inline literals; `icon` is an imported identifier | build                                                                                 | They are read at build time and published in the registry, so they cannot be computed                    |
-| A container exports at most one App, and every definition is exported from the entry                     | build                                                                                 | Split them into separate containers; add `export`                                                        |
-
-A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one. That
-one is convention, stated in the type.
-
-## Failures that only appear in production
-
-**Do not reach past a package's entry point.**
-
-<Callout type="error" title="@typescript-eslint/no-restricted-imports">
-  Public API boundary: @company/mfe-core is a framework-internal contract package whose shape
-  changes with the framework, not with its public API. Everything an MFE author needs, types
-  included, is re-exported from @company/mfe-react.
-
-**Fix.** Import from `@company/mfe-react`. If what you need is not exported there, that is a
-framework bug worth filing.
-
-</Callout>
-
-Also blocked for authors: `@company/mfe-host` ("An MFE that imports it can mount itself outside the
-host lifecycle and will leak on unmount"), `react-dom/client` ("the host owns the React root"),
-`single-spa`, `@module-federation/*`, and — including type imports — `@opentelemetry/*` and
-`@grafana/faro*`. Zustand, Redux, MobX, Jotai and `@tanstack/store` are explicitly allowed: an MFE
-owns its own state.
-
-**Do not reference an asset with a bare relative string.** `'./icons/gear.svg'` in a string literal
-resolves against the shell document, not against your container. It works in development, where the
-two are on the same host, and breaks the first time they are not. The build reports it as a
-diagnostic with the repair: import the asset, or write
-`new URL('./icons/gear.svg', import.meta.url).href`.
-
-**Do not use `console.log`.** The rule applies to authors, not only to framework packages:
-`no-console` is `['error', { allow: ['warn', 'error'] }]` in both presets, so `log`, `info`, `debug`
-and `table` are errors in a container's `src/`. Use `useTelemetry()` — `telemetry.info(…)`,
-`telemetry.error(err)` — which carries your definition id, version and build hash automatically.
-
-**Do not rely on async context across an `await` for tracing.** Trace parentage is a synchronous
-active-span slot, so a span created after an `await` inside `startActiveSpan` loses the ambient
-context and becomes a root with a fresh trace id. The framework produces **no parent** rather than a
-wrong one, because a wrong parent corrupts a production trace tree silently. Convention, documented
-on the type: create child spans synchronously, or start them with `startSpan` and correlate by an
-explicit attribute.
-
-**When you genuinely must suppress a rule**, the suppression names one rule, sits on the line it
-applies to, and carries a specific reason. "Noisy" is not a reason, and a check is never disabled
-across a package to accommodate one exception.
-
-## The rules, end to end
+Your <Term>container</Term> loads into a document the shell already owns, beside other people's
+code. Everything global on that page is shared: the URL, the document head, the style cascade and
+one flat Web Storage key space. This page lists the moves that break it, each with the message you
+will see and the repair.
+
+## The rules, at a glance
 
 | Rule                                                                                               | Enforced by                                                         | Fix                                        |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
@@ -324,20 +31,292 @@ across a package to accommodate one exception.
 | No `console.log`                                                                                   | lint `no-console`                                                   | `useTelemetry()`                           |
 | No async context across `await` in tracing                                                         | convention                                                          | Create child spans synchronously           |
 
-The isolation boundaries these rules defend — URL, styles, storage, network, errors and shared
-singletons — are drawn on the design map, in the
-[`isolation-boundaries` diagram](/docs/design#the-isolation-boundaries).
+Five mechanisms appear in that column.
+
+- **Lint** — a rule in the `author` ESLint preset. You see it in the editor and in `pnpm lint`.
+- **Build** — `pluginMfe()` stops the build, with the file, the line and the repair.
+- **Mount** — a structured `MfeError` at run time, which the consumer sees as a failure box.
+- **Registry** — the shell sets your entry aside. Your container never appears, and every other
+  container still loads.
+- **Convention** — nothing checks it.
+
+`pnpm boundaries` guards the framework's own package graph, not `examples/`. Nothing you write is
+covered by it.
+
+## Do not create your own router or history
+
+```ts title="src/mfe.ts"
+import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { createRouter } from '@tanstack/react-router'
+
+import { routeTree } from './routeTree.gen'
+
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({
+    routeTree,
+    basepath: basePath,
+    history,
+    context: { ...context },
+    defaultPreload: 'intent',
+  })
+}
+
+export default createApp({ id: 'lab', version: '1.0.0', router: makeRouter })
+```
+
+There is one address bar and one history stack, and the shell owns both. Your factory runs once per
+mount and receives the boundary, its history, the `mfe` namespace and the Query client. Forward all
+four. TanStack's `createBrowserHistory()` reassigns `window.history.pushState`, so two routers on
+the page start correcting each other's URL.
+
+<Callout type="error" title="mfe/no-global-patching">
+  Patching `window.history.pushState` hijacks navigation for the whole page, so the host router and
+  the other MFEs learn about a navigation only by accident. Navigate through the framework instead:
+  `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base
+  path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
+
+**Fix.** Forward the `history` your factory received, and navigate with your own router.
+
+</Callout>
+
+The rule reports assignment, `delete` and `defineProperty` on `globalThis.fetch`,
+`history.pushState`, `history.replaceState`, `window.history`, and `addEventListener` or
+`removeEventListener` on `window`, `document` or `globalThis`. Reading or calling a global is not
+patching. No rule covers `window.location`, and writing to it reloads the page out from under every
+other container, so treat that as forbidden.
+
+<Callout type="error" title="app/invalid-base-path">
+
+operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
+unchanged as createRouter(\{ basepath \}), received "/orders". Forward the basePath your factory
+received: createRouter(\{ basepath: basePath, … \}).
+
+**Fix.** Pass the `basePath` argument straight into `createRouter({ basepath })`.
+
+</Callout>
+
+Three more rules follow from that factory.
+
+- **Spread the context. Never replace `mfe` or `queryClient`.** `RESERVED_CONTEXT_KEYS` is
+  `['mfe', 'queryClient']`. Your own top-level keys survive every framework context update. A child
+  route that returns its own `mfe` from `beforeLoad` is reported in development. The repair reads
+  `Rename the key you return from beforeLoad in /orders/$id.` Enforced at mount
+  (`app/invalid-router`).
+- **Write your routes relative to your boundary.** Use `/settings`, not `/operations/settings`.
+  `basepath` resolves them under whatever boundary the shell assigned. Nothing checks this, because
+  the shell claims `/`, `/$appId` and `/$appId/$` and nothing else, and a definition id may not
+  contain a `/`.
+- **A Widget does not drive the URL or the document head.** Several Widgets can be on screen at
+  once. The last one to render would win, and the tab title would flicker. The rule has one message
+  per access, and each names the event to declare instead.
+
+<Callout type="error" title="mfe/no-widget-global-effects">
+
+A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host router,
+the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in
+this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the
+owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the
+host `BoundaryNavigator`.
+
+`document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
+would win and the tab title would flicker. Declare a title event in this Widget's `events` contract
+and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle`
+and sets what it owns.
+
+Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches
+for `document.head` changes the page for every other MFE and leaves the change behind on unmount.
+Declare an event for the value in this Widget's `events` contract and `emit` it from the render
+props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also
+what reverts it.
+
+**Fix.** Declare the event in your `events` contract and `emit` it from the render props
+([2. Declaring it](/docs/guides/declaring#declare-a-widget)). The App receives it as `onNavigate`,
+`onTitle` or another `onX` prop, and acts on it.
+
+</Callout>
+
+The rule covers `history.pushState`, `replaceState`, `back`, `forward` and `go`, assignment to
+`document.title`, and mutation of `document.head`. It is **inert until the repository declares
+`widgetScopes`**, which here are `examples/alert-panel/src/**` and `examples/insights/src/**`.
+Declare your own Widget scopes, or the rule is silently off for your code. Reading is not mutating,
+so `const current = document.title` is fine.
+
+## Do not read another user's state
+
+Put every stored value behind `useStoredState` or `useMfeStorage`. One browser profile can hold
+several people over a day, and every container in the origin writes into one flat key space.
+
+<Callout type="error" title="mfe/no-raw-storage">
+  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in
+  this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure
+  escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()`
+  for imperative access, both from @company/mfe-react. The storage adapter and a documented shell
+  override bootstrap opt out through this rule's `allowedScopes` option.
+
+**Fix.** Use `useStoredState(name, schema, { defaultValue })` for rendered state, and
+`useMfeStorage()` for imperative access. Both namespace the key under your definition id
+([7. Storage](/docs/guides/storage)).
+
+</Callout>
+
+The rule is off in test files only, because a storage test has to reach the storage it verifies.
+
+## Do not ship unscoped styles
+
+Write your styles as utilities and design-system components in TSX, and ship no stylesheet of your
+own. The build compiles the CSS for your classes and wraps it in
+`@scope ([data-mfe-scope="alert-panel"]) to ([data-mfe-scope])`. The shell owns the document half:
+preflight, fonts, `@property` and the theme variables, all of which inherit into you.
+
+| Rule                                                                        | Why                                                                                                 | Enforced by                                    | Fix                                                                                            |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| No `:root`, `:host`, `html` or `body` selector except as a leading compound | The scope root is not the document root, so the selector matches nothing                            | build — the scope plugin throws                | Style your own subtree                                                                         |
+| No `@property` and no `@font-face` in a container                           | Both register page-wide; two containers defining the same one get whichever the browser parsed last | convention                                     | Ask the shell to define it                                                                     |
+| No stylesheet entry and no `postcss.config.mjs`                             | The build produces `.mfe/styles.css` from your TSX; a second entry ships an unscoped sheet          | convention — none of the five examples has one | Write utilities and design-system components in TSX                                            |
+| No stock Tailwind colour classes (`bg-red-500`)                             | The palette is the design system's; a stock colour generates no CSS at all                          | nothing in a scaffolded container              | Use a semantic token (`bg-primary`, `text-muted-foreground`) or a palette step (`bg-blue-120`) |
+
+`@keyframes` is safe, because the build renames the ones your sheet defines.
+[8. Styling](/docs/guides/styling) has the whole picture.
+
+## Do not break hot updates
+
+Keep the render function in its own module, where every export is a component. React Refresh
+replaces a module in place only when it can prove **every** export is a component. One exported
+hook, constant, schema or factory beside them makes the module unable to accept an update. The
+update then travels to whatever imported it, until it reaches an entry that accepts nothing. The
+page reloads, every piece of state on it is lost, and nothing reports why.
+
+| Module                | What it exports                          | What an edit to it does |
+| --------------------- | ---------------------------------------- | ----------------------- |
+| `src/mfe.ts`          | the definition, and usually its contract | reloads the page        |
+| `src/alert-panel.tsx` | the render function, and nothing else    | hot-updates in place    |
+
+```ts title="src/mfe.ts"
+export const alertPanelContract = { inputs, events }
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+This is convention: no `react-refresh/only-export-components` rule runs here. The tool that answers
+the question is `pnpm hmr:probe <file>`, which reports `hot-updated in place` or
+`(the page reloaded)`.
+
+**Generated output must be a pure function of its sources.** The build regenerates before every
+compilation, and your container imports what it generates. A timestamp, a counter or a random id in
+a generated module makes every compilation a source change, so the container rebuilds forever. You
+see the same symptom: hot updates that fail to fetch, and a page that reloads. That rule binds you
+only if you write your own generator. What binds every author is the banner on each generated file:
+**never edit generated output**.
+
+## Do not call `lazyWidget` during render
+
+```ts title="src/widgets.ts"
+/** Built at module scope because one built during render remounts the Widget every pass. */
+import { lazyWidget } from '@company/mfe-react'
+
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+`lazyWidget(id)` returns a component, and a component's identity is what React uses to decide
+whether it is looking at the same element. One built during render is a new identity every pass.
+
+<Callout type="error" title="mfe/stable-definitions">
+  `lazyWidget` (`lazyWidget` from @company/mfe-react) has to be called once, at module scope.
+  Calling it in the body of `Panel` mints a new definition identity on every call, so the host
+  treats it as a different MFE: it unmounts the running instance, throws away its state and
+  refetches its data. Move the `lazyWidget(...)` call to the top level of this module and reference
+  the resulting definition here.
+
+**Fix.** Move the call to the top level of the module, as above.
+
+</Callout>
+
+The rule guards `createApp`, `createWidget` and `lazyWidget`. It reports a call inside a function
+body, an arrow function, a class static block or a class field initialiser. A host that learns
+which Widgets exist only from the registry cannot obey it. That host uses `DynamicWidget`, which
+takes the id as a prop and builds nothing during render.
+
+## Do not hand-write a contract
+
+Declare the contract and every presentation field as literals in `src/mfe.ts`. The build reads your
+definition **without running it**, so a host can render a catalogue entry before anything is
+fetched. That is only possible if the declarations are literals.
+
+| Rule                                                                                                     | Enforced by                                                                           | Fix                                                                                                      |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| A definition id is lower-case letters, digits and single hyphens (for example `alert-panel`)             | the scaffold, build, mount (`registry/invalid-descriptor`) and registry (quarantined) | Rename. The id is also a storage prefix and a CSS scope value                                            |
+| Two definitions may not share an id                                                                      | build inside one container; **both** entries quarantined across the registry          | Rename one                                                                                               |
+| An event name is lower camel case                                                                        | build and mount                                                                       | Consumers subscribe as `onYourEvent`, so the name has to survive that mapping                            |
+| An input may not be named `key`, `ref`, `fallback` or `onSomething`                                      | build and mount                                                                       | Rename the input; those names belong to the host                                                         |
+| Inputs and event payloads must be JSON-serializable                                                      | mount, before schema validation                                                       | Send data. A consumer that needs a callback subscribes to an event instead                               |
+| A Widget declares both `inputs` and `events`                                                             | build                                                                                 | `inputs: z.object({})` when it takes none                                                                |
+| The schema must be readable without running the module                                                   | build                                                                                 | Declare it inline in `src/mfe.ts`, or as an exported top-level const in another module of this container |
+| `title`, `description`, `version`, `tags` and `id` are inline literals; `icon` is an imported identifier | build                                                                                 | They are read at build time and published in the registry, so they cannot be computed                    |
+| A container exports at most one App, and every definition is exported from the entry                     | build                                                                                 | Split them into separate containers; add `export`                                                        |
+
+A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one. That
+one is convention, stated in the type.
+
+## Do not import past a package's entry point
+
+Import from `@company/mfe-react`, and from nothing else in the framework.
+
+<Callout type="error" title="@typescript-eslint/no-restricted-imports">
+  Public API boundary: @company/mfe-core is a framework-internal contract package whose shape
+  changes with the framework, not with its public API. Everything an MFE author needs, types
+  included, is re-exported from @company/mfe-react.
+
+**Fix.** Import from `@company/mfe-react`. If what you need is not exported there, that is a
+framework bug worth filing.
+
+</Callout>
+
+Also blocked for authors:
+
+- `@company/mfe-host` — "An MFE that imports it can mount itself outside the host lifecycle and
+  will leak on unmount".
+- `react-dom/client` — "the host owns the React root".
+- `single-spa` and `@module-federation/*`.
+- `@opentelemetry/*` and `@grafana/faro*`, type imports included.
+
+Zustand, Redux, MobX, Jotai and `@tanstack/store` are allowed, because an MFE owns its own state.
+
+**Do not reference an asset with a bare relative string.** `'./icons/gear.svg'` in a string literal
+resolves against the shell document, not against your container. It works in development, where the
+two share a host, and breaks the first time they do not. The build reports it with the repair:
+import the asset, or write `new URL('./icons/gear.svg', import.meta.url).href`.
+
+## Do not hide failures from diagnostics
+
+**Do not use `console.log`.** `no-console` is `['error', { allow: ['warn', 'error'] }]` in both
+presets. In a container's `src/`, that makes `log`, `info`, `debug` and `table` errors. Use
+`telemetry.info(…)` and `telemetry.error(err)` from `useTelemetry()`, which carry your definition
+id, version and build hash.
+
+**Do not rely on async context across an `await` for tracing**. A span created after an `await`
+inside `startActiveSpan` becomes a root with a fresh trace id. You get no parent rather than a
+wrong one, because a wrong parent corrupts a production trace tree silently. Start child spans
+synchronously, or use `startSpan` and correlate by an explicit attribute.
+
+**When you must suppress a rule**, the suppression names one rule, sits on the line it applies to,
+and carries a specific reason. "Noisy" is not a reason. A check is never disabled across a package
+to accommodate one exception.
+
+These rules defend six boundaries: URL, styles, storage, network, errors and shared singletons. The
+design map draws them in the
+[`isolation-boundaries` diagram](/docs/design#the-six-isolation-boundaries).
 
 ## Where next
 
-- [6. Lifecycle](/docs/guides/lifecycle) — when each mount-time check runs, and what the consumer
-  sees when one fails.
+- [6. Lifecycle](/docs/guides/lifecycle) — when each mount-time check runs, and what fails.
 - [7. Storage](/docs/guides/storage) — the boundary `mfe/no-raw-storage` sends you to.
 - [8. Styling](/docs/guides/styling) — the scoped stylesheet and the palette.
 - [Decision 1](/docs/decisions#1-the-boundary-history-is-built-by-hand-because-createbrowserhistory-patches-globals)
-  and
-  [Decision 3](/docs/decisions#3-the-pinned-router-exposes-enough-state-to-validate-the-entry-contract)
-  — why the history is built by hand and why the router can be validated at all.
-- [Decision 15](/docs/decisions#15-a-host-composing-the-registry-cannot-call-lazywidget) and
-  [Decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
-  — the two rules whose reasons are hardest to guess from the symptom.
+  — why the history is built by hand.
+- [Decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
+  — why one edit hot-updates and another reloads the page.
