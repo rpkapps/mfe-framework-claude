@@ -297,6 +297,9 @@ export function createScene(name) {
       sharp = false,
       strokeWidth = 2,
       opacity = 100,
+      // `top` puts the bound label under the shape's top edge instead of on its middle,
+      // which is what leaves room for a subtitle under a tile's name.
+      valign = 'middle',
     } = options
 
     const id = options.id ?? identify(type)
@@ -323,7 +326,7 @@ export function createScene(name) {
         id: `${id}-label`,
         type: 'text',
         x: x + (w - width) / 2,
-        y: y + (h - height) / 2,
+        y: valign === 'top' ? y + BOUND_TEXT_PADDING : y + (h - height) / 2,
         width,
         height,
         opacity,
@@ -332,7 +335,7 @@ export function createScene(name) {
         fontSize: size,
         fontFamily: family,
         textAlign: 'center',
-        verticalAlign: 'middle',
+        verticalAlign: valign,
         containerId: id,
         autoResize: false,
         lineHeight: LINE_HEIGHT,

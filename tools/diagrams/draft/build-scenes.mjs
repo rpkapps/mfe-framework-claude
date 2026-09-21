@@ -1,87 +1,141 @@
 #!/usr/bin/env node
 /**
- * How the ten scenes in `tools/diagrams/scenes/` were first drafted. The `.excalidraw` files
- * are the source of truth from here on: edit one on excalidraw.com, save it back and run
- * `pnpm diagrams:render`. Re-running this script overwrites them.
+ * The eleven scenes in `tools/diagrams/scenes/`, laid out on one grid, in one palette and
+ * under one text budget:
  *
  *   node tools/diagrams/draft/build-scenes.mjs
+ *
+ * Re-running it reproduces every committed scene byte for byte, so this file and the
+ * `.excalidraw` files never drift apart. The `.excalidraw` files stay what the render reads;
+ * a scene edited on excalidraw.com is edited back into this script too.
+ *
+ * `node tools/diagrams/check-text-budget.mjs` is what holds a box to a name of four words and
+ * one subtitle of eight.
  */
 
 import { createScene, FILL, FONT, LEGEND_LABELS, measureText, STROKE } from './scene-builder.mjs'
 
-/** A framed area with its heading at the top left, rather than a label centred in the middle. */
-function panel(scene, options) {
-  const { x, y, w, h, heading, caption, fill = FILL.none, dashed = false, size = 17 } = options
-  const frame = scene.box({ x, y, w, h, fill, dashed })
+const PANEL_HEADING = 17
+const PANEL_CAPTION = 13
+const SUBTITLE = 12
 
-  for (const [body, textSize] of [
-    [heading, size],
-    [caption, 13],
-  ]) {
+/** Throws while drafting rather than clipping in the SVG. */
+function fits(available, entries) {
+  for (const [body, size, family = FONT.hand] of entries) {
     if (body === undefined) continue
-    const width = measureText(body, textSize, FONT.hand).width
-    if (width > w - 24) {
+    const width = measureText(body, size, family).width
+    if (width > available) {
       throw new Error(
-        `the panel text ${JSON.stringify(body)} is ${Math.ceil(width)}px wide in a ${String(w)}px panel`,
+        `the text ${JSON.stringify(body)} is ${Math.ceil(width)}px wide in ${Math.floor(available)}px`,
       )
     }
   }
+}
+
+/** A framed area: a heading at its top left, and at most one line under it. */
+function panel(scene, options) {
+  const {
+    x,
+    y,
+    w,
+    h,
+    heading,
+    caption,
+    fill = FILL.none,
+    dashed = false,
+    size = PANEL_HEADING,
+  } = options
+
+  const frame = scene.box({ x, y, w, h, fill, dashed })
+  fits(w - 28, [
+    [heading, size],
+    [caption, PANEL_CAPTION],
+  ])
 
   if (heading !== undefined) scene.text({ x: x + 14, y: y + 12, text: heading, size })
   if (caption !== undefined) {
-    scene.text({ x: x + 14, y: y + 16 + size * 1.25, text: caption, size: 13, color: STROKE.muted })
+    scene.text({
+      x: x + 14,
+      y: y + 16 + size * 1.25,
+      text: caption,
+      size: PANEL_CAPTION,
+      color: STROKE.muted,
+    })
   }
   return frame
+}
+
+/**
+ * A box: a name of at most four words, bound inside it, and at most one subtitle of at most
+ * eight under the name. Nothing else goes in a box.
+ */
+function tile(scene, options) {
+  const {
+    x,
+    y,
+    w,
+    name,
+    subtitle,
+    fill = FILL.none,
+    stroke = STROKE.ink,
+    dashed = false,
+    mono = false,
+    subtitleMono = false,
+    size = 15,
+  } = options
+  const h = options.h ?? (subtitle === undefined ? 40 : 56)
+  const subtitleFamily = subtitleMono ? FONT.mono : FONT.hand
+
+  fits(w - 18, [[subtitle, SUBTITLE, subtitleFamily]])
+
+  const box = scene.box({
+    x,
+    y,
+    w,
+    h,
+    fill,
+    stroke,
+    dashed,
+    label: name,
+    size,
+    family: mono ? FONT.mono : FONT.hand,
+    valign: subtitle === undefined ? 'middle' : 'top',
+  })
+
+  if (subtitle !== undefined) {
+    scene.text({
+      x: x + w / 2,
+      y: y + 9 + size * 1.25,
+      text: subtitle,
+      size: SUBTITLE,
+      family: subtitleFamily,
+      color: STROKE.muted,
+      align: 'center',
+    })
+  }
+  return box
 }
 
 /** A file or a module: the name as it is spelled on disk, in the mono face. */
 function file(scene, options) {
-  return scene.box({ h: 38, size: 13, family: FONT.mono, fill: FILL.generated, ...options })
+  return tile(scene, { mono: true, size: 13, fill: FILL.generated, ...options })
 }
 
-/** A line of body text; every scene sets its size and colour the same way. */
-function note(scene, x, y, body, options = {}) {
-  return scene.text({ x, y, text: body, size: 13, color: STROKE.muted, ...options })
+/** An error code from the closed union; always red, always alone in its box. */
+function code(scene, options) {
+  return tile(scene, { mono: true, size: 12, h: 38, fill: FILL.failure, ...options })
 }
 
-/** Body text inside a panel, which is dark because it is content rather than a caption. */
-function body(scene, x, y, text, options = {}) {
-  return scene.text({ x, y, text, size: 12.5, color: STROKE.ink, ...options })
-}
-
-/** A block of code or of file contents, in the mono face Excalidraw also embeds. */
-function code(scene, x, y, text, size = 11.5) {
-  return scene.text({ x, y, text, size, family: FONT.mono })
-}
-
-function legendEntries(...keys) {
-  return keys.map(key => ({ fill: FILL[key], label: LEGEND_LABELS[key] }))
-}
-
-/** One numbered step of a sequence: the number, what happens, and the call that does it. */
-function step(scene, options) {
-  const { x, y, w, n, heading, detail, hint, fill = FILL.none, h = 92 } = options
-  const frame = scene.box({ x, y, w, h, fill })
-  scene.ellipse({
-    x: x + 14,
-    y: y + h / 2 - 16,
-    w: 32,
-    h: 32,
-    fill: FILL.page,
-    label: String(n),
-    size: 14,
-  })
-  scene.text({ x: x + 58, y: y + 12, text: heading, size: 15 })
-  if (detail !== undefined) code(scene, x + 58, y + 36, detail, 13)
-  if (hint !== undefined) note(scene, x + 58, y + 58, hint, { size: 12.5 })
-  return frame
+/** `['shell']` takes the shared wording; `['shell', 'the host']` overrides it. */
+function swatches(...entries) {
+  return entries.map(([key, label]) => ({ fill: FILL[key], label: label ?? LEGEND_LABELS[key] }))
 }
 
 /** The dot that marks something an author writes or imports. */
 function authored(scene, shape) {
   scene.ellipse({
-    x: shape.x + shape.width - 24,
-    y: shape.y + 9,
+    x: shape.x + shape.width - 26,
+    y: shape.y + shape.height / 2 - 8,
     w: 15,
     h: 15,
     fill: FILL.storage,
@@ -94,135 +148,134 @@ function authored(scene, shape) {
 
 async function systemAtRest() {
   const scene = createScene('system-at-rest')
-  scene.title(
-    'system-at-rest',
-    'What is deployed where, before anyone opens the page. Nothing is running yet.',
-  )
+  scene.title('system-at-rest', 'What is deployed where, before anyone opens the page.')
 
   const shell = panel(scene, {
     x: 0,
     y: 110,
-    w: 340,
-    h: 250,
+    w: 300,
+    h: 210,
     fill: FILL.shell,
     heading: 'The shell origin',
-    caption: 'the host; dev: http://localhost:3000',
+    caption: 'dev: http://localhost:3000',
   })
-  file(scene, { x: 18, y: 172, w: 304, label: 'index.html', fill: FILL.shell })
-  file(scene, { x: 18, y: 218, w: 304, label: 'the shell bundle', fill: FILL.shell })
-  const registry = file(scene, { x: 18, y: 264, w: 304, label: 'registry.json' })
-  note(scene, 18, 308, 'one record per definition:\nid, container, manifestUrl', { size: 12 })
+  file(scene, { x: 18, y: 176, w: 264, name: 'index.html', fill: FILL.shell })
+  const registry = file(scene, {
+    x: 18,
+    y: 230,
+    w: 264,
+    name: 'registry.json',
+    subtitle: 'one record per definition',
+  })
 
-  const containers = [
-    { heading: 'operations — an App', port: 3001, y: 110 },
-    { heading: 'alert-panel — one Widget', port: 3003, y: 290 },
-    { heading: 'insights — four Widgets', port: 3004, y: 470 },
+  const origins = panel(scene, {
+    x: 410,
+    y: 110,
+    w: 330,
+    h: 272,
+    fill: FILL.container,
+    heading: 'Three container origins',
+    caption: 'each on its own origin',
+  })
+  const originTiles = [
+    ['operations', 'an App — dev :3001'],
+    ['alert-panel', 'one Widget — dev :3003'],
+    ['insights', 'four Widgets — dev :3004'],
   ]
-
-  const frames = []
-  let operationsConfig = null
-
-  for (const entry of containers) {
-    scene.group(() => {
-      frames.push(
-        panel(scene, {
-          x: 560,
-          y: entry.y,
-          w: 430,
-          h: 160,
-          fill: FILL.container,
-          heading: entry.heading,
-          caption: `its own origin; dev: http://localhost:${String(entry.port)}`,
-        }),
-      )
-      file(scene, { x: 574, y: entry.y + 66, w: 196, label: 'mf-manifest.json' })
-      file(scene, { x: 778, y: entry.y + 66, w: 196, label: 'remoteEntry.js' })
-      file(scene, { x: 574, y: entry.y + 110, w: 196, label: 'styles.css' })
-      const config = file(scene, { x: 778, y: entry.y + 110, w: 196, label: 'runtime-config.json' })
-      operationsConfig ??= config
+  originTiles.forEach(([name, subtitle], position) => {
+    file(scene, {
+      x: 428,
+      y: 176 + position * 66,
+      w: 294,
+      name,
+      subtitle,
+      fill: FILL.container,
     })
-  }
+  })
+
+  const published = panel(scene, {
+    x: 820,
+    y: 110,
+    w: 290,
+    h: 272,
+    heading: 'Every container publishes',
+    caption: 'the same four files each time',
+  })
+  const files = ['mf-manifest.json', 'remoteEntry.js', 'styles.css', 'runtime-config.json']
+  let runtimeConfig = null
+  files.forEach((name, position) => {
+    const emitted = file(scene, { x: 838, y: 176 + position * 48, w: 254, name })
+    if (name === 'runtime-config.json') runtimeConfig = emitted
+  })
 
   const api = panel(scene, {
-    x: 1080,
-    y: 300,
-    w: 330,
-    h: 160,
+    x: 1180,
+    y: 420,
+    w: 260,
+    h: 120,
     fill: FILL.network,
     heading: 'The API',
     caption: 'dev: http://localhost:3010',
   })
-  file(scene, { x: 1098, y: 366, w: 294, label: 'GET /api/assets', fill: FILL.network })
+  file(scene, { x: 1198, y: 486, w: 224, name: 'GET /api/assets', fill: FILL.network })
 
-  const page = panel(scene, {
+  const page = tile(scene, {
     x: 0,
-    y: 470,
-    w: 470,
-    h: 170,
+    y: 430,
+    w: 390,
+    h: 64,
     fill: FILL.page,
     dashed: true,
-    heading: 'The browser page',
+    name: 'The browser page',
+    subtitle: 'one document, from the shell origin',
   })
-  note(
-    scene,
-    14,
-    512,
-    'One document, served from the shell\n' +
-      'origin. Every container above is fetched\n' +
-      'into this one page: its chunks, its\n' +
-      'stylesheet and its configuration.',
-  )
 
   scene.arrow({
-    from: { shape: registry, side: 'right', at: 0.4 },
-    to: { shape: frames[0], side: 'left', at: 0.8 },
+    from: { shape: registry, side: 'right' },
+    to: { shape: origins, side: 'left', at: 0.35 },
     dotted: true,
     color: STROKE.muted,
     label: 'manifestUrl',
-    labelOffset: -22,
+    labelOffset: -30,
+    labelDx: 10,
   })
   scene.arrow({
-    from: { shape: registry, side: 'right', at: 0.6 },
-    to: { shape: frames[1], side: 'left', at: 0.45 },
+    from: { shape: origins, side: 'right', at: 0.5 },
+    to: { shape: published, side: 'left', at: 0.5 },
     dotted: true,
     color: STROKE.muted,
+    label: 'publishes',
+    labelOffset: -20,
   })
   scene.arrow({
-    from: { shape: registry, side: 'right', at: 0.8 },
-    to: { shape: frames[2], side: 'left', at: 0.2 },
+    from: { shape: runtimeConfig, side: 'bottom', at: 0.7 },
+    to: { shape: api, side: 'top', at: 0.3 },
     dotted: true,
-    color: STROKE.muted,
+    color: STROKE.blue,
+    label: 'names the API',
+    labelDx: -42,
+    labelOffset: 20,
   })
-
   scene.arrow({
-    from: { shape: page, side: 'top', at: 0.25 },
+    from: { shape: page, side: 'top', at: 0.3 },
     to: { shape: shell, side: 'bottom', at: 0.3 },
     dashed: true,
+    label: 'served from',
+    labelDx: 80,
   })
-  note(scene, 140, 400, 'served from', { size: 14 })
-
   scene.arrow({
-    from: { shape: operationsConfig, side: 'right', at: 0.5 },
-    to: { shape: api, side: 'left', at: 0.25 },
-    color: STROKE.blue,
-    dotted: true,
+    from: { shape: published, side: 'bottom', at: 0.3 },
+    to: { shape: page, side: 'right', at: 0.4 },
+    dashed: true,
+    color: STROKE.muted,
+    label: 'fetched into',
+    labelOffset: -18,
   })
-  note(
-    scene,
-    1100,
-    170,
-    'runtime-config.json names the API.\n' +
-      '#mfe/fetch resolves a request against it\n' +
-      'and attaches the session token to the\n' +
-      'origins declared { api: true }, and to\n' +
-      'no others.',
-    { color: STROKE.blue },
-  )
 
   scene.legend({
-    x: 1080,
-    y: 490,
-    entries: legendEntries('shell', 'container', 'generated', 'network', 'page'),
+    x: 1180,
+    y: 150,
+    entries: swatches(['shell'], ['container'], ['generated'], ['network'], ['page']),
   })
 
   return scene.write()
@@ -232,536 +285,312 @@ async function systemAtRest() {
 
 async function bootToMount() {
   const scene = createScene('boot-to-mount')
-  scene.title(
-    'boot-to-mount',
-    'Page load to a rendered App, in the order the code runs, with the branches that fail.',
+  scene.title('boot-to-mount', 'Page load to a rendered App, in the order the code runs.')
+
+  scene.text({
+    x: 0,
+    y: 106,
+    text: 'In the shell — apps/shell/src/boot.tsx',
+    size: 15,
+    color: STROKE.muted,
+  })
+  scene.text({
+    x: 470,
+    y: 106,
+    text: 'In the framework — @company/mfe-react',
+    size: 15,
+    color: STROKE.muted,
+  })
+
+  const shellSteps = [
+    ['1. The document boots', 'apps/shell/src/boot.tsx'],
+    ['2. Diagnostics, then session', 'installShellAuth({ tokens, diagnostics })'],
+    ['3. The registry arrives', "await fetch('/registry.json')"],
+    ['4. Runtime, then normalization', 'createMfeRuntime, then normalizeRegistry'],
+  ].map(([name, subtitle], position) =>
+    tile(scene, {
+      x: 0,
+      y: 145 + position * 102,
+      w: 420,
+      h: 62,
+      name,
+      subtitle,
+      subtitleMono: true,
+    }),
   )
 
-  const columns = [
-    {
-      x: 0,
-      heading: 'In the shell — apps/shell/src/boot.tsx',
-      steps: [
-        {
-          n: 1,
-          heading: 'The document boots',
-          detail: 'src/boot.tsx',
-          hint: 'index.html has already set the theme, before first paint',
-        },
-        {
-          n: 2,
-          heading: 'The diagnostics hub is built first',
-          detail: 'new DiagnosticsHub([telemetryDiagnosticsSink(t)])',
-          hint: 'the runtime adopts this hub rather than making one',
-        },
-        {
-          n: 3,
-          heading: 'The shell installs the page’s one session',
-          detail: 'installShellAuth({ tokens, diagnostics })',
-          hint: 'before any remote is registered',
-        },
-        {
-          n: 4,
-          heading: 'The registry is fetched',
-          detail: "await fetch('/registry.json')",
-          hint: 'a registry that fails to load is a diagnostic, not a crash',
-        },
-        {
-          n: 5,
-          heading: 'The runtime is assembled',
-          detail: 'createMfeRuntime({ registryEntries, loader })',
-          hint: 'developer overrides are read before anything registers',
-        },
-        {
-          n: 6,
-          heading: 'Every entry is normalized on its own',
-          detail: 'normalizeRegistry: accepted, or quarantined',
-          hint: 'one malformed entry loses only itself',
-        },
-      ],
-    },
-    {
-      x: 560,
-      heading: 'In the framework — @company/mfe-react',
-      steps: [
-        {
-          n: 7,
-          heading: 'The URL picks the boundary',
-          detail: '/operations/wells matches the shell route /$appId',
-          hint: 'a definition id is the only path the shell claims',
-        },
-        {
-          n: 8,
-          heading: 'The boundary hands the page over',
-          detail: "<AppHost appId='operations' basePath='/operations'>",
-          hint: 'below this the shell renders nothing of its own',
-        },
-        {
-          n: 9,
-          heading: 'The container is loaded, once',
-          detail: "registerRemotes, then loadRemote('operations/app')",
-          hint: 'one load per container, shared by every waiter',
-        },
-        {
-          n: 10,
-          heading: 'The mount is made by the effect that ends it',
-          detail: 'useOwnedMount(() => createMount({ ... }))',
-          hint: 'token, overlay root, telemetry, Query client, storage',
-        },
-        {
-          n: 11,
-          heading: 'The factory runs once, and is checked',
-          detail: 'createRouter({ basepath: basePath, history })',
-          hint: 'basepath through unchanged; the supplied history itself',
-        },
-        {
-          n: 12,
-          heading: 'The App is on the page',
-          detail: 'MfeScopeRoot, StyleRoot, RouterProvider',
-          hint: 'the App owns every URL below its boundary',
-        },
-      ],
-    },
-  ]
+  const frameworkSteps = [
+    ['5. URL picks the boundary', "<AppHost appId='operations' basePath='/operations'>"],
+    ['6. The container loads once', "loadRemote('operations/app')"],
+    ['7. The App renders', 'useOwnedMount, then RouterProvider'],
+  ].map(([name, subtitle], position) =>
+    tile(scene, {
+      x: 470,
+      y: 145 + position * 102,
+      w: 420,
+      h: 62,
+      name,
+      subtitle,
+      subtitleMono: true,
+    }),
+  )
 
-  const boxes = []
-  for (const column of columns) {
-    scene.text({ x: column.x, y: 100, text: column.heading, size: 16, color: STROKE.muted })
-    const made = []
-    column.steps.forEach((entry, position) => {
-      made.push(step(scene, { ...entry, x: column.x, y: 140 + position * 122, w: 470 }))
-    })
-    for (let index = 0; index < made.length - 1; index += 1) {
+  for (const column of [shellSteps, frameworkSteps]) {
+    for (let index = 0; index < column.length - 1; index += 1) {
       scene.arrow({
-        from: { shape: made[index], side: 'bottom', at: 0.08 },
-        to: { shape: made[index + 1], side: 'top', at: 0.08 },
         gap: 5,
+        from: { shape: column[index], side: 'bottom', at: 0.12 },
+        to: { shape: column[index + 1], side: 'top', at: 0.12 },
       })
     }
-    boxes.push(made)
   }
 
   scene.arrow({
-    from: { shape: boxes[0][5], side: 'right', at: 0.2 },
-    to: { shape: boxes[1][0], side: 'left', at: 0.5 },
-    gap: 10,
+    from: { shape: shellSteps[3], side: 'right', at: 0.5 },
+    to: { shape: frameworkSteps[0], side: 'left', at: 0.5 },
     via: [
-      [516, 786],
-      [516, 186],
+      [445, 482],
+      [445, 176],
     ],
   })
 
   const loadFailures = panel(scene, {
-    x: 1130,
-    y: 140,
-    w: 310,
-    h: 210,
+    x: 1000,
+    y: 130,
+    w: 330,
+    h: 196,
     dashed: true,
-    heading: 'When step 9 fails',
-    size: 15,
+    heading: 'When step 6 fails',
   })
-  file(scene, { x: 1146, y: 186, w: 278, label: 'load/manifest-failure', fill: FILL.failure })
-  file(scene, { x: 1146, y: 236, w: 278, label: 'load/entry-failure', fill: FILL.failure })
-  file(scene, { x: 1146, y: 286, w: 278, label: 'registry/invalid-descriptor', fill: FILL.failure })
+  ;['load/manifest-failure', 'load/entry-failure', 'registry/invalid-descriptor'].forEach(
+    (name, position) => code(scene, { x: 1018, y: 186 + position * 44, w: 294, name }),
+  )
 
   const routerFailures = panel(scene, {
-    x: 1130,
-    y: 400,
-    w: 310,
-    h: 160,
+    x: 1000,
+    y: 356,
+    w: 330,
+    h: 152,
     dashed: true,
-    heading: 'When step 11 fails',
-    size: 15,
+    heading: 'When step 7 fails',
+    caption: 'caught, and drawn with a Retry',
   })
-  file(scene, { x: 1146, y: 446, w: 278, label: 'app/invalid-base-path', fill: FILL.failure })
-  file(scene, { x: 1146, y: 496, w: 278, label: 'app/invalid-router', fill: FILL.failure })
-
-  const fallback = panel(scene, {
-    x: 1130,
-    y: 620,
-    w: 310,
-    h: 250,
-    fill: FILL.page,
-    heading: 'What the page shows',
-    size: 16,
-  })
-  body(
-    scene,
-    1146,
-    662,
-    '“operations could not be loaded”,\n' +
-      'the message the error carries, its\n' +
-      'code, and a Retry button that makes\n' +
-      'a genuinely fresh attempt.\n\n' +
-      'The chrome stays. Every other App\n' +
-      'stays reachable. One boundary is\n' +
-      'the whole cost of the failure.',
+  ;['app/invalid-base-path', 'app/invalid-router'].forEach((name, position) =>
+    code(scene, { x: 1018, y: 412 + position * 44, w: 294, name }),
   )
 
   scene.arrow({
-    from: { shape: loadFailures, side: 'left', at: 0.92 },
-    to: { shape: fallback, side: 'left', at: 0.08 },
-    gap: 6,
-    via: [
-      [1098, 333],
-      [1098, 634],
-    ],
-    color: STROKE.red,
-  })
-  scene.arrow({
-    from: { shape: routerFailures, side: 'bottom', at: 0.8 },
-    to: { shape: fallback, side: 'top', at: 0.8 },
-    color: STROKE.red,
-  })
-
-  scene.arrow({
-    from: { shape: boxes[1][2], side: 'right', at: 0.5 },
-    to: { shape: loadFailures, side: 'left', at: 0.8 },
-    color: STROKE.red,
+    from: { shape: frameworkSteps[1], side: 'right', at: 0.5 },
+    to: { shape: loadFailures, side: 'left', at: 0.5 },
     dashed: true,
+    color: STROKE.red,
+    label: 'thrown',
+    labelOffset: -18,
   })
   scene.arrow({
-    from: { shape: boxes[1][4], side: 'right', at: 0.5 },
-    to: { shape: routerFailures, side: 'left', at: 0.8 },
-    color: STROKE.red,
+    from: { shape: frameworkSteps[2], side: 'right', at: 0.5 },
+    to: { shape: routerFailures, side: 'left', at: 0.5 },
     dashed: true,
+    color: STROKE.red,
+    label: 'thrown',
+    labelOffset: -18,
   })
 
   return scene.write()
 }
 
-/* -------------------------------------------------------------------------- 3. layers */
+/* ------------------------------------------------------------------------- 3. layers */
 
 async function layers() {
   const scene = createScene('layers')
-  scene.title(
-    'layers',
-    'The packages, which way the imports point, and which of them an author ever sees.',
-  )
+  scene.title('layers', 'The packages, which way the imports point, and who sees them.')
 
   panel(scene, {
     x: 0,
     y: 110,
-    w: 660,
-    h: 620,
+    w: 620,
+    h: 420,
     dashed: true,
     heading: 'In the browser',
     caption: 'an arrow points at what a package depends on',
   })
 
-  const shell = scene.box({
-    x: 40,
+  const shell = file(scene, {
+    x: 30,
     y: 180,
-    w: 260,
-    h: 58,
+    w: 250,
+    h: 44,
+    name: 'apps/shell',
     fill: FILL.shell,
-    label: 'apps/shell',
-    family: FONT.mono,
-    size: 15,
   })
-  const container = scene.box({
-    x: 360,
+  const operations = file(scene, {
+    x: 330,
     y: 180,
-    w: 260,
-    h: 58,
+    w: 250,
+    h: 44,
+    name: 'examples/operations',
     fill: FILL.container,
-    label: 'examples/operations',
-    family: FONT.mono,
-    size: 13,
   })
-  authored(scene, container)
+  const react = file(scene, {
+    x: 30,
+    y: 280,
+    w: 250,
+    h: 44,
+    name: '@company/mfe-react',
+    fill: FILL.none,
+  })
+  const legacy = file(scene, {
+    x: 330,
+    y: 280,
+    w: 250,
+    h: 44,
+    name: '@company/mfe-legacy-angular',
+    fill: FILL.none,
+  })
+  const host = file(scene, {
+    x: 180,
+    y: 380,
+    w: 250,
+    h: 44,
+    name: '@company/mfe-host',
+    fill: FILL.none,
+  })
+  const core = file(scene, {
+    x: 180,
+    y: 460,
+    w: 250,
+    h: 44,
+    name: '@company/mfe-core',
+    fill: FILL.none,
+  })
 
-  const react = scene.box({
-    x: 40,
-    y: 310,
-    w: 260,
-    h: 58,
-    label: '@company/mfe-react',
-    family: FONT.mono,
-    size: 13,
-  })
+  authored(scene, operations)
   authored(scene, react)
-  const angular = scene.box({
-    x: 360,
-    y: 310,
-    w: 260,
-    h: 58,
-    label: '@company/mfe-legacy-angular',
-    family: FONT.mono,
-    size: 12,
-  })
-  const host = scene.box({
-    x: 200,
-    y: 450,
-    w: 260,
-    h: 58,
-    label: '@company/mfe-host',
-    family: FONT.mono,
-    size: 13,
-  })
-  const core = scene.box({
-    x: 200,
-    y: 580,
-    w: 260,
-    h: 58,
-    label: '@company/mfe-core',
-    family: FONT.mono,
-    size: 13,
-  })
 
+  scene.arrow({ from: { shape: shell, side: 'bottom' }, to: { shape: react, side: 'top' } })
   scene.arrow({
-    from: { shape: shell, side: 'bottom', at: 0.5 },
-    to: { shape: react, side: 'top', at: 0.5 },
+    from: { shape: operations, side: 'bottom', at: 0.3 },
+    to: { shape: react, side: 'top', at: 0.75 },
   })
   scene.arrow({
-    from: { shape: container, side: 'bottom', at: 0.3 },
-    to: { shape: react, side: 'top', at: 0.9 },
-  })
-  scene.arrow({
-    from: { shape: react, side: 'bottom', at: 0.5 },
+    from: { shape: react, side: 'bottom', at: 0.7 },
     to: { shape: host, side: 'top', at: 0.25 },
   })
   scene.arrow({
-    from: { shape: angular, side: 'bottom', at: 0.5 },
+    from: { shape: legacy, side: 'bottom', at: 0.3 },
     to: { shape: host, side: 'top', at: 0.75 },
   })
-  scene.arrow({
-    from: { shape: host, side: 'bottom', at: 0.5 },
-    to: { shape: core, side: 'top', at: 0.5 },
-  })
+  scene.arrow({ from: { shape: host, side: 'bottom' }, to: { shape: core, side: 'top' } })
 
-  note(
-    scene,
-    40,
-    656,
-    'pnpm boundaries reads the imports and the manifests, so no arrow\n' +
-      'can be reversed by editing a package.json. Neither mfe-core nor\n' +
-      'mfe-host may import React, a router or Module Federation.',
-  )
+  scene.text({
+    x: 0,
+    y: 552,
+    text: 'beside the DAG: @company/create-mfe, @company/eslint-plugin-mfe, @company/mfe-devtools',
+    size: 12.5,
+    family: FONT.mono,
+    color: STROKE.muted,
+  })
 
   panel(scene, {
-    x: 720,
+    x: 690,
     y: 110,
-    w: 720,
-    h: 440,
+    w: 630,
+    h: 420,
     dashed: true,
     heading: 'At build time',
-    caption: 'one entry in the container’s rsbuild.config.ts',
+    caption: "one entry in the container's rsbuild.config.ts",
+  })
+  const plugin = file(scene, {
+    x: 720,
+    y: 270,
+    w: 250,
+    h: 56,
+    name: '@company/mfe-rspack',
+    subtitle: 'pluginMfe()',
+    subtitleMono: true,
   })
 
-  const plugin = scene.box({
-    x: 750,
-    y: 185,
-    w: 300,
-    h: 110,
-    fill: FILL.generated,
-    label: '@company/mfe-rspack\npluginMfe()',
-    family: FONT.mono,
-    size: 13,
-  })
-  note(
-    scene,
-    750,
-    310,
-    'discovery, the generated\nmodules, the federation\noptions and the container’s\nown scoped stylesheet',
-    {
-      size: 12.5,
-    },
+  const generated = ['#mfe/config', '#mfe/fetch', '#mfe/meta', '.mfe/entries/', '.mfe/styles.css']
+  const generatedTiles = generated.map((name, position) =>
+    file(scene, { x: 1060, y: 200 + position * 52, w: 240, h: 40, name }),
   )
-
-  const generated = [
-    '#mfe/config',
-    '#mfe/fetch',
-    '#mfe/meta',
-    '.mfe/entries/container.ts',
-    '.mfe/entries/app.ts',
-    '.mfe/mfe-registry.json',
-    '.mfe/styles.css',
-  ]
-  const generatedBoxes = generated.map((name, position) =>
-    file(scene, { x: 1140, y: 180 + position * 48, w: 290, label: name }),
-  )
-  authored(scene, generatedBoxes[0])
-  authored(scene, generatedBoxes[1])
+  authored(scene, generatedTiles[0])
+  authored(scene, generatedTiles[1])
 
   scene.arrow({
-    from: { shape: plugin, side: 'right', at: 0.5 },
-    to: { shape: generatedBoxes[3], side: 'left', at: 0.5 },
+    from: { shape: plugin, side: 'right' },
+    to: { shape: generatedTiles[2], side: 'left' },
     label: 'generates',
-    labelOffset: -32,
+    labelOffset: -20,
   })
-
-  panel(scene, { x: 720, y: 580, w: 720, h: 150, dashed: true, heading: 'Beside the DAG' })
-  scene.box({
-    x: 740,
-    y: 626,
-    w: 210,
-    h: 50,
-    label: '@company/create-mfe',
-    family: FONT.mono,
-    size: 11.5,
-  })
-  code(scene, 740, 682, 'pnpm create @company/mfe <dir>', 11)
-  scene.box({
-    x: 970,
-    y: 626,
-    w: 230,
-    h: 50,
-    label: '@company/eslint-plugin-mfe',
-    family: FONT.mono,
-    size: 11.5,
-  })
-  note(scene, 970, 682, 'the author and framework presets', { size: 12 })
-  scene.box({
-    x: 1220,
-    y: 626,
-    w: 210,
-    h: 50,
-    label: '@company/mfe-devtools',
-    family: FONT.mono,
-    size: 11.5,
-  })
-  note(scene, 1220, 682, 'in every build, gated on one key', { size: 12 })
 
   scene.legend({
     x: 0,
-    y: 770,
+    y: 600,
     heading: 'What the colours and the dot mean',
-    entries: [
-      { fill: FILL.shell, label: LEGEND_LABELS.shell },
-      { fill: FILL.container, label: 'a container an author owns' },
-      { fill: FILL.generated, label: LEGEND_LABELS.generated },
-      { fill: FILL.none, label: 'a framework package, invisible from a container' },
-      { fill: FILL.storage, label: 'the dot: an author writes this, or imports it' },
-    ],
+    entries: swatches(
+      ['shell'],
+      ['container', 'a container an author owns'],
+      ['generated'],
+      ['none', 'a framework package'],
+    ),
   })
+  scene.ellipse({
+    x: 0,
+    y: 720,
+    w: 16,
+    h: 16,
+    fill: FILL.storage,
+    stroke: STROKE.green,
+    strokeWidth: 1,
+  })
+  scene.text({ x: 28, y: 720, text: 'the dot: an author writes this, or imports it', size: 14 })
 
   return scene.write()
 }
 
-/* ------------------------------------------------------------- 4. isolation-boundaries */
+/* ----------------------------------------------------------- 4. isolation-boundaries */
 
 async function isolationBoundaries() {
   const scene = createScene('isolation-boundaries')
-  scene.title(
-    'isolation-boundaries',
-    'Six boundaries between one mounted container and the rest of the page.',
+  scene.title('isolation-boundaries', 'Six boundaries between one mounted container and the page.')
+
+  const mount = tile(scene, {
+    x: 490,
+    y: 330,
+    w: 340,
+    h: 84,
+    fill: FILL.container,
+    name: 'One mount',
+    size: 17,
+    subtitle: 'one token, one basePath, one scope root',
+  })
+
+  const boundaries = [
+    ['URL', 'basePath into createRouter; boundary history', 0, 140],
+    ['Styles', '@scope per definition; the shell owns preflight', 480, 140],
+    ['Storage', '<definitionId>:<name>; retention decides who reads', 960, 140],
+    ['Network', '#mfe/fetch; the token only to declared origins', 0, 590],
+    ['Errors', 'one MfeError code, into the DiagnosticsHub', 480, 590],
+    ['Shared singletons', 'one copy per page; shareStrategy loaded-first', 960, 590],
+  ].map(([name, subtitle, x, y]) =>
+    tile(scene, { x, y, w: 360, h: 72, fill: FILL.page, name, subtitle }),
   )
 
-  const centre = panel(scene, {
-    x: 470,
-    y: 390,
-    w: 460,
-    h: 140,
-    fill: FILL.container,
-    heading: 'One mount of the operations App',
-    caption: 'its mount token, its basePath, its own scope root',
-  })
-  body(scene, 484, 478, 'Everything around it is a seam the framework owns.')
-
-  const around = [
-    {
-      x: 0,
-      y: 110,
-      heading: 'URL',
-      lines:
-        'basePath is assigned by the host and passed\n' +
-        'straight through to createRouter({ basepath }).\n\n' +
-        'The history is built over the navigation bridge\n' +
-        'by createBoundaryHistory, never by\n' +
-        'createBrowserHistory, which reassigns\n' +
-        'window.history.pushState for everyone.',
-      from: { side: 'left', at: 0.25 },
-      to: { side: 'right', at: 0.5 },
-    },
-    {
-      x: 490,
-      y: 110,
-      heading: 'Styles',
-      lines:
-        'The container ships only the utilities for its\n' +
-        'own classes, wrapped by the build in\n' +
-        '@scope ([data-mfe-scope="operations"])\n' +
-        '  to ([data-mfe-scope]).\n\n' +
-        'The shell keeps the document half: preflight,\n' +
-        'the fonts, @property, the theme variables.',
-      from: { side: 'top', at: 0.5 },
-      to: { side: 'bottom', at: 0.5 },
-    },
-    {
-      x: 980,
-      y: 110,
-      heading: 'Storage',
-      lines:
-        'Every record goes through the storage\n' +
-        'boundary, under the key <definitionId>:<name>.\n\n' +
-        "retention: 'user' is the default, and is wiped\n" +
-        'when the identity or the group set changes.\n' +
-        'State the page owns rather than any definition\n' +
-        'goes in the reserved @host scope.',
-      from: { side: 'right', at: 0.25 },
-      to: { side: 'left', at: 0.5 },
-    },
-    {
-      x: 0,
-      y: 600,
-      heading: 'Network',
-      lines:
-        'The generated #mfe/fetch resolves a relative\n' +
-        'request against the base URL that\n' +
-        'runtime-config.json supplied, and attaches the\n' +
-        'shell’s session token to the origins declared\n' +
-        '{ api: true }: an exact scheme, host and port\n' +
-        'set, with no wildcards and no substrings.',
-      from: { side: 'left', at: 0.75 },
-      to: { side: 'right', at: 0.5 },
-    },
-    {
-      x: 490,
-      y: 600,
-      heading: 'Errors',
-      lines:
-        'Every failure is an MfeError carrying a code\n' +
-        'from a closed union, the definition id, the\n' +
-        'operation and the repair to make.\n\n' +
-        'It reaches the shell’s DiagnosticsHub, which\n' +
-        'forwards it to telemetry. A failed mount costs\n' +
-        'its own boundary and nothing else.',
-      from: { side: 'bottom', at: 0.5 },
-      to: { side: 'top', at: 0.5 },
-    },
-    {
-      x: 980,
-      y: 600,
-      heading: 'Shared singletons',
-      lines:
-        'react, react-dom, @tanstack/react-router,\n' +
-        '@tanstack/react-query and @company/mfe-*\n' +
-        'resolve once per page, through the Module\n' +
-        'Federation share scope.\n\n' +
-        "The host declares shareStrategy: 'loaded-first',\n" +
-        'so one unreachable manifest cannot take the\n' +
-        'whole page down with it.',
-      from: { side: 'right', at: 0.75 },
-      to: { side: 'left', at: 0.5 },
-    },
+  const seams = [
+    [0, 'top', 0.1, 'bottom', 0.85],
+    [1, 'top', 0.5, 'bottom', 0.5],
+    [2, 'top', 0.9, 'bottom', 0.15],
+    [3, 'bottom', 0.1, 'top', 0.85],
+    [4, 'bottom', 0.5, 'top', 0.5],
+    [5, 'bottom', 0.9, 'top', 0.15],
   ]
-
-  for (const entry of around) {
-    const frame = panel(scene, {
-      x: entry.x,
-      y: entry.y,
-      w: 430,
-      h: 230,
-      fill: FILL.page,
-      heading: entry.heading,
-    })
-    body(scene, entry.x + 14, entry.y + 46, entry.lines, { size: 12 })
+  for (const [index, fromSide, fromAt, toSide, toAt] of seams) {
     scene.arrow({
-      from: { shape: centre, side: entry.from.side, at: entry.from.at },
-      to: { shape: frame, side: entry.to.side, at: entry.to.at },
-      color: STROKE.muted,
+      from: { shape: mount, side: fromSide, at: fromAt },
+      to: { shape: boundaries[index], side: toSide, at: toAt },
       dashed: true,
+      color: STROKE.muted,
     })
   }
 
@@ -772,384 +601,216 @@ async function isolationBoundaries() {
 
 async function appVsWidget() {
   const scene = createScene('app-vs-widget')
-  scene.title('app-vs-widget', 'Apps take URLs. Widgets take props. The URL is the whole test.')
+  scene.title('app-vs-widget', 'Apps take URLs. Widgets take props. The URL decides.')
 
   const question = scene.diamond({
     x: 450,
-    y: 110,
-    w: 480,
-    h: 150,
+    y: 120,
+    w: 420,
+    h: 170,
     fill: FILL.page,
-    label: 'Can this surface be\naddressed by a URL?',
-    size: 15,
+    label: 'Addressable\nby a URL?',
+    size: 16,
   })
 
   const app = panel(scene, {
-    x: 0,
-    y: 330,
-    w: 660,
-    h: 450,
+    x: 40,
+    y: 350,
+    w: 560,
+    h: 354,
     fill: FILL.container,
     heading: 'Yes — it is an App',
-    caption: 'routable, independently deployable, one URL boundary each',
+    caption: 'routable, independently deployable',
   })
   const widget = panel(scene, {
     x: 720,
-    y: 330,
-    w: 700,
-    h: 450,
+    y: 350,
+    w: 560,
+    h: 354,
     fill: FILL.container,
     heading: 'No — it is a Widget',
-    caption: 'non-routable, mounted by whoever renders it, many per page',
+    caption: 'non-routable, many per page',
   })
 
+  const appTiles = [
+    'https://shell.example/operations/wells',
+    "createApp({ id: 'operations', router })",
+    'createRouter({ basepath: basePath })',
+    "mfeRoute({ appId: 'reports' })",
+  ].map((name, position) =>
+    tile(scene, {
+      x: 60,
+      y: 416 + position * 72,
+      w: 520,
+      h: 44,
+      name,
+      mono: true,
+      size: 12.5,
+      fill: FILL.page,
+    }),
+  )
+
+  const widgetTiles = [
+    "createWidget({ id: 'alert-panel' })",
+    "lazyWidget('alert-panel', { contract })",
+    '<AlertPanel alertId={id} onAcknowledged={ack} />',
+    '<DynamicWidget widgetId={id} {...inputs} />',
+  ].map((name, position) =>
+    tile(scene, {
+      x: 740,
+      y: 416 + position * 72,
+      w: 520,
+      h: 44,
+      name,
+      mono: true,
+      size: 12.5,
+      fill: FILL.page,
+    }),
+  )
+
   scene.arrow({
-    from: { shape: question, side: 'bottom', at: 0.3 },
+    from: { shape: question, side: 'bottom', at: 0.25 },
     to: { shape: app, side: 'top', at: 0.55 },
     label: 'yes',
     labelOffset: -18,
-    labelDx: -34,
   })
   scene.arrow({
-    from: { shape: question, side: 'bottom', at: 0.7 },
-    to: { shape: widget, side: 'top', at: 0.3 },
+    from: { shape: question, side: 'bottom', at: 0.75 },
+    to: { shape: widget, side: 'top', at: 0.45 },
     label: 'no',
     labelOffset: -18,
-    labelDx: 34,
   })
 
-  const url = scene.box({
-    x: 20,
-    y: 400,
-    w: 620,
-    h: 44,
-    fill: FILL.page,
-    label: 'https://shell.example/operations/wells/reduced-dls',
-    family: FONT.mono,
-    size: 13,
-  })
-  body(scene, 20, 450, 'the shell owns /operations; the App owns everything after it', { size: 12 })
-
-  const appEntry = file(scene, {
-    x: 20,
-    y: 486,
-    w: 620,
-    label: "createApp({ id: 'operations', version, router })",
-    fill: FILL.shell,
-  })
-  body(scene, 20, 528, 'one call in src/mfe.ts; router is a factory, called once per mount', {
-    size: 12,
-  })
-
-  const appRoutes = scene.box({
-    x: 20,
-    y: 562,
-    w: 620,
-    h: 54,
-    label: 'the App’s own TanStack route tree',
-    size: 15,
-  })
-  body(scene, 20, 622, 'basepath makes every route, Link and navigate relative to the boundary', {
-    size: 12,
-  })
-
-  const nested = file(scene, {
-    x: 20,
-    y: 656,
-    w: 620,
-    label: "mfeRoute({ appId: 'reports' }) at /reports/$",
-    fill: FILL.shell,
-  })
-  body(
-    scene,
-    20,
-    700,
-    'An App delegates a nested App at a splat route. boundaryAboveSplat strips\n' +
-      'the remainder, so reports is mounted at /operations/reports and never\n' +
-      'learns whether it was reached on its own or inside another App.',
-    { size: 12 },
-  )
-
-  const widgetEntry = file(scene, {
-    x: 740,
-    y: 400,
-    w: 660,
-    label: "createWidget({ id: 'alert-panel', inputs, events, render })",
-    fill: FILL.shell,
-  })
-  body(scene, 740, 442, 'inputs and events are Zod schemas; the build reads them statically', {
-    size: 12,
-  })
-
-  const lazy = file(scene, {
-    x: 740,
-    y: 478,
-    w: 660,
-    label: "lazyWidget('alert-panel', { contract: alertPanelContract })",
-    fill: FILL.shell,
-  })
-  body(
-    scene,
-    740,
-    520,
-    'called at module scope: the component’s identity is what React uses to decide\n' +
-      'it is looking at the same element. One built during render remounts the Widget.',
-    { size: 12 },
-  )
-
-  const usage = scene.box({
-    x: 740,
-    y: 566,
-    w: 660,
-    h: 48,
-    fill: FILL.page,
-    label: '<AlertPanel alertId={id} onAcknowledged={ack} />',
-    family: FONT.mono,
-    size: 13,
-  })
-  body(
-    scene,
-    740,
-    620,
-    'inputs arrive as props; events arrive as onX props, typed from the contract',
-    {
-      size: 12,
-    },
-  )
-
-  const dynamic = file(scene, {
-    x: 740,
-    y: 656,
-    w: 660,
-    label: '<DynamicWidget widgetId={tile.widgetId} {...tile.inputs} />',
-    fill: FILL.shell,
-  })
-  body(
-    scene,
-    740,
-    700,
-    'for a host that learns which Widgets exist only when it reads the registry.\n' +
-      'No contract, so no consumer-side types, and every event arrives through\n' +
-      'onEvent(name, payload). The provider still validates every input it is given.',
-    { size: 12 },
-  )
-
-  for (const [from, to] of [
-    [url, appEntry],
-    [appEntry, appRoutes],
-    [appRoutes, nested],
-    [widgetEntry, lazy],
-    [lazy, usage],
-    [usage, dynamic],
-  ]) {
-    scene.arrow({
-      from: { shape: from, side: 'bottom', at: 0.94 },
-      to: { shape: to, side: 'top', at: 0.94 },
-      gap: 5,
-    })
+  for (const column of [appTiles, widgetTiles]) {
+    for (let index = 0; index < column.length - 1; index += 1) {
+      scene.arrow({
+        gap: 5,
+        from: { shape: column[index], side: 'bottom', at: 0.85 },
+        to: { shape: column[index + 1], side: 'top', at: 0.85 },
+      })
+    }
   }
 
   return scene.write()
 }
 
-/* ------------------------------------------------------------------ 6. config-and-data */
+/* ----------------------------------------------------------------- 6. config-and-data */
 
 async function configAndData() {
   const scene = createScene('config-and-data')
   scene.title('config-and-data', 'From one file per deployment to one authenticated request.')
 
-  const declaration = panel(scene, {
+  const declared = file(scene, {
     x: 0,
-    y: 120,
-    w: 420,
-    h: 210,
+    y: 130,
+    w: 300,
+    h: 60,
+    name: 'src/mfe.config.ts',
+    subtitle: 'what the author declares',
     fill: FILL.container,
-    heading: 'What the author declares',
-    caption: 'src/mfe.config.ts — declarations only',
   })
-  code(
-    scene,
-    14,
-    190,
-    'export default {\n' +
-      "  apiBaseUrl: env('API_BASE_URL',\n" +
-      '    z.string().url(), { api: true }),\n' +
-      "  telemetryEnabled: env('TELEMETRY_ENABLED',\n" +
-      '    z.coerce.boolean().default(true)),\n' +
-      '}',
-    11,
-  )
-
-  const deployed = panel(scene, {
+  const deployed = file(scene, {
     x: 0,
-    y: 400,
-    w: 420,
-    h: 190,
+    y: 290,
+    w: 300,
+    h: 60,
+    name: 'runtime-config.json',
+    subtitle: 'what the deployment writes',
     fill: FILL.network,
-    heading: 'What the deployment writes',
-    caption: 'runtime-config.json, beside the assets',
   })
-  code(
-    scene,
-    14,
-    468,
-    '{\n  "apiBaseUrl": "http://localhost:3010/api/",\n  "telemetryEnabled": false\n}',
-    11,
-  )
-  note(scene, 14, 552, 'values only: no envelope, and no secret', { size: 12 })
-
-  const config = panel(scene, {
-    x: 500,
-    y: 120,
-    w: 420,
-    h: 280,
-    fill: FILL.generated,
-    heading: '#mfe/config',
-    caption: 'generated; the type comes from the schemas',
+  const config = file(scene, {
+    x: 400,
+    y: 210,
+    w: 300,
+    h: 60,
+    name: '#mfe/config',
+    subtitle: 'fetched once, validated, immutable',
   })
-  body(
-    scene,
-    514,
-    190,
-    'Fetched once, awaited at the top level of the\n' +
-      'module, so nothing that imports it runs before\n' +
-      'it has validated. An immutable snapshot:\n' +
-      'changing a value takes a new deployment and\n' +
-      'a page reload, and nothing polls.\n\n' +
-      'An undeclared key fails rather than being\n' +
-      'ignored, because it is usually a misspelled one.',
-  )
+  const transport = file(scene, {
+    x: 800,
+    y: 210,
+    w: 300,
+    h: 60,
+    name: '#mfe/fetch',
+    subtitle: 'standard fetch, never a patch',
+  })
+  const session = file(scene, {
+    x: 800,
+    y: 370,
+    w: 300,
+    h: 60,
+    name: 'installShellAuth({ tokens })',
+    size: 12,
+    subtitle: "the page's one session",
+    fill: FILL.shell,
+  })
+  const api = tile(scene, {
+    x: 1190,
+    y: 210,
+    w: 250,
+    h: 60,
+    name: 'The API',
+    subtitle: 'one origin declared { api: true }',
+    fill: FILL.network,
+  })
 
   const failures = panel(scene, {
-    x: 500,
-    y: 440,
-    w: 420,
-    h: 200,
+    x: 370,
+    y: 360,
+    w: 360,
+    h: 196,
     dashed: true,
     heading: 'When it cannot start',
-    size: 15,
   })
-  file(scene, { x: 516, y: 486, w: 388, label: 'config/missing: 404', fill: FILL.failure })
-  file(scene, {
-    x: 516,
-    y: 534,
-    w: 388,
-    label: 'config/unreachable: no answer',
-    fill: FILL.failure,
-  })
-  file(scene, {
-    x: 516,
-    y: 582,
-    w: 388,
-    label: 'config/invalid: a rejected field',
-    fill: FILL.failure,
-  })
-
-  const fetchModule = panel(scene, {
-    x: 1000,
-    y: 120,
-    w: 420,
-    h: 280,
-    fill: FILL.generated,
-    heading: '#mfe/fetch',
-    caption: 'generated; standard fetch, never a patch',
-  })
-  code(
-    scene,
-    1014,
-    190,
-    'const transport = createContainerTransport({\n' +
-      "  id: 'operations',\n" +
-      '  apiBaseUrl: config.apiBaseUrl,\n' +
-      '  apiOrigins,\n' +
-      '})\n\n' +
-      'export const { fetch, getAccessToken } =\n' +
-      '  transport',
-    11,
-  )
-
-  const session = panel(scene, {
-    x: 1000,
-    y: 440,
-    w: 420,
-    h: 200,
-    fill: FILL.shell,
-    heading: 'The shell’s one session',
-    caption: 'installShellAuth({ tokens }), at boot',
-  })
-  body(
-    scene,
-    1014,
-    510,
-    'One session serves the whole page, so a refresh\n' +
-      'is single-flight across every mount. A second\n' +
-      'concurrent refresh would present a credential\n' +
-      'the server has already retired, and sign the\n' +
-      'user out.',
-  )
-
-  const api = panel(scene, {
-    x: 1000,
-    y: 690,
-    w: 420,
-    h: 150,
-    fill: FILL.network,
-    heading: 'The API',
-    caption: 'http://localhost:3010/api/ in dev',
-  })
-  body(
-    scene,
-    1014,
-    758,
-    'The token goes only to an origin declared\n' +
-      '{ api: true }. Any other origin is called without\n' +
-      'it, and auth/undeclared-origin says so.',
+  ;['config/missing', 'config/unreachable', 'config/invalid'].forEach((name, position) =>
+    code(scene, { x: 388, y: 416 + position * 44, w: 324, name }),
   )
 
   scene.arrow({
-    from: { shape: declaration, side: 'right', at: 0.4 },
-    to: { shape: config, side: 'left', at: 0.4 },
-  })
-  note(scene, 460, 92, 'the build reads the schemas', { size: 12, align: 'center' })
-  scene.arrow({
-    from: { shape: deployed, side: 'right', at: 0.2 },
-    to: { shape: config, side: 'bottom', at: 0.3 },
-    label: 'fetched\nat load',
-    size: 13,
-    labelDx: -57,
-    labelOffset: -20,
+    from: { shape: declared, side: 'right' },
+    to: { shape: config, side: 'left', at: 0.3 },
+    label: 'the build reads',
+    labelOffset: -22,
+    labelDx: 32,
   })
   scene.arrow({
-    from: { shape: config, side: 'right', at: 0.5 },
-    to: { shape: fetchModule, side: 'left', at: 0.5 },
+    from: { shape: deployed, side: 'right' },
+    to: { shape: config, side: 'left', at: 0.75 },
+    label: 'fetched at load',
+    labelOffset: 18,
+    labelDx: 32,
   })
   scene.arrow({
-    from: { shape: config, side: 'bottom', at: 0.8 },
-    to: { shape: failures, side: 'top', at: 0.8 },
-    color: STROKE.red,
-    dashed: true,
+    from: { shape: config, side: 'right' },
+    to: { shape: transport, side: 'left' },
+    label: 'the base URL',
+    labelOffset: -34,
   })
   scene.arrow({
-    from: { shape: session, side: 'top', at: 0.3 },
-    to: { shape: fetchModule, side: 'bottom', at: 0.3 },
+    from: { shape: session, side: 'top' },
+    to: { shape: transport, side: 'bottom' },
     label: 'the token',
-    labelDx: -56,
+    labelDx: 74,
   })
   scene.arrow({
-    from: { shape: fetchModule, side: 'right', at: 0.9 },
-    to: { shape: api, side: 'right', at: 0.3 },
-    via: [
-      [1480, 372],
-      [1480, 735],
-    ],
-    color: STROKE.blue,
+    from: { shape: transport, side: 'right' },
+    to: { shape: api, side: 'left' },
+    label: 'one request',
+    labelOffset: -34,
   })
-  note(scene, 1492, 520, 'one\nrequest', { size: 13, color: STROKE.blue })
+  scene.arrow({
+    from: { shape: config, side: 'bottom', at: 0.3 },
+    to: { shape: failures, side: 'top', at: 0.5 },
+    dashed: true,
+    color: STROKE.red,
+    label: 'or it fails',
+    labelDx: 72,
+  })
 
   scene.legend({
-    x: 0,
-    y: 640,
-    entries: legendEntries('container', 'generated', 'shell', 'network', 'failure'),
+    x: 1190,
+    y: 370,
+    entries: swatches(['container'], ['network'], ['generated'], ['shell'], ['failure']),
   })
 
   return scene.write()
@@ -1159,185 +820,83 @@ async function configAndData() {
 
 async function lifecycle() {
   const scene = createScene('lifecycle')
-  scene.title(
-    'lifecycle',
-    'What a mount does between the first render and the last, and where each failure goes.',
+  scene.title('lifecycle', 'What a mount does between the first render and the last.')
+
+  const stages = [
+    ['the load suspends', 'loadDefinition(runtime, id)', FILL.page],
+    ['the definition is checked', 'isMfeDefinition, then the router', FILL.page],
+    ['the mount is created', 'createMount(...)', FILL.page],
+    ['rendered, taking input', 'AppMount / WidgetMount', FILL.container],
+    ['disposed', 'dispose()', FILL.page],
+  ].map(([name, subtitle, fill], position) =>
+    tile(scene, {
+      x: position * 282,
+      y: 190,
+      w: 250,
+      h: 66,
+      name,
+      subtitle,
+      subtitleMono: true,
+      fill,
+    }),
   )
 
-  const states = [
-    {
-      heading: 'the load suspends',
-      detail: 'loadDefinition(runtime, id)',
-      lines:
-        'React Suspense shows the pending\n' +
-        'slot while the container is\n' +
-        'fetched: the shell\u2019s \u201cLoading\n' +
-        'operations\u201d, or the pending prop\n' +
-        'a Widget\u2019s consumer passed.\n\n' +
-        'One load per container per\n' +
-        'runtime, shared by every waiter\n' +
-        'and cached, a rejection included.\n\n' +
-        'There is no time budget. The load\n' +
-        'suspends until it settles.',
-      fill: FILL.page,
-      fails: true,
-    },
-    {
-      heading: 'the definition is checked',
-      detail: 'isMfeDefinition, then the router',
-      lines:
-        'What the container exposed has to\n' +
-        'be a definition made by createApp\n' +
-        'or createWidget, and of the kind\n' +
-        'the registry advertised.\n\n' +
-        'For an App the router the author\u2019s\n' +
-        'factory returned is checked too:\n' +
-        'the basePath passed through\n' +
-        'unchanged, the supplied history\n' +
-        'itself, and the supplied context.',
-      fill: FILL.page,
-      fails: true,
-    },
-    {
-      heading: 'the mount is created',
-      detail: 'createMount(...)',
-      lines:
-        'An effect creates it and the same\n' +
-        'effect\u2019s cleanup destroys it, so\n' +
-        'one render passes with no mount.\n\n' +
-        'A mount token, the scope root and\n' +
-        'the style root, an overlay root in\n' +
-        'the document, a tracer, a Query\n' +
-        'client, the definition\u2019s two\n' +
-        'storage areas, and the AbortSignal\n' +
-        'useMfeSignal hands the author.',
-      fill: FILL.page,
-    },
-    {
-      heading: 'rendered, taking input',
-      detail: 'AppMount / WidgetMount',
-      lines:
-        'The App routes inside its own\n' +
-        'boundary. A Widget validates every\n' +
-        'committed input change, and every\n' +
-        'event it emits.\n\n' +
-        'A rejected input keeps the last\n' +
-        'one that passed and reports a\n' +
-        'diagnostic. It never blanks a\n' +
-        'Widget already on the page.',
-      fill: FILL.container,
-      fails: true,
-    },
-    {
-      heading: 'disposed',
-      detail: 'dispose()',
-      lines:
-        'Registrations go first, so a\n' +
-        'disposed mount cannot appear in\n' +
-        'the palette mid-teardown:\n' +
-        'commands, then the navigator.\n\n' +
-        'Then the signal aborts, queries\n' +
-        'are cancelled and cleared,\n' +
-        'telemetry ends, and the overlay\n' +
-        'root is removed from the document.',
-      fill: FILL.page,
-    },
-  ]
-
-  const frames = states.map((entry, position) => {
-    const x = position * 292
-    const frame = panel(scene, {
-      x,
-      y: 150,
-      w: 272,
-      h: 300,
-      fill: entry.fill,
-      heading: entry.heading,
-      caption: entry.detail,
-      size: 15,
-    })
-    body(scene, x + 14, 212, entry.lines, { size: 11.5 })
-    return frame
-  })
-
-  for (let index = 0; index < frames.length - 1; index += 1) {
+  for (let index = 0; index < stages.length - 1; index += 1) {
     scene.arrow({
-      from: { shape: frames[index], side: 'right', at: 0.5 },
-      to: { shape: frames[index + 1], side: 'left', at: 0.5 },
       gap: 5,
+      from: { shape: stages[index], side: 'right' },
+      to: { shape: stages[index + 1], side: 'left' },
     })
   }
 
   scene.arrow({
-    from: { shape: frames[3], side: 'top', at: 0.25 },
-    to: { shape: frames[3], side: 'top', at: 0.75 },
+    from: { shape: stages[3], side: 'top', at: 0.25 },
+    to: { shape: stages[3], side: 'top', at: 0.75 },
     via: [
-      [944, 110],
-      [1080, 110],
+      [909, 130],
+      [1034, 130],
     ],
-    gap: 6,
-    sharp: false,
+    label: 'input, or event',
+    labelOffset: -16,
   })
-  note(scene, 1012, 80, 'inputs updated, or an event emitted', { size: 12, align: 'center' })
 
-  const failures = panel(scene, {
+  const band = panel(scene, {
     x: 0,
-    y: 510,
-    w: 1440,
-    h: 210,
+    y: 330,
+    w: 1378,
+    h: 130,
     dashed: true,
     heading: 'Where a failure goes',
   })
-
-  const codes = [
+  ;[
     'load/manifest-failure',
     'load/entry-failure',
     'app/invalid-base-path',
     'app/invalid-router',
     'contract/input-mismatch',
     'contract/event-mismatch',
-  ]
-  codes.forEach((label, position) => {
-    file(scene, { x: 19 + position * 236, y: 556, w: 222, label, fill: FILL.failure })
-  })
-
-  body(
-    scene,
-    19,
-    608,
-    'The first four are thrown, caught by the RetryBoundary and handed to the fallback slot as { error, retry }: the shell draws\n' +
-      '“operations could not be loaded” with the message, the code and a Retry button, and retry() forgets the cached load so the\n' +
-      'next attempt is a genuinely fresh one. A Widget’s first bad input throws the same way; a later one is reported as a diagnostic\n' +
-      'and the last inputs that passed stay on the page. A render error inside a mounted App reaches that App’s own\n' +
-      'defaultErrorComponent, inside its own boundary, and the host never sees it.',
+  ].forEach((name, position) =>
+    code(scene, { x: 18 + position * 227, y: 396, w: 213, h: 38, name, size: 11.5 }),
   )
 
   for (const index of [0, 1, 3]) {
     scene.arrow({
-      from: { shape: frames[index], side: 'bottom', at: 0.5 },
-      to: { shape: failures, side: 'top', at: (index * 292 + 136) / 1440 },
-      gap: 6,
-      color: STROKE.red,
+      from: { shape: stages[index], side: 'bottom', at: 0.5 },
+      to: { shape: band, side: 'top', at: (index * 282 + 125) / 1378 },
       dashed: true,
+      color: STROKE.red,
     })
   }
 
-  panel(scene, {
+  tile(scene, {
     x: 0,
-    y: 760,
-    w: 1440,
-    h: 130,
+    y: 520,
+    w: 420,
+    h: 64,
     fill: FILL.page,
-    heading: 'StrictMode mounts everything twice',
+    name: 'StrictMode',
+    subtitle: 'create, dispose, create again',
   })
-  body(
-    scene,
-    14,
-    804,
-    'In development React mounts, unmounts and mounts again without re-rendering: create, dispose, create. That is why the mount is built by\n' +
-      'the effect that destroys it. A mount built in useMemo is not re-evaluated on the second setup, so the second setup ran against the object\n' +
-      'the first cleanup had already disposed — a CancelledError in development, while production worked.',
-  )
 
   return scene.write()
 }
@@ -1346,175 +905,111 @@ async function lifecycle() {
 
 async function storageRetention() {
   const scene = createScene('storage-retention')
-  scene.title(
-    'storage-retention',
-    'How a stored key is composed, and who can read it back afterwards.',
-  )
+  scene.title('storage-retention', 'How a stored key is composed, and who reads it back.')
 
-  const call = panel(scene, {
+  const written = tile(scene, {
     x: 0,
-    y: 120,
-    w: 460,
-    h: 190,
+    y: 150,
+    w: 360,
+    h: 64,
     fill: FILL.container,
-    heading: 'What the author writes',
-    caption: 'inside a mount, so the scope is the definition',
+    mono: true,
+    size: 12.5,
+    name: "useStoredState('filters', schema)",
+    subtitle: 'what the author writes',
   })
-  code(
-    scene,
-    14,
-    190,
-    'const [filters, setFilters] = useStoredState(\n' +
-      "  'filters',\n" +
-      '  schema,\n' +
-      "  { defaultValue: { status: 'open' } },\n" +
-      ')',
-    11,
-  )
-
-  const binding = panel(scene, {
-    x: 530,
-    y: 120,
-    w: 420,
-    h: 190,
+  const bound = tile(scene, {
+    x: 440,
+    y: 150,
+    w: 360,
+    h: 64,
     fill: FILL.storage,
-    heading: 'What it binds to',
-    caption: 'the defaults are the safe answers',
+    name: 'What it binds to',
+    subtitle: "storage 'local', retention 'user', version 1",
   })
-  code(scene, 544, 196, "storage:    'local'\nretention:  'user'\nversion:    1", 13)
-
-  const record = panel(scene, {
-    x: 1020,
-    y: 120,
-    w: 420,
-    h: 190,
+  const stored = tile(scene, {
+    x: 880,
+    y: 150,
+    w: 360,
+    h: 64,
     fill: FILL.storage,
-    heading: 'What is actually stored',
-    caption: 'one key, one envelope',
+    mono: true,
+    size: 13,
+    name: 'operations:filters',
+    subtitle: 'one key, one versioned envelope',
   })
-  code(
-    scene,
-    1034,
-    190,
-    'key    operations:filters\n' +
-      'value  { "v": 1,\n' +
-      '           "r": "user",\n' +
-      '           "g": "<session generation>",\n' +
-      '           "d": { "status": "open" } }',
-    11,
-  )
 
   scene.arrow({
-    from: { shape: call, side: 'right', at: 0.5 },
-    to: { shape: binding, side: 'left', at: 0.5 },
-    gap: 6,
+    from: { shape: written, side: 'right' },
+    to: { shape: bound, side: 'left' },
+    label: 'binds to',
+    labelOffset: -18,
   })
   scene.arrow({
-    from: { shape: binding, side: 'right', at: 0.5 },
-    to: { shape: record, side: 'left', at: 0.5 },
-    gap: 6,
+    from: { shape: bound, side: 'right' },
+    to: { shape: stored, side: 'left' },
+    label: 'writes',
+    labelOffset: -18,
   })
-
-  body(
-    scene,
-    0,
-    330,
-    'The key is <definitionId>:<name>, never scoped by mount token, so two mounts of one definition read one record.\n' +
-      'The g field fences a user-retained record to one session generation: a record written under another generation reads as absent.',
-    { size: 13 },
-  )
 
   panel(scene, {
     x: 0,
-    y: 400,
-    w: 1000,
-    h: 340,
+    y: 300,
+    w: 820,
+    h: 320,
     heading: 'What survives what',
-    caption:
-      'storage decides how long the browser keeps it; retention decides who may read it back',
+    caption: 'storage keeps it; retention decides who reads it',
+  })
+  const columns = [24, 380, 620]
+  scene.text({ x: columns[1], y: 376, text: "retention: 'user'", size: 12.5, family: FONT.mono })
+  scene.text({
+    x: columns[2],
+    y: 376,
+    text: "retention: 'browser'",
+    size: 12.5,
+    family: FONT.mono,
+  })
+  ;[
+    ['the identity changes', 'wiped', 'kept'],
+    ['the groups change', 'wiped', 'kept'],
+    ['a reload', 'kept', 'kept'],
+    ['the tab closes', 'gone with it', 'gone with it'],
+    ['version raised', 'migrate(), or unreadable', 'migrate(), or unreadable'],
+  ].forEach((row, position) => {
+    row.forEach((cell, column) => {
+      scene.text({ x: columns[column], y: 420 + position * 38, text: cell, size: 13 })
+    })
   })
 
-  scene.text({ x: 358, y: 476, text: "retention: 'user'  (default)", size: 13, family: FONT.mono })
-  scene.text({ x: 692, y: 476, text: "retention: 'browser'", size: 13, family: FONT.mono })
-
-  const rows = [
-    {
-      label: 'the identity changes\n(login, logout, account, tenant)',
-      user: 'wiped',
-      browser: 'kept, and the next\nperson here reads it',
-    },
-    { label: 'the group set changes', user: 'wiped', browser: 'kept' },
-    { label: 'a reload', user: 'kept', browser: 'kept' },
-    {
-      label: "the tab closes, with storage: 'session'",
-      user: 'gone with the tab',
-      browser: 'gone with the tab',
-    },
-    {
-      label: 'the build raises version',
-      user: 'migrate(), or unreadable',
-      browser: 'migrate(), or unreadable',
-    },
-  ]
-
-  let rowY = 512
-  for (const row of rows) {
-    scene.text({ x: 24, y: rowY, text: row.label, size: 12.5 })
-    scene.text({ x: 358, y: rowY, text: row.user, size: 12.5, family: FONT.mono })
-    scene.text({ x: 692, y: rowY, text: row.browser, size: 12.5, family: FONT.mono })
-    rowY += row.label.includes('\n') || row.browser.includes('\n') ? 56 : 38
-  }
-
-  panel(scene, {
-    x: 1040,
-    y: 400,
-    w: 400,
-    h: 155,
+  tile(scene, {
+    x: 880,
+    y: 300,
+    w: 420,
+    h: 64,
     fill: FILL.shell,
-    heading: 'The page’s own state',
-    caption: 'bindHost() and hostStorage()',
+    name: "The page's own scope",
+    subtitle: '@host — bindHost(), hostStorage()',
+    subtitleMono: true,
   })
-  body(
-    scene,
-    1054,
-    470,
-    'Outside a mount, useStoredState resolves to\n' +
-      'the reserved @host scope. No definition can\n' +
-      'claim that name: @ is not a legal character\n' +
-      'in a definition id.',
-    { size: 12 },
-  )
-
-  panel(scene, {
-    x: 1040,
-    y: 585,
-    w: 400,
-    h: 155,
+  tile(scene, {
+    x: 880,
+    y: 400,
+    w: 420,
+    h: 64,
     fill: FILL.failure,
-    heading: 'The one thing to get right',
-    caption: "retention: 'browser' opts out of the wipe",
+    name: "retention: 'browser'",
+    subtitle: 'nothing clears it; everyone here reads it',
   })
-  body(
-    scene,
-    1054,
-    655,
-    'Nothing clears it, which also means every\n' +
-      'user of this browser profile reads the same\n' +
-      'value. It is for a display density or a\n' +
-      'collapsed panel, never for anything derived\n' +
-      'from a user’s data.',
-    { size: 12 },
-  )
 
   scene.legend({
-    x: 0,
-    y: 770,
-    entries: [
-      { fill: FILL.container, label: 'what an author writes' },
-      { fill: FILL.storage, label: 'the storage boundary' },
-      { fill: FILL.shell, label: 'the host page’s own scope' },
-      { fill: FILL.failure, label: 'the choice that can leak state between users' },
-    ],
+    x: 880,
+    y: 510,
+    entries: swatches(
+      ['container', 'what an author writes'],
+      ['storage', 'the storage boundary'],
+      ['shell', "the host page's own scope"],
+      ['failure', 'the choice that can leak between users'],
+    ),
   })
 
   return scene.write()
@@ -1524,170 +1019,110 @@ async function storageRetention() {
 
 async function stylingScope() {
   const scene = createScene('styling-scope')
-  scene.title(
-    'styling-scope',
-    'One stylesheet in two halves: the document is the shell\u2019s, the utilities are the container\u2019s.',
-  )
+  scene.title('styling-scope', 'One stylesheet in two halves: the document, then the utilities.')
 
-  const shell = panel(scene, {
+  const document = file(scene, {
     x: 0,
-    y: 120,
-    w: 460,
-    h: 250,
+    y: 150,
+    w: 340,
+    h: 64,
+    name: 'apps/shell/src/styles/app.css',
+    size: 12,
+    subtitle: 'preflight, the fonts, the theme variables',
     fill: FILL.shell,
-    heading: 'The shell owns the document half',
-    caption: 'apps/shell/src/styles/app.css',
   })
-  body(
-    scene,
-    14,
-    190,
-    'preflight \u2014 the reset\n' +
-      'the fonts, and --font-sans / --font-mono\n' +
-      '@property registrations\n' +
-      'the theme variables on :root\n\n' +
-      'All of it inherits into every container, so\n' +
-      'no container ships a reset or a variable of\n' +
-      'its own.',
-  )
-
-  const container = panel(scene, {
-    x: 500,
-    y: 120,
-    w: 460,
-    h: 250,
+  const utilities = file(scene, {
+    x: 400,
+    y: 150,
+    w: 340,
+    h: 64,
+    name: '.mfe/styles.css',
+    subtitle: "this container's utilities, generated",
+  })
+  const wrapped = tile(scene, {
+    x: 880,
+    y: 150,
+    w: 440,
+    h: 70,
     fill: FILL.generated,
-    heading: 'The container ships its own utilities',
-    caption: '.mfe/styles.css, generated',
+    name: 'The build wraps it',
+    subtitle: '@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])',
+    subtitleMono: true,
   })
-  code(
-    scene,
-    514,
-    190,
-    '@layer theme, base, components, utilities;\n' +
-      '@import "tailwindcss/theme.css" layer(theme);\n' +
-      '@import "tailwindcss/utilities.css"\n' +
-      '  layer(utilities);\n' +
-      '@import "@tecton/react/styles/scoped.css";',
-    10.5,
-  )
-  body(
-    scene,
-    514,
-    286,
-    'Deliberately not @import "tailwindcss", which\n' +
-      'would bring preflight with it. Tailwind emits\n' +
-      'a utility only for a class it has seen, so this\n' +
-      'is the CSS for this container and nothing else.',
-  )
 
-  const scoped = panel(scene, {
-    x: 1000,
-    y: 120,
-    w: 460,
-    h: 250,
-    fill: FILL.generated,
-    heading: 'What the build wraps it in',
-    caption: 'the design system\u2019s plugin, after Tailwind',
+  scene.arrow({
+    from: { shape: utilities, side: 'right' },
+    to: { shape: wrapped, side: 'left' },
+    label: 'after Tailwind',
+    labelOffset: -20,
   })
-  code(
-    scene,
-    1014,
-    190,
-    '@scope ([data-mfe-scope="operations"])\n' +
-      '    to ([data-mfe-scope]) {\n' +
-      '  /* every rule this container emitted */\n' +
-      '}',
-    11,
-  )
-  body(
-    scene,
-    1014,
-    268,
-    'The lower boundary is the next mount root\n' +
-      'below, so a nested container\u2019s CSS is never\n' +
-      'this one\u2019s. :root and :host are rewritten onto\n' +
-      'the scope root, and @keyframes are renamed\n' +
-      'after this container.',
-  )
 
   const dom = panel(scene, {
     x: 0,
-    y: 430,
-    w: 1000,
-    h: 320,
+    y: 330,
+    w: 820,
+    h: 230,
     fill: FILL.page,
-    heading: 'What the page looks like while the App is mounted',
+    heading: 'On the page',
+    caption: 'while the App is mounted',
   })
-  code(
-    scene,
-    14,
-    478,
-    '<body>\n' +
-      '  ... the shell chrome ...\n' +
-      '  <div data-mfe-scope="operations" data-mfe-kind="app"\n' +
-      '       data-mfe-mount="operations#1"\n' +
-      '       style="display: contents">               the scope root\n' +
-      '    <StyleRoot>   the container\u2019s own ThemeRoot\n' +
-      '      ... the App ...\n' +
-      '  <div data-mfe-scope="operations" data-mfe-mount="operations#1"\n' +
-      '       data-mfe-overlay-root data-tecton-root>   the overlay root\n' +
-      '    ... every dialog, popover, tooltip and menu ...',
-    11,
-  )
-  body(
-    scene,
-    14,
-    662,
-    'The scope root is display: contents, so it anchors a selector without becoming a box in\n' +
-      'the layout. The overlay root sits at body level and carries the same attribute, which is\n' +
-      'what keeps an overlay inside the container\u2019s scope instead of on a bare document body.',
-  )
-
-  panel(scene, {
-    x: 1040,
-    y: 430,
-    w: 420,
-    h: 320,
-    fill: FILL.failure,
-    heading: 'The stated limit',
-    caption: 'docs/decisions.md, 5 and 17',
+  const scopeRoot = tile(scene, {
+    x: 18,
+    y: 396,
+    w: 784,
+    h: 58,
+    mono: true,
+    size: 11.5,
+    name: '<div data-mfe-scope="operations" data-mfe-kind="app">',
+    subtitle: 'the scope root — display: contents',
   })
-  body(
-    scene,
-    1054,
-    500,
-    '@scope is the narrowest-supported feature\n' +
-      'the framework requires, and it is emitted\n' +
-      'with no fallback.\n\n' +
-      'Below Chrome 118, Firefox 146 or iOS\n' +
-      'Safari 17.4 the rule does not apply, and\n' +
-      'the last stylesheet on the page wins,\n' +
-      'unscoped.\n\n' +
-      'Each container\u2019s @keyframes names carry its\n' +
-      'ids as a suffix, because such names are\n' +
-      'page-wide whatever scopes the rules.',
-  )
+  tile(scene, {
+    x: 18,
+    y: 470,
+    w: 784,
+    h: 58,
+    mono: true,
+    size: 11.5,
+    name: '<div data-mfe-scope="operations" data-mfe-overlay-root>',
+    subtitle: 'the overlay root, at body level',
+  })
 
   scene.arrow({
-    from: { shape: container, side: 'right', at: 0.5 },
-    to: { shape: scoped, side: 'left', at: 0.5 },
-    gap: 6,
-  })
-  scene.arrow({
-    from: { shape: shell, side: 'bottom', at: 0.3 },
-    to: { shape: dom, side: 'top', at: 0.14 },
-    gap: 6,
+    from: { shape: document, side: 'bottom', at: 0.3 },
+    to: { shape: dom, side: 'top', at: 0.2 },
     dashed: true,
     color: STROKE.muted,
+    label: 'inherits into containers',
+    labelDx: 128,
   })
-  note(scene, 160, 386, 'inherits into every container', { size: 12.5 })
   scene.arrow({
-    from: { shape: scoped, side: 'left', at: 0.95 },
-    to: { shape: dom, side: 'top', at: 0.85 },
-    gap: 6,
+    from: { shape: wrapped, side: 'bottom', at: 0.2 },
+    to: { shape: scopeRoot, side: 'right', at: 0.4 },
+    label: 'scopes every rule',
+    labelDx: -84,
+    labelOffset: -12,
   })
-  note(scene, 1014, 386, 'loaded with the container', { size: 12.5 })
+
+  tile(scene, {
+    x: 880,
+    y: 330,
+    w: 440,
+    h: 70,
+    fill: FILL.failure,
+    name: 'The stated limit',
+    subtitle: '@scope, with no fallback below Chrome 118',
+  })
+
+  scene.legend({
+    x: 880,
+    y: 440,
+    entries: swatches(
+      ['shell', 'the shell, and the document half'],
+      ['generated'],
+      ['page', 'the browser document'],
+      ['failure', 'a stated limit'],
+    ),
+  })
 
   return scene.write()
 }
@@ -1696,183 +1131,300 @@ async function stylingScope() {
 
 async function devWorkflow() {
   const scene = createScene('dev-workflow')
-  scene.title(
-    'dev-workflow',
-    'What pnpm dev starts, how the shell is pointed at it, and what one edit costs.',
-  )
+  scene.title('dev-workflow', 'What pnpm dev starts, and what one edit costs.')
 
-  const command = scene.box({
+  const dev = file(scene, {
     x: 0,
-    y: 120,
+    y: 150,
     w: 300,
-    h: 56,
-    fill: FILL.shell,
-    label: 'pnpm dev',
-    family: FONT.mono,
-    size: 16,
-  })
-  note(
-    scene,
-    0,
-    190,
-    'tools/dev/dev.mjs. It checks that\n' +
-      '3000-3005 and 3010 are free before\n' +
-      'it starts anything: a container’s\n' +
-      'port is part of its address, so it\n' +
-      'cannot be moved without the shell\n' +
-      'losing it.',
-    { size: 12.5 },
-  )
-
-  const registry = scene.box({
-    x: 0,
-    y: 330,
-    w: 300,
-    h: 56,
-    fill: FILL.generated,
-    label: 'registry.json',
-    family: FONT.mono,
+    h: 60,
+    name: 'pnpm dev',
     size: 14,
+    subtitle: 'tools/dev/dev.mjs',
+    subtitleMono: true,
+    fill: FILL.shell,
   })
-  note(
-    scene,
-    0,
-    400,
-    'written by pnpm run generate,\n' +
-      'which pnpm dev runs itself. The\n' +
-      'shell learns that a container\n' +
-      'exists only from this file.',
-    { size: 12.5 },
-  )
-
-  const servers = [
-    { label: 'apps/shell', port: 3000, fill: FILL.shell },
-    { label: 'examples/operations', port: 3001, fill: FILL.container },
-    { label: 'examples/reports', port: 3002, fill: FILL.container },
-    { label: 'examples/alert-panel', port: 3003, fill: FILL.container },
-    { label: 'examples/insights', port: 3004, fill: FILL.container },
-    { label: 'examples/lab', port: 3005, fill: FILL.container },
-    { label: 'tools/dev/api.mjs', port: 3010, fill: FILL.network },
-  ]
-
-  const boxes = servers.map((entry, position) =>
-    scene.box({
-      x: 400,
-      y: 120 + position * 56,
-      w: 400,
-      h: 44,
-      fill: entry.fill,
-      label: `${entry.label}  :${String(entry.port)}`,
-      family: FONT.mono,
-      size: 13,
-    }),
-  )
-
-  scene.arrow({
-    from: { shape: command, side: 'right', at: 0.5 },
-    to: { shape: boxes[3], side: 'left', at: 0.5 },
-  })
-  note(scene, 400, 92, 'one dev server each', { size: 13 })
-  scene.arrow({
-    from: { shape: registry, side: 'right', at: 0.5 },
-    to: { shape: boxes[0], side: 'left', at: 0.8 },
-    dotted: true,
-    color: STROKE.muted,
+  const registry = file(scene, {
+    x: 0,
+    y: 280,
+    w: 300,
+    h: 60,
+    name: 'registry.json',
+    subtitle: 'written by pnpm run generate',
   })
 
-  note(
-    scene,
-    400,
-    530,
-    'Each container’s port comes from its own\n' +
-      'package.json “mfe” block, so adding an\n' +
-      'example is a one-file change in it.',
-    { size: 12.5 },
+  const servers = panel(scene, {
+    x: 380,
+    y: 110,
+    w: 380,
+    h: 470,
+    heading: 'One dev server each',
+    caption: 'the port is part of the address',
+  })
+  const ports = [
+    ['apps/shell :3000', FILL.shell],
+    ['examples/operations :3001', FILL.container],
+    ['examples/reports :3002', FILL.container],
+    ['examples/alert-panel :3003', FILL.container],
+    ['examples/insights :3004', FILL.container],
+    ['examples/lab :3005', FILL.container],
+    ['tools/dev/api.mjs :3010', FILL.network],
+  ].map(([name, fill], position) =>
+    file(scene, { x: 398, y: 176 + position * 56, w: 344, h: 44, name, fill }),
   )
 
-  const override = panel(scene, {
+  const override = tile(scene, {
     x: 880,
-    y: 120,
-    w: 570,
-    h: 280,
+    y: 150,
+    w: 420,
+    h: 64,
     fill: FILL.storage,
-    heading: 'Pointing the shell at a local container',
-    caption: 'pnpm dev prints this with the real ids and URLs',
+    name: 'localStorage override',
+    subtitle: 'company:mfe:overrides, then a reload',
   })
-  code(
-    scene,
-    894,
-    190,
-    "const key = 'company:mfe:overrides'\n" +
-      'const overrides = JSON.parse(\n' +
-      "  localStorage.getItem(key) || '{}')\n" +
-      "overrides['operations'] =\n" +
-      "  'http://localhost:3001/mf-manifest.json'\n" +
-      'localStorage.setItem(key,\n' +
-      '  JSON.stringify(overrides))\n' +
-      'location.reload()',
-    11,
-  )
-  body(
-    scene,
-    894,
-    320,
-    'The reload is not optional: the old container is already\n' +
-      'registered under the same name, and disposing a mount\n' +
-      'does not reach it.',
-    { size: 12 },
-  )
 
   panel(scene, {
     x: 880,
-    y: 450,
-    w: 570,
-    h: 310,
-    fill: FILL.page,
-    heading: 'Why one edit hot-updates and another reloads',
-    caption: 'React Refresh replaces a module only when every export is a component',
+    y: 290,
+    w: 420,
+    h: 210,
+    heading: 'Why one edit reloads',
+    caption: 'React Refresh replaces only component modules',
   })
-  scene.box({
-    x: 896,
-    y: 526,
-    w: 538,
-    h: 44,
+  file(scene, {
+    x: 898,
+    y: 356,
+    w: 384,
+    h: 60,
+    name: 'src/mfe.ts',
+    subtitle: 'a definition — the page reloads',
     fill: FILL.failure,
-    label: 'src/mfe.ts — a definition and a contract',
-    family: FONT.mono,
-    size: 12,
   })
-  body(scene, 896, 576, 'never a refresh boundary, so an edit reloads the whole page', { size: 12 })
-  scene.box({
-    x: 896,
-    y: 610,
-    w: 538,
-    h: 44,
+  file(scene, {
+    x: 898,
+    y: 426,
+    w: 384,
+    h: 60,
+    name: 'src/alert-panel.tsx',
+    subtitle: 'only components — hot-updates in place',
     fill: FILL.storage,
-    label: 'src/alert-panel.tsx — only the component',
-    family: FONT.mono,
-    size: 12,
   })
-  body(scene, 896, 660, 'hot-updates in place, keeping the state the component held', { size: 12 })
-  body(
-    scene,
-    896,
-    696,
-    'pnpm hmr:probe <file> [url] says which of the two happened: the\n' +
-      'change appears either way, and only what was lost is different.',
-    { size: 12 },
-  )
+
+  scene.arrow({
+    from: { shape: dev, side: 'right' },
+    to: { shape: servers, side: 'left', at: 0.16 },
+    label: 'starts',
+    labelOffset: -18,
+  })
+  scene.arrow({
+    from: { shape: dev, side: 'bottom' },
+    to: { shape: registry, side: 'top' },
+    label: 'generates',
+    labelDx: 76,
+  })
+  scene.arrow({
+    from: { shape: registry, side: 'right' },
+    to: { shape: servers, side: 'left', at: 0.55 },
+    dotted: true,
+    color: STROKE.muted,
+    label: 'the shell reads',
+    labelOffset: 28,
+    labelDx: -64,
+  })
+  scene.arrow({
+    from: { shape: override, side: 'left' },
+    to: { shape: ports[0], side: 'right' },
+    label: 'points the shell',
+    labelOffset: -26,
+    labelDx: 12,
+  })
 
   scene.legend({
-    x: 400,
-    y: 610,
-    entries: [
-      { fill: FILL.shell, label: LEGEND_LABELS.shell },
-      { fill: FILL.container, label: LEGEND_LABELS.container },
-      { fill: FILL.network, label: 'the stand-in API' },
-      { fill: FILL.generated, label: LEGEND_LABELS.generated },
-      { fill: FILL.storage, label: 'what the browser keeps for you' },
-    ],
+    x: 880,
+    y: 530,
+    entries: swatches(
+      ['shell'],
+      ['container'],
+      ['network', 'the stand-in API'],
+      ['generated'],
+      ['storage', 'what the browser keeps for you'],
+      ['failure', 'the edit that costs a reload'],
+    ),
+  })
+
+  return scene.write()
+}
+
+/* ----------------------------------------------------------------------- 11. adapters */
+
+async function adapters() {
+  const scene = createScene('adapters')
+  scene.title('adapters', 'One neutral host; one adapter per framework.')
+
+  const shell = tile(scene, {
+    x: 555,
+    y: 104,
+    w: 340,
+    h: 64,
+    fill: FILL.shell,
+    name: 'The shell',
+    subtitle: 'apps/shell/src/boot.tsx',
+    subtitleMono: true,
+  })
+
+  const neutral = panel(scene, {
+    x: 80,
+    y: 230,
+    w: 1290,
+    h: 300,
+    heading: 'The neutral host',
+    caption: '@company/mfe-host — no React, no router, no federation',
+  })
+
+  tile(scene, {
+    x: 104,
+    y: 288,
+    w: 1242,
+    h: 60,
+    fill: FILL.page,
+    name: 'Shared services',
+    subtitle: 'storage, commands, navigation bridge, diagnostics',
+  })
+
+  panel(scene, {
+    x: 104,
+    y: 368,
+    w: 1242,
+    h: 138,
+    dashed: true,
+    heading: 'Registry normalization',
+    caption: 'the first matching rule owns the entry',
+  })
+  const contractRule = tile(scene, {
+    x: 130,
+    y: 424,
+    w: 520,
+    h: 62,
+    fill: FILL.page,
+    name: 'Rule 1 — framework contract',
+    subtitle: 'createMfeContractRule()',
+    subtitleMono: true,
+  })
+  const legacyRule = tile(scene, {
+    x: 790,
+    y: 424,
+    w: 520,
+    h: 62,
+    fill: FILL.page,
+    name: 'Rule 2 — legacy Angular',
+    subtitle: 'createLegacyAdapterRule()',
+    subtitleMono: true,
+  })
+
+  const reactAdapter = panel(scene, {
+    x: 80,
+    y: 590,
+    w: 620,
+    h: 250,
+    heading: 'The React adapter',
+    caption: '@company/mfe-react',
+  })
+  ;[
+    ['Federation loader', 'createMf2ContainerLoader', true],
+    ['App and Widget definitions', 'createApp, createWidget', true],
+    ['Boundary and style roots', 'createBoundaryHistory, StyleRoot', true],
+  ].forEach(([name, subtitle, subtitleMono], position) =>
+    tile(scene, { x: 98, y: 646 + position * 58, w: 584, h: 50, name, subtitle, subtitleMono }),
+  )
+
+  const legacyAdapter = panel(scene, {
+    x: 750,
+    y: 590,
+    w: 620,
+    h: 250,
+    heading: 'The legacy Angular adapter',
+    caption: '@company/mfe-legacy-angular — removable',
+  })
+  ;[
+    ['Registry translation', 'legacy AppConfig into adapterData', false],
+    ['Parcel lifecycle', 'mountRootParcel: mount, unmount', true],
+    ['Base href, shell routes', 'resolveLegacyBaseHref, matchLegacyShellRoute', true],
+  ].forEach(([name, subtitle, subtitleMono], position) =>
+    tile(scene, { x: 768, y: 646 + position * 58, w: 584, h: 50, name, subtitle, subtitleMono }),
+  )
+
+  const reactContainer = tile(scene, {
+    x: 98,
+    y: 900,
+    w: 584,
+    h: 64,
+    fill: FILL.container,
+    mono: true,
+    size: 13,
+    name: 'operations',
+    subtitle: 'a React App, or Widgets',
+  })
+  const legacyContainer = tile(scene, {
+    x: 768,
+    y: 900,
+    w: 584,
+    h: 64,
+    fill: FILL.container,
+    mono: true,
+    size: 13,
+    name: 'asset-tracker',
+    subtitle: 'a legacy Angular application',
+  })
+
+  scene.arrow({
+    from: { shape: shell, side: 'bottom' },
+    to: { shape: neutral, side: 'top', at: 0.5 },
+    label: 'registry.json',
+    labelDx: 92,
+  })
+  scene.arrow({
+    from: { shape: contractRule, side: 'right' },
+    to: { shape: legacyRule, side: 'left' },
+    label: 'no mfe key',
+    labelOffset: -18,
+  })
+  scene.arrow({
+    from: { shape: contractRule, side: 'bottom' },
+    to: { shape: reactAdapter, side: 'top', at: 0.5 },
+    label: 'selects',
+    labelDx: 58,
+    labelOffset: 14,
+  })
+  scene.arrow({
+    from: { shape: legacyRule, side: 'bottom' },
+    to: { shape: legacyAdapter, side: 'top', at: 0.5 },
+    label: 'selects',
+    labelDx: 58,
+    labelOffset: 14,
+  })
+  scene.arrow({
+    from: { shape: reactAdapter, side: 'bottom', at: 0.5 },
+    to: { shape: reactContainer, side: 'top', at: 0.5 },
+    label: 'loads, mounts',
+    labelDx: 92,
+  })
+  scene.arrow({
+    from: { shape: legacyAdapter, side: 'bottom', at: 0.5 },
+    to: { shape: legacyContainer, side: 'top', at: 0.5 },
+    label: 'loads, mounts',
+    labelDx: 92,
+  })
+
+  scene.legend({
+    x: 80,
+    y: 1010,
+    heading: 'What is neutral, and what is not',
+    entries: swatches(
+      ['shell'],
+      ['page', 'neutral: no React, no router, no federation'],
+      ['none', 'an adapter package'],
+      ['container', 'a container the adapter mounts'],
+    ),
   })
 
   return scene.write()
@@ -1889,6 +1441,7 @@ const scenes = [
   storageRetention,
   stylingScope,
   devWorkflow,
+  adapters,
 ]
 
 for (const build of scenes) {
