@@ -26,6 +26,8 @@ export interface DevtoolsSettings {
   readonly size: number
   readonly open: boolean
   readonly tab: DevtoolsTab
+  /** Draws a box round every mounted App and Widget on the page. A view option, not a tool state. */
+  readonly outline: boolean
 }
 
 export const DEFAULT_SETTINGS: DevtoolsSettings = Object.freeze({
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: DevtoolsSettings = Object.freeze({
   size: 420,
   open: true,
   tab: 'overrides',
+  outline: false,
 })
 
 const SIDES: readonly DevtoolsSide[] = ['top', 'bottom', 'left', 'right']
@@ -86,6 +89,7 @@ function readStored(): DevtoolsSettings {
         : DEFAULT_SETTINGS.size,
     open: record['open'] !== false,
     tab: isTab(record['tab']) ? record['tab'] : DEFAULT_SETTINGS.tab,
+    outline: record['outline'] === true,
   }
 }
 

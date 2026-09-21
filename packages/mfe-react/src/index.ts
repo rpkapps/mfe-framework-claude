@@ -128,7 +128,13 @@ export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-con
 export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
 export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
-export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
+export {
+  KIND_ATTRIBUTE,
+  MOUNT_ATTRIBUTE,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+  createOverlayRoot,
+} from './scope-root.tsx'
 /** Exported because the generated container entry imports it (§17). */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'

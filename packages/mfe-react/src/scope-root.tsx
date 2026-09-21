@@ -12,7 +12,13 @@ import type { MfeStyleRoot } from './style-root.ts'
 export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
 
 /** Distinguishes two mounts of one definition; the scope value stays the id the CSS matches. */
-const MOUNT_ATTRIBUTE = 'data-mfe-mount'
+export const MOUNT_ATTRIBUTE = 'data-mfe-mount'
+
+/** Which kind of definition a mount root belongs to, for a tool reading the page rather than the registry. */
+export const KIND_ATTRIBUTE = 'data-mfe-kind'
+
+/** Marks the body-level root, which carries the same scope and mount but is not where the definition renders. */
+export const OVERLAY_ROOT_ATTRIBUTE = 'data-mfe-overlay-root'
 
 export interface ScopeRootProps {
   readonly definitionId: string
@@ -38,8 +44,11 @@ export function MfeScopeRoot({
 }: ScopeRootProps): ReactNode {
   return (
     <div
-      {...{ [SCOPE_ATTRIBUTE]: definitionId, [MOUNT_ATTRIBUTE]: mountToken }}
-      data-mfe-kind={kind}
+      {...{
+        [SCOPE_ATTRIBUTE]: definitionId,
+        [MOUNT_ATTRIBUTE]: mountToken,
+        [KIND_ATTRIBUTE]: kind,
+      }}
       style={LAYOUT_NEUTRAL}
     >
       {StyleRoot === undefined ? (
@@ -60,7 +69,7 @@ export function createOverlayRoot(
   const element = document.createElement('div')
   element.setAttribute(SCOPE_ATTRIBUTE, definitionId)
   element.setAttribute(MOUNT_ATTRIBUTE, mountToken)
-  element.setAttribute('data-mfe-overlay-root', '')
+  element.setAttribute(OVERLAY_ROOT_ATTRIBUTE, '')
   document.body.appendChild(element)
 
   return {

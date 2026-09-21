@@ -17,6 +17,7 @@ import { DropdownMenuItem, DropdownMenuLabel } from '@tecton/react/components/dr
 import { PortalProvider } from '@tecton/react/tecton/portal'
 import { OverflowDivider, OverflowItem, OverflowMenu, Toolbar } from '@tecton/react/tecton/overflow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
+import { Toggle } from '@tecton/react/components/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
   CheckIcon,
@@ -26,6 +27,7 @@ import {
   PanelRightIcon,
   PanelTopIcon,
   SlidersHorizontalIcon,
+  SquareDashedIcon,
   WrenchIcon,
   XIcon,
 } from 'lucide-react'
@@ -33,6 +35,7 @@ import {
 import type { DevtoolsSide, DevtoolsTab } from '../devtools-settings.ts'
 import { devtools } from '../devtools-store.ts'
 import { dockStyle, handleSide, handleStyle, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'
+import { MountOutlineOverlay } from './outline-overlay.tsx'
 import { useOverlayLayer } from './overlay-layer.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 import { RegistryTab } from './registry-tab.tsx'
@@ -52,6 +55,8 @@ const SIDE_LABEL: Readonly<Record<DevtoolsSide, string>> = {
   left: 'Dock to the left',
 }
 
+const OUTLINE_LABEL = 'Outline the micro-frontends'
+
 /** `flat` has no border of its own, and a shadow alone let the panel and the app run together. */
 const EDGE_BORDER: Readonly<Record<DevtoolsSide, string>> = {
   top: 'border-b',
@@ -64,11 +69,19 @@ export function DevtoolsPanel(): ReactNode {
   const state = useSyncExternalStore(devtools.subscribe, devtools.getSnapshot, devtools.getSnapshot)
   const active = useActiveOverrides()
 
-  // A panel docked bottom or left covers the corner, so a trigger left rendered could not be pressed.
-  return state.open ? (
-    <DevtoolsDock side={state.side} size={state.size} tab={state.tab} />
-  ) : (
-    <DevtoolsTrigger hasOverrides={active.size > 0} />
+  return (
+    <>
+      {/* Outside the dock and unaffected by closing it: the point of outlining is to look at the
+          page, which means being able to put away the panel covering a quarter of it. */}
+      {state.outline ? <MountOutlineOverlay /> : null}
+
+      {/* A panel docked bottom or left covers the corner, so a trigger left rendered could not be pressed. */}
+      {state.open ? (
+        <DevtoolsDock side={state.side} size={state.size} tab={state.tab} outline={state.outline} />
+      ) : (
+        <DevtoolsTrigger hasOverrides={active.size > 0} />
+      )}
+    </>
   )
 }
 
@@ -102,10 +115,12 @@ function DevtoolsDock({
   side,
   size,
   tab,
+  outline,
 }: {
   readonly side: DevtoolsSide
   readonly size: number
   readonly tab: DevtoolsTab
+  readonly outline: boolean
 }): ReactNode {
   const overlays = useOverlayLayer()
 
@@ -165,6 +180,37 @@ function DevtoolsDock({
              */}
             <PanelActions>
               <Toolbar aria-label="Developer tools panel" menu={false}>
+                {/* A view option rather than a tool state, so it sits with the dock control and
+                    ahead of it: it acts on the page, which is what is being looked at. */}
+                <OverflowItem
+                  id="outline"
+                  label={OUTLINE_LABEL}
+                  labelBehavior="keep"
+                  overflow={
+                    <DropdownMenuItem
+                      id="outline"
+                      onAction={() => {
+                        devtools.setOutline(!outline)
+                      }}
+                    >
+                      <SquareDashedIcon />
+                      {OUTLINE_LABEL}
+                      {outline ? <CheckIcon aria-hidden className="ml-auto size-4" /> : null}
+                    </DropdownMenuItem>
+                  }
+                >
+                  <Toggle
+                    size="sm"
+                    aria-label={OUTLINE_LABEL}
+                    isSelected={outline}
+                    onChange={isSelected => {
+                      devtools.setOutline(isSelected)
+                    }}
+                  >
+                    <SquareDashedIcon />
+                  </Toggle>
+                </OverflowItem>
+
                 <OverflowItem
                   id="dock"
                   label="Panel position"
