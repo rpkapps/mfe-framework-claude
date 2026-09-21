@@ -1,11 +1,6 @@
 /**
- * The boundary history, at the two points the rest of the framework leans on.
- *
- * Both were broken in ways nothing else could see. A history built without a
- * blocker store accepts every `useBlocker` registration and honours none of
- * them, and a bridge that drops the entry state leaves every navigation an App
- * makes with no position recorded — which is what tells a back from a forward,
- * and what a refused back navigation is rolled back by.
+ * The boundary history at the two points the rest of the framework leans on, both of which were
+ * broken in ways nothing else could see (§1).
  */
 
 import { BoundaryNavigator } from '@company/mfe-host'
@@ -65,9 +60,7 @@ describe('the entry state survives the trip through the bridge', () => {
   })
 
   it('records one through a navigator, which is the bridge a real mount gets', () => {
-    // `AppHost` builds every App's history over `runtime.navigator`, not over
-    // the raw bridge. A navigator that dropped the state left both histories on
-    // the page unable to classify a browser back.
+    // Every App's history is built over `runtime.navigator`, not over the raw bridge.
     const bridge = createMemoryNavigationBridge(['/lab'])
     const navigator = new BoundaryNavigator({ bridge })
     const boundary = createBoundaryHistory(navigator)
@@ -97,8 +90,7 @@ describe('listening to the bridge is owned by an effect, not by construction', (
     const heard: string[] = []
     boundary.history.subscribe(({ location }) => heard.push(location.pathname))
 
-    // Building the history subscribes to nothing, so a memo React may
-    // double-invoke and discard cannot leak a listener.
+    // Building the history subscribes to nothing, so a discarded memo cannot leak a listener.
     bridge.back()
     expect(heard).toEqual([])
 
@@ -112,10 +104,7 @@ describe('listening to the bridge is owned by an effect, not by construction', (
   })
 
   it('hears it again after a detach and re-attach, which is what a remount is', () => {
-    // React tears an effect down and sets it up again without re-running the
-    // memo that built this. A subscription made at construction was removed by
-    // that first cleanup and never re-made, and from then on the App's router
-    // was never told the URL had moved.
+    // A subscription made at construction was removed by the first cleanup and never re-made (§14).
     const bridge = createMemoryNavigationBridge(['/lab', '/lab/storage'])
     const boundary = createBoundaryHistory(bridge)
     const heard: string[] = []

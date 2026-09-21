@@ -1,9 +1,6 @@
 /**
- * Derives an App's breadcrumb contribution from its native router matches.
- *
- * Label resolution is a fixed order, not an inference over arbitrary loader
- * data: guessing labels from whatever fields a loader happens to return is what
- * makes a trail change for reasons nobody can explain.
+ * Derives an App's breadcrumb contribution from its router matches; label resolution is a fixed
+ * order rather than an inference over whatever fields a loader happens to return.
  */
 
 import type { BreadcrumbItem } from '@company/mfe-core'
@@ -25,7 +22,7 @@ export interface BreadcrumbMatch {
 /** Parameters whose names carry no meaning worth showing to a user. */
 const GENERIC_PARAM_NAMES = new Set(['id', '_splat', '*'])
 
-/** `asset-reports` or `assetReports` becomes `Asset reports`. Last resort only. */
+/** `asset-reports` becomes `Asset reports`; a last resort only. */
 function humanize(segment: string): string {
   const spaced = segment
     .replace(/[-_]+/g, ' ')
@@ -66,10 +63,7 @@ function resolveLabel(match: BreadcrumbMatch): string | null {
   return humanize(segment)
 }
 
-/**
- * Composes one App's contribution, parent to child. Items are frozen so the
- * store can compare them by content and keep unchanged records by reference.
- */
+/** Items are frozen so the store can compare by content and keep unchanged records by reference. */
 export function breadcrumbsFromMatches(
   matches: readonly BreadcrumbMatch[],
 ): readonly BreadcrumbItem[] {

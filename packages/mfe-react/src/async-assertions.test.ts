@@ -1,12 +1,6 @@
 /**
- * A guard on the test setup itself.
- *
- * Asserting on a rejection is the normal way to test a framework error, and
- * `@testing-library/jest-dom/vitest` silently breaks it: that entry is CJS and
- * extends a second vitest instance, after which every `rejects.toThrow` reports
- * an empty message — including for a plain Error, so the failure looks like a
- * bug in the code under test. vitest.setup.ts imports the matchers directly to
- * avoid it, and this fails if anyone puts the convenient entry back.
+ * A guard on the test setup: the CJS `@testing-library/jest-dom/vitest` entry extends a second
+ * vitest instance and empties every `rejects.toThrow` message, so the setup avoids that entry.
  */
 
 import { describe, expect, it } from 'vitest'

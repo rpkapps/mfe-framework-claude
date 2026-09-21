@@ -1,13 +1,7 @@
 /**
- * Resolving a definition from the registry, and the retry boundary around it —
- * the plumbing `AppHost` and `lazyWidget` share.
- *
- * Loads are cached per runtime so two consumers of one id suspend on the same
- * promise. A rejection stays cached: React has to be handed the *same* settled
- * promise to surface the failure, and a cache that evicts itself on rejection
- * hands the next render a fresh pending one instead, which suspends forever and
- * refetches as fast as the network allows. Only `forgetDefinition`, called by
- * retry, drops an entry.
+ * Resolving a definition from the registry, and the retry boundary around it. A rejection stays
+ * cached because React needs the same settled promise to surface the failure, and a cache that
+ * evicted itself would suspend forever and refetch as fast as the network allows.
  */
 
 import { toMfeError, type MfeError } from '@company/mfe-core'
@@ -79,13 +73,8 @@ export function loadDefinition(
     return definition
   })()
 
-  // Marks the rejection handled without dropping it, so a cached failure does
-  // not surface as an unhandled rejection before a consumer suspends on it —
-  // and reports it, because a definition the registry advertised and the page
-  // could not load is exactly what a shell's telemetry exists to hear about.
-  // Reported off the cached promise, so one attempt is one diagnostic however
-  // many consumers suspend on it, and a retry — which drops the cache — is a
-  // new one.
+  // Marks the rejection handled without dropping it, and reports off the cached promise so one
+  // attempt is one diagnostic however many consumers suspend on it.
   pending.catch((error: unknown) => {
     runtime.diagnostics.report(
       toMfeError(error, { code: 'load/entry-failure', id, operation: `resolve ${label}` }),

@@ -1,9 +1,6 @@
 /**
- * The render-isolation gate: framework-induced work, measured.
- *
- * Isolated probe components keep an ordinary parent re-render from looking like
- * subscription fan-out, and counting commits rather than asserting output is the
- * point — a cached render can hide excessive upstream work.
+ * The render-isolation gate: isolated probes keep an ordinary parent re-render from looking like
+ * subscription fan-out, and commits are counted because a cached render hides upstream work.
  */
 
 import { act, render, screen } from '@testing-library/react'
@@ -97,8 +94,7 @@ describe('shell state fans out only to the field that changed', () => {
   it('a selector narrows the subscription further', () => {
     const env = setup({ shellState: { user: { id: 'u-1', name: 'Ada' } } })
 
-    // Selects a boolean, so a name change that keeps the user signed in is not a
-    // change as far as this consumer is concerned.
+    // Selects a boolean, so a name change that keeps the user signed in is not a change here.
     const signedIn = makeProbe('signed-in', () => useUser(user => user != null))
 
     render(
@@ -195,8 +191,7 @@ describe('storage fans out per key', () => {
 
   it('reading a snapshot repeatedly does not touch the browser store', () => {
     const env = setup()
-    // The injected memory area counts its own getItem calls; nothing in the
-    // store has to carry a counter for this.
+    // The injected memory area counts its own getItem calls.
     const reads = (): number => env.storageAreas.local.calls.reads
     const probe = makeDensityProbe()
 
@@ -211,8 +206,7 @@ describe('storage fans out per key', () => {
 
     for (let index = 0; index < 5; index += 1) rerender(tree)
 
-    // The snapshot is cached by its raw serialized form, so re-rendering never
-    // re-reads or re-parses.
+    // The snapshot is cached by its raw serialized form, so re-rendering never re-parses.
     expect(reads()).toBe(afterMount)
     expect(afterMount).toBeGreaterThan(0)
   })
@@ -263,8 +257,7 @@ describe('commands publish only when visible state changes', () => {
     const otherCanExecute = vi.fn(() => allow())
     let setLabel: ((next: string) => void) | null = null
 
-    // Separate components, so only the first one re-renders. A command's
-    // availability check must not run because something unrelated changed.
+    // Separate components, so an availability check must not run for an unrelated change.
     function RefreshOwner(): ReactNode {
       const [label, setter] = useState('Refresh data')
       setLabel = setter
@@ -390,8 +383,7 @@ describe('Widget inputs and handlers', () => {
 
     rerender(widgetTree(env, { value: 'same' }, {}))
 
-    // The same DOM node means component state survived: the inputs compared
-    // equal by name and value, so nothing remounted.
+    // The same DOM node means the inputs compared equal and nothing remounted.
     expect(screen.getByTestId('widget-value')).toBe(node)
   })
 

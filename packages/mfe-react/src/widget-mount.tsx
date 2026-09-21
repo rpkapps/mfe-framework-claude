@@ -1,10 +1,6 @@
 /**
- * The Widget provider boundary: input validation, event emission and the remote
- * render.
- *
- * Inputs are compared shallowly before revalidating, and an accepted update
- * publishes a snapshot to the existing mount rather than remounting it.
- * Handlers live in a ref, so the channel is never torn down and rebuilt.
+ * The Widget provider boundary: an accepted input update publishes a snapshot to the existing
+ * mount rather than remounting it, and handlers live in a ref so the channel is never rebuilt.
  */
 
 import {
@@ -56,10 +52,7 @@ interface ValidationState {
   readonly error: MfeError | null
 }
 
-/**
- * Pure, so it is safe to call during render: it allocates a new state value and
- * touches nothing outside.
- */
+/** Pure, so it is safe to call during render. */
 function validateInto(
   definition: WidgetDefinition,
   inputs: Readonly<Record<string, unknown>>,
@@ -85,10 +78,7 @@ function validateInto(
   return { checked: inputs, valid: value, error: null }
 }
 
-/**
- * Memoized on the validated inputs, so a handler-only change re-renders nothing
- * remote: the handler ref is updated outside React's data flow.
- */
+/** Memoized on the validated inputs, so a handler-only change re-renders nothing remote. */
 const WidgetBody = memo(function RenderWidgetBody({
   definition,
   inputs,
@@ -116,18 +106,14 @@ export function WidgetMount({
 }: WidgetMountProps): ReactNode {
   const { diagnostics } = mount.runtime
 
-  // Assigning during render would publish callbacks from a render React may
-  // still abandon, so the ref is updated in an effect instead.
+  // Assigning during render would publish callbacks from a render React may abandon.
   const committedHandlers = useRef(handlers)
   useEffect(() => {
     committedHandlers.current = handlers
   })
 
-  // Validation state is React state, not a ref, and the comparison happens
-  // during render using React's documented "adjust state when props change"
-  // pattern. Writing refs during render would be wrong here: React may discard a
-  // render, and under concurrent rendering the ref could then describe inputs
-  // that were never committed.
+  // React state rather than a ref, because a ref written during a render React discards would
+  // describe inputs that were never committed.
   const [validation, setValidation] = useState(() => validateInto(definition, inputs, null))
 
   if (!Object.is(validation.checked, inputs) && !inputsEqual(validation.checked, inputs)) {
@@ -153,8 +139,7 @@ export function WidgetMount({
     return (event: string, payload: unknown): void => {
       const schema = declared[event]
       if (!schema) {
-        // Throwing at the call site keeps the failure in the provider's own
-        // stack rather than surfacing at a distant consumer.
+        // Throwing at the call site keeps the failure in the provider's own stack.
         throw createMfeError({
           code: 'contract/event-mismatch',
           id: definition.id,
@@ -182,8 +167,6 @@ export function WidgetMount({
       if (!validated.ok) throw validated.error
 
       // The consumer validates again only when it supplied a runtime contract.
-      // Without one it has no schema to check against, which is why
-      // contract-free consumption is documented as the weaker mode.
       const consumerSchema = consumerEvents?.[event]
       if (!consumerSchema) {
         committedHandlers.current[event]?.(validated.value)
@@ -205,8 +188,7 @@ export function WidgetMount({
 
   const validInputs = validation.valid
   if (validInputs === null) {
-    // Nothing to fall back to on the very first mount, so the mount fails with
-    // the validation error itself: it names the field, the value and the repair.
+    // Nothing to fall back to on the first mount, so the validation error itself is thrown.
     if (validation.error !== null) throw validation.error
 
     throw createMfeError({
@@ -235,14 +217,7 @@ export function WidgetMount({
   )
 }
 
-/**
- * The catch-all handler prop: every declared event, by name, in one callback.
- *
- * A host composing the registry knows the event names only as strings, so
- * writing `onX` props for them means building the prop names — which is the
- * mapping this module already owns, done again at a distance, and wrong the
- * first time a name maps differently from how the provider mapped it.
- */
+/** A host composing the registry knows event names only as strings, not as `onX` props (§28). */
 const CATCH_ALL_HANDLER_PROP = 'onEvent'
 
 /** Splits consumer props into inputs, event handlers and host control props. */
@@ -265,10 +240,7 @@ export function partitionWidgetProps(
     // Reserved control props are never forwarded as inputs.
     if (name === 'fallback' || name === 'pending' || name === 'key' || name === 'ref') continue
 
-    // Read before the declared events, so an event named `event` — which maps
-    // to this same prop — cannot quietly take the catch-all's place. That
-    // Widget loses nothing: the catch-all delivers its event by name like any
-    // other.
+    // Read before the declared events, so an event named `event` cannot take this prop's place.
     if (name === CATCH_ALL_HANDLER_PROP) {
       if (typeof value === 'function') {
         catchAll = value as (event: string, payload: unknown) => void
@@ -282,8 +254,7 @@ export function partitionWidgetProps(
       continue
     }
 
-    // An `onX` prop with no matching event is not silently treated as an input:
-    // it would fail serializability validation with a confusing message.
+    // An `onX` prop with no matching event would fail serializability with a confusing message.
     if (/^on[A-Z]/.test(name)) continue
 
     inputs[name] = value
@@ -291,11 +262,7 @@ export function partitionWidgetProps(
 
   if (catchAll === undefined) return { inputs, handlers: named }
 
-  // Every declared event reaches the catch-all, including one that also has a
-  // handler of its own: a consumer asking for all of them and for one in
-  // particular means both, and the alternative — the specific handler
-  // suppressing the general one — would make an activity feed lose exactly the
-  // events the page does something with.
+  // Every declared event reaches the catch-all, including one that also has its own handler.
   const notify = catchAll
   const handlers: Record<string, (payload: unknown) => void> = {}
   for (const event of declaredEvents) {

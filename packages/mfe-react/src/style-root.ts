@@ -1,43 +1,24 @@
-/**
- * The style root: the seam a container's own bundle has into its mounts.
- *
- * A design system whose overlays portal out of the subtree needs a component
- * rendered by the *container's* copy of it, because the components a mount
- * renders read their portal target from that copy's React context. The
- * framework cannot import that component itself — it does not know which design
- * system — so the container's build generates it and attaches it to the
- * definition it exposes, and the mount renders it inside the scope root with
- * that mount's overlay container. An author neither writes it nor reads it.
- */
+/** The framework cannot import the design system, so the container's build attaches this (§17). */
 
 import type { ComponentType, ReactNode } from 'react'
 
 import type { MfeDefinition } from './definition.ts'
 
 export interface StyleRootProps {
-  /** The mount's body-level overlay root, which overlays portal into. */
   readonly overlayContainer: HTMLElement
   readonly children: ReactNode
 }
 
 export type MfeStyleRoot = ComponentType<StyleRootProps>
 
-/**
- * Keyed by symbol, so it is neither part of the definition's public shape nor
- * something a serialized descriptor or an `Object.keys` walk ever sees.
- */
+/** A symbol key, so no serialized descriptor or `Object.keys` walk ever sees it. */
 const STYLE_ROOT = Symbol.for('@company/mfe.styleRoot')
 
-/** The definition shape `withStyleRoot` produces, which only this file reads. */
 interface StyleRootCarrier {
   readonly [STYLE_ROOT]?: MfeStyleRoot
 }
 
-/**
- * Returns a definition with the style root attached, leaving the original
- * alone: the generated entry exposes the result, and everything that recognises
- * a definition — the brand, the id, the kind — is carried over unchanged.
- */
+/** Returns a copy with the style root attached, leaving the original definition alone. */
 export function withStyleRoot<Definition extends MfeDefinition>(
   definition: Definition,
   styleRoot: MfeStyleRoot,

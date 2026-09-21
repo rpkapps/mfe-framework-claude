@@ -1,10 +1,7 @@
 /**
- * Mounting an App: build the boundary history, call the author's factory once,
- * validate what it returned, then render the router.
- *
- * The validation is the reason this file exists. An App that ignores the
- * supplied `basePath` or `history` still renders — at the wrong boundary, or
- * fighting the shell over the URL — in ways that surface far from the cause.
+ * Mounting an App: build the boundary history, call the author's factory once, validate what it
+ * returned, then render the router, so an App that ignores the supplied `basePath` or `history`
+ * fails at mount rather than far from the cause (§3).
  */
 
 import { RouterProvider, type AnyRouter } from '@tanstack/react-router'
@@ -28,10 +25,7 @@ import type { AppDefinition } from './definition.ts'
 import type { MfeContext, MfeRouterContext } from './router-contract.ts'
 import type { MfeMount } from './runtime.ts'
 
-/**
- * Only `mfe` and `queryClient` are ours. The snapshot fields are read fresh each
- * time this runs, so a route callback sees current values.
- */
+/** The snapshot fields are read fresh each time, so a route callback sees current values. */
 export function createRouterContext(mount: MfeMount): MfeRouterContext {
   const shellState = mount.runtime.shellState.getSnapshot()
 
@@ -110,11 +104,7 @@ function validateAuthoredRouter(
   }
 }
 
-/**
- * A child route returning `{ mfe: … }` merges over the framework namespace and
- * every hook below it silently reads the wrong thing, so the offending route is
- * named rather than left to be discovered.
- */
+/** A child route returning `{ mfe: … }` merges over the framework namespace, so it is named. */
 function findReservedKeyConflict(
   router: AnyRouter,
   context: MfeRouterContext,
@@ -159,11 +149,7 @@ export interface AppMountProps {
   readonly bridge: NavigationBridge
 }
 
-/**
- * The router is built once per mount, so an ordinary rerender never rebuilds it.
- * Disposal drops the router and its history; already-loaded route chunks stay in
- * the module cache, because that is a cache rather than mount state.
- */
+/** The router is built once per mount, so an ordinary rerender never rebuilds it. */
 export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNode {
   const boundary = useMemo(() => createBoundaryHistory(bridge), [bridge])
 
@@ -188,18 +174,11 @@ export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNod
     return { router: created, context: routerContext }
   }, [definition, mount, boundary])
 
-  /*
-   * The bridge subscription is owned by the effect that ends it, not by the
-   * memo above. React tears an effect down and sets it up again without
-   * re-running that memo — StrictMode does it on every mount in development —
-   * and a history that subscribed at construction was therefore left deaf from
-   * the first cleanup onwards: the URL moved on a browser back and the App's
-   * router was never told, so the address bar and the page disagreed.
-   */
+  // Owned by the effect that ends it: a subscription made in the memo above would be left deaf
+  // from the first cleanup onwards (§14).
   useEffect(() => boundary.attach(), [boundary])
 
-  // The App's own `useBlocker` registrations, extended to the navigations the
-  // shell performs. Nothing in the author's router knows this is happening.
+  // The App's own `useBlocker` registrations, extended to the shell's navigations (§20).
   useRouterBlockerBridge(boundary, mount)
 
   useShellStateSync(router, mount)
@@ -223,9 +202,8 @@ export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNod
 }
 
 /**
- * A theme change refreshes the snapshot so a later `beforeLoad` sees it but does
- * not invalidate loaders; an identity or group change does, because decisions
- * and loader data made under the old session are no longer valid.
+ * A theme change refreshes the snapshot without invalidating loaders; an identity or group
+ * change invalidates, because decisions made under the old session are no longer valid.
  */
 function useShellStateSync(router: AnyRouter, mount: MfeMount): void {
   useEffect(() => {
@@ -263,9 +241,7 @@ function useBreadcrumbContribution(
     const handle = breadcrumbs.registerMount(definition.id, mount.mountToken, mount.depth)
 
     const publish = (): void => {
-      // A development diagnostic, so the scan over every match on every
-      // navigation — and the sentences it would write — leave the production
-      // build entirely rather than running to report nothing.
+      // A development diagnostic, so the scan over every match leaves the production build.
       if (DEV) {
         const conflict = findReservedKeyConflict(router, context)
         if (conflict) {

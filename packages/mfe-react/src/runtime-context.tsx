@@ -1,9 +1,6 @@
 /**
- * The shell-level runtime provider.
- *
- * A Widget can be consumed by the shell itself, so the runtime has to be
- * reachable without a surrounding mount. `MfeMountProvider` carries the
- * per-mount half.
+ * The shell-level runtime provider: a Widget can be consumed by the shell itself, so the
+ * runtime has to be reachable without a surrounding mount.
  */
 
 import { createContext, useContext, type ReactNode } from 'react'
@@ -23,10 +20,7 @@ export function MfeProvider({ runtime, children }: MfeProviderProps): ReactNode 
   return <RuntimeContext value={runtime}>{children}</RuntimeContext>
 }
 
-/**
- * A mount always knows its runtime, so it is consulted before the shell-level
- * provider: nested consumption then never depends on that provider existing.
- */
+/** A mount knows its runtime, so nested consumption never depends on the provider existing. */
 export function useMfeRuntime(consumer: string): MfeRuntime {
   const mount = useOptionalMfeMount()
   const runtime = useContext(RuntimeContext)

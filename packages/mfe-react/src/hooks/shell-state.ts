@@ -1,15 +1,7 @@
 /**
- * The live shell-state hooks, available in Apps, in independently mounted
- * Widgets and in the host's own chrome alike.
- *
- * Each hook subscribes to one field, so a theme change cannot notify a consumer
- * that only reads the user, and a selector narrows it further. These are
- * readonly data for rendering, never an authorization API.
- *
- * They read through `useMfeRuntime` rather than through a mount because shell
- * state is the runtime's: nothing here uses a mount's identity, and requiring
- * one only meant the host publishing the theme could not read it back with the
- * hook its mounts use.
+ * The live shell-state hooks, read through the runtime rather than a mount because none of them
+ * uses a mount's identity (§26). Each subscribes to one field, so a theme change cannot notify
+ * a consumer that only reads the user.
  */
 
 import { useCallback } from 'react'

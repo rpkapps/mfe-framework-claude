@@ -1,8 +1,6 @@
 /**
- * The runtime a shell installs once, and the per-mount context derived from it.
- *
- * The split is what makes ownership traceable: anything on `MfeMount` is created
- * and destroyed with that mount, anything on `MfeRuntime` outlives it.
+ * The runtime a shell installs once and the per-mount context derived from it: anything on
+ * `MfeMount` is destroyed with that mount, anything on `MfeRuntime` outlives it.
  */
 
 import type {
@@ -23,7 +21,7 @@ import type {
 } from '@company/mfe-host'
 import type { QueryClient } from '@tanstack/react-query'
 
-/** Shared, shell-owned services. One instance per document. */
+/** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
   readonly registry: NormalizedRegistry
   readonly loader: ContainerLoader
@@ -43,11 +41,11 @@ export interface MfeMount {
   readonly definitionId: string
   readonly definitionVersion: string | undefined
   readonly kind: 'app' | 'widget'
-  /** Internal bookkeeping that isolates duplicate mounts. Never public API. */
+  /** Internal bookkeeping that isolates duplicate mounts; never public API. */
   readonly mountToken: string
   /** Shell is 0, a top-level App 1, an App nested inside it 2, and so on. */
   readonly depth: number
-  /** The App's assigned URL boundary. Always `''` for a Widget. */
+  /** The App's assigned URL boundary, always `''` for a Widget. */
   readonly basePath: string
   readonly telemetry: MfeTelemetry
   readonly storage: {

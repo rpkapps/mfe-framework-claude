@@ -1,17 +1,7 @@
 /**
- * What `#mfe/config` resolves to in a test.
- *
- * The real generated module fetches `runtime-config.json` in a top-level
- * `await` and throws if it is missing, so importing anything that reads
- * configuration would need a served file and a network stub before the first
- * assertion. Pointing the alias here instead leaves the source under test
- * exactly as it ships — it still writes `import { config } from '#mfe/config'`
- * — and the test supplies the values (§14).
- *
- * Types still come from the real generated module: a container's tsconfig maps
- * `#mfe/config` to `.mfe/config.ts`, and only the test runner's resolution is
- * redirected. A field the author never declared is therefore still a type
- * error, and the fixture cannot drift into a second configuration API.
+ * What `#mfe/config` resolves to in a test. Pointing the alias here leaves the source under
+ * test exactly as it ships — it still writes `import { config } from '#mfe/config'` — and the
+ * test supplies the values (§14).
  */
 
 import { createMfeError } from '@company/mfe-core'
@@ -56,14 +46,10 @@ function read(field: string): unknown {
   return values[field]
 }
 
-/**
- * A proxy rather than a plain object, so an unset field names itself. A test
- * that forgot one otherwise reads `undefined` and fails somewhere else.
- */
+/** A proxy, so an unset field names itself instead of reading `undefined` elsewhere. */
 export const config: Readonly<Record<string, unknown>> = new Proxy(Object.freeze({}), {
   get: (_target, field) => {
-    // Symbols and `then` are how a runtime inspects a module namespace; they
-    // are never author reads and must not throw.
+    // Symbols and `then` are how a runtime inspects a module namespace, never author reads.
     if (typeof field !== 'string' || field === 'then') return undefined
     return read(field)
   },

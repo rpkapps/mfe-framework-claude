@@ -1,9 +1,6 @@
 /**
- * The internal React context carrying a mount's identity and services.
- *
- * Authors reach the same services through the named hooks or `context.mfe`,
- * which is why there is no generic `useMfeContext`: one generic accessor would
- * make every consumer subscribe to everything.
+ * The internal React context carrying a mount's identity and services; there is no generic
+ * `useMfeContext` because one accessor would make every consumer subscribe to everything.
  */
 
 import { createContext, useContext, type ReactNode } from 'react'
@@ -37,7 +34,7 @@ export function useMfeMount(hookName: string): MfeMount {
   })
 }
 
-/** Returns the mount when there is one, without throwing. Used by host components. */
+/** Returns the mount when there is one, without throwing. */
 export function useOptionalMfeMount(): MfeMount | null {
   return useContext(MountContext)
 }

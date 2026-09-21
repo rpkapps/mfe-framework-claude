@@ -1,8 +1,6 @@
 /**
- * The style root: generated plumbing, so what is asserted here is the contract
- * the generated container entry relies on — the definition still looks like a
- * definition, and the mount renders the component inside the scope root with
- * this mount's overlay container.
+ * The style root is generated plumbing, so what is asserted here is the contract the generated
+ * container entry relies on (§17).
  */
 
 import { createRootRoute, createRouter } from '@tanstack/react-router'
@@ -91,8 +89,7 @@ describe('a mount whose definition carries a style root', () => {
     environment = createMfeTestEnvironment({ definitionId: 'probe-widget', kind: 'widget' })
     const env = environment
 
-    // Scoped to the rendered tree: the mount's overlay root carries the same
-    // attribute, and it is a sibling of this container under the body.
+    // The mount's overlay root carries the same attribute, as a sibling under the body.
     const { container } = render(
       <env.wrapper>
         <WidgetMount
@@ -107,8 +104,7 @@ describe('a mount whose definition carries a style root', () => {
     const styleRoot = screen.getByTestId('style-root')
     const scopeRoot = container.querySelector(`[${SCOPE_ATTRIBUTE}="probe-widget"]`)
 
-    // Inside rather than around: the scope element stays the framework's own
-    // anchor, and the generated root is what a container renders within it.
+    // Inside rather than around, so the scope element stays the framework's own anchor.
     expect(scopeRoot).not.toBeNull()
     expect(scopeRoot?.contains(styleRoot)).toBe(true)
     expect(styleRoot).toContainElement(screen.getByTestId('widget-value'))

@@ -1,21 +1,7 @@
 /**
- * What `#mfe/fetch` resolves to in a test.
- *
- * The real generated module builds its transport from the shell's installed
- * session and the container's declared API origins, neither of which exists in
- * a component test. The alias points here so the source under test still calls
- * `fetch` from `#mfe/fetch` and the test answers the request (§14).
- *
- * The interceptor itself is the production one. Relative URL resolution, the
- * origin allowlist and the 401 retry are subtle enough that a second
- * implementation would drift, and a test asserting on the relative URL its
- * source passed in would pass while the deployment sent a different one. What
- * the fixture replaces is only what a test cannot have: the session, and the
- * network at the far end.
- *
- * It never supplies a live credential — the access token below is a fixture
- * string — and it claims no authenticated integration coverage. That remains a
- * browser test.
+ * What `#mfe/fetch` resolves to in a test. The alias points here so the source under test still
+ * calls `fetch` from `#mfe/fetch` and the test answers the request (§14). The interceptor itself
+ * is the production one; only the session and the network at the far end are replaced.
  */
 
 import { createAuthenticatedFetch, type FetchLike } from '@company/mfe-host'
@@ -53,11 +39,7 @@ let apiBaseUrl: string | undefined
 let declaredOrigins: readonly string[] = []
 let recorded: MfeFetchRecord[] = []
 
-/**
- * The origins the author declared `{ api: true }`, exactly as the generated
- * module exports them. The base URL's own origin is one of them, which is what
- * the generator does with the first declared API.
- */
+/** The declared `{ api: true }` origins, with the base URL's own origin among them. */
 export let apiOrigins: readonly string[] = Object.freeze([])
 
 function refreshOrigins(): void {
@@ -65,10 +47,7 @@ function refreshOrigins(): void {
   apiOrigins = Object.freeze([...new Set(all.map(entry => new URL(entry).origin))])
 }
 
-/**
- * The base a relative request resolves against, as the first `{ api: true }`
- * field does in production. Its origin joins the allowlist.
- */
+/** The base a relative request resolves against; its origin joins the allowlist. */
 export function setMfeApiBaseUrl(base: string): void {
   apiBaseUrl = base
   refreshOrigins()

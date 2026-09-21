@@ -1,10 +1,6 @@
 /**
- * Composition: a Widget loaded through the loader and consumed as a component,
- * and a child App delegated at a splat route.
- *
- * The tracer bullet proves one App mounts. This proves the two models differ
- * where it matters: Apps take URLs and own a boundary, Widgets take props and
- * get none.
+ * Composition: a Widget loaded through the loader and consumed as a component, and a child App
+ * delegated at a splat route, which is where the two models differ — Apps own a boundary.
  */
 
 import {
@@ -66,8 +62,7 @@ function buildChildApp(observed: { basePath?: string; signalAborted?: boolean })
     getParentRoute: () => rootRoute,
     path: '/accounts/$accountId',
     component: function Account() {
-      // This tree is not the registered one, so the typed accessor resolves to
-      // `any`; the assertion is what keeps the fixture honest about the shape.
+      // This tree is not the registered one, so the typed accessor resolves to `any`.
       const { accountId } = accountRoute.useParams() as unknown as { accountId: string }
 
       observed.basePath = useBasePath()
@@ -187,11 +182,7 @@ describe('consuming a Widget', () => {
   })
 })
 
-/**
- * A parent App that delegates to the child at its own splat route, through
- * `mfeRoute` rather than a hand-written basePath. This is the path a real App
- * takes, and the only one that exercises how the boundary is computed.
- */
+/** Delegating through `mfeRoute` is the only path that exercises how the boundary is computed. */
 function buildParentApp() {
   const rootRoute = createRootRouteWithContext<MfeRouterContext>()({
     component: () => <Outlet />,
@@ -220,13 +211,7 @@ function buildParentApp() {
 }
 
 describe('delegating to a child App at a splat route', () => {
-  /**
-   * A regression. The boundary used to be the whole current pathname, so a
-   * child delegated at `/reports/$` and opened at `/reports/accounts/42` was
-   * mounted with that entire path as its base, had nothing left to route, and
-   * silently rendered its index. Nothing caught it because every other test
-   * here passes `basePath` by hand.
-   */
+  /** The boundary used to be the whole current pathname, so a child had nothing left to route. */
   it('gives the child everything below the splat, not the whole path', async () => {
     const observed: { basePath?: string } = {}
 
@@ -250,8 +235,7 @@ describe('delegating to a child App at a splat route', () => {
     })
     environment = rendered.environment
 
-    // The boundary consumed the whole path, so the child routes '/' — its own
-    // index rather than a not-found or a deeper route.
+    // The boundary consumed the whole path, so the child routes its own index.
     await waitFor(() => expect(screen.getByTestId('child-index')).toBeInTheDocument())
     expect(screen.queryByTestId('child-account')).not.toBeInTheDocument()
   })
@@ -287,7 +271,7 @@ describe('nesting a child App', () => {
 
     await waitFor(() => expect(screen.getByTestId('child-account')).toBeInTheDocument())
 
-    // The child read its own URL parameter. It never parsed the mount prefix.
+    // The child read its own URL parameter, never the mount prefix.
     expect(screen.getByTestId('child-account')).toHaveTextContent('Account 42')
     expect(observed.basePath).toBe('/reports')
   })

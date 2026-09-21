@@ -1,10 +1,6 @@
 /**
- * Hosting an App: the declarative route form and the imperative escape hatch.
- *
- * Apps take URLs, so a parent delegates to a child App at a splat route: the
- * boundary is visible in the filename rather than derived from whatever route
- * happens to be active, and because that is an ordinary route the child loads
- * through native code splitting and `defaultPreload: 'intent'` preloads it.
+ * Hosting an App: a parent delegates at a splat route, so the boundary is visible in the
+ * filename and the child loads through the router's own code splitting and preloading.
  */
 
 import type { MfeError } from '@company/mfe-core'
@@ -24,15 +20,12 @@ export interface AppFallbackProps {
 
 export interface AppHostProps {
   readonly appId: string
-  /** The URL boundary assigned to this child. Everything below it is the child's. */
+  /** The URL boundary assigned to this child; everything below it is the child's. */
   readonly basePath: string
   readonly fallback?: (props: AppFallbackProps) => ReactNode
 }
 
-/**
- * Shell-owned imperative placement, for cases like opening an App inside a
- * shell-owned modal. It is the escape hatch; `mfeRoute` is the author path.
- */
+/** The imperative escape hatch for shell-owned placement; `mfeRoute` is the author path. */
 export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode {
   const runtime = useMfeRuntime(`the "${appId}" App`)
   const [attempt, setAttempt] = useState(0)
@@ -41,22 +34,8 @@ export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode 
     setAttempt(current => current + 1)
   }, [runtime, appId])
 
-  /*
-   * The key carries the App and its boundary, not just the retry counter.
-   *
-   * Without them React reconciles one `AppLoader` across a change of App: the
-   * new definition resolves, the component re-renders, and `useOwnedMount`
-   * still holds the *previous* App's mount — it only swaps in an effect. For
-   * that render `AppMount` builds the new App's router from the old App's
-   * mount, so the author's factory is handed the previous boundary, the router
-   * matches nothing, and the region goes blank. That is precisely what a shell
-   * does every time the user switches application from the finder.
-   *
-   * Keying makes the change a remount: the old subtree unmounts and disposes
-   * its mount, the new one starts from no mount at all, and the host's Suspense
-   * boundary covers the gap — which is the behaviour the rest of this file
-   * already assumes.
-   */
+  // The key carries the App and its boundary: without them React reconciles one `AppLoader`
+  // across a change of App, and `useOwnedMount` still holds the old mount for that render (§14).
   const body = (
     <AppLoader key={`${String(attempt)}:${appId}:${basePath}`} appId={appId} basePath={basePath} />
   )
@@ -87,10 +66,8 @@ function AppLoader({
   const parent = useOptionalMfeMount()
   const definition = use(loadDefinition(runtime, appId, 'app'))
 
-  // A change to the boundary, the definition id or the React placement key
-  // disposes the old mount and creates a new one; a change to child-owned path
-  // or search parameters does not reach here at all, because that is an ordinary
-  // route transition inside the child's own router.
+  // Child-owned path and search changes never reach here; they are ordinary route
+  // transitions inside the child's own router.
   const mount = useOwnedMount(
     () =>
       createMount({
@@ -104,8 +81,7 @@ function AppLoader({
     [runtime, definition, basePath, parent],
   )
 
-  // The one render before the effect has built the mount. A host renders this
-  // inside a Suspense boundary that is already showing a fallback.
+  // The one render before the effect has built the mount.
   if (mount === null) return null
 
   return <AppMount definition={definition} mount={mount} bridge={runtime.navigator} />
@@ -113,19 +89,11 @@ function AppLoader({
 
 export interface MfeRouteOptions {
   readonly appId: string
-  /**
-   * Overrides the boundary the parent route would otherwise supply. Advanced:
-   * the default derives it from the host route, which is what keeps the child
-   * contract identical whether it is top-level or nested.
-   */
+  /** Overrides the boundary; the default derives it from the host route, top-level or nested. */
   readonly basePath?: string
 }
 
-/**
- * Declares a child App at a splat route. Returns ordinary route options, so the
- * author's own options merge with it and the child fails through the route's
- * native `errorComponent`.
- */
+/** Returns ordinary route options, so the author's own merge in and errors reach `errorComponent`. */
 export function mfeRoute(options: MfeRouteOptions): {
   component: () => ReactNode
 } {
@@ -137,18 +105,8 @@ export function mfeRoute(options: MfeRouteOptions): {
 }
 
 /**
- * The splat route `/reports/$` is matched at `/reports`, so the host route's own
- * pathname is the child's boundary when no override was given.
- */
-/**
- * The boundary a delegated child is mounted at: the current path with the
- * splat remainder removed.
- *
- * `mfeRoute` is declared at a splat route, so the parent's own path is
- * everything above the splat and the remainder is the child's URL. Taking the
- * whole pathname instead hands the child its own deep link as a base, leaves
- * it nothing to route, and it silently renders its index for every URL below
- * the boundary — which is exactly what a real page did.
+ * The boundary a delegated child is mounted at: the current path with the splat remainder
+ * removed, because the whole pathname would hand the child its own deep link as a base.
  */
 export function boundaryAboveSplat(pathname: string, splat: string | undefined): string {
   const trimmed = pathname.replace(/\/+$/, '')
@@ -167,10 +125,8 @@ function MfeRouteBoundary({
   readonly basePath: string | undefined
 }): ReactNode {
   const runtime = useMfeRuntime(`the "${appId}" App`)
-  // The parent App's own params, read as a plain bag. The typed shape comes
-  // from whichever router the *consuming* project registered, which is not the
-  // one this component is rendered by: in a project whose own routes have no
-  // splat, `_splat` is not on that type at all.
+  // Read as a plain bag: the typed shape comes from the consuming project's router, whose
+  // own routes may have no splat at all.
   const params = useParams({ strict: false }) as unknown as Record<string, string | undefined>
   const splat = params['_splat']
   const resolved = basePath ?? boundaryAboveSplat(runtime.navigator.read().pathname, splat)

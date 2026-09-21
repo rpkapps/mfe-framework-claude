@@ -1,11 +1,7 @@
 /**
- * The contract tracer bullet: one complete new-contract path, with the loader
- * faked and no bundler, federation or deployed remote.
- *
- * It retires the contract risk before anything is built on top, and pins the
- * two feasibility answers the design depends on: the pinned router exposes
- * enough state to validate exact history identity, and one generated route tree
- * backs two concurrent mounts without cross-talk.
+ * The contract tracer bullet: one complete new-contract path with the loader faked, pinning that
+ * the router exposes enough state to validate the entry contract (§3) and that one generated
+ * route tree backs two concurrent mounts (§2).
  */
 
 import {
@@ -47,8 +43,7 @@ function buildFixture(observations: BeforeLoadObservation[]) {
     getParentRoute: () => rootRoute,
     path: '/',
     beforeLoad: ({ context }) => {
-      // A route callback reads the snapshot for this invocation and types it
-      // natively. No hook is involved and no service locator is needed.
+      // A route callback reads the snapshot for this invocation and types it natively.
       observations.push({
         userId: context.mfe.user?.id ?? null,
         theme: context.mfe.theme,
@@ -263,8 +258,7 @@ describe('pinned router feasibility', () => {
     const history = createMemoryHistory({ initialEntries: ['/tracer'] })
     const router = createRouter({ routeTree, basepath: '/tracer', history, context: NO_CONTEXT })
 
-    // Both are supported, observable state. Without them the entry contract
-    // could not be validated and would have had to change.
+    // Both are supported, observable state; without them the entry contract could not be validated.
     expect(router.options.basepath).toBe('/tracer')
     expect(router.history).toBe(history)
   })
@@ -292,11 +286,10 @@ describe('pinned router feasibility', () => {
     await routerA.navigate({ to: '/' })
     await routerA.load()
 
-    // Independent histories, independent matches: a shallow tree clone is not
-    // needed, and the author contract does not have to change.
+    // Independent histories and independent matches, so no tree clone is needed (§2).
     expect(routerA.history).toBe(historyA)
     expect(routerB.history).toBe(historyB)
-    // A navigated; B did not move. One generated tree, two independent states.
+    // A navigated; B did not move, on one generated tree.
     expect(historyA.location.pathname).toBe('/a/')
     expect(historyB.location.pathname).toBe('/b')
   })
@@ -372,12 +365,7 @@ describe('mount identity', () => {
 })
 
 describe('hooks outside a mount', () => {
-  /**
-   * Shell state is the runtime's, not a mount's, so reading it outside a mount
-   * is legitimate — the host publishes the theme and reads it back with the
-   * same hook its mounts use. What is not legitimate is reading it with no
-   * runtime at all, and the message names both ways to have one.
-   */
+  /** Reading shell state outside a mount is legitimate; reading it with no runtime is not. */
   it('names both ways to reach a runtime rather than failing with a null context', () => {
     function Stray(): React.ReactNode {
       return <span>{useUser()?.name ?? 'none'}</span>
