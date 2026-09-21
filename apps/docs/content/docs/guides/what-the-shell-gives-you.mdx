@@ -29,7 +29,8 @@ import { useBasePath, useTelemetry, useTheme, useUser } from '@company/mfe-react
 | `useNavigationBlock(shouldBlock)`       | the pending navigation, plus `proceed` and `stay`              | inside a mount only |
 
 A hook marked _mount or host page_ also works above your container, where it resolves to the page's
-reserved `@host` scope. `@company/mfe-react` is the only framework package you import, and lint
+reserved [`@host` scope](/docs/glossary). `@company/mfe-react` is the only framework package you
+import, and lint
 blocks the rest
 ([5. What you must not do](/docs/guides/what-you-must-not-do#do-not-import-past-a-packages-entry-point)).
 
@@ -102,8 +103,9 @@ useCommand({
 
 A command is an action your mount publishes into the shell's palette, opened with <Kbd>⌘K</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>K</Kbd>.
 Registration follows component lifetime. Put the call in a layout route to keep the command for as
-long as the App is mounted. Put it in a page route to scope it to that page. `placements` defaults
-to `['command-palette']`, the only standardized placement today.
+long as the App is mounted. Put it in a page route to scope it to that page.
+
+`placements` defaults to `['command-palette']`, the only standardized placement today.
 
 A denied command stays in the palette, greyed out, with the reason you gave. `canExecute` must be a
 pure synchronous read of reactive state. One that throws counts as a denial, and the user sees
@@ -134,8 +136,8 @@ const blocker = useBlocker({
 Inside an App, use TanStack's own `useBlocker`. The framework widens it to cover the navigations
 your router never sees: the application finder, a breadcrumb, the palette, the back button.
 
-For a mount with no router of its own, which means a Widget, use `useNavigationBlock`. It hands
-back the pending intent, so you render your own confirmation rather than `window.confirm`.
+A Widget has no router of its own, so it uses `useNavigationBlock` instead. That hook hands back the
+pending intent, so you render your own confirmation rather than `window.confirm`.
 
 ```tsx
 const { pending, proceed, stay } = useNavigationBlock(isDirty)
@@ -203,9 +205,10 @@ const [visits, setVisits] = useStoredState('visits', visitsSchema, {
 Your container never touches `localStorage`. You declare a key with a schema and get a subscribed
 value and a stable setter, namespaced under this definition's id. `retention` decides who may read
 the value back. `'user'`, the default, is limited to the signed-in person and cleared when the
-identity or the group set changes, and `'browser'` is never cleared. `useMfeStorage()` is the
-imperative handle for reads that should not subscribe, and
-[7. Storage](/docs/guides/storage) has versions, migrations and every error.
+identity or the group set changes, and `'browser'` is never cleared.
+
+`useMfeStorage()` is the imperative handle for reads that should not subscribe, and [7.
+Storage](/docs/guides/storage) has versions, migrations and every error.
 
 ## Icons: `DefinitionIcon`
 
@@ -238,16 +241,19 @@ Widget emits a declared event and lets the App around it navigate.
 
 ## What the shell does not give you
 
+The shell does not give you any of these.
+
 - **No component library.** The design system is a dependency you and the shell both take.
 - **No cross-container messaging.** There is no bus and no shared store.
 - **No session of your own.** Your container borrows the page's session through `#mfe/fetch`.
 - **No cross-boundary navigation.** Moving a user to another App is the shell's job.
-- **No mount deadline.** A load suspends until it settles or fails, and retry is a person's click.
+- **No mount deadline.** A load suspends until it settles or fails, and a retry is a person's click.
 
 ## Errors you will see
 
-`useBasePath`, `useTelemetry`, `useMfeSignal`, `useMfeStorage` and `useNavigationBlock` need a
-mount. Called anywhere else, they throw:
+Two errors come from calling a hook in the wrong place. `useBasePath`, `useTelemetry`,
+`useMfeSignal`, `useMfeStorage` and `useNavigationBlock` need a mount. Called anywhere else, they
+throw:
 
 <Callout type="error" title="mount/failure, outside a mount">
 

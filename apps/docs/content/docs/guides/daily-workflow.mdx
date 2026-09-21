@@ -3,12 +3,14 @@ title: '9. Daily workflow'
 description: 'The commands you run all day: scaffold a container, generate its modules, start everything, point the shell at it, and check before you push.'
 ---
 
-Running your surface means running three things together: the <Term>shell</Term> that owns the page,
-the [registry](/docs/glossary) it reads at boot, and at least one container. `pnpm dev` starts all
-of them, and one `localStorage` override points the shell at your own dev server. Every command here
+Running your App or Widget means running the <Term>shell</Term> that owns the page, the
+[registry](/docs/glossary) it reads at boot, and at least one container. `pnpm dev` starts all of
+them, and one `localStorage` override points the shell at your own dev server. Every command here
 comes from a `package.json` script or a file under `tools/dev/`.
 
 ## Scaffold a container
+
+One command scaffolds a container, and two more start it.
 
 <Steps>
 
@@ -52,7 +54,7 @@ pnpm run dev
 ```
 
 This starts the container's own Rsbuild dev server on its `mfe.port`, and nothing else. There is no
-standalone preview harness, so seeing your surface on a page means starting the shell too.
+standalone preview harness, so seeing it on a page means starting the shell too.
 
 </Step>
 
@@ -115,9 +117,10 @@ app                              widget
 
 An App's dependencies gain `@tanstack/react-router` and `@tanstack/react-query`. Its `src/mfe.ts`
 holds the router factory and two `declare module '@tanstack/react-router'` augmentations. The second
-types a route's `staticData` with `MfeStaticData`, which
-[2. Declaring it](/docs/guides/declaring#the-one-file-the-framework-reads) shows. Its
-`public/runtime-config.json` keeps a scaffolded App from failing at boot with `config/missing`.
+types a route's `staticData` with `MfeStaticData`, which [2. Declaring
+it](/docs/guides/declaring#declare-an-app) shows.
+
+Its `public/runtime-config.json` keeps a scaffolded App from failing at boot with `config/missing`.
 
 A Widget gets an `exports` map pointing at its generated contract module, and no router. Its render
 function lives in `src/<id>.tsx` for the reason under "Keep hot updates working" below.
@@ -301,9 +304,10 @@ console:   (nothing about hot updates)
 
 Keep your render function in a module that exports components alone. React Refresh replaces a module
 in place only when it can prove **every** export is a component. One exported hook, constant, schema
-or factory beside them makes the module unable to accept an update. The update then travels up to
-whatever imported it, as far as an entry, which accepts nothing. The page reloads, and every piece
-of state on it is lost.
+or factory beside them makes the module unable to accept an update.
+
+The update then travels up to whatever imported it, as far as an entry, which accepts nothing. The
+page reloads, and every piece of state on it is lost.
 
 | Module                | What it exports                      | What an edit costs                      |
 | --------------------- | ------------------------------------ | --------------------------------------- |
@@ -384,7 +388,7 @@ that order. The steps run individually too: `pnpm format`, `pnpm lint`, `pnpm ty
 `pnpm boundaries`, `pnpm test`.
 
 `pnpm verify:page` generates, boots the shell and every example, and drives Chromium through
-Playwright. The first time the shell loaded a real container, five defects surfaced that compiled,
+Playwright. The first time the shell loaded a real container, five defects appeared that compiled,
 type-checked and passed the whole suite while rendering nothing. Per page it asserts that:
 
 - each App mounted from its own container.
@@ -404,14 +408,16 @@ stays browser-free.
 
 ## Troubleshooting
 
-| Symptom                                        | Cause                                              | Fix                                          |
-| ---------------------------------------------- | -------------------------------------------------- | -------------------------------------------- |
-| `Port 3001 already in use.`                    | a dev server from an earlier run                   | `lsof -i :3001`, then `kill <pid>`           |
-| the shell never mentions your container        | the registry does not name it                      | `pnpm run generate` at the root              |
-| a build acts as though a file is missing       | the generated output is absent                     | `pnpm run generate`                          |
-| your surface fails to load, with no other sign | an override points at a stopped dev server         | start it, or clear the override              |
-| an override changed and nothing did            | the page was not reloaded                          | reload the page                              |
-| the page reloads on every edit                 | the module you edited exports more than components | move the render function into its own module |
+Troubleshoot from the symptom.
+
+| Symptom                                              | Cause                                              | Fix                                          |
+| ---------------------------------------------------- | -------------------------------------------------- | -------------------------------------------- |
+| `Port 3001 already in use.`                          | a dev server from an earlier run                   | `lsof -i :3001`, then `kill <pid>`           |
+| the shell never mentions your container              | the registry does not name it                      | `pnpm run generate` at the root              |
+| a build acts as though a file is missing             | the generated output is absent                     | `pnpm run generate`                          |
+| your App or Widget does not load, with no other sign | an override points at a stopped dev server         | start it, or clear the override              |
+| an override changed and nothing did                  | the page was not reloaded                          | reload the page                              |
+| the page reloads on every edit                       | the module you edited exports more than components | move the render function into its own module |
 
 The busy-port message names the process for you:
 
@@ -446,7 +452,7 @@ are gated on one `localStorage` key, because the page where they are most needed
 - **Registry** has two inner views with counts. **Loaded** gives each accepted entry's facts and
   marks an overridden one. **Rejected** names each set-aside entry and its reason.
 - **The bug report** is the bug icon in the header, or <Kbd>⌘</Kbd><Kbd>K</Kbd>. It collects the
-  workspace, the URL, the mounted surface, the session, every rejected entry, every override and
+  workspace, the URL, the mounted definition, the session, every rejected entry, every override and
   each accepted entry's build, as Markdown.
 
 ## Windows
@@ -464,5 +470,7 @@ generates them. `pnpm run generate` is the fix.
 - [10. Shipping and failures](/docs/guides/shipping-and-failures) — what a build produces and how it
   reaches a real registry.
 - [8. Styling](/docs/guides/styling) — what `pnpm verify:page` checks about your stylesheet.
-- [Decision 18: React Refresh only replaces a module whose every export is a component](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
-- [Decision 23: the override strip was removed, and nothing replaced it on the page](/docs/decisions#23-the-override-strip-was-removed-and-nothing-replaced-it-on-the-page)
+- [Decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
+  — why one edit hot-updates and another reloads the page.
+- [Decision 23](/docs/decisions#23-the-override-strip-was-removed-and-nothing-replaced-it-on-the-page)
+  — why nothing on the page says an override is active.

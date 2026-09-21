@@ -9,12 +9,12 @@ test for choosing, the smallest working declaration of each, and the errors each
 
 ## Choose in one question
 
-Ask whether a user should be able to link to the surface. If they should, build an App. If whoever
-renders the page around it decides where it goes, build a Widget.
+The question is whether a user should be able to link to the screen. If they should, build an App.
+If its consumer decides where it goes, build a Widget.
 
 <Diagram
   src="/diagrams/app-vs-widget.svg"
-  alt="A decision diamond asking whether a surface is addressable by a URL, with the App branch on the left and the Widget branch on the right, each listing four calls."
+  alt="A decision diamond asking whether a screen is addressable by a URL, with the App branch on the left and the Widget branch on the right, each listing four calls."
   caption="Apps take URLs. Widgets take props."
 >
 
@@ -38,7 +38,7 @@ One question at the top, two answers, and four boxes under each answer.
 | -------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------- |
 | A screen a user can bookmark, or that appears in the application finder    | App                               | there is no URL to send a colleague.                             |
 | Several screens with their own navigation between them, surviving a reload | App                               | a reload loses where the user was.                               |
-| A surface the shell opens by capability — settings, help, release notes    | App                               | the shell cannot open it. Capabilities are App-only.             |
+| A screen the shell opens by capability — settings, help, release notes     | App                               | the shell cannot open it. Capabilities are App-only.             |
 | A panel placed on a dashboard the consumer composes                        | Widget                            | you get a URL for it that nobody wanted.                         |
 | A card embedded in somebody else's page, twice, with different ids         | Widget                            | one App owns one boundary, so the second copy has nowhere to go. |
 | Something that hands a result back to the page around it                   | Widget, emitting a declared event | nothing carries the result back.                                 |
@@ -91,9 +91,10 @@ import { mfeRoute } from '@company/mfe-react'
 export const Route = createFileRoute('/reports/$')(mfeRoute({ appId: 'reports' }))
 ```
 
-The child's boundary is the current pathname with the splat remainder removed. So `reports` is
-mounted at `/operations/reports` and routes `/accounts/fda-2-3` for itself. A child App's contract
-is identical to a top-level App's, and it never learns which boundary it was mounted at.
+The child's boundary is the current pathname with the splat remainder removed, which is what
+`boundaryAboveSplat` does. So `reports` is mounted at `/operations/reports` and routes
+`/accounts/fda-2-3` for itself. A child App's contract is identical to a top-level App's, and it
+never learns which boundary it was mounted at.
 
 ## Build a Widget
 
@@ -141,6 +142,8 @@ A published `z.enum([...])` becomes a dropdown.
 
 ## Consume each one
 
+Each shape is consumed a different way.
+
 | Shape                                | Consumed by             | How                                                            |
 | ------------------------------------ | ----------------------- | -------------------------------------------------------------- |
 | App, at the top of the page          | the shell               | `AppHost`, at the shell's `/<id>` boundary. Nothing you write. |
@@ -177,7 +180,8 @@ event by name through `onEvent(name, payload)`. `lazyWidget` deliberately has no
 
 ## Name your definition
 
-Use lower-case letters, digits and single hyphens, for example `alert-panel`. Both factories check
+Name your definition with lower-case letters, digits and single hyphens, for example `alert-panel`.
+Both factories check
 the `id` before anything else, because it is also the storage prefix and the CSS scope value.
 
 <Callout type="error" title="registry/invalid-descriptor">
@@ -201,6 +205,8 @@ export default createApp({ id: 'order-book', router: makeRouter })
 The same check runs in `createWidget`, with `createWidget` in place of `createApp` in the message.
 
 ## Errors you will see
+
+Two errors come from the choice between an App and a Widget.
 
 ### A Widget was handed the wrong prop type
 
@@ -243,7 +249,8 @@ URL-addressable, declare it with `createWidget` instead.
 
 ## Why a URL decides the shape
 
-Being routable is what makes a surface reachable from outside itself. A deep link into an App
+A URL decides the shape because being routable is what makes a screen reachable from outside itself.
+A deep link into an App
 survives a reload, and a user can paste it into a message. The shell's application finder and
 command palette open an App by going to its URL, and the breadcrumb trail comes from its route
 matches.

@@ -1,6 +1,12 @@
 # Design map
 
-This page is for reading away from the keyboard. It answers five questions. What is deployed, and where? What runs between a page load and a rendered App? Which package owns which concern? How do the two adapters fit together? What separates one mounted container from the rest of the page?
+This page is for reading away from the keyboard. It answers five questions, one per section.
+
+- What is deployed, and where?
+- What runs between a page load and a rendered App?
+- Which package owns which concern?
+- How do the two adapters fit together?
+- What separates one mounted container from the rest of the page?
 
 ## What is deployed, and where
 
@@ -37,17 +43,18 @@ A **container** is one deployable, with its own build, version and origin. It ho
 **In words.** Titled `boot-to-mount`, under "Page load to a rendered App, in the order the code runs." Twelve boxes: seven numbered steps in two columns, and five red error codes.
 
 - Left column, "In the shell — `apps/shell/src/boot.tsx`": **1. The document boots**, **2. Diagnostics, then session** (`installShellAuth`), **3. The registry arrives** (`await fetch('/registry.json')`), **4. Runtime, then normalization** (`createMfeRuntime, then normalizeRegistry`).
-- An arrow carries step 4 into the right column, "In the framework — `@company/mfe-react`": **5. URL picks the boundary** (`<AppHost appId='operations' basePath='/operations'>`), **6. The container loads once** (`loadRemote('operations/app')`), **7. The App renders** (`useOwnedMount, then RouterProvider`).
+- An arrow carries step 4 into the right column, "In the framework — `@company/mfe-react`".
+- That column holds **5. URL picks the boundary** (`<AppHost appId='operations' basePath='/operations'>`), **6. The container loads once** (`loadRemote('operations/app')`) and **7. The App renders** (`useOwnedMount, then RouterProvider`).
 - A red arrow **thrown** leaves step 6 for **When step 6 fails**: `load/manifest-failure`, `load/entry-failure`, `registry/invalid-descriptor`.
 - A red arrow **thrown** leaves step 7 for **When step 7 fails** ("caught, and drawn with a Retry"): `app/invalid-base-path`, `app/invalid-router`.
 
 Order carries weight at the start. The shell builds the diagnostics hub first, so `installShellAuth` has somewhere to report, and it installs the session before any remote is registered. It then fetches the registry and assembles the runtime, which adopts that hub rather than making one. A registry that fails to load is a diagnostic, not a crash.
 
-Every entry is validated on its own, so one malformed entry loses only itself. A **boundary** is the stretch of URL assigned to one App mount. The shell can claim `/$appId` for it because a definition id holds only lower-case letters, digits and single hyphens. A failure below that boundary leaves the chrome and every other App reachable.
+Every entry is validated on its own, so one malformed entry loses only itself. A **boundary** is the stretch of URL assigned to one App mount. The shell can own `/$appId` for it because a definition id holds only lower-case letters, digits and single hyphens. A failure below that boundary leaves the chrome and every other App reachable.
 
-A container loads once per runtime per id. **Module Federation** is the bundler mechanism that loads code from another build at run time. Its load promise is cached, a rejection included, because React needs the same settled promise to surface the failure. There is no time budget: the load suspends until it settles or fails, and retry is explicit.
+A container loads once per runtime per id. **Module Federation** is the bundler mechanism that loads code from another build at run time. Its load promise is cached, a rejection included, because React needs the same settled promise to show the failure. There is no deadline: the load suspends until it settles or fails, and a retry is a person's click.
 
-The **mount** is one live instance of a definition: its mount token, base path, telemetry surface, storage handles, abort signal, Query client and overlay root. The effect that creates it is the effect that destroys it. A mount built in a memo does not survive the remount React performs in StrictMode ([decision 14](/docs/decisions#14-a-mount-built-in-usememo-does-not-survive-a-remount-and-strictmode-remounts-everything)).
+The **mount** is one live instance of a definition: its mount token, base path, telemetry, storage handles, abort signal, Query client and overlay root. The effect that creates it is the effect that destroys it. A mount built in a memo does not survive the remount React performs in StrictMode ([decision 14](/docs/decisions#14-a-mount-built-in-usememo-does-not-survive-a-remount-and-strictmode-remounts-everything)).
 
 The **definition** is a side-effect-free descriptor. The adapter therefore checks what the author did with it: `basePath` passed through as `basepath`, the supplied history by identity, `context.mfe` and `context.queryClient` unchanged. A violation throws during render and names the repair. On any failure the consumer's `fallback` receives the error and a `retry` that forgets the cached definition.
 
@@ -68,11 +75,11 @@ An arrow in the picture points at what a package depends on. `pnpm boundaries` r
 | ----------------------------- | ------------------------------------------------------------- | --------------------- | --------------------------------------------- |
 | `@company/mfe-core`           | Identity, errors, Widget contracts, telemetry types, records. | nothing               | React, a router, single-spa, federation       |
 | `@company/mfe-host`           | Registry, adapter selection, shell state, storage, commands.  | core                  | React, a router, single-spa, federation       |
-| `@company/mfe-react`          | The author surface, the router adapter, the loader.           | core, host            | single-spa, a vendor SDK, the developer tools |
+| `@company/mfe-react`          | The author API, the router adapter, the loader.               | core, host            | single-spa, a vendor SDK, the developer tools |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                 | core, host            | React, a router, the React adapter            |
 | `@company/mfe-rspack`         | `pluginMfe()`: the generated modules, entries, stylesheet.    | core                  | —                                             |
 | `@company/mfe-devtools`       | The developer tools overlay, gated on one key.                | core, host, React     | single-spa, a vendor SDK, the build plugin    |
-| `@company/create-mfe`         | The scaffold, `pnpm create @company/mfe <dir>`.               | nothing               | —                                             |
+| `@company/create-mfe`         | The scaffold, `pnpm create @company/mfe <directory>`.         | nothing               | —                                             |
 | `@company/eslint-plugin-mfe`  | The `framework` and `author` lint presets.                    | nothing               | —                                             |
 | `apps/shell`                  | The host page: the chrome, the boundary routes, the session.  | React, host, devtools | —                                             |
 
@@ -109,13 +116,15 @@ Shared services come from the host and are the same for both. One storage store,
 
 Removal is the point of the second adapter. When the last legacy application is migrated, delete the package, one row from the shell's adapter table and one import from its composition root. No other package changes. [Legacy Angular applications](/docs/reference/legacy-angular) is the reference for its fields, its lifecycle and its migration edit.
 
-The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository passes no `rules`, so it registers the framework contract rule alone. A legacy entry in its registry would be set aside as `registry/invalid-descriptor`.
+The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository does not register this adapter yet, so it registers the framework contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
 
 ## The six isolation boundaries
 
 ![One mounted App ringed by six boundaries: URL, styles, storage, network, errors, shared singletons.](./diagrams/isolation-boundaries.svg)
 
-**In words.** Titled `isolation-boundaries`, under "Six boundaries between one mounted container and the page." Seven boxes. **One mount** ("one token, one basePath, one scope root") sits in the middle. One dashed arrow points out to each of the six boxes around it.
+**In words.** Titled `isolation-boundaries`, under "Six boundaries between one mounted container and the page." Seven boxes.
+
+**One mount** ("one token, one basePath, one scope root") sits in the middle. One dashed arrow points out to each of the six boxes around it.
 
 - **URL** — "basePath into createRouter; boundary history".
 - **Styles** — "@scope per definition; the shell owns preflight".

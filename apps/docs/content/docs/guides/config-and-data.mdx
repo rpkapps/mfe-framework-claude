@@ -42,9 +42,9 @@ export default {
 }
 ```
 
-A container with configuration has a `src/mfe.config.ts`. It holds declarations and no values, so
-no secret and no environment's URL is committed with the code. Each `env(name, schema, options?)`
-declares one field:
+Declare every value your deployment supplies in `src/mfe.config.ts`. It holds declarations and no
+values, so no secret and no environment's URL is committed with the code. Each `env(name, schema,
+options?)` declares one field:
 
 | Part              | Rule                                                                                                                                                                                |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -103,9 +103,11 @@ const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { sign
 ```
 
 Every container gets `#mfe/fetch`, whether or not it has configuration. It exports a standard
-`fetch` and a `getAccessToken`, both built from the container transport. That transport holds the
-base URL, the origin allowlist and the binding to the shell's session. Nothing global is replaced:
-the browser's own `fetch` is untouched, and what you import wraps it. Per call, in order:
+`fetch` and a `getAccessToken`, both built from the container [transport](/docs/glossary). That
+transport holds the base URL, the origin allowlist and the binding to the shell's session.
+
+Nothing global is replaced: the browser's own `fetch` is untouched, and what you import wraps it.
+Per call, in order:
 
 1. **The URL is resolved.** An absolute URL is used as is. A relative one resolves against
    `apiBaseUrl` with plain `new URL(input, base)`, so a trailing slash on the base is significant
@@ -119,11 +121,13 @@ the browser's own `fetch` is untouched, and what you import wraps it. Per call, 
 5. **A 401 is handled once**, and only when the framework attached the token. It refreshes, and if
    the new token differs it sends the request exactly once more. There is no loop to bound.
 
-Four things it does not do. It does not authorize anything, so a 403 passes through untouched. It
-does not buffer your request body in case a replay is needed. It does not retry a failed
-configuration load in the background. It never hands the session token to an origin you did not
-declare: `List every API origin explicitly. A wildcard would hand the session bearer token to any
-host the pattern happens to match.`
+Four things it does not do.
+
+- It does not authorize anything, so a 403 passes through untouched.
+- It does not buffer your request body in case a replay is needed.
+- It does not retry a failed configuration load in the background.
+- It never hands the session token to an origin you did not declare:
+  `List every API origin explicitly. A wildcard would hand the session bearer token to any host the pattern happens to match.`
 
 Whether the retry in step 5 can happen at all depends on the body you passed:
 
@@ -201,12 +205,13 @@ installed throws and names it, rather than reading as `undefined`.
 
 ## Errors you will see
 
-The first four stop the container before any importing module evaluates.
+The errors below come from the configuration path and the request path. The first four stop the
+container before any importing module evaluates.
 
 | Code                     | When                                                                           | The message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Fix                                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `config/missing`         | No `runtime-config.json` beside the container's assets.                        | `operations failed to load its runtime configuration: expected a file at http://localhost:3001/runtime-config.json, received 404 Not Found. The container configuration contract declares this expectation. Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.`                                                                                                                                         | Publish the file with the container.                                                              |
-| `config/unreachable`     | The deployment could not serve that file at all.                               | The same operation, with no answer rather than a 404.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Check that the container's own origin is serving.                                                 |
+| `config/unreachable`     | The request never finished, or the answer was not a 200 or a 404.              | `operations failed to load its runtime configuration: expected a readable file at http://localhost:3001/runtime-config.json, received a request that never completed. The container configuration contract declares this expectation. Check that the deployment publishes this file next to the container assets and that the browser can reach it.` An answer that is neither 200 nor 404 reads `expected a 200 response from …, received 503 Service Unavailable.`                                                                | Publish the file beside the container's assets, and check that its origin answers.                |
 | `config/invalid`         | A declared field is absent, or holds the wrong type.                           | `operations failed to validate apiBaseUrl: expected a string in uri form, received Invalid input: expected string, received undefined. The container configuration contract declares this expectation. Set API_BASE_URL in the deployment that writes this container's runtime configuration, then reload the page.`                                                                                                                                                                                                                | Add the field with the shape the message names, or give the schema a `.default(…)`.               |
 | `config/invalid`         | The file carries a key your declarations do not.                               | `expected only the declared fields (apiBaseUrl, telemetryEnabled), received apiBaseURL. … Remove the extra keys, or declare them with env() in src/mfe.config.ts. An undeclared key is usually a misspelled one, and ignoring it would silently fall back to a default.`                                                                                                                                                                                                                                                            | Fix the spelling in the file, or declare the key with `env()`.                                    |
 | `config/missing`         | A relative URL, and no `{ api: true }` field to resolve it against.            | `operations failed to resolve the request URL: expected an absolute URL, or an apiBaseUrl to resolve a relative one against, received the relative URL "assets?site=north" and no configured apiBaseUrl. Set apiBaseUrl (for example "https://api.example.test/v1/"), or pass an absolute URL. A relative URL is never resolved against the shell document URL, so this request had no base and was not sent.`                                                                                                                      | Declare a `{ api: true }` field, or pass the absolute URL at the call site.                       |
@@ -224,9 +229,9 @@ The replay code is a known mismatch: nothing in the closed error union describes
 
 ## Why configuration is fetched, not bundled
 
-One build serves every environment: a test environment, a staging environment, one per customer.
-The API sits at a different URL in each. A value compiled into the bundle would mean one build per
-environment, and a rebuild to correct a URL.
+Configuration is fetched because one build serves every environment: a test environment, a staging
+environment, one per customer. The API sits at a different URL in each. A value compiled into the
+bundle would mean one build per environment, and a rebuild to correct a URL.
 
 So the values arrive at load time, and the declarations stay in the code. The schemas are what the
 build publishes for the deployment to fill in, and what validates the file it wrote. An undeclared

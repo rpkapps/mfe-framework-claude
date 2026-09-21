@@ -898,6 +898,13 @@ async function lifecycle() {
     subtitle: 'create, dispose, create again',
   })
 
+  // Blue marks the one stage that renders the container; red marks the failure band.
+  scene.legend({
+    x: 900,
+    y: 516,
+    entries: swatches(['container'], ['failure']),
+  })
+
   return scene.write()
 }
 

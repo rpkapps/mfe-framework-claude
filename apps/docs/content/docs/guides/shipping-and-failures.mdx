@@ -3,11 +3,15 @@ title: '10. Shipping and failures'
 description: 'What your container build publishes, how its record reaches the shell, and what each rejection and runtime failure means.'
 ---
 
-Your build publishes a container on your own origin, and a record in the shell's <Term>registry</Term> points at it. The registry is the JSON array the shell fetches at boot, naming every definition and where its container's manifest lives. This page covers the files you ship, the reasons a record is rejected, and the runtime failures your users can see.
+Your build publishes a container on your own origin, and the shell's <Term>registry</Term> carries a
+record that points at it. The registry is the JSON array the shell fetches at boot, naming every
+definition and where its container's manifest lives. This page covers the files you ship, the
+reasons a record is rejected, and the runtime failures your users can see.
 
 ## What your build produces
 
-Run `pnpm run build` in your container. It runs `pnpm run generate && rsbuild build` and writes to Rsbuild's default `dist/`. The shell fetches these files from your origin, so they deploy together.
+Run `pnpm run build` in your container. It runs `pnpm run generate && rsbuild build` and writes to
+Rsbuild's default `dist/`. The shell fetches these files from your origin, so they deploy together.
 
 | File                         | What it is                                                                | Who reads it                   |
 | ---------------------------- | ------------------------------------------------------------------------- | ------------------------------ |
@@ -18,9 +22,13 @@ Run `pnpm run build` in your container. It runs `pnpm run generate && rsbuild bu
 | the exposed chunks           | one per definition, plus the shared chunks                                | the browser                    |
 | a CSS asset                  | your stylesheet, scoped to your mount roots                               | every exposed entry            |
 
-The build copies every top-level `.json` from `.mfe/` into the output, so the descriptor and the schema ship beside the bundle. The entries, the contract modules, `.env.example` and `css.d.ts` stay behind. `assetPrefix` is `'auto'` on a build, so your assets resolve against your own deployed location rather than the shell's.
+The build copies every top-level `.json` from `.mfe/` into the output, so the descriptor and the
+schema ship beside the bundle. The entries, the contract modules, `.env.example` and `css.d.ts` stay
+behind. `assetPrefix` is `'auto'` on a build, so your assets resolve against your own deployed
+location rather than the shell's.
 
-Your contract metadata rides in the manifest under `metaData.mfe`. It carries the contract major, a `buildHash`, a `buildTime`, the descriptor's filename, the definitions and the expose paths.
+Your contract metadata rides in the manifest under `metaData.mfe`. It carries the contract major, a
+`buildHash`, a `buildTime`, the descriptor's filename, the definitions and the expose paths.
 
 <Callout type="error" title="No manifest was emitted">
   `MfePlugin: no mf-manifest.json was emitted, so this container advertises no framework contract
@@ -32,7 +40,8 @@ Your contract metadata rides in the manifest under `metaData.mfe`. It carries th
 
 </Callout>
 
-The descriptor is what a host reads without loading you (`packages/mfe-rspack/src/generate/artifacts.ts`):
+The descriptor is what a host reads without loading you
+(`packages/mfe-rspack/src/generate/artifacts.ts`):
 
 ```ts
 export interface ContainerDescriptor {
@@ -45,9 +54,12 @@ export interface ContainerDescriptor {
 }
 ```
 
-`manifestUrl` is container-relative, because a baked-in absolute URL breaks a promotion from one environment to the next. A Widget definition carries `contract` and an App carries `capabilities`. The shell rejects either combination reversed.
+`manifestUrl` is container-relative, because a baked-in absolute URL breaks a promotion from one
+environment to the next. A Widget definition carries `contract` and an App carries `capabilities`.
+The shell rejects either combination reversed.
 
-`contract.inputs` is absent when the build could not read your schema statically. An unreadable schema does not fail the build, and the Widget still validates its inputs at run time.
+`contract.inputs` is absent when the build could not read your schema statically. An unreadable
+schema does not fail the build, and the Widget still validates its inputs at run time.
 
 ## How your record reaches the registry
 
@@ -97,9 +109,13 @@ One entry looks like this:
 }
 ```
 
-The `mfe` property is the contract marker. Its presence commits the entry to the React adapter's selection rule.
+The `mfe` property is the contract marker. Its presence commits the entry to the React adapter's
+selection rule.
 
-`build` is one `{ hash, time }` pair, repeated on every entry from one descriptor. A build belongs to the container rather than to any definition it exports. It never gates loading. Its only reader is the bug report, which prints `<id>: <hash> · <time>` per accepted entry, or `<id>: no build published`.
+`build` is one `{ hash, time }` pair, repeated on every entry from one descriptor. A build belongs
+to the container rather than to any definition it exports. It never gates loading. Its only reader
+is the bug report, which prints `<id>: <hash> · <time>` per accepted entry, or `<id>: no build
+published`.
 
 Three failures come from assembly itself:
 
@@ -122,11 +138,14 @@ reports: package.json declares no mfe.port, so its dev URL is unknown.
 
 </Details>
 
-A registry that will not load at all is a diagnostic, not a crash. The shell still boots, and the bug report gets the failure.
+A registry that will not load at all is a diagnostic, not a crash. The shell still boots, and the
+bug report gets the failure.
 
 ## `runtime-config.json` belongs to the deployment
 
-`runtime-config.json` is never built into the container. The deployment publishes it next to the container's assets, and the generated `#mfe/config` resolves its URL against the container's own public path. In development your dev server publishes the local copy from `public/`:
+`runtime-config.json` is never built into the container. The deployment publishes it next to the
+container's assets, and the generated `#mfe/config` resolves its URL against the container's own
+public path. In development your dev server publishes the local copy from `public/`:
 
 ```json title="examples/operations/public/runtime-config.json"
 {
@@ -135,9 +154,17 @@ A registry that will not load at all is a diagnostic, not a crash. The shell sti
 }
 ```
 
-`src/mfe.config.ts` holds declarations only, so no secret belongs in it. The build emits `.env.example`, which lists the names and the expectations and never the values. It also emits `runtime-config.schema.json` with `additionalProperties: false`, so a deployment can validate its file before release.
+`src/mfe.config.ts` holds declarations only, so no secret belongs in it. The build emits
+`.env.example`, which lists the names and the expectations and never the values. It also emits
+`runtime-config.schema.json` with `additionalProperties: false`, so a deployment can validate its
+file before release.
 
-The snapshot is immutable. Changing a value takes a new deployment and a page reload, and nothing polls. The generated module validates in a top-level `await`. The federation entry imports it before the application entry, so a missing or invalid file fails before any application module evaluates. A container that needs no configuration gets no `#mfe/config` and fetches nothing.
+The snapshot is immutable. Changing a value takes a new deployment and a page reload, and nothing
+polls.
+
+The generated module validates in a top-level `await`. The federation entry imports it before the
+application entry, so a missing or invalid file fails before any application module evaluates. A
+container that needs no configuration gets no `#mfe/config` and fetches nothing.
 
 ## The three versions
 
@@ -156,9 +183,26 @@ the same string on every machine that builds this container.
 
 `examples/operations` keeps both aligned at `2.1.0`. Nothing enforces that.
 
+## Publish a release
+
+```sh
+pnpm changeset   # describe the change, and pick the packages it affects
+pnpm release     # runs `changeset publish`
+```
+
+Publishing a release starts with a changeset, a small file you commit beside the change it
+describes. It names the packages that changed, the version each one takes next, and the note that
+reaches the changelog. Add one with `pnpm changeset`, in the same commit as the change. Record
+public API and contract changes explicitly, because the changelog is what a consumer reads to decide
+whether their code still compiles. `pnpm release` publishes what the changesets say to publish, and
+it leaves the shell and the examples out, because neither is published.
+
 ## Why an entry is rejected, and how to fix it
 
-Every entry is validated on its own, so one bad entry costs only itself. A rejected entry is set aside with a reason and an error rather than dropped, and the registry marks it `quarantined`. `apps/shell/registry.source.json` ships two entries that cannot validate on purpose, because a registry is assembled from builds the shell does not control.
+Every entry is validated on its own, so one bad entry costs only itself. A rejected entry is set
+aside with a reason and an error rather than dropped, and the registry marks it `quarantined`.
+`apps/shell/registry.source.json` ships two entries that cannot validate on purpose, because a
+registry is assembled from builds the shell does not control.
 
 Four rejections come from the registry itself:
 
@@ -167,7 +211,7 @@ Four rejections come from the registry itself:
 | `no adapter recognised this descriptor`      | publish the generated descriptor: the entry has no `mfe` marker |
 | `the react adapter rejected this descriptor` | one of the field failures below                                 |
 | `invalid definition id`                      | rename the id and rebuild                                       |
-| two entries claim one id                     | rename one definition. Duplicates lose **all** copies           |
+| two entries take one id                      | rename one definition. Duplicates lose **all** copies           |
 
 <Details summary="The four messages, verbatim">
 
@@ -187,9 +231,12 @@ ids would collide in diagnostics, command attribution and <id>:<key> storage.
 
 </Details>
 
-The rule that owns an entry keeps it even when its own validation then fails. An entry that declares the framework contract is never re-read as another adapter's.
+The rule that owns an entry keeps it even when its own validation then fails. An entry that declares
+the framework contract is never re-read as another adapter's.
 
-The rest come from the React contract rule. Each one is `registry/invalid-descriptor` unless noted, and most carry the same repair sentence: `Rebuild the container; the registry descriptor is generated, never hand-written.`
+The rest come from the React contract rule. Each one is `registry/invalid-descriptor` unless noted,
+and most carry the same repair sentence: `Rebuild the container; the registry descriptor is
+generated, never hand-written.`
 
 | What is wrong                                         | Expected / received                                                  | Fix                                                      |
 | ----------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -211,11 +258,15 @@ Rendered in full, the `legacy-reports` fixture reads:
 > `legacy-reports failed to gate the advertised framework contract major: expected contract major 1,
 received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.`
 
-Three fields are read loosely and dropped rather than failing the entry: `build`, `tags` and `icon`. A container that cannot describe its own build still mounts, and a catalogue filter is not worth rejecting an entry over. A malformed hash would otherwise reach a bug report as `[object Object]` and be believed.
+Three fields are read loosely and dropped rather than failing the entry: `build`, `tags` and `icon`.
+A container that cannot describe its own build still mounts, and a catalogue filter is not worth
+rejecting an entry over. A malformed hash would otherwise reach a bug report as `[object Object]`
+and be believed.
 
 ## How to read a framework message
 
-Every developer-facing runtime failure goes through `createMfeError` (`packages/mfe-core/src/errors.ts`). Every message is composed from the same five parts:
+Every framework message is composed from the same five parts. They come out of `createMfeError`
+(`packages/mfe-core/src/errors.ts`), which every developer-facing runtime failure goes through:
 
 ```text
 <id>[@<version>] failed to <operation>[ <path>][: expected <expected>, received <observed>.] <repair>
@@ -240,11 +291,15 @@ A build message adds the file and position in front:
 This expectation is declared by <declaredBy>. <repair>
 ```
 
-`<declaredBy>` names the side that set the expectation, read out in lower case: `static discovery`, `the Widget contract`, `the framework identity rules`.
+`<declaredBy>` names the side that set the expectation, read out in lower case: `static discovery`,
+`the Widget contract`, `the framework identity rules`.
 
 ## Runtime failures, in the order they happen
 
-An entry that fails costs the page that one screen. The shell's boundary renders an `Empty` box with the definition id, the whole message, a **Retry** button and the error code. The rest of the page keeps working.
+An entry that fails costs the page that one screen. The shell's boundary renders an `Empty` box with
+the [definition id](/docs/glossary), the whole message, a **Retry** button and the error code. The
+rest of the page
+keeps working.
 
 | Failure                                | What the user sees                                         | Where to look                        |
 | -------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
@@ -256,7 +311,8 @@ An entry that fails costs the page that one screen. The shell's boundary renders
 
 ### The container fails to load
 
-You get one diagnostic per attempt. There is no time budget on this path. The load suspends under React `Suspense` until it settles or fails, and retry is explicit.
+You get one diagnostic per attempt. There is no deadline on this path. The load suspends under React
+`Suspense` until it settles or fails, and a retry is a person's click.
 
 | Code                          | What went wrong                          |
 | ----------------------------- | ---------------------------------------- |
@@ -289,7 +345,9 @@ the page.
 
 </Details>
 
-Look at the developer tools' **Registry** tab first. **Loaded** gives the URL each definition loaded from and marks an overridden entry. **Rejected** names every set-aside entry with its reason. If your id is not listed at all, the message tells you what to do:
+Look at the developer tools' **Registry** tab first. **Loaded** gives the URL each definition loaded
+from and marks an overridden entry. **Rejected** names every set-aside entry with its reason. If
+your id is not listed at all, the message tells you what to do:
 
 ```text
 Check the id against the generated registry descriptor, or add a localStorage override pointing at
@@ -326,11 +384,14 @@ context: add your own top-level keys freely, but do not replace mfe or add field
 
 ### A render throws
 
-Give an App a `defaultErrorComponent`, so a route-level failure stays inside your screen. Without one, the consumer's `fallback` renders and the framework wraps the throw as `mount/failure`, carrying whatever the throw said.
+Give an App a `defaultErrorComponent`, so a route-level failure stays inside your screen. Without
+one, the consumer's `fallback` renders and the framework wraps the throw as `mount/failure`,
+carrying whatever the throw said.
 
 ### Inputs or an event fail validation
 
-A Widget validates its inputs against its own schema on every render, and both sides validate events.
+A Widget validates its inputs against its own schema on every render, and both sides validate
+events.
 
 | When                                      | What the user sees                                        | What you see                                                     |
 | ----------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -350,7 +411,9 @@ framework's own half is the first clause and the last sentence.
 
 ### A request through `#mfe/fetch` goes wrong
 
-If an origin is your API, declare it with `env(…, { api: true })`. The session bearer token is attached to declared origins only. An undeclared origin gets the request without a token, and the endpoint answers 401. In development you get one warning per origin:
+If an origin is your API, declare it with `env(…, { api: true })`. The session bearer token is
+attached to declared origins only. An undeclared origin gets the request without a token, and the
+endpoint answers 401. In development you get one warning per origin:
 
 <Callout type="error" title="A request to an origin you did not declare">
   `operations@2.1.0 failed to attach the access token for https://metrics.example.com: expected a
@@ -360,18 +423,23 @@ If an origin is your API, declare it with `env(…, { api: true })`. The session
   token. It was sent without one, so an endpoint that requires it answers 401 — that 401 is this
   missing declaration, not a broken token.`
 
-**Fix.** Add the origin to `src/mfe.config.ts` with `{ api: true }`. If that host must never see
-the token, the 401 is correct. There are no wildcards, because a wildcard would hand the session
-bearer token to any host the pattern happened to match.
+**Fix.** Add the origin to `src/mfe.config.ts` with `{ api: true }`. If that host must never see the
+token, the 401 is correct. There are no wildcards, because a wildcard would hand the session bearer
+token to any host the pattern happened to match.
 
 </Callout>
 
 ## What you get without writing telemetry code
 
-- Every `MfeError` the framework raises about your definition reaches the shell's diagnostics hub, which forwards it to the shell's telemetry provider.
-- Every record carries attribution you cannot override: `mfe.definition.id`, `mfe.definition.kind`, `mfe.definition.version`, `mfe.build.hash`, `mfe.mount.token` and `mfe.trace.id`.
-- A production failure therefore arrives labelled with the definition, its version and the build hash. An attribute collision resolves in favour of attribution.
-- Use `useTelemetry()`, and ship no telemetry SDK. The `author` lint preset blocks `@opentelemetry/*` and `@grafana/faro-*`, type imports included. Two SDKs in one page mean two trace contexts and twice the bundle.
+- Every `MfeError` the framework raises about your definition reaches the shell's diagnostics hub,
+  which forwards it to the shell's telemetry provider.
+- Every record carries attribution you cannot override: `mfe.definition.id`, `mfe.definition.kind`,
+  `mfe.definition.version`, `mfe.build.hash`, `mfe.mount.token` and `mfe.trace.id`.
+- A production failure therefore arrives labelled with the definition, its version and the build
+  hash. An attribute collision resolves in favour of attribution.
+- Use `useTelemetry()`, and ship no telemetry SDK. The `author` lint preset blocks
+  `@opentelemetry/*` and `@grafana/faro-*`, type imports included. Two SDKs in one page mean two
+  trace contexts and twice the bundle.
 
 ## Where next
 
@@ -380,7 +448,7 @@ bearer token to any host the pattern happened to match.
   `pnpm verify:page`.
 - [The design map: from page load to a mounted App](/docs/design#what-happens-between-a-page-load-and-a-rendered-app)
   — these failures on one picture.
-- [Decision 30: a host resolves shares against the scope it has](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)
+- [Decision 30](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)
   — why one unreachable manifest no longer takes the page down.
-- [Decision 29: a registry entry names the build it came from](/docs/decisions#29-a-registry-entry-names-the-build-it-came-from)
-  — why every entry names its build.
+- [Decision 29](/docs/decisions#29-a-registry-entry-names-the-build-it-came-from) — why every entry
+  names its build.

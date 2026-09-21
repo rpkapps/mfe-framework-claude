@@ -25,11 +25,13 @@ export function Filters() {
 }
 ```
 
-Declare the schema at module scope. The framework compares schemas by reference when two components
-bind one key. A schema built inside a component body is a new object on every render, and that
-rebinds the key each time.
+Declare the schema `useStoredState` takes at module scope. The framework compares schemas by
+reference when two components bind one key. A schema built inside a component body is a new object
+on every render, and that rebinds the key each time.
 
 ## The options
+
+`useStoredState` takes these options.
 
 | Option         | What it is                                                                                     | Default   |
 | -------------- | ---------------------------------------------------------------------------------------------- | --------- |
@@ -62,8 +64,10 @@ Leave `retention` unset unless the value is impersonal.
 
 Each `retention: 'user'` record carries the [session generation](/docs/glossary). It is an opaque
 string, created once per signed-in identity per tab and stored at `@host:session-generation`. A
-reload of the same tab under the same identity reuses that generation, so your record survives. When
-the shell reports an identity change or a changed group set, the framework creates a new generation.
+reload of the same tab under the same identity reuses that generation, so your record survives.
+
+The shell reports an identity change or a changed group set. Either one makes the framework create a
+new generation.
 
 It then deletes every `retention: 'user'` record in both stores, including records for definitions
 that are not mounted. A record that survives a failed delete still reads as absent, because its
@@ -129,10 +133,10 @@ key.remove()
 storage.clear() // only keys under the exact `operations:` prefix
 ```
 
-Take this handle for an event handler, a loader or a cleanup. `get()` does not subscribe, so
-anything you render still uses `useStoredState`. `get()` also forces a fresh read of the browser
-store, where `useStoredState` serves a cached snapshot, and an imperative write notifies that key's
-subscribers.
+Take the `useMfeStorage` handle for an event handler, a loader or a cleanup. `get()` does not
+subscribe, so anything you render still uses `useStoredState`. `get()` also forces a fresh read of
+the browser store, where `useStoredState` serves a cached snapshot, and an imperative write notifies
+that key's subscribers.
 
 `clear()` removes only the exact `<id>:` prefix. A definition called `acme-orders` never touches
 `acme-orders-legacy:`, the shell's keys, or another team's. The store never removes what it did not
@@ -183,7 +187,7 @@ Four rules govern what happens next.
 
 The framework sets no size limit of its own. The browser's limit reaches you as a quota error
 carrying the serialized character count. Values are stored with `JSON.stringify`, so store plain
-JSON. A stored value is not screened for non-serializable types first, so a `Date` round-trips as a
+JSON. A stored value is not checked for non-serializable types first, so a `Date` round-trips as a
 string and then fails your own schema.
 
 ## The lint rule: `mfe/no-raw-storage`
@@ -299,8 +303,9 @@ definition. The previous stored value is untouched.
 
 ## Why `localStorage` is off limits
 
-One browser profile carries several people over a day, and one page carries several containers. Web
-Storage is a single flat key space, shared by every container and by the shell. Three things follow.
+`localStorage` is off limits because one browser profile carries several people over a day, and one
+page carries several containers. Web Storage is a single flat key space, shared by every container
+and by the shell. Three things follow.
 
 - Keys collide, because two teams pick the same name.
 - The shell cannot clear your keys when somebody signs out.

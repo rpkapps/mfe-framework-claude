@@ -420,7 +420,7 @@ labelled **input, or event**. Red dashed arrows drop from the first, second and 
 into a dashed band **Where a failure goes**, holding six red tiles: `load/manifest-failure`,
 `load/entry-failure`, `app/invalid-base-path`, `app/invalid-router`, `contract/input-mismatch`
 and `contract/event-mismatch`. Below the band, one grey box **StrictMode** ("create, dispose,
-create again").
+create again"), and to its right a two-entry legend: blue a container, red a failure path.
 
 Not on the figure. **The load suspends**: React Suspense shows the pending slot while the
 container is fetched — the shell's "Loading operations", or the pending prop a Widget's consumer

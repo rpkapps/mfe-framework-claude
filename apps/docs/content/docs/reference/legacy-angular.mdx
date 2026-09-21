@@ -3,16 +3,18 @@ title: 'Legacy Angular applications'
 description: 'The removable adapter that mounts an existing single-spa Angular application beside the Apps and Widgets a shell already loads.'
 ---
 
-`@company/mfe-legacy-angular` mounts an existing single-spa Angular application into a shell,
-beside the Apps and Widgets that shell already loads. A <Term>parcel</Term> is a piece of an application
+`@company/mfe-legacy-angular` mounts an existing single-spa Angular application into a shell, beside
+the Apps and Widgets that shell already loads. A <Term>parcel</Term> is a piece of an application
 that exposes `bootstrap`, `mount` and `unmount`, for another application to mount into an element.
 This adapter translates a legacy registry entry into the neutral record every shell screen reads,
-and drives that parcel. A new micro-frontend is declared with `createApp` or `createWidget` from
-`@company/mfe-react` and needs none of this page.
+and drives that parcel.
+
+The shell in this repository does not register this adapter yet. A new micro-frontend is declared
+with `createApp` or `createWidget` from `@company/mfe-react` and needs none of this page.
 
 ## What the adapter does
 
-- It takes registry entries that declare no framework contract. Every entry that declares one
+- The adapter takes registry entries that declare no framework contract. Every entry that declares one
   belongs to the [React adapter](/docs/design#how-the-adapters-fit-together).
 - It translates a legacy entry into a neutral registry entry, keeping every legacy field in
   `adapterData`.
@@ -25,6 +27,8 @@ depends on no React, no router and no `@company/mfe-react`, and `pnpm boundaries
 changes.
 
 ## What a legacy application must expose
+
+A legacy application must expose these five things.
 
 | Requirement           | Value                                           | Where it comes from           |
 | --------------------- | ----------------------------------------------- | ----------------------------- |
@@ -51,10 +55,12 @@ const { runtime } = createMfeRuntime({
 })
 ```
 
-`createMfeRuntime` always evaluates the framework contract rule first and appends the rules you
-give it, in the order you give them. The first rule that takes an entry owns it. The shell in this
-repository passes no `rules`, so it registers the framework contract rule alone. A legacy entry in
-its registry is set aside as `registry/invalid-descriptor`.
+Register the adapter by passing `createLegacyAdapterRule()` in `rules`. `createMfeRuntime` always
+evaluates the framework contract rule first and appends the rules you give it, in the order you give
+them. The first rule that takes an entry owns it.
+
+The shell in this repository does not register this adapter yet, so it registers the framework
+contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
 
 ## When the adapter takes an entry
 
@@ -65,8 +71,8 @@ The rule takes an entry only when both are true.
 
 An entry that declares the framework contract is never taken here, however malformed that
 declaration is. The framework adapter sets it aside with a reason instead, and the registry marks
-it `quarantined`. Reinterpreting it as legacy would let a typo change how an application loads
-without anyone seeing it. An entry that no rule takes is set aside as well, with a message naming
+it `quarantined`. Reading it as legacy instead would let a typo change how an application loads,
+unseen. An entry that no rule takes is set aside as well, with a message naming
 the adapters that were registered.
 
 ## How a legacy application is mounted
@@ -106,16 +112,21 @@ The mount's status is observable through `subscribe`.
 | `error`      | creating, mounting or unmounting the parcel threw    |
 | `disposed`   | terminal                                             |
 
-Two rules hold. A second mount without an unmount is refused rather than ignored, because two
-parcels rendering into one element leave orphaned DOM behind. Disposal is terminal and idempotent.
-Every caller awaits the same teardown, and the parcel is unmounted at most once. A failed teardown
-still leaves the mount disposed, and a disposed mount cannot be revived.
+Two rules hold.
+
+- **A second mount without an unmount is refused**, rather than ignored, because two parcels
+  rendering into one element leave orphaned DOM behind.
+- **Disposal is terminal and idempotent.** Every caller awaits the same teardown, and the parcel is
+  unmounted at most once. A failed teardown still leaves the mount disposed, and a disposed mount
+  cannot be revived.
 
 `single-spa` is not a dependency of this package, not even an optional peer. The parcel, its
 configuration and `mountRootParcel` are structurally typed in `src/parcel/single-spa-contract.ts`,
 which is what lets the lifecycle be tested without single-spa, Angular or a bundler.
 
 ## Registry translation
+
+The adapter translates every legacy field into one of two places.
 
 | Legacy `AppConfig` field | Where it goes                     | Notes                                                                                                            |
 | ------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -164,6 +175,8 @@ The shell owns the URL for a legacy application. Every resolved base href carrie
 `createLegacyMigrationSeam` returns. New Apps own their own navigation instead.
 
 ## Routes the shell keeps serving
+
+The shell keeps serving these seven route patterns.
 
 | Pattern                  | Serves                               |
 | ------------------------ | ------------------------------------ |
@@ -270,14 +283,17 @@ preserves, in a form a test can assert rather than a comment can promise:
 - The route metadata, and shell-owned navigation.
 - The name of the provider it replaces.
 
-The same seam is attached to the initializer as `initializer.seam`.
+The initializer carries the same record as `initializer.seam`.
 
 ## What is proven, and what is not
+
+This adapter is proven against fixtures, and not against the real applications.
 
 <Callout type="warning">
   The real Asset Tracker and Rigstream applications have never been run against this adapter. Their
   repositories are not available here, so every check below runs against production-equivalent
-  contract fixtures and test doubles. No shell in this repository registers the adapter yet.
+  contract fixtures and test doubles. The shell in this repository does not register this adapter
+  yet.
 </Callout>
 
 The tests prove:
@@ -300,7 +316,9 @@ A first run of a real legacy container against this adapter is still outstanding
 
 ## Where next
 
-- [Decision 9: proven against fixtures, not the real applications](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications) — the scope limit, in full.
+- [Decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)
+  — proven against fixtures, not the real applications.
 - [The design map: how the adapters fit together](/docs/design#how-the-adapters-fit-together) — where this adapter sits.
 - [Glossary](/docs/glossary) — adapter, registry entry, container, definition id.
-- [Decision 6: federation lives in the React adapter](/docs/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host) — why the host stays neutral.
+- [Decision 6](/docs/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host) — why
+  the host stays neutral.

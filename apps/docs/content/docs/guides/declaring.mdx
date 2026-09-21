@@ -42,13 +42,15 @@ declare module '@tanstack/react-router' {
 export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
 ```
 
-Discovery reads the container entry and nothing else: `src/mfe.ts`, or `src/mfe.tsx` when the entry
-itself holds JSX. Export every definition from that file. An unexported definition is never built
-into the container, and one declared in another module is reported as a stray.
+Declare the App in the container entry, `src/mfe.ts`, or `src/mfe.tsx` when the entry holds JSX.
+Discovery reads that file and nothing else. Export every definition from it. An unexported
+definition is never built into the container, and one declared in another module is reported as a
+stray.
 
 The scaffold writes the `declare module` block for you. The second interface types the
 `staticData` slot, so a misspelt capability is a compile error. Without it,
-`staticData: { capability: 'setings' }` is a capability page the shell never opens.
+`staticData: { capability: 'setings' }` is a [capability page](/docs/glossary) the shell never
+opens.
 
 ## Declare a Widget
 
@@ -86,6 +88,8 @@ when every export of it is a component, and `src/mfe.ts` exports a definition
 ([9. Daily workflow](/docs/guides/daily-workflow#keep-hot-updates-working)).
 
 ## Every option
+
+Both calls take these options.
 
 | Option        | Used by | Type                                       | Required | What it is                                                                                                                                            |
 | ------------- | ------- | ------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -179,8 +183,8 @@ checks run at mount, the moment your factory returns.
 | Your own Query client                   | `operations@2.1.0 failed to mount App: expected the supplied top-level queryClient, forwarded unchanged, received a different Query client. Spread the supplied context rather than constructing your own Query client; the mount owns one.` (`app/invalid-router`)                             | Spread the context instead of building a client. The mount owns one. |
 
 A hard-coded `basepath` produces the same base-path failure, with the string you wrote in place of
-`no basepath on the router`. That case is worth knowing. An App delegated inside another App
-is mounted at a different boundary from the one it has on its own.
+`no basepath on the router`. An App delegated inside another App is mounted at a different boundary
+from the one it has on its own. A hard-coded prefix is right in one place and wrong in the other.
 
 A child route may return its own `mfe` or `queryClient` from `beforeLoad`. That is a
 development-only diagnostic rather than a throw. It names the route:
@@ -203,7 +207,7 @@ development-only diagnostic rather than a throw. It names the route:
 ## Why the entry file is read, never run
 
 A shell has to know what your container offers before it runs a line of it. It fetches the registry
-at boot, long before it loads any container. The registry has to say what the surface is called and
+at boot, long before it loads any container. The registry has to say what the screen is called and
 whether it takes a URL or props. For a Widget it also carries what that Widget expects.
 
 So the build reads `src/mfe.ts` as syntax. A definition is a value rather than a component, and the

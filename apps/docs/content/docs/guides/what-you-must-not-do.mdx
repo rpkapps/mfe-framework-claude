@@ -10,6 +10,8 @@ will see and the repair.
 
 ## The rules, at a glance
 
+Every rule on this page is in this table.
+
 | Rule                                                                                               | Enforced by                                                         | Fix                                        |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
 | No `createBrowserHistory`, no patching `window.history`                                            | lint `mfe/no-global-patching`; mount `app/invalid-router`           | Forward the supplied `history`             |
@@ -98,13 +100,13 @@ received: createRouter(\{ basepath: basePath, … \}).
 Three more rules follow from that factory.
 
 - **Spread the context. Never replace `mfe` or `queryClient`.** `RESERVED_CONTEXT_KEYS` is
-  `['mfe', 'queryClient']`. Your own top-level keys survive every framework context update. A child
-  route that returns its own `mfe` from `beforeLoad` is reported in development. The repair reads
-  `Rename the key you return from beforeLoad in /orders/$id.` Enforced at mount
-  (`app/invalid-router`).
+  `['mfe', 'queryClient']`, and your own top-level keys survive every framework context update.
+  Enforced at mount (`app/invalid-router`). A child route that returns its own `mfe` from
+  `beforeLoad` is reported in development, with the repair
+  `Rename the key you return from beforeLoad in /orders/$id.`
 - **Write your routes relative to your boundary.** Use `/settings`, not `/operations/settings`.
   `basepath` resolves them under whatever boundary the shell assigned. Nothing checks this, because
-  the shell claims `/`, `/$appId` and `/$appId/$` and nothing else, and a definition id may not
+  the shell owns `/`, `/$appId` and `/$appId/$` and nothing else, and a definition id may not
   contain a `/`.
 - **A Widget does not drive the URL or the document head.** Several Widgets can be on screen at
   once. The last one to render would win, and the tab title would flicker. The rule has one message
@@ -180,10 +182,11 @@ preflight, fonts, `@property` and the theme variables, all of which inherit into
 
 ## Do not break hot updates
 
-Keep the render function in its own module, where every export is a component. React Refresh
-replaces a module in place only when it can prove **every** export is a component. One exported
-hook, constant, schema or factory beside them makes the module unable to accept an update. The
-update then travels to whatever imported it, until it reaches an entry that accepts nothing. The
+Hot updates break unless the render function sits in a module whose every export is a component.
+React Refresh replaces a module in place only when it can prove **every** export is a component. One
+exported hook, constant, schema or factory beside them makes the module unable to accept an update.
+
+The update then travels to whatever imported it, until it reaches an entry that accepts nothing. The
 page reloads, every piece of state on it is lost, and nothing reports why.
 
 | Module                | What it exports                          | What an edit to it does |
@@ -207,9 +210,10 @@ the question is `pnpm hmr:probe <file>`, which reports `hot-updated in place` or
 **Generated output must be a pure function of its sources.** The build regenerates before every
 compilation, and your container imports what it generates. A timestamp, a counter or a random id in
 a generated module makes every compilation a source change, so the container rebuilds forever. You
-see the same symptom: hot updates that fail to fetch, and a page that reloads. That rule binds you
-only if you write your own generator. What binds every author is the banner on each generated file:
-**never edit generated output**.
+see the same symptom: hot updates that fail to fetch, and a page that reloads.
+
+That rule binds you only if you write your own generator. What binds every author is the banner on
+each generated file: **never edit generated output**.
 
 ## Do not call `lazyWidget` during render
 
@@ -247,17 +251,17 @@ Declare the contract and every presentation field as literals in `src/mfe.ts`. T
 definition **without running it**, so a host can render a catalogue entry before anything is
 fetched. That is only possible if the declarations are literals.
 
-| Rule                                                                                                     | Enforced by                                                                           | Fix                                                                                                      |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| A definition id is lower-case letters, digits and single hyphens (for example `alert-panel`)             | the scaffold, build, mount (`registry/invalid-descriptor`) and registry (quarantined) | Rename. The id is also a storage prefix and a CSS scope value                                            |
-| Two definitions may not share an id                                                                      | build inside one container; **both** entries quarantined across the registry          | Rename one                                                                                               |
-| An event name is lower camel case                                                                        | build and mount                                                                       | Consumers subscribe as `onYourEvent`, so the name has to survive that mapping                            |
-| An input may not be named `key`, `ref`, `fallback` or `onSomething`                                      | build and mount                                                                       | Rename the input; those names belong to the host                                                         |
-| Inputs and event payloads must be JSON-serializable                                                      | mount, before schema validation                                                       | Send data. A consumer that needs a callback subscribes to an event instead                               |
-| A Widget declares both `inputs` and `events`                                                             | build                                                                                 | `inputs: z.object({})` when it takes none                                                                |
-| The schema must be readable without running the module                                                   | build                                                                                 | Declare it inline in `src/mfe.ts`, or as an exported top-level const in another module of this container |
-| `title`, `description`, `version`, `tags` and `id` are inline literals; `icon` is an imported identifier | build                                                                                 | They are read at build time and published in the registry, so they cannot be computed                    |
-| A container exports at most one App, and every definition is exported from the entry                     | build                                                                                 | Split them into separate containers; add `export`                                                        |
+| Rule                                                                                                     | Enforced by                                                                             | Fix                                                                                                      |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| A definition id is lower-case letters, digits and single hyphens (for example `alert-panel`)             | the scaffold, build, mount (`registry/invalid-descriptor`) and registry (`quarantined`) | Rename. The id is also a storage prefix and a CSS scope value                                            |
+| Two definitions may not share an id                                                                      | build inside one container; **both** entries set aside across the registry              | Rename one                                                                                               |
+| An event name is lower camel case                                                                        | build and mount                                                                         | Consumers subscribe as `onYourEvent`, so the name has to survive that mapping                            |
+| An input may not be named `key`, `ref`, `fallback` or `onSomething`                                      | build and mount                                                                         | Rename the input; those names belong to the host                                                         |
+| Inputs and event payloads must be JSON-serializable                                                      | mount, before schema validation                                                         | Send data. A consumer that needs a callback subscribes to an event instead                               |
+| A Widget declares both `inputs` and `events`                                                             | build                                                                                   | `inputs: z.object({})` when it takes none                                                                |
+| The schema must be readable without running the module                                                   | build                                                                                   | Declare it inline in `src/mfe.ts`, or as an exported top-level const in another module of this container |
+| `title`, `description`, `version`, `tags` and `id` are inline literals; `icon` is an imported identifier | build                                                                                   | They are read at build time and published in the registry, so they cannot be computed                    |
+| A container exports at most one App, and every definition is exported from the entry                     | build                                                                                   | Split them into separate containers; add `export`                                                        |
 
 A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one. That
 one is convention, stated in the type.
@@ -292,6 +296,8 @@ two share a host, and breaks the first time they do not. The build reports it wi
 import the asset, or write `new URL('./icons/gear.svg', import.meta.url).href`.
 
 ## Do not hide failures from diagnostics
+
+Three habits hide a failure from the [diagnostics hub](/docs/glossary).
 
 **Do not use `console.log`.** `no-console` is `['error', { allow: ['warn', 'error'] }]` in both
 presets. In a container's `src/`, that makes `log`, `info`, `debug` and `table` errors. Use

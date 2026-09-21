@@ -6,12 +6,12 @@ description: 'The five stages a mount goes through, from the fetch that brings y
 A <Term>mount</Term> is one live instance of your App or Widget on the page, with its own abort
 signal, Query client, storage and overlay root. This page follows one mount through five stages,
 from the fetch that brings your code onto the page to the teardown that removes it. Nothing on that
-path runs under a time limit, so a load suspends until it settles or fails, and a retry is a
-person's click.
+path runs under a deadline, so a load suspends until it settles or fails, and a retry is a person's
+click.
 
 ## The five stages
 
-Everything below is the React adapter's behaviour, in `packages/mfe-react`.
+The five stages below are the React adapter's behaviour, in `packages/mfe-react`.
 
 <Steps>
 
@@ -43,7 +43,7 @@ Everything below is the React adapter's behaviour, in `packages/mfe-react`.
 
 <Diagram
   src="/diagrams/lifecycle.svg"
-  alt="Five stages left to right, a loop arrow on the fourth, a band of six failure codes below them, and a StrictMode box at the bottom."
+  alt="Five stages left to right, a loop arrow on the fourth, a band of six failure codes below them, a StrictMode box at the bottom and a two-colour legend."
   caption="What a mount does between the first render and the last."
 >
 Five boxes run left to right, each with an arrow into the next.
@@ -51,8 +51,8 @@ Five boxes run left to right, each with an arrow into the next.
 - **the load suspends** — `loadDefinition(runtime, id)`.
 - **the definition is checked** — `isMfeDefinition, then the router`.
 - **the mount is created** — `createMount(...)`.
-- **rendered, taking input** — `AppMount / WidgetMount`. A loop arrow returns to this box, labelled
-  "input, or event".
+- **rendered, taking input** — `AppMount / WidgetMount`. This is the blue box. A loop arrow returns
+  to it, labelled "input, or event".
 - **disposed** — `dispose()`.
 
 A dashed panel below them, **Where a failure goes**, holds six codes in a row:
@@ -60,6 +60,9 @@ A dashed panel below them, **Where a failure goes**, holds six codes in a row:
 `contract/input-mismatch` and `contract/event-mismatch`. A red dashed arrow drops into that panel
 from the first box, the second and the fourth. A grey box at the bottom, **StrictMode**, reads
 "create, dispose, create again".
+
+Two colours carry meaning, and a legend beside **StrictMode** names them. Blue marks the one box
+where your container renders. Red marks the failure path.
 
 </Diagram>
 
@@ -79,8 +82,9 @@ A Widget's consumer passes a `pending` prop, and the default is nothing. `lazyWi
 `Suspense` around the loader, so one Widget's load never suspends the whole consuming page.
 
 The promise is cached per runtime per id, **including a rejection**. React needs the same settled
-promise to surface the failure, and a cache that evicted itself would refetch as fast as the
-network allows. The failure reaches the diagnostics hub once, off that cached promise, so one
+promise to show the failure, and a cache that evicted itself would refetch as fast as the
+network allows. The failure reaches the [diagnostics hub](/docs/glossary) once, off that cached
+promise, so one
 attempt is one diagnostic however many consumers were waiting.
 
 ## Stage 2: the definition is checked
@@ -118,7 +122,7 @@ check runs in the memo that built the router, so a violation throws during rende
 | a mount token, `operations#1`               | the internal discriminator between two mounts |
 | an `AbortController`                        | its signal is what `useMfeSignal()` returns   |
 | a `QueryClient`                             | one per mount, cleared at disposal            |
-| the telemetry surface                       | tracer, events, logs and measurements         |
+| the telemetry services                      | tracer, events, logs and measurements         |
 | an overlay root appended to `document.body` | every dialog and popover portals into it      |
 
 `basePath` is forced to `''` for a Widget, which owns no URL. Around your code the framework
@@ -178,9 +182,8 @@ back to, so the error is thrown and reaches the consumer's `fallback`.
   alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
   number → at alertId. Check the alertId prop on the Widget.
 
-The first clause and the last sentence are the framework's. The part after the semicolon is Zod's
-wording and varies with the schema. **Fix.** Pass a string from the consuming component. On a later
-update, the last valid inputs stay on screen while you do.
+**Fix.** Pass a string from the consuming component. The wording after the semicolon is Zod's and
+changes with the schema. The framework's own half is the first clause and the last sentence.
 
 </Callout>
 
@@ -198,8 +201,8 @@ declare.
 
 </Callout>
 
-If the consumer supplied its own runtime contract and declared this event, the payload is validated
-a second time against **their** schema. A failure there is reported and the event is dropped rather
+A consumer may supply its own runtime contract and declare this event. The payload is then validated
+a second time, against **their** schema. A failure there is reported and the event is dropped rather
 than thrown, because their narrower expectation is not your bug. Handlers are read from a ref
 holding the latest committed ones, so no callback from an abandoned render is ever called.
 
@@ -225,6 +228,8 @@ override behaves the same way: that `localStorage` entry is read once at boot, a
 needs a page reload.
 
 ## Where each failure goes
+
+Every failure on this page ends in one of these places.
 
 | Code                                        | Thrown or reported                              | What the consumer sees                                    | Fix                                                  |
 | ------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
@@ -262,10 +267,10 @@ export function Draft({ isDirty }: { readonly isDirty: boolean }) {
 }
 ```
 
-Inside an App, use TanStack's own `useBlocker`. The framework registers one delegate for the mount
-and widens your blockers. They then cover navigations your router never sees, including those the
-shell and sibling containers start. `useNavigationBlock` is for a mount with no router of its own,
-which means a Widget.
+Hold a navigation inside an App with TanStack's own `useBlocker`. The framework registers one
+delegate for the mount and widens your blockers. They then cover navigations your router never sees,
+including those the shell and sibling containers start. A Widget has no router of its own, so it
+uses `useNavigationBlock` instead.
 
 The mount stays mounted for as long as `pending` is set, because the host is holding the navigation
 and waiting for your answer. You render your own confirmation rather than `window.confirm`. A mount

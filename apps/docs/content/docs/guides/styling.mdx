@@ -5,10 +5,13 @@ description: 'What your build does to your CSS, the three roots a mount renders,
 
 You write no CSS configuration in a container: no stylesheet entry, no `postcss.config`, no theme
 variables. Your build collects the classes you rendered, generates one <Term>scoped stylesheet</Term>,
-and wraps it in a CSS `@scope` rule keyed on your definition id. Your rules then apply inside your
+and wraps it in a CSS `@scope` rule keyed on your [definition id](/docs/glossary). Your rules then
+apply inside your
 own mount roots and nowhere else.
 
 ## What you write, and what the build generates
+
+You write TSX, and the build generates everything else.
 
 | You write                           | The build generates                                           | Where it lands                                 |
 | ----------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
@@ -114,7 +117,7 @@ lists all four ids. Three more things happen to the sheet.
 
 ## The three roots: scope, style, overlay
 
-Every <Term>mount</Term> renders three elements around your tree.
+Every <Term>mount</Term> renders three roots around your tree: scope, style and overlay.
 
 | Root         | Element                                                  | What it carries                                                                   |
 | ------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -143,8 +146,10 @@ start selector.
 `data-tecton-root` on the overlay root is the other half. The design system hangs its base border
 and outline colours on that marker and its descendants. Portalled content descends from the overlay
 root rather than from your in-page tree, so without the marker a dialog would open with no base
-colours. `SCOPE_ATTRIBUTE` is exported from `@company/mfe-react` for code that needs the attribute
-name. The generated entry exports `withStyleRoot(authored, StyleRoot)` and calls
+colours.
+
+`SCOPE_ATTRIBUTE` is exported from `@company/mfe-react` for code that needs the attribute name. The
+generated entry exports `withStyleRoot(authored, StyleRoot)` and calls
 `createOverlayRoot(definitionId, mountToken, document)` for you, so you call neither.
 
 <Diagram
@@ -172,7 +177,8 @@ limit sits to the right.
 
 ## Use the design system inside a container
 
-Import components by subpath, as the examples do. There is no barrel import.
+Use the design system by importing components by subpath, as the examples do. There is no barrel
+import.
 
 ```tsx title="examples/alert-panel/src/alert-panel.tsx"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
@@ -236,7 +242,7 @@ second, differently scoped sheet. Three rules follow.
 
 ## Errors you will see
 
-Two failures happen at build time, both from `packages/mfe-rspack/src/css/scope.ts`.
+Two of these errors happen at build time, both from `packages/mfe-rspack/src/css/scope.ts`.
 
 <Callout type="error" title="An empty scope list">
   `/work/alert-panel/src/mfe.ts: the build failed to scope this container stylesheet: expected at
@@ -294,7 +300,7 @@ with no fallback.
 
 Below those versions the rule is unknown, so its block is dropped. The winner at equal layer and
 specificity becomes whichever stylesheet the document parsed last, for the whole page. The symptom
-is colours, spacing and sizing from the wrong build, changing with whichever surface the user opened
+is colours, spacing and sizing from the wrong build, changing with whichever screen the user opened
 first.
 
 `docs/decisions.md` §5 measured the whole feature set at **89.9685%** usage coverage against a 91%
@@ -302,15 +308,16 @@ target, "native CSS `@scope` being the entire gap". There is no fallback to swit
 
 ## Why a shared page needs a CSS boundary
 
-One document means one cascade. The design system's own scope plugin states the problem:
+A shared page needs a CSS boundary because one document means one cascade. The design system's own
+scope plugin states the problem:
 
 > A remote that brings its own `@tecton/react` spells `bg-primary`, `text-sm` and every component
 > class exactly like its host does, and the two builds do not necessarily mean the same thing by
 > them. At equal layer and specificity the copy injected last wins, and injection order follows
 > chunk loading, not ownership.
 
-Chunk loading order depends on which surface the user visited first, which you do not control. So
-the framework does not try to win the cascade. `@scope` resolves ties by proximity to the scope
+Chunk loading order depends on which screen the user visited first. You do not control that. So the
+framework does not try to win the cascade. `@scope` resolves ties by proximity to the scope
 root, and proximity is fixed by the DOM rather than by load order.
 
 ## Where next
@@ -319,5 +326,7 @@ root, and proximity is fixed by the DOM rather than by load order.
   developer tools show about a container that did not load.
 - [5. What you must not do](/docs/guides/what-you-must-not-do) — the rest of the rules about being
   one piece of a shared page.
-- [Decision 17: each container ships its own stylesheet, scoped to its own mount roots](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
-- [Decision 5: the browser support matrix was removed](/docs/decisions#5-the-browser-support-matrix-was-removed)
+- [Decision 17](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
+  — why each container ships its own stylesheet.
+- [Decision 5](/docs/decisions#5-the-browser-support-matrix-was-removed) — why there is no browser
+  support matrix.
