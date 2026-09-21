@@ -1,0 +1,42 @@
+{
+  "name": "@company/docs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentation site for MFE authors: the guides, the design map and the decision log.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3020",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate": "node scripts/generate-routes.mjs",
+    "typecheck": "pnpm run generate && tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-router": "catalog:docs",
+    "@tanstack/react-start": "catalog:",
+    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "cn": "catalog:",
+    "fumadocs-core": "catalog:",
+    "fumadocs-mdx": "catalog:",
+    "lucide-react": "catalog:",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-aria-components": "catalog:",
+    "react-dom": "catalog:",
+    "shiki": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "devDependencies": {
+    "@tanstack/router-generator": "catalog:",
+    "@types/mdx": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

@@ -15,7 +15,7 @@ export interface TemplateOptions {
   readonly packageName: string
 }
 
-function json(value: unknown): string {
+export function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`
 }
 
@@ -24,8 +24,8 @@ function json(value: unknown): string {
  * generated #mfe/* modules and route tree before anything else can run.
  */
 const SCRIPTS: Record<string, string> = {
-  dev: 'pnpm run generate && rspack serve',
-  build: 'pnpm run generate && rspack build',
+  dev: 'pnpm run generate && rsbuild dev',
+  build: 'pnpm run generate && rsbuild build',
   generate: 'mfe-generate',
   typecheck: 'pnpm run generate && tsc --noEmit',
   test: 'pnpm run generate && vitest run',
@@ -44,9 +44,8 @@ const DEPENDENCIES: Record<string, string> = {
 const DEV_DEPENDENCIES: Record<string, string> = {
   '@company/eslint-plugin-mfe': 'workspace:*',
   '@company/mfe-rspack': 'workspace:*',
-  '@rspack/cli': 'catalog:',
-  '@rspack/core': 'catalog:',
-  '@rspack/dev-server': 'catalog:',
+  '@rsbuild/core': 'catalog:',
+  '@rsbuild/plugin-react': 'catalog:',
   '@testing-library/jest-dom': 'catalog:',
   '@testing-library/react': 'catalog:',
   '@types/react': 'catalog:',
@@ -73,7 +72,11 @@ function merge(
 export function packageJsonFile(
   options: TemplateOptions,
   port: number,
-  extra: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {},
+  extra: {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+    exports?: Record<string, string>
+  } = {},
 ): TemplateFile {
   return {
     path: 'package.json',
@@ -83,6 +86,7 @@ export function packageJsonFile(
       private: true,
       type: 'module',
       mfe: { port, definitions: [options.id] },
+      ...(extra.exports === undefined ? {} : { exports: extra.exports }),
       scripts: SCRIPTS,
       dependencies: merge(DEPENDENCIES, extra.dependencies ?? {}),
       devDependencies: merge(DEV_DEPENDENCIES, extra.devDependencies ?? {}),

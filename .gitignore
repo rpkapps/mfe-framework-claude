@@ -11,6 +11,12 @@ src/generated/
 .mfe/
 apps/shell/public/registry.json
 
+# Documentation site build output and the caches the TanStack Start / fumadocs pipeline keeps.
+.output/
+.nitro/
+.tanstack/
+.source/
+
 # Local developer values (§10.6)
 runtime-config.local.json
 .env

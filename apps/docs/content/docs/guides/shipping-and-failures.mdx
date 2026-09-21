@@ -1,0 +1,347 @@
+---
+title: '10. Shipping and failures'
+description: 'What a container build produces, how its record reaches the shell’s registry, every reason an entry is quarantined, and how to read the failures your users will see.'
+---
+
+Your container is deployed on its own origin, on its own schedule, into a page whose other surfaces
+you did not build. So "it works" has two halves: the artifacts your build publishes, and what the
+shell does with them when it finds them wrong. This page covers both, then walks the runtime failures
+in the order they happen, saying for each what the user sees, what you see, and the fix.
+
+Your <Term>container</Term> is the deployable unit you ship: one package, one build, one origin,
+one `src/mfe.ts`. The <Term>shell</Term> is the one application on the page that is not itself
+listed in the registry; it mounts containers into itself. It learns which containers exist from
+the <Term>registry</Term>: the JSON array it fetches at boot, saying which definitions exist,
+where each container's manifest is, and what each Widget takes. The registry is generated, never
+hand-written.
+
+## What a build produces
+
+Whoever deploys your container has to know which files travel together, because the shell fetches
+them from your origin rather than serving them from its own. `pnpm run build` in a container is
+`pnpm run generate && rsbuild build`, and the output directory is Rsbuild's default `dist/`.
+
+| Artifact                                                                            | Name                                         |
+| ----------------------------------------------------------------------------------- | -------------------------------------------- |
+| the <Term>remote entry</Term> — the file that lets a host load code from this build | `remoteEntry.js`                             |
+| the federation manifest, which describes it                                         | `mf-manifest.json`                           |
+| the registry descriptor                                                             | `mfe-registry.json`                          |
+| the runtime-config schema, when the container has `src/mfe.config.ts`               | `runtime-config.schema.json`                 |
+| the exposed chunks, one per definition, plus shared chunks                          | generated                                    |
+| the container's <Term>scoped stylesheet</Term>                                      | a CSS asset, imported by every exposed entry |
+
+The build copies every top-level `.json` from `.mfe/` into the output, so the descriptor and the
+schema ship beside the bundle; the entries, the contract modules, `.env.example` and `css.d.ts` do
+not. `assetPrefix` is `'auto'` on a build, so your assets resolve against your own deployed
+location rather than the shell's.
+
+Your contract metadata rides in the manifest under `metaData.mfe`: the contract `major`, a
+`buildHash`, a `buildTime`, the descriptor's filename, the definitions and the expose paths.
+
+<Callout type="error" title="No manifest was emitted">
+  `MfePlugin: no mf-manifest.json was emitted, so this container advertises no framework contract
+  and a shell cannot tell which major it was built against. Check that the Rsbuild config still
+  applies pluginMfe() and that nothing replaced the container's moduleFederation options.`
+
+**The fix:** keep `pluginMfe()` in `plugins`, and do not assign `moduleFederation.options` yourself.
+`pluginMfe()` contributes them; replacing them removes the manifest.
+
+</Callout>
+
+The descriptor is what a host reads without loading you. Its shape
+(`packages/mfe-rspack/src/generate/artifacts.ts`):
+
+```ts
+export interface ContainerDescriptor {
+  readonly manifestUrl: string // container-relative: 'mf-manifest.json'
+  readonly container: string // the federation name
+  readonly contractMajor: number // 1
+  readonly definitions: readonly ExportedDefinitionDescriptor[]
+  readonly entries: Readonly<Record<string, string>>
+  readonly build?: BuildProvenance // { hash, time }
+}
+```
+
+`manifestUrl` is container-relative, because a baked-in absolute URL breaks a promotion from one
+environment to the next. A Widget definition carries `contract`; an App carries `capabilities`; the
+shell rejects either combination reversed. `contract.inputs` is absent when the build could not read
+the schema statically, and absent is never the same as empty — an unreadable schema does not fail
+the build, and the Widget still validates its own inputs at run time.
+
+## How the record reaches the shell's registry
+
+Nobody hand-writes registry JSON. In this repository `tools/dev/build-registry.mjs` reads every
+container's generated `.mfe/mfe-registry.json`, expands each descriptor into **one entry per
+definition**, resolves `manifestUrl` against that container's dev origin, and appends the deliberate
+fixtures. A real deployment does the same job with the deployed origins.
+
+The shell contributes only "what the shell knows that a container cannot", as
+`apps/shell/registry.source.json` puts it: a `presentation` map of `title` and `icon` per id, spread
+**last** because it is the shell's per-deployment override of what you declared, and two
+deliberately invalid `fixtures`. Ids, kinds, versions, capabilities, container names and expose
+paths are never written there.
+
+One entry looks like this:
+
+```json
+{
+  "id": "alert-panel",
+  "kind": "widget",
+  "mfe": { "contractMajor": 1 },
+  "manifestUrl": "http://localhost:3003/mf-manifest.json",
+  "container": "example_alert_panel",
+  "expose": "./widgets/alert-panel",
+  "version": "1.4.0",
+  "contract": { "events": ["acknowledged", "dismissed"], "inputs": {} },
+  "build": { "hash": "…", "time": "…" },
+  "title": "Alert panel",
+  "tags": ["alerts", "operations", "safety"]
+}
+```
+
+The `mfe` property is the contract marker: its presence commits the entry to the React adapter's
+selection rule. `build` is `BuildProvenance` — `{ hash, time }` — repeated on every entry from one
+descriptor, because a build belongs to the container rather than to any definition it exports. It
+never gates loading; its only reader is the bug report, which prints one line per accepted entry as
+`<id>: <hash> · <time>`, or `<id>: no build published`, "since a missing line reads as a missing
+container".
+
+Three failures come from assembly itself:
+
+| You see                                                                                                                                                         | Do                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `alert-panel: its container's descriptor names no expose path. Rebuild the container.`                                                                          | rebuild; the expose map is generated |
+| ``No generated descriptor for insights, lab. Run `pnpm run generate` first: the registry is assembled from what each container generates, never hand-written.`` | run generation before assembling     |
+| `reports: package.json declares no mfe.port, so its dev URL is unknown.`                                                                                        | add the `mfe.port` field             |
+
+A registry that will not load at all is a diagnostic, not a crash: the shell still boots, and the
+failure reaches exactly one place, the bug report.
+
+## `runtime-config.json` belongs to the deployment
+
+`runtime-config.json` is never built into the container. `src/mfe.config.ts` holds declarations
+only — "values live in the deployed runtime-config.json, so no secret belongs here" — and the build
+emits `.env.example` (names and expectations, never values) and `runtime-config.schema.json` with
+`additionalProperties: false`, so a deployment can validate its file before release.
+
+The deployment publishes the file next to the container's assets, and the generated `#mfe/config`
+resolves the URL against the container's own public path. In development the container's dev server
+publishes the local copy from `public/`:
+
+```json title="examples/operations/public/runtime-config.json"
+{
+  "apiBaseUrl": "http://localhost:3010/api/",
+  "telemetryEnabled": false
+}
+```
+
+The snapshot is immutable: changing a value takes a new deployment and a page reload, and nothing
+polls. The validation is a top-level `await` in the generated module, and the federation entry
+imports it before the application entry, so a container whose configuration is missing or invalid
+fails before any application module evaluates. A container that needs no configuration gets no
+`#mfe/config` and fetches nothing.
+
+## Three versions, and what each one does
+
+| Version                               | Where                          | What it does                                                                                                                                                                        |
+| ------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createApp/createWidget({ version })` | `src/mfe.ts`                   | the **definition version**: recorded in diagnostics, printed in every message as `<id>@<version>`, published in the registry. It never gates loading, adapter selection or mounting |
+| `"version"`                           | the container's `package.json` | the published package version, used for the federation share scope. Not carried into the registry                                                                                   |
+| `mfe.contractMajor`                   | the registry entry             | the **framework** contract major. It is `1`; anything else is quarantined                                                                                                           |
+
+The build requires the definition version to be a plain string literal: "Write the version inline,
+for example `version: '2.1.0'`. It appears in diagnostics, so it has to be the same string on every
+machine that builds this container." `examples/operations` keeps the two aligned at `2.1.0`, but
+nothing enforces that.
+
+Framework package versions and release notes go through changesets: `pnpm changeset` in the same
+commit as the change, `pnpm release` to publish, the shell and the examples ignored because they are
+not published. Record public API and contract changes explicitly — "a consumer reading the changelog
+should be able to tell whether their code still compiles and still behaves the same way, without
+diffing the source" — and verify the packed artifacts rather than the working tree before publishing.
+
+## Why an entry is quarantined, and the fix for each
+
+A <Term>quarantined entry</Term> is a registry entry that failed validation: set aside with a reason
+and an error rather than dropped silently. Every entry is validated independently, so one bad entry
+costs only itself. `apps/shell/registry.source.json` ships two entries that cannot validate on
+purpose, because "a registry is assembled from descriptors produced by builds the shell does not
+control, so one of them being wrong is normal".
+
+Four failures come from the normalizer itself:
+
+| You see                                                                                                                                                                                                                                                                                | Do                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `no adapter recognised this descriptor` — `expected a descriptor matching one of the registered adapters (react), received a descriptor that matched none of them. Check the entry against the generated registry descriptor produced by its build. Nobody hand-writes registry JSON.` | publish the generated descriptor; the entry is missing its `mfe` marker                                                                                                              |
+| `the react adapter rejected this descriptor`                                                                                                                                                                                                                                           | one of the field failures below; the rule that owns an entry keeps it even when its validation fails — an entry that advertises a contract is never reinterpreted as another adapter |
+| `invalid definition id` — `expected lower-case letters, digits and single hyphens (for example "alert-panel"), received "Order_Book". Rename the definition id in its createApp/createWidget call and rebuild.`                                                                        | rename the id                                                                                                                                                                        |
+| `orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 4). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.`      | rename one. Duplicates lose **all** copies, not the later one                                                                                                                        |
+
+The rest come from the React contract rule. Every one of them is `registry/invalid-descriptor`
+unless noted, and most share one repair sentence: `Rebuild the container; the registry descriptor
+is generated, never hand-written.`
+
+| What is wrong                                         | The message's expected / received                                    | The fix                                                                                                                    |
+| ----------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| no `mfe` object                                       | `an object such as { "contractMajor": 1 }` / `nothing`               | rebuild with a framework release that emits it                                                                             |
+| `mfe.contractMajor` not an integer                    | `an integer` / `nothing`                                             | rebuild with a release that emits `contractMajor 1`                                                                        |
+| unsupported major (code `contract/unsupported-major`) | `contract major 1` / `contract major 2`                              | upgrade the shell, or redeploy the container against the shell's major; rebuild against the current major when it is lower |
+| `id` missing or empty                                 | `a non-empty string` / `nothing`                                     | set a stable id on the `createApp`/`createWidget` call and rebuild                                                         |
+| `manifestUrl` missing or empty                        | `a non-empty URL string` / `nothing`                                 | point the entry at the container's `mf-manifest.json`, or set a dev override                                               |
+| `kind` neither `"app"` nor `"widget"`                 | `"app" or "widget"` / the value                                      | rebuild; the kind is derived from `createApp`/`createWidget`                                                               |
+| a `contract` on an App                                | `no Widget contract on an App` / `an inputs/events contract`         | an App has no inputs and no events: drop the contract, or declare the surface as a Widget                                  |
+| `contract.events` not a string array                  | `an array of event names` / what was there                           | rebuild                                                                                                                    |
+| `contract.inputs` present but not an object           | `a JSON Schema object, or nothing when the build could not read one` | rebuild                                                                                                                    |
+| `capabilities` on a Widget                            | `no capabilities on a Widget` / `2 capability descriptor(s)`         | move the capability routes into an App, or drop them from the Widget                                                       |
+| an unknown capability name                            | `one of settings, help, releaseNotes` / the value                    | correct the `staticData.capability` value on the route and rebuild                                                         |
+| a capability without a string `label` and `path`      | `a string label and a string route path`                             | add `staticData.label` to the marked route and rebuild                                                                     |
+
+Rendered in full, the `legacy-reports` fixture reads:
+
+> `legacy-reports failed to gate the advertised framework contract major: expected contract major 1,
+received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.`
+
+Three fields are read loosely and dropped rather than failing the entry: `build` (a container that
+cannot describe its own build still mounts, but a malformed hash would reach a bug report as
+`[object Object]` and be believed), `tags` ("a catalogue filter is not worth quarantining an entry
+over") and `icon`.
+
+## How to read a framework message
+
+Every developer-facing runtime failure goes through `createMfeError`, and the message is composed
+from five parts (`packages/mfe-core/src/errors.ts`):
+
+```text
+<id>[@<version>] failed to <operation>[ <path>][: expected <expected>, received <observed>.] <repair>
+```
+
+1. **the definition, and its version when one was declared** — `alert-panel@1.4.0`;
+2. **the operation, and the field or resource** — `failed to accept input alertId`;
+3. **what was expected** — omitted when the observed value speaks for itself;
+4. **what was observed**;
+5. **one concrete repair step** — the last sentence, always an action.
+
+<Callout type="warning" title="Five parts, not six">
+  `CONTRIBUTING.md` lists a sixth item, "which side declared the expectation". The field that
+  carried it, `declaredBy`, was removed from `MfeErrorDetails`, and nothing at run time emits that
+  sentence any more. **Build** messages still do, in their own sentence between the observation and
+  the repair, and so does the generated `#mfe/config` module. Read a runtime message as five parts.
+</Callout>
+
+A build message adds the file and position in front:
+
+```text
+<file>[:<line>[:<column>]]: '<id>' failed to <operation>: expected <expected>, found <observed>.
+<declaredBy> declares this expectation. <repair>
+```
+
+## Runtime failures, in the order they happen
+
+The framework's central promise is that an entry which fails costs the page **that one surface**.
+The shell's boundary renders an `Empty` box with the definition id, the whole message, a **Retry**
+button and the error code, and the rest of the page keeps working.
+
+### The container fails to load
+
+The user sees `operations could not be loaded`, the message, Retry, and the code. You get one
+diagnostic per attempt. There is no time budget on this path: the load suspends under React
+`Suspense` until it settles or fails, and retry is explicit.
+
+| Code                                                                 | The repair the message carries                                                                                                                                                   |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `load/manifest-failure`                                              | `Check that http://localhost:3001/mf-manifest.json is reachable and serves a valid manifest.`                                                                                    |
+| `load/entry-failure` (a chunk failed after the manifest loaded)      | `Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.`                                                           |
+| `load/entry-failure` (the module exports no definition)              | `Export the definition from src/mfe.ts and rebuild the container.`                                                                                                               |
+| `registry/invalid-descriptor` (the kind does not match the registry) | `Rebuild the container so its descriptor matches what src/mfe.ts exports.`                                                                                                       |
+| `config/missing`                                                     | `Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.` |
+| `config/invalid` (a field failed its schema)                         | `Set API_BASE_URL in the deployment that writes this container's runtime configuration, then reload the page.`                                                                   |
+
+A missing or invalid configuration fails here rather than later, because the generated entry awaits
+`#mfe/config` before the application entry evaluates.
+
+The developer tools' **Registry** tab is where to look first: **Loaded** shows the URL each
+definition actually loaded from and marks an overridden entry, **Rejected** names every quarantined
+one with its reason. If the id is not there at all, the message says
+`Check the id against the generated registry descriptor, or add a localStorage override pointing at
+your dev server.`
+
+### The definition is invalid at mount
+
+An App that does not forward what its factory received fails as the same box.
+
+| You see                                                                                                                                                                                                                                                               | Do                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through unchanged as createRouter({ basepath }), received no basepath on the router. Forward the basePath your factory received: createRouter({ basepath: basePath, … }).` | pass `basepath: basePath`       |
+| `operations@2.1.0 failed to mount App: expected the exact history instance the framework supplied, received a different history object. Do not create, wrap, replace or mutate the history; forward the one your factory received.`                                   | pass `history` straight through |
+| `… expected the supplied context.mfe namespace, spread into the router context unchanged, received a replaced or rebuilt mfe namespace. Spread the supplied context: add your own top-level keys freely, but do not replace mfe or add fields inside it.`             | spread `context`                |
+
+### A render throws
+
+The App's own `defaultErrorComponent` handles it if it has one. Otherwise the consumer's `fallback`
+renders and the throw is wrapped as `mount/failure`, with whatever the throw said. Give an App a
+`defaultErrorComponent` so a route-level failure stays inside your surface.
+
+### Inputs or an event fail validation
+
+A Widget validates its inputs against its own schema on every render, and both sides validate
+events.
+
+| When                                      | What the user sees                                        | What you see                                                     |
+| ----------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
+| the **first** inputs fail                 | the consumer's `fallback`, code `contract/input-mismatch` | one diagnostic with `context: { widget: id }`                    |
+| **updated** inputs fail                   | nothing — the last valid inputs stay on screen            | one diagnostic                                                   |
+| an undeclared event is emitted            | nothing; the throw lands in the provider's own stack      | `Add 'resolved' to the events schema, or emit a declared event.` |
+| a payload fails the **consumer's** schema | nothing — the event is dropped                            | `Check the 'acknowledged' schema this consumer declared.`        |
+
+The message a consumer reads, verbatim from the running framework:
+
+<Callout type="error" title="An input that does not match the declared schema">
+  `alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
+  number → at alertId. Check the alertId prop on the Widget.`
+
+**The fix:** pass a string. The connective wording after the semicolon is Zod's and changes with the
+schema; the framework's own half is the first clause and the last sentence.
+
+</Callout>
+
+### A request through `#mfe/fetch` goes wrong
+
+The session bearer token is attached only to origins you declared with `env(…, { api: true })`. An
+undeclared origin gets the request without a token, and the endpoint answers 401. In development
+that is reported once per origin as a warning:
+
+<Callout type="error" title="A request to an origin you did not declare">
+  `operations@2.1.0 failed to attach the access token for https://metrics.example.com: expected a
+  request to an origin the author declared as an API with { api: true }, received a request to
+  https://metrics.example.com, which is not declared. Declare https://metrics.example.com with {
+  api: true } if it is your API, or leave it undeclared if it must never receive the session bearer
+  token. It was sent without one, so an endpoint that requires it answers 401 — that 401 is this
+  missing declaration, not a broken token.`
+
+**The fix:** add the origin to `src/mfe.config.ts` with `{ api: true }`, or accept the 401 as
+correct if that host must never see the token. There are no wildcards: a wildcard would hand the
+session bearer token to any host the pattern happened to match.
+
+</Callout>
+
+### What reaches you without writing any telemetry code
+
+Every `MfeError` the framework raises about your definition reaches the shell's diagnostics hub,
+which forwards it to the shell's telemetry provider. Every record carries attribution you cannot
+override — `mfe.definition.id`, `mfe.definition.kind`, `mfe.definition.version`, `mfe.build.hash`,
+`mfe.mount.token`, `mfe.trace.id` — so a production failure is already labelled with the definition,
+its version and the build hash, and an attribute collision resolves in favour of attribution.
+
+Do not ship a telemetry SDK: the `author` lint preset blocks `@opentelemetry/*` and
+`@grafana/faro-*`, type imports included, because two SDKs in one page mean two trace contexts and
+twice the bundle. Use `useTelemetry()`.
+
+## Where next
+
+- [6. Lifecycle](/docs/guides/lifecycle) — what happens between load and render, and the retry.
+- [9. Daily workflow](/docs/guides/daily-workflow) — the developer tools, the bug report and
+  `pnpm verify:page`.
+- [The design map: from boot to a mounted App](/docs/design#from-boot-to-a-mounted-app) — the
+  `boot-to-mount` diagram puts these failures on one picture.
+- [Decision 30: a host resolves shares against the scope it has, not against every remote it knows](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)
+- [Decision 29: a registry entry names the build it came from](/docs/decisions#29-a-registry-entry-names-the-build-it-came-from)

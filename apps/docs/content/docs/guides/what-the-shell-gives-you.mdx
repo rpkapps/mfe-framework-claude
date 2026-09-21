@@ -1,0 +1,298 @@
+---
+title: '4. What the shell gives you'
+description: 'Identity, theme, breadcrumbs, commands, telemetry and storage: the services a mounted container calls without importing anything from the shell.'
+---
+
+Your container is mounted into a page it does not own, and it needs things that page holds: who is
+signed in, which theme is on, where its own URL boundary starts, somewhere to put a command, a
+place to send telemetry. None of that arrives as props, and none of it is imported from the shell.
+It is a set of hooks from the one package you already depend on. This page is all of them, what a
+wrong call says, and what the shell deliberately does not provide.
+
+The <Term>shell</Term> is the application that owns the page — header, theme, session, the routes
+above your boundary — and mounts your container into itself. A <Term>mount</Term> is one live
+instance of your definition on that page. Everything below is scoped to a mount: two mounts of one
+definition get their own telemetry, their own storage handles and their own abort signal.
+
+## One import, and no others
+
+The services below belong to the page rather than to you, so the question is where to reach for
+them. There is one answer, and reaching anywhere else is a lint error.
+
+```ts
+import { useBasePath, useTelemetry, useTheme, useUser } from '@company/mfe-react'
+```
+
+`@company/mfe-react` is the only framework package an author imports. `@company/mfe-core` and
+`@company/mfe-host` are blocked by the lint preset, with a reason: `@company/mfe-host` is the
+shell's loader and registry, and `An MFE that imports it can mount itself outside the host
+lifecycle and will leak on unmount.` Everything an author needs, types included, is re-exported
+from `@company/mfe-react`.
+
+## Identity and theme: `useUser`, `useGroups`, `useTheme`
+
+You need to greet the signed-in person, hide a control a group has no use for, and draw a chart that
+matches the mode the page is in. All three values are the shell's, and it signs in once for the
+whole page, so these hooks read them rather than fetching them again.
+
+```tsx title="examples/lab/src/routes/shell-state.tsx"
+const user = useUser()
+const groups = useGroups()
+const theme = useTheme()
+```
+
+Each subscribes to one field, so a theme change never re-renders a component that reads only the
+user. Each takes an optional selector to narrow the subscription further —
+`useUser(u => u?.name ?? 'Nobody')` — and the selector is cached per snapshot, so an inline one
+returning a fresh object does not loop.
+
+`useUser()` returns `null` until the shell publishes a session, which is a state to render rather
+than assume away. `useGroups()` returns the semantic group set. Both are data for rendering and UX
+decisions, and explicitly **not an authorization API**: the server decides what a user may do.
+
+These three work outside a mount as well, given the shell's provider above them, which is how the
+shell's own chrome reads the same values.
+
+## Your boundary: `useBasePath`
+
+An external system — an email, a work order, a deep link pasted into a ticket — needs the absolute
+path to a screen, and your routes are written relative to wherever the shell mounted you. The hook
+gives you the missing prefix.
+
+```ts
+const basePath = useBasePath()
+```
+
+A mount's <Term>boundary</Term> is the stretch of URL the shell assigned it, and its literal
+string form is the <Term>base path</Term> — `/operations`, or `/operations/reports` for a delegated
+App. You do not need it for routing: `basepath` already makes every `Link` and `navigate` relative.
+A Widget has no boundary and gets `''`.
+
+## The breadcrumb trail: `useBreadcrumbs`
+
+A <Term>breadcrumb</Term> is one item in the trail the shell's header renders: the workspace, then
+the App, then whatever the App contributes. Your App's own portion is derived from its router matches without you doing anything —
+a route's `staticData.breadcrumb`, else its `head` title, else the humanized last path segment.
+`useBreadcrumbs` overrides only that portion, for a flow the URL does not describe:
+
+```ts title="examples/lab/src/routes/breadcrumbs.tsx"
+const FLOW = [
+  { key: 'wizard', label: 'New study' },
+  { key: 'step-2', label: 'Step 2 · Inputs' },
+]
+
+// Replaces only this App's own portion of the trail and clears on unmount and on navigation.
+useBreadcrumbs(override ? FLOW : [])
+```
+
+An empty array is _no override_ rather than an empty trail, which is what makes that conditional
+safe. The identifier field is `key`; `id` stays reserved for definition identity. An App that
+should contribute nothing at all sets `breadcrumbs: false` on its definition instead. Two live
+overrides in one App is a development-only warning: `expected at most one active breadcrumb
+override per App mount, received a second override while another is still mounted.`
+
+## The command palette: `useCommand`
+
+A <Term>command</Term> is an action your mount publishes into the shell's palette, which the user
+opens with <Kbd>⌘K</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>K</Kbd>. Registration follows component lifetime:
+leaving the route takes the command out of the palette.
+
+```ts title="examples/lab/src/routes/commands.tsx"
+useCommand({
+  name: 'run-simulation',
+  label: 'Run the simulation',
+  canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
+  execute: () => {
+    record('Ran the simulation')
+  },
+})
+```
+
+Your mount owns the decision and the shell renders it. A denied command is still listed, greyed
+out, with the reason you gave — hiding it would leave the user guessing. `canExecute` must be a
+pure synchronous read of reactive state; one that throws is treated as a denial, the user sees
+`This command is unavailable because its availability check failed.`, and the diagnostic tells you
+to move the failing work into `execute`.
+
+`placements` defaults to `['command-palette']`, and that is currently the only standardized
+placement. Register a command in a layout route to keep it for as long as the App is mounted, or in
+a page to scope it to that page.
+
+<Callout type="error" title="command/duplicate-name">
+
+`lab failed to register command: expected a name of letters, digits and hyphens starting with a
+letter (for example "refresh"), received "run simulation". Rename the command. The runtime
+qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.`
+
+Rename it to `run-simulation`. Two registrations of one name inside a mount are rejected rather
+than overwritten, so neither silently wins.
+
+</Callout>
+
+## Unsaved work: blocking a navigation
+
+The shell asks before it navigates away, and your mount answers in its own dialog. **Inside an App,
+use TanStack's own `useBlocker`** — the framework widens that registration to cover the navigations
+your router never sees, which is most of the ones that lose work: the application finder, a
+breadcrumb, the palette, the browser's back button.
+
+```ts title="examples/lab/src/routes/unsaved.tsx"
+const blocker = useBlocker({
+  shouldBlockFn: () => isDirty,
+  // A reload is not a navigation and no page may draw its own UI for one.
+  enableBeforeUnload: () => isDirty,
+  withResolver: true,
+})
+```
+
+`useNavigationBlock` is the framework's own hook, and it remains for a mount with no router of its
+own — in practice, a Widget. It hands back the pending intent rather than taking a callback, so the
+mount renders its own confirmation instead of `window.confirm`:
+
+```tsx
+const { pending, proceed, stay } = useNavigationBlock(isDirty)
+
+if (pending) return <ConfirmDialog onConfirm={proceed} onCancel={stay} />
+```
+
+## Telemetry: `useTelemetry`
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+telemetry.tracer.startActiveSpan('lab.compute', span => {
+  span.setAttribute('lab.rows', 128)
+  span.setStatus({ code: SpanStatusCode.OK })
+  span.end()
+})
+```
+
+`telemetry` gives you `event`, `debug`, `info`, `warn`, `error`, `measure(name, value, { unit })`
+and `tracer`. Every record carries the definition id, kind, version, build hash, mount token and
+trace id, added by the framework and not overridable, so you write no attribution. `SpanKind` and
+`SpanStatusCode` are re-exported from `@company/mfe-react`, so you never resolve an OpenTelemetry
+package yourself — importing one directly is blocked by lint, type imports included.
+
+Attributes are small scalars only; bodies, credentials and raw URLs never belong in them. The
+framework bounds them: 64 attributes, 1024 characters per string value, 256 characters per name.
+
+One limitation is worth knowing before you build on spans. Trace parentage is a synchronous active
+span slot, so a span created **after an `await`** inside a `startActiveSpan` callback loses the
+ambient context and becomes a root with a fresh trace id. That is the deliberate failure mode: an
+unsupported case produces no parent, never a wrong one, because a wrong parent corrupts a
+production trace tree silently
+([decision 4](/docs/decisions#4-browser-async-context-does-not-propagate-across-await-and-we-do-not-pretend-it-does)).
+Create child spans synchronously, or start them with `startSpan` and correlate by an explicit
+attribute. A span left open at disposal is reported in development: `lab@1.0.0 failed to dispose
+the mount telemetry: expected every span started by the mount to be ended by its author, received 1
+span(s) still open: lab.compute. End each span in a finally block; they were closed as cancelled.`
+
+## Cancelling background work: `useMfeSignal`
+
+The mount's disposal signal, for work started outside a route loader. It aborts once, when the
+mount goes away.
+
+```ts
+target.addEventListener(type, handler, { signal: useMfeSignal() })
+```
+
+Inside a route loader, keep using the loader's own `signal`: it cancels with the navigation, which
+is a shorter life than the mount's.
+
+## Storage: `useStoredState` and `useMfeStorage`
+
+Your container never touches `localStorage`. It declares a key with a schema and gets a subscribed
+value and a stable setter, namespaced under this definition's id so two containers cannot collide.
+
+```ts title="examples/lab/src/routes/storage.tsx"
+const [visits, setVisits] = useStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  retention: 'user',
+  storage: 'session',
+})
+```
+
+What <Term>retention</Term> decides is **who may read the value back**, not how long it lives:
+`'user'`, the default, is fenced to the signed-in identity and wiped when the identity or the group
+set changes; `'browser'` is never cleared, so every user of that browser profile reads the same
+value.
+`useMfeStorage()` is the imperative handle for the same records, for reads that should not
+subscribe. The rest — versions, migrations, the `@host` scope, every error — is in [7.
+Storage](/docs/guides/storage).
+
+## Icons: `DefinitionIcon`
+
+You never call it. You pass an imported identifier as `icon` to `createApp` or `createWidget`, the
+build follows the import and publishes the shapes in the registry, and `DefinitionIcon` is what the
+shell draws them with — from data, against a tag allowlist, because the record arrived from another
+origin.
+
+## Navigating between Apps
+
+| Where to                                  | How                                                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Anywhere inside your own boundary         | `Link` and `navigate` from your router. `basepath` resolves them; write `/settings`, never `/operations/settings`.                   |
+| Into an App you delegate at a splat route | An ordinary link to your own route: `<Link to="/reports/$" params={{ _splat: '' }}>`. An empty splat lands on the child App's index. |
+| To a different App at another boundary    | Nothing in the framework. The shell owns cross-boundary navigation, and its loader package is not an author import.                  |
+
+A document-level link (`<a href="/reports">`) does reach another App, at the cost of a full page
+load: the shell boots again and every other mount on the page is discarded. When moving between two
+Apps is a routine part of a flow, the shell's application finder and command palette are the
+surfaces built for it. What you must not do is reach for the URL yourself: assigning to
+`history.pushState` is a lint error, because ``Patching `history.pushState` hijacks navigation for
+the whole page, so the host router and the other MFEs learn about a navigation only by accident.``
+A Widget does not drive the URL at all — it emits a declared event and lets the App around it
+navigate.
+
+## What the shell does not give you
+
+- **No component library of its own.** The design system is a dependency you and the shell both
+  take; the shell hands you no components and no layout, and adds nothing inside your boundary.
+- **No cross-container messaging.** There is no bus and no shared store. A Widget talks to its
+  consumer through declared events; an App takes its data from its own URL and its own API.
+- **No session of its own for you to own.** The shell installs one session for the page and your
+  container borrows it through `#mfe/fetch`. Your container holds no credentials and refreshes
+  nothing.
+- **No mount deadline.** A container that will not load suspends until it settles or fails; there
+  is no time budget, and retry is an explicit action in the fallback the consumer renders.
+
+## Calling a hook in the wrong place
+
+`useTelemetry`, `useMfeSignal`, `useBasePath`, `useMfeStorage` and `useNavigationBlock` need a
+mount. Called anywhere else, they throw:
+
+<Callout type="error" title="mount/failure">
+
+`<unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount. Move the useTelemetry call into a component
+the App or Widget renders.`
+
+**Fix.** Move the call inside your definition's tree — a route component, or anything it renders —
+rather than into a module-level helper that runs before the mount exists.
+
+</Callout>
+
+`useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs` and `useStoredState` work
+outside a mount too, resolving to the host page's `@host` scope, but they still need the runtime:
+
+<Callout type="error" title="mount/failure">
+
+`<no-runtime> failed to render useUser(): expected an MfeProvider above this component, or an
+enclosing App or Widget mount, received neither. Wrap the shell in <MfeProvider runtime={runtime}>
+once at boot.`
+
+</Callout>
+
+Inside a container that message usually means something else, and it is worth recognising: a second
+copy of `@company/mfe-react` on the page. Both copies look correct on their own, and every hook
+inside your mount fails as though it were rendered outside one. The share scope is what guarantees
+one copy, and a duplicate reports itself this way rather than as a sharing error.
+
+## Where next
+
+- [3. Configuration and data](/docs/guides/config-and-data) — the request boundary and the values
+  behind it.
+- [5. What you must not do](/docs/guides/what-you-must-not-do) — the rules behind several of the
+  messages above, and which tool enforces each.
+- [7. Storage](/docs/guides/storage) — retention, versions and the `@host` scope in full.
+- [The design map: the isolation boundaries](/docs/design#the-isolation-boundaries) — the
+  `isolation-boundaries` diagram, which shows URL, styles, storage, network, errors and singletons
+  as one picture.

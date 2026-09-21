@@ -1,0 +1,13 @@
+{
+  "root": true,
+  "pages": [
+    "---Start here---",
+    "index",
+    "design",
+    "---Building an App or Widget---",
+    "...guides",
+    "---Reference---",
+    "glossary",
+    "decisions"
+  ]
+}

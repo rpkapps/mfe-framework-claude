@@ -9,3 +9,11 @@ AGENTS.md
 **/.mfe/
 playwright-report/
 test-results/
+.output/
+.nitro/
+.tanstack/
+.source/
+
+# Written by `pnpm dlx @tanstack/intent` (the whole file is its `intent-skills` block), so
+# formatting it only drifts back on the next run.
+AGENTS.md

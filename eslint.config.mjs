@@ -22,13 +22,21 @@ export default [
 
   ...mfe.framework({
     tsconfigRootDir: import.meta.dirname,
-    files: ['packages/*/src/**/*.{ts,tsx}', 'tools/*/src/**/*.ts', 'apps/shell/src/**/*.{ts,tsx}'],
+    files: [
+      'packages/*/src/**/*.{ts,tsx}',
+      'tools/*/src/**/*.ts',
+      'apps/shell/src/**/*.{ts,tsx}',
+      // The documentation site is not an MFE, but it is first-party React in this workspace and
+      // the framework preset is the one that holds first-party code to the repository's rules.
+      'apps/docs/src/**/*.{ts,tsx}',
+    ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
     // plugin building a module rule's `use:` list is told it called a Hook outside a component.
     reactFiles: [
       'packages/mfe-react/src/**/*.{ts,tsx}',
       'packages/mfe-devtools/src/**/*.{ts,tsx}',
       'apps/shell/src/**/*.{ts,tsx}',
+      'apps/docs/src/**/*.{ts,tsx}',
     ],
     // The storage adapter owns every read and write the framework makes, and the shell's
     // override bootstrap has to read localStorage before a store exists to read it through.
@@ -69,6 +77,18 @@ export default [
     name: 'repo/shell-telemetry-adapter',
     files: ['apps/shell/src/shell/faro.ts', 'apps/shell/src/shell/faro.test.ts'],
     rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+  },
+
+  {
+    /*
+     * TanStack Router signals a missing page by throwing the object `notFound()` returns, which is
+     * a control-flow marker rather than an `Error`; the router catches it and renders the not-found
+     * component. `only-throw-error` reads it as a thrown non-error, so it is off for the route
+     * files of the documentation site and nowhere else.
+     */
+    name: 'repo/docs-router-signals',
+    files: ['apps/docs/src/routes/**/*.{ts,tsx}'],
+    rules: { '@typescript-eslint/only-throw-error': 'off' },
   },
 
   {

@@ -4,6 +4,7 @@
  */
 
 import {
+  json,
   overrideSection,
   packageJsonFile,
   sharedFiles,
@@ -20,6 +21,14 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
     packageJsonFile(options, 3101, {
       dependencies: { '@tanstack/react-query': 'catalog:', '@tanstack/react-router': 'catalog:' },
     }),
+
+    // `src/mfe.config.ts` gives this App a config source, so the build generates
+    // `#mfe/config`, which fetches this file from the dev server's public dir at
+    // boot. Without it, a scaffolded App fails at boot with `config/missing`.
+    {
+      path: 'public/runtime-config.json',
+      contents: json({ apiBaseUrl: 'https://api.example.test/v1/' }),
+    },
 
     {
       path: 'src/mfe.ts',
