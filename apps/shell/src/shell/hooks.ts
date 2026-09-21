@@ -22,6 +22,8 @@ import {
   DEFAULT_PANELS,
   migratePanels,
   PanelLayoutSchema,
+  SNAP_TO_TOP_DEFAULT,
+  SnapToTopSchema,
   type PanelLayout,
 } from './dashboard/panels-store.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
@@ -75,5 +77,13 @@ export function useDashboardPanels(): readonly [PanelLayout, StoredStateSetter<P
     defaultValue: DEFAULT_PANELS,
     retention: 'browser',
     migrate: migratePanels,
+  })
+}
+
+/** Whether the canvas lifts its tiles to the top when a drag is released. */
+export function useSnapToTop(): readonly [boolean, StoredStateSetter<boolean>] {
+  return useStoredState('dashboard-snap', SnapToTopSchema, {
+    defaultValue: SNAP_TO_TOP_DEFAULT,
+    retention: 'browser',
   })
 }

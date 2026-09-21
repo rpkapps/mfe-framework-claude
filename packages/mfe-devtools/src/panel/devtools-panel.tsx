@@ -130,7 +130,8 @@ function DevtoolsDock({
           }}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
-          <PanelHeader className="gap-2 border-b border-border-subtle">
+          {/* `PanelHeader` draws its own bottom border; naming one here repainted it. */}
+          <PanelHeader className="gap-2">
             <PanelTitle className="flex items-center gap-2 text-sm">
               <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
               {/* A narrow dock needs the tabs and the close button more than it needs the label. */}

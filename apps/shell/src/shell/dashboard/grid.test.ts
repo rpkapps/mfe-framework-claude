@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canvasColumns,
   canvasRows,
+  compact,
   columnsIn,
   findFreeCell,
   MIN_COLUMNS,
@@ -155,5 +156,40 @@ describe('settle', () => {
   it('keeps pushing until the tile clears everything above it', () => {
     const settled = settle([tile('a', 0, 0, 10, 8), tile('b', 0, 8, 10, 8), tile('c', 0, 0, 10, 8)])
     expect(settled[2]?.y).toBe(16)
+  })
+})
+
+describe('compact', () => {
+  it('lifts a tile with nothing above it to the top', () => {
+    expect(compact([tile('a', 0, 9, 10, 8)])[0]?.y).toBe(0)
+  })
+
+  it('lands a tile exactly on the bottom edge of the one above it', () => {
+    const risen = compact([tile('a', 0, 0, 10, 8), tile('b', 0, 20, 10, 8)])
+    expect(risen[1]?.y).toBe(8)
+  })
+
+  it('lifts columns independently, because they do not cover each other', () => {
+    const risen = compact([tile('a', 0, 5, 10, 8), tile('b', 20, 30, 10, 8)])
+    expect(risen.map(entry => entry.y)).toEqual([0, 0])
+  })
+
+  it('closes a gap left in the middle of a stack', () => {
+    const risen = compact([
+      tile('a', 0, 0, 10, 8),
+      tile('b', 0, 40, 10, 8),
+      tile('c', 0, 60, 10, 8),
+    ])
+    expect(risen.map(entry => entry.y)).toEqual([0, 8, 16])
+  })
+
+  it('leaves a layout that is already at the top alone', () => {
+    const tiles = [tile('a', 0, 0, 10, 8), tile('b', 0, 8, 10, 8)]
+    expect(compact(tiles)).toEqual(tiles)
+  })
+
+  it('keeps the order it was given, so nothing re-keys', () => {
+    const tiles = [tile('a', 0, 20, 10, 8), tile('b', 0, 0, 10, 8)]
+    expect(compact(tiles).map(entry => entry.key)).toEqual(['a', 'b'])
   })
 })

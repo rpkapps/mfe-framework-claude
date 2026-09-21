@@ -126,9 +126,12 @@ export function Catalogue({ widgets, onAdd }: CatalogueProps): ReactNode {
             setSelectedTags(keys === 'all' ? new Set(tags) : new Set([...keys].map(String)))
           }}
         >
-          <ChipList className="flex flex-wrap gap-1.5">
+          {/* Solid rather than outlined: nine outlined pills read as nine competing buttons, and
+              selection then stacks a ring on top of a border. The soft surface stays quiet and
+              lets `data-selected`'s ring be the only strong edge in the group. */}
+          <ChipList className="flex flex-wrap gap-1">
             {tags.map(tag => (
-              <Chip key={tag} id={tag} variant="secondary" appearance="outline">
+              <Chip key={tag} id={tag} variant="secondary">
                 {tag}
               </Chip>
             ))}

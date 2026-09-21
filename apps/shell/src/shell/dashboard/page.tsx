@@ -39,8 +39,10 @@ import {
   PanelTitle,
 } from '@tecton/react/tecton/panel'
 import { CanvasOverlay, CanvasToolbar } from '@tecton/react/tecton/canvas'
+import { Toggle } from '@tecton/react/components/toggle'
 import { usePanelRef } from 'react-resizable-panels'
 import {
+  ArrowUpToLineIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
   LayoutDashboardIcon,
@@ -49,7 +51,7 @@ import {
   ZapIcon,
 } from 'lucide-react'
 
-import { useDashboardLayout, useDashboardPanels, useIsCompact } from '../hooks.ts'
+import { useDashboardLayout, useDashboardPanels, useIsCompact, useSnapToTop } from '../hooks.ts'
 import { ValueView } from '../readout.tsx'
 import { DashboardCanvas } from './canvas.tsx'
 import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
@@ -57,6 +59,7 @@ import {
   canvasColumns,
   canvasRows,
   columnsIn,
+  compact,
   pixelsFromCells,
   resolveCollisions,
   type Rect,
@@ -87,6 +90,7 @@ export function DashboardPage(): ReactNode {
   // Stored, not this component's state: the palette and settings both write it from outside.
   const [{ tiles }, setLayout] = useDashboardLayout()
   const [panels, setPanels] = useDashboardPanels()
+  const [snapToTop, setSnapToTop] = useSnapToTop()
   const [editing, setEditing] = useState<Editing | null>(null)
   const [events, setEvents] = useState<readonly WidgetEvent[]>([])
   const [isDropTarget, setIsDropTarget] = useState(false)
@@ -144,14 +148,15 @@ export function DashboardPage(): ReactNode {
   /** One path for every placement, so a drag, a keyboard nudge and a size preset all settle the same way. */
   const place = useCallback(
     (key: string, rect: Rect) => {
-      setLayout(layout => ({
-        tiles: resolveCollisions(placeTile(layout.tiles, key, rect), key),
-      }))
+      setLayout(layout => {
+        const settled = resolveCollisions(placeTile(layout.tiles, key, rect), key)
+        return { tiles: snapToTop ? compact(settled) : settled }
+      })
       setPlacement(
         `Moved to column ${String(rect.x + 1)}, row ${String(rect.y + 1)}, ${String(rect.w)} by ${String(rect.h)} cells.`,
       )
     },
-    [setLayout],
+    [setLayout, snapToTop],
   )
 
   const drag = useTileDrag(columns, place)
@@ -246,6 +251,25 @@ export function DashboardPage(): ReactNode {
               </CanvasToolbar>
             </CanvasOverlay>
           ) : null}
+          {tiles.length === 0 ? null : (
+            <CanvasOverlay position="top-right">
+              <CanvasToolbar orientation="horizontal" aria-label="Canvas">
+                <Toggle
+                  size="sm"
+                  aria-label="Snap tiles to the top"
+                  isSelected={snapToTop}
+                  onChange={next => {
+                    setSnapToTop(next)
+                    // Turning it on closes the gaps that are already there, or the setting would
+                    // look like it had done nothing until the next drag.
+                    if (next) setLayout(layout => ({ tiles: compact(layout.tiles) }))
+                  }}
+                >
+                  <ArrowUpToLineIcon />
+                </Toggle>
+              </CanvasToolbar>
+            </CanvasOverlay>
+          )}
         </>
       }
     >

@@ -169,6 +169,27 @@ export function settle<T extends Placed>(tiles: readonly T[]): readonly T[] {
 }
 
 /**
+ * Lifts every tile as high as it will go without covering another. Gaps open up whenever a tile
+ * is dragged away from under its neighbours, and closing them by hand is tedious — so the canvas
+ * offers to do it, on release rather than continuously, which would fight the drag.
+ *
+ * Top to bottom, so a tile that rises is compared against the tiles that already have.
+ */
+export function compact<T extends Placed>(tiles: readonly T[]): readonly T[] {
+  const risen: T[] = []
+
+  for (const tile of [...tiles].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    let y = tile.y
+    while (y > 0 && !risen.some(other => overlaps({ ...tile, y: y - 1 }, other))) y -= 1
+    risen.push({ ...tile, y })
+  }
+
+  // Back into the order they came in, so nothing re-keys just because a tile moved.
+  const byKey = new Map(risen.map(tile => [tile.key, tile] as const))
+  return tiles.map(tile => byKey.get(tile.key) ?? tile)
+}
+
+/**
  * How wide the surface is: the visible canvas, or the rightmost tile when one reaches past it.
  * The canvas scrolls rather than squeezing — narrowing a tile to fit the window would rewrite a
  * layout the user built on a wider one, and pushing it left would slide it under its neighbour.

@@ -1,7 +1,8 @@
 /**
- * How the dashboard's three columns are split. Its own key rather than a field on `dashboard`,
- * because the split is a working preference about this screen and the tiles are the work: a user
- * who clears the canvas keeps the panel widths they set.
+ * The dashboard's own preferences: how its three columns are split, and whether the canvas keeps
+ * its tiles at the top. Their own keys rather than fields on `dashboard`, because these are
+ * working preferences about this screen and the tiles are the work: a user who clears the canvas
+ * keeps the widths and the habits they set.
  */
 
 import { z } from 'zod'
@@ -40,3 +41,11 @@ export const PanelLayoutSchema: z.ZodType<PanelLayout> = z.unknown().transform(r
 export function migratePanels(value: unknown): PanelLayout {
   return readLayout(value)
 }
+
+/** Whether a release lifts every tile as high as it will go. Off, because it moves tiles the
+ * user did not touch, and that should be something they asked for. */
+export const SNAP_TO_TOP_DEFAULT = false
+
+export const SnapToTopSchema: z.ZodType<boolean> = z
+  .unknown()
+  .transform(value => (typeof value === 'boolean' ? value : SNAP_TO_TOP_DEFAULT))
