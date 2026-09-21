@@ -8,14 +8,18 @@ you did not build. So "it works" has two halves: the artifacts your build publis
 shell does with them when it finds them wrong. This page covers both, then walks the runtime failures
 in the order they happen, saying for each what the user sees, what you see, and the fix.
 
-A <Term>registry</Term> is the JSON array the shell fetches at boot that says which definitions
-exist, where each container's manifest is, and what each Widget takes. It is generated, never
+Your <Term>container</Term> is the deployable unit you ship: one package, one build, one origin,
+one `src/mfe.ts`. The <Term>shell</Term> is the one application on the page that is not itself
+listed in the registry; it mounts containers into itself. It learns which containers exist from
+the <Term>registry</Term>: the JSON array it fetches at boot, saying which definitions exist,
+where each container's manifest is, and what each Widget takes. The registry is generated, never
 hand-written.
 
 ## What a build produces
 
-`pnpm run build` in a container is `pnpm run generate && rsbuild build`, and the output directory is
-Rsbuild's default `dist/`.
+Whoever deploys your container has to know which files travel together, because the shell fetches
+them from your origin rather than serving them from its own. `pnpm run build` in a container is
+`pnpm run generate && rsbuild build`, and the output directory is Rsbuild's default `dist/`.
 
 | Artifact                                                                            | Name                                         |
 | ----------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -337,6 +341,7 @@ twice the bundle. Use `useTelemetry()`.
 - [6. Lifecycle](/docs/guides/lifecycle) — what happens between load and render, and the retry.
 - [9. Daily workflow](/docs/guides/daily-workflow) — the developer tools, the bug report and
   `pnpm verify:page`.
-- [The design map](/docs/design) — the boot-to-mount diagram puts these failures on one picture.
+- [The design map: from boot to a mounted App](/docs/design#from-boot-to-a-mounted-app) — the
+  `boot-to-mount` diagram puts these failures on one picture.
 - [Decision 30: a host resolves shares against the scope it has, not against every remote it knows](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)
 - [Decision 29: a registry entry names the build it came from](/docs/decisions#29-a-registry-entry-names-the-build-it-came-from)

@@ -1,6 +1,6 @@
 ---
 title: '4. What the shell gives you'
-description: 'Identity, theme, breadcrumbs, commands, telemetry and storage: the services a mounted container calls without importing anything from the host.'
+description: 'Identity, theme, breadcrumbs, commands, telemetry and storage: the services a mounted container calls without importing anything from the shell.'
 ---
 
 Your container is mounted into a page it does not own, and it needs things that page holds: who is
@@ -16,6 +16,9 @@ definition get their own telemetry, their own storage handles and their own abor
 
 ## One import, and no others
 
+The services below belong to the page rather than to you, so the question is where to reach for
+them. There is one answer, and reaching anywhere else is a lint error.
+
 ```ts
 import { useBasePath, useTelemetry, useTheme, useUser } from '@company/mfe-react'
 ```
@@ -27,6 +30,10 @@ lifecycle and will leak on unmount.` Everything an author needs, types included,
 from `@company/mfe-react`.
 
 ## Identity and theme: `useUser`, `useGroups`, `useTheme`
+
+You need to greet the signed-in person, hide a control a group has no use for, and draw a chart that
+matches the mode the page is in. All three values are the shell's, and it signs in once for the
+whole page, so these hooks read them rather than fetching them again.
 
 ```tsx title="examples/lab/src/routes/shell-state.tsx"
 const user = useUser()
@@ -48,19 +55,23 @@ shell's own chrome reads the same values.
 
 ## Your boundary: `useBasePath`
 
+An external system — an email, a work order, a deep link pasted into a ticket — needs the absolute
+path to a screen, and your routes are written relative to wherever the shell mounted you. The hook
+gives you the missing prefix.
+
 ```ts
 const basePath = useBasePath()
 ```
 
-The literal URL prefix this mount was given — `/operations`, or `/operations/reports` for a
-delegated App. You do not need it for routing: `basepath` already makes every `Link` and `navigate`
-relative. It is for building a URL into an external system that needs the absolute path. A Widget
-has no boundary and gets `''`.
+A mount's <Term>boundary</Term> is the stretch of URL the shell assigned it, and its literal
+string form is the <Term>base path</Term> — `/operations`, or `/operations/reports` for a delegated
+App. You do not need it for routing: `basepath` already makes every `Link` and `navigate` relative.
+A Widget has no boundary and gets `''`.
 
 ## The breadcrumb trail: `useBreadcrumbs`
 
-The shell renders one trail in its header: the workspace, then the App, then whatever the App
-contributes. Your App's own portion is derived from its router matches without you doing anything —
+A <Term>breadcrumb</Term> is one item in the trail the shell's header renders: the workspace, then
+the App, then whatever the App contributes. Your App's own portion is derived from its router matches without you doing anything —
 a route's `staticData.breadcrumb`, else its `head` title, else the humanized last path segment.
 `useBreadcrumbs` overrides only that portion, for a flow the URL does not describe:
 
@@ -82,10 +93,9 @@ override per App mount, received a second override while another is still mounte
 
 ## The command palette: `useCommand`
 
-A command is an action your mount publishes into the shell's palette, which opens with
-
-<Kbd>⌘K</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>K</Kbd>. Registration follows component lifetime: leaving the
-route takes the command out of the palette.
+A <Term>command</Term> is an action your mount publishes into the shell's palette, which the user
+opens with <Kbd>⌘K</Kbd> or <Kbd>Ctrl</Kbd>+<Kbd>K</Kbd>. Registration follows component lifetime:
+leaving the route takes the command out of the palette.
 
 ```ts title="examples/lab/src/routes/commands.tsx"
 useCommand({
@@ -200,12 +210,13 @@ const [visits, setVisits] = useStoredState('visits', visitsSchema, {
 })
 ```
 
-`retention` decides **who may read the value back**: `'user'`, the default, is fenced to the
-signed-in identity and wiped when the identity or the group set changes; `'browser'` is never
-cleared, which means every user of that browser profile reads the same value. `useMfeStorage()` is
-the imperative handle for the same records, for reads that should not subscribe. The rest —
-versions, migrations, the `@host` scope, every error — is in
-[7. Storage](/docs/guides/storage).
+What <Term>retention</Term> decides is **who may read the value back**, not how long it lives:
+`'user'`, the default, is fenced to the signed-in identity and wiped when the identity or the group
+set changes; `'browser'` is never cleared, so every user of that browser profile reads the same
+value.
+`useMfeStorage()` is the imperative handle for the same records, for reads that should not
+subscribe. The rest — versions, migrations, the `@host` scope, every error — is in [7.
+Storage](/docs/guides/storage).
 
 ## Icons: `DefinitionIcon`
 
@@ -254,6 +265,9 @@ mount. Called anywhere else, they throw:
 mount, received a component rendered outside any mount. Move the useTelemetry call into a component
 the App or Widget renders.`
 
+**Fix.** Move the call inside your definition's tree — a route component, or anything it renders —
+rather than into a module-level helper that runs before the mount exists.
+
 </Callout>
 
 `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs` and `useStoredState` work
@@ -279,5 +293,6 @@ one copy, and a duplicate reports itself this way rather than as a sharing error
 - [5. What you must not do](/docs/guides/what-you-must-not-do) — the rules behind several of the
   messages above, and which tool enforces each.
 - [7. Storage](/docs/guides/storage) — retention, versions and the `@host` scope in full.
-- [The design map](/docs/design) — the isolation-boundaries diagram, which shows URL, styles,
-  storage, network, errors and singletons as one picture.
+- [The design map: the isolation boundaries](/docs/design#the-isolation-boundaries) — the
+  `isolation-boundaries` diagram, which shows URL, styles, storage, network, errors and singletons
+  as one picture.

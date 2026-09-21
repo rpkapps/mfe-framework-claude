@@ -4,11 +4,12 @@ description: 'Scoped keys, retention, and what survives a reload, a sign-out and
 ---
 
 You want to keep a filter, a draft or a collapsed panel across a reload, and `localStorage` is
-right there. Do not use it. One browser profile carries several people over a day, one page carries
-several <Term>containers</Term> — independently deployed pieces of the same document — and Web
-Storage is a single flat key space shared by all of them and by the <Term>shell</Term>, the
-application that owns the page. Keys collide, the shell cannot clear yours when somebody signs out,
-and a quota failure escapes as an unhandled exception in whichever container happened to write last.
+right there. Do not use it. One browser profile carries several people over a day, and one page
+carries several containers — a <Term>container</Term> is one independently deployed piece of that
+document. Web Storage is a single flat key space shared by all of them and by the application that
+owns the page, the <Term>shell</Term>. Keys collide, the shell cannot clear yours when somebody
+signs out, and a quota failure escapes as an unhandled exception in whichever container happened to
+write last.
 
 Instead you declare a key with a schema and get back a subscribed value and a stable setter. The
 key is namespaced under your definition id, and fenced to the signed-in identity unless you say
@@ -69,8 +70,8 @@ export function Filters() {
 
 **The name.** A non-empty string, stable across renders. The physical key is
 `<definitionId>:<name>` — `operations:filters` — so two definitions may use the same name without
-colliding, and two <Term>mounts</Term> of one definition read the same record: there is no mount
-token in the key. Your definition id may not contain a `:`, because that is what separates the id
+colliding. A <Term>mount</Term> is one live instance of a definition on the page, and two mounts of
+one definition read the same record: there is no mount token in the key. Your definition id may not contain a `:`, because that is what separates the id
 from the name. `local` and `session` are separate spaces, so `operations:filters` in each is two
 different records.
 
@@ -92,8 +93,9 @@ The remaining options are `storage` (`'local'`, the default, or `'session'`), `r
 
 ## `retention`: who may read it back
 
-Retention is not about how long a value lives — `storage` decides that. Retention decides **who may
-read it back**.
+A stored value outlives the session that wrote it, so the question that decides whether it is safe
+to keep is who may read it back afterwards. That is what <Term>retention</Term> answers; `storage`
+decides only how long the browser keeps the value.
 
 `retention: 'user'` is the default. Every such record is stamped with the <Term>session generation</Term>:
 an opaque string the shell mints once per signed-in identity per tab and stores at
@@ -145,6 +147,10 @@ collide with yours. Reaching `@host` deliberately through the definition surface
   @host failed to bind a storage key: expected a definition id, received the reserved host scope
   '@host'. Use bindHost() or hostStorage() for state the host page owns; they reach the same scope
   deliberately.
+
+**Fix.** From inside a mount, drop the scope argument and let it resolve to your definition. Only
+shell code reaches `@host`, and it does so through `bindHost()` or `hostStorage()`.
+
 </Callout>
 
 ## `useMfeStorage` for imperative access

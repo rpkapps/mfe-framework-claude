@@ -14,7 +14,8 @@ Three words you will meet throughout. A <Term>definition</Term> is the plain, si
 descriptor `createApp` or `createWidget` returns; the <Term>shell</Term> is the application that
 owns the document and mounts the others into itself; a <Term>container</Term> is your deployable,
 loaded at run time through <Term>Module Federation</Term>, the bundler mechanism that lets one page
-run code from another build.
+run code from another build. An App's <Term>boundary</Term> is the stretch of URL the shell assigns
+that mount, and everything below it belongs to the App.
 
 <Callout type="info" title="There is no deadline">
   Nothing on this path imposes a time budget. The load suspends until it settles or fails, and there
@@ -72,7 +73,9 @@ codes, with an arrow down into it from three of the stages. A last band covers S
 
 ## The load suspends
 
-A consumer renders `AppHost` (or the component `lazyWidget` returned). That component calls
+Your code is not in the page's build, so the first thing that has to happen is a fetch — and
+something has to fill the space while it runs. A consumer renders `AppHost` (or the component
+`lazyWidget` returned). That component calls
 `use(loadDefinition(runtime, id, kind))`, so React suspends there while the federation container is
 registered and its entry module fetched.
 
@@ -180,12 +183,12 @@ The exception is the **first** validation: there is nothing to fall back to, so 
 and reaches the consumer's `fallback` or the nearest error boundary.
 
 <Callout type="error" title="contract/input-mismatch">
-  alert-panel@1.4.0 failed to accept input alertId: expected string, received undefined; ✖ Invalid
-  input: expected string, received undefined → at alertId. Check the alertId prop on the Widget.
+  alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
+  number → at alertId. Check the alertId prop on the Widget.
 
-The part after the semicolon is Zod's own wording and varies with the schema. **Fix.** Correct the
-prop in the consuming component; on a later update, the last valid inputs are still rendered while
-you do.
+The framework's own half is the first clause and the last sentence; the part after the semicolon is
+Zod's wording and varies with the schema. **Fix.** Pass a string from the consuming component; on a
+later update, the last valid inputs are still rendered while you do.
 
 </Callout>
 

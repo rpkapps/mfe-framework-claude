@@ -54,17 +54,17 @@ files.
 
 Both templates write these files:
 
-| File                          | What it is                                                                                                            |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `package.json`                | the **`mfe` block** (below), eight scripts, and the dependency lists                                                  |
-| `.gitignore`                  | `node_modules/`, `dist/`, then the generated output: `routeTree.gen.ts` and `.mfe/`                                   |
-| `.prettierrc.json`            | no semicolons, single quotes, trailing commas, `printWidth: 100`, `arrowParens: 'avoid'`                              |
-| `eslint.config.mjs`           | `mfe.author({ tsconfigRootDir, files: ['src/**/*.{ts,tsx}'] })`                                                       |
-| `tsconfig.json`               | the repo base, plus `paths` for `#mfe/config`, `#mfe/fetch` and `#mfe/meta`                                           |
-| `vitest.config.ts`            | the three `#mfe/*` aliases, `environment: 'jsdom'`, `setupFiles`                                                      |
-| `vitest.setup.ts`             | jest-dom's matchers, installed and declared in one file                                                               |
-| `rsbuild.config.ts`           | `plugins: [pluginReact(), pluginMfe()]`, the port from the manifest, `server.publicDir`, `dev.lazyCompilation: false` |
-| `runtime-config.example.json` | `{ "apiBaseUrl": "https://api.example.test/v1/" }`                                                                    |
+| File                          | What it is                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `package.json`                | the **`mfe` block** (below), eight scripts, and the dependency lists                                                                 |
+| `.gitignore`                  | `node_modules/`, `dist/`, the generated output (`routeTree.gen.ts`, `.mfe/`), and local values (`runtime-config.local.json`, `.env`) |
+| `.prettierrc.json`            | no semicolons, single quotes, trailing commas, `printWidth: 100`, `arrowParens: 'avoid'`                                             |
+| `eslint.config.mjs`           | `mfe.author({ tsconfigRootDir, files: ['src/**/*.{ts,tsx}'] })`                                                                      |
+| `tsconfig.json`               | the repo base, plus `paths` for `#mfe/config`, `#mfe/fetch` and `#mfe/meta`                                                          |
+| `vitest.config.ts`            | the three `#mfe/*` aliases, `environment: 'jsdom'`, `setupFiles`                                                                     |
+| `vitest.setup.ts`             | jest-dom's matchers, installed and declared in one file                                                                              |
+| `rsbuild.config.ts`           | `plugins: [pluginReact(), pluginMfe()]`, the port from the manifest, `server.publicDir`, `dev.lazyCompilation: false`                |
+| `runtime-config.example.json` | `{ "apiBaseUrl": "https://api.example.test/v1/" }`                                                                                   |
 
 The eight scripts are the same in both templates:
 
@@ -93,12 +93,12 @@ no `src/mfe.config.ts` and no router.
 The split between `src/mfe.ts` and `src/<id>.tsx` is not stylistic; the hot-update section below is
 the reason.
 
-<Callout type="warning" title="One line of the scaffolded Widget README is not true">
-  It says `pnpm run dev` "previews it through the shell-hosted placement, with validated example
-  inputs and an event viewer". There is no such harness. `pnpm run dev` starts the container's dev
-  server; to see the Widget, point the shell at it with an override and open a page that consumes
-  it, or use the shell's own widget dashboard at `/`.
-</Callout>
+A scaffolded container runs on its own, and that is all it does: `pnpm run dev` inside it starts its
+Rsbuild dev server on its `mfe.port` and nothing else, because there is no standalone preview
+harness. Seeing your surface means running the shell as well — `pnpm dev` at the workspace root
+starts every dev server and prints the override snippets — and then either dragging a Widget from
+the catalogue onto the dashboard at `/`, or pointing the shell at your container with the
+`localStorage` override below.
 
 ## The `mfe` block in package.json
 
@@ -387,12 +387,16 @@ one page, `--keep-open` leaves the browser up, and it needs a Chromium
 `pnpm check` is what CI runs:
 
 ```json
-"check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run diagrams:check && pnpm run test"
+"check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
 ```
 
-Generation, format check, lint, strict typecheck, package-boundary checks, the diagram check and the
-test suites, in that order. The steps run individually too: `pnpm format`, `pnpm lint`,
-`pnpm typecheck`, `pnpm boundaries`, `pnpm test`.
+Generation, format check, lint, strict typecheck, package-boundary checks and the test suites, in
+that order. The steps run individually too: `pnpm format`, `pnpm lint`, `pnpm typecheck`,
+`pnpm boundaries`, `pnpm test`.
+
+`pnpm diagrams:check` is not part of `pnpm check`, and is run on its own. It re-renders every
+Excalidraw scene and fails when a committed SVG no longer matches, which needs a Chromium; `pnpm check`
+is browser-free for the same reason `pnpm verify:page` is separate.
 
 ## Windows
 

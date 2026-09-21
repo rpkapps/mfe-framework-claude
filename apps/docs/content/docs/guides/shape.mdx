@@ -56,7 +56,7 @@ The diagram is one question with two answers, and four stacked boxes under each 
   3. The App's own TanStack route tree — `basepath` makes every route, `Link` and `navigate`
      relative to the boundary.
   4. `mfeRoute({ appId: 'reports' })` at `/reports/$` — an App delegates a nested App at a splat
-     route. The framework strips the splat remainder, so `reports` is mounted at
+     route. `boundaryAboveSplat` strips the remainder, so `reports` is mounted at
      `/operations/reports` and never learns whether it was reached on its own or inside another
      App.
 - The right panel is headed **No — it is a Widget**, subtitled "non-routable, mounted by whoever
@@ -237,7 +237,10 @@ Apps in one container is a build error before you get that far:
 
 > `/home/you/orders/src/mfe.ts: the build failed to collect the definitions this container exports: expected at most one App per container, found 2 Apps ('orders' and 'invoices'). The container contract declares this expectation. Split them into separate containers. A container deploys and versions as one unit, and an App owns routing for its whole subtree, so two of them cannot share one.`
 
-## The id is an id
+**Fix.** Move one of the two into its own package with its own `src/mfe.ts`, or, if it was never
+URL-addressable, declare it with `createWidget` instead.
+
+## The definition id rule
 
 Both factories validate the `id` before anything else, because it is also the storage prefix and
 the CSS scope value. It must be lower-case letters, digits and single hyphens.

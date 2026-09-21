@@ -1,8 +1,3 @@
----
-title: 'Design'
-description: 'How a page assembled from independently deployed React applications holds together: the deployed topology, the boot sequence, the package layers and the six isolation boundaries.'
----
-
 # Design map
 
 This page is the map: what is deployed where, what happens between a page load and a rendered screen, which package owns which concern, and where the seams between teams are drawn.
@@ -79,15 +74,15 @@ The real DAG, as the manifests have it: the core depends on nothing in the works
 
 ### URL
 
-The **base path** is the literal string form of the boundary, and after `createRouter({ basepath })` it never appears again: `basepath` makes every route, `Link` and `navigate` relative, so the author writes ordinary absolute-looking paths. The **boundary history** is hand-built because `createBrowserHistory()` reassigns `window.history.pushState` for the whole page — action at a distance that breaks anything else wrapping it (decisions §1).
+The **base path** is the literal string form of the boundary, and after `createRouter({ basepath })` it never appears again: `basepath` makes every route, `Link` and `navigate` relative, so the author writes ordinary absolute-looking paths. The **boundary history** is hand-built because `createBrowserHistory()` reassigns `window.history.pushState` for the whole page — action at a distance that breaks anything else wrapping it ([decision 1](/docs/decisions#1-the-boundary-history-is-built-by-hand-because-createbrowserhistory-patches-globals)).
 
 ### Styles
 
-Scope proximity, not injection order, is what the `@scope` rule buys: two builds that both spell `bg-primary` no longer resolve by whichever stylesheet was parsed last. Each mount renders a **scope root** carrying `data-mfe-scope`, with a build-attached **style root** inside it supplying the design system's context from the container's own copy of the library; overlays portal into a body-level **overlay root** carrying the same attribute, which is what keeps a popover in its container's styles while it sits outside its subtree. `@scope` is the narrowest-supported feature the framework requires — Chrome and Edge 118, Safari 17.4, Firefox 146 — with no fallback, below which the last stylesheet loaded wins the page unscoped (decisions §17).
+Scope proximity, not injection order, is what the `@scope` rule buys: two builds that both spell `bg-primary` no longer resolve by whichever stylesheet was parsed last. Each mount renders a **scope root** carrying `data-mfe-scope`, with a build-attached **style root** inside it supplying the design system's context from the container's own copy of the library; overlays portal into a body-level **overlay root** carrying the same attribute, which is what keeps a popover in its container's styles while it sits outside its subtree. `@scope` is the narrowest-supported feature the framework requires — Chrome 118, Firefox 146, iOS Safari 17.4 — with no fallback, below which the last stylesheet loaded wins the page unscoped ([decision 17](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)).
 
 ### Storage
 
-The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back rather than how long it lives: `'user'` is fenced by the session generation, and `'browser'` is never cleared by the framework, so every user of that browser profile reads it. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable (decisions §24).
+The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back rather than how long it lives: `'user'` is fenced by the session generation, and `'browser'` is never cleared by the framework, so every user of that browser profile reads it. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
 
 ### Network
 
@@ -99,7 +94,7 @@ The message is composed to a fixed shape — `<id>[@<version>] failed to <operat
 
 ### Shared singletons
 
-The full singleton set is `react`, `react-dom`, `sonner`, `@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`, `@tanstack/react-router` and `@tanstack/react-query`, each with `strictVersion`, because a second copy makes every hook fail with "rendered outside any mount" while both copies look correct on their own. `@tecton/react/` is a prefix share and deliberately not a singleton, nor is `react-aria-components`; `recharts` is shared but never eagerly. A container may add to that list and cannot remove from it — opting out of sharing React would load a second one into a page that already has one (decisions §30).
+The full singleton set is `react`, `react-dom`, `sonner`, `@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`, `@tanstack/react-router` and `@tanstack/react-query`, each with `strictVersion`, because a second copy makes every hook fail with "rendered outside any mount" while both copies look correct on their own. `@tecton/react/` is a prefix share and deliberately not a singleton, nor is `react-aria-components`; `recharts` is shared but never eagerly. A container may add to that list and cannot remove from it — opting out of sharing React would load a second one into a page that already has one ([decision 30](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)).
 
 ## Where to read next
 

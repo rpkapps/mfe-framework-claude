@@ -311,7 +311,8 @@ across a package to accommodate one exception.
 | No async context across `await` in tracing                                                         | convention                                                          | Create child spans synchronously           |
 
 The isolation boundaries these rules defend — URL, styles, storage, network, errors and shared
-singletons — are drawn on the [design map](/docs/design), in the `isolation-boundaries` diagram.
+singletons — are drawn on the design map, in the
+[`isolation-boundaries` diagram](/docs/design#the-isolation-boundaries).
 
 ## Where next
 
@@ -325,4 +326,4 @@ singletons — are drawn on the [design map](/docs/design), in the `isolation-bo
   — why the history is built by hand and why the router can be validated at all.
 - [Decision 15](/docs/decisions#15-a-host-composing-the-registry-cannot-call-lazywidget) and
   [Decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
-  — the two rules whose reasons are the least obvious.
+  — the two rules whose reasons are hardest to guess from the symptom.

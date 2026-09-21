@@ -3,18 +3,19 @@ title: '2. Declaring it'
 description: 'The definition file that tells the shell what you built, and how the build turns it into a container.'
 ---
 
-Everything the framework knows about your code comes from one file: `src/mfe.ts`. The build reads
-it without running it, the host loads what it exports, and the mount validates what you returned.
-This page is every option of `createApp` and `createWidget`, the `package.json` block that goes
-with them, and every check you can trip, each with the message you will see and the change that
-fixes it.
+A shell has to know what your container offers before it has run a line of it — what the surface
+is called, whether it takes a URL or props, what a Widget expects — and it cannot render your code
+to find out. So everything the framework knows about you comes from one file that is read and never
+executed: `src/mfe.ts`. The build reads it statically, the host loads what it exports, and the mount
+validates what you returned. This page is every option of `createApp` and `createWidget`, the
+`package.json` block that goes with them, and every check you can trip, each with the message you
+will see and the change that fixes it.
 
 A <Term>definition</Term> is the plain, side-effect-free descriptor that `createApp` or
 `createWidget` returns. It is a value, not a component: the build discovers it statically, and the
 host loads it and mounts it. A <Term>container</Term> is the deployable unit that holds them — one
-package, one build, one `src/mfe.ts`, at most one App and any number of Widgets. A
-
-<Term>mount</Term> is one live instance of a definition on the page.
+package, one build, one `src/mfe.ts`, at most one App and any number of Widgets. One live instance
+of a definition on the page is a <Term>mount</Term>.
 
 ## The one file the framework reads
 
@@ -69,11 +70,11 @@ because `ReturnType<typeof makeRouter>` is what names that tree.
 
 The factory receives three values, and all three have to reach `createRouter` unchanged.
 
-| Field      | What it is                                                                            | What you do with it                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `basePath` | The literal <Term>boundary</Term> the shell assigned: the URL prefix this mount owns. | Pass it as `createRouter({ basepath })`. It never appears again: every route, `Link` and `navigate` is relative to it.             |
-| `history`  | The framework's boundary history, over the shell's navigation bridge.                 | Forward it. Never call `createBrowserHistory()`: it reassigns `window.history.pushState`, and two routers then fight over the URL. |
-| `context`  | `{ mfe, queryClient }` — the mount's services and its Query client.                   | Spread it: `context: { ...context, yourKey }`. Your own top-level keys survive every framework context update.                     |
+| Field      | What it is                                                                                                                           | What you do with it                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `basePath` | The <Term>base path</Term>: the literal string form of the <Term>boundary</Term> the shell assigned, the URL prefix this mount owns. | Pass it as `createRouter({ basepath })`. It never appears again: every route, `Link` and `navigate` is relative to it.             |
+| `history`  | The framework's boundary history, over the shell's navigation bridge.                                                                | Forward it. Never call `createBrowserHistory()`: it reassigns `window.history.pushState`, and two routers then fight over the URL. |
+| `context`  | `{ mfe, queryClient }` — the mount's services and its Query client.                                                                  | Spread it: `context: { ...context, yourKey }`. Your own top-level keys survive every framework context update.                     |
 
 `context.mfe` carries `user`, `groups`, `theme`, `telemetry`, `storage.local`, `storage.session` and
 `signal`, and is what a route `loader` or `beforeLoad` reads. `user`, `groups` and `theme` are
@@ -165,6 +166,8 @@ exports: expected named exports when a container exports more than one definitio
 export alongside 2 other definition(s). Static discovery declares this expectation. Give the
 default export a name, for example `export const orderRow = createWidget({ … })`. Named exports
 are canonical; a default export is only accepted when it is the container's only definition.``
+
+**Fix.** Replace `export default createWidget({ … })` with `export const orderRow = createWidget({ … })`.
 
 </Callout>
 

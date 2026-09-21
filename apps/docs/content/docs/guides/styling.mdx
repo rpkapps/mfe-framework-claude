@@ -199,7 +199,8 @@ them yourself produces a second, differently scoped sheet. Three rules follow:
 
 Three elements exist per <Term>mount</Term> — one live instance of your definition on the page.
 
-**The scope root** is what your CSS is keyed on. Every mount renders one around your whole tree
+The <Term>scope root</Term> is the element your CSS is keyed on. Every mount renders one around
+your whole tree
 (`packages/mfe-react/src/scope-root.tsx`):
 
 ```tsx
@@ -215,14 +216,15 @@ to name the attribute from code. `LAYOUT_NEUTRAL` is `{ display: 'contents' }`, 
 anchors a selector without becoming a box: your outermost element is the one the host laid out, with
 no framework `<div>` in between.
 
-**The overlay root** is a `<div>` the framework appends to `document.body` per mount and removes on
-disposal. `createOverlayRoot(definitionId, mountToken, document)` gives it the same `data-mfe-scope`
+The <Term>overlay root</Term> is a `<div>` the framework appends to `document.body` per mount and
+removes on disposal. `createOverlayRoot(definitionId, mountToken, document)` gives it the same `data-mfe-scope`
 value as the in-page root, plus `data-mfe-mount` and `data-mfe-overlay-root`. That is the trick: an
 overlay at body level still matches your `@scope` start selector though it is nowhere near your
 subtree.
 
-**The style root** is a component the build generates and attaches to your definition, so the design
-system's React context — including its portal target — comes from _your_ copy of the library:
+The <Term>style root</Term> is a component the build generates and attaches to your definition, so
+the design system's React context — including its portal target — comes from _your_ copy of the
+library:
 
 ```tsx title=".mfe/entries/style-root.tsx (generated)"
 export function StyleRoot({
@@ -261,7 +263,7 @@ them. You never call either.
   alt="One stylesheet in two halves: the shell's document-level CSS above, and a container's scoped utilities wrapped in an @scope rule keyed on its mount roots."
   caption="One stylesheet in two halves: the document is the shell’s, the utilities are the container’s."
 >
-  Three panels across the top, a wide one below them and one to the right.
+Three panels across the top, a wide one below them and one to the right.
 
 - **The shell owns the document half** (`apps/shell/src/styles/app.css`): the preflight reset, the
   fonts and `--font-sans` / `--font-mono`, the `@property` registrations, the theme variables on
@@ -397,6 +399,6 @@ half would inherit into nothing. Use `--url /operations/wells` to check one page
 - [9. Daily workflow](/docs/guides/daily-workflow) — running `pnpm verify:page`, and what the
   developer tools show about a container that did not load.
 - [5. What you must not do](/docs/guides/what-you-must-not-do) — the rest of the rules about being
-  one fragment of a page.
+  one piece of a shared page.
 - [Decision 17: each container ships its own stylesheet, scoped to its own mount roots](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
 - [Decision 5: the browser support matrix was removed](/docs/decisions#5-the-browser-support-matrix-was-removed)
