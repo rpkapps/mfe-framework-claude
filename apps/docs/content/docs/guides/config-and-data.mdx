@@ -268,9 +268,9 @@ Pass the loader's own `signal` to `fetch`, not the mount's: a loader cancels wit
 
 In development, `pnpm dev` also starts a stand-in API on port 3010, which the examples'
 `runtime-config.json` points at. It is not part of the framework — a deployment brings its own —
-but a container whose requests all fail demonstrates nothing about the request boundary. 3010 is
-the one port `pnpm dev` does not check before starting, so a process already holding it surfaces as
-one `dev api` line.
+but a container whose requests all fail demonstrates nothing about the request boundary. `pnpm dev`
+checks 3010 along with 3000–3005 before it starts anything, and waits for it at shutdown like any
+other; `MFE_DEV_API_PORT` moves it.
 
 ## Testing the request boundary
 

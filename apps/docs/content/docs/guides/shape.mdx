@@ -235,7 +235,7 @@ second URL you do not want, and nothing lets a parent pass it per-instance data.
 a splat route takes its data from its own URL; wanting to give it props means it is a Widget. Two
 Apps in one container is a build error before you get that far:
 
-> `/home/you/orders/src/mfe.ts: the build failed to collect the definitions this container exports: expected at most one App per container, found 2 Apps ('orders' and 'invoices'). The container contract declares this expectation. Split them into separate containers. A container deploys and versions as one unit, and an App owns routing for its whole subtree, so two of them cannot share one.`
+> `/home/you/orders/src/mfe.ts: the build failed to collect the definitions this container exports: expected at most one App per container, found 2 Apps ('orders' and 'invoices'). This expectation is declared by the container contract. Split them into separate containers. A container deploys and versions as one unit, and an App owns routing for its whole subtree, so two of them cannot share one.`
 
 **Fix.** Move one of the two into its own package with its own `src/mfe.ts`, or, if it was never
 URL-addressable, declare it with `createWidget` instead.

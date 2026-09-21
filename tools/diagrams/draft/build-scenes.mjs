@@ -1716,11 +1716,11 @@ async function devWorkflow() {
     0,
     190,
     'tools/dev/dev.mjs. It checks that\n' +
-      '3000-3005 are free before it starts\n' +
-      'anything (3010 is not checked): a\n' +
-      'container’s port is part of its\n' +
-      'address, so it cannot be moved\n' +
-      'without the shell losing it.',
+      '3000-3005 and 3010 are free before\n' +
+      'it starts anything: a container’s\n' +
+      'port is part of its address, so it\n' +
+      'cannot be moved without the shell\n' +
+      'losing it.',
     { size: 12.5 },
   )
 

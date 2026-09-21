@@ -72,7 +72,9 @@ A Widget has no boundary and gets `''`.
 
 A <Term>breadcrumb</Term> is one item in the trail the shell's header renders: the workspace, then
 the App, then whatever the App contributes. Your App's own portion is derived from its router matches without you doing anything —
-a route's `staticData.breadcrumb`, else its `head` title, else the humanized last path segment.
+a route's `staticData.breadcrumb`, else its `head` title, else the humanized last path segment. A
+scaffolded App types that slot with `MfeStaticData`, so the field names are checked
+([2. Declaring it](/docs/guides/declaring#the-one-file-the-framework-reads)).
 `useBreadcrumbs` overrides only that portion, for a flow the URL does not describe:
 
 ```ts title="examples/lab/src/routes/breadcrumbs.tsx"
@@ -251,8 +253,9 @@ navigate.
 - **No session of its own for you to own.** The shell installs one session for the page and your
   container borrows it through `#mfe/fetch`. Your container holds no credentials and refreshes
   nothing.
-- **No mount deadline.** A container that will not load suspends until it settles or fails; there
-  is no time budget, and retry is an explicit action in the fallback the consumer renders.
+- **No mount deadline.** A container that will not load suspends until it settles or fails. There
+  is no time budget, and no option that adds one; retry is an explicit action in the fallback the
+  consumer renders.
 
 ## Calling a hook in the wrong place
 

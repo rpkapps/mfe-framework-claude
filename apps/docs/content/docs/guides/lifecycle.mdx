@@ -19,9 +19,10 @@ that mount, and everything below it belongs to the App.
 
 <Callout type="info" title="There is no deadline">
   Nothing on this path imposes a time budget. The load suspends until it settles or fails, and there
-  is no automatic retry, no backoff and no retry budget. A retry is something a person clicks. If
-  you have read about `deadlines` or about `load/timeout`, `mount/timeout` and `dispose/timeout`:
-  those belong to a state machine the React adapter does not use, and they never fire here.
+  is no automatic retry, no backoff and no retry budget. A retry is something a person clicks.
+  `createMfeRuntime` takes no option that adds a budget. If you have read about `load/timeout`,
+  `mount/timeout` and `dispose/timeout`: those codes belong to `MountController`, a state machine in
+  `@company/mfe-host` that the React adapter does not use, and they never fire here.
 </Callout>
 
 <Diagram
@@ -155,8 +156,8 @@ export function Panel() {
 ```
 
 The same signal reaches route callbacks as `context.mfe.signal`. There is no observable mount state
-object: `MountState` is exported from the package, but the React adapter never produces one for an
-author.
+object: `MountState` is a type in `@company/mfe-core`, `@company/mfe-react` does not re-export it,
+and the React adapter never produces one for an author.
 
 **Two mounts of one App, from one route tree.** `router` is a factory called once per mount, not
 once per module, so a page showing the same App twice — or an App hosting itself at a splat route —
