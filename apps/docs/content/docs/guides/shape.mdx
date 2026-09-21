@@ -1,86 +1,50 @@
 ---
 title: '1. The shape: App or Widget'
-description: 'Whether the surface you are building takes a URL or takes props, and what that choice decides.'
+description: 'Choose between an App and a Widget, declare either one, and read the errors each choice produces.'
 ---
 
-Before you write a line of code you make one decision, and everything else follows from it. The
-framework has two author models and one rule for choosing between them: **Apps take URLs. Widgets
-take props. Anything that cannot be expressed as a URL is a Widget, not an App.** This page is that
-decision: what each shape is made of, how each is consumed, and what you will see on the page if
-you choose the wrong one.
+One decision comes first: App or Widget. An <Term>App</Term> takes a URL and routes everything
+below it, and a <Term>Widget</Term> takes props from whoever renders it. This page gives you the
+test for choosing, the smallest working declaration of each, and the errors each shape produces.
 
-A <Term>micro-frontend</Term> is a piece of a single web page that is built, versioned and deployed
-on its own, by its own team, and is loaded into a page it does not own at run time. You ship it as
-a <Term>container</Term>: one deployable unit with its own build, its own deployed origin and one
-`src/mfe.ts` entry. The <Term>shell</Term> is the one application on the page that is not itself
-listed in the registry — it fetches the <Term>registry</Term> (a generated JSON list of what exists
-and where), owns the document, and mounts your container into itself.
+## Choose in one question
 
-## Why the line is drawn at the URL
-
-An <Term>App</Term> is routable: it owns a stretch of the URL and routes everything below it with
-its own TanStack Router instance. That stretch is its <Term>boundary</Term> — the URL prefix the
-shell assigns it. The shell owns `/<id>`; everything after that belongs to the App.
-
-Being routable is what makes a surface reachable from outside itself. A deep link into it survives
-a reload and can be pasted into a message. The shell's application finder and command palette open
-it without knowing anything about its internals, because "open it" means "go to this URL", and its
-breadcrumbs compose with the shell's because the trail is derived from route matches. None of that
-is available to a surface with no URL.
-
-A <Term>Widget</Term> is not routable: it takes props, renders inside somebody else's page, and
-owns no URL. A Widget can appear twice on one page with different inputs, inside a dialog, inside a
-table cell, or on a dashboard composed by a shell that has never imported it. A URL cannot express
-"this one, here, with these inputs, and another one beside it", so a Widget is given a typed prop
-contract instead.
-
-The test is mechanical. If a user should be able to link to it, it is an App. If it is placed by
-whoever is rendering the page around it, it is a Widget.
+Ask whether a user should be able to link to the surface. If they should, build an App. If whoever
+renders the page around it decides where it goes, build a Widget.
 
 <Diagram
   src="/diagrams/app-vs-widget.svg"
-  alt="A decision diamond asking whether a surface can be addressed by a URL, with the App branch on the left and the Widget branch on the right, each listing the calls that build and consume it."
-  caption="The same decision, with the four calls on each side."
+  alt="A decision diamond asking whether a surface is addressable by a URL, with the App branch on the left and the Widget branch on the right, each listing four calls."
+  caption="Apps take URLs. Widgets take props."
 >
 
-The diagram is one question with two answers, and four stacked boxes under each answer.
+One question at the top, two answers, and four boxes under each answer.
 
-- At the top, a diamond: **Can this surface be addressed by a URL?** Two labelled arrows leave it —
-  `yes` to the left, `no` to the right.
-- The left panel is headed **Yes — it is an App**, subtitled "routable, independently deployable,
-  one URL boundary each". Its four boxes, top to bottom, each with an arrow to the next:
-  1. `https://shell.example/operations/wells/reduced-dls` — the shell owns `/operations`; the App
-     owns everything after it.
-  2. `createApp({ id: 'operations', version, router })` — one call in `src/mfe.ts`; `router` is a
-     factory, called once per mount.
-  3. The App's own TanStack route tree — `basepath` makes every route, `Link` and `navigate`
-     relative to the boundary.
-  4. `mfeRoute({ appId: 'reports' })` at `/reports/$` — an App delegates a nested App at a splat
-     route. `boundaryAboveSplat` strips the remainder, so `reports` is mounted at
-     `/operations/reports` and never learns whether it was reached on its own or inside another
-     App.
-- The right panel is headed **No — it is a Widget**, subtitled "non-routable, mounted by whoever
-  renders it, many per page". Its four boxes, top to bottom, each with an arrow to the next:
-  1. `createWidget({ id: 'alert-panel', inputs, events, render })` — `inputs` and `events` are Zod
-     schemas, and the build reads them statically.
-  2. `lazyWidget('alert-panel', { contract: alertPanelContract })` — called at module scope,
-     because the component's identity is what React uses to decide it is looking at the same
-     element. One built during render remounts the Widget.
-  3. `<AlertPanel alertId={id} onAcknowledged={ack} />` — inputs arrive as props, events arrive as
-     `onX` props, both typed from the contract.
-  4. `<DynamicWidget widgetId={tile.widgetId} {...tile.inputs} />` — for a host that learns which
-     Widgets exist only when it reads the registry. No contract, so no consumer-side types, and
-     every event arrives through `onEvent(name, payload)`. The provider still validates every input
-     it is given.
+- The diamond asks **Addressable by a URL?** An arrow labelled `yes` leaves it to the left, and an arrow labelled `no` to the right.
+- The left panel is **Yes — it is an App**, subtitled "routable, independently deployable". Four boxes follow, each with an arrow to the next:
+  - `https://shell.example/operations/wells`
+  - `createApp({ id: 'operations', router })`
+  - `createRouter({ basepath: basePath })`
+  - `mfeRoute({ appId: 'reports' })`
+- The right panel is **No — it is a Widget**, subtitled "non-routable, many per page". Its four boxes run the same way:
+  - `createWidget({ id: 'alert-panel' })`
+  - `lazyWidget('alert-panel', { contract })`
+  - `<AlertPanel alertId={id} onAcknowledged={ack} />`
+  - `<DynamicWidget widgetId={id} {...inputs} />`
 
 </Diagram>
 
-## What an App is made of
+| What you have                                                              | Build                             | Choose the other, and                                            |
+| -------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------- |
+| A screen a user can bookmark, or that appears in the application finder    | App                               | there is no URL to send a colleague.                             |
+| Several screens with their own navigation between them, surviving a reload | App                               | a reload loses where the user was.                               |
+| A surface the shell opens by capability — settings, help, release notes    | App                               | the shell cannot open it. Capabilities are App-only.             |
+| A panel placed on a dashboard the consumer composes                        | Widget                            | you get a URL for it that nobody wanted.                         |
+| A card embedded in somebody else's page, twice, with different ids         | Widget                            | one App owns one boundary, so the second copy has nowhere to go. |
+| Something that hands a result back to the page around it                   | Widget, emitting a declared event | nothing carries the result back.                                 |
+| Something that needs per-instance data from its consumer                   | Widget                            | an App reads that from its own URL, never from props.            |
 
-An App is an ordinary TanStack Router application plus one call. `createApp` takes an `id`, an
-optional `version`, and a `router` factory. The factory is called once per <Term>mount</Term> — one
-live instance of a definition on the page — not once per module, so an App mounted twice gets two
-independent routers over the one generated route tree.
+## Build an App
 
 ```ts title="examples/operations/src/mfe.ts"
 function makeRouter({ basePath, history, context }: AppRouterOptions) {
@@ -100,20 +64,24 @@ export default createApp({
 })
 ```
 
-The factory receives three things and must pass all three through. `basePath` is the literal string
-form of the boundary; handing it to `createRouter({ basepath })` makes every route, `Link` and
-`navigate` relative to it, which is why the App's own routes are written as `/assets` and
-`/wells/$wellId` and the mount prefix never appears again. `history` is the framework's boundary
-history, built over the shell's navigation bridge rather than with `createBrowserHistory()`, which
-reassigns `window.history.pushState`. `context` carries the mount's services and its Query client;
-spread it, add your own top-level keys, and do not replace it.
+An App is an ordinary TanStack Router application plus one call. `createApp` takes an `id`, an
+optional `version` and a `router` factory. The framework calls that factory once per
+[mount](/docs/glossary), one live instance of a definition on the page. An App mounted twice gets
+two independent routers over one generated route tree.
 
-Above your App the shell renders the header, the breadcrumb trail, the palette and the theme. Below
-it, nothing: the shell adds no padding, no card and no page title inside your boundary, so your root
-route is your layout.
+Your factory receives three values and has to pass all three through unchanged.
 
-An App can delegate a nested App at a splat route, which is how `examples/reports` is reached inside
-`examples/operations`:
+| Argument   | What you do with it                                                                                                  | Error if you do not     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `basePath` | Pass it as `createRouter({ basepath })`. Every route, `Link` and `navigate` is then relative to it.                  | `app/invalid-base-path` |
+| `history`  | Forward the instance you were given. `createBrowserHistory()` reassigns `window.history.pushState` for every router. | `app/invalid-router`    |
+| `context`  | Spread it: `context: { ...context, yourKey }`. It carries the mount's services and its Query client.                 | `app/invalid-router`    |
+
+The shell owns `/<id>`, and everything below it belongs to your App. Write your own routes as
+`/assets` and `/wells/$wellId`, because the mount prefix never appears in your code. Above your App the shell renders the header, the breadcrumb trail, the palette and the theme.
+Inside your boundary it renders nothing of its own, so your root route is your layout.
+
+## Nest an App at a splat route
 
 ```ts title="examples/operations/src/routes/reports.$.tsx"
 import { createFileRoute } from '@tanstack/react-router'
@@ -123,17 +91,11 @@ import { mfeRoute } from '@company/mfe-react'
 export const Route = createFileRoute('/reports/$')(mfeRoute({ appId: 'reports' }))
 ```
 
-The child's boundary is the current pathname with the splat remainder removed, so `reports` is
+The child's boundary is the current pathname with the splat remainder removed. So `reports` is
 mounted at `/operations/reports` and routes `/accounts/fda-2-3` for itself. A child App's contract
-is identical to a top-level App's: it never learns whether it was mounted at `/reports` or at
-`/operations/reports`.
+is identical to a top-level App's, and it never learns which boundary it was mounted at.
 
-## What a Widget is made of
-
-`createWidget` takes an `id`, an optional `version`, an `inputs` schema, an `events` map and a
-`render` function. `inputs` and `events` together are the Widget's <Term>contract</Term>: two Zod
-declarations that are the single source of truth for runtime validation and for the author-facing
-types, so the two cannot drift.
+## Build a Widget
 
 ```ts title="examples/alert-panel/src/mfe.ts"
 export const alertPanelContract = {
@@ -155,6 +117,10 @@ export const alertPanel = createWidget({
 })
 ```
 
+`createWidget` takes an `id`, an optional `version`, an `inputs` schema, an `events` map and a
+`render` function. The two schemas together are the Widget's [contract](/docs/glossary): one source
+of truth for runtime validation and for the author-facing types, so the two cannot drift.
+
 `render` receives exactly two props, both typed from the schemas:
 
 ```tsx title="examples/alert-panel/src/alert-panel.tsx"
@@ -164,16 +130,16 @@ export function AlertPanel({
 }: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
 ```
 
-`inputs` arrives already validated and parsed, so schema defaults are applied before your code runs
-— omit `severity` and it is `'info'` inside `render`. `emit` validates the payload at the call site,
-and refuses any event the contract does not declare. Neither needs a check of your own.
+`inputs` arrives already validated and parsed, so schema defaults are applied before your code
+runs. Omit `severity` and it is `'info'` inside `render`. `emit` validates the payload at the call
+site and refuses any event the contract does not declare.
 
-The build reads both schemas statically and publishes them in the registry, which is what lets the
-shell's dashboard draw a form for a Widget it has never imported
+The build reads both schemas statically and publishes them in the registry. The shell's dashboard
+can then draw a form for a Widget it has never imported
 ([decision 16](/docs/decisions#16-the-registry-carries-each-widgets-contract-because-a-catalogue-is-rendered-before-anything-is-fetched)).
-That is also why `z.enum([...])` earns its keep: a published enum becomes a dropdown.
+A published `z.enum([...])` becomes a dropdown.
 
-## How each is consumed
+## Consume each one
 
 | Shape                                | Consumed by             | How                                                            |
 | ------------------------------------ | ----------------------- | -------------------------------------------------------------- |
@@ -181,12 +147,6 @@ That is also why `z.enum([...])` earns its keep: a published enum becomes a drop
 | App, inside another App              | the parent App          | `mfeRoute({ appId })` on a splat route                         |
 | Widget, known at build time          | any App or the shell    | `lazyWidget(id, { contract })` at module scope                 |
 | Widget, known only from the registry | a host composing a page | `<DynamicWidget widgetId={…} />` with `onEvent`                |
-
-`lazyWidget` returns a component, and is called at module scope because that component's identity is
-what React uses to decide whether it is looking at the same element. One built during render mints a
-new identity every pass, so the host unmounts the running Widget, throws away its state and
-refetches its data
-([decision 15](/docs/decisions#15-a-host-composing-the-registry-cannot-call-lazywidget)).
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
@@ -200,56 +160,33 @@ export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events
 <AlertPanel alertId={id} onAcknowledged={event => acknowledge(event.alertId)} />
 ```
 
-Inputs are props; each declared event arrives as an `onX` prop, both typed from the contract you
-passed. The contract is optional — `lazyWidget('alert-panel')` works, with inputs typed as
+Call `lazyWidget` at module scope. It returns a component, and React uses that component's identity
+to decide it is looking at the same element. One built during render creates a new identity every
+pass. The host then unmounts the running Widget, throws away its state and refetches its data
+([decision 15](/docs/decisions#15-a-host-composing-the-registry-cannot-call-lazywidget)).
+
+Inputs are props, and each declared event arrives as an `onX` prop, both typed from the contract
+you passed. The contract is optional: `lazyWidget('alert-panel')` works, with inputs typed as
 `Record<string, unknown>` and no consumer-side validation. The provider validates every input and
 every event payload either way.
 
 A host that learns which Widgets exist only when it reads the registry cannot call `lazyWidget` at
-module scope, so it uses `DynamicWidget`, which takes the id as a prop and delivers every event by
-name through `onEvent(name, payload)`. `lazyWidget` deliberately has no `onEvent`
+module scope. It uses `DynamicWidget` instead, which takes the id as a prop and delivers every
+event by name through `onEvent(name, payload)`. `lazyWidget` deliberately has no `onEvent`
 ([decision 28](/docs/decisions#28-reading-a-widgets-published-inputs-is-headless-and-a-test-is-what-keeps-it-honest)).
 
-## Which do I need
+## Name your definition
 
-| What you have                                                              | Shape                                       |
-| -------------------------------------------------------------------------- | ------------------------------------------- |
-| A screen a user can bookmark, or that appears in the application finder    | App                                         |
-| Several screens with their own navigation between them, surviving a reload | App                                         |
-| A surface the shell opens by capability — settings, help, release notes    | App (capabilities are App-only)             |
-| A panel placed on a dashboard the consumer composes                        | Widget                                      |
-| A card embedded in somebody else's page, twice, with different ids         | Widget                                      |
-| Something that hands a result back to the page around it                   | Widget, emitting a declared event           |
-| Something that needs per-instance data from its consumer                   | Widget (an App takes that from its own URL) |
-
-## What goes wrong if you pick wrong
-
-Building a Widget that should have been an App shows up as state that cannot be linked to. The
-surface holds the thing a user wants to send to a colleague — a selected well, an open report — and
-there is no URL for it, so a reload loses it, the back button does nothing useful, the palette
-cannot open it and the breadcrumb trail stops at the App around it. The fix is a route, not a prop.
-
-Building an App that should have been a Widget shows up the first time you want two of them. One
-App owns one boundary, and one container exports at most one App, so a second instance means a
-second URL you do not want, and nothing lets a parent pass it per-instance data. An App reached at
-a splat route takes its data from its own URL; wanting to give it props means it is a Widget. Two
-Apps in one container is a build error before you get that far:
-
-> `/home/you/orders/src/mfe.ts: the build failed to collect the definitions this container exports: expected at most one App per container, found 2 Apps ('orders' and 'invoices'). This expectation is declared by the container contract. Split them into separate containers. A container deploys and versions as one unit, and an App owns routing for its whole subtree, so two of them cannot share one.`
-
-**Fix.** Move one of the two into its own package with its own `src/mfe.ts`, or, if it was never
-URL-addressable, declare it with `createWidget` instead.
-
-## The definition id rule
-
-Both factories validate the `id` before anything else, because it is also the storage prefix and
-the CSS scope value. It must be lower-case letters, digits and single hyphens.
+Use lower-case letters, digits and single hyphens, for example `alert-panel`. Both factories check
+the `id` before anything else, because it is also the storage prefix and the CSS scope value.
 
 <Callout type="error" title="registry/invalid-descriptor">
 
 `Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for
 example "alert-panel"), received "Order_Book". Give the definition a stable id; it is also its
 storage prefix and CSS scope value.`
+
+**Fix.** Rename the definition to `order-book`.
 
 </Callout>
 
@@ -263,15 +200,19 @@ export default createApp({ id: 'order-book', router: makeRouter })
 
 The same check runs in `createWidget`, with `createWidget` in place of `createApp` in the message.
 
-## A Widget given the wrong prop type
+## Errors you will see
+
+### A Widget was handed the wrong prop type
 
 The Widget validates what it is handed, whatever the consumer believes. A prop that fails the
-`inputs` schema is rejected at the provider boundary with the field, the value and the repair:
+`inputs` schema is rejected at the provider boundary, with the field, the value and the repair.
 
 <Callout type="error" title="contract/input-mismatch">
 
 `alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
 number → at alertId. Check the alertId prop on the Widget.`
+
+**Fix.** Send the type the contract declares.
 
 </Callout>
 
@@ -283,10 +224,34 @@ number → at alertId. Check the alertId prop on the Widget.`
 <AlertPanel alertId={String(alert.id)} onAcknowledged={ack} />
 ```
 
-On the first render there is nothing to fall back to, so the error is thrown and the consumer's
-`fallback` renders instead. On a later update the mounted Widget keeps its last valid inputs on
-screen and the rejection is reported rather than thrown, which is why a mistyped filter does not
-blank the panel.
+On the first render there is nothing to fall back to, so the provider throws and the consumer's
+`fallback` renders. On a later update the mounted Widget keeps its last valid inputs on screen. It
+reports the rejection instead of throwing, so a mistyped filter does not blank the panel.
+
+### Two Apps in one container
+
+One container exports at most one App, and the build stops when it finds a second.
+
+<Callout type="error" title="registry/invalid-descriptor, at build time">
+
+`/home/you/orders/src/mfe.ts: the build failed to collect the definitions this container exports: expected at most one App per container, found 2 Apps ('orders' and 'invoices'). This expectation is declared by the container contract. Split them into separate containers. A container deploys and versions as one unit, and an App owns routing for its whole subtree, so two of them cannot share one.`
+
+**Fix.** Move one App into its own package with its own `src/mfe.ts`. If it was never
+URL-addressable, declare it with `createWidget` instead.
+
+</Callout>
+
+## Why a URL decides the shape
+
+Being routable is what makes a surface reachable from outside itself. A deep link into an App
+survives a reload, and a user can paste it into a message. The shell's application finder and
+command palette open an App by going to its URL, and the breadcrumb trail comes from its route
+matches.
+
+A Widget owns no URL, so it gets a typed prop contract instead. A URL cannot express "this one,
+here, with these inputs, and another one beside it". A Widget covers those cases: two instances on one
+page, or one inside a dialog or a table cell. It also works on a dashboard composed by a shell that
+has never imported it.
 
 ## Where next
 
