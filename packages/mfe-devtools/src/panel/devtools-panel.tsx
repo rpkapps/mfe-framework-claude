@@ -270,6 +270,9 @@ function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
     [horizontal, side],
   )
 
+  // The panel already draws the line along this edge, so the handle contributes the grip and a
+  // target wider than the line — the same shape `ResizableHandle` makes, which is what a
+  // draggable edge looks like everywhere else in the application.
   const placement = horizontal
     ? `inset-x-0 h-1.5 cursor-row-resize ${edge === 'top' ? 'top-0' : 'bottom-0'}`
     : `inset-y-0 w-1.5 cursor-col-resize ${edge === 'left' ? 'left-0' : 'right-0'}`
@@ -280,7 +283,7 @@ function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
       aria-label="Resize the developer tools"
       aria-orientation={horizontal ? 'horizontal' : 'vertical'}
       data-edge={edge}
-      className={`absolute z-10 touch-none transition-colors hover:bg-primary/40 max-sm:hidden ${placement}`}
+      className={`absolute z-10 flex touch-none items-center justify-center max-sm:hidden ${placement}`}
       onPointerDown={event => {
         dragging.current = true
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -290,6 +293,8 @@ function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
         dragging.current = false
         event.currentTarget.releasePointerCapture(event.pointerId)
       }}
-    />
+    >
+      <div className={`shrink-0 rounded-lg bg-border ${horizontal ? 'h-1 w-6' : 'h-6 w-1'}`} />
+    </div>
   )
 }
