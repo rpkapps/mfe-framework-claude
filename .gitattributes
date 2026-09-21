@@ -1,0 +1,8 @@
+# Line endings belong to the repository, not to the machine that cloned it. Git for Windows sets
+# `core.autocrlf=true` by default, which checks every file out as CRLF, where Prettier's
+# `endOfLine` default is `lf` — so `pnpm run format:check` reported every file in the repository
+# as unformatted, including files nobody had touched, and the real failures were lost in the noise.
+#
+# `text=auto` still normalises to LF in the index the way it always did; `eol=lf` is what makes
+# the working tree agree with it, on every platform and whatever `core.autocrlf` is set to.
+* text=auto eol=lf
