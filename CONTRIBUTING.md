@@ -47,7 +47,7 @@ So: in a module that exports components, export only components. Hooks,
 constants and factories go in their own module beside it. This applies to an
 MFE's render functions too — `src/mfe.ts` exports a definition and a contract by
 contract, so a Widget written inline in its entry reloads the page on every
-edit; `pnpm create-mfe` scaffolds the render into its own module for that
+edit; `pnpm create @company/mfe` scaffolds the render into its own module for that
 reason.
 
 `pnpm hmr:probe <file> [url]`, against servers you already started, answers the

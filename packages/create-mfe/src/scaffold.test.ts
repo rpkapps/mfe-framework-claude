@@ -50,6 +50,26 @@ describe('the App starter', () => {
     }
   })
 
+  it('runs an Rsbuild container, matching the example containers', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>
+      devDependencies: Record<string, string>
+    }
+
+    // The scaffolded rsbuild.config.ts is an Rsbuild config, so its scripts and
+    // dependencies must be Rsbuild's, not Rspack's raw CLI.
+    expect(manifest.scripts['dev']).toBe('pnpm run generate && rsbuild dev')
+    expect(manifest.scripts['build']).toBe('pnpm run generate && rsbuild build')
+    expect(manifest.devDependencies['@rsbuild/core']).toBe('catalog:')
+    expect(manifest.devDependencies['@rsbuild/plugin-react']).toBe('catalog:')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/cli')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/core')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/dev-server')
+  })
+
   it('installs the Tailwind the generated stylesheet imports', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
@@ -59,6 +79,19 @@ describe('the App starter', () => {
     }
 
     expect(manifest.devDependencies['tailwindcss']).toBe('catalog:')
+  })
+
+  it('writes the runtime config its own #mfe/config fetches at boot', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    const config = JSON.parse(
+      await readFile(join(directory, 'public/runtime-config.json'), 'utf8'),
+    ) as { apiBaseUrl: string }
+
+    // src/mfe.config.ts declares apiBaseUrl as a required URL: without this file
+    // a scaffolded App fails at boot with config/missing.
+    expect(config.apiBaseUrl).toMatch(/^https?:\/\//)
   })
 
   it('does not check in generated output', async () => {
@@ -117,6 +150,50 @@ describe('the Widget starter', () => {
     const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
     expect(entry).not.toContain('basePath')
     expect(entry).not.toContain('createRouter')
+  })
+
+  it('runs an Rsbuild container, matching the example containers', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>
+      devDependencies: Record<string, string>
+    }
+
+    expect(manifest.scripts['dev']).toBe('pnpm run generate && rsbuild dev')
+    expect(manifest.scripts['build']).toBe('pnpm run generate && rsbuild build')
+    expect(manifest.devDependencies['@rsbuild/core']).toBe('catalog:')
+    expect(manifest.devDependencies['@rsbuild/plugin-react']).toBe('catalog:')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/cli')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/core')
+    expect(manifest.devDependencies).not.toHaveProperty('@rspack/dev-server')
+  })
+
+  it('publishes the generated contract module, matching how it is actually generated', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      exports: Record<string, string>
+    }
+    // The build reads `src/mfe.ts` and emits this exact path, exporting `inputs`
+    // and `events` — never a `<camel>Contract` object (that name only exists in
+    // this container's own entry, not in what the build publishes).
+    expect(manifest.exports['./contracts']).toBe('./.mfe/widgets/alert-panel.contract.ts')
+
+    const readme = await readFile(join(directory, 'README.md'), 'utf8')
+    expect(readme).toContain("import { events, inputs } from '@example/alert-panel/contracts'")
+    expect(readme).toContain('contract: { inputs, events }')
+    expect(readme).not.toContain('alertPanelContract')
+  })
+
+  it('writes no public/ directory: a Widget has no #mfe/config to fetch it for', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })
+
+    const files = widgetTemplate({ id: 'alert-panel', packageName: '@example/alert-panel' })
+    expect(files.some(file => file.path.startsWith('public/'))).toBe(false)
   })
 })
 

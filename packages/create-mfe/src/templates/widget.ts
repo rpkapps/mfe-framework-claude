@@ -28,6 +28,10 @@ export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[
 
     packageJsonFile(options, 3103, {
       devDependencies: { '@testing-library/user-event': 'catalog:' },
+      // The build reads the Widget's `inputs`/`events` schemas out of `src/mfe.ts`
+      // and emits a side-effect-free module under `.mfe/`; this is how a consumer
+      // reaches it without depending on this container's build.
+      exports: { './contracts': `./.mfe/widgets/${id}.contract.ts` },
     }),
 
     {
@@ -137,9 +141,9 @@ Inputs are props, events are \`onX\` props:
 
 \`\`\`tsx
 import { lazyWidget } from '@company/mfe-react'
-import { ${camel}Contract } from '${packageName}/contracts'
+import { events, inputs } from '${packageName}/contracts'
 
-const ${pascal} = lazyWidget('${id}', { contract: ${camel}Contract })
+const ${pascal} = lazyWidget('${id}', { contract: { inputs, events } })
 
 <${pascal} label="Run" onActivated={event => console.log(event.at)} />
 \`\`\`
