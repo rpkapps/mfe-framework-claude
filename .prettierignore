@@ -3,6 +3,8 @@ dist/
 coverage/
 pnpm-lock.yaml
 **/routeTree.gen.ts
+# Written by `@tanstack/intent install`; formatting it only holds until the next run.
+AGENTS.md
 **/src/generated/
 **/.mfe/
 playwright-report/
