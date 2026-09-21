@@ -11,6 +11,16 @@ export function parseSourceFile(file: string, text?: string): ts.SourceFile {
   return ts.createSourceFile(file, contents, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TSX)
 }
 
+/**
+ * Parses a file that may be plain JavaScript, picking the script kind from its extension: a
+ * published `.mjs` is not TSX, and reading it as TSX makes a comparison look like a tag.
+ */
+export function parseModuleFile(file: string, text?: string): ts.SourceFile {
+  const contents = text ?? readFileSync(file, 'utf8')
+  const kind = /\.[cm]?jsx?$/i.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TSX
+  return ts.createSourceFile(file, contents, ts.ScriptTarget.ESNext, true, kind)
+}
+
 interface SourcePosition {
   readonly line: number
   readonly column: number

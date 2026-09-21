@@ -15,7 +15,7 @@ import {
   type WidgetContract,
 } from '@company/mfe-core'
 import type { AnyRouter } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { z } from 'zod'
 
 import type { AppRouterOptions } from './router-contract.ts'
@@ -23,7 +23,26 @@ import type { AppRouterOptions } from './router-contract.ts'
 /** Brand used to recognise framework definitions at the mount boundary. */
 const DEFINITION_BRAND = Symbol.for('@company/mfe.definition')
 
-export interface AppOptions {
+/**
+ * What a host shows before it has loaded anything. Read statically out of this call at build time
+ * and published in the registry, so a catalogue can name, describe, filter and draw a definition
+ * whose container has never been fetched (§16).
+ */
+interface PresentationOptions {
+  /** Overridden by the host's own presentation map, where a deployment keeps its wording. */
+  readonly title?: string
+  readonly description?: string
+  /** Free-form; a host filters its catalogue on them and never interprets them. */
+  readonly tags?: readonly string[]
+  /**
+   * An imported identifier — an icon component, or an imported `.svg`. Nothing reads this value:
+   * the build follows the import to the shapes behind it and publishes those, because the
+   * registry crosses an origin boundary and carries data rather than components or markup.
+   */
+  readonly icon?: ComponentType<SVGProps<SVGSVGElement>> | string
+}
+
+export interface AppOptions extends PresentationOptions {
   /** The only public identity field, globally unique across Apps and Widgets. */
   readonly id: string
   /** Recorded in diagnostics so a failure identifies which build was running. */
@@ -77,7 +96,10 @@ export interface WidgetRenderProps<C extends WidgetContract> {
   ) => void
 }
 
-export interface WidgetOptions<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>> {
+export interface WidgetOptions<
+  Inputs extends z.ZodType,
+  Events extends Record<string, z.ZodType>,
+> extends PresentationOptions {
   readonly id: string
   readonly version?: string
   readonly inputs: Inputs

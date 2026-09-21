@@ -27,6 +27,26 @@ export interface BuildProvenance {
   readonly time?: string
 }
 
+/**
+ * A parsed icon, carried as data because the registry crosses an origin boundary and must never
+ * hold markup. The build reads it from whatever the author imported — an icon module's node
+ * array, or an `.svg` file — and both forms arrive here identical.
+ */
+export interface IconData {
+  /** Verbatim from an `.svg`; synthesised from an icon module's declared size. */
+  readonly viewBox: string
+  /** Presentation attributes for the root `<svg>`; an allowlist, so a filled icon stays filled. */
+  readonly attributes?: Readonly<Record<string, string>>
+  readonly node: readonly IconNode[]
+}
+
+/** One element of a parsed icon: `['path', { d: '…' }]`. */
+export type IconNode = readonly [
+  tag: string,
+  attributes: Readonly<Record<string, string>>,
+  children?: readonly IconNode[],
+]
+
 export interface DefinitionIdentity {
   readonly id: string
   readonly kind: DefinitionKind
@@ -50,6 +70,12 @@ export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** Widget-only; read statically at build time (§16). */
   readonly contract?: PublishedWidgetContract
+  /** Presentation the author declares, so a host can catalogue the definition unloaded (§16). */
+  readonly title?: string
+  readonly description?: string
+  readonly tags?: readonly string[]
+  /** Resolved from the imported identifier at build time; never a component, never markup. */
+  readonly icon?: IconData
 }
 
 /** What a host may know about a Widget without loading its container (§16). */

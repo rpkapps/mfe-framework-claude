@@ -8,10 +8,12 @@ import {
   isValidEventName,
   RESERVED_INPUT_NAMES,
   type DefinitionKind,
+  type IconData,
 } from '@company/mfe-core'
 
 import type { JsonObject } from '../config/zod-static.ts'
 import { createBuildError, listNames } from '../diagnostics.ts'
+import { readIconData } from './icon.ts'
 import { readWidgetContract, type WidgetContractSource } from './widget-contract.ts'
 import {
   calleeName,
@@ -51,6 +53,19 @@ export interface DiscoveredDefinition {
   readonly inputSchema?: JsonObject
   /** Widget only: how to reach the contract schemas without the App entry. */
   readonly contractSource?: WidgetContractSource
+  /** Presentation the author declared, so a host can catalogue the definition unloaded (§16). */
+  readonly title?: string
+  readonly description?: string
+  readonly tags?: readonly string[]
+  readonly icon?: IconData
+}
+
+/** The author-declared presentation of one definition, all of it optional. */
+interface Presentation {
+  readonly title?: string
+  readonly description?: string
+  readonly tags?: readonly string[]
+  readonly icon?: IconData
 }
 
 export interface DiscoveryResult {
@@ -227,11 +242,13 @@ function readDefinition(
     factory.kind === 'app'
       ? null
       : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel)
+  const presentation = readPresentation(sourceFile, entryFile, factory, id, imports)
 
   return {
     id,
     kind: factory.kind,
     ...(version === undefined ? {} : { version }),
+    ...presentation,
     exportName: binding.exportName,
     isDefaultExport: binding.isDefaultExport,
     eventNames: contract?.eventNames ?? [],
@@ -239,6 +256,136 @@ function readDefinition(
     ...(contract?.inputSchema === undefined ? {} : { inputSchema: contract.inputSchema }),
     ...(contract === null ? {} : { contractSource: contract.source }),
   }
+}
+
+/**
+ * Title, description, tags and icon: what a catalogue needs before any container is fetched
+ * (§16). The icon is an imported identifier rather than a string, so an author reaches for it
+ * the way they reach for any other icon, and the build turns it into data.
+ */
+function readPresentation(
+  sourceFile: ts.SourceFile,
+  entryFile: string,
+  factory: FactoryCall,
+  id: string,
+  imports: ReadonlyMap<string, ImportedBinding>,
+): Presentation {
+  const title = readPresentationString(sourceFile, factory, id, 'title')
+  const description = readPresentationString(sourceFile, factory, id, 'description')
+  const tags = readTags(sourceFile, factory, id)
+  const icon = readIcon(sourceFile, entryFile, factory, id, imports)
+
+  return {
+    ...(title === undefined ? {} : { title }),
+    ...(description === undefined ? {} : { description }),
+    ...(tags === undefined ? {} : { tags }),
+    ...(icon === undefined ? {} : { icon }),
+  }
+}
+
+function readPresentationString(
+  sourceFile: ts.SourceFile,
+  factory: FactoryCall,
+  id: string,
+  name: string,
+): string | undefined {
+  const property = objectProperty(factory.options, name)
+  if (property === undefined) return undefined
+
+  const value = stringLiteralValue(property.initializer)
+  if (value === null) {
+    const { line, column } = positionOf(sourceFile, property)
+    throw createBuildError({
+      code: 'registry/invalid-descriptor',
+      file: sourceFile.fileName,
+      line,
+      column,
+      id,
+      operation: `read the definition ${name}`,
+      expected: 'a plain string literal',
+      observed: describeNode(sourceFile, property.initializer),
+      declaredBy: 'Static discovery',
+      repair: `Write the ${name} inline. It is read at build time and published in the registry, so it cannot be computed at runtime.`,
+    })
+  }
+
+  return value
+}
+
+function readTags(
+  sourceFile: ts.SourceFile,
+  factory: FactoryCall,
+  id: string,
+): readonly string[] | undefined {
+  const property = objectProperty(factory.options, 'tags')
+  if (property === undefined) return undefined
+
+  const array = unwrapExpression(property.initializer)
+  const tags: string[] = []
+  if (ts.isArrayLiteralExpression(array)) {
+    for (const element of array.elements) {
+      const value = stringLiteralValue(unwrapExpression(element))
+      if (value !== null && value !== '') tags.push(value)
+    }
+  }
+
+  if (!ts.isArrayLiteralExpression(array) || tags.length !== array.elements.length) {
+    const { line, column } = positionOf(sourceFile, property)
+    throw createBuildError({
+      code: 'registry/invalid-descriptor',
+      file: sourceFile.fileName,
+      line,
+      column,
+      id,
+      operation: 'read the definition tags',
+      expected: 'an array of plain, non-empty string literals',
+      observed: describeNode(sourceFile, property.initializer),
+      declaredBy: 'Static discovery',
+      repair:
+        "Write the tags inline, for example tags: ['alerts', 'operations']. A host filters its catalogue on them without loading the container.",
+    })
+  }
+
+  return tags
+}
+
+/**
+ * The identifier is followed through ordinary ESM by `readIconData`, which names no icon library.
+ * A failure is a build error rather than a dropped icon: a catalogue entry that silently lost its
+ * icon is harder to notice than a build that stopped.
+ */
+function readIcon(
+  sourceFile: ts.SourceFile,
+  entryFile: string,
+  factory: FactoryCall,
+  id: string,
+  imports: ReadonlyMap<string, ImportedBinding>,
+): IconData | undefined {
+  const property = objectProperty(factory.options, 'icon')
+  if (property === undefined) return undefined
+
+  const reference = unwrapExpression(property.initializer)
+  const binding = ts.isIdentifier(reference) ? imports.get(reference.text) : undefined
+  const icon = binding === undefined ? null : readIconData(entryFile, binding)
+
+  if (icon === null) {
+    const { line, column } = positionOf(sourceFile, property)
+    throw createBuildError({
+      code: 'registry/invalid-descriptor',
+      file: sourceFile.fileName,
+      line,
+      column,
+      id,
+      operation: 'read the definition icon',
+      expected: 'an imported identifier the build can resolve to a drawable icon',
+      observed: describeNode(sourceFile, property.initializer),
+      declaredBy: 'Static discovery',
+      repair:
+        "Import the icon and pass the identifier, for example import { BellIcon } from 'lucide-react' then icon: BellIcon. The registry carries shapes rather than a component, so the build reads the icon from the module the import names; importing the .svg directly works for any icon.",
+    })
+  }
+
+  return icon
 }
 
 function readIdentity(sourceFile: ts.SourceFile, factory: FactoryCall): string {

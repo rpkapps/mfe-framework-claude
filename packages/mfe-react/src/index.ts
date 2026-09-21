@@ -126,6 +126,7 @@ export {
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
 export { AppMount, type AppMountProps } from './app-mount.tsx'
+export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
 export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
 export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
 /** Exported because the generated container entry imports it (§17). */
@@ -155,4 +156,10 @@ export {
 } from './registry-selectors.ts'
 
 /** Re-exported from the core because a host depends on this package, not on the core. */
-export { eventNameToHandlerProp, HOST_SCOPE, type CapabilityName } from '@company/mfe-core'
+export {
+  eventNameToHandlerProp,
+  HOST_SCOPE,
+  type CapabilityName,
+  type IconData,
+  type IconNode,
+} from '@company/mfe-core'

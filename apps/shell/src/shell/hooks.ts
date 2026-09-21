@@ -18,6 +18,12 @@ import {
   migrateLayout,
   type DashboardLayout,
 } from './dashboard/layout-store.ts'
+import {
+  DEFAULT_PANELS,
+  migratePanels,
+  PanelLayoutSchema,
+  type PanelLayout,
+} from './dashboard/panels-store.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
 
 /**
@@ -60,5 +66,14 @@ export function useDashboardLayout(): readonly [
     defaultValue: EMPTY_LAYOUT,
     retention: 'browser',
     migrate: migrateLayout,
+  })
+}
+
+/** The split between catalogue, canvas and activity, remembered across reloads like the tiles. */
+export function useDashboardPanels(): readonly [PanelLayout, StoredStateSetter<PanelLayout>] {
+  return useStoredState('dashboard-panels', PanelLayoutSchema, {
+    defaultValue: DEFAULT_PANELS,
+    retention: 'browser',
+    migrate: migratePanels,
   })
 }

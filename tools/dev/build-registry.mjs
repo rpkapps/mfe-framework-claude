@@ -47,6 +47,13 @@ function entriesFor(descriptor, presentation, origin) {
       // The build belongs to the container rather than to any definition it exports, so every
       // entry from that descriptor repeats it; a bug report is the only reader (§29).
       ...(descriptor.build === undefined ? {} : { build: descriptor.build }),
+      // Declared by the author beside the id, and read statically like the contract above, so a
+      // catalogue can show and filter the definition without fetching its container (§16).
+      ...(definition.title === undefined ? {} : { title: definition.title }),
+      ...(definition.description === undefined ? {} : { description: definition.description }),
+      ...(definition.tags === undefined ? {} : { tags: definition.tags }),
+      ...(definition.icon === undefined ? {} : { icon: definition.icon }),
+      // Last, because this is the shell's own per-deployment override of what the author declared.
       ...(presentation[definition.id] ?? {}),
     }
   })

@@ -104,7 +104,9 @@ function appFace(
   entry: NeutralRegistryEntry | undefined,
 ): { readonly icon: string; readonly tone: 'blue' | 'saffron'; readonly name: string } {
   return {
-    icon: entry?.icon ?? id.slice(0, 3).toUpperCase(),
+    // The finder's tile draws a short text mark; a parsed icon is data it has no slot for, so an
+    // entry carrying one still falls back to its initials here until the tile learns to draw one.
+    icon: typeof entry?.icon === 'string' ? entry.icon : id.slice(0, 3).toUpperCase(),
     tone: entry?.overridden === true ? 'saffron' : 'blue',
     name: entry?.title ?? id,
   }

@@ -46,5 +46,10 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vitest": "catalog:"
+  },
+  "intent": {
+    "skills": [
+      "@tecton/react"
+    ]
   }
 }

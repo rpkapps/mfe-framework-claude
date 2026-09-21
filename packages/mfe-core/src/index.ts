@@ -46,6 +46,8 @@ export {
   type DefinitionIdentity,
   type DefinitionKind,
   type ExportedDefinitionDescriptor,
+  type IconData,
+  type IconNode,
   type JsonSchemaObject,
   type JsonSchemaValue,
   type PublishedWidgetContract,

@@ -14,6 +14,8 @@ import {
   type BuildProvenance,
   type CapabilityDescriptor,
   type CapabilityIconRef,
+  type IconData,
+  type IconNode,
   type JsonSchemaObject,
   type NeutralRegistryEntry,
   type PublishedWidgetContract,
@@ -31,6 +33,8 @@ interface AdvertisedEntry {
   readonly capabilities?: unknown
   readonly hidden?: unknown
   readonly title?: unknown
+  readonly description?: unknown
+  readonly tags?: unknown
   readonly icon?: unknown
   readonly contract?: unknown
   readonly build?: unknown
@@ -200,6 +204,68 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
  * loads; the field is dropped rather than passed on, because a hash that is not a string
  * would reach a bug report as `[object Object]` and be believed (§29).
  */
+/** Tags a host cannot read are no tags: a catalogue filter is not worth quarantining an entry over. */
+function readTags(value: unknown): readonly string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const tags = value.filter((tag): tag is string => typeof tag === 'string' && tag !== '')
+  return tags.length === 0 ? undefined : tags
+}
+
+/**
+ * A string is a short text mark the host draws itself. Anything else has to be a parsed icon,
+ * checked shape by shape: this record arrived over the network from another origin, and the
+ * renderer is handed it directly.
+ */
+function readIcon(value: unknown): string | IconData | undefined {
+  if (typeof value === 'string') return value
+  if (!isRecord(value)) return undefined
+
+  const viewBox = value['viewBox']
+  const node = readIconNodes(value['node'])
+  if (typeof viewBox !== 'string' || viewBox === '' || node === undefined) return undefined
+
+  const attributes = readIconAttributes(value['attributes'])
+
+  return {
+    viewBox,
+    ...(attributes === undefined ? {} : { attributes }),
+    node,
+  }
+}
+
+function readIconNodes(value: unknown): readonly IconNode[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+
+  const nodes: IconNode[] = []
+  for (const element of value) {
+    if (!Array.isArray(element)) return undefined
+    const [tag, attributes, children] = element as readonly unknown[]
+    if (typeof tag !== 'string' || tag === '') return undefined
+
+    const readAttributes = readIconAttributes(attributes) ?? {}
+    if (children === undefined) {
+      nodes.push([tag, readAttributes])
+      continue
+    }
+
+    const readChildren = readIconNodes(children)
+    if (readChildren === undefined) return undefined
+    nodes.push([tag, readAttributes, readChildren])
+  }
+
+  return nodes
+}
+
+function readIconAttributes(value: unknown): Readonly<Record<string, string>> | undefined {
+  if (!isRecord(value)) return undefined
+
+  const attributes: Record<string, string> = {}
+  for (const [name, attribute] of Object.entries(value)) {
+    if (typeof attribute === 'string') attributes[name] = attribute
+  }
+  return Object.keys(attributes).length === 0 ? undefined : attributes
+}
+
 function readBuildProvenance(value: unknown): BuildProvenance | undefined {
   if (!isRecord(value)) return undefined
 
@@ -274,6 +340,8 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
       }
 
       const build = readBuildProvenance(entry.build)
+      const tags = readTags(entry.tags)
+      const icon = readIcon(entry.icon)
 
       const capabilities = readCapabilities(id, entry.capabilities)
       if (capabilities && entry.kind === 'widget') {
@@ -312,7 +380,9 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         ...(build ? { build } : {}),
         ...(entry.hidden === true ? { hidden: true } : {}),
         ...(typeof entry.title === 'string' ? { title: entry.title } : {}),
-        ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),
+        ...(typeof entry.description === 'string' ? { description: entry.description } : {}),
+        ...(tags ? { tags } : {}),
+        ...(icon === undefined ? {} : { icon }),
       } satisfies NeutralRegistryEntry
     },
   }

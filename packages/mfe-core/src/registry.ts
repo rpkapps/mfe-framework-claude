@@ -4,6 +4,7 @@ import type {
   BuildProvenance,
   CapabilityDescriptor,
   DefinitionKind,
+  IconData,
   PublishedWidgetContract,
 } from './definition.ts'
 
@@ -25,7 +26,11 @@ export interface NeutralRegistryEntry {
   /** Excluded from catalogue and finder views; not a security boundary. */
   readonly hidden?: boolean
   readonly title?: string
-  readonly icon?: string
+  readonly description?: string
+  /** Free-form, author-declared; the catalogue filters on them and never interprets them. */
+  readonly tags?: readonly string[]
+  /** A string is a short text mark the host draws itself; `IconData` is a parsed icon. */
+  readonly icon?: string | IconData
   /** Adapter-private payload, so the neutral shape above stays framework-free. */
   readonly adapterData?: unknown
   /** True when a developer override replaced `manifestUrl` at boot. */

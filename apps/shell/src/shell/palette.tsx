@@ -210,8 +210,9 @@ export function CommandPalette({
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
     const needsInputs = needsInputPrompt(entry.contract)
     const inputs = defaultInputsFor(describeWidgetInputs(entry.contract))
-    const tile = { key: tileKey(entry.id), widgetId: entry.id, inputs, span: 6 } as const
-    setLayout(value => addTile(value, tile))
+    // No canvas is measured from here, so the tile is placed against a nominal one and the
+    // canvas refits it to its real width on the way in.
+    setLayout(value => addTile(value, { key: tileKey(entry.id), widgetId: entry.id, inputs }))
     void navigate({ to: '/' })
     toast.success(`${entry.title ?? entry.id} added to the dashboard`, {
       description: needsInputs

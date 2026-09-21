@@ -32,6 +32,10 @@ export function containerDescriptor(
       id: definition.id,
       kind: definition.kind,
       ...(definition.version === undefined ? {} : { version: definition.version }),
+      ...(definition.title === undefined ? {} : { title: definition.title }),
+      ...(definition.description === undefined ? {} : { description: definition.description }),
+      ...(definition.tags === undefined ? {} : { tags: definition.tags }),
+      ...(definition.icon === undefined ? {} : { icon: definition.icon }),
       ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
       // A Widget publishes what it takes so a host can catalogue it; an App takes a URL (§16).
       ...(definition.kind === 'widget'
