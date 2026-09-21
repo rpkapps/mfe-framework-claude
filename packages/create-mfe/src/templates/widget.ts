@@ -130,8 +130,14 @@ it('rejects an invalid input at the provider boundary', () => {
 
 An MFE Widget. Its id is \`${id}\`. A Widget is non-routable: it owns no URL
 boundary, never mutates history and never sets the document title. Anything that
-needs a URL is an App. \`pnpm run dev\` previews it through the shell-hosted
-placement, with validated example inputs and an event viewer.
+needs a URL is an App. \`pnpm run dev\` starts this container's Rsbuild dev
+server on its \`mfe.port\`, and nothing else: there is no standalone preview. To
+see the Widget, run the shell — \`pnpm dev\` at the workspace root starts every
+dev server and prints the override snippets — then either drag the Widget from
+the catalogue onto the dashboard at \`/\`, or point the shell at this container
+with the \`localStorage\` override below. The developer tools overlay's Registry
+tab shows what the registry accepted, what it rejected and why, and marks an
+entry an override replaced.
 
 ${overrideSection(id, 3103)}
 

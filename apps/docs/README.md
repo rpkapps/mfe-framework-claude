@@ -75,7 +75,7 @@ and the description from the paragraph under it.
 
 ## Writing MDX here
 
-Two traps, both of which have already cost a writer time:
+Three traps, every one of which has already cost a writer time:
 
 - **Inline JSX at the start of a line becomes a block.** MDX reads `<Term>`, `<Kbd>` or any other
   tag that begins a line as block-level JSX, which silently ends the paragraph before it and starts
@@ -85,14 +85,25 @@ Two traps, both of which have already cost a writer time:
 - **A literal `{` in prose fails the build.** MDX reads `{` as the start of an expression and the
   build stops with `Could not parse expression with acorn`. Write `\{`, or put the text in a code
   span. The same applies inside a component's children.
+- **A code span does not cover the start of the next line inside a JSX block.** In the children of
+  a `<Callout>` — or any other JSX block — a line that begins with `{` is read as an expression and
+  one that begins with `<word` as a tag, even when an inline code span opened on an earlier line is
+  still open across it. The span is no protection, because the block's children are parsed before
+  the span closes, and the build reports the expression or the unclosed tag. Keep such text on one
+  line inside the code span, or escape it (`\{`, `\<`).
 
-Two more, less surprising but worth knowing:
+Three more, less surprising but worth knowing:
 
 - **Frontmatter is YAML.** A `title` or `description` containing `: ` has to be quoted:
   `title: '1. The shape: App or Widget'`.
 - **A closing tag must not be indented under a list item.** `</Diagram>` after a bulleted text
   equivalent belongs at column 0 with a blank line before it; indented, it reads as more list
   content and the build reports the tag as unclosed.
+- **Prettier reformats the code inside a fence.** A fenced block whose language Prettier knows is
+  parsed and printed like any other source file: double quotes become single, semicolons go,
+  indentation and line breaks are redone. When a fence has to read exactly as written — output
+  quoted verbatim, a deliberate mistake, code in somebody else's style — put
+  `{/* prettier-ignore */}` on the line before the opening fence.
 
 ## Diagrams
 
@@ -171,7 +182,10 @@ Search covers every page title, description, heading and block of body text, and
 static.
 
 1. `src/lib/search-server.ts` builds the index with `createFromSource` from `fumadocs-core`, which
-   reads the structured data each compiled page exports.
+   reads the structured data each compiled page exports. `remark-structure` writes that data back
+   out as Markdown by default, so `source.config.ts` hands it the serialiser in
+   `src/lib/structured-text.ts` instead: a record holds the text a reader sees — no `**`, no
+   backticks, no tags — and a heading record still carries the id its anchor needs.
 2. `src/routes/api/search.ts` is a route with a server handler and no component, so it is dropped
    from the client route tree and neither the index nor the content reaches the browser bundle.
 3. `vite.config.ts` lists `/api/search` among the prerendered pages. The response is JSON rather
@@ -184,8 +198,8 @@ grouped by page; under each page heading come its heading and text hits with the
 marked. Arrow keys move, Enter navigates — to the heading's anchor when the hit is a heading or a
 block of text. With an empty query the dialog lists every page, in sidebar order.
 
-One thing to know when reading a snippet: the highlighter marks matches in the prose, not inside
-inline code, so a word that only ever appears as `` `like this` `` is found but not marked.
+One thing to know when reading a snippet: a code span is indexed as its contents, so a word that
+only ever appears as `` `like this` `` is found — and marked — like any other.
 
 ## Adding a page
 

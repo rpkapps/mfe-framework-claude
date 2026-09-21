@@ -5,6 +5,7 @@
 import { defineConfig } from 'fumadocs-mdx/config'
 
 import { remarkRepoMarkdown } from './src/lib/remark-repo-markdown.ts'
+import { plainTextStringify } from './src/lib/structured-text.ts'
 
 export default defineConfig({
   mdxOptions: {
@@ -26,5 +27,12 @@ export default defineConfig({
      */
     remarkImageOptions: false,
     remarkPlugins: plugins => [remarkRepoMarkdown, ...plugins],
+    /*
+     * `remark-structure` exports the records the search index is built from. Its default
+     * serialiser writes them back out as Markdown, so a snippet would show `**bold**` and a
+     * code span's backticks; this one writes the text a reader sees. Heading records keep
+     * their ids either way, so every search result still navigates to its anchor.
+     */
+    remarkStructureOptions: { stringify: plainTextStringify },
   },
 })
