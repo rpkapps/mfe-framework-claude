@@ -1,7 +1,3 @@
-/**
- * Where a docked panel sits, and which way its handle drags.
- */
-
 import { describe, expect, it } from 'vitest'
 
 import { dockStyle, handleSide, isHorizontal, SIDES, sizeFromPointer } from './dock.ts'

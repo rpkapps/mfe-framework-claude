@@ -1,10 +1,6 @@
 /**
- * `@company/mfe-react` — the author and host surface.
- *
- * The getting-started surface is deliberately tiny: `createApp` or
- * `createWidget`, an `id`, your own route tree, and the generated `#mfe/config`
- * and `#mfe/fetch` modules. Nothing is named after the framework where a plain
- * name works, so `useMfe*` is reserved for where the qualifier disambiguates.
+ * `@company/mfe-react` — the author and host surface; nothing is named after the framework
+ * where a plain name works, so `useMfe*` is reserved for where the qualifier disambiguates.
  */
 
 export {
@@ -61,11 +57,7 @@ export {
   type UseStoredStateOptions,
 } from './hooks/use-stored-state.ts'
 
-/**
- * Telemetry and tracing come from the neutral core rather than aliased from a
- * vendor package: an author's declarations and bundles must never have to
- * resolve `@opentelemetry/*` or `@grafana/faro-*`.
- */
+/** From the core, so an author never resolves `@opentelemetry/*` or `@grafana/faro-*`. */
 export {
   SpanKind,
   SpanStatusCode,
@@ -97,17 +89,10 @@ export {
   type ShellUser,
   type StorageKeyOptions,
   type WidgetContract,
-  /*
-   * The registry shapes. A host renders the registry — an app finder, a widget
-   * catalogue, a diagnostics view — so what a normalized entry and a
-   * quarantined one look like is part of the host surface, not an internal.
-   */
+  /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
   type JsonSchemaValue,
-  /*
-   * What a mount is told about a navigation it may refuse. An App author reads
-   * it inside `useNavigationBlock`, so it belongs on the author surface.
-   */
+  /* An author reads these inside `useNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,
   type NeutralRegistryEntry,
@@ -126,11 +111,7 @@ export {
   type MountHandleWithCleanup,
 } from './create-runtime.ts'
 
-/**
- * The authentication seam. `installShellAuth` is the shell's one call; the
- * generated `#mfe/fetch` module is the only caller of `createContainerTransport`
- * and is why both are named here rather than only on the host.
- */
+/** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {
   createContainerTransport,
   installShellAuth,
@@ -147,21 +128,11 @@ export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-con
 export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
 export { SCOPE_ATTRIBUTE, createOverlayRoot } from './scope-root.tsx'
-/**
- * Generated plumbing, exported because the generated container entry imports
- * it: the build attaches the design system's root to the definition it exposes,
- * so a container's overlays are wired up by its own copy of the library.
- */
+/** Exported because the generated container entry imports it (§17). */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
 
-/**
- * Reading what a Widget takes, for a host that composes the registry: the shell
- * depends on this package rather than on the core, so a dashboard that renders
- * a form from a published schema has to be able to name these from here.
- * Appended as its own block so a concurrent edit to the neutral-contract block
- * and this one cannot collide.
- */
+/** The one walk over a Widget's published inputs, for a host composing the registry (§28). */
 export {
   coerceInputs,
   defaultInputsFor,
@@ -173,11 +144,6 @@ export {
   type WidgetInputType,
 } from '@company/mfe-core'
 
-/**
- * Reading the registry, for the host that renders it. Appended here rather
- * than beside the registry types so a concurrent edit to that block and this
- * one cannot collide.
- */
 export {
   useActiveDefinition,
   useApps,
@@ -188,10 +154,5 @@ export {
   type CapabilityPage,
 } from './registry-selectors.ts'
 
-/**
- * The reserved scope the host's own commands, breadcrumbs and stored records
- * live under, and the event-name mapping a host needs to name a Widget's
- * handler prop. Both come from the neutral core; a host depends on this
- * package.
- */
+/** Re-exported from the core because a host depends on this package, not on the core. */
 export { eventNameToHandlerProp, HOST_SCOPE, type CapabilityName } from '@company/mfe-core'

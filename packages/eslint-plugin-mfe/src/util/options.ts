@@ -1,8 +1,4 @@
-/**
- * `context.options` is untyped by construction and the repository's TypeScript
- * baseline forbids unchecked indexing, so rules read options through these
- * narrow helpers rather than asserting a shape.
- */
+/** `context.options` is untyped, so rules read it here rather than asserting a shape. */
 
 export function optionRecord(options: readonly unknown[]): Record<string, unknown> {
   const first = options[0]

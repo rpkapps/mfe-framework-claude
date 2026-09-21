@@ -1,11 +1,7 @@
 /**
- * The one span implementation in the repo, and the non-recording handle.
- *
- * `TelemetryProvider.createTracer` asks every provider for a `Tracer` and a
- * `Span`. Rather than each provider writing that again, it builds on
- * `createSpanEmitter`: the emitter owns span state, `end()` idempotency, the
- * per-mount open-span bound and the `startActiveSpan` callback contract, and a
- * provider supplies only what it does with a `SpanRecord`.
+ * The one span implementation in the repo: the emitter owns span state, `end()`
+ * idempotency, the per-mount open-span bound and the `startActiveSpan` callback contract,
+ * so a provider supplies only what it does with a `SpanRecord`.
  */
 
 import {
@@ -33,7 +29,6 @@ export const nonRecordingSpan: Span = Object.freeze({
   isRecording: (): boolean => false,
 })
 
-/** Splits the two `startActiveSpan` overloads into their parts. */
 function activeSpanArgs<T>(
   optionsOrCallback: SpanOptions | ((span: Span) => T),
   maybeCallback: ((span: Span) => T) | undefined,
@@ -43,11 +38,7 @@ function activeSpanArgs<T>(
     : { options: optionsOrCallback, callback: maybeCallback }
 }
 
-/**
- * Turns a `startSpan` into the whole `Tracer` surface. `startActiveSpan` runs
- * the callback exactly once and returns its result unchanged, whatever the
- * tracer does with the span.
- */
+/** `startActiveSpan` runs the callback exactly once and returns its result unchanged. */
 function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tracer {
   return Object.freeze({
     startSpan,
@@ -63,17 +54,11 @@ function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tra
   })
 }
 
-/**
- * A tracer whose spans never record: what a caller gets when tracing is off,
- * when the mount is disposed, when the provider's tracer could not be built, or
- * when the open-span budget is exhausted. Turning tracing off cannot change
- * what the application does, so the callback still runs exactly once.
- */
+/** Turning tracing off cannot change what the application does, so a callback still runs once. */
 export function createNonRecordingTracer(): Tracer {
   return asTracer(() => nonRecordingSpan)
 }
 
-/** A `SpanRecord` while the emitter is still filling it in. */
 type MutableSpanRecord = {
   -readonly [K in keyof SpanRecord]: K extends 'events' | 'exceptions'
     ? SpanRecord[K][number][]
@@ -81,20 +66,17 @@ type MutableSpanRecord = {
 }
 
 export interface SpanEmitterOptions {
-  /** Injectable clock, for deterministic tests. Defaults to `Date.now`. */
+  /** Injectable clock for deterministic tests; defaults to `Date.now`. */
   readonly now?: () => number
   /** The record this span will fill in, handed over while the span is still open. */
   readonly onSpanStart?: (span: SpanRecord) => void
-  /** The same record, once the span has ended. */
   readonly onSpanEnd?: (span: SpanRecord) => void
 }
 
 /**
- * A recording `Tracer` for one mount's attribution.
- *
- * Parentage crosses the provider seam only as the host-reserved span ids on the
- * attributes — the seam has no way to say "under that parent" — so the tree is
- * rebuilt from them here, which is what a shell adapter would otherwise repeat.
+ * A recording `Tracer` for one mount's attribution. Parentage crosses the provider seam
+ * only as the host-reserved span ids on the attributes, so the tree is rebuilt from them
+ * here rather than in every shell adapter.
  */
 export function createSpanEmitter(
   attribution: TelemetryAttribution,
@@ -106,8 +88,8 @@ export function createSpanEmitter(
   const byId = new Map<string, MutableSpanRecord>()
 
   return asTracer((name, given) => {
-    // Past the budget the caller still gets a usable handle, but nothing is
-    // kept: spans nobody ends must not grow memory without limit.
+    // Past the budget the caller still gets a usable handle, but nothing is kept: spans
+    // nobody ends must not grow memory without limit.
     if (open.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) return nonRecordingSpan
 
     const attributes = given?.attributes ?? EMPTY_ATTRIBUTES
@@ -159,8 +141,8 @@ export function createSpanEmitter(
       },
       recordException: (error, exceptionAttributes) => {
         record.exceptions.push(error)
-        // OpenTelemetry models an exception as an event on the span; mirroring
-        // that keeps the attributes visible to whatever reads the record.
+        // OpenTelemetry models an exception as an event on the span; mirroring that keeps
+        // the attributes visible to whatever reads the record.
         return span.addEvent('exception', exceptionAttributes)
       },
       // Repeated calls are harmless: the first one wins and the rest do nothing.

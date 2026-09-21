@@ -1,10 +1,7 @@
 /**
- * A recording telemetry provider: the test-only entry point.
- *
- * It keeps what it was given in bounded buffers, so asserting that a feature
- * emits the right telemetry needs no monitoring account, no vendor SDK and no
- * network. Every span comes from `createSpanEmitter`, which is what a real
- * shell adapter uses too, so this is a sink and not a second tracer.
+ * A recording telemetry provider, so asserting that a feature emits the right telemetry
+ * needs no vendor SDK and no network. Every span comes from `createSpanEmitter`, the one a
+ * real shell adapter uses, so this is a sink and not a second tracer.
  */
 
 import type {
@@ -21,9 +18,9 @@ import type {
 import { createSpanEmitter } from '../telemetry/span-emitter.ts'
 
 export interface RecordingProviderOptions {
-  /** Levels the provider admits. Omit for "everything". */
+  /** Omit for "everything". */
   readonly enabledLevels?: readonly TelemetryLevel[]
-  /** Bounded buffer size for records and for spans. Defaults to 1000 each. */
+  /** Bounded buffer size for records and for spans; defaults to 1000 each. */
   readonly limit?: number
   /** Injectable clock, for deterministic tests. */
   readonly now?: () => number
@@ -34,7 +31,7 @@ export interface RecordingTelemetryProvider extends TelemetryProvider {
   readonly spans: readonly SpanRecord[]
   /** Entries dropped because a bounded buffer was full. */
   readonly overflowCount: number
-  /** How many times the host asked for a tracer. One per mount with tracing on. */
+  /** One per mount with tracing on. */
   readonly tracerCount: number
 
   events(name?: string): readonly TelemetryEventRecord[]
@@ -50,7 +47,7 @@ export interface RecordingTelemetryProvider extends TelemetryProvider {
   failRecords(mode: boolean | ((record: TelemetryRecord) => boolean)): void
   /** Makes `createTracer()` throw, as a provider with a broken tracing setup would. */
   failTracerCreation(fail: boolean): void
-  /** Replaces the level filter. `undefined` admits every level again. */
+  /** `undefined` admits every level again. */
   setEnabledLevels(levels: readonly TelemetryLevel[] | undefined): void
 }
 

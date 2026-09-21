@@ -1,11 +1,6 @@
 /**
- * The mount's half of the navigation-blocking contract.
- *
- * What is being asserted is the division of labour: the host asks, the mount
- * answers in its own time, and nothing proceeds until it has. The cases that
- * matter are the ones a `window.confirm` cannot express — a mount that is not
- * dirty and is never asked, a mount that refuses, and a mount that disappears
- * while it is being asked and must not strand the host.
+ * The mount's half of the navigation-blocking contract: the host asks, the mount answers in its
+ * own time, and nothing proceeds until it has (§20).
  */
 
 import { act, render, screen, waitFor } from '@testing-library/react'
@@ -106,8 +101,7 @@ describe('useNavigationBlock', () => {
       committed = true
     })
 
-    // The mount is being asked, and nothing has happened yet: the host is
-    // waiting on a decision this application has not made.
+    // The mount is being asked, and nothing has happened yet.
     await waitFor(() => {
       expect(screen.getByTestId('pending')).toHaveTextContent('/operations')
     })
@@ -145,8 +139,7 @@ describe('useNavigationBlock', () => {
   })
 
   it('asks per navigation, so a mount can refuse one and allow another', async () => {
-    // Only a navigation that leaves this App's boundary is worth objecting to;
-    // moving between its own routes loses nothing.
+    // Only a navigation that leaves this App's boundary is worth objecting to.
     environment = mountEditor(intent => intent.leavesBoundary)
     let committed = false
 
@@ -180,9 +173,7 @@ describe('useNavigationBlock', () => {
       expect(screen.getByTestId('pending')).toHaveTextContent('/operations')
     })
 
-    // The editor goes away while it still owes an answer. Without the promise
-    // being settled on cleanup the host would negotiate forever, and every
-    // later navigation would be refused as "already negotiating".
+    // Without the promise being settled on cleanup the host would negotiate forever.
     await act(async () => {
       screen.getByRole('button', { name: 'unmount' }).click()
       await negotiation

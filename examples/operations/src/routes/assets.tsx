@@ -43,14 +43,12 @@ import { assetsQueryOptions, type Asset } from '../queries/assets.ts'
 
 export const Route = createFileRoute('/assets')({
   staticData: { breadcrumb: 'Assets' },
-  // Native search validation. A parent that needs to pass data to this App uses
-  // documented search parameters rather than a hidden input channel.
+  // A parent passes data to this App through documented search parameters, not a hidden channel.
   validateSearch: z.object({ site: z.enum(['north', 'south', 'central']).default('north') }),
   loaderDeps: ({ search }) => ({ site: search.site }),
   loader: ({ context, deps }) => {
     context.mfe.telemetry.debug('Loading assets', { site: deps.site })
-    // The loader and the component use the same options, so they share one
-    // cache entry instead of fetching twice.
+    // The loader and the component use the same options, so they share one cache entry.
     return context.queryClient.ensureQueryData(assetsQueryOptions(deps.site))
   },
   component: Assets,
@@ -105,8 +103,7 @@ function Assets(): ReactNode {
       </PageHeader>
 
       {/*
-       * The counts come first: on an operations page the question is "is
-       * anything down", and the answer should not require reading a table.
+       * The counts come first, because "is anything down" should not require reading a table.
        */}
       <StatGroup>
         <Stat>
@@ -163,9 +160,8 @@ function Assets(): ReactNode {
                 Asset
               </TableHead>
               {/*
-               * The tag is folded under the name below `sm`. A three-column
-               * table on a 390px screen either scrolls sideways or squeezes
-               * every column to two characters; neither is the page working.
+               * The tag folds under the name below `sm`, because a three-column table at 390px
+               * either scrolls sideways or squeezes every column to two characters.
                */}
               <TableHead id="id" className="hidden sm:table-cell">
                 Tag

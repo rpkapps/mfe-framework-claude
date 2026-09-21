@@ -1,10 +1,7 @@
 /**
- * The first generation of a page load.
- *
- * What matters is what the shell was hand-rolling: that a reload of the same
- * tab keeps the generation, that a different identity never reuses one, and
- * that a store which cannot persist still ends up with a generation in force
- * rather than refusing every session-retained write.
+ * What matters is what the shell was hand-rolling: a reload of the same tab keeps the
+ * generation, a different identity never reuses one, and a store that cannot persist still
+ * ends up with one in force.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -135,8 +132,6 @@ describe('establishSessionGeneration', () => {
 
     const generation = establishSessionGeneration(store, 'u-1')
 
-    // Nothing survives the reload, but every write this page makes is fenced by
-    // a real generation instead of being refused one at a time.
     expect(generation).not.toBe('')
     expect(store.sessionGeneration).toBe(generation)
   })

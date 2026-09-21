@@ -1,7 +1,7 @@
 /**
- * The legacy registry vocabulary and the adapter-private payload it becomes.
- * Legacy fields travel in `adapterData`, where only this package reads them, so
- * the neutral record never names one. The shapes come from contract fixtures.
+ * The legacy registry vocabulary and the adapter-private payload it becomes: legacy fields
+ * travel in `adapterData`, so the neutral record never names one. The shapes come from
+ * contract fixtures (§9).
  */
 
 import { createMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -9,11 +9,7 @@ import { createMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
 /** Who writes the URL when a legacy app navigates. */
 export type NavigationOwnership = 'shell' | 'app'
 
-/**
- * The adapter-private payload attached to a translated entry. Array fields are
- * always present — empty when the legacy entry omitted them — so shell surfaces
- * iterate without repeating the same optional chaining.
- */
+/** Array fields are always present — empty when the entry omitted them — so callers need no chaining. */
 export interface LegacyAdapterData {
   readonly containerName: string
   readonly exposeName: './single-spa-app'
@@ -51,10 +47,7 @@ export function failDescriptor(
   })
 }
 
-/**
- * Reads the adapter payload back in a typed way, so a translation change is a
- * compile error in the catalog rather than a silent `undefined` on a tile.
- */
+/** Typed read-back, so a translation change is a compile error rather than a silent `undefined` on a tile. */
 export function readLegacyAdapterData(entry: NeutralRegistryEntry): LegacyAdapterData {
   if (entry.adapter !== 'legacy-angular') {
     failDescriptor(entry.id, {

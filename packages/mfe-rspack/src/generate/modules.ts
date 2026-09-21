@@ -1,8 +1,4 @@
-/**
- * The generated modules. Three are aliases an author imports — `#mfe/config`,
- * `#mfe/fetch`, `#mfe/meta`. The rest are build artifacts: the Module
- * Federation entries and the per-Widget contract entry points.
- */
+/** Three of these are aliases an author imports; the rest are build artifacts. */
 
 import { FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
 
@@ -34,12 +30,7 @@ export const ALIASES = {
   meta: '#mfe/meta',
 } as const
 
-/**
- * Loads `runtime-config.json` — values only, no envelope — applies the schema
- * defaults the author declared, validates and freezes. Every failure throws
- * before the top-level await resolves, so an importer never observes a
- * half-configured container and nothing substitutes an empty object.
- */
+/** Every failure throws before the top-level await resolves, so no import sees half a config. */
 export function configModule(context: GenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
@@ -246,19 +237,8 @@ const CONFIG_VALIDATE = [
 ].join('\n')
 
 /**
- * Importing a bound fetch is the whole point: the global one is never replaced,
- * so nothing a container does here changes what the shell or another container
- * observes when it calls `fetch`.
- *
- * The session itself is the shell's and is resolved at call time. What the
- * build contributes is the part only it knows: the origins the author declared
- * `{ api: true }`, and the first of them as the default base for relative
- * request URLs (§10.4).
- *
- * The import is from `@company/mfe-react` rather than the host it re-exports
- * from, because that is the package a container already depends on — a
- * generated file must not oblige every project to add a dependency it never
- * writes an import for.
+ * The global `fetch` is never replaced, so nothing a container does here changes what the shell
+ * observes; the import is from `@company/mfe-react` because that is what a container depends on.
  */
 export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
@@ -346,21 +326,12 @@ export function entryModulePath(
     : generatedPath(context.options.generatedDir, 'entries', 'widgets', `${definition.id}.ts`)
 }
 
-/** Where the bundler entry lives. A container has one only because it must. */
+/** Where the bundler entry lives; a container has one only because the bundler wants one. */
 export function containerEntryPath(context: GenerateContext): string {
   return generatedPath(context.options.generatedDir, 'entries', 'container.ts')
 }
 
-/**
- * The bundler entry, which is deliberately empty.
- *
- * A container is only ever consumed through federation: a shell reads
- * `mf-manifest.json`, loads `remoteEntry.js` and pulls the exposed chunks.
- * Nothing ever requests an application entry. Pointing the bundler at the
- * container's own source instead builds the whole application a second time,
- * in a graph no one loads — around 220 kB of duplicate, deployed and never
- * served. The bundler still requires *an* entry, so it gets this one.
- */
+/** Deliberately empty: nothing requests an application entry, but the bundler requires one. */
 export function containerEntryModule(context: GenerateContext): GeneratedFile {
   return {
     path: containerEntryPath(context),
@@ -376,13 +347,8 @@ export function containerEntryModule(context: GenerateContext): GeneratedFile {
 }
 
 /**
- * One module per exposed definition: what a shell actually loads.
- *
- * The stylesheet is imported here rather than from the application, so it is
- * part of every exposed chunk and Module Federation brings it in with whichever
- * expose a shell asks for first. It comes before the author's entry, so the
- * container's own utilities are in the document before anything renders against
- * them.
+ * The stylesheet is imported here rather than from the application, so it is part of every
+ * exposed chunk and reaches the document before anything renders against it.
  */
 export function federationEntryModules(context: GenerateContext): readonly GeneratedFile[] {
   return context.discovery.definitions.map(definition => {
@@ -406,8 +372,7 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
           ]),
     ].join('\n')
 
-    // Without a design system there is nothing to wrap the rendered tree in,
-    // so the definition the author wrote is the one the shell loads.
+    // Without a design system there is nothing to wrap the rendered tree in.
     const exposed = usesDesignSystem(context)
       ? [
           "import { withStyleRoot } from '@company/mfe-react'",
@@ -439,11 +404,8 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
 }
 
 /**
- * One side-effect-free module per exported Widget. A consumer imports it for
- * types and for validation on its own side, so it has to reach the schemas
- * without importing the container entry, which would drag in the App, its
- * router and the route tree. The schemas are therefore either re-exported from
- * the module they already live in or copied here verbatim.
+ * One side-effect-free module per exported Widget, so a consumer reaches the schemas without
+ * importing the container entry and dragging in the App, its router and the route tree.
  */
 export function widgetContractModules(context: GenerateContext): readonly GeneratedFile[] {
   return context.discovery.widgets
@@ -521,11 +483,7 @@ function widgetContractModule(
   }
 }
 
-/**
- * Reusing the author's own Zod binding avoids declaring a second one; when
- * there is none a type-only import is added, which erases completely and keeps
- * the module side-effect free.
- */
+/** A type-only import erases completely, which keeps the generated module side-effect free. */
 function zodBinding(
   imports: readonly ContractImport[],
   boundNames: ReadonlySet<string>,

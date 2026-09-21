@@ -1,8 +1,6 @@
 /**
- * `createApp` and `createWidget`: the one call an author makes in `src/mfe.ts`.
- *
- * Both return plain, side-effect-free descriptors, so the build plugin can
- * discover them statically without invoking a render function to read metadata.
+ * `createApp` and `createWidget` both return plain, side-effect-free descriptors, so the build
+ * plugin can discover them statically without invoking a render function.
  */
 
 import {
@@ -26,19 +24,13 @@ import type { AppRouterOptions } from './router-contract.ts'
 const DEFINITION_BRAND = Symbol.for('@company/mfe.definition')
 
 export interface AppOptions {
-  /** The only public identity field. Globally unique across Apps and Widgets. */
+  /** The only public identity field, globally unique across Apps and Widgets. */
   readonly id: string
   /** Recorded in diagnostics so a failure identifies which build was running. */
   readonly version?: string
-  /**
-   * Called once per mount, never once per module. An App mounted twice gets two
-   * routers, and disposal drops the router rather than reusing a singleton.
-   */
+  /** Called once per mount, never once per module; an App mounted twice gets two routers. */
   readonly router: (options: AppRouterOptions) => AnyRouter
-  /**
-   * Opts this App out of contributing its own breadcrumb segment. It does not
-   * disable contributions from nested child Apps.
-   */
+  /** Opts this App out of its own breadcrumb segment, not nested child Apps' contributions. */
   readonly breadcrumbs?: false
 }
 
@@ -75,7 +67,7 @@ export function createApp(options: AppOptions): AppDefinition {
   }
 }
 
-/** What a Widget's render function receives. Both are typed from the schemas. */
+/** Both fields are typed from the schemas. */
 export interface WidgetRenderProps<C extends WidgetContract> {
   readonly inputs: ContractInputs<C>
   /** Validates the payload at this call site, so a failure surfaces here. */
@@ -156,11 +148,7 @@ function assertValidId(id: unknown, operation: string): asserts id is string {
   })
 }
 
-/**
- * Event names must be lower-camel-case and must stay distinct once mapped to
- * their `on`-prefixed props, since two events mapping to one handler prop would
- * make a consumer's subscription ambiguous.
- */
+/** Two events mapping to one `on`-prefixed prop would make a subscription ambiguous. */
 function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
   const handlerProps = new Map<string, string>()
 
@@ -194,10 +182,7 @@ function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): 
   }
 }
 
-/**
- * Validates input field names against the reserved host control props. Called by
- * the mount boundary, where the parsed input keys are known.
- */
+/** Called by the mount boundary, where the parsed input keys are known. */
 export function assertUsableInputNames(id: string, inputNames: readonly string[]): void {
   for (const name of inputNames) {
     if (!isReservedInputName(name)) continue

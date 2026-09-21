@@ -1,9 +1,6 @@
 /**
- * The Module Federation container loader: the one place in the framework that
- * knows federation exists. The neutral host orchestrates loading through a port
- * and this implements it, so nothing above this file sees a container name, an
- * expose path or a share scope. It lives in the React adapter because that is
- * the package that already depends on the singletons the share scope resolves.
+ * The Module Federation container loader, the one place in the framework that knows federation
+ * exists: the neutral host orchestrates loading through a port and this implements it (§6).
  */
 
 import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -21,19 +18,11 @@ interface FederationRuntime {
 }
 
 export interface Mf2LoaderOptions {
-  /**
-   * Injected so tests and the in-process path never load the real runtime, and
-   * so this module has no import-time side effects.
-   */
+  /** Injected so this module has no import-time side effects and tests need no real runtime. */
   readonly runtime: FederationRuntime
 }
 
-/**
- * The container a definition is exposed from, or nothing when the descriptor
- * does not name one. The adapter is the package allowed to know this: the
- * neutral record keeps it in `adapterData` on purpose, so a caller that needs
- * it asks here rather than casting the private payload for itself.
- */
+/** The neutral record keeps this in `adapterData`, so a caller asks here rather than casting. */
 export function containerNameOf(entry: NeutralRegistryEntry): string | undefined {
   const data = entry.adapterData as { containerName?: unknown } | undefined
   return typeof data?.containerName === 'string' && data.containerName !== ''
@@ -69,25 +58,10 @@ function readAdapterData(entry: NeutralRegistryEntry): {
 }
 
 /**
- * Hides `window.__TSR_ROUTER__` while a container's modules evaluate.
- *
- * TanStack's router constructor publishes every router it builds there, and
- * `@tanstack/router-plugin` injects a development HMR shim into each route
- * module that reads it back: finding a route already registered under its own
- * id, the module concludes it is a hot update of that route and copies the
- * live route's component onto itself.
- *
- * Both halves assume one router per page. A shell has one per mount, and every
- * App's root route is `__root__`, so a freshly loaded container recognised the
- * *shell's* root as its own previous self and adopted the shell's component —
- * which rendered the entire shell, recursively, inside the App that had just
- * mounted. Nothing in a unit test or a production build shows this: the shim
- * is emitted only in development.
- *
- * Removing the global for the duration of the load is enough, because the shim
- * does nothing when it finds no router. It is restored afterwards only if
- * nothing published a newer one in the meantime — that router is now the page's
- * most recent, and overwriting it would resurrect a stale reference.
+ * Hides `window.__TSR_ROUTER__` while a container's modules evaluate: the router plugin's
+ * development HMR shim reads it back and, finding the shell's `__root__` registered under the
+ * same id, copies the shell's component onto the App that just mounted. It is restored only if
+ * nothing published a newer router meanwhile, which would resurrect a stale reference.
  */
 async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
   const owner = globalThis as { __TSR_ROUTER__?: unknown }
@@ -104,14 +78,8 @@ async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T>
 }
 
 /**
- * The manifest is fetched inside the first `loadRemote` for a container, not by
- * `registerRemotes` — registration is bookkeeping and cannot fail on a URL. So
- * the two failures a caller has to tell apart, a container that could not be
- * found at all and a chunk of one that could, both surface from the same call.
- * Module Federation reports the first as `RUNTIME-003` and throws a plain Error
- * carrying that code in its message, which is the only machine-readable part of
- * it; a runtime that stops saying so degrades to `load/entry-failure` rather
- * than to a wrong repair step.
+ * Module Federation reports a container it could not find at all as `RUNTIME-003`, in the
+ * message of a plain Error, which is the only machine-readable part of it.
  */
 const MANIFEST_ERROR_CODE = '#RUNTIME-003'
 
@@ -119,11 +87,7 @@ function isManifestFailure(error: unknown): boolean {
   return error instanceof Error && error.message.includes(MANIFEST_ERROR_CODE)
 }
 
-/**
- * Registration is idempotent per container: several definitions exported by one
- * container register it once, which is also why a developer override has to be
- * consistent across that container's exports.
- */
+/** Registration is idempotent per container, so an override must be consistent across it. */
 export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLoader {
   const registered = new Set<string>()
 
@@ -201,11 +165,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
   return loader
 }
 
-/**
- * A container may export one App, one or more Widgets, or both, and a default
- * export is allowed when there is exactly one definition. The generated entry
- * narrows this to a single definition per expose path.
- */
+/** A default export is allowed only when the module holds exactly one definition. */
 function extractDefinition(moduleExports: unknown, id: string): MfeDefinition {
   if (isMfeDefinition(moduleExports)) return moduleExports
 

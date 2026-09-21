@@ -115,8 +115,7 @@ describe('Module Federation options', () => {
     const plan = planContainer({ containerRoot: root, buildTime: '2026-01-02T03:04:05.000Z' })
     const options = buildFederationOptions(plan)
 
-    // The plugin injects this into the emitted manifest rather than through
-    // the federation plugin's own hook, which Rsbuild replaces.
+    // Injected into the emitted manifest rather than through the hook Rsbuild replaces (§13).
     const manifest = withFrameworkMetadata(
       { id: 'acme_operations', metaData: { name: 'acme_operations', type: 'app' } },
       plan.generated.frameworkMetadata,

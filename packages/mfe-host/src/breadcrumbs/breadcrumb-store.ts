@@ -1,8 +1,7 @@
 /**
- * Breadcrumb composition across mounts: order contributions parent-to-child and
- * publish the composed trail, so a nested App contributes exactly as a
- * top-level one does. The equality rules matter as much as the ordering — an
- * inline array of unchanged records must be a no-op for shell subscribers.
+ * Breadcrumb composition across mounts, so a nested App contributes exactly as a top-level
+ * one does. The equality rules matter as much as the ordering: an inline array of unchanged
+ * records must be a no-op for shell subscribers.
  */
 
 import {
@@ -18,7 +17,6 @@ import {
 const EMPTY_TRAIL: readonly BreadcrumbItem[] = Object.freeze([])
 
 export interface BreadcrumbContributionHandle {
-  /** Publishes the latest committed route-derived items for this mount. */
   update(items: readonly BreadcrumbItem[]): void
   remove(): void
 }
@@ -28,15 +26,13 @@ interface Contribution {
   readonly depth: number
   /** Insertion order within a depth, so siblings stay deterministic. */
   readonly sequence: number
-  /** Route-derived items, composed when no override is active. */
+  /** Composed when no override is active. */
   routeItems: readonly BreadcrumbItem[]
-  /** Active override; replaces this mount's own portion of the trail only. */
+  /** Replaces this mount's own portion of the trail only. */
   override: readonly BreadcrumbItem[] | null
-  /** Identifies the component that installed the override. */
   overrideOwner: string | null
   /** Navigation counter, so an override cannot outlive the navigation it began in. */
   navigationId: number
-  /** The navigation the active override was bound to. */
   overrideNavigationId: number
 }
 
@@ -101,9 +97,8 @@ export class BreadcrumbStore {
   }
 
   /**
-   * Installs the single permitted override for a mount, bound to the navigation
-   * it mounted in. A second, competing override produces an explicit diagnostic
-   * rather than a result that depends on render order.
+   * A second, competing override produces an explicit diagnostic rather than a result that
+   * depends on render order.
    */
   setOverride(mountToken: string, items: readonly BreadcrumbItem[], ownerToken: string): void {
     const contribution = this.#contributions.get(mountToken)
@@ -113,9 +108,8 @@ export class BreadcrumbStore {
       contribution.override !== null &&
       contribution.overrideNavigationId === contribution.navigationId
 
-    // An owner whose override was retired by a navigation cannot install it
-    // again: its steps belong to the route it began in, and a hook that somehow
-    // outlived that navigation would otherwise leak them into the next one.
+    // An owner whose override a navigation retired cannot install it again: its steps
+    // belong to the route it began in and would otherwise leak into the next one.
     if (
       !hasLiveOverride &&
       contribution.overrideOwner === ownerToken &&
@@ -125,8 +119,8 @@ export class BreadcrumbStore {
     }
 
     if (hasLiveOverride && contribution.overrideOwner !== ownerToken) {
-      // A developer mistake, reported and then ignored either way, so the
-      // report and its sentences leave a production build.
+      // Reported and then ignored either way, so the report and its sentences leave a
+      // production build.
       if (DEV) {
         this.#options.diagnostics?.report(
           createMfeError({
@@ -145,7 +139,6 @@ export class BreadcrumbStore {
     }
 
     if (hasLiveOverride && breadcrumbTrailEqual(contribution.override ?? EMPTY_TRAIL, items)) {
-      // Equal items on an ordinary rerender: keep the published trail as it is.
       return
     }
 
@@ -173,8 +166,8 @@ export class BreadcrumbStore {
     contribution.navigationId += 1
     if (contribution.override === null) return
 
-    // `overrideOwner` deliberately survives: it is what identifies the owner
-    // whose binding this navigation just retired.
+    // `overrideOwner` deliberately survives: it identifies the owner whose binding this
+    // navigation just retired.
     contribution.override = null
     this.#compose()
   }

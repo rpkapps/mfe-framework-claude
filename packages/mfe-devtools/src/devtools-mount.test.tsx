@@ -1,18 +1,8 @@
 /**
- * What a page that never opted in pays.
- *
- * The assertions that matter here are about work *not* happening, so they count
- * calls rather than inspect the DOM: "renders nothing" is easy to satisfy by
- * accident while still fetching the chunk, and the fetch is the cost.
- *
- * Each case re-imports the modules, because the store is module state on
- * purpose — one shell per document — and a test that shared it with the
- * previous case would be asserting against whatever that one left behind.
- *
- * Plain assertions rather than jest-dom's: the matchers come with a type
- * augmentation that `packages/mfe-react/vitest.setup.ts` keeps beside its own
- * `expect.extend` so the two cannot drift (decisions.md §11), and reaching for
- * them here would mean a second copy of that pairing for two assertions.
+ * What a page that never opted in pays, counted as calls rather than read off the DOM, because
+ * "renders nothing" is easy to satisfy while still fetching the chunk. Plain assertions rather
+ * than jest-dom's, whose type augmentation is kept beside the `expect.extend` in
+ * `packages/mfe-react/vitest.setup.ts` so the two cannot drift (decisions.md §11).
  */
 
 import { readFileSync } from 'node:fs'
@@ -35,14 +25,7 @@ vi.mock('./load-panel.ts', () => ({
   forgetPanel: (): void => {},
 }))
 
-/**
- * A stand-in for the real panel: the chunk's contents are not what is on trial.
- *
- * The promise is created once per case rather than per call, because `use()`
- * suspends again on every promise it has not seen — a loader that returned a
- * fresh one each render would never resolve. That is the invariant the real
- * `load-panel.ts` exists to hold, so the double has to hold it too.
- */
+/** One promise per case rather than per call, because `use()` suspends again on every promise it has not seen. */
 let panelModule: Promise<{ DevtoolsPanel: () => ReactNode }>
 
 function stubPanel(): Promise<{ DevtoolsPanel: () => ReactNode }> {
@@ -91,18 +74,15 @@ describe('the devtools mount', () => {
     window.localStorage.setItem(DEVTOOLS_STORAGE_KEY, '1')
     const { MfeDevtools } = await mount()
 
-    // Awaited, because the chunk suspends: an un-awaited `act` leaves the
-    // boundary showing its fallback for as long as the assertion cares to look.
+    // Awaited, because an un-awaited `act` leaves the boundary showing its fallback.
     await act(async () => {
       render(<MfeDevtools />)
       await panelModule
     })
 
     expect(screen.queryByRole('button', { name: 'Open the developer tools' })).not.toBeNull()
-    // Called, not called exactly once: `use` renders again once the promise
-    // settles, so a count here would be asserting React's render passes. That
-    // the second call returns the *same* promise is what matters, and it is
-    // `load-panel.test.ts` that holds it.
+    // Called, not called exactly once: `use` renders again once the promise settles, so a count
+    // here would be asserting React's render passes.
     expect(loadPanel).toHaveBeenCalled()
   })
 
@@ -133,13 +113,9 @@ describe('the devtools mount', () => {
 })
 
 /**
- * The code-splitting boundary is a property of the import graph, not of a
- * render, so it is asserted against the source.
- *
- * A static re-export of the panel from the barrel — the natural thing to write
- * — would put every component it imports back into the host's initial chunk and
- * leave the dynamic import doing nothing. Nothing about that failure is visible
- * at runtime: the tool still works, it just stopped being free.
+ * The code-splitting boundary is a property of the import graph, not of a render, so it is
+ * asserted against the source: a static re-export from the barrel would leave the dynamic import
+ * doing nothing, and nothing about that is visible at runtime (§22).
  */
 describe('the public barrel', () => {
   const here = dirname(fileURLToPath(import.meta.url))

@@ -64,8 +64,7 @@ describe('generated inventory', () => {
       'src/routes/settings.tsx': ROUTE,
     })
 
-    // A plan carries real OS paths, so Windows spells them with backslashes;
-    // the names below are the one spelling the generated imports use.
+    // A plan carries real OS paths, so these names are the generated spelling of them.
     const names = plan.generated.files
       .map(file =>
         file.path
@@ -79,19 +78,13 @@ describe('generated inventory', () => {
       '.mfe/.env.example',
       '.mfe/.gitignore',
       '.mfe/config.ts',
-      // Tells TypeScript that the stylesheet import below is a module; the
-      // bundler turns it into the side effect that injects it.
       '.mfe/css.d.ts',
       '.mfe/entries/app.ts',
-      // The bundler entry. A container has one only because a bundler requires
-      // one; nothing ever requests it.
       '.mfe/entries/container.ts',
       '.mfe/fetch.ts',
       '.mfe/meta.ts',
       '.mfe/mfe-registry.json',
       '.mfe/runtime-config.schema.json',
-      // The container's own stylesheet. A container that renders the design
-      // system also gets .mfe/entries/style-root.tsx beside it.
       '.mfe/styles.css',
       '.mfe/tsconfig.paths.json',
     ])
@@ -131,10 +124,7 @@ describe('generated inventory', () => {
   })
 })
 
-/**
- * A container that renders the design system, installed the way pnpm installs
- * a linked package.
- */
+/** A container that renders the design system, installed the way pnpm installs a linked one. */
 const TECTON_MANIFEST = {
   dependencies: {
     react: '^19.0.0',
@@ -152,8 +142,6 @@ describe('the container stylesheet', () => {
     expect(stylesheet).toContain('@import "tailwindcss/theme.css" layer(theme);')
     expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
     expect(stylesheet).toContain('@import "@tecton/react/styles/scoped.css";')
-    // Preflight, the fonts and every variable belong to the shell: a second
-    // copy of those would repaint the page rather than the container.
     expect(stylesheet).not.toContain('@import "tailwindcss";')
     expect(stylesheet).not.toContain('globals.css')
     expect(stylesheet).not.toContain(':root {')
@@ -164,9 +152,6 @@ describe('the container stylesheet', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY }, TECTON_MANIFEST)
     const stylesheet = fileFor('styles.css')
 
-    // Every class the container renders comes from its own src/, so the one
-    // entry below already covers them; nothing under node_modules needs a
-    // source of its own.
     expect(stylesheet).toContain('@source "../src/**/*.{ts,tsx}";')
   })
 
@@ -221,11 +206,8 @@ describe('the style root', () => {
     const source = fileFor('entries/style-root.tsx')
 
     expect(source).toContain("import { ThemeRoot } from '@tecton/react/tecton/theme-root'")
-    // The overlay container is the mount's own body-level root, so the design
-    // system's overlays land inside this container's scope.
     expect(source).toContain('<ThemeRoot overlayContainer={overlayContainer}')
     expect(source).toContain("overlayContainer.setAttribute('data-tecton-root', '')")
-    // Out of layout, exactly as the scope root above it is.
     expect(source).toContain("const LAYOUT_NEUTRAL = { display: 'contents' } as const")
   })
 
@@ -289,8 +271,6 @@ describe('#mfe/fetch', () => {
     expect(source).not.toContain('config.oidcIssuer')
   })
 
-  // §10.4: the first declared API is the default base for relative URLs, and a
-  // later { api: true } entry extends the allowlist without changing it.
   it('makes the first declared API the default base', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
@@ -302,8 +282,6 @@ describe('#mfe/fetch', () => {
 
     expect(source).toContain('Object.freeze([])')
     expect(source).not.toContain('apiBaseUrl:')
-    // Nothing to read, so the module must not import a config that a
-    // configuration-less container never generates.
     expect(source).not.toContain("from './config.ts'")
   })
 })
@@ -331,13 +309,6 @@ describe('the recorded build time', () => {
   const wroteMeta = (written: readonly { readonly path: string }[]): boolean =>
     written.some(file => file.path.endsWith('meta.ts'))
 
-  /*
-   * A watching build regenerates before every compilation, and `meta.ts` is a
-   * module the container imports. A time that advanced on every compilation
-   * would make every compilation a source change, so the container would
-   * rebuild forever — which a browser sees as hot updates it cannot fetch and
-   * answers with a full page reload.
-   */
   it('stays put while the generated shape is unchanged', () => {
     const root = createContainer({ 'src/mfe.ts': APP_ENTRY })
 
@@ -394,9 +365,6 @@ describe('shell registry descriptor', () => {
 
     expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual({
       manifestUrl: 'mf-manifest.json',
-      // Federation's name and expose path: a shell registers the remote under
-      // these before it can fetch anything, so a descriptor without them
-      // cannot produce a loadable registry entry.
       container: 'acme_operations',
       entries: { operations: './app' },
       contractMajor: 1,
@@ -439,10 +407,6 @@ export const orderRow = createWidget({
   })
 })
 
-/**
- * A host renders a Widget catalogue before it fetches any container, so what a
- * Widget takes has to be legible from the descriptor alone.
- */
 describe('published Widget contract', () => {
   const WIDGET = `
 import { createWidget } from '@company/mfe-react'
@@ -477,8 +441,6 @@ export const alertPanel = createWidget({
           severity: { enum: ['info', 'warning', 'critical'], default: 'info' },
           muted: { type: 'boolean' },
         },
-        // `severity` has a default and `muted` is optional, so neither is
-        // required: a catalogue can offer the Widget with only an alert id.
         required: ['alertId'],
         additionalProperties: false,
       },
@@ -494,12 +456,6 @@ export const alertPanel = createWidget({
     expect(descriptor.definitions[0]).not.toHaveProperty('contract')
   })
 
-  /**
-   * Runtime configuration fails the build when its schema cannot be read,
-   * because a deployment that cannot be validated ships broken. A Widget is not
-   * that: it still mounts and still validates its own inputs, so an exotic
-   * schema costs it a catalogue form rather than the ability to ship.
-   */
   it('publishes the events alone when the inputs schema is not statically readable', () => {
     const { fileFor } = planFixture({
       'src/mfe.ts': `

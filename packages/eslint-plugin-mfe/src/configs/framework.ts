@@ -1,8 +1,6 @@
 /**
- * The `framework` preset, for the packages that implement the framework itself.
- * On top of the shared correctness rules it holds them to the package import
- * DAG: the neutral packages stay neutral, and no framework package takes a
- * state-management or vendor-telemetry dependency for every consumer.
+ * The `framework` preset, for the packages that implement the framework itself: on top of the
+ * shared rules it holds them to the package import DAG, so the neutral packages stay neutral.
  */
 
 import type { Linter } from 'eslint'
@@ -35,14 +33,12 @@ import {
 
 export type FrameworkPresetOptions = PresetOptions
 
-/** A sibling of the React adapter, not a consumer of it. */
 const SIBLING =
   'Package boundary: the legacy adapter is a sibling of the React adapter, not a consumer of it. Share code through @company/mfe-core.'
 
 /**
- * Per-package zones. Each mirrors one rule of
- * `tools/boundaries/check-boundaries.mjs`, so a developer meets in the editor
- * the same boundary CI enforces from the manifests.
+ * Each zone mirrors one rule of `tools/boundaries/check-boundaries.mjs`, so a developer meets in
+ * the editor the same boundary CI enforces from the manifests.
  */
 function packageZones(
   files: readonly string[],
@@ -141,7 +137,6 @@ function packageZones(
   ]
 }
 
-/** Builds the `framework` preset. */
 export function framework(options: FrameworkPresetOptions = {}): Linter.Config[] {
   const files = options.files ?? TS_FILES
   const reactFiles = resolveReactFiles(files, options.reactFiles)

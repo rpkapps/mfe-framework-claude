@@ -1,11 +1,7 @@
 /**
- * The authenticated `fetch` the shell hands to MFEs: a wrapper, never a patch,
- * with the standard `fetch` signature.
- *
- * It resolves relative URLs against the configured API base rather than the
- * shell document URL, attaches the bearer token only to declared API origins,
- * and retries once after a 401 when the request can genuinely be sent twice.
- * Attaching a token is not authorization: a 403 passes through untouched.
+ * The authenticated `fetch` the shell hands to MFEs: a wrapper, never a patch, with the
+ * standard `fetch` signature. Attaching a token is not authorization, so a 403 passes
+ * through untouched.
  */
 
 import { createMfeError, DEV } from '@company/mfe-core'
@@ -27,20 +23,19 @@ export interface AccessTokenSource {
 
 export interface AuthenticatedFetchOptions {
   /**
-   * The default base for relative request URLs. Structurally optional so a
-   * transport used only with absolute URLs can omit it; a relative request with
-   * no base fails before any network activity.
+   * Structurally optional so a transport used only with absolute URLs can omit it; a relative
+   * request with no base fails before any network activity.
    */
   readonly apiBaseUrl?: string | URL
-  /** Origins the author declared as APIs. Only these receive the bearer token. */
+  /** Origins the author declared as APIs; only these receive the bearer token. */
   readonly allowedOrigins: Iterable<string | URL>
   readonly tokens: AccessTokenSource
   readonly diagnostics?: DiagnosticsHub
   /** Gates developer-only warnings that would be noise in production. */
   readonly isDevelopment?: boolean
   /**
-   * The `fetch` to wrap. Defaults to a thin delegate that reads
-   * `globalThis.fetch` at call time — the global is read, never written.
+   * Defaults to a thin delegate that reads `globalThis.fetch` at call time — the global is read,
+   * never written.
    */
   readonly fetch?: FetchLike
   /** Attribution for diagnostics, e.g. the definition this transport serves. */
@@ -49,9 +44,8 @@ export interface AuthenticatedFetchOptions {
 
 /** Both auth tiers wired to one session, so they cannot drift apart. */
 export interface AuthTransport {
-  /** Tier one: the standard-signature authenticated `fetch`. */
   readonly fetch: FetchLike
-  /** Tier two: the escape hatch for WebSocket, EventSource and foreign HTTP stacks. */
+  /** The escape hatch for WebSocket, EventSource and foreign HTTP stacks. */
   readonly getAccessToken: GetAccessToken
 }
 
@@ -124,11 +118,7 @@ function parseApiBaseUrl(value: string | URL | undefined, id: string): URL | nul
   return parsed
 }
 
-/**
- * Plain `new URL(input, base)` resolution, so a developer reasons about it with
- * the rules they already know — a trailing slash on the base is significant. A
- * `Request` carries a URL the platform already resolved; it is used as-is.
- */
+/** Plain `new URL(input, base)`, so a trailing slash on the base is significant as usual. */
 function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: string): URL {
   if (isRequest(input)) return new URL(input.url)
 
@@ -166,11 +156,7 @@ function resolveRequestUrl(input: RequestInfo | URL, base: URL | null, id: strin
   }
 }
 
-/**
- * A `Request`'s body is a one-shot stream. The framework deliberately does not
- * buffer a caller's upload just in case a 401 arrives, so a body-carrying
- * `Request` is never auto-retried.
- */
+/** The framework does not buffer a caller's upload just in case a 401 arrives. */
 function decideRequestReplay(request: Request, init: RequestInit | undefined): ReplayDecision {
   if (isStreamBody(init?.body)) return { replayable: false, reason: STREAM_BODY_REASON }
   if (request.bodyUsed || request.body !== null) {
@@ -183,7 +169,6 @@ interface RequestPlan {
   readonly method: string
   /** The caller's cancellation, as `fetch` itself would resolve it. */
   readonly signal: AbortSignal | undefined
-  /** True when the caller set `Authorization` itself. */
   readonly hasCallerAuthorization: boolean
   readonly replay: ReplayDecision
   /** Issues one attempt, applying `authorization` when it is not `null`. */
@@ -218,8 +203,8 @@ function planRequest(
         try {
           attempt = new Request(request, { ...init, headers })
         } catch {
-          // Already-consumed requests cannot be rebuilt. Pass the caller's own
-          // object through rather than inventing a different request.
+          // Already-consumed requests cannot be rebuilt, so the caller's own object goes
+          // through rather than a different request.
           return innerFetch(request, init)
         }
         return innerFetch(attempt)
@@ -239,8 +224,8 @@ function planRequest(
     send: authorization => {
       const headers = new Headers(snapshot)
       if (authorization !== null) headers.set('Authorization', authorization)
-      // The resolved absolute URL is what actually goes out, so that is what
-      // the wrapped implementation — and anything inspecting it — receives.
+      // The resolved absolute URL is what actually goes out, so that is what the wrapped
+      // implementation receives.
       return innerFetch(url.href, { ...init, headers })
     },
   }
@@ -262,14 +247,13 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
   // Read at call time and never assigned: the global stays the browser's.
   const innerFetch: FetchLike = options.fetch ?? ((input, init) => globalThis.fetch(input, init))
 
-  // One warning per origin per transport. The point is discoverability, and a
-  // warning repeated on every request buries the rest of the console.
+  // One warning per origin per transport: repeated on every request it would bury the
+  // rest of the console.
   const warnedOrigins = new Set<string>()
 
   function warnUndeclaredOrigin(origin: string, method: string): void {
-    // Guarded at compile time as well as at run time: this warning only ever
-    // fires for a developer, so a production build drops the branch, the set it
-    // consults and the long sentence it would have written.
+    // Guarded at compile time as well as at run time, so a production build drops the
+    // branch, the set it consults and the long sentence it would have written.
     if (!DEV) return
     if (!isDevelopment || diagnostics === undefined) return
     if (warnedOrigins.has(origin)) return
@@ -316,22 +300,20 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
       return await plan.send(null)
     }
 
-    // An explicit Authorization header is the caller's own credential. The
-    // framework neither replaces it nor refreshes on its behalf.
+    // An explicit Authorization header is the caller's own credential, which the framework
+    // neither replaces nor refreshes on its behalf.
     if (plan.hasCallerAuthorization) return await plan.send(null)
 
     const token = await tokens.getAccessToken(tokenOptions(plan.signal))
     const response = await plan.send(token === null ? null : `Bearer ${token}`)
 
-    // A 401 on a request that carried no framework token is not something a
-    // refresh can fix: the session has already failed and the shell is
-    // re-authenticating.
+    // A 401 on a request that carried no framework token is not something a refresh can
+    // fix: the session has already failed and the shell is re-authenticating.
     if (response.status !== 401 || token === null) return response
 
     if (!plan.replay.replayable) {
       warnNotReplayable(url.origin, plan.method, plan.replay.reason)
-      // Renew anyway: this request cannot be replayed, but the next one would
-      // otherwise go out with the same rejected token.
+      // Renew anyway: the next request would otherwise go out with the same rejected token.
       await tokens.getAccessToken(tokenOptions(plan.signal, token))
       return response
     }

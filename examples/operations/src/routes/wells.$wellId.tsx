@@ -29,11 +29,8 @@ import {
   wellDesigns,
 } from '../components/well-design-card/page.tsx'
 
-/**
- * Per-instance data arrives through this App's own URL. Mounted at /operations
- * this route is /operations/wells/<id>; mounted anywhere else it moves with the
- * boundary, and nothing in here parses the prefix to find the well id.
- */
+/** Per-instance data arrives through this App's own URL; nothing in here parses the mount prefix to
+ * find the well id. */
 export const Route = createFileRoute('/wells/$wellId')({
   component: WellDetail,
 })
@@ -136,9 +133,8 @@ function WellDetail(): ReactNode {
       </StatGroup>
 
       {/*
-       * The card is fixed-width, so it gets a column of its own and the rest
-       * of the width goes to the facts beside it rather than to 900px of
-       * background.
+       * The card is fixed-width, so it gets a column of its own and the rest of the width goes to
+       * the facts beside it.
        */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <WellDesignCard design={design} />

@@ -1,12 +1,5 @@
-/**
- * A route test written the way an author writes one: the route's own loader and
- * component, the real Query client the mount owns, and the generated `#mfe/fetch`
- * answered by a fixture.
- *
- * Nothing here is a second configuration API. `src/queries/assets.ts` still
- * imports `fetch` from '#mfe/fetch' exactly as it ships; only the test runner's
- * resolution points at the fixture, and the test supplies the response.
- */
+/** Nothing here is a second configuration API: the source imports `#mfe/fetch` exactly as it ships,
+ * and only the test runner's resolution points at a fixture. */
 
 import {
   mfeRequests,
@@ -24,8 +17,7 @@ import operations from '../mfe.ts'
 let mounted: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new
-  // handle by the time this one resolves, and clearing then would drop it.
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = mounted
   mounted = null
   await dispose?.()

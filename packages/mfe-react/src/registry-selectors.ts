@@ -1,10 +1,6 @@
 /**
- * Reading the registry from a host component.
- *
- * The filters are not the interesting part; agreeing on them is. Two surfaces
- * in one shell disagreeing about whether a hidden entry is offered is a bug
- * nobody can see in either one alone. These select and nothing else: what an
- * entry looks like is the host's, and stays there.
+ * Reading the registry from a host component, written once because two surfaces disagreeing
+ * about whether a hidden entry is offered is a bug nobody can see in either one alone (§26).
  */
 
 import { useMemo } from 'react'
@@ -13,17 +9,13 @@ import { boundaryDefinitionId } from '@company/mfe-host'
 
 import { useMfeRuntime } from './runtime-context.tsx'
 
-/** Every accepted entry, in registry order. What a diagnostics view lists. */
+/** Every accepted entry, in registry order. */
 export function useRegistryEntries(): readonly NeutralRegistryEntry[] {
   const { entries } = useMfeRuntime('a registry view').registry
   return useMemo(() => [...entries.values()], [entries])
 }
 
-/**
- * The Apps a host offers: routable, and not opted out of being listed. `hidden`
- * is a listing rule, not a security boundary — a hidden App reached by URL is
- * still mounted and still named.
- */
+/** `hidden` is a listing rule, not a security boundary: a hidden App reached by URL mounts. */
 export function useApps(): readonly NeutralRegistryEntry[] {
   const entries = useRegistryEntries()
   return useMemo(
@@ -32,7 +24,6 @@ export function useApps(): readonly NeutralRegistryEntry[] {
   )
 }
 
-/** The Widgets a host offers: non-routable, and not opted out of being listed. */
 export function useWidgets(): readonly NeutralRegistryEntry[] {
   const entries = useRegistryEntries()
   return useMemo(
@@ -41,19 +32,12 @@ export function useWidgets(): readonly NeutralRegistryEntry[] {
   )
 }
 
-/** One App's capability page, with the App that published it. */
 export interface CapabilityPage {
   readonly app: NeutralRegistryEntry
   readonly capability: CapabilityDescriptor
 }
 
-/**
- * Every capability page the listed Apps publish, flattened, and filtered to one
- * capability when a name is given. The filter is the reason this exists: a host
- * renders these under a heading that names one of them, and flattening without
- * filtering puts every page under whichever heading was written first. `label`
- * is not defaulted — the registry quarantines an entry that publishes none.
- */
+/** Unfiltered flattening would put every page under whichever heading was written first. */
 export function useCapabilityPages(name?: CapabilityName): readonly CapabilityPage[] {
   const apps = useApps()
   return useMemo(
@@ -67,22 +51,16 @@ export function useCapabilityPages(name?: CapabilityName): readonly CapabilityPa
   )
 }
 
-/** What the URL says is mounted, and what the registry knows about it. */
 export interface ActiveDefinition {
-  /** The id in the URL, which is the one fact that is always true. */
+  /** The id in the URL, the one fact that is always true. */
   readonly id: string
   /** Undefined when the URL names an App the registry does not know. */
   readonly entry: NeutralRegistryEntry | undefined
 }
 
 /**
- * The App the given location is inside, or `null` on a page the host owns.
- *
- * The location is a parameter because the host owns its router; the answer is
- * derived from the path rather than from a route parameter, so it is the same
- * answer a navigation blocker gets about the same URL. An id the registry does
- * not know still comes back, with no entry, because the boundary below is
- * already reporting that it could not be loaded.
+ * The App the given location is inside, or `null` on a page the host owns; the location is a
+ * parameter because the host owns its router (§26).
  */
 export function useActiveDefinition(location: string): ActiveDefinition | null {
   const { entries } = useMfeRuntime('the active definition').registry
@@ -91,8 +69,7 @@ export function useActiveDefinition(location: string): ActiveDefinition | null {
   return useMemo(() => {
     if (id === undefined) return null
 
-    // A Widget is never mounted at a boundary, so an id that names one is as
-    // unknown here as an id that names nothing.
+    // A Widget is never mounted at a boundary, so an id naming one counts as unknown.
     const entry = entries.get(id)
     return { id, entry: entry?.definitionKind === 'app' ? entry : undefined }
   }, [entries, id])

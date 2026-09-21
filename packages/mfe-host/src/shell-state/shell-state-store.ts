@@ -1,10 +1,8 @@
 /**
- * Shell-owned live state and its transitions. UI subscribes *per field*, so a
- * theme change never notifies a consumer that only reads the user, and each
- * change is classified because a theme change must not reload data while an
- * identity or group change must retire session-dependent work first.
- *
- * Data for rendering, deliberately not an authorization API.
+ * Shell-owned live state, subscribed to per field so a theme change never notifies a
+ * consumer that only reads the user, and classified because an identity or group change
+ * must retire session-dependent work while a theme change must not. Data for rendering,
+ * deliberately not an authorization API.
  */
 
 import {
@@ -28,7 +26,6 @@ export interface ShellStatePatch {
   readonly theme?: ShellTheme
 }
 
-/** What changed, and what the host must do about it. */
 export interface ShellStateChange {
   readonly changed: readonly ShellStateField[]
   readonly transitions: readonly ShellTransition[]
@@ -82,7 +79,7 @@ export class ShellStateStore {
     })
   }
 
-  /** The current coherent snapshot. Route callbacks read this at invocation time. */
+  /** Route callbacks read this at invocation time. */
   readonly getSnapshot = (): ShellState => this.#state
 
   readonly getUser = (): ShellUser | null => this.#state.user
@@ -106,9 +103,8 @@ export class ShellStateStore {
   }
 
   /**
-   * Replaces the snapshot only when state actually changed, preserving
-   * unchanged field references. Observers run before field listeners, so the
-   * host retires obsolete work before new-session state reaches the UI.
+   * Observers run before field listeners, so the host retires obsolete work before
+   * new-session state reaches the UI.
    */
   apply(
     patch: ShellStatePatch,
@@ -140,8 +136,8 @@ export class ShellStateStore {
     const identity = classifyIdentityChange(previous.user, nextUser)
     if (identity) transitions.push(identity)
 
-    // A reordered but identical group set is not a permission change, so it
-    // must not retire anything.
+    // A reordered but identical group set is not a permission change, so it must not
+    // retire anything.
     if (previous.groups !== nextGroups && !sameGroupSet(previous.groups, nextGroups)) {
       transitions.push({ kind: 'groups' })
     }

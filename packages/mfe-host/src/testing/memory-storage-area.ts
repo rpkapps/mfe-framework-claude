@@ -1,9 +1,6 @@
 /**
- * An in-memory `StorageAreaLike` a host or a test may inject.
- *
- * Never a fallback: the framework does not silently switch to memory when a
- * browser store is unavailable, because a value that quietly stops persisting is
- * worse than a visible failure.
+ * An in-memory `StorageAreaLike` a host or a test may inject, never a fallback: a value
+ * that quietly stops persisting is worse than a visible failure.
  */
 
 import type { StorageAreaLike } from '../storage/types.ts'
@@ -12,8 +9,8 @@ export interface MemoryStorageArea extends StorageAreaLike {
   reset(): void
   snapshot(): Readonly<Record<string, string>>
   /**
-   * Call counts. Assertions about how often the store touches the browser live
-   * here rather than on the store itself, so no counter ships in production.
+   * Assertions about how often the store touches the browser live here rather than on the store
+   * itself, so no counter ships in production.
    */
   readonly calls: { reads: number; writes: number; removes: number }
 }

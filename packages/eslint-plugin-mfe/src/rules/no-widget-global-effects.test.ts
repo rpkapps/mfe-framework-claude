@@ -7,8 +7,7 @@ const APP_FILE = 'examples/reports/src/app/routes/index.ts'
 
 createRuleTester().run('mfe/no-widget-global-effects', rule, {
   valid: [
-    // With no Widget scopes configured the rule is inert: ownership is
-    // declared, never guessed from a path.
+    // With no Widget scopes configured the rule is inert: ownership is declared, never guessed.
     {
       code: "history.pushState(null, '', '/reports')",
       filename: WIDGET_FILE,
@@ -17,13 +16,11 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       code: "document.title = 'Reports'",
       filename: 'src/widgets/summary/panel.ts',
     },
-    // An App owns its URL and its title; only Widget scopes are guarded.
     {
       code: "history.pushState(null, '', '/reports')\ndocument.title = 'Reports'",
       filename: APP_FILE,
       options: WIDGET_SCOPES,
     },
-    // The repair the message asks for.
     {
       code: "ctx.emit('navigate', { to: '/reports' })",
       filename: WIDGET_FILE,
@@ -34,7 +31,6 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
     },
-    // Shadowing: a router history object of the same name.
     {
       code: "const history = createMemoryHistory()\nhistory.pushState(null, '', '/reports')",
       filename: WIDGET_FILE,
@@ -45,14 +41,12 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
     },
-    // Shadowing: a virtual document in a test double or an SSR shim.
     {
       code: "export function render(document: Document) {\n  document.title = 'ignored'\n}",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
     },
-    // Querying and mutating the Widget's own subtree is exactly what a Widget
-    // is for.
+    // Querying and mutating the Widget's own subtree is exactly what a Widget is for.
     {
       code: "const root = document.querySelector('.mfe-widget-root')",
       filename: WIDGET_FILE,
@@ -148,14 +142,12 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       errors: [{ messageId: 'headMetadata', data: { access: 'document.head.innerHTML' } }],
     },
     {
-      // TypeScript spelling: the assertion does not change the owner.
       code: "(window as Window).history.pushState(null, '', '/reports')",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
       errors: [{ messageId: 'history', data: { access: '(window as Window).history.pushState' } }],
     },
     {
-      // A second Widget scope glob, matching a bare `src/widgets` layout.
       code: "document.title = 'Reports'",
       filename: 'src/widgets/summary/panel.ts',
       options: WIDGET_SCOPES,

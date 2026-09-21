@@ -27,18 +27,13 @@ describe('resolveShared', () => {
 
   it("lists the framework's own candidates first, then the design system's contract in its order", () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
-      // The framework packages carry React context across the boundary; a
-      // second copy makes every framework hook fail with "rendered outside any
-      // mount", which is what a real federated page showed. The router and the
-      // query client carry their own.
+      // A second copy of these makes every framework hook fail with "rendered outside any mount".
       '@company/mfe-core',
       '@company/mfe-host',
       '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      // Then `@tecton/react/federation/shared`, verbatim and in its order: the
-      // reason for each of these is the design system's to state, and a change
-      // there is meant to reach a container without an edit here.
+      // Then `@tecton/react/federation/shared`, verbatim and in its own order.
       'react',
       'react-dom',
       'sonner',
@@ -112,14 +107,6 @@ describe('resolveShared', () => {
     expect(shared['react']?.requiredVersion).toBe('^19.0.0')
   })
 
-  /**
-   * A regression: this used to omit `requiredVersion` for a workspace
-   * protocol, which reads as "no requirement" but is not. Module Federation
-   * infers one from the nearest package.json when the field is absent, so the
-   * container advertised that it required version "catalog:" and every shell
-   * failed the check — which is exactly what happened the first time the shell
-   * loaded a real container.
-   */
   it('requires the version a workspace protocol resolved to', () => {
     const shared = resolveShared({
       dependencies: { react: 'catalog:' },
@@ -161,11 +148,6 @@ describe('resolveShared', () => {
     expect(Object.keys(resolveShared({ dependencies }))).toEqual(['@tecton/react/', 'react'])
   })
 
-  /**
-   * The shell shares `@tecton/react/` and a container that shared the bare
-   * specifier matched none of the subpath imports, so both sides believed they
-   * were sharing the design system while the container bundled its own.
-   */
   it('shares the design system under the prefix its subpath imports use', () => {
     const shared = resolveShared({
       dependencies: { '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react' },

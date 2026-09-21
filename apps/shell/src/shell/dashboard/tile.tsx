@@ -1,10 +1,6 @@
 /**
- * One tile: a Widget from some other container, mounted inside the shell.
- *
- * The tile owns the frame and the chrome. What is inside it is a mount the
- * shell has no other access to — it cannot reach into the Widget, and the
- * Widget cannot reach out — so everything crossing that line does so as inputs
- * going in and declared events coming out.
+ * One tile: a Widget from another container, mounted inside the shell. The shell cannot reach
+ * into the Widget, so everything crossing the line does so as inputs in and declared events out.
  */
 
 import { memo, type ReactNode } from 'react'
@@ -89,11 +85,7 @@ export function Tile({
         >
           <GripVerticalIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           <PanelTitle>{entry?.title ?? tile.widgetId}</PanelTitle>
-          {/*
-           * `min-w-0` is what lets this shrink before the title does: a flex
-           * item's default minimum is its content, so without it a long input
-           * summary squeezes the Widget's name out of its own header.
-           */}
+          {/* `min-w-0` lets this shrink before the title does: a flex item's default minimum is its content. */}
           <span
             title={summarizeInputs(tile.inputs)}
             className="hidden min-w-0 shrink truncate font-mono text-xs text-muted-foreground sm:block"
@@ -130,13 +122,7 @@ export function Tile({
           </PanelActions>
         </PanelHeader>
 
-        {/*
-         * The skeleton keeps the canvas still while a container is on the wire:
-         * a spinner in an empty box is the height of a spinner, so every tile
-         * below moved as each Widget arrived. The floor is on the fallback
-         * rather than here, or a Widget that is genuinely small would be padded
-         * out to the size of the largest thing the canvas might have mounted.
-         */}
+        {/* The height floor is on the fallback rather than here, or a genuinely small Widget would be padded out to the largest thing the canvas might mount. */}
         <PanelContent>
           {entry === undefined ? (
             <MissingEntry widgetId={tile.widgetId} />
@@ -149,14 +135,7 @@ export function Tile({
   )
 }
 
-/**
- * What a tile looks like while its container is still loading.
- *
- * Shaped like the thing that is coming — a heading, a couple of lines, a
- * figure — rather than a centred spinner, because the point is that the tile
- * occupies the same room before and after. It carries the accessible status
- * the spinner used to.
- */
+/** Shaped like the thing that is coming rather than a centred spinner, so the tile occupies the same room before and after. */
 function MountingSkeleton(): ReactNode {
   return (
     <div role="status" aria-label="Loading the Widget" className="flex min-h-56 flex-col gap-3">
@@ -172,10 +151,7 @@ function MountingSkeleton(): ReactNode {
   )
 }
 
-/**
- * Memoized on the tile, so typing in the input dialog or a sibling's event does
- * not re-render every mount on the canvas.
- */
+/** Memoized on the tile, so typing in the input dialog does not re-render every mount on the canvas. */
 const MountedWidget = memo(function TileWidget({
   tile,
   onEvent,
@@ -187,11 +163,7 @@ const MountedWidget = memo(function TileWidget({
     <DynamicWidget
       widgetId={tile.widgetId}
       {...tile.inputs}
-      /*
-       * Every event this Widget declares, by name. The shell has never been
-       * compiled against it and knows its events only as strings, so the one
-       * subscription it can honestly make is to all of them.
-       */
+      /* The shell was never compiled against this Widget and knows its events only as strings, so it subscribes to all of them. */
       onEvent={onEvent}
       pending={<MountingSkeleton />}
       fallback={({ error, retry }) => (
@@ -212,11 +184,7 @@ const MountedWidget = memo(function TileWidget({
   )
 })
 
-/**
- * A saved dashboard outlives the registry that produced it: a Widget can be
- * withdrawn, renamed or quarantined between reloads. The tile says so instead
- * of disappearing, because a tile that silently vanishes looks like data loss.
- */
+/** A saved dashboard outlives the registry that produced it, and a tile that silently vanished would look like data loss. */
 function MissingEntry({ widgetId }: { readonly widgetId: string }): ReactNode {
   return (
     <div role="alert" className="flex items-start gap-2">

@@ -1,16 +1,6 @@
 /**
- * `useStoredState`, in both the positions it is legal in.
- *
- * The hook has one behaviour with one rule attached to it: the record's scope
- * is decided by where the component renders. Inside a mount it is that
- * definition's; outside one — a component the shell renders above every mount —
- * it is the host page's reserved `@host` scope. There is no second hook and no
- * flag, so the tests here are mostly about proving that the one binding path
- * really is one path: the same component, the same declaration, two scopes.
- *
- * The store under all of it is the runtime's own: a shell no longer builds one
- * before the runtime, so these render against the browser store the way a page
- * does, and read the records back out of it.
+ * `useStoredState` in both the positions it is legal in: the record's scope is decided by where
+ * the component renders, and there is no second hook and no flag (§24).
  */
 
 import { render, screen } from '@testing-library/react'
@@ -77,11 +67,7 @@ function stored(): Record<string, unknown> {
   return written
 }
 
-/**
- * One component, used in both positions. Nothing about it names a scope, which
- * is the property under test: the same source reads the host's record when the
- * chrome renders it and the definition's when an App does.
- */
+/** One component used in both positions; nothing about it names a scope. */
 function ThemeToggle({
   capture,
 }: {
@@ -137,14 +123,7 @@ describe('useStoredState outside any mount', () => {
 })
 
 describe('the scope follows where the component renders', () => {
-  /**
-   * The accepted cost of one hook rather than two: the same component in the
-   * two positions is two records, not one. It is the cost `useCommand` and
-   * `useBreadcrumbs` already carry, and the alternative — a second hook — is a
-   * decision every caller has to restate and can restate wrongly. A component
-   * that must read one record wherever it renders is a host component, so the
-   * host renders it.
-   */
+  /** One hook rather than two costs this: the same component in two positions is two records. */
   it('binds the host scope outside a mount and the definition inside one', async () => {
     const { handle } = wire()
 
@@ -168,8 +147,7 @@ describe('the scope follows where the component renders', () => {
 
     await userEvent.click(chrome as HTMLElement)
 
-    // The host's write lands in `@host:theme` and leaves the App's record
-    // alone; the App's toggle still shows its own value.
+    // The host's write lands in `@host:theme` and leaves the App's record alone.
     expect(chrome).toHaveTextContent('light')
     expect(inApp).toHaveTextContent('dark')
     expect(Object.keys(stored())).toEqual(['@host:theme'])
@@ -215,9 +193,7 @@ describe('the binding a render owns', () => {
   it('releases it on unmount, so the component stops holding the key open', () => {
     const { handle, storage } = wire()
 
-    // A second holder of the same key, declared exactly as the component
-    // declares it. It makes the entry's lifetime observable: the store keeps an
-    // entry alive while anything still holds a binding to it.
+    // A second holder of the same key, which makes the entry's lifetime observable.
     const held = storage.bindHost({
       name: 'theme',
       schema: themeSchema,
@@ -231,14 +207,10 @@ describe('the binding a render owns', () => {
       </MfeProvider>,
     ).unmount()
 
-    // If the unmount released, `held` is now the last binding and dropping it
-    // drops the entry. If it did not, the component's binding is still counted
-    // and the entry survives.
+    // If the unmount released, `held` is now the last binding and dropping it drops the entry.
     held.release()
 
-    // The store makes the active declarations of one key agree, so a surviving
-    // entry rejects a different default rather than rebinding on it. Binding
-    // cleanly is the proof that nothing is holding the key any more.
+    // A surviving entry would reject this different default rather than rebinding on it.
     expect(() =>
       storage
         .bindHost({
@@ -278,19 +250,15 @@ describe('the binding a render owns', () => {
       </MfeProvider>,
     )
 
-    // Counted on the browser store itself, so no counter has to ship in
-    // production for the caching contract to be observable.
+    // Counted on the browser store itself, so no counter has to ship in production.
     const reads = vi.spyOn(Storage.prototype, 'getItem')
     await userEvent.click(screen.getByRole('button', { name: /count:/ }))
 
     expect(screen.getByRole('button', { name: /count:/ })).toHaveTextContent('count:1')
     // The binding is cached: a rerender must not re-read the browser store.
     expect(reads).not.toHaveBeenCalled()
-    // And the spy really does see the store's reads, or the line above would
-    // have passed for the wrong reason.
     handle.runtime.storage.bindHost({ name: 'probe', schema: themeSchema }).release()
     expect(reads).toHaveBeenCalled()
-    // And the setter survives it, so a consumer may put it in a dependency list.
     expect(setters.length).toBeGreaterThan(1)
     expect(new Set(setters).size).toBe(1)
 
@@ -314,8 +282,7 @@ describe('a runtime given an existing hub', () => {
 
     handle.dispose()
 
-    // Disposal removes only what this call added, so the shell's own sink is
-    // still there for whatever the shell reports next.
+    // Disposal removes only what this call added, so the shell's own sink is still there.
     const before = reported.length
     hub.report(
       createMfeError({

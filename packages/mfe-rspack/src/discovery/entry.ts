@@ -1,9 +1,4 @@
-/**
- * Locating the one module definitions are read from. Not a repository scan: a
- * container declares them in `src/mfe.ts`, or `src/mfe.tsx` when the entry
- * itself contains JSX. Two entries would make "which file wins" a deployment
- * question, so exactly one may exist.
- */
+/** Exactly one entry may exist; two would make "which file wins" a deployment question. */
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'

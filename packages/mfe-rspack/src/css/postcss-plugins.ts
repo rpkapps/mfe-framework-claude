@@ -1,12 +1,4 @@
-/**
- * The PostCSS pipeline a container compiles its stylesheet with: Tailwind, then
- * the design system's scope plugin over what Tailwind emitted. The order is the
- * whole point — scoping a stylesheet before its utilities exist would scope
- * nothing. Tailwind is added here because the stylesheet is generated too, so
- * nothing in the project would tell the build to expand it; a container that
- * declares `@tailwindcss/postcss` in its own PostCSS config keeps that one,
- * with the options it configured, and only gets the scope plugin after it.
- */
+/** Tailwind before the scope plugin: scoping before the utilities exist would scope nothing. */
 
 import { createRequire } from 'node:module'
 
@@ -37,11 +29,7 @@ export function containerPostcssPlugins(options: ContainerPostcssOptions): Accep
   return plugins
 }
 
-/**
- * Loaded through `require` on purpose: this is a dependency of the build
- * plugin, not of the container, so it resolves the same way whether the
- * container installed Tailwind or not.
- */
+/** Loaded through `require` because it is the build plugin's dependency, not the container's. */
 function tailwindPlugin(): AcceptedPlugin {
   const exported: unknown = require('@tailwindcss/postcss')
   const factory = (
@@ -51,11 +39,7 @@ function tailwindPlugin(): AcceptedPlugin {
   return factory()
 }
 
-/**
- * PostCSS config files are loaded before a plugin is asked to extend them, and
- * what they contribute is already-constructed plugins, so the name each one
- * announces is what identifies it.
- */
+/** A config contributes already-constructed plugins, so the name each announces identifies it. */
 function declaresTailwind(configured: unknown): boolean {
   if (typeof configured !== 'object' || configured === null) return false
 

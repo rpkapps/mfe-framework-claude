@@ -1,11 +1,7 @@
 /**
- * Reading a published contract, which is the part of the registry view that
- * can be wrong about data it did not produce.
- *
- * A descriptor is emitted by a build the host does not control, so `inputs` is
- * only known to be *some* JSON value: the cases below are the shapes that
- * validate as an entry and still cannot be read as a schema. A developer tool
- * that threw on one of them would take the page down while reporting on it.
+ * A descriptor is emitted by a build the host does not control, so `inputs` is only known to be
+ * *some* JSON value: the cases below are the shapes that validate as an entry and still cannot be
+ * read as a schema.
  */
 
 import { describe, expect, it } from 'vitest'

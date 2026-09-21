@@ -1,12 +1,8 @@
 /**
- * The framework-owned tracer and span: thin objects that forward to the
- * provider's tracer.
- *
- * The host owns span identity and parentage and passes the resolved ids down as
- * reserved attributes, because the provider seam cannot express "start this
- * span under that parent" and provider-side callback nesting breaks at the
- * first `await`. No vendor package is imported here; a boundary check enforces
- * that, so an author bundle never resolves one.
+ * The framework-owned tracer and span: thin objects that forward to the provider's tracer.
+ * The host owns span identity and parentage and passes the resolved ids down as reserved
+ * attributes, because the provider seam cannot express "start this span under that parent"
+ * and provider-side callback nesting breaks at the first `await` (§4).
  */
 
 import {
@@ -31,7 +27,7 @@ import {
 import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
 
 export interface ActiveSpanContext {
-  /** Identity of the mount that owns the span. Compared by reference. */
+  /** Identity of the mount that owns the span, compared by reference. */
   readonly owner: object
   readonly traceId: string
   readonly spanId: string
@@ -40,15 +36,14 @@ export interface ActiveSpanContext {
 
 let activeContext: ActiveSpanContext | undefined
 
-/** The active context, whoever owns it. Diagnostics and tests use this. */
+/** The active context, whoever owns it. */
 export function getActiveSpanContext(): ActiveSpanContext | undefined {
   return activeContext
 }
 
 /**
- * The active context, but only when the given mount owns it. Parent resolution
- * goes through here so that an interleaved mount produces a root span instead
- * of a cross-mount parent.
+ * Parent resolution goes through here so that an interleaved mount produces a root span
+ * instead of a cross-mount parent (§4).
  */
 export function getActiveSpanContextFor(owner: object): ActiveSpanContext | undefined {
   return activeContext !== undefined && activeContext.owner === owner ? activeContext : undefined
@@ -66,11 +61,9 @@ export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn
 }
 
 /**
- * Captures the active context now and restores it for every later invocation of
- * the returned function. A span started after an `await` has no ambient context
- * and becomes a root — never a wrong parent, but never a child either — so this
- * is the supported way to keep a continuation correlated. Create the wrapper
- * while the span is still active, then hand it to the timer or callback.
+ * Captures the active context now and restores it for every later invocation, which is the
+ * supported way to keep a continuation correlated: a span started after an `await` has no
+ * ambient context and becomes a root (§4).
  */
 export function bindTelemetryContext<A extends readonly unknown[], R>(
   fn: (...args: A) => R,
@@ -79,7 +72,7 @@ export function bindTelemetryContext<A extends readonly unknown[], R>(
   return (...args: A): R => runWithSpanContext(captured, () => fn(...args))
 }
 
-/** How a span that outlived its mount is labelled. Never an error status. */
+/** How a span that outlived its mount is labelled; never an error status. */
 const CANCELLATION_REASON = 'mount-disposed'
 
 /** A provider that keeps nothing: the default before a shell wires a backend. */
@@ -94,11 +87,8 @@ export function createNoopTelemetryProvider(): TelemetryProvider {
 }
 
 /**
- * OpenTelemetry's id shapes (128-bit trace id, 64-bit span id, lowercase hex)
- * are a wire convention rather than a vendor API, so mirroring them keeps a
- * shell adapter's translation trivial without importing `@opentelemetry/*`.
- * Ids only need to be unique inside one page session, never unguessable, so the
- * fallback source degrades correlation quality and nothing else.
+ * OpenTelemetry's id shapes are a wire convention, not a vendor API, so mirroring them keeps a
+ * shell adapter's translation trivial; ids need only be unique inside one page session.
  */
 function randomHex(byteCount: number): string {
   const bytes = new Uint8Array(byteCount)
@@ -152,11 +142,7 @@ class MountSpan implements Span {
     return this
   }
 
-  /**
-   * Author attributes only: the reserved attribution is already on the span
-   * from creation, so re-sending it would be noise. Clamping and reserved-key
-   * rejection are the runtime's, so one span cannot diverge from a record.
-   */
+  /** Clamping and reserved-key rejection stay the runtime's, so spans match records. */
   #applyAttributes(attributes: TelemetryAttributes, operation: string): this {
     if (this.#refuseAfterEnd(operation)) return this
     const authored: Record<string, string | number | boolean> = {}
@@ -223,11 +209,7 @@ class MountSpan implements Span {
     this.#close('end a span', endTime)
   }
 
-  /**
-   * Disposal finalization for a span the author forgot. Its status is left
-   * exactly as the author left it: a mount going away is not a failure of the
-   * work the span described, and an error status would invent alerts.
-   */
+  /** The status is left as the author left it: a mount going away did not fail the work. */
   finalizeCancelled(endTime: number): void {
     if (this.#ended) return
     this.#forward('finalize a cancelled span', inner =>
@@ -258,8 +240,8 @@ export class MountTracer implements Tracer {
   constructor(runtime: MountTelemetryRuntime, options: { readonly enabled: boolean }) {
     this.#runtime = runtime
     if (!options.enabled) return
-    // A provider that throws while building its tracer disables tracing for the
-    // mount instead of taking the mount down with it.
+    // A provider that throws while building its tracer disables tracing for the mount
+    // instead of taking the mount down with it.
     this.#inner = runtime.safeProviderCall('create a tracer', () =>
       runtime.provider.createTracer(runtime.attribution),
     )
@@ -292,9 +274,8 @@ export class MountTracer implements Tracer {
       return nonRecordingSpan
     }
 
-    // Parentage comes from this mount's active context only. An interleaved
-    // mount's context is visible in the same slot but belongs to someone else,
-    // so it is ignored and the span becomes a root instead of a wrong child.
+    // An interleaved mount's context is visible in the same slot but belongs to someone
+    // else, so the span becomes a root instead of a wrong child (§4).
     const parent = getActiveSpanContextFor(this.#runtime.owner)
     const traceId = parent?.traceId ?? randomHex(16)
     const spanId = randomHex(8)
@@ -334,8 +315,8 @@ export class MountTracer implements Tracer {
     const options = isCallback ? undefined : optionsOrCallback
 
     if (typeof callback !== 'function') {
-      // Only reachable from untyped JavaScript. Throwing here would turn a
-      // telemetry mistake into an application failure, so it is a diagnostic.
+      // Only reachable from untyped JavaScript, and throwing would turn a telemetry
+      // mistake into an application failure.
       if (DEV) {
         this.#runtime.diagnose({
           code: 'contract/input-mismatch',
@@ -350,9 +331,8 @@ export class MountTracer implements Tracer {
 
     const span = options === undefined ? this.startSpan(name) : this.startSpan(name, options)
 
-    // A non-recording handle carries no id to parent anything to. The ambient
-    // context is left untouched so a surrounding span keeps adopting children
-    // created inside, instead of leaving a silent gap.
+    // A non-recording handle carries no id to parent anything to, so the ambient context
+    // is left untouched and a surrounding span keeps adopting children created inside.
     if (!(span instanceof MountSpan)) return callback(span)
 
     const context: ActiveSpanContext = {
@@ -362,16 +342,14 @@ export class MountTracer implements Tracer {
       name: span.name,
     }
 
-    // Neither the span nor the exception is handled here: ending the span and
-    // recording a failure are the author's decisions. Synchronous throws,
+    // Ending the span and recording a failure are the author's decisions, so throws,
     // returned values and returned promises all pass straight through.
     return runWithSpanContext(context, () => callback(span))
   }
 
   /**
-   * Ends every span still open at disposal and drops the references. Spans are
-   * closed as cancelled, never as errors, and the caller reports the leak as a
-   * development diagnostic.
+   * Spans left open at disposal are closed as cancelled, never as errors, and the caller reports
+   * the leak as a development diagnostic.
    */
   finalizeOpenSpans(): { readonly finalized: number; readonly names: readonly string[] } {
     const open = [...this.#open]

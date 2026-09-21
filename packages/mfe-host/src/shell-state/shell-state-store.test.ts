@@ -53,8 +53,6 @@ describe('per-field subscriptions', () => {
 
     store.apply({ theme: 'dark' })
 
-    // a consumer that reads only the user or the groups must not
-    // re-render because the shell changed its theme.
     expect(listenerFor(listeners, 'theme')).toHaveBeenCalledTimes(1)
     expect(listenerFor(listeners, 'user')).toHaveBeenCalledTimes(0)
     expect(listenerFor(listeners, 'groups')).toHaveBeenCalledTimes(0)
@@ -226,7 +224,6 @@ describe('transition classification', () => {
     // the same id, account and tenant; only the rendered name differs.
     const change = store.apply({ user: { ...ADA, name: 'Ada King' } })
 
-    // the field changed so UI re-renders, but nothing is retired.
     expect(change.changed).toEqual(['user'])
     expect(change.transitions).toEqual([])
     expect(requiresSessionRetirement(change.transitions)).toBe(false)
@@ -237,7 +234,6 @@ describe('transition classification', () => {
 
     const change = store.apply({ groups: ['viewers', 'analysts'] })
 
-    // the set is the same, so no permission change happened.
     expect(change.transitions).toEqual([])
     expect(requiresSessionRetirement(change.transitions)).toBe(false)
     expect(store.getGroups()).toEqual(['viewers', 'analysts'])
@@ -304,8 +300,6 @@ describe('requiresSessionRetirement', () => {
 
 describe('transition observers', () => {
   it('runs host observers before field listeners see the new state', () => {
-    // the host has to be able to retire session-dependent work before
-    // any UI renders against the new identity.
     const store = new ShellStateStore(initialState())
     const order: string[] = []
     store.observeTransitions(() => order.push('observer'))

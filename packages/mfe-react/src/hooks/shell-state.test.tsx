@@ -1,11 +1,6 @@
 /**
- * Shell state read from the host's own chrome.
- *
- * The host is the side that publishes the theme, and it renders a header, a
- * settings sheet and a palette that all have to show the same one. Requiring a
- * mount meant it could not read its own value back through the framework, so
- * it subscribed to the store by hand instead — a second implementation of a
- * published contract, in the one place where disagreeing with it is visible.
+ * Shell state read from the host's own chrome, which requiring a mount made impossible: the host
+ * publishes the theme and could not read its own value back (§26).
  */
 
 import { render, renderHook, act } from '@testing-library/react'

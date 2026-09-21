@@ -1,10 +1,4 @@
-/**
- * `env()` — how an author declares that a value comes from the deployment.
- * `src/mfe.config.ts` carries names and schemas, never values or secrets.
- *
- * This is the one part of the package also evaluated in the browser, so it
- * imports nothing from Node, Rspack or the TypeScript compiler.
- */
+/** The one part of the package also evaluated in the browser, so it imports nothing from Node. */
 
 import { createMfeError } from '@company/mfe-core'
 import type { z } from 'zod'
@@ -16,24 +10,16 @@ export const ENV_NAME_RULE =
   'upper-case letters, digits and single underscores (for example "API_BASE_URL")'
 
 export interface EnvOptions {
-  /**
-   * Marks the value as an API origin this container calls. Every declared
-   * origin is added to the allowlist the authenticated `fetch` from
-   * `#mfe/fetch` is bound to; an undeclared origin never receives a token.
-   */
+  /** Adds the origin to the allowlist `#mfe/fetch` is bound to; undeclared origins get no token. */
   readonly api?: boolean
 }
 
-/**
- * What `env()` returns: a declaration, never a value. `kind` is a plain string
- * rather than a symbol so the descriptor survives structured cloning and reads
- * clearly in a debugger.
- */
+/** A declaration, never a value; `kind` is a string so the descriptor survives cloning. */
 export interface EnvVarDescriptor<T = unknown> {
   readonly kind: 'mfe-env-var'
   /** The environment variable the deployment sets. */
   readonly name: string
-  /** The author's own Zod schema. Validation runs through its `safeParse`. */
+  /** The author's own Zod schema; validation runs through its `safeParse`. */
   readonly schema: z.ZodType<T>
   /** True when `{ api: true }` declared this value as an API origin. */
   readonly api: boolean
@@ -42,22 +28,12 @@ export interface EnvVarDescriptor<T = unknown> {
 /** The shape of `src/mfe.config.ts`'s default export. */
 export type EnvConfigSource = Readonly<Record<string, EnvVarDescriptor>>
 
-/**
- * The validated configuration a container receives, derived from the
- * descriptors so the runtime type and the schema can never drift apart. The
- * generated `#mfe/config` module exports its config typed with this.
- */
+/** Derived from the descriptors, so the runtime type and the schema cannot drift apart. */
 export type InferEnvConfig<D> = {
   readonly [K in keyof D]: D[K] extends EnvVarDescriptor<infer T> ? T : never
 }
 
-/**
- * Declares one configuration field.
- *
- * @param name   the environment variable the deployment sets
- * @param schema the author's Zod schema; defaults declared with `.default()`
- *               apply when the deployment omits the field
- */
+/** Declares one configuration field; a `.default()` in the schema applies when it is omitted. */
 export function env<T>(
   name: string,
   schema: z.ZodType<T>,

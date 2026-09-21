@@ -1,9 +1,7 @@
 /**
- * Mount orchestration: load, attach, retry and disposal, under finite deadlines.
- *
- * One framework-neutral object owns the whole operation, so a maintainer traces
- * a mount's state changes, cancellation and cleanup in one place instead of
- * reconstructing them from effects spread across the adapters.
+ * Mount orchestration — load, attach, retry and disposal under finite deadlines — in one
+ * framework-neutral object, so state changes, cancellation and cleanup are traced in one
+ * place rather than reconstructed from effects spread across the adapters.
  */
 
 import {
@@ -22,13 +20,13 @@ import {
 
 /** `attach` receives whatever `load` resolved; the controller never inspects it. */
 export interface MountOperations<TLoaded> {
-  /** Resolve the definition's code. Runs under the load deadline. */
+  /** Runs under the load deadline. */
   load(signal: AbortSignal): Promise<TLoaded>
-  /** Render it. Runs under the mount deadline, measured after the code is ready. */
+  /** Runs under the mount deadline, measured after the code is ready. */
   attach(loaded: TLoaded, signal: AbortSignal): Promise<void>
   /**
-   * Detach UI synchronously. Called before any asynchronous cleanup so the
-   * failed or disposed surface disappears immediately.
+   * Synchronous, and called before any asynchronous cleanup so the failed or disposed surface
+   * disappears immediately.
    */
   detach(): void
   /** Asynchronous cleanup: subscriptions, registrations, child mounts, roots. */
@@ -86,7 +84,7 @@ export class MountController<TLoaded> implements MountHandle {
   readonly getState = (): MountState => this.#lifecycle.getState()
   readonly subscribe = (listener: () => void): Unsubscribe => this.#lifecycle.subscribe(listener)
 
-  /** Aborts on disposal. This is what authors receive as the mount signal. */
+  /** Aborts on disposal; this is what authors receive as the mount signal. */
   get signal(): AbortSignal {
     return this.#lifecycle.signal
   }
@@ -95,23 +93,20 @@ export class MountController<TLoaded> implements MountHandle {
     return this.#lifecycle.isDisposed
   }
 
-  /** Begins the first attempt. Safe to await, but callers may ignore the promise. */
+  /** Begins the first attempt; safe to await, but callers may ignore the promise. */
   start(): Promise<void> {
     return this.#runAttempt()
   }
 
-  /**
-   * Starts a fresh attempt with the latest committed inputs. Updating props
-   * during an initial mount error never retries silently; only this does.
-   */
+  /** Updating props during an initial mount error never retries silently; only this does. */
   retry(): void {
     if (this.#lifecycle.isDisposed) return
     void this.#runAttempt()
   }
 
   /**
-   * Detaches UI synchronously, then completes asynchronous cleanup. Idempotent:
-   * every caller awaits the same teardown.
+   * Detaches UI synchronously, then completes asynchronous cleanup; every caller awaits the same
+   * teardown.
    */
   dispose(): Promise<void> {
     return this.#lifecycle.runDisposalOnce(() => this.#dispose())
@@ -128,9 +123,8 @@ export class MountController<TLoaded> implements MountHandle {
     }
 
     try {
-      // A retry after a *mount* failure reuses the already-resolved module.
-      // Retry does not recreate the container, and reloading it would discard a
-      // perfectly good download only to re-run a render failure.
+      // A retry after a *mount* failure reuses the resolved module: reloading would
+      // discard a good download only to re-run a render failure.
       const loaded =
         this.#loaded ??
         (await withDeadline(
@@ -151,8 +145,8 @@ export class MountController<TLoaded> implements MountHandle {
       )
 
       if (!token.isCurrent()) {
-        // A superseded attempt may have attached UI before losing the race.
-        // Detaching here prevents a timed-out attempt from leaving a tree behind.
+        // A superseded attempt may have attached UI before losing the race, which would
+        // otherwise leave a tree behind.
         this.#safeDetach()
         return
       }
@@ -184,8 +178,8 @@ export class MountController<TLoaded> implements MountHandle {
       repair: 'No action required; this is the normal teardown signal.',
     })
 
-    // UI detaches synchronously and the lifecycle becomes terminal before any
-    // awaiting, so late callbacks are fenced from this point on.
+    // UI detaches synchronously and the lifecycle becomes terminal before any awaiting,
+    // so late callbacks are fenced from this point on.
     this.#safeDetach()
     this.#lifecycle.markDisposed(reason)
 
@@ -198,8 +192,8 @@ export class MountController<TLoaded> implements MountHandle {
         { ...this.#identity, operation: 'complete asynchronous cleanup', phase: 'dispose' },
       )
     } catch (error) {
-      // The mount stays disposed and late callbacks stay fenced; the promise
-      // rejects so the caller learns cleanup did not finish.
+      // The mount stays disposed and late callbacks stay fenced; the promise rejects so
+      // the caller learns cleanup did not finish.
       const structured = toMfeError(error, {
         ...this.#identity,
         code: 'dispose/failure',

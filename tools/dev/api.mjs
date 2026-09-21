@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 /**
- * The tiny API the examples talk to in development.
- *
- * It exists so `#mfe/fetch` has something real to reach. A container that
- * cannot make a request demonstrates nothing about the request boundary: the
- * base URL it resolves against, the token it attaches and the origin allowlist
- * that decides where the token goes are only observable when a request
- * actually goes out and comes back.
- *
- * This is not part of the framework. A deployment brings its own API; this
- * stands in for one, on the origin the examples' `runtime-config.json` names.
+ * The tiny API the examples talk to in development, so that `#mfe/fetch` has something real to
+ * reach: the base URL, the attached token and the origin allowlist are only observable when a
+ * request goes out and comes back. It is not part of the framework — a deployment brings its own
+ * API, and this stands in for one on the origin the examples' `runtime-config.json` names.
  */
 
 import { createServer } from 'node:http'
@@ -32,9 +26,8 @@ const ASSETS = {
 }
 
 /**
- * The shell and every container is a different origin, so a browser will not
- * send these requests without CORS — and the Authorization header the request
- * boundary attaches makes each one preflighted.
+ * The shell and every container is a different origin, and the Authorization header the request
+ * boundary attaches makes each request preflighted.
  */
 function cors(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
@@ -70,13 +63,12 @@ const server = createServer((request, response) => {
     return
   }
 
-  // What the request boundary attached, echoed back. The lab's probe uses this
-  // to show that the token reaches a declared API origin and nothing else.
+  // The lab's probe reads this back to show that the token reaches a declared API origin and
+  // nothing else.
   if (url.pathname === '/api/lab/probe') {
     json(response, 200, {
       sawAuthorization: request.headers.authorization !== undefined,
-      // Never the token itself: this is a development server, and a token in a
-      // log or a screenshot is a token in a log or a screenshot.
+      // Never the token itself: a token in a log or a screenshot is a token in a log.
       scheme: request.headers.authorization?.split(' ')[0] ?? null,
       path: url.pathname,
     })

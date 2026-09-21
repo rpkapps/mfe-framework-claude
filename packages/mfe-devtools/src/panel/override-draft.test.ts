@@ -1,8 +1,3 @@
-/**
- * Turning what a developer typed into something the boot reader will accept —
- * and saying so before the write rather than after the reload.
- */
-
 import { describe, expect, it } from 'vitest'
 
 import { conflictingContainers, manifestUrlFor, validateDraft } from './override-draft.ts'

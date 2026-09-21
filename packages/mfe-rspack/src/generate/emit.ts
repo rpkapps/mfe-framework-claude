@@ -1,9 +1,4 @@
-/**
- * Emitting generated files. The same sources produce the same bytes, and the
- * TypeScript is written in the house style already, because a developer reads
- * it the first time something goes wrong and running a formatter over build
- * output is not a step anyone remembers.
- */
+/** The same sources produce the same bytes, so a watching build never restarts itself (§19). */
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -15,7 +10,6 @@ export interface GeneratedFile {
   readonly contents: string
 }
 
-/** The banner every generated module carries. */
 export function banner(alias?: string): string {
   const lines = [
     '/**',
@@ -49,10 +43,7 @@ export function relativeSpecifier(fromFile: string, toFile: string): string {
   return relativePath.startsWith('.') ? relativePath : `./${relativePath}`
 }
 
-/**
- * Writes the files that changed. Skipping unchanged files keeps a watching
- * build from restarting itself on its own output.
- */
+/** Skipping unchanged files keeps a watching build from restarting itself on its output (§19). */
 export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly GeneratedFile[] {
   const written: GeneratedFile[] = []
 
@@ -61,7 +52,6 @@ export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly G
     try {
       current = readFileSync(file.path, 'utf8')
     } catch {
-      // Nothing there yet, so nothing to compare against.
       current = null
     }
     if (current === file.contents) continue
@@ -74,15 +64,7 @@ export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly G
   return written
 }
 
-/**
- * A content hash of everything the build generated. It changes when the
- * container's shape changes and not otherwise, which is what makes it useful in
- * a diagnostic: two reports carrying the same hash describe the same build.
- *
- * Paths enter the hash relative to the generated directory, so the same sources
- * hash the same on a developer's machine and on a build agent that checked them
- * out somewhere else.
- */
+/** Paths hash relative to the generated directory, so another checkout hashes the same (§19). */
 export function contentHash(files: readonly GeneratedFile[], baseDir: string): string {
   const hash = createHash('sha256')
   const entries = files

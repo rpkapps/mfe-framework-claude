@@ -1,9 +1,6 @@
 /**
- * `@company/mfe-react/testing` — supported author testing utilities.
- *
- * Never imported by the production entry. It supplies isolated providers,
- * explicit fixtures and deterministic cleanup — never live credentials, and no
- * claim to cover federation, CSS layout or authenticated integration.
+ * `@company/mfe-react/testing` — supported author testing utilities, never imported by the
+ * production entry and never supplying live credentials.
  */
 
 import {
@@ -47,11 +44,9 @@ import type { MfeRouterContext } from '../router-contract.ts'
 import type { MfeMount, MfeRuntime } from '../runtime.ts'
 
 /**
- * The generated-alias fixtures. A container's vitest config points `#mfe/config`
- * and `#mfe/fetch` at `@company/mfe-react/testing/mfe-config` and
- * `.../mfe-fetch`, and a test installs values through these. The source under
- * test keeps its production imports (§14); nothing here is a second
- * configuration API.
+ * The generated-alias fixtures, which a container's vitest config points `#mfe/config` and
+ * `#mfe/fetch` at. The source under test keeps its production imports (§14); nothing here is a
+ * second configuration API.
  */
 export { setMfeConfig, resetMfeConfig } from './generated/config.ts'
 export {
@@ -65,7 +60,7 @@ export {
   type MfeFetchRecord,
 } from './generated/fetch.ts'
 
-/** Everything the aliases hold, cleared. The shared vitest setup calls it. */
+/** Everything the aliases hold, cleared; the shared vitest setup calls it. */
 export function resetGeneratedAliases(): void {
   resetMfeConfigState()
   resetMfeFetchState()
@@ -110,11 +105,7 @@ export interface MfeTestEnvironment {
   dispose(): Promise<void>
 }
 
-/**
- * Builds a single simulated mount with explicit fixtures. Every environment is
- * independent — separate stores, storage areas and recorded telemetry — so no
- * singleton leaks state between tests.
- */
+/** Every environment is independent, so no singleton leaks state between tests. */
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
 ): MfeTestEnvironment {
@@ -185,9 +176,7 @@ export function createMfeTestEnvironment(
     deadlines: DEFAULT_DEADLINES,
   }
 
-  // Generations are minted per transition so a test exercises the real fencing:
-  // records written under a retired generation must not come back when the same
-  // user or group set returns.
+  // Minted per transition, so a test exercises the real fencing rather than a fixed value.
   let generation = 0
   const stopWatchingSession = shellState.observeTransitions(change => {
     if (!requiresSessionRetirement(change.transitions)) return
@@ -244,20 +233,15 @@ export function createMfeTestEnvironment(
 }
 
 /**
- * Renders a tree that will suspend, inside an awaited act scope.
- *
- * Anything that loads a definition suspends on first render, and React warns —
- * then leaves the tree stuck on its fallback — when a component suspends inside
- * an act scope that was never awaited, which is exactly what plain `render()`
- * is. The result is an ordinary `RenderResult`.
+ * Renders a tree that will suspend, inside an awaited act scope: React warns and leaves the tree
+ * stuck on its fallback when a component suspends inside an act scope that was never awaited.
  */
 export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
   let result: RenderResult | undefined
 
   await act(async () => {
     result = render(<>{ui}</>)
-    // Yielding inside the act scope is what lets a suspended load settle before
-    // the caller inspects the tree.
+    // Yielding inside the act scope lets a suspended load settle before the caller looks.
     await Promise.resolve()
   })
 
@@ -285,10 +269,7 @@ function renderInto(environment: MfeTestEnvironment, ui: ReactNode): RenderedMfe
   }
 }
 
-/**
- * Renders a real App definition through the same adapter production uses, with a
- * test-owned memory history. No global History patch is involved.
- */
+/** Renders a real App through the adapter production uses, over a test-owned memory history. */
 export function renderApp(definition: AppDefinition, options: RenderAppOptions = {}): RenderedMfe {
   const environment = createMfeTestEnvironment({
     ...options,

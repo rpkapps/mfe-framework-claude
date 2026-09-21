@@ -1,9 +1,4 @@
-/**
- * Widget contract primitives and two-sided validation. Contracts are Zod
- * schemas, which are the source of truth for runtime validation and for the
- * author-facing types alike, so there is no parallel type parameter to keep in
- * sync and no framework-owned mirror of Zod's surface.
- */
+/** Contracts are Zod schemas, so runtime validation and the author-facing types cannot drift. */
 
 import { z } from 'zod'
 
@@ -15,13 +10,7 @@ import {
   type MfeErrorDetails,
 } from './errors.ts'
 
-/**
- * A Widget's declared contract. `events` maps a lower-camel-case event name to
- * the schema for its payload; the consumer sees it as `on` + capitalized name.
- *
- * A consumer contract never calls `.strict()`: Zod's default strip-unknown-keys
- * behaviour is what lets a Widget add a field without breaking its consumers.
- */
+/** A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one. */
 export interface WidgetContract<
   Inputs extends z.ZodType = z.ZodType,
   Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
@@ -36,10 +25,7 @@ export type ContractEvents<C extends WidgetContract> = {
   readonly [K in keyof C['events']]: z.infer<C['events'][K]>
 }
 
-/**
- * Host control props that are never forwarded as Widget inputs.
- * `on` + uppercase is reserved separately because those are event handlers.
- */
+/** Host control props never forwarded as inputs; `on` + uppercase is reserved separately. */
 export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback'] as const
 
 const HANDLER_PROP_PATTERN = /^on[A-Z]/
@@ -51,7 +37,6 @@ export function isReservedInputName(name: string): boolean {
   )
 }
 
-/** Maps a contract event name to its consumer-facing handler prop. */
 export function eventNameToHandlerProp(eventName: string): string {
   return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`
 }
@@ -63,14 +48,7 @@ export function isValidEventName(name: string): boolean {
 /** Built-ins whose instances cannot survive JSON, by the name they report. */
 const UNSERIALIZABLE_CLASSES = new Set(['Date', 'Map', 'Set', 'RegExp', 'Error'])
 
-/**
- * Inputs and event payloads must be JSON-serializable: prohibiting functions,
- * class instances, DOM nodes, elements, `Date`, `Map` and `Set` keeps iframe or
- * worker isolation available later, and validation cannot check them anyway.
- *
- * Returns the first offending value's path, or `null`. Cycles are reported
- * rather than followed.
- */
+/** Prohibiting what JSON cannot carry keeps iframe or worker isolation available later. */
 export function findNonSerializableValue(
   value: unknown,
   path: readonly (string | number)[] = [],
@@ -88,8 +66,7 @@ export function findNonSerializableValue(
   }
 
   if (type === 'undefined') {
-    // `undefined` disappears through JSON; an explicitly absent optional field
-    // is fine, so it is only rejected inside an array where position matters.
+    // An absent optional field is fine, so `undefined` is rejected only where position matters.
     return typeof path[path.length - 1] === 'number'
       ? { path, description: 'undefined inside an array' }
       : null
@@ -151,14 +128,12 @@ export interface ContractValidationContext {
   readonly direction: 'input' | 'event'
   /** `'provider'` validates its own declaration; `'consumer'` what it subscribed to. */
   readonly side: 'provider' | 'consumer'
-  /** Event name, when validating an event payload. */
   readonly eventName?: string
 }
 
 export type ContractValidation<T> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
 
-/** The identity every contract failure carries, decided by the context alone. */
 function failureBase(
   context: ContractValidationContext,
 ): Pick<MfeErrorDetails, 'code' | 'id' | 'operation' | 'direction' | 'definitionVersion'> {
@@ -182,12 +157,7 @@ function repairFor(context: ContractValidationContext, field: string): string {
     : `Check the '${event}' schema this consumer declared.`
 }
 
-/**
- * Zod names the received *type* ("received number"); the concrete value is the
- * one detail the reader cannot re-derive from the message. Resolve it at the
- * failing path so a nested field reports its own value rather than the whole
- * object, and fall back to zod alone when the path leads nowhere nameable.
- */
+/** Zod names the received type, so the concrete value is the one detail a reader cannot re-derive. */
 function describeObserved(
   value: unknown,
   path: readonly (string | number)[],
@@ -205,14 +175,7 @@ function describeObserved(
   return `${describeValue(observed)}; ${rendered}`
 }
 
-/**
- * Validates a value against a contract schema, turning a failure into a
- * structured error that names the field, the expectation and the repair.
- *
- * `z.prettifyError` renders every issue with its own path, which beats anything
- * re-derived here; the first issue's path fills the structured `path` field,
- * and the `ZodError` itself stays on `cause`.
- */
+/** `z.prettifyError` renders every issue with its path; the `ZodError` itself stays on `cause`. */
 export function validateAgainstContract<T>(
   schema: z.ZodType<T>,
   value: unknown,
@@ -237,10 +200,7 @@ export function validateAgainstContract<T>(
   }
 }
 
-/**
- * Rejects non-serializable values before schema validation, so the diagnostic
- * names the real problem instead of a downstream type error.
- */
+/** Runs before schema validation, so the diagnostic names the real problem. */
 export function validateSerializable(
   value: unknown,
   context: ContractValidationContext,

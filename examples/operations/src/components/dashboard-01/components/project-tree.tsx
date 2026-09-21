@@ -25,10 +25,6 @@ type ProjectTreeProps = React.ComponentProps<'div'> & {
   onSelect?: (id: string) => void
 }
 
-/**
- * Project inventory tree: folders (Wells / Horizons / Models) with
- * colour-tagged items and per-item visibility toggles.
- */
 function ProjectTree({
   className,
   nodes = projectTree,

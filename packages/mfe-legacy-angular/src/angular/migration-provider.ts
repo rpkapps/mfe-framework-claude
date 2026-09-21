@@ -1,8 +1,6 @@
 /**
- * The migration seam each legacy Angular app adopts: one `provideAppInitializer`
- * argument is replaced by an initializer built here, and nothing else moves.
- * Angular is not a dependency and must not become one — the app owns its
- * Angular version — so the Angular surface below is described structurally.
+ * The migration seam each legacy Angular app adopts in place of one `provideAppInitializer`
+ * argument. Angular must not become a dependency, so its surface is described structurally.
  */
 
 import {
@@ -24,10 +22,7 @@ export interface LegacyRouterEventStream {
   subscribe(next: (event: LegacyRouterEvent) => void): LegacyRouterSubscription
 }
 
-/**
- * Only Angular's `NavigationStart` carries `navigationTrigger`, which is what
- * makes its presence a safe discriminator without importing the event classes.
- */
+/** Only Angular's `NavigationStart` carries `navigationTrigger`, a discriminator needing no import. */
 export interface LegacyRouterEvent {
   readonly navigationTrigger?: string
   readonly id?: number
@@ -54,12 +49,7 @@ export type LegacyNavigationTeardown = () => void
 /** Angular's own name for a navigation the app itself started. */
 export const IMPERATIVE_NAVIGATION_TRIGGER = 'imperative'
 
-/**
- * Keeps the URL under the shell's control: on a navigation triggered by
- * anything other than the app itself, Angular must not write the location
- * again. Writing it twice is what makes the back button skip entries. This is
- * the replaced initializer's behaviour, kept verbatim.
- */
+/** Keeps the URL under the shell's control: writing the location twice makes the back button skip entries. */
 export function skipLocationChangeOnNonImperativeTriggers(
   router: LegacyRouterPort,
 ): LegacyNavigationTeardown {
@@ -78,11 +68,9 @@ export function skipLocationChangeOnNonImperativeTriggers(
 export interface LegacyMigrationSeamOptions {
   /** The legacy registry name: container, single-spa activity and identity. */
   readonly name: string
-  /** The base href from the app's single-spa props, when it receives one. */
   readonly baseHref?: string | undefined
   readonly routes?: readonly string[] | undefined
   readonly settingsRoutes?: readonly string[] | undefined
-  /** Base-href seam table override; defaults to the documented seams. */
   readonly seams?: Readonly<Record<string, LegacyBaseHrefSeam>> | undefined
 }
 
@@ -96,7 +84,6 @@ export interface LegacyMigrationSeam {
   readonly routes: readonly string[]
   readonly settingsRoutes: readonly string[]
   readonly parcelExposeName: typeof LEGACY_PARCEL_EXPOSE_NAME
-  /** The single-spa activity predicate, derived from the resolved base href. */
   readonly activeWhen: (pathname: string) => boolean
   /** The provider this seam replaces, one for one. */
   readonly replaces: string
@@ -114,10 +101,7 @@ function baseHrefPathname(baseHref: string): string {
   }
 }
 
-/**
- * The base href is resolved through the shared resolver, so the seam an app
- * sees here is the one the shell uses when it mounts the parcel.
- */
+/** Resolved through the shared resolver, so an app sees the seam the shell mounts with. */
 export function createLegacyMigrationSeam(
   options: LegacyMigrationSeamOptions,
 ): LegacyMigrationSeam {
@@ -147,24 +131,13 @@ export function createLegacyMigrationSeam(
 }
 
 export interface LegacyShellNavigationOptions extends LegacyMigrationSeamOptions {
-  /**
-   * Called from inside the initializer, which is where Angular's injection
-   * context is available: the app passes `() => inject(Router)`.
-   */
+  /** Called inside the initializer, where the injection context exists: `() => inject(Router)`. */
   readonly injectRouter: () => LegacyRouterPort
-  /**
-   * Optional teardown registration, for an app that wants the subscription tied
-   * to its injector: `teardown => inject(DestroyRef).onDestroy(teardown)`.
-   */
+  /** Optional teardown registration: `teardown => inject(DestroyRef).onDestroy(teardown)`. */
   readonly registerTeardown?: ((teardown: LegacyNavigationTeardown) => void) | undefined
 }
 
-/**
- * The initializer returns `undefined` on purpose: Angular waits on anything
- * promise-like an initializer returns, so the teardown goes to
- * `registerTeardown` instead. The seam is attached so the app can read the base
- * href, routes and expose path from the same object.
- */
+/** Returns `undefined` because Angular awaits anything promise-like, so teardown goes to `registerTeardown`. */
 export type LegacyShellNavigationInitializer = (() => void) & {
   readonly seam: LegacyMigrationSeam
 }

@@ -1,11 +1,6 @@
 /**
- * `useBlocker` inside an App, for navigations the App does not own.
- *
- * The claim under test is a DX one: an author writes TanStack's own hook and
- * nothing else, and it covers the shell's navigations as well as the App's. So
- * the fixtures here import no framework navigation API at all — only
- * `useBlocker` — and the assertions drive both sides: the App's own router, and
- * the host's navigator standing in for the shell.
+ * `useBlocker` inside an App, for navigations the App does not own: the fixtures import no
+ * framework navigation API at all, only `useBlocker` (§20).
  */
 
 import {
@@ -48,11 +43,7 @@ interface EditorProps {
   readonly enableBeforeUnload?: boolean | (() => boolean)
 }
 
-/**
- * An editor as an author would write one. `shouldBlockFn` is an inline arrow,
- * which is the shape that makes `useBlocker` unregister and re-register on
- * every render — including the render that opens the dialog.
- */
+/** `shouldBlockFn` is an inline arrow, the shape that re-registers on every render (§20). */
 function Editor({ enableBeforeUnload }: EditorProps): ReactNode {
   const [isDirty, setIsDirty] = useState(false)
   const router = useRouter()
@@ -199,8 +190,7 @@ describe('an App’s own useBlocker covers the shell’s navigations', () => {
       committed = true
     })
 
-    // The App is being asked, in its own terms: the hook resolved the shell's
-    // target against this App's route tree and handed the author the action.
+    // The App is being asked in its own terms, resolved against its own route tree.
     await waitFor(() => {
       expect(screen.getByTestId('status')).toHaveTextContent('blocked')
     })
@@ -239,9 +229,7 @@ describe('an App’s own useBlocker covers the shell’s navigations', () => {
   })
 
   it('still blocks the App’s own routes, which is what the history is asked', async () => {
-    // The other half of the claim: one hook, both kinds of navigation. A
-    // history built without a blocker store accepts every registration and
-    // honours none, so this is the regression that catches that.
+    // One hook, both kinds of navigation: a history without a blocker store honours none (§1).
     rendered = await dirty()
 
     await act(async () => {
@@ -278,10 +266,7 @@ describe('an App’s own useBlocker covers the shell’s navigations', () => {
       expect(screen.getByTestId('status')).toHaveTextContent('blocked')
     })
 
-    // The App goes away while it still owes an answer — a revoked session, a
-    // failed container, a hot reload. Without the mount's signal settling the
-    // promise the host would negotiate forever and refuse every later
-    // navigation as "already negotiating".
+    // Without the mount's signal settling the promise, the host would negotiate forever.
     const disposing = rendered
     rendered = null
     await act(async () => {
@@ -332,8 +317,7 @@ describe('the browser’s unload prompt', () => {
   })
 
   it('is asked per reload when the App made it a condition', async () => {
-    // The shape an author writes beside `shouldBlockFn: () => isDirty`, so a
-    // clean form does not raise "leave site?" on every refresh.
+    // The shape an author writes, so a clean form does not raise "leave site?" on a refresh.
     let isDirty = false
     rendered = await mountEditor({ enableBeforeUnload: () => isDirty })
 

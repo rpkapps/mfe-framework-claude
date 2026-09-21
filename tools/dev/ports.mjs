@@ -1,12 +1,7 @@
 /**
- * Checking that the dev ports are free before anything starts.
- *
- * A container's URL is not a preference: `pnpm run generate` writes it into the
- * shell's registry, and the shell fetches exactly that. A bundler that finds
- * the port busy and quietly picks another produces a container nothing can
- * find — and, when it lands on a sibling's port, kills that one too. The
- * bundler is configured never to move; this reports the situation before it
- * becomes a cascade of failures further down the log.
+ * Checking that the dev ports are free before anything starts: `pnpm run generate` writes each
+ * container's URL into the shell's registry, so a bundler that quietly moved off a busy port
+ * would produce a container nothing can find.
  */
 
 import { connect } from 'node:net'
@@ -27,9 +22,8 @@ function isListening(port, host) {
 }
 
 /**
- * Both loopback families are checked: Windows resolves `localhost` to ::1
- * first, so a server on one and a check on the other disagree about whether
- * the port is free.
+ * Both loopback families are checked: Windows resolves `localhost` to ::1 first, so a server on
+ * one and a check on the other disagree about whether the port is free.
  */
 export async function findBusyPorts(ports) {
   const busy = []
@@ -40,7 +34,6 @@ export async function findBusyPorts(ports) {
   return busy
 }
 
-/** Names the ports and the command that finds what holds them. */
 export function busyPortsMessage(busy) {
   const list = busy.join(', ')
   const command =
@@ -60,12 +53,8 @@ export function busyPortsMessage(busy) {
 }
 
 /**
- * Waits until nothing answers on these ports.
- *
- * Stopping a server and its port becoming free are not the same event: a
- * process can exit while the socket is still winding down. Returning before
- * that has happened is what makes an immediate second `pnpm dev` fail on a port
- * the developer just released.
+ * Waits until nothing answers on these ports, because a process can exit while its socket is
+ * still winding down and an immediate second `pnpm dev` then fails on a port just released.
  */
 export async function waitForPortsFree(ports, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs

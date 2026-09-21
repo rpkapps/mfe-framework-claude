@@ -1,10 +1,6 @@
 /**
- * The host's validated browser-storage module.
- *
- * One `MfeStorageStore` owns every read and write the framework makes to
- * `localStorage` and `sessionStorage`: key scoping by definition id, schema
- * validation in both directions, the persisted envelope, session generations
- * and migration. Nothing else in the framework touches a browser store.
+ * One `MfeStorageStore` owns every read and write the framework makes to `localStorage`
+ * and `sessionStorage`; nothing else in the framework touches a browser store.
  */
 
 export { MfeStorageStore } from './storage-store.ts'
@@ -24,11 +20,7 @@ export type {
   StorageWriteOptions,
 } from './types.ts'
 
-/**
- * The first generation of a page load, and how a later one is minted.
- * `createMfeRuntime` calls both; a host assembling its own runtime out of these
- * pieces needs them for the same reason it needs the store.
- */
+/** Exported for a host that assembles its own runtime instead of calling `createMfeRuntime`. */
 export {
   establishSessionGeneration,
   mintSessionGeneration,

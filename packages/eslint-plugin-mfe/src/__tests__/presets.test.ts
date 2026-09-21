@@ -9,7 +9,6 @@ const RULE_IDS = [
   'mfe/stable-definitions',
 ]
 
-/** Every rule a preset turns on, as `pluginName/ruleName`. */
 function configuredRuleIds(config: readonly { rules?: object | undefined }[]): Set<string> {
   const ids = new Set<string>()
   for (const entry of config) {
@@ -89,8 +88,6 @@ describe.each([
         const separator = ruleId.lastIndexOf('/')
         if (separator === -1) continue
         const pluginName = ruleId.slice(0, separator)
-        // Flat config resolves a rule's plugin from the objects that match the
-        // file, so a block that names `plugin/rule` has to carry `plugin`.
         expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(pluginName)
       }
     }
@@ -171,7 +168,6 @@ describe.each([
         ['packages/*/src/**/*.ts', 'packages/mfe-react/src/**/*.ts'],
       ])
     }
-    // Nothing else moved: the rest of the preset still covers all of `files`.
     const typeSafetyBlock = scoped.find(entry => entry.name === 'mfe/type-safety')
     expect(typeSafetyBlock?.files).toEqual(['packages/*/src/**/*.ts'])
   })
@@ -206,8 +202,7 @@ describe('preset options', () => {
     const routerConfigs = preset.filter(entry => entry.name?.startsWith('mfe/tanstack-router'))
     expect(routerConfigs.length).toBeGreaterThan(0)
     for (const entry of routerConfigs) {
-      // A nested `files` entry is an AND: router code *and* inside the files the
-      // preset was asked to cover, which is where the parser is configured.
+      // A nested `files` entry is an AND, and the outer pattern is where the parser is set.
       expect(entry.files).toEqual([['src/**/*.ts', 'src/routes/**/*.tsx']])
     }
     const ids = configuredRuleIds(routerConfigs)
@@ -283,7 +278,6 @@ describe('preset options', () => {
     expect(groups).toContain('@company/mfe-react/src/*')
     expect(groups).toContain('@opentelemetry/*')
     expect(groups).toContain('@grafana/faro-*')
-    // Type-only imports of a telemetry vendor are restricted too.
     const telemetry = options.patterns.filter(pattern =>
       pattern.group.some(group => group.startsWith('@opentelemetry')),
     )

@@ -1,9 +1,6 @@
 /**
- * `mfe/no-global-patching`. An MFE shares one realm with the shell and every
- * other MFE, so replacing `fetch`, the History API or the listener plumbing
- * changes behaviour for code the author has never seen, survives its own
- * unmount, and is won by whichever bundle evaluated last. The global is resolved
- * through scope analysis, so a local `const window = ...` is not mistaken for it.
+ * Patching a shared global is action at a distance: it breaks anything else that wraps those
+ * methods, and two routers patching history fight over the URL (§1).
  */
 
 import type { Rule, SourceCode } from 'eslint'
@@ -20,10 +17,6 @@ const LISTENER_METHODS: ReadonlySet<string> = new Set(['addEventListener', 'remo
 /** Non-global-object names this rule has to recognise as their own owner. */
 const KNOWN_GLOBALS: ReadonlySet<string> = new Set(['document', 'history'])
 
-/**
- * Which shared seam does `<object>.<property>` name, if any? Returns `null` for
- * anything that is not a patch of a shared global.
- */
 function classify(
   sourceCode: SourceCode,
   objectNode: AnyNode,
@@ -53,9 +46,7 @@ const rule: Rule.RuleModule = {
       recommended: true,
       url: docsUrl('no-global-patching'),
     },
-    // No fix and no suggestion: swapping a monkey patch for a framework seam
-    // changes which object every call site talks to, which no textual edit can
-    // do safely.
+    // No fix and no suggestion: the repair changes which object every call site talks to.
     schema: [],
     messages: {
       fetch:
@@ -100,8 +91,7 @@ const rule: Rule.RuleModule = {
       },
 
       CallExpression(node) {
-        // `Object.defineProperty(globalThis, 'fetch', ...)` and the Reflect twin
-        // are replacement under another spelling.
+        // `Object.defineProperty(globalThis, 'fetch', ...)` is replacement under another spelling.
         const callee = node.callee
         if (callee.type !== 'MemberExpression') return
         if (staticPropertyName(asNode(callee) as MemberExpression) !== 'defineProperty') return

@@ -1,18 +1,12 @@
 /**
- * The shell-owned surfaces legacy apps still depend on: the routes the shell
- * serves for them, and the release notes beside their manifest. The new App
- * capabilities add to these rather than replace them — an App that owns its
- * release notes must not take the fallback from apps that have not migrated.
+ * The shell-owned surfaces legacy apps still depend on: the routes the shell serves and the
+ * release notes beside their manifest. An app that has not migrated keeps this fallback.
  */
 
 import { createMfeError, type MfeError, type NeutralRegistryEntry } from '@company/mfe-core'
 import { capabilityRoute } from '@company/mfe-host'
 
-/**
- * The patterns the shell serves for legacy apps, in evaluation order. Order is
- * part of the contract: the shell's own pages come before the per-app forms,
- * and the per-app catch-all is last so it cannot swallow a more specific route.
- */
+/** Evaluation order is part of the contract: the catch-all is last so it cannot swallow a route. */
 export const LEGACY_SHELL_ROUTE_PATTERNS = [
   'settings',
   ':name/settings',
@@ -29,7 +23,7 @@ export interface LegacyShellRouteMatch {
   readonly pattern: LegacyShellRoutePattern
   /** The legacy app name, for the patterns that carry one. */
   readonly name?: string
-  /** What the catch-all swallowed. Empty when it matched the app root. */
+  /** What the catch-all swallowed, empty when it matched the app root. */
   readonly rest?: string
 }
 
@@ -61,11 +55,7 @@ function matchPattern(
   }
 }
 
-/**
- * Returns the first pattern that claims a path, or null when the shell should
- * look elsewhere — which is what keeps this one branch of the shell's router
- * rather than a router of its own. Query, hash and repeated slashes are ignored.
- */
+/** The first pattern that claims a path, so legacy routing stays one branch of the shell's router. */
 export function matchLegacyShellRoute(pathname: string): LegacyShellRouteMatch | null {
   const segments = (pathname.split(/[?#]/, 1)[0] ?? '').split('/').filter(segment => segment !== '')
   if (segments.length === 0) return null
@@ -84,11 +74,7 @@ export function isLegacyShellRoute(pathname: string): boolean {
 /** Legacy release notes sit next to the container manifest under this name. */
 const RELEASE_NOTES_FILENAME = 'release-notes.md'
 
-/**
- * Plain URL resolution — the sibling of the manifest, in whatever directory the
- * manifest lives — so a container that moves its manifest moves its release
- * notes with it. A relative manifest URL needs an explicit `base`.
- */
+/** The manifest's sibling, so a container that moves its manifest moves its release notes. */
 export function resolveLegacyReleaseNotesUrl(
   manifestUrl: string,
   options: { readonly base?: string | undefined } = {},
@@ -115,7 +101,7 @@ export function resolveLegacyReleaseNotesUrl(
   return new URL(RELEASE_NOTES_FILENAME, manifest).toString()
 }
 
-/** The minimum of `fetch` this source uses. Injected, never imported. */
+/** The minimum of `fetch` this source uses, injected rather than imported. */
 export type LegacyReleaseNotesFetch = (
   url: string,
   init: { readonly signal?: AbortSignal },
@@ -129,7 +115,7 @@ export interface LegacyReleaseNotes {
   readonly id: string
   readonly url: string
   readonly markdown: string
-  /** Always the compatibility path. The App-owned capability is not fetched here. */
+  /** Always the compatibility path; the App-owned capability is not fetched here. */
   readonly source: 'legacy-sibling'
 }
 
@@ -152,11 +138,7 @@ function unreachable(id: string, url: string, observed: string, cause?: unknown)
   })
 }
 
-/**
- * Stays available for every entry, including one that also advertises the
- * App-owned capability: removing the fallback would break every app that has
- * not migrated yet.
- */
+/** Stays available for every entry, because the fallback is all an unmigrated app has. */
 export function createLegacyReleaseNotesSource(options: {
   readonly fetch: LegacyReleaseNotesFetch
   readonly base?: string | undefined
@@ -180,23 +162,11 @@ export function createLegacyReleaseNotesSource(options: {
   }
 }
 
-/**
- * Where the shell should read an entry's release notes from. The App-owned
- * capability is chosen when present, and its absence changes nothing.
- */
 export type ReleaseNotesRoute =
   | { readonly kind: 'app-capability'; readonly path: string }
   | { readonly kind: 'legacy-sibling'; readonly url: string }
 
-/**
- * Only the second branch is this package's. Reading a capability off an entry
- * is a neutral registry question the host answers for every App, migrated or
- * not, and it was answered here only because this was the first surface that
- * needed it — which meant deleting the legacy adapter would have taken the
- * capability with it. What is legacy is the fallback: a document published
- * beside the container manifest, which stays for every app that has not
- * migrated.
- */
+/** Only the legacy branch is this package's: the capability read is a neutral registry question. */
 export function selectReleaseNotesRoute(
   entry: NeutralRegistryEntry,
   options: { readonly base?: string | undefined } = {},

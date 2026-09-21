@@ -1,9 +1,6 @@
 /**
- * The one translation from a `Diagnostic` to a `TelemetryRecord`.
- *
- * Wired through a real `DiagnosticsHub` rather than called directly, because
- * the path under test is the one a shell actually builds: the framework reports
- * into the hub, and this is what makes the report leave the page.
+ * Wired through a real `DiagnosticsHub` rather than called directly, because that is the path a
+ * shell actually builds.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -63,8 +60,6 @@ describe('telemetryDiagnosticsSink', () => {
 
     const [record] = provider.frameworkRecords()
     expect(record?.level).toBe('warn')
-    // A page-owned diagnostic is attributed to the host scope, under the only
-    // definition kind the contract has.
     expect(record?.attribution).toEqual({ definitionId: HOST_SCOPE, definitionKind: 'app' })
     expect(record?.attributes).toEqual({ code: 'config/invalid' })
   })

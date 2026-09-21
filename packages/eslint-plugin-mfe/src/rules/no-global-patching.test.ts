@@ -9,20 +9,14 @@ createRuleTester().run('mfe/no-global-patching', rule, {
     // Calling the APIs is someone else's rule.
     "window.addEventListener('resize', onResize)",
     "history.pushState(null, '', '/reports')",
-    // A local binding that happens to be spelled like the global.
     'function withFakeWindow(window: { fetch: unknown }) { window.fetch = stub }',
     'const window = { fetch: null }\nwindow.fetch = stub',
-    // An imported object named `history` is the router's, not the realm's.
     "import { history } from './router.ts'\nhistory.pushState = noop",
     "import { document } from './virtual-dom.ts'\ndocument.addEventListener = noop",
-    // A DOM element is not a global.
     'element.addEventListener = spy',
     'this.fetch = stub',
-    // Declaring a property on an unrelated object.
     'const transport = { fetch: stub, addEventListener: noop }',
-    // Defining a property on something that is not a global.
     "Object.defineProperty(target, 'fetch', { value: stub })",
-    // A different property on the global object.
     'globalThis.__MFE_DEVTOOLS__ = devtools',
   ],
 
@@ -44,7 +38,6 @@ createRuleTester().run('mfe/no-global-patching', rule, {
       errors: [{ messageId: 'fetch' }],
     },
     {
-      // TypeScript spelling: the assertion wrapper does not change the target.
       code: '(globalThis as unknown as { fetch: unknown }).fetch = instrumentedFetch',
       errors: [{ messageId: 'fetch' }],
     },
@@ -85,7 +78,6 @@ createRuleTester().run('mfe/no-global-patching', rule, {
       errors: [{ messageId: 'listeners' }],
     },
     {
-      // Inside a framework bootstrap the patch is just as shared.
       code: 'export function bootstrap() {\n  window.fetch = instrumentedFetch\n}',
       errors: [{ messageId: 'fetch' }],
     },

@@ -19,9 +19,8 @@ interface FakeSession {
 }
 
 /**
- * A fake session store. `getToken` reads whatever the shell currently holds and
- * `refreshToken` rotates it, which is the shape a real shell has — and the shape
- * that makes a duplicated refresh visible as a second call.
+ * `getToken` reads whatever the shell currently holds and `refreshToken` rotates it, which
+ * is the shape that makes a duplicated refresh visible as a second call.
  */
 function createFakeSession(initial: string | null = null): FakeSession {
   const store = { current: initial }

@@ -1,9 +1,6 @@
 /**
- * Reading a Widget's contract without evaluating it: the input and event names,
- * and where the schemas live. The generated contract entry has to reach them
- * without importing the container entry, which would drag the App, its router
- * and the route tree into a module a consumer imports only for types — so a
- * schema is either re-exported from its own module or copied verbatim.
+ * Reading a Widget's contract from syntax, because a host renders a catalogue before it fetches
+ * any container (§16).
  */
 
 import { statSync } from 'node:fs'
@@ -62,12 +59,7 @@ export interface WidgetContractSource {
 interface WidgetContractReadResult {
   readonly eventNames: readonly string[]
   readonly inputNames: readonly string[]
-  /**
-   * JSON Schema for the inputs object, when the schema is one the build can
-   * read. Absent otherwise, never an empty schema: a host uses this to collect
-   * inputs before the container is fetched, and "takes nothing" and "could not
-   * be read" call for different behaviour there.
-   */
+  /** Absent, never empty: "takes nothing" and "could not be read" differ for a host (§16). */
   readonly inputSchema?: JsonObject
   readonly source: WidgetContractSource
 }
@@ -130,14 +122,8 @@ export function readWidgetContract(
 }
 
 /**
- * The inputs schema as JSON Schema, or nothing.
- *
- * Unreadable is not a build failure here, which is the one place this differs
- * from runtime configuration. A deployment that cannot validate its config
- * ships broken, so `readStaticSchema` rightly fails the build for it; a Widget
- * whose inputs the build cannot describe still mounts and still validates at
- * its own boundary — only the catalogue loses the ability to offer a form for
- * it. Failing the build would make an exotic-but-correct schema unshippable.
+ * Unreadable is not a build failure here (§16): a Widget whose inputs cannot be described still
+ * mounts and validates at its own boundary, so failing would make a correct schema unshippable.
  */
 function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undefined {
   try {
@@ -236,11 +222,7 @@ function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedS
   }
 }
 
-/**
- * A Widget's options may spread a contract object declared beside them, which
- * is how a container exports the contract for consumers to import. Resolving
- * the spread is what lets `inputs` and `events` be found either way.
- */
+/** A Widget's options may spread a contract object declared beside them, so both are resolved. */
 function optionProperty(
   options: ts.ObjectLiteralExpression,
   field: string,
@@ -320,11 +302,7 @@ function copyIdentifier(
   )
 }
 
-/**
- * Identifiers an expression refers to from outside itself. Anything bound
- * inside it — an arrow parameter in a `.refine()` callback, for instance — is
- * excluded, so a local is never reported as an unresolvable reference.
- */
+/** Anything bound inside is excluded, so a local is never reported as an unresolvable reference. */
 function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
   const bound = new Set<string>()
   const used = new Set<string>()
@@ -362,11 +340,7 @@ function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
   return [...used]
 }
 
-/**
- * The declared field names of `z.object({ … })` or of an events map. Empty when
- * the shape is not a literal the build can read: the names drive validation,
- * and inventing them would be worse than checking none.
- */
+/** Empty when the shape is not a literal the build can read: inventing names would be worse. */
 function readObjectKeys(
   expression: ts.Expression,
   sourceFile: ts.SourceFile,

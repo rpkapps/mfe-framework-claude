@@ -1,9 +1,6 @@
 /**
- * Glob matching for the rules that only run inside an explicitly configured
- * part of the tree; ownership is never guessed from a file name. `**` crosses
- * directory separators, `*` and `?` do not, `{a,b}` is a flat alternation, and
- * a pattern not starting with `/` or `**` is prefixed with `**\/`, so
- * `src/storage/**` matches that directory wherever it sits.
+ * Glob matching for the scoped rules; a pattern not starting with `/` or `**` is prefixed with
+ * `**\/`, so `src/storage/**` matches that directory wherever it sits.
  */
 
 const cache = new Map<string, RegExp>()
@@ -81,7 +78,6 @@ export function normalizePath(filename: string): string {
   return slashed.startsWith('./') ? slashed.slice(2) : slashed
 }
 
-/** True when `filename` matches at least one of the glob patterns. */
 export function matchesAnyScope(filename: string, patterns: readonly string[]): boolean {
   if (patterns.length === 0) return false
   const normalized = normalizePath(filename)

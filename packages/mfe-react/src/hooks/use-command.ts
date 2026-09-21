@@ -1,14 +1,7 @@
 /**
- * Command registration as a hook, so scoping falls out of component lifetime:
- * no registry to acquire and no disposer to return.
- *
- * Inside a mount the command belongs to that mount and goes when it does;
- * outside one it belongs to the host page, in the reserved host scope. One
- * list, evaluated by one rule, whoever owns it.
- *
- * Two effects, deliberately: one owns the registration, the other publishes the
- * latest committed callbacks, so inline closures stay current without the
- * registration churning. Nothing is published during render.
+ * Command registration as a hook, so scoping falls out of component lifetime: a command belongs
+ * to its mount, or to the host page outside one (§26). Two effects, deliberately: one owns the
+ * registration, the other publishes the latest callbacks, so inline closures stay current.
  */
 
 import { useEffect, useRef } from 'react'
@@ -23,8 +16,7 @@ export function useCommand(registration: CommandRegistration): void {
   const { commands } = useMfeRuntime('useCommand()')
   const handle = useRef<CommandRegistrationHandle | null>(null)
 
-  // The newest committed registration, so re-registration (after a Strict Mode
-  // remount, say) picks it up without depending on render-time values.
+  // The newest committed registration, so a re-registration picks it up after a remount.
   const committed = useRef(registration)
 
   const definitionId = mount?.definitionId
@@ -43,8 +35,7 @@ export function useCommand(registration: CommandRegistration): void {
     }
   }, [commands, definitionId, mountToken])
 
-  // Runs after every commit. The registry compares the visible result and
-  // publishes nothing when only closure identity changed.
+  // The registry compares the visible result and publishes nothing when only identity changed.
   useEffect(() => {
     committed.current = registration
     handle.current?.update(registration)

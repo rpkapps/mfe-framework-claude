@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 /**
- * Package boundary check for the framework import DAG.
- *
- * ESLint's restricted-import rules cover source files that ESLint is pointed at.
- * This check is the mechanical backstop that also reads each package manifest,
- * so a forbidden dependency cannot be introduced by editing package.json alone.
+ * Package boundary check for the framework import DAG: ESLint's restricted-import rules cover
+ * only the files ESLint is pointed at, where this also reads each package manifest, so a
+ * forbidden dependency cannot be introduced by editing package.json alone.
  */
 import { readFile, readdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
@@ -13,9 +11,8 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 /**
- * Each rule names the package it guards and the module specifiers it may not
- * depend on, directly or through its manifest. `allowTypeOnly` lists specifiers
- * that may appear in `import type` positions only.
+ * Each rule names the package it guards and the specifiers it may not depend on, directly or
+ * through its manifest.
  */
 const RULES = [
   {

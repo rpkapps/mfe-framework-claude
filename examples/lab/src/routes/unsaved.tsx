@@ -23,11 +23,8 @@ export const Route = createFileRoute('/unsaved')({
 
 const SAVED = { name: 'Reduced DLS, 8½″ section', note: '' }
 
-/**
- * TanStack's sentinel for "no route in this tree matched". It is what a
- * navigation out of this App looks like from inside it: the shell is going
- * somewhere this route tree has never heard of.
- */
+/** TanStack's sentinel for "no route in this tree matched", which is what a navigation out of this
+ * App looks like from inside it (§20). */
 const NO_MATCH = '__notFound__'
 
 function Unsaved(): ReactNode {
@@ -38,25 +35,13 @@ function Unsaved(): ReactNode {
   const isDirty = draft.name !== saved.name || draft.note !== saved.note
 
   /*
-   * The whole demonstration, in one hook — and it is TanStack's own.
-   *
-   * There is no framework API here. `useBlocker` registers with this App's
-   * router, which is the only thing that knows the edits exist. The framework
-   * takes that registration and also puts the shell's navigations to it, so a
-   * click on the application finder, a breadcrumb or the browser's back button
-   * arrives as an ordinary `shouldBlockFn` call with `current`, `next` and
-   * `action` resolved against this App's own route tree.
-   *
-   * `withResolver` is what makes the answer this App's: the hook hands back a
-   * `proceed`/`reset` pair instead of taking a synchronous verdict, so the
-   * confirmation is a real dialog in this App's design system rather than a
-   * `window.confirm`.
+   * No framework API: `useBlocker` registers with this App's router, and the framework routes the
+   * shell's own navigations to it as ordinary `shouldBlockFn` calls (§20).
    */
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty,
-    // A reload is not a navigation and no page may draw its own UI for one, so
-    // this decides whether the browser offers its prompt. Without the
-    // condition a clean form would raise "leave site?" on every refresh.
+    // A reload is not a navigation and no page may draw its own UI for one, so without this
+    // condition a clean form would raise "leave site?" on every refresh (§20).
     enableBeforeUnload: () => isDirty,
     withResolver: true,
   })
@@ -198,9 +183,8 @@ function Unsaved(): ReactNode {
       </LabSection>
 
       {/*
-       * This App's dialog, in this App's design system, mounted inside this
-       * App's region. The shell is still there behind it and still working:
-       * blocking a navigation does not freeze the page, it declines one.
+       * Blocking a navigation declines one rather than freezing the page, so the shell behind this
+       * dialog is still working.
        */}
       <Dialog
         isOpen={blocker.status === 'blocked'}

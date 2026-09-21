@@ -1,12 +1,6 @@
 /**
- * The views of the registry a host renders.
- *
- * What is worth asserting here is not that a filter filters. It is that the
- * answers agree: the finder, the catalogue, the settings list and the chrome
- * all asked the registry the same question separately before this existed, and
- * a shell where two of those disagree about a hidden entry, or about which
- * segment of the URL names the mounted application, has a bug nobody can see in
- * either surface alone.
+ * The views of the registry a host renders: what matters is that the answers agree, because two
+ * surfaces disagreeing about a hidden entry is a bug nobody can see in either alone (§26).
  */
 
 import { renderHook } from '@testing-library/react'
@@ -124,12 +118,7 @@ describe('capability pages', () => {
     ])
   })
 
-  /**
-   * The bug this exists for. A host lists these under a heading naming one
-   * capability — "Application settings" — and without the filter it listed
-   * every application's help and release-notes pages there too, with nothing
-   * but the heading to say they were not settings.
-   */
+  /** Without the filter, every application's help and release-notes pages listed as settings. */
   it('lists only the named capability', () => {
     const { result } = renderHook(() => useCapabilityPages('settings'), { wrapper: hosted() })
 
@@ -159,7 +148,7 @@ describe('the active definition', () => {
     expect(result.current?.entry?.title).toBe('Operations')
   })
 
-  /** Hidden excludes an entry from listings. It is not a second kind of unknown. */
+  /** Hidden excludes an entry from listings; it is not a second kind of unknown. */
   it('names a hidden App that was navigated to directly', () => {
     const { result } = renderHook(() => useActiveDefinition('/internal-tools'), {
       wrapper: hosted(),

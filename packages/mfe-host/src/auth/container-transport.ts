@@ -1,16 +1,7 @@
 /**
- * The seam between the shell's session and a container's generated
- * `#mfe/fetch`.
- *
- * A generated module is evaluated by the federation runtime with no host in
- * scope, so it cannot be handed a token source as an argument. The shell
- * installs one here at boot and every container resolves it by import.
- *
- * One session for the whole page is the requirement, not a shortcut: §10.5
- * makes refresh single-flight across mounts, so a per-mount source would be the
- * bug. What stays per-container is the part that is genuinely the author's —
- * the API base URL and the origins declared `{ api: true }` — which is why the
- * container passes a binding rather than receiving a ready transport.
+ * The seam between the shell's session and a container's generated `#mfe/fetch`, which the
+ * federation runtime evaluates with no host in scope. One session serves the whole page,
+ * because a per-mount token source would be the bug (§10).
  */
 
 import { createMfeError, type DiagnosticsHub } from '@company/mfe-core'
@@ -22,33 +13,27 @@ import {
   type FetchLike,
 } from './authenticated-fetch.ts'
 
-/** What the shell owns: the session, and how failures are surfaced. */
 export interface ShellAuthOptions {
   readonly tokens: AccessTokenSource
   readonly diagnostics?: DiagnosticsHub
   /** Gates developer-only warnings that would be noise in production. */
   readonly isDevelopment?: boolean
-  /** The `fetch` to wrap. Defaults to the browser's, read at call time. */
+  /** Defaults to the browser's `fetch`, read at call time. */
   readonly fetch?: FetchLike
 }
 
-/** What the container's build knows and the shell cannot. */
 export interface ContainerAuthBinding {
   /** The container's definition id, used for attribution in diagnostics. */
   readonly id: string
   /** The default base for relative request URLs: the first declared API. */
   readonly apiBaseUrl?: string | URL
-  /** Every origin declared `{ api: true }`. Only these receive the token. */
+  /** Every origin declared `{ api: true }`; only these receive the token. */
   readonly apiOrigins: Iterable<string | URL>
 }
 
 let installed: ShellAuthOptions | null = null
 
-/**
- * Installs the shell's session. Returns an uninstall so a test — or a shell
- * that re-authenticates into a different session — can replace it without
- * leaving the previous one reachable.
- */
+/** Returns an uninstall, so a replacement never leaves the previous session reachable. */
 export function installShellAuth(options: ShellAuthOptions): () => void {
   installed = options
   return () => {
@@ -70,14 +55,7 @@ function requireShellAuth(binding: ContainerAuthBinding): ShellAuthOptions {
   })
 }
 
-/**
- * The transport behind a container's generated `#mfe/fetch`.
- *
- * Resolution is deferred to the first call rather than done here: the module
- * that calls this is evaluated during container load, and making that
- * evaluation depend on shell boot order would turn a wiring mistake into an
- * unloadable container instead of an actionable error on the request itself.
- */
+/** Resolved on the first call, so a wiring mistake is an error on that request, not on load. */
 export function createContainerTransport(binding: ContainerAuthBinding): AuthTransport {
   let resolved: AuthTransport | null = null
 
@@ -96,8 +74,7 @@ export function createContainerTransport(binding: ContainerAuthBinding): AuthTra
     return resolved
   }
 
-  // Both are `async` so a missing session rejects rather than throwing
-  // synchronously: callers of a `fetch`-shaped function handle rejections.
+  // Both are `async` so a missing session rejects rather than throwing synchronously.
   return {
     fetch: async (input, init) => await transport().fetch(input, init),
     getAccessToken: async options => await transport().getAccessToken(options),

@@ -1,9 +1,4 @@
-/**
- * Discovery reads the designated entry and nothing else, so a `createWidget`
- * call elsewhere is a definition nothing will ever load: the code compiles,
- * tests that import it pass, and the Widget is simply absent from the container
- * the shell loads. A call found here is reported, never collected.
- */
+/** Discovery reads the designated entry alone, so a `createWidget` call elsewhere never loads. */
 
 import { readdirSync } from 'node:fs'
 import type { Dirent } from 'node:fs'

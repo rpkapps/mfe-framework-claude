@@ -1,10 +1,6 @@
 /**
- * The shell chrome: the header, and the notice strip under it. Below those two
- * rows the shell renders nothing of its own — no padding, no card, no page
- * title. The mounted App gets the region and chooses its own layout.
- *
- * Every export here is a component, for the reason `hooks.ts` gives; the hooks
- * live there and the boot facts in `workspace.ts`.
+ * The shell chrome: the header and the notice strip under it, and nothing of the shell's own
+ * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
@@ -85,11 +81,7 @@ import { SettingsSheet } from './settings-sheet.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
-/**
- * Every surface dismisses to the page underneath it. Declared once at module
- * scope so each one is handed the same function rather than a new closure per
- * render — and so none of them needs to know which surface it is.
- */
+/** Declared once at module scope, so every surface is handed the same function rather than a new closure per render. */
 const closeOnDismiss = (open: boolean): void => {
   if (!open) shellUi.close()
 }
@@ -103,14 +95,9 @@ const DASHBOARD = {
 } as const
 
 /**
- * How one application looks in the finder — the same tile, tone and name
- * whether it is being offered in the list or shown in the trigger as the
- * current one. Derived rather than stored twice, so the two cannot disagree
- * about what you are looking at.
- *
- * An id the registry does not know still gets a tile: the boundary below is
- * already saying it could not be loaded, and a trigger reading "Widget
- * dashboard" over that error would be the shell lying about where you are.
+ * Derived rather than stored twice, so the list and the trigger cannot disagree. An id the
+ * registry does not know still gets a tile, because the boundary below is already saying it
+ * could not be loaded.
  */
 function appFace(
   id: string,
@@ -127,68 +114,48 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   const runtime = useMfeRuntime('the shell layout')
   const navigate = useNavigate()
   const surface = useShellSurface()
-  // Shell state is the theme's one source of truth: every switch goes through
-  // `shellState.apply`, and a mounted App reads the same value through the same
-  // hook, so the toggle is visible on both sides.
+  // Shell state is the theme's one source of truth, so a mounted App reads the same value
+  // through the same hook.
   const theme = useTheme()
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.colorScheme = theme
-    // Remembered here rather than at each switch, because the theme has four
-    // ways to change — the menu, settings, the palette, a shortcut — and a
-    // fifth one added later would otherwise be the one that forgets. The key
-    // is the bare `theme` the legacy Angular applications read.
+    // Remembered here rather than at each switch, because the theme has four ways to change and
+    // a fifth added later would be the one that forgets; the key is the bare `theme` (§24).
     writeTheme(theme)
   }, [theme])
 
-  // The shell's half of the navigation-blocking contract: its own router asks,
-  // and the runtime's navigator answers for whatever is mounted. `action` is
-  // forwarded rather than dropped, because refusing the back button while
-  // allowing a redirect is a distinction an App is entitled to make.
+  // `action` is forwarded rather than dropped, because refusing the back button while allowing a
+  // redirect is a distinction an App is entitled to make.
   useBlocker({
     shouldBlockFn: async ({ current, next, action }) => {
       const outcome = await runtime.navigator.requestNavigation(
         createNavigationIntent(
           parseBoundaryLocation(current.pathname),
           parseBoundaryLocation(next.pathname),
-          // The boundary of whatever is mounted now, derived the same way the
-          // chrome derives it, so the two cannot disagree about which App this
-          // negotiates with.
+          // Derived the same way the chrome derives it, so the two cannot disagree about which
+          // App this negotiates with.
           `/${boundaryDefinitionId(current.pathname) ?? ''}`,
           action,
         ),
-        // The router commits for us when this resolves false, so there is
-        // nothing to commit here — the negotiation's outcome is the answer.
+        // The router commits when this resolves false, so there is nothing to commit here.
         () => {},
       )
       return outcome === 'blocked'
     },
-    // A reload or a closed tab is not a navigation the router sees, and it
-    // discards the same edits. Asked of the blockers rather than counted, so an
-    // App that says `enableBeforeUnload: false` is not overruled by the shell.
+    // Asked of the blockers rather than counted, so an App that says `enableBeforeUnload: false`
+    // is not overruled by the shell.
     enableBeforeUnload: () => runtime.navigator.wantsUnloadPrompt(),
   })
 
   return (
-    // One registry for the page: the shell registers ⌘K here and a mounted App
-    // registers its own shortcuts into the same one.
+    // One registry for the page: a mounted App registers its own shortcuts into the same one (§26).
     <ShortcutsProvider>
-      {/*
-       * The shell's frame is two rows — header, then everything else — and the
-       * notice strip goes inside the second one rather than becoming a third.
-       * A third child of the grid lands in the `1fr` row and stretches to fill
-       * it, which pushes the mounted App down the page by the height of the
-       * region it should have had.
-       */}
+      {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
-        {/*
-         * A React Aria link with an `href` is a document navigation unless a
-         * router is provided for it, and every breadcrumb click tore the whole
-         * shell down. Scoped to the chrome rather than the document: a link
-         * inside a mounted App belongs to its router, not to this one.
-         */}
+        {/* A React Aria link with an `href` is a document navigation unless a router is provided, and every breadcrumb click tore the shell down. */}
         <AriaRouterProvider navigate={to => void navigate({ to })}>
           <Header />
         </AriaRouterProvider>
@@ -197,23 +164,15 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
         </AppShellBody>
       </AppShell>
 
-      {/*
-       * Every shell surface is mounted here and opened from the store, so the
-       * palette can open settings and settings can open the registry without
-       * either one knowing where the other lives.
-       */}
+      {/* Every shell surface is mounted here and opened from the store, so none needs to know where another lives. */}
       <CommandPalette open={surface === 'palette'} onOpenChange={closeOnDismiss} />
       <SettingsSheet isOpen={surface === 'settings'} onOpenChange={closeOnDismiss} />
       <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
       <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
       <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
-      {/*
-       * Not a member of `ShellSurface`: the developer tools own their open
-       * state, and unlike the sheets they are not modal and close nothing.
-       */}
+      {/* Not a member of `ShellSurface`: the developer tools own their open state and are not modal (§22). */}
       <MfeDevtools />
-      {/* Explicit: the design system's Toaster otherwise reads next-themes and
-          falls back to the system preference, which is not the shell's theme. */}
+      {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
     </ShortcutsProvider>
   )
@@ -225,9 +184,7 @@ function Header(): ReactNode {
   const apps = useApps()
   const active = useActiveApp()
   const theme = useTheme()
-  // Subscribed rather than read off the store: the avatar has to change when
-  // the identity does, and a bare `getUser()` is a snapshot taken during one
-  // render that nothing re-runs.
+  // Subscribed rather than read off the store: a bare `getUser()` is a snapshot nothing re-runs.
   const user = useUser()
 
   const current = active === null ? DASHBOARD : appFace(active.id, active.entry)
@@ -312,12 +269,7 @@ function Header(): ReactNode {
   return (
     <AppShellHeader data-slot="shell-header" className="gap-1 sm:gap-2">
       <AppFinder>
-        {/*
-         * The application you are in, not the workspace you are in. The
-         * workspace name is already the first breadcrumb, and a trigger that
-         * never changed made the one control that switches application look
-         * like it had nothing to switch.
-         */}
+        {/* The application you are in, not the workspace: the workspace name is already the first breadcrumb. */}
         <AppFinderTrigger name={current.name} tone={current.tone}>
           {current.icon}
         </AppFinderTrigger>
@@ -374,11 +326,7 @@ function Header(): ReactNode {
         <Breadcrumbs />
       </AppShellNav>
 
-      {/*
-       * Below `lg` the last three actions move into the overflow menu rather
-       * than disappearing. A button that is hidden at one width and absent at
-       * another is a feature the user cannot find; a menu is one more tap.
-       */}
+      {/* Below `lg` these move into the overflow menu rather than disappearing, because a button absent at one width is a feature the user cannot find. */}
       <AppShellActions>
         <AppShellCommandTrigger
           onPress={() => {
@@ -511,12 +459,7 @@ function Header(): ReactNode {
   )
 }
 
-/**
- * The trail comes from `runtime.breadcrumbs`, never from router state here. The
- * shell publishes its own portion (the workspace, and the App the registry says
- * is mounted at the active boundary) through the same hook a mounted App uses;
- * the App contributes below it and the store composes the two.
- */
+/** The trail comes from `runtime.breadcrumbs`, never from router state here: the shell publishes its own portion through the hook a mounted App uses (§26). */
 function Breadcrumbs(): ReactNode {
   const runtime = useMfeRuntime('the shell breadcrumbs')
   const active = useActiveApp()
@@ -524,10 +467,8 @@ function Breadcrumbs(): ReactNode {
   const items = useMemo(() => {
     const trail: BreadcrumbItem[] = [{ key: 'workspace', label: workspace.name, href: '/' }]
 
-    // The same answer the finder's trigger shows, from the same hook: an id the
-    // registry does not know still names itself, because the boundary below is
-    // already saying it could not be loaded and a crumb reading "Widget
-    // dashboard" over that error would be the shell lying about where you are.
+    // The same answer the finder's trigger shows, from the same hook, so a crumb never
+    // contradicts the boundary below it.
     if (active === null) trail.push({ key: 'dashboard', label: DASHBOARD.name })
     else {
       trail.push({

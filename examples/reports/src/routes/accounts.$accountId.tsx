@@ -25,12 +25,8 @@ import type { ReactNode } from 'react'
 
 import { alternatives, statusMeta } from '../components/fda-comparison-table/page.tsx'
 
-/**
- * Per-instance data arrives through this App's own URL contract. Mounted at
- * /reports this route appears as /reports/accounts/42; mounted at
- * /operations/reports it appears as /operations/reports/accounts/42. The child
- * never parses the mount prefix to find business data.
- */
+/** Per-instance data arrives through this App's own URL contract; the child never parses the mount
+ * prefix to find business data. */
 export const Route = createFileRoute('/accounts/$accountId')({
   component: AccountReport,
 })
@@ -214,7 +210,7 @@ function Row({
   )
 }
 
-/** "2029-03" is a machine's date. A reader wants a quarter and a year. */
+/** "2029-03" is a machine's date; a reader wants a quarter and a year. */
 function formatFirstOil(iso: string): string {
   const [year, month] = iso.split('-')
   if (year === undefined || month === undefined) return iso

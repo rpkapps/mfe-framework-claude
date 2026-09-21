@@ -1,16 +1,6 @@
 /**
- * The one node this package adds to a document it does not own.
- *
- * Asserted against `document.body` rather than through a render query,
- * because what is on trial is a side effect rather than a tree — and the
- * failure worth catching is the node that stops being removed, which no
- * screen query would notice.
- *
- * The hook is tested rather than the panel: React Aria's `Toolbar` reads an
- * inherited property off `<html>`, and this jsdom throws resolving one there,
- * so the header cannot be rendered in this environment at all. That is a
- * reason to keep the side effect out of the component, not a reason to leave
- * it unasserted.
+ * The hook is tested rather than the panel because React Aria's `Toolbar` reads an inherited
+ * property off `<html>` that this jsdom throws resolving, so the header cannot be rendered here.
  */
 
 import { renderHook } from '@testing-library/react'
@@ -50,9 +40,6 @@ describe('the overlay layer', () => {
     const { result } = renderHook(() => useOverlayLayer())
     const node = result.current()
 
-    // `relative` is what makes the z-index mean anything: without a position
-    // the overlays would rejoin the body's stacking context and the panel
-    // would cover them again.
     expect(node?.style.position).toBe('relative')
     expect(Number(node?.style.zIndex)).toBeGreaterThan(2147483000)
   })

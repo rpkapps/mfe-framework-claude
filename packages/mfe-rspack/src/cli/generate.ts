@@ -1,17 +1,5 @@
 #!/usr/bin/env node
-/**
- * `mfe-generate` — everything a build generates, without a build.
- *
- * `#mfe/config`, `#mfe/fetch`, `#mfe/meta` and the route tree are build output,
- * so an editor opened on a fresh clone resolves none of them and neither does
- * `tsc`. Starting the bundler to fix that would make the type of a file depend
- * on whether a dev server happened to be running. This runs the same generation
- * the plugin runs, against the container in the working directory, and it is
- * what project setup and every `generate` script invoke.
- *
- * It runs the sources it imports directly, with no build step of its own, the
- * way the scaffold CLI does.
- */
+/** The same generation the plugin runs, so a fresh clone resolves `#mfe/*` without a build. */
 
 import { relative, sep } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -39,15 +27,7 @@ export interface GenerateResult {
   readonly diagnostics: readonly Error[]
 }
 
-/**
- * The path this command prints, in the one spelling every platform shares.
- *
- * `relative()` answers in the host's separator, so Windows printed
- * `.mfe\fetch.ts` where the emitter, the generated imports and the
- * documentation all say `.mfe/fetch.ts` — three spellings of one file in a
- * tool whose whole output is file names. The emitter already normalizes; this
- * is the same rule at the other end.
- */
+/** `relative()` answers in the host's separator; every other spelling here is POSIX. */
 function report(containerRoot: string, path: string): string {
   return relative(containerRoot, path).split(sep).join('/')
 }
@@ -103,9 +83,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   if (result.diagnostics.length === 0) return 0
 
-  // A compilation reports these as build errors. Nothing else would report them
-  // here, so they fail this command too, one line each: every diagnostic names
-  // the file to open and the repair to make.
+  // Nothing else would report these here, so they fail this command too.
   console.error('')
   for (const diagnostic of result.diagnostics) console.error(diagnostic.message)
   return 1

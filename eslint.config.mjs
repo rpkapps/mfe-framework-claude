@@ -1,14 +1,8 @@
 // @ts-check
 /**
- * Workspace lint configuration.
- *
- * Which preset a directory gets is a statement about what that code *is*, not
- * about where it sits. The shell is the host: it legitimately imports the
- * loader, the registry and the federation runtime, and it reads browser storage
- * to pick up developer overrides before any store exists. An MFE does none of
- * those things, which is exactly what the author preset is there to prevent.
- * Scoping the shell as an author would turn three correct rules into three
- * false positives.
+ * Which preset a directory gets is a statement about what that code *is*, not where it sits:
+ * the shell is the host, so it legitimately imports the loader, the registry and the
+ * federation runtime that the author preset exists to forbid.
  */
 import mfe from '@company/eslint-plugin-mfe'
 
@@ -29,40 +23,26 @@ export default [
   ...mfe.framework({
     tsconfigRootDir: import.meta.dirname,
     files: ['packages/*/src/**/*.{ts,tsx}', 'tools/*/src/**/*.ts', 'apps/shell/src/**/*.{ts,tsx}'],
-    // React rules apply only where React is. `rules-of-hooks` treats a call to
-    // anything named `use` as a hook call, so a bundler plugin building a module
-    // rule's `use:` loader list gets told it is calling a Hook outside a
-    // component. Narrowing is the repair; suppressing at each site is not.
+    // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
+    // plugin building a module rule's `use:` list is told it called a Hook outside a component.
     reactFiles: [
       'packages/mfe-react/src/**/*.{ts,tsx}',
       'packages/mfe-devtools/src/**/*.{ts,tsx}',
       'apps/shell/src/**/*.{ts,tsx}',
     ],
-    // The storage adapter owns every read and write the framework makes, and
-    // the shell's override bootstrap has to read localStorage before a store
-    // exists to read it through. Both are named explicitly rather than inferred.
+    // The storage adapter owns every read and write the framework makes, and the shell's
+    // override bootstrap has to read localStorage before a store exists to read it through.
     storageAllowedScopes: [
       'packages/mfe-host/src/storage/**',
       'packages/mfe-host/src/overrides/**',
       'apps/shell/src/boot.tsx',
-      // The other end of the same bootstrap. The devtools panel writes the
-      // override key and reads its own flag, and neither belongs to a
-      // definition: both are the page's, read before a store exists to read
-      // them through. One accessor, named explicitly rather than inferred.
+      // The other end of the same bootstrap: the override key and the panel's own flag are
+      // the page's, not any definition's, and are read before a store exists to read them.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme, and only the theme. The legacy Angular applications read
-      // `localStorage["theme"]` directly as the bare string "light" or "dark",
-      // so the shell has to write exactly that key with exactly that value —
-      // and the store writes an envelope under a scoped key, which is a shape
-      // and a name it cannot produce. An interoperability contract with code
-      // that is not ours, not a local convenience (docs/decisions.md §24).
+      // The theme only: the legacy Angular applications read `localStorage["theme"]` as a bare
+      // string, so its name and shape are fixed by code that is not ours (docs/decisions.md §24).
       'apps/shell/src/shell/preferences.ts',
-      // The dashboard canvas and the session generation used to be named here
-      // too. Both were host-owned state with nowhere to go: the store scoped
-      // every key to a definition id and gated it behind a mount. They now go
-      // through the store's reserved `@host` scope instead, so those
-      // exemptions were deleted rather than kept. Any further entry here
-      // should be read as evidence of another missing primitive.
+      // A further entry here is evidence of another missing primitive (docs/decisions.md §24).
     ],
   }),
 
@@ -74,25 +54,10 @@ export default [
   }),
 
   /*
-   * The design system's own guardrails are switched off.
-   *
-   * They were here for the failures that are otherwise silent: Tecton resets
-   * Tailwind's stock palette, so `bg-red-500` generates no CSS at all — it type
-   * checks, it renders unstyled, and nothing reports it. The `strict` preset is
-   * meant to read the project's real Tailwind theme through `components.json`
-   * and name the nearest Tecton token instead.
-   *
-   * It cannot read it here. Every run opens with the preset reporting its own
-   * misconfiguration — the `ui` alias does not resolve to a directory in a
-   * workspace that consumes Tecton through `@tecton/react/*` subpath exports
-   * rather than a copied `components/ui` folder — and with that resolution gone
-   * the token rules fall back to flagging any bracketed utility, including the
-   * grid templates a responsive layout is made of. A guardrail that cannot tell
-   * an off-token colour from a correct `minmax()` is noise, and noise is what
-   * gets a whole preset disabled rather than one rule.
-   *
-   * Re-enable it by giving `components.json` an `aliases.ui` this workspace
-   * actually resolves, then restoring the block below.
+   * The design system's `strict` preset is off: its `ui` alias cannot resolve in a workspace
+   * consuming Tecton through subpath exports, so its token rules flag every bracketed utility,
+   * grid templates included. Re-enable it by giving `components.json` an `aliases.ui` this
+   * workspace resolves, then restoring the block below.
    */
   // ...tecton.configs.strict.map(config => ({
   //   ...config,
@@ -100,10 +65,7 @@ export default [
   // })),
 
   {
-    // The telemetry ban exists so no framework package pins a vendor SDK version
-    // for the whole page. Its own message says the shell adapts the neutral
-    // contract to Faro, so the file that does exactly that is where the ban
-    // stops applying. Named explicitly, never inferred from a directory.
+    // The one file that adapts the neutral telemetry contract to Faro.
     name: 'repo/shell-telemetry-adapter',
     files: ['apps/shell/src/shell/faro.ts', 'apps/shell/src/shell/faro.test.ts'],
     rules: { '@typescript-eslint/no-restricted-imports': 'off' },
@@ -113,9 +75,7 @@ export default [
     name: 'repo/scaffold-cli',
     files: ['packages/create-mfe/src/**/*.ts'],
     rules: {
-      // For a scaffolding CLI, stdout is the interface rather than a debug
-      // leftover: the connection instructions it prints are the whole point of
-      // the command. Framework runtime packages keep the ban.
+      // For a scaffolding CLI stdout is the interface rather than a debug leftover.
       'no-console': 'off',
     },
   },
@@ -124,9 +84,7 @@ export default [
     name: 'repo/generate-cli',
     files: ['packages/mfe-rspack/src/cli/**/*.ts'],
     rules: {
-      // Same reason as the scaffold: a command reports what it generated and
-      // which diagnostic to open on its own streams. Only the CLI directory is
-      // exempt, so the plugin and the generators around it keep the ban.
+      // Same as the scaffold; only the CLI directory is exempt, so the generators keep the ban.
       'no-console': 'off',
     },
   },

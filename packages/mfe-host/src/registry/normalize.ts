@@ -1,7 +1,6 @@
 /**
- * Registry normalization and table-driven adapter selection: one normalized
- * registry backs every shell surface, so no feature has to know which adapter
- * an entry belongs to, and adding an adapter is a table entry.
+ * One normalized registry backs every shell surface, so no feature has to know which
+ * adapter an entry belongs to and adding an adapter is a table entry.
  */
 
 import {
@@ -17,9 +16,8 @@ import {
 
 export interface NormalizeRegistryOptions {
   /**
-   * Ordered selection table. The first rule whose `advertises` returns true owns
-   * the entry, including when its `normalize` then fails — that is the
-   * no-silent-fallback rule.
+   * The first rule whose `advertises` returns true owns the entry, including when its `normalize`
+   * then fails: the no-silent-fallback rule.
    */
   readonly rules: readonly AdapterSelectionRule[]
   /** Boot-time URL overrides by definition id. */
@@ -129,8 +127,8 @@ export function normalizeRegistry(
     )
   })
 
-  // Duplicate ids are rejected deterministically and reported with ALL the
-  // conflicting entries — not resolved by whichever entry came last.
+  // Duplicate ids are reported with ALL the conflicting entries, not resolved by
+  // whichever entry came last.
   for (const [id, claims] of claimsById) {
     if (claims.length < 2) continue
     accepted.delete(id)
@@ -156,8 +154,8 @@ export function normalizeRegistry(
 }
 
 /**
- * Treating a throw during *detection* as "not mine" is safe: a genuinely
- * malformed advertised contract still fails explicitly inside `normalize`.
+ * Treating a throw during *detection* as "not mine" is safe: a genuinely malformed
+ * advertised contract still fails explicitly inside `normalize`.
  */
 function safeAdvertises(rule: AdapterSelectionRule, source: unknown): boolean {
   try {

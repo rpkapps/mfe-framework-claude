@@ -1,9 +1,4 @@
-/**
- * `pluginMfe()` options. The list is deliberately short: federation names,
- * exposes, share scopes, singleton flags and manifest settings only produce a
- * working page when every container agrees on them, which is not something a
- * per-repository config file can promise, so they are derived instead.
- */
+/** The list is short because a setting every container must agree on is derived, not declared. */
 
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
@@ -11,27 +6,13 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { createBuildError } from './diagnostics.ts'
 
 export interface MfePluginOptions {
-  /**
-   * The container root. Defaults to the compiler context, which is the
-   * directory holding `rsbuild.config.ts`.
-   */
+  /** Defaults to the compiler context, the directory holding `rsbuild.config.ts`. */
   readonly containerRoot?: string
-  /**
-   * The one supported sharing override. It is additive: the adapter's defaults
-   * are kept, and there is no way to remove one.
-   */
+  /** Additive: the adapter's defaults are kept, and there is no way to remove one. */
   readonly shared?: Readonly<Record<string, string>>
-  /**
-   * Turns the supported React Compiler transform off for a build. This exists
-   * so a repository can run its test matrix compiled and uncompiled; it is not
-   * a place to configure the compiler, which the plugin owns.
-   */
+  /** Exists so a repository can run its test matrix compiled and uncompiled. */
   readonly reactCompiler?: boolean
-  /**
-   * Composes `@tanstack/router-plugin`. Pass `false` when the container's own
-   * config already applies it, and apply it before this plugin so the route
-   * tree is generated before anything reads the routes directory.
-   */
+  /** Pass `false` when the container's config already applies `@tanstack/router-plugin` first. */
   readonly router?: boolean | Readonly<Record<string, unknown>>
   /** Build-managed output directory, relative to the container root. */
   readonly generatedDir?: string
@@ -39,13 +20,12 @@ export interface MfePluginOptions {
   readonly routesDirectory?: string
   /** The deployment-provided config file, relative to the container's assets. */
   readonly runtimeConfigFileName?: string
-  /** The Module Federation manifest file name. */
   readonly manifestFileName?: string
   /** The shell registry descriptor file name. */
   readonly registryFileName?: string
-  /** Federation container name. Defaults to a sanitized package name. */
+  /** Federation container name; defaults to a sanitized package name. */
   readonly name?: string
-  /** Fixes the recorded build time. Defaults to now, in ISO 8601. */
+  /** Fixes the recorded build time; defaults to now, in ISO 8601. */
   readonly buildTime?: string
 }
 
@@ -71,12 +51,7 @@ export interface ResolvedOptions {
   readonly reactCompiler: boolean
   readonly router: false | Readonly<Record<string, unknown>>
   readonly buildTime: string
-  /**
-   * Whether the caller fixed the build time. A fixed time is recorded exactly
-   * as given; otherwise the generation carries forward the time already
-   * recorded against an unchanged shape, so that a watching build does not
-   * rewrite its own input on every compilation.
-   */
+  /** A fixed time is recorded as given; otherwise an unchanged shape keeps its time (§19). */
   readonly buildTimeFixed: boolean
 }
 
@@ -116,10 +91,7 @@ function absolute(root: string, path: string): string {
   return isAbsolute(path) ? path : join(root, path)
 }
 
-/**
- * A Module Federation container name has to be a legal JavaScript identifier,
- * because it also names the global the remote entry installs itself on.
- */
+/** It also names the global the remote entry installs itself on, so it must be an identifier. */
 function sanitizeFederationName(packageName: string): string {
   const withoutScope = packageName.startsWith('@') ? packageName.slice(1) : packageName
   const sanitized = withoutScope.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')

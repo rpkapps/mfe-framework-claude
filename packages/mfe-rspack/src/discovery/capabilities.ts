@@ -1,10 +1,4 @@
-/**
- * Capability routes: `createFileRoute('/settings')({ staticData: { capability,
- * label, icon } })`. Read out of the route file so the shell knows the route
- * exists before the App is loaded, and the App keeps one routing table instead
- * of a registration list that can disagree with it. The path is the
- * `createFileRoute` argument, never a second copy in `staticData`.
- */
+/** Read out of the route file, so the shell knows a route exists before the App is loaded. */
 
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -38,7 +32,7 @@ const MARKUP_PATTERN = /[<>]/
 export interface ExtractCapabilitiesOptions {
   /** Absolute path of the routes directory. */
   readonly routesDirectory: string
-  /** The App's id, for diagnostics. Absent for a Widget-only container. */
+  /** The App's id, for diagnostics; absent for a Widget-only container. */
   readonly appId?: string
   /** False when the container exports no App; a capability is then an error. */
   readonly hasApp: boolean
@@ -111,10 +105,7 @@ interface MarkedRoute {
   readonly node: ts.Node
 }
 
-/**
- * Matches `createFileRoute('<path>')({ … })` — the call of the call. Anything
- * else, including a route whose path is computed, is not a marked route.
- */
+/** Matches `createFileRoute('<path>')({ … })`; a route whose path is computed is not marked. */
 function asMarkedRoute(node: ts.Node): MarkedRoute | null {
   if (!ts.isCallExpression(node)) return null
 

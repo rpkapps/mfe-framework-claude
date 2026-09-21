@@ -6,20 +6,12 @@ import { describe, expect, it } from 'vitest'
 import { isMfeBuildError } from '../diagnostics.ts'
 import { containerScopePlugin } from './scope.ts'
 
-/**
- * The adapter's own resolution: this package declares the design system as an
- * optional peer, so its copy is what scopes a stylesheet here — the same path
- * a container that does not depend on the design system takes.
- */
+/** This package declares the design system as an optional peer, so its copy scopes here. */
 const CONTAINER_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 
 const STYLESHEET = '/app/.mfe/styles.css'
 
-/**
- * The shape Tailwind v4 actually emits for a container: a layer statement, the
- * theme defaults as `:root, :host`, the utilities in their layer, a registered
- * property, and an animation whose keyframes the sheet defines itself.
- */
+/** The shape Tailwind v4 actually emits for a container. */
 const TAILWIND_OUTPUT = `@layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -85,11 +77,6 @@ describe('containerScopePlugin', () => {
     )
   })
 
-  /**
-   * A hoisted `@keyframes` names the whole page, so the suffix is what keeps
-   * two containers off each other's animations. The ids are it — left to
-   * derive one, the plugin would build it out of the attribute selector.
-   */
   it('versions the keyframes it defines with the ids, joined', () => {
     const result = scope(TAILWIND_OUTPUT, ['ops', 'order-row'])
 
@@ -102,8 +89,6 @@ describe('containerScopePlugin', () => {
     const result = scope(TAILWIND_OUTPUT, ['operations'])
     const utilities = block(result, '@layer utilities {')
 
-    // The layer holds the scope, not the other way round: a container's
-    // utilities have to stay in the layer the page ordered them in.
     expect(utilities).toContain('@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])')
     expect(utilities.indexOf('@scope')).toBeLessThan(utilities.indexOf('.p-4'))
   })

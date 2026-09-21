@@ -1,8 +1,4 @@
-/**
- * The entry point a legacy Angular app imports: a separate export path so the
- * one-line edit has one obvious import to name, and so an app pulls in the
- * migration seam without the shell-side loader and registry code.
- */
+/** A separate export path, so a legacy app gets the migration seam without the shell-side code. */
 
 export {
   createLegacyMigrationSeam,

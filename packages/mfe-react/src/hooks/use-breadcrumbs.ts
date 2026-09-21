@@ -1,21 +1,8 @@
 /**
- * Contributing breadcrumbs: the one non-route override inside a mount, and the
- * host's own trail outside one.
- *
- * Inside a mount it replaces only the contributing App's own portion of the
- * trail and clears on unmount and on navigation, so a flow cannot leak its
- * steps into the next route. Items are compared by content, so authors need not
- * memoize them.
- *
- * An empty array is *no override*, not an override with nothing in it: the
- * shape every caller reaches for is `useBreadcrumbs(inFlow ? steps : [])`, and
- * under the other reading that deletes the App's route-derived crumbs for the
- * whole time the flow is not running. An App that contributes none at all says
- * so once, with `contributesBreadcrumbs: false` on its definition.
- *
- * Outside a mount the same call publishes the host's own crumbs, at the depth
- * every mount composes below — the framework knows what that depth is and what
- * to call it, so a host does not have to invent a mount token to be keyed by.
+ * Contributing breadcrumbs: inside a mount this overrides only that App's own portion of the
+ * trail, outside one it publishes the host's crumbs at depth 0 (§26). An empty array is *no
+ * override*, so `useBreadcrumbs(inFlow ? steps : [])` does not delete the App's route-derived
+ * crumbs while the flow is idle.
  */
 
 import { useEffect, useId, useRef } from 'react'
@@ -32,17 +19,14 @@ export function useBreadcrumbs(items: readonly BreadcrumbItem[]): void {
   const mount = useOptionalMfeMount()
   const { breadcrumbs } = useMfeRuntime('useBreadcrumbs()')
 
-  // Identifies this hook instance: the override's owner inside a mount, so a
-  // competing one is diagnosed rather than winning by render order, and the
-  // contribution's own key outside one.
+  // So a competing override is diagnosed rather than winning by render order.
   const ownerToken = useId()
   const committed = useRef(items)
   const contribution = useRef<BreadcrumbContributionHandle | null>(null)
 
   const mountToken = mount?.mountToken
 
-  // Two registrations, one of which is inert in any given component: which of
-  // the two applies is fixed for a component's life by where it renders.
+  // Which of the two registrations applies is fixed for a component's life by where it renders.
   useEffect(() => {
     if (mountToken !== undefined) return undefined
 

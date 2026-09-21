@@ -1,12 +1,6 @@
 /**
- * The loader's isolation contract.
- *
- * A registry is assembled from descriptors produced by builds the host does not
- * control, so an entry whose manifest cannot be fetched is normal rather than
- * exceptional. What the framework promises is that such an entry costs the page
- * that one surface: the boundary showing it takes a `load/manifest-failure`,
- * and every other definition — including one from the same page and one loaded
- * afterwards — still loads.
+ * The loader's isolation contract: an entry whose manifest cannot be fetched costs the page that
+ * one surface, and every other definition still loads (§30).
  */
 
 import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
@@ -38,20 +32,14 @@ function appEntry(id: string, containerName: string, manifestUrl: string): Neutr
 
 const liveSignal = (): AbortSignal => new AbortController().signal
 
-/**
- * The loader hands a definition back; it never builds the router, so the
- * factory only has to exist. Throwing says so rather than pretending.
- */
+/** The loader never builds the router, so the factory only has to exist. */
 function unusedRouter(): AnyRouter {
   throw new Error('the container loader never builds a router')
 }
 
 const anApp = (id: string): AppDefinition => createApp({ id, router: unusedRouter })
 
-/**
- * A runtime whose containers are named by their remote id, so one test can hold
- * a reachable container and an unreachable one at the same time.
- */
+/** Containers named by their remote id, so one test can hold a reachable and a dead one. */
 function createRuntime(containers: Readonly<Record<string, () => Promise<unknown>>>) {
   const registerRemotes = vi.fn()
   const loadRemote = vi.fn((id: string) => {
@@ -87,13 +75,7 @@ describe('createMf2ContainerLoader', () => {
     expect(loaded.module).toBe(definition)
   })
 
-  /**
-   * The defect this pins: a manifest that would not load took the whole page
-   * down rather than its own surface. Loading the reachable container *after*
-   * the unreachable one is the half that matters — that is the order in which
-   * the failure used to spread, because the host's share resolution waited on
-   * every remote it had been told about.
-   */
+  /** Loading the reachable container after the unreachable one is the order failures spread in. */
   it('rejects only the definition whose manifest failed, and keeps the rest loadable', async () => {
     const dead = 'http://localhost:9999/mf-manifest.json'
     const reports = anApp('reports')
@@ -138,7 +120,6 @@ describe('createMf2ContainerLoader', () => {
     expect(widget.module).toBe(panel)
   })
 
-  /** A retry has to reach the runtime again rather than replay the failure. */
   it('lets a failed container be loaded again once it is reachable', async () => {
     const definition = anApp('operations')
     let reachable = false
@@ -162,11 +143,6 @@ describe('createMf2ContainerLoader', () => {
     expect(loaded.module).toBe(definition)
   })
 
-  /**
-   * A container that answered and then could not serve a chunk is a different
-   * repair — the network panel, not the manifest URL — so the two failures keep
-   * their own codes.
-   */
   it('reports a chunk that failed after the manifest loaded as an entry failure', async () => {
     const { runtime } = createRuntime({
       example_operations: () => Promise.reject(new Error('Loading chunk 42 failed')),

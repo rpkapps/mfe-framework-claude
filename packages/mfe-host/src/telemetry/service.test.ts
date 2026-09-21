@@ -68,7 +68,6 @@ describe('the seven public members', () => {
   it('delivers records synchronously, so no telemetry call awaits transport', () => {
     const { provider, telemetry } = setup()
     telemetry.event('checkout.started')
-    // Already present the instant the call returns: nothing is queued on a task.
     expect(provider.records).toHaveLength(1)
   })
 })
@@ -81,7 +80,6 @@ describe('the surface the framework does not have', () => {
       expect(absent in telemetry).toBe(false)
       expect(absent in telemetry.tracer).toBe(false)
     }
-    // The tracer is exactly startSpan and startActiveSpan.
     expect(typeof telemetry.tracer.startSpan).toBe('function')
     expect(typeof telemetry.tracer.startActiveSpan).toBe('function')
   })
@@ -89,11 +87,9 @@ describe('the surface the framework does not have', () => {
   it('keeps the host controls off the enumerable author surface', () => {
     const { telemetry } = setup()
 
-    // Present for the host that created the mount...
     expect(typeof telemetry.dispose).toBe('function')
     expect(typeof telemetry.framework).toBe('function')
     expect(telemetry.attribution).toEqual(ATTRIBUTION)
-    // ...and invisible to anything that walks the author surface.
     for (const hostOnly of ['dispose', 'framework', 'counters', 'attribution', 'openSpanCount']) {
       expect(Object.keys(telemetry)).not.toContain(hostOnly)
     }
@@ -152,8 +148,8 @@ describe('automatic attribution', () => {
   })
 
   it('copies the attribution, so a later mutation cannot rewrite emitted records', () => {
-    // A writable copy of the attribution: mutating it after the handle exists
-    // is the whole point of the test.
+    // A writable copy of the attribution: mutating it after the handle exists is the whole
+    // point of the test.
     const mutable: { -readonly [K in keyof TelemetryAttribution]: TelemetryAttribution[K] } = {
       ...ATTRIBUTION,
     }
@@ -193,8 +189,8 @@ describe('automatic attribution', () => {
     telemetry.event('bulk', attributes)
 
     const record = at(provider.events())
-    // 64 author attributes survive the clamp, and the five reserved keys are
-    // merged afterwards so they can never be crowded out.
+    // 64 author attributes survive the clamp, and the five reserved keys are merged
+    // afterwards so they can never be crowded out.
     expect(Object.keys(record.attributes)).toHaveLength(69)
     expect(record.attributes['a0']).toBe(0)
     expect(record.attributes['a63']).toBe(63)
@@ -408,7 +404,6 @@ describe('provider failures are contained', () => {
 
     expect(() => telemetry.measure('broken', Number.NaN, { unit: 'ms' })).not.toThrow()
 
-    // Exactly one attempt: the failure of the sink is never itself reported.
     expect(sink).toHaveBeenCalledTimes(1)
     expect(telemetry.counters.sinkFailures).toBe(1)
     expect(telemetry.counters.diagnosticsEmitted).toBe(1)
@@ -436,8 +431,7 @@ describe('framework records and error deduplication', () => {
     telemetry.error(failure)
     telemetry.error(failure)
 
-    // The author asked twice: both are recorded, because a retry loop reporting
-    // the same instance is meaningful. The duplication is counted, not hidden.
+    // Both are recorded, because a retry loop reporting the same instance is meaningful.
     expect(provider.logs('error')).toHaveLength(2)
     expect(telemetry.counters.duplicateErrorReports).toBe(1)
   })
@@ -530,7 +524,6 @@ describe('disposal', () => {
 })
 
 describe('provider replacement', () => {
-  // The same author code, unchanged, against three different providers.
   function authorFeature(telemetry: MfeTelemetry): string {
     telemetry.event('checkout.started', { step: 'address' })
     telemetry.measure('checkout.latency', 42, { unit: 'ms' })
@@ -562,7 +555,6 @@ describe('provider replacement', () => {
       expect(provider.logs('info')).toHaveLength(1)
       expect(at(provider.spansNamed('checkout')).status.code).toBe(SpanStatusCode.OK)
     }
-    // The noop provider kept nothing and the author code could not tell.
     expect(first.records).toHaveLength(3)
     expect(second.records).toHaveLength(3)
   })

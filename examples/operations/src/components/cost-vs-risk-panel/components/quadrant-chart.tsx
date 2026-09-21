@@ -25,10 +25,6 @@ type QuadrantChartProps = React.ComponentProps<'div'> & {
   yLabel?: string
 }
 
-/**
- * Cost (x) vs risk (y) bubble chart split into four quadrants by
- * reference lines at the mid-point of each axis. Bubble area = plan days.
- */
 function QuadrantChart({
   className,
   designs,

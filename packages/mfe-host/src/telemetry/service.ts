@@ -1,10 +1,7 @@
 /**
- * `createMountTelemetry` — the mount-bound telemetry service handed to authors.
- *
- * The author surface is exactly seven imperative members. The host keeps its
- * own controls on the same object as non-enumerable properties, so anything
- * that walks the object still sees only those seven. Every member is created
- * once and frozen, so it can be closed over without re-running an effect.
+ * The mount-bound telemetry service handed to authors. The host keeps its own controls on
+ * the same object as non-enumerable properties, so anything that walks it still sees only
+ * the author surface, and every member is frozen so it can be closed over safely.
  */
 
 import { DEV } from '@company/mfe-core'
@@ -25,13 +22,13 @@ import {
 import { MountTracer } from './tracer.ts'
 
 export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
-  /** False switches tracing off: every span is a non-recording handle. Defaults to true. */
+  /** False switches tracing off, so every span is a non-recording handle; defaults to true. */
   readonly tracing?: boolean
 }
 
 /**
- * What the host holds. Authors receive the same object typed as `MfeTelemetry`;
- * the members below are host-owned and are not part of the author surface.
+ * What the host holds; authors receive the same object typed as `MfeTelemetry`, without the
+ * members below.
  */
 export interface MountTelemetryHandle extends MfeTelemetry {
   readonly attribution: TelemetryAttribution
@@ -42,8 +39,8 @@ export interface MountTelemetryHandle extends MfeTelemetry {
   /** Framework lifecycle diagnostics, deduplicated against reported errors. */
   framework(operation: string, details: FrameworkRecordDetails): void
   /**
-   * Finalizes outstanding spans as cancelled and closes the mount to new
-   * records. Repeated calls are harmless.
+   * Finalizes outstanding spans as cancelled and closes the mount to new records; repeated calls
+   * are harmless.
    */
   dispose(): void
 }
@@ -86,8 +83,8 @@ export function createMountTelemetry(
 
   function dispose(): void {
     if (runtime.disposed) return
-    // Teardown finalization runs before the gate closes: it is the one thing
-    // allowed to touch the provider after disposal was requested.
+    // Teardown finalization runs before the gate closes: it is the one thing allowed to
+    // touch the provider after disposal was requested.
     const leaked = tracer.finalizeOpenSpans()
     if (DEV && leaked.finalized > 0) {
       const names = leaked.names.slice(0, 8).join(', ')

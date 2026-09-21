@@ -1,10 +1,6 @@
 /**
- * The override replaces the App's own portion of the trail — and an empty array
- * is no override rather than an override with nothing in it.
- *
- * That distinction is the whole test. `useBreadcrumbs(inFlow ? steps : [])` is
- * the shape every caller writes, and under the other reading it deleted the
- * App's route-derived crumbs for the entire time the flow was not running.
+ * An empty array is no override rather than an override with nothing in it, because
+ * `useBreadcrumbs(inFlow ? steps : [])` is the shape every caller writes.
  */
 
 import { render, screen, waitFor } from '@testing-library/react'
@@ -75,8 +71,7 @@ describe('useBreadcrumbs', () => {
       expect(labels(created)).toEqual(['New study', 'Step 2'])
     })
 
-    // And back: clearing the override restores the route's own crumb rather
-    // than leaving the App's portion empty.
+    // And back: clearing the override restores the route's own crumb.
     screen.getByRole('button', { name: 'toggle' }).click()
     await waitFor(() => {
       expect(labels(created)).toEqual(['Breadcrumbs'])
@@ -109,12 +104,7 @@ describe('useBreadcrumbs', () => {
   })
 })
 
-/**
- * The same hook outside any mount, which is where a host's own trail comes
- * from. It had no way in before: the store is keyed by mount token and a host
- * has none, so a shell wanting the workspace and the mounted application in
- * the trail invented a token and registered itself as though it were a mount.
- */
+/** The same hook outside any mount, which is where a host's own trail comes from (§26). */
 describe('useBreadcrumbs outside a mount', () => {
   function Chrome({ items }: { readonly items: readonly BreadcrumbItem[] }): ReactNode {
     useBreadcrumbs(items)

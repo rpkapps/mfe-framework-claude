@@ -781,7 +781,6 @@ describe('performance gates', () => {
     const unsubscribe = a.subscribe(vi.fn())
     const readsAfterBind = local.calls.reads
 
-    // Two consumers, one key: the second binding read nothing of its own.
     expect(b.getSnapshot()).toBe(a.getSnapshot())
 
     unsubscribe()
@@ -794,7 +793,6 @@ describe('performance gates', () => {
     b.release()
     c.release()
     c.release()
-    // The last release tore the key down, so the next bind reads the store again.
     store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     expect(local.calls.reads).toBeGreaterThan(readsAfterBind)
   })

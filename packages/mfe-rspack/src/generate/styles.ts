@@ -1,13 +1,6 @@
 /**
- * The container's own stylesheet, and the design-system root its overlays hang
- * from.
- *
- * A container ships the CSS for the classes it uses, because Tailwind emits a
- * utility only when it has seen the class in a file it scanned, and a shell on
- * its own release train has not seen a container's source. What it must not
- * ship is a second copy of the page: no preflight, no font faces and not one
- * variable declaration, because the shell owns the document and its theme
- * values inherit into the mounted subtree like any custom property.
+ * A container ships the CSS for the classes it uses, because Tailwind emits a utility only for
+ * a class it has seen; the shell owns the document, so no preflight and no variables here (§17).
  */
 
 import { join } from 'node:path'
@@ -15,10 +8,8 @@ import { join } from 'node:path'
 import { banner, generatedPath, joinBlocks, relativeSpecifier, type GeneratedFile } from './emit.ts'
 import type { GenerateContext } from './modules.ts'
 
-/** The design system. */
 const DESIGN_SYSTEM = '@tecton/react'
 
-/** Where the generated stylesheet lives, next to the generated modules. */
 export function stylesheetPath(context: GenerateContext): string {
   return generatedPath(context.options.generatedDir, 'styles.css')
 }
@@ -28,7 +19,6 @@ export function styleRootPath(context: GenerateContext): string {
   return generatedPath(context.options.generatedDir, 'entries', 'style-root.tsx')
 }
 
-/** Whether this container renders the design system's components at all. */
 export function usesDesignSystem(context: GenerateContext): boolean {
   return DESIGN_SYSTEM in context.options.dependencies
 }
@@ -77,13 +67,8 @@ export function stylesheetFile(context: GenerateContext): GeneratedFile {
 }
 
 /**
- * The design system's root, rendered by the container's own bundle.
- *
- * It has to be this container's copy of the library: the components it renders
- * read their portal target from that copy's React context, and a shell running
- * another version holds a different module instance with a different context.
- * So the build generates the component and attaches it to the definition, and
- * the mount renders it inside the scope root.
+ * It has to be this container's own copy of the library, because the components it renders read
+ * their portal target from that copy's React context (§17).
  */
 export function styleRootModule(context: GenerateContext): GeneratedFile | null {
   if (!usesDesignSystem(context)) return null
@@ -137,11 +122,7 @@ export function styleRootModule(context: GenerateContext): GeneratedFile | null 
   }
 }
 
-/**
- * A bundler turns a CSS import into a side effect that injects the stylesheet.
- * TypeScript only has to know the module exists, and this is the whole of what
- * it needs to be told.
- */
+/** TypeScript only has to know the module exists; the bundler injects the stylesheet. */
 export function cssModuleTypes(context: GenerateContext): GeneratedFile {
   return {
     path: generatedPath(context.options.generatedDir, 'css.d.ts'),

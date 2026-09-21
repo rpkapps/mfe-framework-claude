@@ -6,12 +6,8 @@ import { LegacyParcelMount } from './parcel-mount.ts'
 import type { LegacyParcel, LegacyParcelConfig, LegacyParcelProps } from './single-spa-contract.ts'
 
 /**
- * A stand-in for `mountRootParcel` and the parcel it returns.
- *
- * It is the whole single-spa surface this package uses, which is why the
- * lifecycle can be exercised without single-spa, Angular or a bundler. The real
- * applications are not available here; this double encodes the contract they
- * are expected to honour.
+ * The whole single-spa surface this package uses; the real applications are not available
+ * here, so this double encodes the contract they are expected to honour (§9).
  */
 function createParcelDouble(
   behaviour: { readonly mountFails?: boolean; readonly unmountFails?: boolean } = {},

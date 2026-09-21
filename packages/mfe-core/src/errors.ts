@@ -1,10 +1,6 @@
-/**
- * Structured framework errors. The code is the machine artifact; the message
- * names the definition, the operation, the field, the expectation and what was
- * observed, with one optional repair step.
- */
+/** Structured framework errors: the code is the machine artifact, the message is for a reader. */
 
-/** Closed union: hosts handle it exhaustively, so adding a code is a contract change. */
+/** Closed union, so adding a code is a contract change and two conditions use a near one (§7). */
 export type MfeErrorCode =
   | 'registry/invalid-descriptor'
   | 'registry/duplicate-id'
@@ -28,7 +24,6 @@ export type MfeErrorCode =
   | 'dispose/failure'
   | 'dispose/timeout'
 
-/** Direction of a contract violation relative to the Widget boundary. */
 export type MfeErrorDirection = 'input' | 'event'
 
 export interface MfeError extends Error {
@@ -76,7 +71,6 @@ class FrameworkError extends Error implements MfeError {
   }
 }
 
-/** Renders a field path as the dotted/bracketed form a developer would write. */
 export function formatPath(path: readonly (string | number)[] | undefined): string {
   if (!path || path.length === 0) return ''
   let rendered = ''
@@ -88,10 +82,7 @@ export function formatPath(path: readonly (string | number)[] | undefined): stri
   return rendered
 }
 
-/**
- * Describes a runtime value without dumping it: objects report their shape
- * rather than their contents, because logging whole payloads is forbidden.
- */
+/** Objects report their shape, not their contents: logging whole payloads is forbidden. */
 export function describeValue(value: unknown): string {
   if (value === null) return 'null'
 
@@ -104,8 +95,7 @@ export function describeValue(value: unknown): string {
       return String(value)
     case 'symbol':
       return value.toString()
-    // A function's `String` form is its whole source, which is exactly the kind
-    // of dump this function exists to avoid.
+    // A function's `String` form is its whole source, the dump this function exists to avoid.
     case 'function':
       return 'a function'
     case 'undefined':
@@ -140,17 +130,12 @@ export function createMfeError(details: MfeErrorDetails): MfeError {
   return new FrameworkError(composeMessage(details), details)
 }
 
-/**
- * Fixes the fields a module repeats — typically `code` and `id` — so a throw
- * site carries only what differs. Whatever `fixed` omits stays required at the
- * call site, and any fixed field can be overridden there.
- */
+/** Whatever `fixed` omits stays required at the call site, and a fixed field can be overridden. */
 export function createMfeErrorFactory<Fixed extends Partial<MfeErrorDetails>>(
   fixed: Fixed,
 ): (details: Omit<MfeErrorDetails, keyof Fixed> & Partial<MfeErrorDetails>) => MfeError {
   return details => {
-    // The two parameter types together cover every required field, which the
-    // compiler cannot see through the generic spread.
+    // Together the parameter types cover every required field, unseen through the generic spread.
     const merged = { ...fixed, ...details }
     return createMfeError(merged as MfeErrorDetails)
   }
@@ -160,11 +145,7 @@ export function isMfeError(value: unknown): value is MfeError {
   return value instanceof FrameworkError
 }
 
-/**
- * Normalizes an unknown thrown value without losing the original cause. Used at
- * boundaries that must report something structured even when remote code threw
- * a string.
- */
+/** A boundary must report something structured even when remote code threw a string. */
 export function toMfeError(
   value: unknown,
   fallback: Omit<MfeErrorDetails, 'cause' | 'observed'> & { readonly observed?: string },
@@ -177,7 +158,6 @@ export function toMfeError(
   })
 }
 
-/** How a thrown value is named in a diagnostic: `Name: message`, or its shape. */
 export function describeThrown(value: unknown): string {
   return value instanceof Error ? `${value.name}: ${value.message}` : describeValue(value)
 }

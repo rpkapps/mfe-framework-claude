@@ -1,15 +1,6 @@
 /**
- * Mounting under StrictMode.
- *
- * React mounts, unmounts and mounts again without re-rendering, and a mount
- * built once and torn down in an effect cleanup does not survive that — the
- * second setup gets the same handle, already disposed. Everything the mount
- * owns is then dead while the App renders happily on top of it: the signal is
- * aborted, the Query cache is cleared and cancels anything put into it, the
- * overlay root is gone.
- *
- * It is a development-only failure with a production-shaped symptom, which is
- * why it is pinned here rather than left to be noticed on a page.
+ * Mounting under StrictMode: React mounts, unmounts and mounts again without re-rendering, and a
+ * mount torn down in an effect cleanup does not survive that (§14).
  */
 
 import {
@@ -91,8 +82,7 @@ describe('a mount under StrictMode', () => {
       expect(screen.getByTestId('aborted')).toBeInTheDocument()
     })
 
-    // Every one of these is false or missing when the App is running on the
-    // mount React tore down during its double-invoke.
+    // Every one of these is false or missing on the mount React tore down during its double-invoke.
     expect(screen.getByTestId('aborted')).toHaveTextContent('false')
     expect(screen.getByTestId('overlay')).toHaveTextContent('true')
     expect(screen.getByTestId('cache')).toHaveTextContent('true')
@@ -128,17 +118,8 @@ function buildApp() {
 
 describe('an App’s history under StrictMode', () => {
   it('still hears the bridge after React unmounts and remounts it', async () => {
-    // The history used to subscribe to the bridge from its constructor, in a
-    // memo, and unsubscribe from an effect cleanup. React runs cleanup and
-    // setup again without re-running the memo, so from the first remount the
-    // App's router was never told the URL had moved: a browser back changed
-    // the address bar and left the page where it was.
-    //
-    // What this pins is that `AppMount` connects its history to the bridge at
-    // all — it fails outright if that wiring goes. The narrower claim, that
-    // construction subscribes to nothing and `attach` may be repeated, is
-    // pinned in `boundary-history.test.ts`, because jsdom does not reproduce
-    // which of a double-invoked memo's values React keeps.
+    // What this pins is that `AppMount` connects its history to the bridge at all; the narrower
+    // claim is in `boundary-history.test.ts`, which jsdom cannot reproduce here (§14).
     environment = createMfeTestEnvironment({
       definitionId: 'lab',
       basePath: '/lab',

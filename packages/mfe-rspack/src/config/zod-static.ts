@@ -1,9 +1,6 @@
 /**
- * Reading a Zod schema without running it, for the JSON Schema and the
- * `.env.example` the build emits. The runtime still validates against the real
- * schemas. The set of Zod this understands is bounded, and a schema outside it
- * fails the build: an unreadable schema quietly producing an empty JSON Schema
- * would let the pipeline pass anything through.
+ * Reading a Zod schema without running it; a schema this cannot read fails the build, because an
+ * empty JSON Schema would let the deployment pipeline pass anything through.
  */
 
 import { createBuildError } from '../diagnostics.ts'
@@ -188,8 +185,7 @@ function chainOf(
       )
     }
 
-    // `z.string()` and `z.coerce.number()` are both bases: coercion widens what
-    // is accepted at runtime, not what the JSON is allowed to look like.
+    // Coercion widens what is accepted at runtime, not what the JSON may look like.
     const receiver = unwrapExpression(callee.expression)
     if (ts.isIdentifier(receiver) || ts.isPropertyAccessExpression(receiver)) {
       return {
@@ -330,20 +326,12 @@ function readPattern(step: ChainStep, context: ReadSchemaContext): string {
   return text.slice(1, text.lastIndexOf('/'))
 }
 
-/**
- * A `JsonValue` rendered for an error message. `String()` would flatten an
- * object to `[object Object]`, which tells an author nothing about what they
- * actually wrote.
- */
+/** `String()` would flatten an object to `[object Object]`, which tells an author nothing. */
 function render(value: JsonValue): string {
   return JSON.stringify(value) ?? 'undefined'
 }
 
-/**
- * The argument of a step whose contract is a string. A non-string is the
- * author's mistake and is reported as one: coercing it would put
- * `[object Object]` into a description or a regular expression.
- */
+/** A non-string is reported rather than coerced, which would put `[object Object]` in a regex. */
 function readLiteralString(step: ChainStep, context: ReadSchemaContext): string {
   const value = readLiteralValue(step.args[0], context, step)
   if (typeof value === 'string') return value

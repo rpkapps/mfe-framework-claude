@@ -1,15 +1,4 @@
-/**
- * The container's CSS, scoped — by the design system's own PostCSS plugin.
- *
- * What a compiled stylesheet needs doing to it before it can share a page is
- * the library's knowledge, not the framework's, and
- * `@tecton/react/postcss/scope` is tested against it. The framework supplies
- * the one thing the library cannot know: the selectors. The scope is one
- * `[data-mfe-scope="<id>"]` per definition the container exports — the
- * attribute a mount root and its body-level overlay root carry — and the lower
- * boundary is `[data-mfe-scope]` itself, which ends a parent App's scope at the
- * root of a nested one.
- */
+/** The framework supplies the selectors; the design system's own plugin does the scoping (§17). */
 
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -20,10 +9,8 @@ import type { Plugin } from 'postcss'
 import { createBuildError } from '../diagnostics.ts'
 
 /**
- * The plugin's signature, with the return type spelled against this package's
- * PostCSS rather than taken from the design system's own declaration: PostCSS
- * is an optional peer there, so in a checkout that did not install it the
- * declared `Plugin` resolves to nothing and every call of it becomes untyped.
+ * The return type is spelled against this package's PostCSS because it is an optional peer of
+ * the design system, whose own declaration resolves to nothing where it was not installed.
  */
 type ScopeTecton = (options: ScopeTectonOptions) => Plugin
 
@@ -41,10 +28,7 @@ export interface ContainerScopeOptions {
   readonly containerRoot: string
 }
 
-/**
- * The scope plugin for one container, configured with the framework's
- * selectors. It runs after `@tailwindcss/postcss`, on the finished stylesheet.
- */
+/** The scope plugin for one container; it runs after `@tailwindcss/postcss` (§17). */
 export function containerScopePlugin(options: ContainerScopeOptions): Plugin {
   const scopes = [...options.scopes]
   if (scopes.length === 0) {
@@ -67,16 +51,8 @@ export function containerScopePlugin(options: ContainerScopeOptions): Plugin {
 }
 
 /**
- * Resolved from the container root first, the way `installedVersionFrom` reads
- * a container's versions: the copy of the design system a container compiled
- * its stylesheet against is the copy that should scope it, so a container on
- * an older version keeps that version's recipe.
- *
- * The fallback is this package's own resolution, which is what a container
- * that renders none of the design system's components — and therefore does not
- * depend on it — is scoped by. Its CSS is still its own and still has to be
- * contained, which is why the dependency is declared as an optional peer here
- * rather than left to the container.
+ * Resolved from the container root first, so a container on an older design system is scoped by
+ * that version's recipe; the fallback scopes a container that does not depend on it at all.
  */
 function loadScopePlugin(containerRoot: string): ScopeTecton {
   for (const resolve of [createRequire(join(containerRoot, 'package.json')), ownRequire]) {
@@ -84,12 +60,11 @@ function loadScopePlugin(containerRoot: string): ScopeTecton {
     try {
       exported = resolve(SCOPE_PLUGIN)
     } catch {
-      // Not installed here. The next resolution says whether it is anywhere.
+      // Not installed here; the next resolution says whether it is anywhere.
       continue
     }
 
-    // `require` of an ES module hands back the namespace object, so the plugin
-    // is its default export; a transpiled copy would be the function itself.
+    // `require` of an ES module hands back the namespace object, so the plugin is its default.
     return (
       typeof exported === 'function' ? exported : (exported as { default?: unknown }).default
     ) as ScopeTecton

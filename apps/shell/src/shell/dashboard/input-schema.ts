@@ -1,6 +1,4 @@
-/** How to *show* a Widget's declared inputs: the control, the type label, the
-    blank a field starts as, and a tile's summary. Reading the schema is
-    `describeWidgetInputs`'s job, and nothing here validates. */
+/** How to *show* a Widget's declared inputs; reading the schema is `describeWidgetInputs`'s job, and nothing here validates (§28). */
 
 import {
   describeWidgetInputs,
@@ -43,8 +41,7 @@ function typeName(type: WidgetInputType): string {
   return item.includes(' | ') ? `(${item})[]` : `${item}[]`
 }
 
-/** The fields to ask for, or `null` when the Widget published no readable
-    schema — not "no fields": the dialog offers raw JSON instead. */
+/** `null` is "the build could not describe this", never "no fields": the dialog offers raw JSON instead (§28). */
 export function readInputFields(
   contract: PublishedWidgetContract | undefined,
 ): readonly InputField[] | null {

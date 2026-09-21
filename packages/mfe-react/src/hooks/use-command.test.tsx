@@ -1,11 +1,6 @@
 /**
- * Registering a command from the host's own chrome.
- *
- * A host's commands used to be unregisterable: the registry is keyed by a mount
- * token and the host has none, so a shell wrote its own into its palette as
- * markup and rendered the registry's beside them. The two then had different
- * availability rules, different execution paths and no way to search as one
- * list. The same hook now covers both, and this is what that has to mean.
+ * Registering a command from the host's own chrome, which used to be impossible: the registry is
+ * keyed by a mount token and the host has none (§26).
  */
 
 import { render, waitFor } from '@testing-library/react'
@@ -66,11 +61,7 @@ describe('useCommand outside a mount', () => {
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  /**
-   * The palette shows a denied command with its owner's reason rather than
-   * hiding it, and that has to work the same whoever owns it — a control that
-   * disappears reads as a shell that lost the feature.
-   */
+  /** A denied command is shown with its owner's reason rather than hidden, whoever owns it. */
   it('publishes the host’s own denial, and refuses to run', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
@@ -130,8 +121,7 @@ describe('useCommand outside a mount', () => {
 
     view.getByRole('button').click()
 
-    // Published from the effect that runs after every commit, so the palette's
-    // snapshot follows the state the availability check reads.
+    // Published from the effect that runs after every commit, so the palette's snapshot follows.
     await waitFor(() => {
       expect(created.runtime.commands.getSnapshot()[0]?.decision.allowed).toBe(true)
     })

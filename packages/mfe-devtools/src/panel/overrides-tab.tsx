@@ -1,27 +1,7 @@
 /**
- * Pointing a definition at a dev server, which is the reason this package
- * exists.
- *
- * Two things this view refuses to blur. An override only takes effect at boot —
- * one container is registered once, under one name, and its chunks are already
- * on the page — so an edit here is *pending* until a reload, and it is shown as
- * a diff against what actually booted rather than as a value that looks live.
- * And a URL is all an override carries: accepting configuration here is what
- * would turn a debugging aid into a second configuration surface.
- *
- * Everything structural is the design system's. Rows are `Item`, the origin is
- * a `Field` around an `InputGroup`, a conflict is an `Alert`, an empty registry
- * is `Empty`, and the pending bar is `ActionBar` — which exists for precisely
- * this case, per its own doc comment: "unsaved changes in a form". Earlier
- * versions of this file built all five out of `div`s and utility classes, and
- * that is how it ended up first as a stack of look-alike cards and then as a
- * wall of identical text boxes. The components already know what a row and a
- * field are meant to look like here; the hand-rolled version was only ever
- * going to approximate them.
- *
- * What stays local is the *state* colouring — a left edge and a tinted media
- * slot per row — because "this one is overridden" is a fact about the override
- * map rather than a variant the design system has an opinion about.
+ * Pointing a definition at a dev server, which is the reason this package exists. An override only
+ * takes effect at boot, so an edit here is *pending* until a reload and is shown as a diff against
+ * what actually booted rather than as a value that looks live.
  */
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react'
@@ -73,26 +53,13 @@ import { useActiveOverrides, useContainerLookup, useRegistryEntries } from './us
 type RowState = 'default' | 'overridden' | 'pending' | 'invalid'
 
 /**
- * Columns, not rows stretched across the panel.
- *
- * A bottom dock on a wide monitor gave every row the full width: an id at the
- * far left, a port at the far right, and a thousand pixels of nothing in
- * between. No row background carries the eye that far, which is the same
- * reason a table that wide needs rules. `auto-fill` holds each track between
- * about 22rem and 44rem whatever the panel is doing, so width buys more rows on
- * screen rather than longer ones — and `min(100%, …)` means a 320px left dock
- * still gets one column, with no breakpoint anywhere.
- *
- * Tracks, not `auto-fit`: `auto-fit` collapses the empty ones, so two entries
- * on a wide screen would stretch back to half the panel each.
+ * Columns, so width buys more rows on screen rather than longer ones, with no breakpoint anywhere.
+ * `auto-fill` rather than `auto-fit`, which collapses the empty tracks and stretches two entries
+ * back to half the panel each.
  */
 const ROW_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))]'
 
-/**
- * The left edge carries the state. A 2px rule the eye finds in a list of eight
- * is worth more than a word that has to be read in each one, and every row
- * declares the border so nothing shifts as a row changes state.
- */
+/** Every row declares the border, so nothing shifts as a row changes state. */
 const ROW_ACCENT: Readonly<Record<RowState, string>> = {
   default: '',
   overridden: 'border-l-2 border-l-warning bg-warning-surface/25',
@@ -217,14 +184,7 @@ export function OverridesTab(): ReactNode {
   )
 }
 
-/**
- * The shortcut: one origin, then one press on the row you care about.
- *
- * This began as a multi-select — an origin, a toggle per definition, then a
- * "point" button — and the toggles overflowed the panel at any dock width
- * narrow enough to be useful. Typing a port and pressing "use" on one row is
- * both smaller and fewer steps.
- */
+/** One origin, then one press on the row you care about; a toggle per definition overflowed a narrow dock. */
 function DevServerField({
   origin,
   onOriginChange,
@@ -237,12 +197,7 @@ function DevServerField({
   const isBlank = origin.trim() === ''
   const isBad = !isBlank && resolved === undefined
 
-  /*
-   * The label is an addon inside the group rather than a `FieldLabel` above or
-   * beside it. A docked panel is short, so a label on its own row costs a row
-   * of the list; `orientation="horizontal"` instead stranded it at the far left
-   * with the input pushed into the right half. Inline, it is one row.
-   */
+  // An addon rather than a `FieldLabel`, which would cost a row of the list in a panel this short.
   return (
     <Field className="max-w-md">
       <InputGroup>
@@ -261,11 +216,7 @@ function DevServerField({
           className="font-mono"
         />
       </InputGroup>
-      {/*
-       * The hint wraps and the URL truncates, which is not the same class list:
-       * a sentence under a capped field had its last clause cut off, and a
-       * resolved URL wrapped to a second line that moved every row below it.
-       */}
+      {/* The hint wraps and the URL truncates: a wrapped URL moved every row below it. */}
       <FieldDescription
         className={isBlank ? '' : isBad ? 'text-destructive' : 'truncate font-mono'}
         {...(isBlank || isBad ? {} : { title: resolved })}
@@ -281,12 +232,8 @@ function DevServerField({
 }
 
 /**
- * One definition.
- *
- * `staged` is the pending edit — a string to set, `null` to clear, `undefined`
- * for no edit at all. Not just an empty string, because clearing an override
- * and never having touched one are different intentions, and the bar below
- * counts them differently.
+ * `staged` is the pending edit: a string to set, `null` to clear, `undefined` for no edit at all,
+ * because clearing an override and never having touched one are counted differently below.
  */
 function OverrideRow({
   id,
@@ -316,15 +263,8 @@ function OverrideRow({
   const value = staged === undefined ? (applied ?? '') : (staged ?? '')
   const Icon = isApp ? AppWindowIcon : BoxIcon
 
-  /*
-   * The box is the edit mode, and nothing else. Every overridden row used to
-   * carry one, which made a list of eight rows a wall of eight text boxes and
-   * said "type here" eight times over when the answer was already typed.
-   *
-   * An unusable value is the exception: leaving the row as text would hide the
-   * thing that has to be fixed behind a second click, so the box stays open
-   * until what is in it is a URL.
-   */
+  // A box on every overridden row made the list a wall of text boxes; an unusable value is the one
+  // exception, because leaving it as text would hide what has to be fixed behind a second click.
   const showsInput = isEditing || problem !== undefined
 
   /* What the row will point at once this is applied, and what that displaces. */
@@ -336,13 +276,7 @@ function OverrideRow({
       variant="muted"
       size="xs"
       className={`group h-9 flex-nowrap py-0 ${ROW_ACCENT[state]}`}
-      /*
-       * Focus leaving the row ends the edit; moving around inside it does not.
-       * This sits on the row rather than on the input because pressing "use"
-       * moves focus to a button *beside* the input — with the check on the
-       * input, that press ended the edit before it landed, and with the input
-       * ignoring it the edit then never ended at all.
-       */
+      // On the row rather than the input, because pressing "use" moves focus to a button beside it.
       onBlur={event => {
         const next = event.relatedTarget
         if (next instanceof Node && event.currentTarget.contains(next)) return
@@ -353,14 +287,7 @@ function OverrideRow({
         <Icon />
       </ItemMedia>
 
-      {/*
-       * One line, always, whatever state the row is in — a list whose rows
-       * change height as they change state cannot be scanned, and reads as
-       * damage rather than as information. The path is dropped to the title
-       * attribute: the same `/mf-manifest.json` on every row was most of what
-       * made this list look like noise, and the port is what anyone is
-       * scanning for.
-       */}
+      {/* One line, always: a list whose rows change height as they change state cannot be scanned. */}
       <ItemContent className="min-w-0 flex-row items-center gap-x-2">
         <ItemTitle className="shrink-0 font-mono text-xs">{id}</ItemTitle>
 
@@ -393,14 +320,9 @@ function OverrideRow({
           </InputGroup>
         ) : (
           /*
-           * The value as text, and as the edit affordance. A row nobody has
-           * touched is something to read, so it is not a box; pressing it is
-           * how it becomes one, and the pencil that appears on hover says so
-           * without adding a control to every row.
-           *
-           * A pending row states the change on the same line — the old origin,
-           * an arrow, the new one. It was two lines and a sentence, which made
-           * the one row being worked on the tallest thing on screen.
+           * The value as text, and as the edit affordance: a row nobody has touched is something to
+           * read rather than a box. A pending row states the change on the same line, because two
+           * lines made the one row being worked on the tallest thing on screen.
            */
           <span className="ml-auto flex min-w-0 items-center gap-1 font-mono text-xs">
             {replaces === undefined ? null : (
@@ -476,15 +398,7 @@ function OverrideRow({
   )
 }
 
-/**
- * The bar the design system already has for this.
- *
- * `ActionBar` calls itself transient — "rows selected in a table, unsaved
- * changes in a form" — owns its own enter transition and takes Escape to
- * dismiss. So it appears when there is something to act on and not before,
- * which is also why "overrides apply on reload" lives on the field above
- * rather than in a permanent footer that spends a row saying nothing.
- */
+/** `ActionBar` is transient, so it appears when there is something to act on and not before. */
 function PendingBar({
   pending,
   active,
@@ -505,12 +419,7 @@ function PendingBar({
       {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
       className="shrink-0 border-t border-border-subtle"
     >
-      {/*
-       * Why "apply" is refusing, in the same bar as the button that is
-       * refusing. The message used to sit under the offending row, which cost
-       * that row a second line and put the reason a panel's width away from
-       * the disabled control it explains.
-       */}
+      {/* Why "apply" is refusing, in the same bar as the button that is refusing. */}
       <ActionBarMessage className={problem === undefined ? '' : 'text-destructive'}>
         {problem ??
           (pending > 0

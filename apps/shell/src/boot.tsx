@@ -1,13 +1,7 @@
 /**
- * Shell boot.
- *
- * Order is the point: the registry is fetched, then `createMfeRuntime` reads
- * the developer overrides and applies them to the manifest URLs *before* any
- * remote is registered. Registering first and overriding afterwards would mean
- * an overridden App still loaded from its deployed manifest once.
- *
- * The diagnostics hub is the one thing built before the runtime, because
- * `installShellAuth` runs before a runtime exists to report into.
+ * Shell boot: the registry is fetched first, so `createMfeRuntime` applies the developer
+ * overrides to the manifest URLs before any remote is registered. The diagnostics hub is built
+ * before the runtime, because `installShellAuth` runs before a runtime exists to report into (§25).
  */
 
 import { StrictMode } from 'react'
@@ -56,12 +50,7 @@ function overrideStorage(): Pick<Storage, 'getItem'> | undefined {
   }
 }
 
-/**
- * Faro when a collector is configured, a provider that keeps nothing otherwise.
- * Deliberately not the recording provider: that one is a test double, and a
- * shell with no collector would fill its bounded buffers for the life of the
- * page with records nobody ever drains.
- */
+/** Deliberately not the recording provider: with no collector it would fill its bounded buffers for the life of the page. */
 function telemetryProvider(): TelemetryProvider {
   const url = process.env['FARO_URL']
   if (typeof url !== 'string' || url === '') return createNoopTelemetryProvider()
@@ -77,9 +66,8 @@ if (!container) throw new Error('index.html must contain <div id="root">')
 const telemetry = telemetryProvider()
 const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry)])
 
-// Before any remote is registered: a container's generated #mfe/fetch resolves
-// this at its first request, and one session for the page is what keeps refresh
-// single-flight across every mount.
+// Before any remote is registered: one session for the page keeps refresh single-flight across
+// every mount, and a container's generated #mfe/fetch resolves it at its first request (§10).
 installShellAuth({
   tokens: createDevSession(),
   diagnostics,
@@ -100,9 +88,8 @@ const { runtime, activeOverrides } = createMfeRuntime({
   shellState: {
     user: { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' },
     groups: ['geoscience', 'well-planning.read'],
-    // Decided the same way the pre-paint script in index.html decided it, so
-    // shell state agrees with what the document is already painting. The
-    // chrome owns it from here and writes every later switch back.
+    // Decided the same way the pre-paint script in index.html decided it, so shell state agrees
+    // with what the document is already painting.
     theme: preferredTheme(),
   },
   telemetryProvider: telemetry,
@@ -114,13 +101,11 @@ const { runtime, activeOverrides } = createMfeRuntime({
 
 notices.overrides = activeOverrides
 
-// Built once. Creating it inside the JSX below would hand RouterProvider a new
-// router on every render, and TanStack re-initialises a router it has not seen
-// — which remounts everything under the boundary on every pass.
+// Built once, because TanStack re-initialises a router it has not seen and remounts everything
+// under the boundary with it.
 const router = createShellRouter()
 
-// Hot reload re-executes this module, and a second createRoot on the same
-// container orphans the first.
+// Hot reload re-executes this module, and a second createRoot on the same container orphans the first.
 declare global {
   var shellRoot: ReturnType<typeof createRoot> | undefined
 }

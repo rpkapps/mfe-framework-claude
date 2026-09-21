@@ -18,9 +18,8 @@ const FLOW = [
 function Breadcrumbs(): ReactNode {
   const [override, setOverride] = useState(false)
 
-  // The one non-route override, for flows a route tree cannot express. It
-  // replaces only this App's own portion of the trail, and clears on unmount
-  // and on navigation — so a wizard cannot leak its steps into the next route.
+  // Replaces only this App's own portion of the trail and clears on unmount and on navigation, so a
+  // wizard cannot leak its steps into the next route.
   useBreadcrumbs(override ? FLOW : [])
 
   return (

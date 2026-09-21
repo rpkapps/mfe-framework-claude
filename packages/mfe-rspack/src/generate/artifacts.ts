@@ -1,9 +1,4 @@
-/**
- * Build artifacts: files the pipeline, the shell and the developer read, and
- * that application code never imports. The JSON Schema is what a deployment
- * validates `runtime-config.json` against before it ships, which is where a
- * missing value should be caught rather than in a browser.
- */
+/** Files the pipeline, the shell and the developer read; application code never imports them. */
 
 import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
 import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
@@ -25,11 +20,7 @@ export interface FrameworkManifestMetadata {
   readonly entries: Readonly<Record<string, string>>
 }
 
-/**
- * `manifestUrl` is container-relative: the shell resolves it against wherever
- * the container is actually deployed, because the build cannot know that and a
- * baked-in absolute URL is what breaks a promotion between environments.
- */
+/** `manifestUrl` is container-relative, because a baked-in absolute URL breaks a promotion. */
 export function containerDescriptor(
   context: GenerateContext,
   capabilities: readonly CapabilityDescriptor[],
@@ -42,9 +33,7 @@ export function containerDescriptor(
       kind: definition.kind,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
-      // A Widget publishes what it takes and what it emits, so a host can put
-      // it in a catalogue and collect its inputs without fetching the
-      // container first. An App publishes neither: it takes a URL.
+      // A Widget publishes what it takes so a host can catalogue it; an App takes a URL (§16).
       ...(definition.kind === 'widget'
         ? {
             contract: {
@@ -98,11 +87,7 @@ export function registryDescriptorFile(
   }
 }
 
-/**
- * `additionalProperties: false` is deliberate: an undeclared key is almost
- * always a misspelled declared one, and accepting it silently would let the
- * container fall back to a default nobody intended.
- */
+/** `additionalProperties: false`: an undeclared key is almost always a misspelled declared one. */
 export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
@@ -136,10 +121,7 @@ export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile
   }
 }
 
-/**
- * The environment variables a deployment has to provide, derived from the
- * `env()` declarations. Names and expectations, never values.
- */
+/** Derived from the `env()` declarations: names and expectations, never values. */
 export function envExampleFile(context: GenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null

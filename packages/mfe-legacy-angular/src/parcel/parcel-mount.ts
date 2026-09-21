@@ -1,9 +1,4 @@
-/**
- * The single-spa parcel lifecycle, driven by the shell: hand the lifecycle its
- * props, wait on `mountPromise`, call `unmount()`. Retry, deadlines and
- * diagnostics stay with the host. Every collaborator is injected, so the whole
- * lifecycle is exercised in tests with plain objects.
- */
+/** The single-spa parcel lifecycle, driven by the shell; retry and deadlines stay with the host. */
 
 import {
   createMfeError,
@@ -15,11 +10,7 @@ import {
 
 import type { LegacyParcel, LegacyParcelConfig, MountRootParcel } from './single-spa-contract.ts'
 
-/**
- * `idle` covers both "never mounted" and "unmounted and remountable": a legacy
- * app that has been unmounted is in exactly the state it started in, which is
- * what makes a remount a plain second mount rather than a special case.
- */
+/** `idle` covers "never mounted" and "unmounted and remountable", so a remount is a plain mount. */
 export type LegacyParcelStatus =
   'idle' | 'mounting' | 'mounted' | 'unmounting' | 'error' | 'disposed'
 
@@ -28,14 +19,11 @@ export interface LegacyParcelMountOptions {
   /** The legacy registry name, passed to the parcel as its activity name. */
   readonly containerName: string
   readonly parcelConfig: LegacyParcelConfig
-  /** single-spa's `mountRootParcel`, or a double in tests. */
   readonly mountRootParcel: MountRootParcel
-  /** The element the shell owns and the legacy app renders into. */
   readonly domElement: HTMLElement
   /** The resolved base href, when this app consumes one from the shell. */
   readonly baseHref?: string | undefined
   readonly version?: string | undefined
-  /** Extra lifecycle props forwarded verbatim. */
   readonly props?: Readonly<Record<string, unknown>> | undefined
 }
 
@@ -104,11 +92,7 @@ export class LegacyParcelMount {
     return mfeError
   }
 
-  /**
-   * Bootstraps and mounts the parcel, resolving once single-spa reports the app
-   * on screen. A second mount without an intervening unmount is refused: two
-   * live parcels would both render into the same element.
-   */
+  /** A second mount without an unmount is refused: two live parcels would share the element. */
   async mount(): Promise<void> {
     if (this.isDisposed) {
       throw this.#refuse(
@@ -164,9 +148,8 @@ export class LegacyParcelMount {
       )
     }
 
-    // Disposal or an explicit unmount can win the race with a slow bootstrap.
-    // Either way the parcel this call created is already being torn down, so
-    // the attempt must not report success or re-publish a stale reference.
+    // Disposal or an unmount can win the race with a slow bootstrap, so this attempt must
+    // not report success for a parcel that is already being torn down.
     if (this.#parcel !== parcel) {
       throw this.#refuse(
         this.isDisposed
@@ -180,11 +163,7 @@ export class LegacyParcelMount {
     this.#status.set('mounted')
   }
 
-  /**
-   * Unmounts and returns the mount to `idle`, from which it can be mounted
-   * again. Unmounting when nothing is mounted is a no-op, so a shell does not
-   * have to track whether a failed mount left a parcel behind.
-   */
+  /** Unmounting nothing is a no-op, so a shell need not track a parcel a failed mount left. */
   async unmount(): Promise<void> {
     const parcel = this.#parcel
     if (!parcel) return
@@ -207,10 +186,7 @@ export class LegacyParcelMount {
     this.#status.set('idle')
   }
 
-  /**
-   * Terminal teardown. Every caller awaits the same cleanup and a second call
-   * never starts a second teardown, including when the first one failed.
-   */
+  /** Terminal: every caller awaits the same cleanup and a second call starts no second teardown. */
   dispose(): Promise<void> {
     this.#disposal ??= this.#runDisposal()
     return this.#disposal

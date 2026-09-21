@@ -15,10 +15,6 @@ type ComparisonListProps = React.ComponentProps<'div'> & {
   selected?: string[]
 }
 
-/**
- * Stacked comparison of the selected designs per metric: a bold total row
- * followed by category breakdowns, each rendered as a coloured bar.
- */
 function ComparisonList({ className, metrics, designs, selected, ...props }: ComparisonListProps) {
   const visible = selected ? designs.filter(design => selected.includes(design.id)) : designs
 

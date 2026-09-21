@@ -1,13 +1,7 @@
 /**
- * The mount-scoped telemetry runtime: reserved attribution, record building,
- * level filtering, bounded counters and development diagnostics.
- *
- * Emitting is synchronous and returns nothing, so it can never rerender. A
- * provider that throws is contained here, and a failure of the telemetry path
- * is only ever counted — never reported back through the path that failed.
- *
- * Every `diagnose` call site is wrapped in `if (DEV)`, so in a production build
- * the diagnostic and the prose it carries are dropped rather than skipped.
+ * The mount-scoped telemetry runtime. A failure of the telemetry path is only ever counted,
+ * never reported back through the path that failed, and every `diagnose` call site is
+ * wrapped in `if (DEV)` so a production build drops the prose rather than skipping it.
  */
 
 import {
@@ -28,9 +22,8 @@ import {
 } from '@company/mfe-core'
 
 /**
- * The `mfe.*` namespace the host owns. Span ids live here too: they are written
- * by the tracer so a provider can rebuild parentage from a record alone, and an
- * author who set them by hand would silently corrupt the trace.
+ * The `mfe.*` namespace the host owns; span ids live here because an author who set them
+ * by hand would silently corrupt the trace.
  */
 export const RESERVED_ATTRIBUTE_KEYS = {
   definitionId: 'mfe.definition.id',
@@ -64,8 +57,8 @@ const ATTRIBUTION_FIELDS = [
 ] as const satisfies readonly (keyof TelemetryAttribution)[]
 
 /**
- * Local, bounded accounting of everything the telemetry path swallowed. Each
- * one is a single integer, so the counters can never grow memory.
+ * Local accounting of everything the telemetry path swallowed; each is a single integer, so the
+ * counters can never grow memory.
  */
 export interface TelemetryCounters {
   readonly recorded: number
@@ -127,9 +120,9 @@ export interface FrameworkRecordDetails {
 }
 
 export interface TelemetryRuntimeOptions {
-  /** Where development diagnostics go. The host wires this to its diagnostics hub. */
+  /** The host wires this to its diagnostics hub. */
   readonly onDiagnostic?: DiagnosticsSink
-  /** Defaults to "not a production build". Diagnostics are silent when false. */
+  /** Defaults to "not a production build"; diagnostics are silent when false. */
   readonly dev?: boolean
   /** Per-mount diagnostic budget; beyond it only the counters move. */
   readonly maxDiagnostics?: number
@@ -141,7 +134,7 @@ export interface TelemetryRuntimeOptions {
 export class MountTelemetryRuntime {
   readonly provider: TelemetryProvider
   readonly attribution: TelemetryAttribution
-  /** Identity the context manager compares. Created per mount, never handed out. */
+  /** Identity the context manager compares, created per mount and never handed out. */
   readonly owner: object = Object.freeze({})
   readonly counters: MutableCounters = newCounters()
 
@@ -159,8 +152,8 @@ export class MountTelemetryRuntime {
     attribution: TelemetryAttribution,
     options: TelemetryRuntimeOptions = {},
   ) {
-    // Copied field by field, so records emitted before disposal keep exactly the
-    // attribution they carried even if the caller mutates its own object later.
+    // Copied field by field, so a record keeps the attribution it carried even if the
+    // caller mutates its own object later.
     const bound: Record<string, string> = {}
     const reserved: Record<string, string> = {}
     for (const field of ATTRIBUTION_FIELDS) {
@@ -195,9 +188,8 @@ export class MountTelemetryRuntime {
   }
 
   /**
-   * Calls into the provider and swallows its failure into a counter plus a
-   * diagnostic. The diagnostics sink is a different sink, so reporting a
-   * provider failure there is not recursive.
+   * The diagnostics sink is a different sink, so reporting a provider failure there is not
+   * recursive.
    */
   safeProviderCall<T>(operation: string, call: () => T): T | undefined {
     try {
@@ -245,16 +237,15 @@ export class MountTelemetryRuntime {
     try {
       sink(diagnostic)
     } catch {
-      // Counted, never re-reported: a sink that reported its own failure would
-      // recurse forever.
+      // Counted, never re-reported: a sink that reported its own failure would recurse
+      // forever.
       this.counters.sinkFailures += 1
     }
   }
 
   /**
-   * Clamps the author attributes, then lets host-bound attribution win. The
-   * whole `mfe.` namespace is host-owned, so a forged reserved key is dropped
-   * rather than passed through looking like attribution.
+   * Host-bound attribution wins, so a forged reserved key is dropped rather than passed
+   * through looking like attribution.
    */
   mergeAttributes(author: TelemetryAttributes | undefined, operation: string): TelemetryAttributes {
     const bounded = boundAttributes(author)
@@ -307,8 +298,8 @@ export class MountTelemetryRuntime {
     try {
       return provider.isLevelEnabled(level) !== false
     } catch {
-      // A filter that throws must not lose the record: count the failure and
-      // let the record through, where the provider can still drop it.
+      // A filter that throws must not lose the record, which the provider can still
+      // drop itself.
       this.counters.sinkFailures += 1
       return true
     }
@@ -373,8 +364,7 @@ export class MountTelemetryRuntime {
       if (this.#reportedErrors.has(error)) this.counters.duplicateErrorReports += 1
       else this.#reportedErrors.add(error)
     }
-    // "error.type" is a convenience, not attribution: an author who supplies it
-    // deliberately wins, while the reserved namespace still cannot be shadowed.
+    // "error.type" is a convenience, not attribution, so an author who supplies it wins.
     const merged = { 'error.type': normalized.name, ...(attributes ?? {}) }
     this.emitLog('error', normalized.message, merged, error)
   }
@@ -388,8 +378,8 @@ export class MountTelemetryRuntime {
     const operation = 'record a measurement'
     if (this.#refused(operation)) return
     if (!Number.isFinite(value)) {
-      // NaN and the infinities cannot be aggregated and would poison a
-      // histogram downstream, so nothing is recorded at all.
+      // NaN and the infinities would poison a histogram downstream, so nothing is
+      // recorded at all.
       this.counters.invalidMeasurements += 1
       if (DEV) {
         this.diagnose({
@@ -415,8 +405,8 @@ export class MountTelemetryRuntime {
   }
 
   /**
-   * A framework lifecycle diagnostic, deduplicated against errors the mount has
-   * already reported so one failure never produces two records.
+   * Deduplicated against errors the mount has already reported, so one failure never produces two
+   * records.
    */
   emitFramework(operation: string, details: FrameworkRecordDetails): void {
     const label = `record a framework diagnostic for ${operation}`

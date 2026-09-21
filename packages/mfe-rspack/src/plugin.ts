@@ -1,21 +1,7 @@
 /**
- * The Rspack half of the framework's build integration: discovery, entry
- * validation, capability extraction, the generated modules, asset URLs and the
- * React Compiler transform.
- *
- * Scoping the container's CSS is deliberately not here. It is a PostCSS plugin
- * that runs after Tailwind on each stylesheet, registered by `pluginMfe()`
- * through Rsbuild's own PostCSS options — which is what lets it see a
- * stylesheet with its `@layer` structure intact, rather than the emitted asset
- * after the bundler has concatenated and minified one.
- *
- * Module Federation is deliberately not here. Rsbuild registers the federation
- * plugin itself when a config declares `moduleFederation.options`, and doing it
- * that way is what makes Rsbuild set `output.publicPath`, `output.uniqueName`
- * and the dev asset prefix correctly for a remote. `pluginMfe()` in
- * `rsbuild.ts` supplies those options, so an author still never writes one.
- *
- * This is an internal seam. `pluginMfe()` is the public entry.
+ * The Rspack half of the build integration; CSS scoping and federation stay in `pluginMfe()`,
+ * because declaring `moduleFederation.options` is what makes Rsbuild derive a remote's own
+ * paths (§13).
  */
 
 import { createRequire } from 'node:module'
@@ -43,10 +29,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     this.#options = options
   }
 
-  /**
-   * The same generation `mfe-generate` performs, so what a build writes and
-   * what a developer's editor reads are produced by one function.
-   */
+  /** The same generation `mfe-generate` performs, so a build and an editor read one function. */
   #refresh(containerRoot: string): ContainerPlan {
     const { plan } = generateContainer({ ...this.#options, defaultRoot: containerRoot })
     this.#plan = plan
@@ -57,10 +40,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     const containerRoot = this.#options.containerRoot ?? compiler.context
     const plan = this.#refresh(containerRoot)
 
-    // The route tree has to exist before anything reads it, including a
-    // typecheck run, so the router plugin is applied ahead of everything here.
-    // Pass `router: false` when the container's own config already applies it,
-    // and apply it before pluginMfe() so the ordering is the same.
+    // The route tree has to exist before anything reads it, including a typecheck run.
     if (ownsRouteTree(plan)) {
       tanstackRouter({
         ...routeTreeOptions(plan),
@@ -69,11 +49,8 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     }
 
     compiler.options.resolve.alias = { ...compiler.options.resolve.alias, ...plan.aliases }
-    // An imported asset and `new URL('./x.svg', import.meta.url)` have to
-    // resolve against the container's own deployed location rather than the
-    // shell document. Rsbuild sets this from the federation options — in
-    // development to an absolute URL for this container's own server — so the
-    // `auto` below is only the fallback for a config that declares none.
+    // Assets have to resolve against the container's own deployed location, not the shell
+    // document; Rsbuild sets this from the federation options, so `auto` is only a fallback.
     compiler.options.output.publicPath ??= 'auto'
     applyReactCompiler(compiler, plan)
 
@@ -95,8 +72,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
         },
       )
 
-      // The federation manifest is written during processAssets, so the
-      // metadata goes in at the last stage, once it exists.
+      // The federation manifest is written during processAssets, so the metadata goes in last.
       compilation.hooks.processAssets.tap(
         {
           name: PLUGIN_NAME,
@@ -110,12 +86,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
   }
 }
 
-/**
- * Runs `enforce: 'pre'`, ahead of the bundler's own TypeScript and JSX
- * handling, because the compiler reads the source structure those transforms
- * erase. Authors do not configure the compiler; `reactCompiler: false` turns it
- * off so a repository can run its matrix compiled and uncompiled.
- */
+/** Runs `enforce: 'pre'`: the compiler reads source structure those transforms erase. */
 function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
   if (!plan.options.reactCompiler) return
 
@@ -145,11 +116,7 @@ function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
   )
 }
 
-/**
- * Puts the framework contract metadata in the federation manifest's own
- * metadata area (§10.3.1), rather than in a second manifest that would
- * eventually disagree with this one about which build it describes.
- */
+/** Into the federation manifest's own metadata area; a second manifest would disagree. */
 function addFrameworkMetadata(
   compiler: Compiler,
   compilation: Compilation,
@@ -190,8 +157,7 @@ function emitContainerArtifacts(
   const { RawSource } = compiler.rspack.sources
 
   for (const file of plan.generated.files) {
-    // Normalized, because a path built with `join` uses backslashes on Windows
-    // and the checks below are about the shape of the name, not the platform.
+    // Normalized, because `join` uses backslashes on Windows and these checks are about shape.
     const name = relative(plan.options.generatedDir, file.path).split(sep).join('/')
     if (!name.endsWith('.json') || name.includes('/')) continue
     if (name === 'tsconfig.paths.json') continue

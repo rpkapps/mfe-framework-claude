@@ -1,11 +1,4 @@
-/**
- * Help: how this page is put together, and every key that does something.
- *
- * The shortcut list is not written here — it is the live registry. The shell
- * registers its own shortcuts into it and a mounted application registers its
- * own into the same one, so this list gains and loses rows as you navigate. A
- * hand-maintained table would be wrong the first time an application shipped.
- */
+/** The shortcut list is the live registry rather than a table written here, so it gains and loses rows as you navigate (§26). */
 
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
@@ -87,8 +80,7 @@ export function HelpSheet({
         </SheetDescription>
       </SheetHeader>
 
-      {/* Scrolls between the sheet's fixed header and footer, at the padding
-          they use. */}
+      {/* Scrolls between the sheet's fixed header and footer, at the padding they use. */}
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
         <div className="flex flex-col gap-6 pb-2">
           <section className="flex flex-col gap-3">

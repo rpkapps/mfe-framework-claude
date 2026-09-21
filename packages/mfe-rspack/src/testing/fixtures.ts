@@ -1,7 +1,4 @@
-/**
- * Temporary container fixtures. Discovery, configuration reading and generation
- * all work on real files, so the tests give them real files.
- */
+/** Discovery and generation work on real files, so the tests give them real files. */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -40,7 +37,7 @@ function writeContainerFile(root: string, path: string, contents: string): strin
   return file
 }
 
-/** Removes every fixture created so far. Call it from `afterEach`. */
+/** Removes every fixture created so far; call it from `afterEach`. */
 export function cleanupContainers(): void {
   while (created.length > 0) {
     const root = created.pop()

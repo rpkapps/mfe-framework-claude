@@ -1,9 +1,7 @@
 /**
- * `mfe/no-raw-storage`. Web Storage is one flat, unversioned key space shared by
- * the shell and every MFE in the origin, so written directly keys collide, the
- * shell cannot clear them on sign-out and a quota error escapes. The storage
- * adapter and a shell override opt out through `allowedScopes`: ownership is
- * declared in configuration, never inferred from a file name.
+ * Web Storage is one flat key space shared by the shell and every MFE in the origin, so keys
+ * collide, the shell cannot clear them on sign-out and a quota error escapes. An `allowedScopes`
+ * entry that cannot justify itself is a missing primitive, not an exception (§24).
  */
 
 import type { Rule } from 'eslint'
@@ -79,9 +77,7 @@ const rule: Rule.RuleModule = {
           {
             messageId: 'useBoundary',
             data: { access, accessor },
-            // A suggestion rather than a fix: the edit is one local
-            // replacement, but it only compiles once the file binds
-            // `useMfeStorage()`, so a human has to accept it.
+            // A suggestion rather than a fix: it only compiles once the file binds `useMfeStorage()`.
             fix: fixer => fixer.replaceText(node, accessor),
           },
         ],
@@ -97,7 +93,6 @@ const rule: Rule.RuleModule = {
       },
 
       MemberExpression(node) {
-        // `window.localStorage`, `globalThis.sessionStorage`, `self.localStorage`.
         const property = staticPropertyName(node)
         if (property === null || !objects.has(property)) return
         const object = unwrapExpression(asNode(node.object))

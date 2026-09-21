@@ -56,8 +56,8 @@ function createNavigator(diagnostics?: DiagnosticsHub): BoundaryNavigator {
 }
 
 /**
- * A blocker that records into `order` whenever the host asks it anything, so
- * evaluation order can be asserted across nesting depths.
+ * A blocker that records into `order` whenever the host asks it anything, so evaluation
+ * order can be asserted across nesting depths.
  */
 function recordingBlocker(
   name: string,
@@ -132,7 +132,6 @@ describe('requestNavigation', () => {
 
     const outcome = await navigator.requestNavigation(INTENT, commit)
 
-    // the current route and UI stay intact.
     expect(outcome).toBe('blocked')
     expect(order).toEqual(['inner'])
     expect(commit).not.toHaveBeenCalled()
@@ -150,7 +149,6 @@ describe('requestNavigation', () => {
   })
 
   it('refuses a second request while a confirmation is still open', async () => {
-    // the first navigation is waiting on the user.
     const order: string[] = []
     const answer = deferred<'proceed' | 'reset'>()
     const navigator = createNavigator()
@@ -163,10 +161,8 @@ describe('requestNavigation', () => {
     const first = navigator.requestNavigation(INTENT, firstCommit)
     expect(navigator.isNegotiating).toBe(true)
 
-    // a second intent arrives before the user answered.
     const secondOutcome = await navigator.requestNavigation(INTENT, secondCommit)
 
-    // no competing dialog was opened.
     expect(secondOutcome).toBe('blocked')
     expect(secondCommit).not.toHaveBeenCalled()
     expect(order).toEqual(['inner'])
@@ -280,10 +276,6 @@ describe('blocker registration', () => {
   })
 
   it('keeps every blocker one mount registers, and asks them all', async () => {
-    // One mount can have more than one thing to lose: the framework registers
-    // the App's router blockers under its token, and an author may register
-    // another beside them. Keying by the token deleted the first, and the
-    // failure was invisible until the wrong dialog did not appear.
     const order: string[] = []
     const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('first', 1, order))
@@ -311,8 +303,6 @@ describe('blocker registration', () => {
   })
 
   it('drops every blocker on forced cleanup, which cannot be vetoed', async () => {
-    // forced cleanup follows session revocation or host disposal, and
-    // is not a user navigation transaction.
     const order: string[] = []
     const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('a', 1, order, { decision: 'reset' }))
@@ -356,9 +346,6 @@ describe('the browser unload prompt', () => {
     const navigator = createNavigator()
     navigator.registerBlocker('mount-a', recordingBlocker('a', 1, []))
 
-    // TanStack's `enableBeforeUnload` defaults to true, and a blocker that has
-    // not thought about reloads keeps that default rather than losing the
-    // prompt by omission.
     expect(navigator.wantsUnloadPrompt()).toBe(true)
   })
 
@@ -412,10 +399,6 @@ describe('bridge delegation', () => {
   })
 
   it('carries the entry state through, because a mount’s history lives in it', () => {
-    // The navigator is itself the bridge an App's boundary history is built
-    // over. Dropping the state left every entry an App pushed with none, so
-    // neither history could tell a back from a forward and a refused back
-    // navigation had no delta to roll back by.
     const bridge = createRecordingBridge()
     const navigator = new BoundaryNavigator({ bridge })
 
@@ -432,8 +415,6 @@ describe('bridge delegation', () => {
     new BoundaryNavigator({ bridge: withGo }).go(-2)
     expect(withGo.go).toHaveBeenCalledWith(-2)
 
-    // A bridge without `go` supports only single steps, and stranding a router
-    // mid-rollback is worse than the nearest one.
     const withoutGo = createRecordingBridge()
     const navigator = new BoundaryNavigator({ bridge: withoutGo })
     navigator.go(-2)
@@ -444,9 +425,6 @@ describe('bridge delegation', () => {
   })
 
   it('holds an external navigation while one is being negotiated, and releases it', async () => {
-    // A browser back moves the URL before anyone is asked. A mount told about
-    // it straight away leaves the page the user is still being asked about,
-    // which is how the confirmation ends up over the wrong screen.
     const bridge = createRecordingBridge()
     const navigator = new BoundaryNavigator({ bridge })
     const answer = deferred<'proceed' | 'reset'>()
@@ -469,7 +447,6 @@ describe('bridge delegation', () => {
     answer.resolve('proceed')
     await negotiation
 
-    // Read fresh: what a mount needs is where the page ended up.
     expect(heard).toEqual([{ pathname: '/reports', search: '', hash: '' }])
   })
 
@@ -494,8 +471,6 @@ describe('bridge delegation', () => {
     expect(await negotiation).toBe('blocked')
     await Promise.resolve()
 
-    // Nothing happened, so nothing is reported. The restoration the host
-    // performs arrives as an event of its own.
     expect(heard).toEqual([])
 
     bridge.listeners[0]?.({ pathname: '/reports', search: '', hash: '' })
@@ -572,13 +547,11 @@ describe('createBrowserNavigationBridge', () => {
   })
 
   it('leaves the global History and event-listener methods untouched', () => {
-    // capture the real functions before the bridge exists.
     const pushState = window.history.pushState
     const replaceState = window.history.replaceState
     const addEventListener = window.addEventListener
     const removeEventListener = window.removeEventListener
 
-    // create the bridge and exercise every path that touches the globals.
     const bridge = createBrowserNavigationBridge()
     const unsubscribe = bridge.subscribe(() => undefined)
     bridge.push('/reports/42')
@@ -586,8 +559,6 @@ describe('createBrowserNavigationBridge', () => {
     bridge.read()
     unsubscribe()
 
-    // patching a global History method is precisely what this bridge
-    // replaced, so each reference must still be the original function.
     expect(window.history.pushState).toBe(pushState)
     expect(window.history.replaceState).toBe(replaceState)
     expect(window.addEventListener).toBe(addEventListener)
@@ -687,7 +658,6 @@ describe('createNavigationIntent', () => {
   })
 
   it('leaves the boundary for a sibling path that merely shares the prefix', () => {
-    // "/reports-archive" is a different App, not a route inside "/reports".
     expect(createNavigationIntent(from, to('/reports-archive'), '/reports').leavesBoundary).toBe(
       true,
     )
@@ -784,12 +754,6 @@ describe('boundaryDefinitionId', () => {
     expect(boundaryDefinitionId(path)).toBe(expected)
   })
 
-  /**
-   * The boundary is whatever the first segment says, registered or not. A host
-   * that answered "nothing is mounted" here would put its chrome at odds with
-   * the boundary below it, which is already reporting that the id failed to
-   * load.
-   */
   it('names a segment the registry has never heard of', () => {
     expect(boundaryDefinitionId('/not-registered/anything')).toBe('not-registered')
   })

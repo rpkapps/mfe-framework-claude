@@ -24,10 +24,6 @@ type SettingsPageProps = React.ComponentProps<'div'> & {
   onSave?: (settings: Settings) => void
 }
 
-/**
- * Settings page — page header, Profile / Notifications / Appearance tabs
- * with Input / Select / Switch forms and a sticky save footer.
- */
 function SettingsPage({
   className,
   initialSettings = defaultSettings,
@@ -137,7 +133,6 @@ function SettingsPage({
   )
 }
 
-/** Route-ready page. */
 export default function SettingsRoute() {
   return <SettingsPage />
 }

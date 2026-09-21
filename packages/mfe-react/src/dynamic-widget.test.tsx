@@ -1,11 +1,6 @@
 /**
- * Consuming a Widget whose id is a value.
- *
- * `lazyWidget` is for a consumer that knows at build time which Widget it
- * consumes. A host composing what the registry advertises does not, and the
- * documented rule for `lazyWidget` — call it once, at module scope — is
- * unfollowable when the ids come from a registry fetched at boot. These are the
- * claims that make the second form usable in place of the first.
+ * Consuming a Widget whose id is a value: `lazyWidget`'s module-scope rule is unfollowable when
+ * the ids come from a registry fetched at boot (§15).
  */
 
 import { screen, waitFor } from '@testing-library/react'
@@ -80,11 +75,7 @@ const feed = createWidget({
   ),
 })
 
-/**
- * A Widget whose one event is called `event`, which maps to the same prop name
- * as the catch-all. Exotic, and exactly the case that decides which of the two
- * wins.
- */
+/** A Widget whose one event is called `event`, which maps to the catch-all's own prop name. */
 const collides = createWidget({
   id: 'collides-widget',
   version: '1.0.0',
@@ -131,11 +122,7 @@ describe('DynamicWidget', () => {
     })
   })
 
-  /**
-   * The reason this exists at all. A host that called `lazyWidget` during
-   * render would hand React a new component type on every pass, and the Widget
-   * would lose its state each time — which looks like the Widget being buggy.
-   */
+  /** A `lazyWidget` call during render hands React a new component type on every pass (§15). */
   it('keeps the Widget mounted, and its state, across host re-renders', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
 
@@ -189,8 +176,7 @@ describe('DynamicWidget', () => {
     })
     await userEvent.click(screen.getByRole('button'))
 
-    // Contract-free consumption: the provider validated the payload, and the
-    // event still reached a handler the consumer was never typed against.
+    // The provider validated, and the event reached a handler never typed against it.
     expect(onBumped).toHaveBeenCalledWith({ at: 'now' })
   })
 
@@ -233,8 +219,7 @@ describe('DynamicWidget', () => {
     await waitFor(() => {
       expect(screen.getByTestId('error')).toHaveTextContent('counter-widget')
     })
-    // Contract-free means the consumer has no types, never that the boundary
-    // is weaker: the provider validated and named the field.
+    // Contract-free means no consumer types, not a weaker boundary: the provider named the field.
     expect(screen.getByTestId('error')).toHaveTextContent('label')
   })
 
@@ -257,12 +242,7 @@ describe('DynamicWidget', () => {
   })
 })
 
-/**
- * A host composing the registry knows a Widget's events only as the strings its
- * published contract lists. Building `on` + capitalized name to subscribe to
- * them is the framework's own mapping done again in the host, and wrong the
- * first time the two disagree — so the host asks for all of them instead.
- */
+/** A host knows a Widget's events only as the strings its published contract lists (§28). */
 describe('DynamicWidget onEvent', () => {
   it('delivers every declared event, by name, to one handler', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
@@ -304,8 +284,7 @@ describe('DynamicWidget onEvent', () => {
     })
     await userEvent.click(screen.getByRole('button', { name: 'open' }))
 
-    // Both: a consumer asking for all of them and for one in particular means
-    // both, and the alternative loses exactly the events the page acts on.
+    // A consumer asking for all of them and for one in particular means both.
     expect(onOpened).toHaveBeenCalledWith({ at: 'now' })
     expect(onEvent).toHaveBeenCalledWith('opened', { at: 'now' })
   })
@@ -325,8 +304,7 @@ describe('DynamicWidget onEvent', () => {
       ),
     )
 
-    // Inputs are validated as serializable, so a function reaching the provider
-    // as one would have been rejected here rather than ignored.
+    // Inputs are validated as serializable, so a function would have been rejected, not ignored.
     await waitFor(() => {
       expect(screen.getByRole('button')).toHaveTextContent('Clicks: 0')
     })
@@ -346,8 +324,7 @@ describe('DynamicWidget onEvent', () => {
     })
     await userEvent.click(screen.getByRole('button'))
 
-    // The prop is the catch-all's, so this Widget cannot be subscribed to by
-    // prop name — and loses nothing, because the catch-all names every event.
+    // The prop is the catch-all's, so this Widget cannot be subscribed to by prop name.
     expect(onEvent).toHaveBeenCalledWith('event', { n: 1 })
   })
 })

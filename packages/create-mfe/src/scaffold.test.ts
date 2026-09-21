@@ -31,7 +31,6 @@ describe('the App starter', () => {
     expect(entry).toContain('basepath: basePath')
     expect(entry).toContain('history,')
     expect(entry).toContain('context: { ...context }')
-    // The augmentation is written for the author rather than left as an exercise.
     expect(entry).toContain("declare module '@tanstack/react-router'")
 
     const settings = await readFile(join(directory, 'src/routes/settings.tsx'), 'utf8')
@@ -51,11 +50,6 @@ describe('the App starter', () => {
     }
   })
 
-  /**
-   * The container compiles its own stylesheet, which the build generates and
-   * which imports Tailwind's theme and utilities. Nothing in the project names
-   * that import, so nothing else would pull the dependency in.
-   */
   it('installs the Tailwind the generated stylesheet imports', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
@@ -100,11 +94,6 @@ describe('the Widget starter', () => {
     expect(entry).toContain('...alertPanelContract')
   })
 
-  /**
-   * React Refresh replaces a module only when every export is a component, and
-   * an entry exports a definition and a contract. A starter that writes the
-   * render inline would reload the whole page on every edit to it.
-   */
   it('puts the render in its own module, so editing it hot-updates', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'alert-panel', template: 'widget', force: true })

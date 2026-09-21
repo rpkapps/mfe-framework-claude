@@ -1,9 +1,6 @@
 /**
- * `mfe/no-widget-global-effects`. A Widget is an embedded fragment: it owns
- * neither the URL nor the document head, so pushing history navigates the page
- * behind the host router's back and writing `document.title` lets the last
- * Widget to render win. Ownership is never inferred from a file name: the rule
- * reports only inside `widgetScopes`, and is inert with none configured.
+ * A Widget owns neither the URL nor the document head, so the last one to render wins. Ownership
+ * is declared: the rule is inert until `widgetScopes` is configured.
  */
 
 import type { Rule } from 'eslint'
@@ -22,7 +19,6 @@ const HISTORY_METHODS: ReadonlySet<string> = new Set([
   'go',
 ])
 
-/** Mutating members of `document.head`. */
 const HEAD_MUTATORS: ReadonlySet<string> = new Set([
   'appendChild',
   'append',
@@ -55,8 +51,7 @@ const rule: Rule.RuleModule = {
       recommended: true,
       url: docsUrl('no-widget-global-effects'),
     },
-    // No fix and no suggestion: the repair hands the effect to the owning App or
-    // shell, which changes the Widget's declared contract.
+    // No fix and no suggestion: the repair changes the Widget's declared contract.
     schema: [
       {
         type: 'object',
@@ -113,19 +108,16 @@ const rule: Rule.RuleModule = {
         if (method === null) return
         const receiver = asNode(callee.object)
 
-        // history.pushState(...), window.history.back(), ...
         if (HISTORY_METHODS.has(method) && owner(receiver) === 'history') {
           report(calleeNode, 'history')
           return
         }
 
-        // document.head.appendChild(link), document.head.append(meta), ...
         if (HEAD_MUTATORS.has(method) && isDocumentHead(receiver)) {
           report(calleeNode, 'headMetadata')
           return
         }
 
-        // document.querySelector('link[rel="icon"]'), document.querySelector('meta[name=...]')
         if (DOCUMENT_QUERIES.has(method) && owner(receiver) === 'document') {
           const [selector] = node.arguments
           if (

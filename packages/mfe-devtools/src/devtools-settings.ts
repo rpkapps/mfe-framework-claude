@@ -1,16 +1,7 @@
 /**
- * Whether the devtools are on, and how the panel was left.
- *
- * One key, read once: the panel ships in production and is gated at runtime, so
- * the cost a page that never opts in pays is this file and nothing else. The
- * flag deliberately does not go through mount-scoped storage — it belongs to
- * the page's own bootstrap rather than to any definition, which is the same
- * reason the override key does not.
- *
- * Reading `localStorage` throws outright when storage is blocked for an origin,
- * so every access here is wrapped and a failure means "off". A developer tool
- * that took the page down because a browser refused a cookie jar would be the
- * worse bug.
+ * Whether the devtools are on, and how the panel was left: one key, read once, because the panel
+ * ships in production and is gated at runtime (§22). The flag is not mount-scoped storage, since
+ * it belongs to the page's own bootstrap rather than to any definition (§24).
  */
 
 import { browserStorage } from './browser-storage.ts'
@@ -60,11 +51,7 @@ function isTab(value: unknown): value is DevtoolsTab {
   return TABS.includes(value as DevtoolsTab)
 }
 
-/**
- * The stored value. A bare `"1"` is accepted as well as the object the panel
- * writes, so turning this on by hand stays a one-liner in a console rather than
- * a JSON document somebody has to get right.
- */
+/** A bare `"1"` is accepted as well as the object the panel writes, so turning this on by hand stays a one-liner. */
 function readStored(): DevtoolsSettings {
   let raw: string | null
   try {
@@ -81,8 +68,7 @@ function readStored(): DevtoolsSettings {
   try {
     parsed = JSON.parse(raw)
   } catch {
-    // Not JSON and not a flag word. Nothing here is worth failing over: the
-    // repair is to turn it on again, which overwrites this.
+    // Nothing here is worth failing over: the repair is to turn it on again, which overwrites this.
     return DEFAULT_SETTINGS
   }
 
@@ -103,10 +89,7 @@ function readStored(): DevtoolsSettings {
   }
 }
 
-/**
- * The query parameter, if this page carries one. `?devtools` with no value
- * counts as on, which is what somebody typing it into the address bar means.
- */
+/** `?devtools` with no value counts as on, which is what somebody typing it into the address bar means. */
 function readQueryParam(): boolean | undefined {
   let search: string
   try {
@@ -124,16 +107,8 @@ function readQueryParam(): boolean | undefined {
 }
 
 /**
- * The settings for this page load.
- *
- * The query parameter wins and is persisted, so the next reload keeps the
- * answer without the parameter — the point of the link is to turn the tool on,
- * not to have to keep it in the URL. `?devtools=0` is the same in reverse: it
- * turns the tool off and clears the key, so a forgotten flag has an off switch
- * that does not require a console.
- *
- * The URL is left alone. The boundary navigator owns history here, and a spent
- * parameter is harmless once the answer is stored.
+ * The settings for this page load: the query parameter wins and is persisted, so the next reload
+ * keeps the answer without it, and `?devtools=0` is the off switch that needs no console.
  */
 export function readDevtoolsSettings(): DevtoolsSettings {
   const stored = readStored()
@@ -154,8 +129,7 @@ export function writeDevtoolsSettings(settings: DevtoolsSettings): boolean {
 
   try {
     if (settings.on) area.setItem(DEVTOOLS_STORAGE_KEY, JSON.stringify(settings))
-    // Off is the absence of the key, so clearing leaves nothing behind to read
-    // back a stale side or size from.
+    // Off is the absence of the key, so nothing stale is left behind to read a side or size back from.
     else area.removeItem(DEVTOOLS_STORAGE_KEY)
     return true
   } catch {

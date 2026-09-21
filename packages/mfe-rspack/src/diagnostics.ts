@@ -1,8 +1,4 @@
-/**
- * Build-time diagnostics. Same rule as `createMfeError` in the neutral core —
- * subject, operation, expectation, observation, one concrete repair — plus the
- * file and line, because opening it is the developer's next action.
- */
+/** The same rule as `createMfeError` in the core, plus the file the developer opens next. */
 
 import type { MfeErrorCode } from '@company/mfe-core'
 
@@ -21,7 +17,6 @@ export interface BuildDiagnosticDetails {
   readonly operation: string
   /** What the build required, in the developer's vocabulary. */
   readonly expected: string
-  /** What the source actually contains. */
   readonly observed: string
   /** Which side declared the expectation, for example "Static discovery". */
   readonly declaredBy?: string
@@ -32,10 +27,7 @@ export interface BuildDiagnosticDetails {
   readonly cause?: unknown
 }
 
-/**
- * A build failure. Rspack accepts `Error` instances in `compilation.errors`, so
- * this is both what the plugin throws and what it reports.
- */
+/** Rspack accepts `Error` instances in `compilation.errors`, so this is thrown and reported. */
 class MfeBuildError extends Error {
   readonly code: MfeErrorCode | undefined
   readonly file: string
@@ -77,10 +69,7 @@ function composeBuildMessage(details: BuildDiagnosticDetails): string {
   return sentences.join(' ')
 }
 
-/**
- * Builds a build-time failure whose message satisfies the same rules the
- * runtime errors follow. Use this rather than `new Error` everywhere.
- */
+/** Use this rather than `new Error`, so a build failure reads the way a runtime one does. */
 export function createBuildError(details: BuildDiagnosticDetails): MfeBuildError {
   return new MfeBuildError(composeBuildMessage(details), details)
 }

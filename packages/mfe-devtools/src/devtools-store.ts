@@ -1,16 +1,7 @@
 /**
- * The panel's own state, and the override edits that have not been applied yet.
- *
- * Module state rather than context, for the reason the shell's `ui-store` gives:
- * there is one shell per document, anything may open the panel, and a store that
- * is not a component survives React Refresh replacing the panel you are looking
- * at.
- *
- * The draft lives here rather than in the shell's boot facts on purpose. Those
- * are frozen — nothing there changes after boot, and that is correct, because
- * they describe what the runtime actually loaded. An edit made in the panel is a
- * different fact: what *will* apply after a reload. Keeping the two apart
- * is what lets the panel show the difference instead of lying about one of them.
+ * The panel's own state, as module state rather than context: there is one shell per document, and
+ * a store that is not a component survives React Refresh replacing the panel you are looking at.
+ * The draft is kept apart from the boot facts because it is what *will* apply after a reload.
  */
 
 import { SnapshotSource, shallowEqual } from '@company/mfe-core'
@@ -26,10 +17,7 @@ import {
 } from './devtools-settings.ts'
 
 export interface DevtoolsState extends DevtoolsSettings {
-  /**
-   * Pending override edits: definition id → manifest URL, or `null` for one
-   * staged to be removed. Empty means the panel agrees with what booted.
-   */
+  /** Definition id → manifest URL, or `null` for one staged to be removed. */
   readonly draft: ReadonlyMap<string, string | null>
 }
 
@@ -43,11 +31,7 @@ function clamp(size: number): number {
 
 const EMPTY_DRAFT: ReadonlyMap<string, string | null> = new Map()
 
-/**
- * Settings compare shallowly and the draft by reference, which is enough: every
- * write below replaces the map rather than mutating it, so an unchanged draft
- * keeps its identity and `useSyncExternalStore` consumers do not re-render.
- */
+/** Every write below replaces the draft map rather than mutating it, so an unchanged draft keeps its identity. */
 const source = new SnapshotSource<DevtoolsState>(
   { ...DEFAULT_SETTINGS, draft: EMPTY_DRAFT },
   { areEqual: shallowEqual },
@@ -62,11 +46,7 @@ function publish(next: DevtoolsState): void {
 
 let initialised = false
 
-/**
- * Reads storage and the query parameter once. Called from the mount rather than
- * at module scope so importing this package never touches the browser, which is
- * what keeps it safe to import from a server render or a test.
- */
+/** Called from the mount rather than at module scope, so importing this package never touches the browser. */
 export function initDevtools(): DevtoolsState {
   if (!initialised) {
     initialised = true
@@ -129,11 +109,7 @@ export const devtools = {
     source.set({ ...current, draft: EMPTY_DRAFT })
   },
 
-  /**
-   * Writes the draft over the overrides that booted and reports whether the
-   * browser allowed it. The caller reloads: remotes are registered once per
-   * container name, so nothing about an override takes effect until boot.
-   */
+  /** The caller reloads: remotes are registered once per container name, so an override applies at boot only. */
   apply(
     storage: OverrideWritableStorage | undefined,
     active: ReadonlyMap<string, string>,

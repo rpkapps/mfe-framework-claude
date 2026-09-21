@@ -1,9 +1,7 @@
 /**
- * The API origin allowlist: which origins may receive the session bearer token.
- *
- * An exact scheme+host+port set, with no wildcards and no substring matching,
- * so a third-party endpoint — or an attacker-controlled host that merely looks
- * like the API — can never be handed the session credential.
+ * Which origins may receive the session bearer token: an exact scheme+host+port set, with
+ * no wildcards and no substring matching, so a host that merely looks like the API can
+ * never be handed the session credential.
  */
 
 import { createMfeError, describeValue } from '@company/mfe-core'
@@ -91,9 +89,8 @@ function toOrigin(entry: string | URL, context: AllowlistContext): string {
 }
 
 /**
- * Normalizes declared API entries (a full URL is reduced to its origin) into an
- * exact-match allowlist. Invalid entries fail here, at wiring time, rather than
- * at the first request that silently loses its token.
+ * Invalid entries fail here, at wiring time, rather than at the first request that
+ * silently loses its token.
  */
 export function normalizeAllowedOrigins(
   entries: Iterable<string | URL> | undefined,

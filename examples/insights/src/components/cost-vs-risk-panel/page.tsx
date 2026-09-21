@@ -32,10 +32,6 @@ type CostVsRiskPanelProps = Omit<React.ComponentProps<typeof Panel>, 'children'>
   onCollapse?: () => void
 }
 
-/**
- * Cost vs risk panel — quadrant bubble chart, legend chips that toggle the
- * compared designs, and a bar-list breakdown of cost and risk categories.
- */
 function CostVsRiskPanel({
   className,
   designs = allDesigns,

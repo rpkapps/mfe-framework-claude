@@ -1,14 +1,8 @@
 /**
- * The Widget starter. It exports the contract separately from the definition,
- * because that is what makes the consumer side real: a consumer importing the
- * contract gets prop and handler inference plus consumer-side event validation,
- * and neither side needs a coordinated build to get it.
- *
- * The render function is scaffolded into its own module rather than inline in
- * the entry. React Refresh replaces a module only when every one of its exports
- * is a component, and an entry exports a definition and a contract — so a
- * Widget written inline in the entry reloads the whole page on every edit. A
- * starter that begins that way teaches the shape that is slower to work in.
+ * Builds the Widget starter's files. The contract is exported separately from the definition so
+ * a consumer gets prop and event inference without needing this container's build. The render
+ * lives in its own module because a module with any non-component export cannot accept a React
+ * Refresh update (§18).
  */
 
 import {

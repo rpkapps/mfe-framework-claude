@@ -1,11 +1,6 @@
 /**
- * A failed load must stay failed.
- *
- * Caching the rejection is what lets React surface it. A cache that evicted
- * itself on rejection handed the next render a fresh pending promise, so the
- * fallback was never reached and the manifest was refetched as fast as the
- * network allowed — measured at roughly 340 requests a second against a shell
- * whose remote was unreachable.
+ * A failed load must stay failed: a cache that evicted itself on rejection handed the next render
+ * a fresh pending promise and refetched the manifest as fast as the network allowed.
  */
 
 import { screen, waitFor } from '@testing-library/react'
@@ -73,11 +68,9 @@ describe('a load that fails', () => {
 
     await waitFor(() => expect(screen.getByTestId('error')).toBeInTheDocument())
 
-    // The old cache dropped the rejection, so every render started another load.
     expect(load).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
 
-    // Still exactly one after the tree has had the chance to re-render.
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(load).toHaveBeenCalledTimes(1)
   })
@@ -95,17 +88,10 @@ describe('a load that fails', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
-    // Retry drops the cached outcome; without that it would replay the same
-    // rejected promise and never reach the network again.
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
     expect(screen.getByTestId('error')).toBeInTheDocument()
   })
 
-  /**
-   * The boundary shows it to whoever is looking at the page; the hub is how the
-   * shell's telemetry hears about it at all. One attempt is one diagnostic,
-   * however many consumers suspended on the same load.
-   */
   it('reports the failure to the diagnostics hub, once', async () => {
     environment = createMfeTestEnvironment({
       definitionId: 'parent-app',

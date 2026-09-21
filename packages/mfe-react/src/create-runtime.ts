@@ -1,9 +1,6 @@
 /**
- * Assembling the shell-side runtime, and deriving a mount from it.
- *
- * The shell calls `createMfeRuntime` once. Ownership stays legible because
- * anything on the runtime outlives an individual mount, and anything
- * `createMount` returns is torn down with it.
+ * Assembling the shell-side runtime and deriving a mount from it: anything on the runtime
+ * outlives an individual mount, and anything `createMount` returns is torn down with it.
  */
 
 import {
@@ -45,35 +42,19 @@ import { createMountToken, type MfeMount, type MfeRuntime } from './runtime.ts'
 export interface CreateRuntimeOptions {
   /** Raw registry entries, usually fetched by the shell at boot. */
   readonly registryEntries: readonly unknown[]
-  /** The concrete container loader. In production this is the federation loader. */
+  /** In production this is the federation loader. */
   readonly loader: ContainerLoader
   readonly shellState: ShellState
   readonly telemetryProvider: TelemetryProvider
   readonly navigationBridge?: NavigationBridge
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
-  /**
-   * An existing hub to report into, rather than one made here. A shell that
-   * wires anything before this call needs the hub to exist first, and a second
-   * hub made here would mean half the framework's diagnostics never reach the
-   * sink it wired. The hub stays the caller's: `dispose()` removes only the
-   * sinks it added.
-   */
+  /** An existing hub to report into; `dispose()` removes only the sinks it added (§25). */
   readonly diagnostics?: DiagnosticsHub
   readonly deadlines?: Partial<DeadlineConfig>
   readonly notifyCommandDenial?: CommandDenialNotifier
-  /**
-   * Opaque, stable for a continuous session across reloads. Omit it and this
-   * call establishes one for the identity in `shellState`, which is what every
-   * `retention: 'user'` record is fenced by; a shell that coordinates several
-   * tabs supplies its own instead.
-   */
+  /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
-  /**
-   * Mints the generation for a new session. It must never repeat a previous
-   * value: returning to an earlier user or group configuration must not
-   * resurrect the data that was invalidated with it. A shell that coordinates
-   * several tabs supplies its own; the default is a random identifier.
-   */
+  /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration?: () => string
   /** Where boot-time developer URL overrides are read from. */
   readonly overrideStorage?: Pick<Storage, 'getItem'>
@@ -89,12 +70,7 @@ export interface MfeRuntimeHandle {
 /** A page with nobody signed in still fences its own session-retained writes. */
 const ANONYMOUS_IDENTITY = '@anonymous'
 
-/**
- * Definition id → container name, read from the descriptors as published. The
- * normalized entry hides the container in `adapterData`; the raw registry entry
- * still states it, and a descriptor that names neither is simply left out —
- * this map only exists to find a conflict, never to load anything.
- */
+/** This map only exists to find a conflict, never to load anything. */
 function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<string, string> {
   const byId = new Map<string, string>()
 
@@ -113,8 +89,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
-  // Read before anything is registered, so an overridden entry already points at
-  // the developer's dev server the first time it loads.
+  // Read before anything is registered, so an override applies the first time an entry loads.
   const overrides = readDevOverrides(options.overrideStorage)
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
@@ -123,11 +98,8 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     overrides: overrides.overrides,
   })
 
-  // One container is registered once, under one name, so two of its definitions
-  // pointed at different URLs cannot both apply — whichever registered first
-  // wins and the other override silently does nothing. Reported from here
-  // rather than from the normalized entries, because the container name is
-  // adapter-private by then and the raw descriptors still carry it.
+  // One container is registered once under one name, so two of its definitions pointed at
+  // different URLs cannot both apply.
   for (const error of findConflictingContainerOverrides(
     overrides.overrides,
     containersByDefinitionId(options.registryEntries),
@@ -135,8 +107,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     diagnostics.report(error, { severity: 'warning' })
   }
 
-  // A quarantined entry never removes unrelated valid ones; it is reported and
-  // the rest of the shell keeps working.
+  // A quarantined entry never removes unrelated valid ones.
   for (const quarantined of registry.quarantined) {
     if (isMfeError(quarantined.error)) {
       diagnostics.report(quarantined.error, {
@@ -155,9 +126,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
       : { sessionGeneration: options.sessionGeneration }),
   })
   if (options.sessionGeneration === undefined) {
-    // The one already in force for this identity in this tab, or a fresh one.
-    // Identity is opaque and compared for equality, never parsed, so a page
-    // nobody is signed in to still gets a generation of its own.
+    // Identity is opaque and compared for equality, so an anonymous page still gets one.
     establishSessionGeneration(storage, shellState.getUser()?.id ?? ANONYMOUS_IDENTITY, {
       mint: nextGeneration,
     })
@@ -175,9 +144,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     diagnostics,
   })
 
-  // An identity or semantic group change retires persisted session state before
-  // any new-session value can be read back. The new generation is what fences
-  // records written under the old one, so it is minted here rather than reused.
+  // The new generation fences records written under the old one, so it is minted, not reused.
   const stopWatchingSession = shellState.observeTransitions(change => {
     if (!requiresSessionRetirement(change.transitions)) return
 
@@ -224,7 +191,7 @@ export interface CreateMountOptions {
   readonly definitionId: string
   readonly definitionVersion?: string
   readonly kind: 'app' | 'widget'
-  /** The assigned URL boundary. Always `''` for a Widget. */
+  /** The assigned URL boundary, always `''` for a Widget. */
   readonly basePath?: string
   readonly depth?: number
   readonly document?: Document
@@ -232,15 +199,11 @@ export interface CreateMountOptions {
 
 export interface MountHandleWithCleanup {
   readonly mount: MfeMount
-  /** Tears down everything this mount owns. Ordering is deliberate. */
+  /** Tears down everything this mount owns; the ordering is deliberate. */
   dispose(): Promise<void>
 }
 
-/**
- * Nested and repeated mounts get independent Query clients, so a child never
- * inherits a parent's cache. That boundary is framework policy rather than
- * something TanStack Query requires.
- */
+/** Every mount gets its own Query client, so a child never inherits a parent's cache. */
 export function createMount(options: CreateMountOptions): MountHandleWithCleanup {
   const { runtime, definitionId, kind } = options
   const mountToken = createMountToken(definitionId)
@@ -279,14 +242,12 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
   return {
     mount,
     dispose: async () => {
-      // Registrations go first so a disposed mount cannot appear in the palette
-      // or the breadcrumb trail while the rest of teardown runs.
+      // Registrations go first, so a disposed mount cannot appear in the palette mid-teardown.
       runtime.commands.removeMount(mountToken)
       runtime.navigator.removeMount(mountToken)
 
       disposal.abort()
-      // Cancellation is signalled, not waited on: `clear()` drops the cache
-      // immediately and teardown must not block on in-flight requests.
+      // Signalled, not waited on: teardown must not block on in-flight requests.
       void queryClient.cancelQueries()
       queryClient.clear()
       telemetry.dispose()
@@ -298,31 +259,8 @@ export function createMount(options: CreateMountOptions): MountHandleWithCleanup
 }
 
 /**
- * The mount this component owns, created and destroyed as an effect.
- *
- * React may unmount a component and immediately mount it again without
- * re-rendering it. StrictMode does exactly that on every mount in development,
- * and it is deliberate: the same thing happens whenever React reuses state it
- * had previously torn down.
- *
- * A mount built in `useMemo` and destroyed in an effect cleanup does not
- * survive it. The cleanup disposes the mount; the second setup runs against the
- * same memoized handle, because its inputs have not changed; and from then on
- * the App is running on a disposed mount — an aborted signal, a Query cache
- * that was cleared and now cancels everything put into it, a removed overlay
- * root, a disposed tracer. The symptom is a route loader failing with
- * `CancelledError` in development and working in production, which is the worst
- * shape a defect can have.
- *
- * Creating it in the effect instead is the pairing React actually supports: the
- * thing that tears a resource down and the thing that builds it are the same
- * effect, so a remount builds a new one. It costs one render returning nothing
- * before the mount exists, which is a frame inside a Suspense boundary that was
- * already showing a fallback.
- *
- * A generation counter bumped from the cleanup looks like a smaller fix and is
- * not one: the cleanup it schedules is itself a cleanup, so it bumps again, and
- * the component renders forever.
+ * The mount this component owns, created and destroyed by the same effect, because a mount
+ * built in `useMemo` does not survive the remount StrictMode performs (§14).
  */
 export function useOwnedMount(
   create: () => MountHandleWithCleanup,

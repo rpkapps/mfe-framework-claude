@@ -1,15 +1,7 @@
 /**
- * Scope and overlay roots.
- *
- * Every mount renders inside a `data-mfe-scope` element whose CSS the build
- * emits as `@scope ([data-mfe-scope="<id>"], …) to ([data-mfe-scope])`, and
- * overlays portalled to the body get a second root carrying the same attribute,
- * or they would escape that scope. The scope root is a selector anchor, never a
- * box: `display: contents` keeps it out of layout, so the element the App or
- * Widget renders is the direct child of whatever the host laid out — without
- * it, a mount is a block that shrinks to its content inside a flex parent, with
- * `h-full` resolving against nothing. `@scope` matches on the DOM tree rather
- * than on boxes, so the boundary is unaffected.
+ * Every mount renders inside a `data-mfe-scope` element the container's stylesheet is scoped
+ * to, with a second root carrying the same attribute for body-level overlays (§17). The scope
+ * root is `display: contents`, so it anchors a selector without becoming a box in the layout.
  */
 
 import type { ReactNode } from 'react'
@@ -19,11 +11,7 @@ import type { MfeStyleRoot } from './style-root.ts'
 /** Reserved for App, Widget and framework portal roots. */
 export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
 
-/**
- * Internal mount discriminator, so two mounts of the same definition get
- * distinct DOM roots. The scope value stays the public id, because that is what
- * the generated CSS selector matches.
- */
+/** Distinguishes two mounts of one definition; the scope value stays the id the CSS matches. */
 const MOUNT_ATTRIBUTE = 'data-mfe-mount'
 
 export interface ScopeRootProps {
@@ -32,19 +20,12 @@ export interface ScopeRootProps {
   readonly kind: 'app' | 'widget'
   /** This mount's body-level overlay root, handed to the style root. */
   readonly overlayRoot: HTMLElement
-  /**
-   * The component the container's own build attached to the definition, when it
-   * ships CSS that needs one. It renders inside the scope root rather than
-   * around it, so the scope element stays the framework's own anchor.
-   */
+  /** Renders inside the scope root rather than around it, so the scope element stays ours. */
   readonly styleRoot?: MfeStyleRoot | undefined
   readonly children: ReactNode
 }
 
-/**
- * Inline rather than a class: the framework ships no stylesheet, and a class
- * would only work for hosts that happened to load one.
- */
+/** Inline rather than a class, because the framework ships no stylesheet. */
 const LAYOUT_NEUTRAL = { display: 'contents' } as const
 
 export function MfeScopeRoot({
@@ -70,10 +51,7 @@ export function MfeScopeRoot({
   )
 }
 
-/**
- * The caller owns the disposer so overlay cleanup runs on the same teardown path
- * as everything else the mount owns.
- */
+/** The caller owns the disposer, so cleanup runs on the mount's own teardown path. */
 export function createOverlayRoot(
   definitionId: string,
   mountToken: string,

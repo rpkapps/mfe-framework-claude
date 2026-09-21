@@ -20,10 +20,8 @@ function json(value: unknown): string {
 }
 
 /**
- * `generate` writes the #mfe/* modules and the route tree, and every script
- * that reads them runs it first. It stays a documented command of its own
- * because an editor opened on a fresh clone needs those files before anything
- * has been developed, tested or built.
+ * Listed as its own script because an editor on a fresh clone needs the
+ * generated #mfe/* modules and route tree before anything else can run.
  */
 const SCRIPTS: Record<string, string> = {
   dev: 'pnpm run generate && rspack serve',

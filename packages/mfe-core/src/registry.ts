@@ -1,9 +1,4 @@
-/**
- * The neutral registry record and the adapter-selection table. Legacy fields
- * such as `mfManifestUrl`, `routes` or `single-spa-app` never appear here: the
- * legacy adapter translates them at its own boundary, which keeps the core free
- * of a compatibility vocabulary it would otherwise carry forever.
- */
+/** The neutral registry record; legacy fields stay behind the legacy adapter's own boundary. */
 
 import type {
   BuildProvenance,
@@ -12,31 +7,22 @@ import type {
   PublishedWidgetContract,
 } from './definition.ts'
 
-/** Which adapter mounts an entry. Extending this is a table entry. */
+/** Which adapter mounts an entry; extending it means adding a selection rule. */
 export type AdapterKind = 'react' | 'legacy-angular'
 
-/** A validated entry the host can act on. */
 export interface NeutralRegistryEntry {
   readonly id: string
   readonly definitionKind: DefinitionKind
   readonly adapter: AdapterKind
   readonly manifestUrl: string
   readonly version?: string
-  /** App-only. Extracted statically at build time. */
+  /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
-  /**
-   * Widget-only. What the Widget takes and emits, so a host can offer it in a
-   * catalogue and collect its inputs before the container is ever fetched.
-   */
+  /** Widget-only; a host offers the Widget in a catalogue before its container is fetched (§16). */
   readonly contract?: PublishedWidgetContract
-  /**
-   * Which build of the container this entry came from, when its descriptor
-   * carried one. It is the answer to "which build" in a bug report, and the
-   * registry is the only place a host can read it without loading the
-   * container — which is exactly the situation a report is written in.
-   */
+  /** Which build the entry came from, readable without loading the container (§29). */
   readonly build?: BuildProvenance
-  /** Excluded from catalog and finder views. Not a security boundary. */
+  /** Excluded from catalogue and finder views; not a security boundary. */
   readonly hidden?: boolean
   readonly title?: string
   readonly icon?: string
@@ -46,7 +32,7 @@ export interface NeutralRegistryEntry {
   readonly overridden?: boolean
 }
 
-/** An entry that failed validation. It is quarantined, not dropped silently. */
+/** An entry that failed validation; quarantined rather than dropped silently. */
 export interface QuarantinedRegistryEntry {
   /** Best-effort: the `id` if one could be read, otherwise a positional label. */
   readonly id: string
@@ -60,24 +46,16 @@ export interface NormalizedRegistry {
   readonly quarantined: readonly QuarantinedRegistryEntry[]
 }
 
-/**
- * One selection rule, evaluated in order: a valid advertised contract picks the
- * new adapter, required legacy metadata without one picks the legacy adapter,
- * and a malformed advertised contract fails explicitly rather than falling
- * through to legacy, which would change loading behaviour invisibly.
- */
+/** Evaluated in order; a malformed contract fails rather than falling through to legacy. */
 export interface AdapterSelectionRule<TSource = unknown> {
   readonly adapter: AdapterKind
-  /** Does this entry advertise this adapter's contract at all? */
   readonly advertises: (source: TSource) => boolean
-  /** Translate and validate. Throwing produces a per-entry quarantine. */
+  /** Throwing produces a per-entry quarantine. */
   readonly normalize: (source: TSource) => NeutralRegistryEntry
 }
 
-/** The framework contract major this build implements. */
 export const FRAMEWORK_CONTRACT_MAJOR = 1
 
-/** Accepts compatible minors/patches, rejects unsupported majors. */
 export function isSupportedContractMajor(major: number): boolean {
   return Number.isInteger(major) && major === FRAMEWORK_CONTRACT_MAJOR
 }
