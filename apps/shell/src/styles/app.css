@@ -1,34 +1,11 @@
-/*
- * The page's document-level stylesheet.
- *
- * Everything visual comes from the design system: `globals.css` pulls in
- * Tailwind v4, the Tecton tokens, the Tecton palette and the fonts, and it
- * already declares `@source "../**\/*.{ts,tsx}"` for its own components.
- *
- * Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
- * `text-zinc-400`) generate no CSS at all. Use a semantic token
- * (`bg-destructive-surface`) or a Tecton step (`bg-blue-120 text-blue-830`).
- */
+/* Tecton's palette replaces Tailwind's, so stock colour utilities (`bg-red-500`) generate no CSS at all. */
 
 @import '@tecton/react/globals.css';
 
-/*
- * The shell's sources only: each container compiles and ships the utilities its
- * own classes need, scoped to its mount roots. What stays this stylesheet's
- * alone is the document-level half — the preflight, the font faces, Tailwind's
- * `@property` registrations and every theme variable on `:root` — which
- * inherits into the mounted subtrees, so a tenant customisation or a mode flip
- * made here reaches every container with nothing wired up.
- */
+/* Each container ships the utilities its own classes need (§17); what stays here is the document-level half every mounted subtree inherits. */
 @source "../**/*.{ts,tsx}";
 
-/*
- * And the developer tools, which are a package rather than a container: they
- * render into the shell's own document, above every mount, so their utilities
- * belong in this sheet rather than in a scoped one. A host outside this
- * workspace needs the same line pointing into its node_modules, until the
- * package ships a prebuilt sheet of its own the way the design system does.
- */
+/* The developer tools are a package rather than a container and render into the shell's own document, so their utilities belong in this sheet. */
 @source "../../../../packages/mfe-devtools/src/**/*.{ts,tsx}";
 
 html,

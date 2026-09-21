@@ -1,12 +1,6 @@
 /**
- * The boundary: the one place the shell hands the page over to an App.
- *
- * Below this component the shell renders nothing of its own — no padding, no
- * card, no page title. The mounted App gets the region and chooses its own
- * layout, which is why the mount root itself is layout-neutral.
- *
- * Components only, so React Refresh can replace this module in place. The
- * router that uses it is a separate module for the same reason.
+ * The one place the shell hands the page over to an App: below this component the shell renders
+ * nothing of its own, which is why the mount root itself is layout-neutral.
  */
 
 import { Suspense, type ReactNode } from 'react'
@@ -30,8 +24,7 @@ export function AppBoundary(): ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
   const appId: string = useParams({ strict: false }).appId ?? ''
 
-  // `fallback` covers an unresolvable id and a mount-time failure alike, and
-  // its retry is a genuinely fresh attempt.
+  // `fallback` covers an unresolvable id and a mount-time failure alike, with a fresh retry.
   return (
     <Suspense fallback={<Loading appId={appId} />}>
       <AppHost
@@ -43,15 +36,7 @@ export function AppBoundary(): ReactNode {
   )
 }
 
-/**
- * What the boundary shows while a container is on the wire.
- *
- * A bare spinner in the middle of an empty region says nothing about what is
- * happening or how long it might take — and on a slow connection it is the
- * whole page for several seconds. This says which application is being
- * fetched, in the same frame the failure and the empty states use, so the
- * region keeps its shape whichever way the load ends.
- */
+/** Named and framed like the failure and empty states, so the region keeps its shape whichever way the load ends. */
 function Loading({ appId }: { readonly appId: string }): ReactNode {
   return (
     <div className="flex h-full w-full" role="status" aria-live="polite">
@@ -71,11 +56,7 @@ function Loading({ appId }: { readonly appId: string }): ReactNode {
   )
 }
 
-/**
- * An App that will not load is the failure a shell has to survive well: the
- * chrome stays, the other Apps stay reachable, and the error names the
- * definition, what went wrong and the repair.
- */
+/** An App that will not load must cost only this region: the chrome stays and the other Apps stay reachable. */
 function MountFailure({
   error,
   retry,

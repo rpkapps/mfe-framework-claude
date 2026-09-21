@@ -1,13 +1,7 @@
 /**
- * Compose a page out of Widgets that the shell was never built against.
- *
- * The shell knows three things about every tile on this canvas: an id, an input
- * schema and a list of event names, all read from the registry and none
- * compiled in. Adding a Widget here is a registry change, not a shell release.
- *
- * Drag one from the catalogue onto the canvas, give it its inputs, and it
- * mounts. Everything it emits appears in the activity feed, because a Widget's
- * events are as much a part of its contract as its props.
+ * Compose a page out of Widgets the shell was never built against: it knows an id, an input
+ * schema and a list of event names, all read from the registry. Adding a Widget here is a
+ * registry change, not a shell release.
  */
 
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -77,8 +71,7 @@ const MAX_EVENTS = 40
 
 export function DashboardPage(): ReactNode {
   const widgets = useWidgets()
-  // Stored, not this component's state: the palette adds a Widget and settings
-  // clears the canvas, both from outside this page.
+  // Stored, not this component's state: the palette and settings both write it from outside.
   const [{ tiles }, setLayout] = useDashboardLayout()
   const [editing, setEditing] = useState<Editing | null>(null)
   const [events, setEvents] = useState<readonly WidgetEvent[]>([])
@@ -95,11 +88,7 @@ export function DashboardPage(): ReactNode {
     [setLayout],
   )
 
-  /**
-   * A Widget whose inputs are all optional or defaulted needs nothing from the
-   * developer, so asking would be ceremony. One that needs an id is asked, or
-   * it mounts straight into its own validation error.
-   */
+  /** A Widget whose inputs are all optional or defaulted needs nothing from the developer, so asking would be ceremony (§28). */
   const add = useCallback(
     (entry: NeutralRegistryEntry) => {
       if (needsInputPrompt(entry.contract)) {
@@ -140,9 +129,7 @@ export function DashboardPage(): ReactNode {
         <PageHeader>
           <PageHeaderContent>
             <PageHeaderEyebrow>Shell · composition</PageHeaderEyebrow>
-            {/* Wrapping, not truncating: the design system's title truncates
-                to protect the actions beside it, and a page title is the one
-                thing that must survive a phone. */}
+            {/* Wrapping, not truncating: a page title is the one thing that must survive a phone. */}
             <PageHeaderTitle className="text-clip whitespace-normal">
               Widget dashboard
             </PageHeaderTitle>
@@ -174,14 +161,7 @@ export function DashboardPage(): ReactNode {
           </PageHeaderActions>
         </PageHeader>
 
-        {/*
-         * Three regions, and which one is the page changes with the width: the
-         * catalogue and the feed flank the canvas, then stack under it.
-         *
-         * `items-start`, and no `flex-1`: each column is as tall as its own
-         * content. A shared row height sized by the viewport left the canvas
-         * shorter than its tiles, and a tall Widget ran out through the border.
-         */}
+        {/* `items-start`, and no `flex-1`: a shared row height sized by the viewport left the canvas shorter than its own tiles. */}
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
           <div className="lg:col-span-4 xl:col-span-3">
             <CataloguePanel widgets={widgets} onAdd={add} />
@@ -300,12 +280,7 @@ export function DashboardPage(): ReactNode {
   )
 }
 
-/**
- * The catalogue, and how much room it is allowed to take. In one column it is a
- * closed disclosure: five Widgets' worth of published contract above the canvas
- * puts the canvas off the bottom of a phone, and capping the list with a
- * scrollbar only sliced the last card in half.
- */
+/** In one column the catalogue is a closed disclosure, or five Widgets' worth of contract puts the canvas off the bottom of a phone. */
 function CataloguePanel({
   widgets,
   onAdd,
@@ -377,11 +352,7 @@ function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNod
   )
 }
 
-/**
- * What the Widgets emitted. A Widget's events are the half of its contract a
- * screenshot cannot show, so they are given a place on the page rather than a
- * console line.
- */
+/** A Widget's events are the half of its contract a screenshot cannot show, so they get a place on the page rather than a console line. */
 function ActivityFeed({
   events,
   onClear,
@@ -429,8 +400,7 @@ function ActivityFeed({
                 <span className="truncate font-mono text-xs text-muted-foreground">
                   {event.widgetId}
                 </span>
-                {/* Fields rather than a line of JSON: this panel is the only
-                    place a Widget's events are visible at all. */}
+                {/* Fields rather than a line of JSON: this panel is the only place a Widget's events are visible. */}
                 <Payload payload={event.payload} />
               </li>
             ))}

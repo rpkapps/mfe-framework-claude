@@ -1,12 +1,4 @@
-/**
- * The facts a bug report has to carry.
- *
- * A report that says "the page was broken" costs an engineer a day of asking
- * which build, which registry and which container. Everything below is already
- * known to the shell when the report is written, so the reporter is asked for
- * none of it — and it is collected on demand, because a snapshot held from boot
- * would describe a page that no longer exists.
- */
+/** Collected on demand, because a snapshot held from boot would describe a page that no longer exists. */
 
 import type { MfeRuntime, NeutralRegistryEntry } from '@company/mfe-react'
 
@@ -21,11 +13,7 @@ export interface Diagnostics {
   readonly groups: readonly string[]
   readonly registryLoaded: number
   readonly registryRejected: readonly string[]
-  /**
-   * One line per accepted entry: every surface was built and deployed
-   * separately, so a list is the only honest answer. An entry that named no
-   * build says so, since a missing line reads as a missing container.
-   */
+  /** An entry that named no build says so, since a missing line reads as a missing container (§29). */
   readonly builds: readonly string[]
   /** Why `registry.json` would not load: the only place that now surfaces. */
   readonly registryError: string | null

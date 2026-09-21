@@ -1,23 +1,10 @@
 /**
- * Which shell surface is open.
- *
- * The header opens these, and so does the command palette — and a palette item
- * that opened a sheet by reaching for a callback the header happened to pass it
- * would make every new surface another prop threaded through the chrome. One
- * store instead: the chrome subscribes, anything may open.
- *
- * Module state rather than context, because there is exactly one shell per
- * document and nothing below the chrome may open a shell surface. Not a
- * component, so React Refresh can replace the panels that read it without
- * closing the one you are looking at.
+ * Which shell surface is open, as one store so the palette can open a sheet without a callback
+ * threaded through the chrome. Module state rather than context, because there is exactly one
+ * shell per document.
  */
 
-/**
- * Every surface the shell owns. `null` is "the page itself".
- *
- * The registry is not one of them any more: it lives in the developer tools,
- * which are not modal and keep their own open state in their own package.
- */
+/** The registry is not one of these: it moved into the developer tools, behind their own flag (§22). */
 export type ShellSurface = 'palette' | 'settings' | 'help' | 'releases' | 'bug'
 
 let open: ShellSurface | null = null
@@ -27,11 +14,7 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
-/*
- * Arrow properties rather than methods: `subscribe` and `getSnapshot` are
- * handed straight to `useSyncExternalStore`, which calls them detached from
- * this object.
- */
+/* Arrow properties rather than methods: `useSyncExternalStore` calls `subscribe` and `getSnapshot` detached from this object. */
 export const shellUi = {
   subscribe: (listener: () => void): (() => void) => {
     listeners.add(listener)

@@ -1,12 +1,6 @@
 /**
- * Shell settings.
- *
- * Only what the shell actually owns — the theme, its own dashboard, and the
- * developer overrides that decide where containers load from. An application's
- * settings are the application's, so the list at the bottom links to the
- * settings pages the registry says each one published.
- *
- * Components only, so React Refresh can replace this module in place.
+ * Only what the shell actually owns; an application's settings are the application's, so the
+ * list at the bottom links to the settings pages the registry says each one published.
  */
 
 import type { ReactNode } from 'react'
@@ -63,8 +57,8 @@ export function SettingsSheet({
   const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
 
-  // Only the settings pages: flattening every capability put each
-  // application's help and release notes under the same heading.
+  // Only the settings pages: flattening every capability put each application's help and release
+  // notes under the same heading (§26).
   const capabilities = useCapabilityPages('settings')
 
   return (
@@ -77,8 +71,7 @@ export function SettingsSheet({
         </SheetDescription>
       </SheetHeader>
 
-      {/* Scrolls between the sheet's fixed header and footer, at the padding
-          they use. */}
+      {/* Scrolls between the sheet's fixed header and footer, at the padding they use. */}
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
         <div className="flex flex-col gap-6 pb-2">
           <Section title="Appearance" hint="Shared with every mounted application">

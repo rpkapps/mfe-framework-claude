@@ -4,9 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Discovery</title>
-    <!-- Declared inline so the document asks for no second file. Without it a
-         browser requests /favicon.ico on every load and the dev server answers
-         404, which buries a real failed request in the console. -->
+    <!-- Inline, or a browser requests /favicon.ico on every load and the 404 buries a real failed request in the console. -->
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f1a'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='600' fill='%237dd3fc' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E"
@@ -14,16 +12,9 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- The theme, before first paint. The shell remembers it, and a document
-         that boots dark and then flips to light on hydration is a flash every
-         light-theme user sees on every load. `preferences.ts` decides the same
-         value the same way; this only applies it early.
-
-         What it reads is the bare string under the bare key `theme` — the key
-         the legacy Angular applications read too, which is why the shell writes
-         it raw rather than through the framework's store. Anything that is not
-         exactly "light" or "dark" counts as nothing chosen, and the whole thing
-         is guarded: this script must never be why a page fails to paint. -->
+    <!-- The theme before first paint, because a document that boots dark and flips to light on
+         hydration is a flash every light-theme user sees on every load. It reads the bare key
+         the legacy Angular applications read too, the same way `preferences.ts` does (§24). -->
     <script>
       ;(function () {
         try {
@@ -35,8 +26,7 @@
           document.documentElement.classList.toggle('dark', theme === 'dark')
           document.documentElement.style.colorScheme = theme
         } catch (error) {
-          // Storage blocked, or a value this build cannot read: the class in
-          // <html> already stands.
+          // Storage blocked, or a value this build cannot read: the class in <html> already stands.
         }
       })()
     </script>

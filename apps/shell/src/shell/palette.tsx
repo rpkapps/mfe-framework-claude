@@ -1,11 +1,7 @@
 /**
- * The command palette.
- *
- * Applications and their capability pages come from the registry, so the
- * palette gains a destination when a container is deployed and the shell is not
- * rebuilt. Everything else is a command: the shell registers its own exactly as
- * a mounted application does, and both arrive through one snapshot. They stay
- * two groups because that is a grouping, not a second code path.
+ * Applications and their capability pages come from the registry, so the palette gains a
+ * destination when a container is deployed and the shell is not rebuilt. The shell registers its
+ * own commands exactly as a mounted application does, and both arrive through one snapshot (§26).
  */
 
 import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
@@ -150,8 +146,7 @@ const HOST_COMMANDS: Readonly<Record<string, HostCommand>> = {
     icon: <Trash2Icon />,
     hint: `${String(live.layout.tiles.length)} tiles`,
     text: 'remove every widget canvas',
-    // Listed and denied rather than hidden: a control that disappears reads as
-    // a shell that has lost the feature.
+    // Listed and denied rather than hidden: a control that disappears reads as a lost feature.
     canExecute: () =>
       live.layout.tiles.length === 0 ? deny('The dashboard canvas is already empty.') : allow(),
     run: () => {
@@ -191,8 +186,8 @@ export function CommandPalette({
     live.current = current
   })
 
-  // Registered once for as long as this runtime lives: what changes — the
-  // theme, the tile count — is read through the ref when the command runs.
+  // Registered once for as long as this runtime lives, so what changes is read through the ref
+  // when the command runs.
   useEffect(() => {
     const handles = Object.entries(HOST_COMMANDS).map(([name, command]) =>
       runtime.commands.registerHost({
@@ -225,8 +220,8 @@ export function CommandPalette({
     })
   }
 
-  // The shell's own are drawn from the table rather than from the snapshot,
-  // because a registration is not remade when the theme flips.
+  // Drawn from the table rather than the snapshot, because a registration is not remade when the
+  // theme flips.
   const commandRow = (entry: CommandEntry): Row => {
     const { allowed } = entry.decision
     const command = HOST_COMMANDS[entry.name]?.(current)
@@ -234,8 +229,7 @@ export function CommandPalette({
       text: entry.definitionId,
       icon: allowed ? <TerminalIcon /> : <BanIcon />,
       label: entry.label,
-      // A mount command's shortcut column names its owner; one of the shell's
-      // shows the keys it has, and an empty column when it has none.
+      // A mount command's shortcut column names its owner; one of the shell's shows its keys.
       hint: command === undefined ? entry.definitionId : '',
       ...command,
       ...(allowed ? {} : { hint: entry.decision.reason }),

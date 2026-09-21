@@ -1,18 +1,7 @@
 /**
- * How the shell shows a value.
- *
- * Every surface here reports something the shell knows — a registry entry, an
- * event payload, a diagnostic — and the tempting shortcut is `JSON.stringify`.
- * It is the wrong answer for a page someone has to read under pressure: braces
- * and quotation marks are noise, a long line scrolls sideways out of the panel,
- * and a boolean looks exactly like the string "false".
- *
- * So values get a presentation instead: labelled rows, a tag per member, a
- * state word for a boolean, and monospace kept for the things that really are
- * identifiers. One vocabulary, used by the registry view, the dashboard's
- * activity feed and the diagnostic report alike.
- *
- * Components only, so React Refresh can replace this module in place.
+ * One vocabulary for showing a value the shell knows — labelled rows, a tag per member, a state
+ * word for a boolean — because `JSON.stringify` is unreadable on a page someone reads under
+ * pressure.
  */
 
 import type { ReactNode } from 'react'
@@ -36,10 +25,7 @@ export function DataList({
   )
 }
 
-/**
- * One row. The label sits above the value on a phone and beside it from `sm`
- * up — a two-column grid at 390px turns every value into a three-word column.
- */
+/** The label sits above the value on a phone and beside it from `sm` up: a two-column grid at 390px turns every value into a three-word column. */
 export function DataRow({
   label,
   children,
@@ -98,13 +84,7 @@ export function TagRow({
   )
 }
 
-/**
- * A boolean as a state, not a verdict.
- *
- * A dot rather than a tick and a cross: most booleans crossing this boundary
- * are facts with no good or bad side, and a red cross beside one reads as a
- * failure the shell is reporting.
- */
+/** A dot rather than a tick and a cross: most booleans crossing this boundary have no good or bad side. */
 export function BoolValue({
   value,
   trueLabel = 'yes',
@@ -125,12 +105,7 @@ export function BoolValue({
   )
 }
 
-/**
- * An arbitrary value from a contract the shell does not know: an event payload,
- * a stored draft, a config block. Scalars get their own presentation; an object
- * becomes rows; only something genuinely unrepresentable falls back to a
- * compact literal, and even then it wraps instead of scrolling away.
- */
+/** An arbitrary value from a contract the shell does not know: only something genuinely unrepresentable falls back to a literal. */
 export function ValueView({ value }: { readonly value: unknown }): ReactNode {
   if (value === null || value === undefined)
     return (
@@ -189,7 +164,6 @@ export function ValueView({ value }: { readonly value: unknown }): ReactNode {
     )
   }
 
-  // A symbol, a bigint or a function: nothing a published contract should be
-  // carrying, and nothing this page should crash on either.
+  // A symbol, a bigint or a function: nothing a published contract should carry, and nothing this page should crash on.
   return <Mono className="text-sm">a {typeof value}</Mono>
 }

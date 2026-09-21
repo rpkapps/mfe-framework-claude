@@ -1,10 +1,4 @@
-/**
- * The shell's Faro adapter: the one place a vendor telemetry SDK appears.
- *
- * The framework packages own the record shapes and never import Faro, so this
- * translates and nothing more. Redaction, sampling, batching and delivery are
- * Faro's, which is why none of that is here.
- */
+/** The one place a vendor telemetry SDK appears: this translates and nothing more, because redaction, sampling and delivery are Faro's. */
 
 import type {
   SpanRecord,
@@ -55,10 +49,7 @@ function asError(value: unknown): Error {
 
 export interface FaroProviderOptions {
   readonly faro: Faro
-  /**
-   * The framework's span implementation. Passed in rather than written here, so
-   * the repository has exactly one of them.
-   */
+  /** The framework's span implementation, passed in so the repository has exactly one of them. */
   readonly createTracer: (
     attribution: TelemetryAttribution,
     onSpanEnd: (span: SpanRecord) => void,
@@ -104,9 +95,8 @@ export function createFaroTelemetryProvider({
 
     createTracer(attribution: TelemetryAttribution): Tracer {
       return createTracer(attribution, span => {
-        // Faro's OTel integration owns real spans when it is installed. Without
-        // it, a completed span still reaches the backend as an event rather
-        // than being silently dropped.
+        // Without Faro's OTel integration a completed span still reaches the backend as an
+        // event rather than being silently dropped.
         api.pushEvent(
           `span.${span.name}`,
           toContext(span.attributes, span.attribution, {
@@ -126,10 +116,7 @@ export function createFaroTelemetryProvider({
   }
 }
 
-/**
- * Initializes Faro and adapts it, so `@grafana/faro-web-sdk` is named in this
- * file and nowhere else in the shell.
- */
+/** Initializes Faro and adapts it, so `@grafana/faro-web-sdk` is named in this file and nowhere else in the shell. */
 export function createFaroProvider(
   url: string,
   createTracer: FaroProviderOptions['createTracer'],

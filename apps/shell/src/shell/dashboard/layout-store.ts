@@ -1,11 +1,6 @@
 /**
- * The dashboard the developer built: its shape, and the pure moves over it.
- *
- * It belongs to none of the definitions on it — writing it under a Widget's
- * prefix would tie one Widget's storage to the presence of every other tile —
- * so it is the shell's own `dashboard` key, kept across a sign-out. A stored
- * layout is untrusted input, written by an older build or edited by hand, so
- * anything unreadable is dropped tile by tile rather than failing the page.
+ * The dashboard belongs to none of the definitions on it, so it is the shell's own `dashboard`
+ * key rather than a Widget's prefix, which would tie one Widget's storage to every other tile.
  */
 
 import { z } from 'zod'
@@ -18,7 +13,7 @@ export interface DashboardTile {
   /** Stable across re-renders and reorders; two tiles may share a widget id. */
   readonly key: string
   readonly widgetId: string
-  /** Exactly what is handed to the Widget as props. Validated at its boundary. */
+  /** Exactly what is handed to the Widget as props; validated at its boundary. */
   readonly inputs: Readonly<Record<string, unknown>>
   readonly span: TileSpan
 }

@@ -1,14 +1,7 @@
 /**
- * The catalogue of Widgets the registry advertises, as a drag source.
- *
- * Everything shown here — the id, the version, what it takes, what it emits —
- * is read from the registry entry. Nothing was fetched: no container has been
- * loaded at the point this list renders, which is exactly the property that
- * makes a catalogue possible at all.
- *
- * Dragging is not the only way in. A pointer gesture is unusable by keyboard
- * and awkward on a touch screen, so every row also has an Add button that does
- * the same thing.
+ * The catalogue of Widgets the registry advertises: everything shown is read from the registry
+ * entry, with no container loaded at the point this list renders (§16). Every row also has an
+ * Add button, because a pointer gesture is unusable by keyboard.
  */
 
 import type { ReactNode } from 'react'
@@ -79,8 +72,7 @@ function CatalogueItem({
       draggable
       onDragStart={event => {
         event.dataTransfer.setData(WIDGET_MEDIA_TYPE, entry.id)
-        // Some targets only ever see text/plain; giving it the id too means a
-        // drop onto an editor or a terminal pastes something meaningful.
+        // Some targets only ever see text/plain, so a drop onto an editor pastes something meaningful.
         event.dataTransfer.setData('text/plain', entry.id)
         event.dataTransfer.effectAllowed = 'copy'
       }}
@@ -92,12 +84,7 @@ function CatalogueItem({
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        {/*
-         * The id goes under the name rather than beside it. Sharing one row
-         * meant the panel's width was split between two strings that both
-         * truncate, and at three columns the result was "FDA summ…" next to
-         * "fda-summa…" — two halves of an identifier and no whole one.
-         */}
+        {/* The id goes under the name rather than beside it: sharing one row truncated both strings and gave no whole identifier. */}
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="flex min-w-0 items-baseline gap-2">
             <span className="truncate text-sm font-medium">{entry.title ?? entry.id}</span>
@@ -115,14 +102,7 @@ function CatalogueItem({
           <span className="truncate font-mono text-xs text-muted-foreground">{entry.id}</span>
         </div>
 
-        {/*
-         * What it takes and what it emits, as two labelled lines rather than
-         * one run of differently coloured pills. The earlier version put
-         * required inputs, optional inputs and event names in the same wrapping
-         * row, in three variants, and at any width narrower than the panel it
-         * read as confetti: nothing in it said which word was a prop and which
-         * was an event. A row label costs eight characters and answers that.
-         */}
+        {/* Two labelled lines rather than one run of coloured pills, which said nothing about which word was a prop and which an event. */}
         <Contract fields={fields} events={events} />
       </div>
 

@@ -1,12 +1,6 @@
 /**
- * What's new.
- *
- * A release note is read once and then never again, so it is a dialog rather
- * than a page — and it is grouped by release with the change kind marked,
- * because the reader is nearly always looking for one of two things: whether
- * the thing they relied on changed, and whether the bug they hit is fixed.
- *
- * Components only, so React Refresh can replace this module in place.
+ * Grouped by release with the change kind marked, because the reader is looking for whether the
+ * thing they relied on changed or the bug they hit is fixed.
  */
 
 import type { ReactNode } from 'react'
@@ -65,12 +59,7 @@ export function ReleasesDialog({
         </DialogDescription>
       </DialogHeader>
 
-      {/*
-       * The design system's sticky-footer dialog: the body scrolls between a
-       * fixed header and footer. The negative margin matches the dialog's own
-       * padding, so the scroll container spans its full width and the content
-       * keeps its inset.
-       */}
+      {/* The negative margin matches the dialog's own padding, so the scroll container spans its full width. */}
       <div className="no-scrollbar -mx-6 max-h-[50vh] overflow-y-auto px-6">
         <div className="flex flex-col gap-6">
           {releases.map((release, index) => (
@@ -95,9 +84,7 @@ export function ReleasesDialog({
                       </Badge>
                     </ItemMedia>
                     <ItemContent>
-                      {/* An Item clamps its description to two lines, which is
-                          right for a list you scan and wrong for a release
-                          note you read. */}
+                      {/* An Item clamps its description to two lines, which is wrong for a note you read. */}
                       <ItemDescription className="line-clamp-none text-foreground">
                         {note.text}
                       </ItemDescription>
@@ -125,13 +112,7 @@ export function ReleasesDialog({
   )
 }
 
-/**
- * The reader's locale, never the ISO string the data is stored in.
- *
- * Parsed at local midnight rather than by `new Date('2026-09-19')`, which is
- * UTC midnight — and then renders as the 18th for every reader west of
- * Greenwich, which is a release note dated the day before the release.
- */
+/** Parsed at local midnight, because `new Date('2026-09-19')` is UTC midnight and renders as the day before for every reader west of Greenwich. */
 function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00`)
   return Number.isNaN(date.getTime())

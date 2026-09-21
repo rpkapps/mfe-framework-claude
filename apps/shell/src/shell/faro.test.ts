@@ -1,7 +1,4 @@
-/**
- * The adapter translates and nothing else, so this asserts the translation
- * against a fake Faro api — no network, no SDK initialization.
- */
+/** Asserts the translation against a fake Faro api: no network, no SDK initialization. */
 
 import { createNonRecordingTracer } from '@company/mfe-host'
 import type { SpanRecord, TelemetryAttribution } from '@company/mfe-host'
@@ -33,8 +30,7 @@ function harness() {
     pushError: vi.fn(),
     pushMeasurement: vi.fn(),
   }
-  // Only the four push methods the adapter may reach for; the assertion is on a
-  // named binding rather than a literal, so the shape stays visible above.
+  // Only the four push methods the adapter may reach for.
   const faro = { api } as unknown as Faro
 
   let sink: ((span: SpanRecord) => void) | undefined

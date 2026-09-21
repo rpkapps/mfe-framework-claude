@@ -1,18 +1,7 @@
 /**
- * Report a bug.
- *
- * The reporter is asked for the two things only they know — what they expected
- * and what happened — and for nothing the shell can read for itself. Build,
- * route, registry state and active overrides are attached automatically,
- * because those are the fields a reporter either guesses wrong or leaves blank,
- * and they are the ones an engineer needs first.
- *
- * This shell has no tracker behind it, and a Send button that quietly did
- * nothing would be worse than no button: the report is assembled and handed to
- * the clipboard, which is an action that genuinely completes. A deployment with
- * an issue API posts the same text from here.
- *
- * Components only, so React Refresh can replace this module in place.
+ * The reporter is asked only for what they expected and what happened, because build, route,
+ * registry state and overrides are the fields they guess wrong or leave blank. This shell has no
+ * tracker behind it, so the report goes to the clipboard, which is an action that completes.
  */
 
 import { useId, useMemo, useState, type ReactNode } from 'react'
@@ -47,8 +36,7 @@ export function ReportBugDialog({
   const [summary, setSummary] = useState('')
   const [detail, setDetail] = useState('')
 
-  // Read when the dialog opens, not at boot: a snapshot taken earlier would
-  // describe a route the reporter has since navigated away from.
+  // Read when the dialog opens, not at boot: an earlier snapshot would name a route already left.
   const diagnostics = useMemo(
     () => (isOpen ? collectDiagnostics(runtime) : null),
     [isOpen, runtime],

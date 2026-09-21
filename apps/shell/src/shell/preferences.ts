@@ -1,21 +1,13 @@
 /**
- * The shell's own preferences, and where they are kept.
- *
- * The theme is written raw — the bare string `"light"` or `"dark"` under the
- * bare key `theme` — because the legacy Angular applications read
- * `localStorage["theme"]` directly and can be taught no other key or shape.
- * The framework's store writes an envelope under a scoped key, so this one
- * value stays outside it deliberately (§24).
- *
- * A stored value is untrusted, so anything unreadable is treated as absent.
+ * The theme stays outside the framework's store, written raw under the bare key `theme`, because
+ * the legacy Angular applications read `localStorage["theme"]` directly and can be taught no
+ * other key or shape (§24).
  */
 
 export type ShellTheme = 'light' | 'dark'
 
-/** Exactly what the legacy applications read. Never `@host:theme`. */
 const THEME_KEY = 'theme'
 
-/** The theme the document starts in when nothing was ever chosen. */
 export const DEFAULT_THEME: ShellTheme = 'dark'
 
 /** Reading `localStorage` throws outright when storage is blocked for the origin. */
@@ -44,11 +36,7 @@ export function writeTheme(theme: ShellTheme): void {
   }
 }
 
-/**
- * What the document should boot in: the stored choice, then the operating
- * system's, then the default — the order the inline script applies before
- * paint, kept here too so the two cannot disagree about it.
- */
+/** The order the inline script in `index.html` applies before paint, kept here so the two cannot disagree. */
 export function preferredTheme(): ShellTheme {
   const stored = readTheme()
   if (stored !== null) return stored

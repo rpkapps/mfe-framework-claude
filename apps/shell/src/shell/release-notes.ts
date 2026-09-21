@@ -1,14 +1,4 @@
-/**
- * What changed in the shell, for the "What's new" surface.
- *
- * Kept here as data rather than fetched: a shell that cannot tell you which
- * build it is until a network call succeeds is useless in exactly the incident
- * where you needed to know. A deployment that has somewhere to fetch notes from
- * replaces this module's export with that request's result; nothing else moves.
- *
- * Not a component, so it is also the module React Refresh can replace without
- * closing the dialog that is reading it.
- */
+/** Data rather than a fetch: a shell that cannot say what it is until a network call succeeds is useless in the incident where you needed to know. */
 
 export type ChangeKind = 'added' | 'changed' | 'fixed'
 

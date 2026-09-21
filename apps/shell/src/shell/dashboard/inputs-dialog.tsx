@@ -1,10 +1,6 @@
 /**
- * The dialog that collects a Widget's inputs when it is dropped, and reopens to
- * change them.
- *
- * The form is not written for any particular Widget: every control on it comes
- * from the input schema that Widget's own build published into the registry.
- * Adding a Widget with new inputs therefore needs no change here.
+ * Every control comes from the input schema that Widget's own build published into the registry,
+ * so a Widget with new inputs needs no change here (§28).
  */
 
 import { useId, useState, type ReactNode } from 'react'
@@ -36,11 +32,7 @@ export interface InputsDialogProps {
   readonly onCancel: () => void
 }
 
-/**
- * The caller gives this a `key` identifying what is being edited, so opening it
- * for a different tile mounts a fresh dialog with that tile's inputs as its
- * initial state, rather than copying props into state in an effect.
- */
+/** The caller gives this a `key` per tile, so a different tile mounts a fresh dialog rather than copying props into state in an effect. */
 export function InputsDialog({
   entry,
   current,
@@ -126,11 +118,7 @@ export function InputsDialog({
   )
 }
 
-/**
- * What to put in a text box for a value the schema says is a string or a
- * number, but which a stored layout may hold as anything. `String({})` would
- * render "[object Object]" and then write that back as the input.
- */
+/** A stored layout may hold anything, and `String({})` would render "[object Object]" and then write that back as the input. */
 function displayValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   if (typeof value === 'string') return value
@@ -238,11 +226,7 @@ function SchemaField({
   )
 }
 
-/**
- * The honest fallback for a Widget whose schema the build could not read. It is
- * deliberately not an empty form: a form with no fields would tell the
- * developer the Widget takes nothing, which is a different and wrong claim.
- */
+/** Deliberately not an empty form: one with no fields would say the Widget takes nothing, which is a different and wrong claim (§28). */
 function UnreadableSchema({
   value,
   error,
