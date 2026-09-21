@@ -32,7 +32,7 @@ A hook marked _mount or host page_ also works above your container, where it res
 reserved [`@host` scope](/docs/glossary). `@company/mfe-react` is the only framework package you
 import, and lint
 blocks the rest
-([5. What you must not do](/docs/guides/what-you-must-not-do#do-not-import-past-a-packages-entry-point)).
+([5. What you must not do](/docs/guides/what-you-must-not-do#import-from-companymfe-react-and-nothing-else-in-the-framework)).
 
 ## Who is signed in: `useUser`, `useGroups`, `useTheme`
 
@@ -236,7 +236,7 @@ two Apps is routine, send the user through the shell's application finder or com
 
 Do not reach for the URL yourself. Assigning to `history.pushState` hijacks navigation for the
 whole page and is a lint error
-([5. What you must not do](/docs/guides/what-you-must-not-do#do-not-create-your-own-router-or-history)). A
+([5. What you must not do](/docs/guides/what-you-must-not-do#use-the-history-and-base-path-the-shell-gives-you)). A
 Widget emits a declared event and lets the App around it navigate.
 
 ## What the shell does not give you
