@@ -192,6 +192,43 @@ describe('defaults', () => {
     expect(filters.getSnapshot()).toEqual({ status: 'default', value: null })
     expect(filters.read()).toBeNull()
   })
+
+  it("binds an undeclared retention as 'browser', ungated by the session generation", () => {
+    const { store, local } = harness({ generation: null })
+    track(store)
+
+    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    theme.set('dark')
+
+    expect(theme.retention).toBe('browser')
+    // No generation is in force, and a browser-retained key never waits for one.
+    expect(store.sessionGeneration).toBeNull()
+    expect(theme.read()).toBe('dark')
+    expect(JSON.parse(local.getItem('acme-orders:theme') ?? '')).toEqual({
+      v: 1,
+      r: 'browser',
+      d: 'dark',
+    })
+  })
+
+  it("keeps an undeclared retention out of the purge that retires 'user' records", () => {
+    const { store } = harness()
+    track(store)
+
+    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    const draft = store.bind(ORDERS, {
+      name: 'draft',
+      schema: z.string(),
+      retention: 'user',
+    })
+    theme.set('dark')
+    draft.set('customer notes')
+
+    store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
+
+    expect(theme.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
+    expect(draft.getSnapshot()).toEqual({ status: 'default', value: null })
+  })
 })
 
 describe('validation and failure', () => {
@@ -691,7 +728,7 @@ describe('declaration conflicts', () => {
         name: 'theme',
         schema: themeSchema,
         defaultValue: 'light',
-        retention: 'browser',
+        retention: 'user',
       }),
     ).toThrow(/retention/)
     expect(() =>

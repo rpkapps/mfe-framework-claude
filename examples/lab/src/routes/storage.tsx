@@ -24,8 +24,8 @@ function Storage(): ReactNode {
   const local = useMfeStorage()
   const [readBack, setReadBack] = useState<unknown>(undefined)
 
-  // `retention: 'browser'` survives a sign-out, so the next person to sign in on this browser reads
-  // it; 'user' is the default and is what anything derived from the signed-in user wants (§21).
+  // `retention: 'browser'` is the default: it survives a sign-out, so the next person to sign in on
+  // this browser reads it. Anything derived from the signed-in user declares 'user' (§21).
   const [draft, setDraft] = useStoredState('draft', draftSchema, {
     defaultValue: { note: '', pinned: false },
     retention: 'browser',

@@ -342,9 +342,10 @@ the history is built over the navigation bridge by `createBoundaryHistory`, neve
 container ships only the utilities for its own classes, wrapped by the build in
 `@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])`; the shell keeps the document half
 — preflight, the fonts, `@property`, the theme variables. **Storage**: every record goes through
-the storage boundary under the key `<definitionId>:<name>`; `retention: 'user'` is the default
-and is wiped when the identity or the group set changes; state the page owns rather than any
-definition goes in the reserved `@host` scope. **Network**: the generated `#mfe/fetch` resolves a
+the storage boundary under the key `<definitionId>:<name>`; `retention: 'browser'` is the
+default and is never cleared, where `retention: 'user'` is wiped when the identity or the
+group set changes; state the page owns rather than any definition goes in the reserved
+`@host` scope. **Network**: the generated `#mfe/fetch` resolves a
 relative request against the base URL `runtime-config.json` supplied and attaches the shell's
 session token to the origins declared `{ api: true }` — an exact scheme, host and port set, with
 no wildcards and no substrings. **Errors**: every failure is an `MfeError` carrying a code from a

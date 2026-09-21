@@ -79,7 +79,11 @@ describe('the reserved host scope', () => {
     const { store, local } = harness({ generation: 'gen-1' })
 
     const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
-    const filters = store.bind('acme-orders', { name: 'filters', schema: layoutSchema })
+    const filters = store.bind('acme-orders', {
+      name: 'filters',
+      schema: layoutSchema,
+      retention: 'user',
+    })
     theme.set('light')
     filters.set({ tiles: ['a'] })
 

@@ -49,7 +49,7 @@ export interface MfeStorageStoreOptions {
   readonly eventTarget?: StorageEventTargetLike | null
 }
 
-/** `storage` defaults to `'local'`, `retention` to `'user'` and `version` to `1`. */
+/** `storage` defaults to `'local'`, `retention` to `'browser'` and `version` to `1`. */
 export interface StorageKeyBinding<T> {
   readonly name: string
   readonly storage?: StorageArea

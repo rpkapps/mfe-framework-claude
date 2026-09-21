@@ -339,11 +339,20 @@ for table density. The names are now `'user'` and `'browser'`:
 { storage: 'session', retention: 'browser' } // dies with the tab, survives a sign-out in it
 ```
 
-`'user'` stays the default, so the safe answer is the one you get by not
-deciding, and nobody writes `'browser'` for something private to the signed-in
-user. The persisted `r` field changed with the type, since nothing is published
-yet; an earlier record reports as unreadable rather than being silently replaced.
-Retention is the same choice in the reserved host scope (§24).
+`'user'` was made the default at the time, so the safe answer was the one you got
+by not deciding, and nobody would write `'browser'` for something private to the
+signed-in user. The persisted `r` field changed with the type, since nothing is
+published yet; an earlier record reports as unreadable rather than being silently
+replaced. Retention is the same choice in the reserved host scope (§24).
+
+**Amendment (2026-09-21):** the default is now `'browser'`. Naming the axis for
+who owns a record held up; making the rarer answer the implicit one did not.
+Almost everything stored through the boundary is impersonal UI state — a density,
+a collapsed panel, a chosen tab — so the safe-by-default rule was mostly spent on
+records that nothing owns, and `retention: 'user'` on the few that mattered read as
+noise beside it. Per-user data is the explicit choice now: a record that declares
+no retention survives a sign-out, and anything derived from a user's data says
+`retention: 'user'` where a reader can see it.
 
 ---
 

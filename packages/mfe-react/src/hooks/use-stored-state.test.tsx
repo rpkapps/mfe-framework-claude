@@ -20,6 +20,7 @@ import { useStoredState, type StoredStateSetter } from './use-stored-state.ts'
 type ShellTheme = 'light' | 'dark'
 
 const themeSchema = z.enum(['light', 'dark'])
+const densitySchema = z.enum(['comfortable', 'compact'])
 
 interface Wired {
   readonly handle: MfeRuntimeHandle
@@ -119,6 +120,48 @@ describe('useStoredState outside any mount', () => {
     ).toThrow()
 
     expect(reported.some(diagnostic => diagnostic.error.code === 'storage/failure')).toBe(true)
+  })
+})
+
+/** The same shape as `ThemeToggle`, except that it says nothing about retention. */
+function DensityToggle(): ReactNode {
+  const [density, setDensity] = useStoredState<'comfortable' | 'compact'>(
+    'density',
+    densitySchema,
+    { defaultValue: 'comfortable' },
+  )
+
+  return (
+    <button
+      type="button"
+      onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+    >
+      {density}
+    </button>
+  )
+}
+
+describe('a hook that declares no retention', () => {
+  it("binds as 'browser', so the record outlives the signed-in identity", async () => {
+    const { handle } = wire()
+
+    const view = render(
+      <MfeProvider runtime={handle.runtime}>
+        <DensityToggle />
+      </MfeProvider>,
+    )
+
+    await userEvent.click(screen.getByRole('button'))
+
+    // No `g`, because nothing about this record belongs to the signed-in user.
+    expect(stored()['@host:density']).toEqual({ v: 1, r: 'browser', d: 'compact' })
+
+    handle.runtime.storage.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
+
+    expect(screen.getByRole('button')).toHaveTextContent('compact')
+    expect(stored()['@host:density']).toEqual({ v: 1, r: 'browser', d: 'compact' })
+
+    view.unmount()
   })
 })
 

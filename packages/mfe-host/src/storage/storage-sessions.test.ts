@@ -76,7 +76,11 @@ afterEach(() => {
 describe('the persisted envelope', () => {
   it('stores schema version, retention and the opaque generation beside the payload', () => {
     const { store, local } = harness()
-    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    const theme = store.bind(ORDERS, {
+      name: 'theme',
+      schema: themeSchema,
+      retention: 'user',
+    })
 
     theme.set('dark')
 
@@ -129,7 +133,7 @@ describe('the generation must be established first', () => {
     const { store, local } = harness({ generation: null })
     local.setItem('acme-orders:draft', envelope('half written'))
 
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
 
     expect(store.sessionGeneration).toBeNull()
     expect(draft.getSnapshot().status).toBe('error')
@@ -155,7 +159,7 @@ describe('the generation must be established first', () => {
   it('publishes stored session values once the shell establishes the generation', () => {
     const { store, local } = harness({ generation: null })
     local.setItem('acme-orders:draft', envelope('half written', { g: 'gen-7' }))
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     const listener = vi.fn()
     draft.subscribe(listener)
 
@@ -182,6 +186,7 @@ describe('session transitions', () => {
     const draft = store.bind(ORDERS, {
       name: 'draft',
       schema: draftSchema,
+      retention: 'user',
       defaultValue: 'untitled',
     })
     draft.set('customer notes')
@@ -203,6 +208,7 @@ describe('session transitions', () => {
     const draft = store.bind(ORDERS, {
       name: 'draft',
       schema: draftSchema,
+      retention: 'user',
       defaultValue: 'untitled',
     })
     draft.set('customer notes')
@@ -222,7 +228,7 @@ describe('session transitions', () => {
       retention: 'browser',
       defaultValue: 'light',
     })
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     theme.set('dark')
     draft.set('customer notes')
     const themeListener = vi.fn()
@@ -258,7 +264,7 @@ describe('session transitions', () => {
 
   it('treats a record as absent when the physical delete failed', () => {
     const { store, local, reported } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
     vi.spyOn(local, 'removeItem').mockImplementation(() => {
       throw new DOMException('mutation blocked', 'InvalidAccessError')
@@ -268,13 +274,15 @@ describe('session transitions', () => {
 
     expect(local.getItem('acme-orders:draft')).not.toBeNull()
     expect(draft.getSnapshot()).toEqual({ status: 'default', value: null })
-    expect(store.storageFor(ORDERS).key('draft', draftSchema).get()).toBeNull()
+    expect(
+      store.storageFor(ORDERS).key('draft', draftSchema, { retention: 'user' }).get(),
+    ).toBeNull()
     expect(reported.some(entry => entry.severity === 'warning')).toBe(true)
   })
 
   it('invalidates on a semantic group change but not on a reordered identical set', () => {
     const { store } = harness({ groups: ['finance', 'admin'] })
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
 
     const reorder = store.applySessionTransition({
@@ -294,7 +302,7 @@ describe('session transitions', () => {
 
   it('invalidates nothing for a theme change or a token refresh', () => {
     const { store } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
     const listener = vi.fn()
     draft.subscribe(listener)
@@ -326,7 +334,7 @@ describe('session transitions', () => {
 
   it('does not resurrect an invalidated generation when the user returns to it', () => {
     const { store, local } = harness({ groups: ['finance'] })
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
 
     store.applySessionTransition({ kind: 'groups', groups: ['finance', 'admin'] }, 'gen-2')
@@ -342,8 +350,8 @@ describe('session transitions', () => {
 
   it('counts only the keys whose value actually changed', () => {
     const { store } = harness()
-    const untouched = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
-    const written = store.bind(ORDERS, { name: 'query', schema: z.string() })
+    const untouched = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
+    const written = store.bind(ORDERS, { name: 'query', schema: z.string(), retention: 'user' })
     written.set('status:open')
     const untouchedBefore = untouched.getSnapshot()
 
@@ -355,7 +363,7 @@ describe('session transitions', () => {
 
   it('keeps an existing binding usable in the new session', () => {
     const { store, local } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
 
     store.applySessionTransition({ kind: 'identity', reason: 'login' }, 'gen-2')
@@ -373,7 +381,7 @@ describe('session transitions', () => {
 describe('generation fences', () => {
   it('rejects a write committed from a retired generation and leaves the value alone', () => {
     const { store, local } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     const inFlight = store.sessionGeneration ?? 'gen-1'
     draft.set('customer notes')
 
@@ -389,7 +397,7 @@ describe('generation fences', () => {
 
   it('accepts a write that names the generation currently in force', () => {
     const { store } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
 
     store.applySessionTransition({ kind: 'identity', reason: 'account' }, 'gen-2')
     draft.set('fresh note', { generation: 'gen-2' })
@@ -399,7 +407,7 @@ describe('generation fences', () => {
 
   it('ignores a late cross-tab record written by a retired session', () => {
     const { store, local } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     draft.set('customer notes')
     store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
     const listener = vi.fn()
@@ -411,12 +419,14 @@ describe('generation fences', () => {
 
     expect(listener).not.toHaveBeenCalled()
     expect(draft.getSnapshot()).toEqual({ status: 'default', value: null })
-    expect(store.storageFor(ORDERS).key('draft', draftSchema).get()).toBeNull()
+    expect(
+      store.storageFor(ORDERS).key('draft', draftSchema, { retention: 'user' }).get(),
+    ).toBeNull()
   })
 
   it('accepts a cross-tab record written in the generation now in force', () => {
     const { store, local } = harness()
-    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema })
+    const draft = store.bind(ORDERS, { name: 'draft', schema: draftSchema, retention: 'user' })
     store.applySessionTransition({ kind: 'identity', reason: 'login' }, 'gen-2')
     const listener = vi.fn()
     draft.subscribe(listener)
