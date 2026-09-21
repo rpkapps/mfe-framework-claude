@@ -4,7 +4,6 @@
  */
 
 import type {
-  DeadlineConfig,
   DiagnosticsHub,
   MfeStorage,
   MfeTelemetry,
@@ -32,7 +31,6 @@ export interface MfeRuntime {
   readonly navigator: BoundaryNavigator
   readonly telemetryProvider: TelemetryProvider
   readonly diagnostics: DiagnosticsHub
-  readonly deadlines: DeadlineConfig
 }
 
 /** Everything one mount owns. */

@@ -39,9 +39,24 @@ mount as assumed; or that the two seam values (`/asset-tracker/` and
 ## Registry translation
 
 `createLegacyAdapterRule()` is the second rule in the shell's selection table,
-registered after the rule for the new framework contract. It claims an entry only
-when the entry does **not** advertise the new contract (no `mfe` key) and carries
-the minimum legacy metadata — an app `name` and an `mfManifestUrl`.
+registered after the rule for the new framework contract. A shell passes it to
+`createMfeRuntime`, which always evaluates the contract rule first and appends
+whatever it is given:
+
+```ts
+import { createLegacyAdapterRule } from '@company/mfe-legacy-angular'
+import { createMfeRuntime } from '@company/mfe-react'
+
+const { runtime } = createMfeRuntime({
+  registryEntries,
+  rules: [createLegacyAdapterRule()],
+  // …loader, shellState, telemetryProvider
+})
+```
+
+It claims an entry only when the entry does **not** advertise the new contract
+(no `mfe` key) and carries the minimum legacy metadata — an app `name` and an
+`mfManifestUrl`.
 
 That ordering is the no-silent-fallback guarantee. An entry that advertises the
 new contract belongs to the new adapter whatever state its advertisement is in;

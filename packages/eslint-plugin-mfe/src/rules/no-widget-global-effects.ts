@@ -68,11 +68,11 @@ const rule: Rule.RuleModule = {
     ],
     messages: {
       history:
-        'A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Emit the Widget\'s declared navigation event (`ctx.emit("navigate", { to })`) and let the owning App navigate with its boundary router, or the shell with the host `BoundaryNavigator`.',
+        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the host `BoundaryNavigator`.",
       title:
-        '`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Publish the title through the Widget\'s declared outputs (`ctx.emit("titleChange", ...)`) and let the owning App apply it with the host document-metadata API.',
+        "`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle` and sets what it owns.",
       headMetadata:
-        'Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Emit the value from the Widget and let the host document-metadata API apply and revert it.',
+        "Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from the render props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also what reverts it.",
     },
   },
 

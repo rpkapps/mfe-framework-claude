@@ -252,9 +252,13 @@ when the design-system checkout is missing or unbuilt, in place of a page of
 "cannot find module" errors.
 
 Tecton's palette replaces Tailwind's: stock colour utilities (`bg-red-500`,
-`text-zinc-400`) generate **no CSS at all**. `@tecton/eslint-config` is wired
-into the workspace lint so that is an error naming the nearest Tecton token,
-rather than something you discover by looking at the page.
+`text-zinc-400`) generate **no CSS at all**. `@tecton/eslint-config` is
+installed, but the preset that would catch this is currently switched off at the
+repository root: its `ui` alias cannot resolve in a workspace consuming Tecton
+through subpath exports, so its token rules flag every bracketed utility, grid
+templates included. Until that is resolved, nothing reports a stock colour
+class — it simply produces no rule, so the element renders unstyled and the
+only place to catch it is the browser.
 
 ## The page's stylesheet
 

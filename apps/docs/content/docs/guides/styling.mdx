@@ -352,8 +352,8 @@ Two failures happen at build time, both from `packages/mfe-rspack/src/css/scope.
 
 <Callout type="error" title="An empty scope list">
   `/work/alert-panel/src/mfe.ts: the build failed to scope this container stylesheet: expected at
-  least one definition id to scope to, found an empty scope list. The container stylesheet scope
-  declares this expectation. Export the definitions this container provides. Their ids are the
+  least one definition id to scope to, found an empty scope list. This expectation is declared by
+  the container stylesheet scope. Export the definitions this container provides. Their ids are the
   values the mount roots carry in their data-mfe-scope attribute, and the stylesheet is scoped to
   them.`
 
@@ -366,9 +366,9 @@ invisible to it.
 <Callout type="error" title="The scope plugin could not be resolved">
   `/work/alert-panel/package.json: the build failed to load the stylesheet scope plugin: expected to
   resolve '@tecton/react/postcss/scope' from the container or from the build plugin, found no copy
-  of @tecton/react beside either. The container stylesheet scope declares this expectation. Install
-  @tecton/react (>=0.1.0). Its PostCSS plugin is what contains a container stylesheet, whether or
-  not the container renders the design system itself.`
+  of @tecton/react beside either. This expectation is declared by the container stylesheet scope.
+  Install @tecton/react (>=0.1.0). Its PostCSS plugin is what contains a container stylesheet,
+  whether or not the container renders the design system itself.`
 
 **The fix:** add `@tecton/react` to the container's dependencies. The plugin resolves from the
 container root first, so a container pinned to an older design system is scoped by that version's

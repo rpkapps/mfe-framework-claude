@@ -3,13 +3,7 @@
  * production entry and never supplying live credentials.
  */
 
-import {
-  DEFAULT_DEADLINES,
-  DiagnosticsHub,
-  type Diagnostic,
-  type ShellTheme,
-  type ShellUser,
-} from '@company/mfe-core'
+import { DiagnosticsHub, type Diagnostic, type ShellTheme, type ShellUser } from '@company/mfe-core'
 import {
   BoundaryNavigator,
   BreadcrumbStore,
@@ -173,7 +167,6 @@ export function createMfeTestEnvironment(
     navigator: new BoundaryNavigator({ bridge: navigation, diagnostics }),
     telemetryProvider,
     diagnostics,
-    deadlines: DEFAULT_DEADLINES,
   }
 
   // Minted per transition, so a test exercises the real fencing rather than a fixed value.

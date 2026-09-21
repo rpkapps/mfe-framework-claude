@@ -27,6 +27,15 @@ export interface BuildDiagnosticDetails {
   readonly cause?: unknown
 }
 
+/**
+ * `declaredBy` names a subject that may be singular or plural ('Static discovery', 'The
+ * framework identity rules'), so it is read out as the object of the sentence, where one verb
+ * form is correct for both.
+ */
+function lowerFirst(subject: string): string {
+  return subject.charAt(0).toLowerCase() + subject.slice(1)
+}
+
 /** Rspack accepts `Error` instances in `compilation.errors`, so this is thrown and reported. */
 class MfeBuildError extends Error {
   readonly code: MfeErrorCode | undefined
@@ -62,7 +71,7 @@ function composeBuildMessage(details: BuildDiagnosticDetails): string {
     `${location}: ${subject} failed to ${details.operation}: expected ${details.expected}, found ${details.observed}.`,
   ]
   if (details.declaredBy !== undefined)
-    sentences.push(`${details.declaredBy} declares this expectation.`)
+    sentences.push(`This expectation is declared by ${lowerFirst(details.declaredBy)}.`)
   sentences.push(details.repair)
   if (details.note !== undefined) sentences.push(details.note)
 

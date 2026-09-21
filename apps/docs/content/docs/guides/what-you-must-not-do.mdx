@@ -103,26 +103,40 @@ Three more rules follow from that factory.
   it, because there is nothing to check — the shell claims `/`, `/$appId` and `/$appId/$` and
   nothing else, and a definition id may not contain a `/`.
 - **A Widget does not drive the URL or the document head.** Several Widgets can be on screen at
-  once, so the last one to render would win and the tab title would flicker.
+  once, so the last one to render would win and the tab title would flicker. The rule has one
+  message per access, and each one names the event to declare instead.
 
 <Callout type="error" title="mfe/no-widget-global-effects">
-  `document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
-  would win and the tab title would flicker. Publish the title through the Widget's declared outputs
-  (`ctx.emit("titleChange", ...)`) and let the owning App apply it with the host document-metadata
-  API.
 
-**Two things in that message are not real API.** A Widget's render props are `{ inputs, emit }` —
-there is no `ctx` — and there is no host document-metadata API in this repository. **Fix.**
-Declare the event in your contract and call `emit('titleChange', { title })`; the consuming App
-receives it as `onTitleChange` and acts on it with its own router.
+A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host router,
+the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in
+this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the
+owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the
+host `BoundaryNavigator`.
+
+`document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
+would win and the tab title would flicker. Declare a title event in this Widget's `events` contract
+and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle`
+and sets what it owns.
+
+Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches
+for `document.head` changes the page for every other MFE and leaves the change behind on unmount.
+Declare an event for the value in this Widget's `events` contract and `emit` it from the render
+props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also
+what reverts it.
+
+**Fix.** Declare the event in your `events` contract and `emit` it from the render props, the way
+[2. Declaring it](/docs/guides/declaring#createwidget) describes. The consuming App receives it as
+the matching `onX` prop — `onNavigate`, `onTitle` — and acts on it with its own router and its own
+document.
 
 </Callout>
 
 The rule covers `history.pushState`/`replaceState`/`back`/`forward`/`go`, assignment to
 `document.title`, and mutation of `document.head`. It is **inert until the repository declares
-`widgetScopes`**, and this repository declares only `examples/alert-panel/src/**`. Declare your own
-Widget scopes, or the rule is silently off for your code. Reading is not mutating: `const current =
-document.title` is fine.
+`widgetScopes`**, and this repository declares `examples/alert-panel/src/**` and
+`examples/insights/src/**`. Declare your own Widget scopes, or the rule is silently off for your
+code. Reading is not mutating: `const current = document.title` is fine.
 
 ## One user reading another user's state
 

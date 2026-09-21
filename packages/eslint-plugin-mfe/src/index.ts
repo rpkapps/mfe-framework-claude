@@ -5,11 +5,12 @@
 
 import type { Linter } from 'eslint'
 import { rules } from './rules/index.ts'
-import { author, type AuthorPresetOptions } from './configs/author.ts'
+import { author, DEFAULT_ROUTER_FILES, type AuthorPresetOptions } from './configs/author.ts'
 import { framework, type FrameworkPresetOptions } from './configs/framework.ts'
 
 export { rules }
 export { author, framework }
+export { DEFAULT_ROUTER_FILES }
 export type { AuthorPresetOptions, FrameworkPresetOptions }
 export type { RestrictedPath, RestrictedPattern } from './configs/restricted-imports.ts'
 
@@ -24,6 +25,6 @@ export const configs: {
   author: author(),
 }
 
-const plugin = { meta, rules, configs, framework, author }
+const plugin = { meta, rules, configs, framework, author, DEFAULT_ROUTER_FILES }
 
 export default plugin

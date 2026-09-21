@@ -54,17 +54,16 @@ files.
 
 Both templates write these files:
 
-| File                          | What it is                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `package.json`                | the **`mfe` block** (below), eight scripts, and the dependency lists                                                                 |
-| `.gitignore`                  | `node_modules/`, `dist/`, the generated output (`routeTree.gen.ts`, `.mfe/`), and local values (`runtime-config.local.json`, `.env`) |
-| `.prettierrc.json`            | no semicolons, single quotes, trailing commas, `printWidth: 100`, `arrowParens: 'avoid'`                                             |
-| `eslint.config.mjs`           | `mfe.author({ tsconfigRootDir, files: ['src/**/*.{ts,tsx}'] })`                                                                      |
-| `tsconfig.json`               | the repo base, plus `paths` for `#mfe/config`, `#mfe/fetch` and `#mfe/meta`                                                          |
-| `vitest.config.ts`            | the three `#mfe/*` aliases, `environment: 'jsdom'`, `setupFiles`                                                                     |
-| `vitest.setup.ts`             | jest-dom's matchers, installed and declared in one file                                                                              |
-| `rsbuild.config.ts`           | `plugins: [pluginReact(), pluginMfe()]`, the port from the manifest, `server.publicDir`, `dev.lazyCompilation: false`                |
-| `runtime-config.example.json` | `{ "apiBaseUrl": "https://api.example.test/v1/" }`                                                                                   |
+| File                | What it is                                                                                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package.json`      | the **`mfe` block** (below), eight scripts, and the dependency lists                                                                                                                                                          |
+| `.gitignore`        | `node_modules/`, `dist/` and the generated output (`routeTree.gen.ts`, `.mfe/`). No local-values file is listed, because nothing reads one: the values live in `public/runtime-config.json`, which is published, not ignored. |
+| `.prettierrc.json`  | no semicolons, single quotes, trailing commas, `printWidth: 100`, `arrowParens: 'avoid'`                                                                                                                                      |
+| `eslint.config.mjs` | `mfe.author({ tsconfigRootDir, files: ['src/**/*.{ts,tsx}'] })`                                                                                                                                                               |
+| `tsconfig.json`     | the repo base, plus `paths` for `#mfe/config`, `#mfe/fetch` and `#mfe/meta`                                                                                                                                                   |
+| `vitest.config.ts`  | the three `#mfe/*` aliases, `environment: 'jsdom'`, `setupFiles`                                                                                                                                                              |
+| `vitest.setup.ts`   | jest-dom's matchers, installed and declared in one file                                                                                                                                                                       |
+| `rsbuild.config.ts` | `plugins: [pluginReact(), pluginMfe()]`, the port from the manifest, `server.publicDir`, `dev.lazyCompilation: false`                                                                                                         |
 
 The eight scripts are the same in both templates:
 
@@ -81,11 +80,13 @@ The eight scripts are the same in both templates:
 }
 ```
 
-The App template adds `public/runtime-config.json` (local values, so a scaffolded App does not fail
-at boot with `config/missing`), `src/mfe.ts` with the router factory and the
-`declare module '@tanstack/react-router'` augmentation, `src/mfe.config.ts`, three routes under
+The App template adds `public/runtime-config.json` (the local values, so a scaffolded App does not
+fail at boot with `config/missing`; the App's README points at that file, and the scaffold writes no
+example copy beside it), `src/mfe.ts` with the router factory and two
+`declare module '@tanstack/react-router'` augmentations, `src/mfe.config.ts`, three routes under
 `src/routes/`, a route test, and a README; its dependencies gain `@tanstack/react-router` and
-`@tanstack/react-query`. The Widget template adds `src/mfe.ts` holding the exported contract and the
+`@tanstack/react-query`. The second augmentation types a route's `staticData` with `MfeStaticData`,
+which [2. Declaring it](/docs/guides/declaring#the-one-file-the-framework-reads) shows. The Widget template adds `src/mfe.ts` holding the exported contract and the
 `createWidget` call, `src/<id>.tsx` holding the render function alone, `src/mfe.test.tsx`, an
 `exports` map pointing at the generated contract module, and a README. It writes no `src/routes/`,
 no `src/mfe.config.ts` and no router.
@@ -166,11 +167,14 @@ node tools/dev/dev.mjs --only=operations,alert-panel
 | `examples/operations`, `reports`, `alert-panel`, `insights`, `lab` | 3001–3005 |
 | the stand-in API (`tools/dev/api.mjs`)                             | 3010      |
 
-`pnpm dev` checks that 3000–3005 are free **before** it starts anything, so a busy port is reported
-once, by name, rather than as one bundler's fallback and another's crash. 3010 is not checked; a
-process already holding it makes the API's `listen` throw, which appears as one `dev api` line.
-Then it runs generation in every container, assembles the registry from the results, prints the
-service table and the override snippets, and starts the servers.
+`pnpm dev` checks that 3000–3005 and 3010 are free **before** it starts anything, so a busy port is
+reported once, by name, rather than as one bundler's fallback and another's crash. The stand-in
+API's port is in that list because `pnpm dev` starts it too: `tools/dev/api.mjs` exports the number
+as `DEV_API_PORT`, so the port that is checked is the port that is listened on, and
+`MFE_DEV_API_PORT` moves both. Then it runs generation in every container, assembles the registry
+from the results, prints the service table and the override snippets, and starts the servers. One
+Ctrl-C stops every server and waits for those same ports to come back, so the next `pnpm dev` does
+not meet a socket that is still winding down.
 
 ```text
 Port 3001 already in use.
@@ -281,9 +285,9 @@ runs against servers you already started, appends a comment to the file, waits, 
 >
   Four panels: two stacked on the left, a column of processes in the middle, and two on the right.
 
-- **`pnpm dev`** (`tools/dev/dev.mjs`) checks that 3000–3005 are free before it starts anything
-  (3010 is not checked): a container's port is part of its address, so it cannot be moved without
-  the shell losing it. Under it, **`registry.json`**, written by `pnpm run generate`, which
+- **`pnpm dev`** (`tools/dev/dev.mjs`) checks that 3000–3005 and 3010 are free before it starts
+  anything: a container's port is part of its address, so it cannot be moved without the shell
+  losing it. Under it, **`registry.json`**, written by `pnpm run generate`, which
   `pnpm dev` runs itself — the shell learns that a container exists only from this file. An arrow
   from `pnpm dev` and a dotted arrow from `registry.json` both point into the middle column.
 - **One dev server each**, as a column of seven boxes: `apps/shell` on 3000, `examples/operations`

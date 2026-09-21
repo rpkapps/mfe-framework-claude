@@ -4,10 +4,9 @@
  */
 
 import {
-  DEFAULT_DEADLINES,
   DiagnosticsHub,
   isMfeError,
-  type DeadlineConfig,
+  type AdapterSelectionRule,
   type DiagnosticsSink,
   type NavigationBridge,
   type NormalizedRegistry,
@@ -50,7 +49,13 @@ export interface CreateRuntimeOptions {
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
   /** An existing hub to report into; `dispose()` removes only the sinks it added (§25). */
   readonly diagnostics?: DiagnosticsHub
-  readonly deadlines?: Partial<DeadlineConfig>
+  /**
+   * Extra adapter selection rules, evaluated after the framework contract rule, which always
+   * runs first. The first rule that advertises an entry owns it, so a descriptor advertising
+   * the framework contract can never fall through to another adapter because a field in it was
+   * malformed: that entry is quarantined instead of loading a different way.
+   */
+  readonly rules?: readonly AdapterSelectionRule[]
   readonly notifyCommandDenial?: CommandDenialNotifier
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
@@ -94,7 +99,7 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
   const registry: NormalizedRegistry = normalizeRegistry(options.registryEntries, {
-    rules: [createMfeContractRule()],
+    rules: [createMfeContractRule(), ...(options.rules ?? [])],
     overrides: overrides.overrides,
   })
 
@@ -167,7 +172,6 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     navigator,
     telemetryProvider: options.telemetryProvider,
     diagnostics,
-    deadlines: { ...DEFAULT_DEADLINES, ...options.deadlines },
   }
 
   return {

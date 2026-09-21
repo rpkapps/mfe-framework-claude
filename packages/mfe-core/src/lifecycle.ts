@@ -33,7 +33,7 @@ export class MountLifecycle implements Subscribable<MountState> {
   readonly definitionVersion: string | undefined
 
   readonly #state: SnapshotSource<MountState>
-  /** Aborts once, on disposal; exposed to authors as `useMfeSignal`. */
+  /** Aborts once, on disposal, where an attempt's own controller aborts on every retry too. */
   readonly #disposeController = new AbortController()
 
   #attempt = 0
@@ -153,6 +153,10 @@ export interface MountHandle {
   subscribe(listener: () => void): Unsubscribe
   /** Starts a fresh attempt using the latest committed inputs. */
   retry(): void
-  /** Idempotent; resolves when cleanup finishes, rejects with `dispose/timeout`. */
+  /**
+   * Idempotent; resolves when cleanup finishes. `MountController` is the implementation
+   * that rejects with `dispose/timeout`, because it is the one that runs disposal under a
+   * deadline. The React adapter's own handle never rejects and imposes no deadline.
+   */
   dispose(): Promise<void>
 }

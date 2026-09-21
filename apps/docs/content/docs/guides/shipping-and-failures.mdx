@@ -221,19 +221,21 @@ from five parts (`packages/mfe-core/src/errors.ts`):
 4. **what was observed**;
 5. **one concrete repair step** — the last sentence, always an action.
 
-<Callout type="warning" title="Five parts, not six">
-  `CONTRIBUTING.md` lists a sixth item, "which side declared the expectation". The field that
-  carried it, `declaredBy`, was removed from `MfeErrorDetails`, and nothing at run time emits that
-  sentence any more. **Build** messages still do, in their own sentence between the observation and
-  the repair, and so does the generated `#mfe/config` module. Read a runtime message as five parts.
+<Callout type="info" title="Which side declared the expectation is a build-time sentence">
+  `MfeErrorDetails` has no `declaredBy` field, so no runtime message names the side that set the
+  expectation. **Build** messages do, in their own sentence between the observation and the repair,
+  and so does the generated `#mfe/config` module. Read a runtime message as the five parts above.
 </Callout>
 
 A build message adds the file and position in front:
 
 ```text
 <file>[:<line>[:<column>]]: '<id>' failed to <operation>: expected <expected>, found <observed>.
-<declaredBy> declares this expectation. <repair>
+This expectation is declared by <declaredBy>. <repair>
 ```
+
+The `<declaredBy>` part names the side that set the expectation, read out in lower case as the
+object of that sentence: `static discovery`, `the Widget contract`, `the framework identity rules`.
 
 ## Runtime failures, in the order they happen
 
@@ -247,14 +249,14 @@ The user sees `operations could not be loaded`, the message, Retry, and the code
 diagnostic per attempt. There is no time budget on this path: the load suspends under React
 `Suspense` until it settles or fails, and retry is explicit.
 
-| Code                                                                 | The repair the message carries                                                                                                                                                   |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `load/manifest-failure`                                              | `Check that http://localhost:3001/mf-manifest.json is reachable and serves a valid manifest.`                                                                                    |
-| `load/entry-failure` (a chunk failed after the manifest loaded)      | `Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.`                                                           |
-| `load/entry-failure` (the module exports no definition)              | `Export the definition from src/mfe.ts and rebuild the container.`                                                                                                               |
-| `registry/invalid-descriptor` (the kind does not match the registry) | `Rebuild the container so its descriptor matches what src/mfe.ts exports.`                                                                                                       |
-| `config/missing`                                                     | `Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.` |
-| `config/invalid` (a field failed its schema)                         | `Set API_BASE_URL in the deployment that writes this container's runtime configuration, then reload the page.`                                                                   |
+| Code                                                                 | The repair the message carries                                                                                                                                                                                                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `load/manifest-failure`                                              | `Check that http://localhost:3001/mf-manifest.json is reachable and serves a valid manifest.`                                                                                                                                   |
+| `load/entry-failure` (a chunk failed after the manifest loaded)      | `Check the browser network panel for the failed chunk. A container that resolved its own copy of a shared singleton fails differently: it loads, and a framework hook inside it then reports being rendered outside any mount.` |
+| `load/entry-failure` (the module exports no definition)              | `Export the definition from src/mfe.ts and rebuild the container.`                                                                                                                                                              |
+| `registry/invalid-descriptor` (the kind does not match the registry) | `Rebuild the container so its descriptor matches what src/mfe.ts exports.`                                                                                                                                                      |
+| `config/missing`                                                     | `Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.`                                                |
+| `config/invalid` (a field failed its schema)                         | `Set API_BASE_URL in the deployment that writes this container's runtime configuration, then reload the page.`                                                                                                                  |
 
 A missing or invalid configuration fails here rather than later, because the generated entry awaits
 `#mfe/config` before the application entry evaluates.

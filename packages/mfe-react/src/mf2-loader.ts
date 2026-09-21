@@ -131,7 +131,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
                 id: entry.id,
                 operation: 'load federation entry',
                 repair:
-                  'Check the browser network panel for the failed chunk; a shared-singleton version conflict reports itself separately.',
+                  'Check the browser network panel for the failed chunk. A container that resolved its own copy of a shared singleton fails differently: it loads, and a framework hook inside it then reports being rendered outside any mount.',
               },
         )
       }

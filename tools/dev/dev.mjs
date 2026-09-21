@@ -12,6 +12,7 @@
 
 import { spawn } from 'node:child_process'
 
+import { DEV_API_PORT } from './api.mjs'
 import { busyPortsMessage, findBusyPorts, waitForPortsFree } from './ports.mjs'
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
@@ -242,8 +243,10 @@ async function main() {
   }
 
   // Before anything starts: a busy port is reported once, by name, rather than as one
-  // bundler's fallback and another's crash.
-  const busy = await findBusyPorts(services.map(service => service.port))
+  // bundler's fallback and another's crash. The stand-in API is in the list because it is
+  // started from here too, and its `listen` would otherwise throw into one prefixed line.
+  const ports = [...services.map(service => service.port), DEV_API_PORT]
+  const busy = await findBusyPorts(ports)
   if (busy.length > 0) {
     console.error(busyPortsMessage(busy))
     process.exitCode = 1
@@ -266,7 +269,6 @@ async function main() {
 
   const children = services.map((service, index) => start(service, COLOURS[index % COLOURS.length]))
   children.push(startDevApi())
-  const ports = services.map(service => service.port)
 
   /**
    * One Ctrl-C stops everything and waits for the ports to come back, because returning to the

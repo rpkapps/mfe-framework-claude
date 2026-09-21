@@ -32,7 +32,7 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
 
     {
       path: 'src/mfe.ts',
-      contents: `import { createApp, type AppRouterOptions } from '@company/mfe-react'
+      contents: `import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
 import { routeTree } from './routeTree.gen'
@@ -53,6 +53,15 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: ReturnType<typeof makeRouter>
   }
+
+  // The framework reads four fields off a route's staticData: the capability
+  // pages the shell opens, and the breadcrumb label. Typing TanStack's own slot
+  // with them makes a misspelt capability a compile error rather than a page
+  // the shell never finds. An augmentation that adds no field of its own is how
+  // one declared type is merged into another's slot; respelling MfeStaticData's
+  // fields here is exactly the drift it avoids.
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- see above.
+  interface StaticDataRouteOption extends MfeStaticData {}
 }
 
 export default createApp({
@@ -175,7 +184,12 @@ ${overrideSection(id, 3101)}
 ## Configuration
 
 \`src/mfe.config.ts\` holds the schema and the environment mapping — no values
-and no secrets. Copy \`runtime-config.example.json\` to your local values path.
+and no secrets. The values live in \`public/runtime-config.json\`: the dev server
+publishes \`public/\` next to this container's assets (\`server.publicDir\` in
+\`rsbuild.config.ts\`), which is where the generated loader fetches it from. Put
+your local values there. A deployment publishes its own file beside its assets,
+so no value is ever built into the container.
+
 Read configuration with \`import { config } from '#mfe/config'\` and make
 authenticated requests with \`import { fetch } from '#mfe/fetch'\`; the token is
 attached only to origins declared \`{ api: true }\`, and request code never

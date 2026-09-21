@@ -12,6 +12,8 @@ export type MfeErrorCode =
   | 'config/invalid'
   | 'load/manifest-failure'
   | 'load/entry-failure'
+  // Declared, never raised on the React path: the federation loader cannot see a duplicated
+  // singleton, which reaches a developer as a framework hook rendered outside any mount.
   | 'load/share-conflict'
   | 'load/timeout'
   | 'mount/failure'

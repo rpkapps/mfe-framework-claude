@@ -1,7 +1,7 @@
 /** `router` is a factory called once per mount, not once per module, so two mounts get two
  * independent routers from the one generated tree (§2). */
 
-import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
 import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
 
@@ -28,6 +28,16 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: ReturnType<typeof makeRouter>
   }
+
+  /**
+   * The framework reads four fields off a route's `staticData`: the capability pages the shell
+   * opens, and the breadcrumb label. Typing TanStack's own slot with them makes a misspelt
+   * capability a compile error rather than a page the shell never finds. An augmentation that
+   * adds no field of its own is how one declared type is merged into another's slot;
+   * respelling `MfeStaticData`'s fields here is exactly the drift it avoids.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- see the comment above.
+  interface StaticDataRouteOption extends MfeStaticData {}
 }
 
 export default createApp({

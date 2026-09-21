@@ -35,7 +35,11 @@ export interface AppRouterOptions {
 export const RESERVED_CONTEXT_KEYS = ['mfe', 'queryClient'] as const
 export type ReservedContextKey = (typeof RESERVED_CONTEXT_KEYS)[number]
 
-/** Declared here so the scaffold's module augmentation has one source. */
+/**
+ * What the framework reads out of a route's `staticData`. The scaffold's App entry augments
+ * TanStack's `StaticDataRouteOption` with it, so a route that marks a capability page is
+ * type-checked against the same shape the build extracts.
+ */
 export interface MfeStaticData {
   readonly capability?: 'settings' | 'help' | 'releaseNotes'
   readonly label?: string

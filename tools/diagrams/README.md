@@ -404,9 +404,9 @@ rules."
 ### dev-workflow
 
 Subtitle: "What pnpm dev starts, how the shell is pointed at it, and what one edit costs." On
-the left, a yellow box `pnpm dev` with the note "tools/dev/dev.mjs. It checks that 3000-3005 are
-free before it starts anything (3010 is not checked): a container's port is part of its address,
-so it cannot be moved without the shell losing it", and under it a violet box `registry.json`
+the left, a yellow box `pnpm dev` with the note "tools/dev/dev.mjs. It checks that 3000-3005 and
+3010 are free before it starts anything: a container's port is part of its address, so it cannot
+be moved without the shell losing it", and under it a violet box `registry.json`
 with "written by pnpm run generate, which pnpm dev runs itself. The shell learns that a container
 exists only from this file." An arrow from `pnpm dev` and a grey dotted arrow from
 `registry.json` point into the middle column, headed "one dev server each": seven boxes, one per

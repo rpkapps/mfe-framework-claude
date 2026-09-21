@@ -108,10 +108,6 @@ dist/
 # Generated build output. Generation runs before typecheck, test and build.
 routeTree.gen.ts
 .mfe/
-
-# Local developer values, never deployed values.
-runtime-config.local.json
-.env
 `,
     },
     {
@@ -209,10 +205,6 @@ export default [
   }),
 ]
 `,
-    },
-    {
-      path: 'runtime-config.example.json',
-      contents: json({ apiBaseUrl: 'https://api.example.test/v1/' }),
     },
     {
       path: 'tsconfig.json',

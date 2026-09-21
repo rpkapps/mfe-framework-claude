@@ -58,7 +58,7 @@ export default [
     tsconfigRootDir: import.meta.dirname,
     files: ['examples/*/src/**/*.{ts,tsx}'],
     // Widget ownership is declared, never guessed from a filename.
-    widgetScopes: ['examples/alert-panel/src/**'],
+    widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
   }),
 
   /*
