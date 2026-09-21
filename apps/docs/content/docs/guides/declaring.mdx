@@ -1,0 +1,337 @@
+---
+title: '2. Declaring it'
+description: 'The definition file that tells the shell what you built, and how the build turns it into a container.'
+---
+
+Everything the framework knows about your code comes from one file: `src/mfe.ts`. The build reads
+it without running it, the host loads what it exports, and the mount validates what you returned.
+This page is every option of `createApp` and `createWidget`, the `package.json` block that goes
+with them, and every check you can trip, each with the message you will see and the change that
+fixes it.
+
+A <Term>definition</Term> is the plain, side-effect-free descriptor that `createApp` or
+`createWidget` returns. It is a value, not a component: the build discovers it statically, and the
+host loads it and mounts it. A <Term>container</Term> is the deployable unit that holds them — one
+package, one build, one `src/mfe.ts`, at most one App and any number of Widgets. A
+
+<Term>mount</Term> is one live instance of a definition on the page.
+
+## The one file the framework reads
+
+Discovery reads the container entry and nothing else: `src/mfe.ts`, or `src/mfe.tsx` when the entry
+itself contains JSX, exactly one of the two. Every definition has to be exported from it. An
+unexported one is never built into the container and can never be mounted; one declared in another
+module is reported as a stray rather than picked up.
+
+```ts title="src/mfe.ts"
+import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { createRouter } from '@tanstack/react-router'
+
+import { routeTree } from './routeTree.gen'
+
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({
+    routeTree,
+    basepath: basePath,
+    history,
+    context: { ...context },
+    defaultPreload: 'intent',
+  })
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof makeRouter>
+  }
+}
+
+export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
+```
+
+The `declare module` block is TanStack Router's own type registration: it gives `Link`, `navigate`
+and `useParams` the route types from this App's generated tree, and it sits beside the factory
+because `ReturnType<typeof makeRouter>` is what names that tree.
+
+## `createApp`
+
+| Option        | Type                                       | Default     | What it is                                                                                                           |
+| ------------- | ------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `id`          | `string`                                   | required    | The only public identity field, unique across every App and Widget. Also the storage prefix and the CSS scope value. |
+| `version`     | `string`                                   | none        | Recorded in diagnostics, so a failure names which build was running.                                                 |
+| `router`      | `(options: AppRouterOptions) => AnyRouter` | required    | Called once per mount, never once per module. Two mounts get two routers.                                            |
+| `title`       | `string`                                   | none        | What a catalogue shows before anything is loaded. The host's presentation map may override it.                       |
+| `description` | `string`                                   | none        | The same, in one sentence.                                                                                           |
+| `tags`        | `readonly string[]`                        | none        | Free-form. A catalogue filters on them and never interprets them.                                                    |
+| `icon`        | an imported identifier                     | none        | An icon component or an imported `.svg`. The build follows the import and publishes the shapes.                      |
+| `breadcrumbs` | `false`                                    | contributes | Opts this App out of its own breadcrumb segment, not out of a nested App's.                                          |
+
+### The router factory: `AppRouterOptions`
+
+The factory receives three values, and all three have to reach `createRouter` unchanged.
+
+| Field      | What it is                                                                            | What you do with it                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `basePath` | The literal <Term>boundary</Term> the shell assigned: the URL prefix this mount owns. | Pass it as `createRouter({ basepath })`. It never appears again: every route, `Link` and `navigate` is relative to it.             |
+| `history`  | The framework's boundary history, over the shell's navigation bridge.                 | Forward it. Never call `createBrowserHistory()`: it reassigns `window.history.pushState`, and two routers then fight over the URL. |
+| `context`  | `{ mfe, queryClient }` — the mount's services and its Query client.                   | Spread it: `context: { ...context, yourKey }`. Your own top-level keys survive every framework context update.                     |
+
+`context.mfe` carries `user`, `groups`, `theme`, `telemetry`, `storage.local`, `storage.session` and
+`signal`, and is what a route `loader` or `beforeLoad` reads. `user`, `groups` and `theme` are
+snapshots: the framework rebuilds the namespace on every shell-state transition, so a value captured
+across an `await` is stale. `RESERVED_CONTEXT_KEYS` is `['mfe', 'queryClient']`: add keys beside
+them, never replace one, and never add a field inside `mfe`.
+
+## `createWidget`
+
+| Option                                 | Type                                     | Default  | What it is                                                                 |
+| -------------------------------------- | ---------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `id`                                   | `string`                                 | required | As above, and under the same character rule.                               |
+| `version`                              | `string`                                 | none     | As above. Versions are per definition, not per container.                  |
+| `inputs`                               | a Zod object schema                      | required | What the Widget takes. Validated at the provider boundary on every update. |
+| `events`                               | `Record<string, z.ZodType>`              | required | What it emits, by name. Use `{}` for a Widget that emits nothing.          |
+| `render`                               | `(props: { inputs, emit }) => ReactNode` | required | The component. Its props are typed from the two schemas.                   |
+| `title`, `description`, `tags`, `icon` | as for `createApp`                       | none     | Read statically and published in the registry.                             |
+
+`inputs` and `events` together are the Widget's <Term>contract</Term>: the single source of truth
+for runtime validation and for the author-facing types, so the two cannot drift. The build
+publishes them in the <Term>registry</Term> — the generated list the shell reads at boot — so a
+catalogue can offer the Widget before the container has been fetched.
+
+```ts title="examples/alert-panel/src/mfe.ts"
+export const alertPanelContract = {
+  inputs: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+  }),
+  events: {
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+    dismissed: z.object({ alertId: z.string() }),
+  },
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  title: 'Alert panel',
+  description: 'Open alerts for one asset, acknowledged or dismissed in place.',
+  tags: ['alerts', 'operations', 'safety'],
+  icon: BellIcon,
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+### Presentation is read, never run
+
+`id`, `version`, `title` and `description` must be plain string literals, `tags` an array of string
+literals, and `icon` an imported identifier. The build reads them out of the syntax without
+executing your module, because the registry crosses an origin boundary and carries data rather than
+components or markup. A computed title is a build error, and so is an icon the build cannot
+resolve.
+
+### The render function lives in its own module
+
+React Refresh replaces a module in place only when it can prove that every export is a component.
+One exported schema, constant or definition beside them makes the module unable to accept an
+update; the update propagates to whatever imported it, and onward, until it reaches an entry, which
+accepts nothing. The page then reloads and every piece of state on it is lost. `src/mfe.ts` exports
+a definition and usually a contract, so it can never be a boundary, and the failure is silent — the
+page reloads a little more often than it used to, and nothing says why.
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+/** Every export here is a component, so React Refresh replaces this module in place instead of
+ * reloading the page (§18). */
+
+export function AlertPanel({
+  inputs,
+  emit,
+}: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
+```
+
+Nothing enforces this. `pnpm hmr:probe <file>` is the tool that answers the question: it reports
+`hot-updated in place` or `(the page reloaded)`. See
+[decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component).
+
+## Default export or named exports
+
+Named exports are canonical. A default export is accepted only when it is the container's only
+definition, which is why `examples/operations` can write `export default createApp(…)` and
+`examples/insights`, with four Widgets, writes four `export const`s.
+
+<Callout type="error" title="registry/invalid-descriptor, at build time">
+
+``/home/you/orders/src/mfe.ts: 'order-row' failed to collect the definitions this container
+exports: expected named exports when a container exports more than one definition, found a default
+export alongside 2 other definition(s). Static discovery declares this expectation. Give the
+default export a name, for example `export const orderRow = createWidget({ … })`. Named exports
+are canonical; a default export is only accepted when it is the container's only definition.``
+
+</Callout>
+
+## The `mfe` block in `package.json`
+
+Two fields, in every container:
+
+```json title="examples/operations/package.json"
+"mfe": {
+  "port": 3001,
+  "definitions": ["operations"]
+}
+```
+
+`port` is the container's dev-server port, declared once and read back by its own
+`rsbuild.config.ts`, by `pnpm dev`, and by the registry builder that writes the container's dev URL
+into the shell registry. That is why it is fixed rather than a preference: `server.strictPort` is
+set for you, because a container that fell back to another port would be invisible to the shell. A
+missing one stops the registry build: `<name>: package.json declares no mfe.port, so its dev URL is
+unknown.`
+
+`definitions` is read only by `pnpm dev`, to print the developer-override snippet for each id.
+Nothing validates it against what `src/mfe.ts` exports; keeping it accurate is a convention.
+
+### Exporting a contract for consumers
+
+The build generates a side-effect-free contract module per Widget. Publishing it is one `exports`
+entry you add yourself:
+
+```json title="examples/alert-panel/package.json"
+"exports": {
+  "./contracts": "./.mfe/widgets/alert-panel.contract.ts"
+}
+```
+
+For a container with several Widgets, one pattern covers them all:
+`"./contracts/*": "./.mfe/widgets/*.contract.ts"`. The generated module exports `widgetId`,
+`inputs`, `events` and the types `Inputs` and `Events`, so a consumer writes:
+
+```ts title="examples/operations/src/widgets.ts"
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+For the build to copy a schema into that module it has to be able to read it without running
+anything: declare it inline in `src/mfe.ts`, or as an exported top-level `const` in another module
+of the same container, and never import it from the entry itself or from a bare package.
+
+## Every check you can trip
+
+The four router checks run at mount, the moment your factory returns. The identity and event checks
+run when your entry module is evaluated, which in the browser is when the shell loads your
+container. The rest are build errors, which name the file, the line and the column.
+
+### The base path must be passed through
+
+<Callout type="error" title="app/invalid-base-path, at mount">
+
+`operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
+unchanged as createRouter({ basepath }), received no basepath on the router. Forward the basePath
+your factory received: createRouter({ basepath: basePath, … }).`
+
+</Callout>
+
+```ts
+// Before
+return createRouter({ routeTree, history, context: { ...context } })
+
+// After
+return createRouter({
+  routeTree,
+  basepath: basePath,
+  history,
+  context: { ...context },
+})
+```
+
+A hard-coded `basepath` produces the same failure with the string you wrote in place of `no
+basepath on the router` — the case worth knowing about, because an App delegated inside another App
+is mounted at a different boundary from the one it has on its own.
+
+### The history must be the one you were given
+
+<Callout type="error" title="app/invalid-router, at mount">
+
+`operations@2.1.0 failed to mount App: expected the exact history instance the framework supplied,
+received a different history object. Do not create, wrap, replace or mutate the history; forward
+the one your factory received.`
+
+</Callout>
+
+```ts
+// Before
+return createRouter({
+  routeTree,
+  basepath: basePath,
+  history: createBrowserHistory(),
+})
+
+// After
+return createRouter({ routeTree, basepath: basePath, history })
+```
+
+### The context is spread, not replaced
+
+<Callout type="error" title="app/invalid-router, at mount">
+
+`operations@2.1.0 failed to mount App: expected the supplied context.mfe namespace, spread into the
+router context unchanged, received no mfe key. Spread the supplied context: add your own top-level
+keys freely, but do not replace mfe or add fields inside it.`
+
+</Callout>
+
+```ts
+// Before
+return createRouter({
+  routeTree,
+  basepath: basePath,
+  history,
+  context: { session },
+})
+
+// After
+return createRouter({
+  routeTree,
+  basepath: basePath,
+  history,
+  context: { ...context, session },
+})
+```
+
+Replacing `queryClient` instead reports `expected the supplied top-level queryClient, forwarded
+unchanged, received a different Query client. Spread the supplied context rather than constructing
+your own Query client; the mount owns one.` A child route that returns its own `mfe` or
+`queryClient` from `beforeLoad` is a development-only diagnostic rather than a throw, and it names
+the route: `Rename the key you return from beforeLoad in /assets.`
+
+### Short checks, and what to do
+
+| You see                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Do                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for example "alert-panel"), received "Order_Book". Give the definition a stable id; it is also its storage prefix and CSS scope value.`                                                                                                                                                                                                                                   | Rename the id to `order-book`. The same rule applies to `createWidget`, and the registry quarantines an entry whose id breaks it. |
+| `orders failed to create App definition: expected a router factory function, received nothing. Pass the named factory that calls createRouter; it runs once per mount.`                                                                                                                                                                                                                                                                                            | Pass `router: makeRouter`. Pass the factory itself, not a router you already built.                                               |
+| ``alert-panel failed to create Widget definition: expected a render function, received nothing. Pass a component function as `render`; its props are typed from the schemas.``                                                                                                                                                                                                                                                                                     | Pass `render: AlertPanel`, imported from its own module.                                                                          |
+| `alert-panel failed to declare event 'alert-acknowledged': expected a lower-camel-case event name, for example "acknowledged", received "alert-acknowledged". Rename the event; consumers subscribe to it as onYourEvent.`                                                                                                                                                                                                                                         | Rename to `alertAcknowledged`. The name has to survive the mapping to an `onX` prop.                                              |
+| `alert-panel failed to declare input 'onSelect': expected an input name that is not reserved for host control or event handlers, received 'onSelect', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host.`                                                                                                                                                                                                                   | Rename the input. `key`, `ref`, `fallback` and anything matching `on` plus a capital letter are the consumer's, not yours.        |
+| ``/home/you/orders/src/mfe.ts:12:3: 'order-row' failed to read the Widget contract field 'inputs': expected an `inputs` schema, found a Widget declared without one. The Widget contract declares this expectation. Add an inputs schema, for example inputs: z.object({ orderId: z.string() }). Use z.object({}) when the Widget takes none.``                                                                                                                    | Declare both. A Widget that takes nothing declares `z.object({})`; one that emits nothing declares `{}`.                          |
+| ``/home/you/orders/src/mfe.ts:12:11: 'order-row' failed to read the Widget contract field 'inputs': expected a schema the build can read without running the module, found an import of 'orderInputs' from '@acme/contracts'. Static discovery declares this expectation. Declare the schema as an exported top-level const in a module of this container, for example `export const inputs = z.object({ … })` in src/contracts/<widget>.ts, and import it here.`` | Move the schema into this container. The generated contract module copies the declaration, so it can only copy one it can see.    |
+| `/home/you/orders/src/mfe.ts: 'orders' failed to collect the definitions this container exports: expected one definition per id, found 'orders' and 'ordersV2' both declare id 'orders'. The framework identity rules declares this expectation. Give each definition its own id. The id keys the shell registry, the storage prefix and the CSS scope, so two definitions sharing one would overwrite each other.`                                                | Two registry entries sharing an id are both quarantined, so a duplicate costs the other one too.                                  |
+
+### `version` is not validated
+
+Nothing checks that `version` is semantic, or that it matches the package version. It is a plain
+string literal, read at build time, carried into the registry, and stamped onto every failure the
+mount reports — the `@2.1.0` in the router messages above is it. A definition declared without one
+mounts all the same, and its failures name the id alone. Keeping it in step with the package
+version is a convention with no check behind it, and worth keeping: it is what tells you which
+build produced the failure you are reading.
+
+## Where next
+
+- [1. The shape: App or Widget](/docs/guides/shape) — the decision behind these two calls, with the
+  diagram of both paths.
+- [3. Configuration and data](/docs/guides/config-and-data) — `src/mfe.config.ts`, `#mfe/config` and
+  `#mfe/fetch`.
+- [5. What you must not do](/docs/guides/what-you-must-not-do) — the rest of the rules, and which
+  tool enforces each.
+- [Decision 3](/docs/decisions#3-the-pinned-router-exposes-enough-state-to-validate-the-entry-contract)
+  — why the router checks fail at mount rather than later.
