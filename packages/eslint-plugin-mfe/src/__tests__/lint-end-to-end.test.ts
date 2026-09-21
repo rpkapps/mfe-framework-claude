@@ -1,9 +1,6 @@
 /**
- * End-to-end lint of real files, for both presets. Asserting on the shape of a
- * config array is not enough: flat config resolves a rule's plugin from the
- * objects that match the file, so a preset can look complete and still fail the
- * moment ESLint is pointed at a file. These tests build a throwaway project on
- * disk and run `ESLint#lintFiles` over it.
+ * End-to-end lint of real files: flat config resolves a rule's plugin from the objects that match
+ * the file, so a preset can look complete and still fail the moment ESLint is pointed at one.
  */
 
 import { ESLint } from 'eslint'
@@ -31,11 +28,7 @@ const TSCONFIG = JSON.stringify({
   include: ['**/*.ts', '**/*.tsx'],
 })
 
-/**
- * Source that trips `unbound-method`, `require-await`, `no-non-null-assertion`
- * and `no-floating-promises` — the four relaxed in test scope plus one that is
- * not.
- */
+/** Trips the three rules relaxed in test scope, plus `no-floating-promises`, which is not. */
 const SERVICE_SOURCE = `export class Service {
   value = 1
   read(): number {
@@ -73,12 +66,8 @@ afterAll(() => {
 })
 
 /**
- * The file a result is for, named the one way these expectations spell it.
- *
- * ESLint reports the host's own path, so on Windows every `endsWith('src/x.ts')`
- * below was matching against `src\x.ts` and finding nothing — and a lookup that
- * returns nothing reads, at the assertion, as "the rule never fired". Four
- * tests failed on Windows for a reason that had nothing to do with the rules.
+ * ESLint reports the host's own path, so on Windows an `endsWith('src/x.ts')` matched nothing and
+ * read, at the assertion, as "the rule never fired".
  */
 function resultFor(
   results: readonly ESLint.LintResult[],
@@ -87,7 +76,6 @@ function resultFor(
   return results.find(result => result.filePath.split(sep).join('/').endsWith(suffix))
 }
 
-/** Every rule that reported, and every message ESLint could not attribute. */
 async function lint(
   root: string,
   config: Linter.Config[],
@@ -98,9 +86,7 @@ async function lint(
   results: ESLint.LintResult[]
 }> {
   const eslint = new ESLint({ cwd: root, overrideConfigFile: true, overrideConfig: config })
-  // A missing plugin, an unknown rule or a bad rule option throws from here
-  // rather than showing up as a message, so reaching the assertions at all is
-  // part of what this test checks.
+  // A missing plugin or a bad rule option throws from here, so reaching the assertions is the test.
   const results = await eslint.lintFiles(['.'])
   const ruleIds = new Set<string>()
   const fatal: string[] = []
@@ -117,7 +103,6 @@ async function lint(
 
 describe('framework preset, linting real files', () => {
   const root = makeProject({
-    // Inside the caller's `files`, and inside a guarded package zone.
     'packages/mfe-core/src/leak.ts': `import { useState } from 'react'
 export const hook = useState
 `,
@@ -140,13 +125,10 @@ export function useThing(flag: boolean): unknown {
   return null
 }
 `,
-    // The same source twice: once as production code, once as a test. Only the
-    // test copy gets the scoped exceptions, which is what makes them scoped.
+    // The same source twice: only the test copy gets the scoped exceptions.
     'packages/mfe-host/src/service.ts': SERVICE_SOURCE,
     'packages/mfe-host/src/service.test.ts': SERVICE_SOURCE,
-    // A package with no React in it, whose bundler helper happens to be named
-    // `use` — the loader key in an Rspack module rule. React's own rules read
-    // any call to a function named `use` as the `use()` hook.
+    // No React here, but the bundler helper named `use` reads as React's `use()` hook.
     'packages/mfe-rspack/src/plugin.ts': `interface ModuleRule {
   test: RegExp
   use: readonly string[]
@@ -162,9 +144,7 @@ export function applyReactCompiler(rules: ModuleRule[]): void {
   return left + right
 }
 `,
-    // Deliberately outside the caller's `files`: a TypeScript file the preset
-    // was never asked to cover. It must be left alone rather than linted
-    // without a parser, which is the regression this fixture pins.
+    // Outside the caller's `files`: the regression is linting it without a parser.
     'vitest.config.ts': `const config: { root: string } = { root: process.cwd() }
 export default config
 `,
@@ -184,15 +164,11 @@ export default config
 
   it('applies every layer of the preset to the files it covers', async () => {
     const { ruleIds } = await lint(root, preset)
-    // Type-aware typescript-eslint rules.
     expect([...ruleIds]).toContain('@typescript-eslint/no-floating-promises')
-    // The package import DAG, as a restricted-imports zone.
     expect([...ruleIds]).toContain('@typescript-eslint/no-restricted-imports')
-    // This plugin's own rules.
     expect([...ruleIds]).toContain('mfe/no-global-patching')
     expect([...ruleIds]).toContain('mfe/no-raw-storage')
     expect([...ruleIds]).toContain('mfe/stable-definitions')
-    // React Hooks, which is where the React Compiler diagnostics live too.
     expect([...ruleIds]).toContain('react-hooks/rules-of-hooks')
   })
 
@@ -215,7 +191,6 @@ export default config
     expect(ruleIds).not.toContain('@typescript-eslint/unbound-method')
     expect(ruleIds).not.toContain('@typescript-eslint/require-await')
     expect(ruleIds).not.toContain('@typescript-eslint/no-non-null-assertion')
-    // The rules that find real defects in a test are still on there.
     expect(ruleIds).toContain('@typescript-eslint/no-floating-promises')
   })
 
@@ -223,7 +198,6 @@ export default config
     const { results } = await lint(root, preset)
     const plugin = resultFor(results, 'rspack/src/plugin.ts')
     const ruleIds = (plugin?.messages ?? []).map(message => message.ruleId)
-    // `rule.use(...)` is not a hook, but by default React rules apply here.
     expect(ruleIds).toContain('react-hooks/rules-of-hooks')
   })
 
@@ -240,8 +214,6 @@ export default config
     const pluginRules = (plugin?.messages ?? []).map(message => message.ruleId ?? '')
     expect(pluginRules.filter(ruleId => ruleId.startsWith('react-hooks/'))).toEqual([])
 
-    // The React package still gets them, and the rest of the preset still
-    // applies to the non-React package.
     const react = resultFor(results, 'mfe-react/src/use-thing.ts')
     expect((react?.messages ?? []).map(message => message.ruleId)).toContain(
       'react-hooks/rules-of-hooks',
@@ -267,7 +239,6 @@ export default config
 
 describe('author preset, linting real files', () => {
   const root = makeProject({
-    // zustand is an MFE author's business, and must not be restricted.
     'src/store.ts': `import { create } from 'zustand'
 export const useStore = create
 `,
@@ -321,8 +292,7 @@ export const Route = createFileRoute('/')({
     const restricted = (boundaries?.messages ?? []).filter(
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
-    // @company/mfe-core (a type-only import, still restricted), @opentelemetry/api
-    // and the deep path into @company/mfe-host.
+    // @company/mfe-core type-only, @opentelemetry/api, and the deep @company/mfe-host path.
     expect(restricted.length).toBe(3)
 
     const store = resultFor(results, 'store.ts')

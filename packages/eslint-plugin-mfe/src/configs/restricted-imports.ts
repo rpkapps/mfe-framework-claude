@@ -1,8 +1,6 @@
 /**
- * The package import DAG and the state/telemetry boundaries as
- * `no-restricted-imports` zones. `tools/boundaries/check-boundaries.mjs` is the
- * mechanical backstop that also reads manifests; these zones are the version a
- * developer meets in the editor, with the repair in the message.
+ * The package import DAG as `no-restricted-imports` zones: `tools/boundaries/check-boundaries.mjs`
+ * is the mechanical backstop, and these are the version a developer meets in the editor.
  */
 
 import type { Linter } from 'eslint'
@@ -19,7 +17,6 @@ export interface RestrictedPattern {
   readonly allowTypeImports?: boolean
 }
 
-/** Builds a `@typescript-eslint/no-restricted-imports` entry. */
 export function restrictedImports(
   paths: readonly RestrictedPath[],
   patterns: readonly RestrictedPattern[],
@@ -45,7 +42,6 @@ const TELEMETRY_MESSAGE =
 const AUTHOR_TELEMETRY_MESSAGE =
   'Telemetry boundary: an MFE does not ship its own telemetry SDK, because two SDKs in one page mean two trace contexts and twice the bundle. Use the framework telemetry exports instead: `useTelemetry()` from @company/mfe-react, or `context.mfe.telemetry` in a route callback. Type-only imports are restricted too.'
 
-/** Packages that must never reach the neutral core or the neutral host. */
 export function neutralPackagePaths(pkg: string): RestrictedPath[] {
   return [
     { name: 'react', message: neutral(pkg, 'React') },
@@ -72,9 +68,8 @@ export const STATE_PATHS: readonly RestrictedPath[] = [
 ]
 
 /**
- * Telemetry vendors. `allowTypeImports` stays false on purpose: a type import
- * still couples the package to the vendor's release cadence and still shows up
- * in the published declarations.
+ * `allowTypeImports` stays false on purpose: a type import still couples the package to the
+ * vendor's release cadence and still shows up in the published declarations.
  */
 export const TELEMETRY_PATTERNS: readonly RestrictedPattern[] = [
   { group: ['@opentelemetry/*'], message: TELEMETRY_MESSAGE, allowTypeImports: false },
@@ -100,7 +95,6 @@ export const MODULE_FEDERATION_PATTERN: RestrictedPattern = {
     'Package boundary: Module Federation is an implementation detail of @company/mfe-rspack and of the loader inside @company/mfe-host. Import the loader contract from @company/mfe-core instead of the MF runtime.',
 }
 
-/** Framework internals an MFE author must not reach into. */
 export const AUTHOR_FRAMEWORK_PATHS: readonly RestrictedPath[] = [
   {
     name: '@company/mfe-core',

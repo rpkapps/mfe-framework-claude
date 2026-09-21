@@ -1,13 +1,6 @@
 /**
- * A `RuleTester` wired to Vitest.
- *
- * ESLint's own `RuleTester` announces its cases through whatever `describe` and
- * `it` it is handed; pointing those at Vitest's makes each case a named test in
- * the normal report instead of one opaque assertion.
- *
- * The four rules in this plugin work without type information on purpose, so the
- * tester needs no TypeScript program: the TypeScript parser alone gives the AST
- * and, more importantly, the scope manager the rules resolve bindings through.
+ * A `RuleTester` wired to Vitest, so each case is a named test rather than one opaque assertion.
+ * The rules use no type information, so the parser alone supplies the AST and the scope manager.
  */
 
 import { RuleTester } from 'eslint'
@@ -19,8 +12,7 @@ RuleTester.describe = describe
 RuleTester.it = it
 RuleTester.itOnly = it.only
 
-/** Globals a browser realm predefines, so the rules exercise both the
- * "declared global" and the "unresolved name" paths through scope analysis. */
+/** So the rules exercise both the declared-global and the unresolved-name paths in scope analysis. */
 const BROWSER_GLOBALS = {
   window: 'readonly',
   document: 'readonly',

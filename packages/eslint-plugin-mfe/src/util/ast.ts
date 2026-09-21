@@ -1,8 +1,4 @@
-/**
- * Narrow AST aliases derived from ESLint's own rule types. `estree` is not a
- * direct dependency, so every node type a rule uses is extracted from
- * `Rule.Node` rather than imported.
- */
+/** Narrow AST aliases derived from `Rule.Node`, because `estree` is not a direct dependency. */
 
 import type { Rule } from 'eslint'
 
@@ -14,10 +10,7 @@ export type Identifier = NodeOfType<'Identifier'>
 export type MemberExpression = NodeOfType<'MemberExpression'>
 export type CallExpression = NodeOfType<'CallExpression'>
 
-/**
- * ESLint attaches `parent` to every node before a rule sees it, but the
- * published types only say so for nodes reached through a listener.
- */
+/** ESLint attaches `parent` to every node; the published types only say so for listener nodes. */
 export function asNode(value: unknown): AnyNode {
   return value as AnyNode
 }
@@ -33,10 +26,7 @@ export function isFunctionNode(node: { readonly type: string }): boolean {
   return FUNCTION_TYPES.has(node.type)
 }
 
-/**
- * The static property name of a member expression, or `null` when the property
- * is computed from a value that is not a string literal (`obj[key]`).
- */
+/** `null` when the property is computed from a value that is not a string literal (`obj[key]`). */
 export function staticPropertyName(node: MemberExpression): string | null {
   const property = node.property
   if (!node.computed && property.type === 'Identifier') return property.name
@@ -54,10 +44,7 @@ const TS_EXPRESSION_WRAPPERS: ReadonlySet<string> = new Set([
   'TSTypeAssertion',
 ])
 
-/**
- * Strips the expression wrappers that carry no runtime meaning, so
- * `(window as Window).fetch` and `window!.fetch` resolve like `window.fetch`.
- */
+/** Strips wrappers with no runtime meaning: `window!.fetch` resolves like `window.fetch`. */
 export function unwrapExpression(node: AnyNode): AnyNode {
   let current: AnyNode = node
   for (let guard = 0; guard < 16; guard += 1) {
@@ -72,14 +59,12 @@ export function unwrapExpression(node: AnyNode): AnyNode {
 }
 
 /**
- * True when the identifier is used as a value rather than as a name. A property
- * key, a member property, a declaration name or an import binding are all
- * spellings of the same word that say nothing about the global object.
+ * True when the identifier is used as a value rather than as a name: a property key, a member
+ * property, a declaration name and an import binding say nothing about the global object.
  */
 export function isValueReference(node: Identifier): boolean {
   const parent = node.parent
-  // TypeScript-only positions (`typeof localStorage`, `declare const ...`) name
-  // a type, not the global object at runtime.
+  // A TypeScript-only position (`typeof localStorage`) names a type, not the runtime global.
   if (parent.type.startsWith('TS')) return TS_EXPRESSION_WRAPPERS.has(parent.type)
   switch (parent.type) {
     case 'MemberExpression':

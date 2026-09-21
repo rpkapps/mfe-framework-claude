@@ -1,5 +1,3 @@
-/** The MFE-specific rules, keyed by the name they are configured under. */
-
 import type { Rule } from 'eslint'
 import noGlobalPatching from './no-global-patching.ts'
 import noRawStorage from './no-raw-storage.ts'

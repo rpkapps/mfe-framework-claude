@@ -1,9 +1,7 @@
 /**
- * `mfe/stable-definitions`. A definition is the stable identity the host keys
- * its registry, mount lifecycle, router and query cache on. Built inside a
- * function body it is minted afresh on every call, so the host sees a different
- * MFE each render and unmounts, discards state and refetches. The callee is
- * resolved through the scope manager, so an aliased import is still caught.
+ * A definition is the stable identity the host keys its registry, mount lifecycle and query cache
+ * on, so one minted inside a function body makes the host unmount the running instance, discard
+ * its state and refetch on every call.
  */
 
 import type { Rule } from 'eslint'
@@ -22,10 +20,8 @@ const DEFAULT_MODULES: readonly string[] = [
 const DEFAULT_FACTORIES: readonly string[] = ['createApp', 'createWidget', 'lazyWidget']
 
 /**
- * The nearest enclosing node that means "this runs later, possibly many times",
- * or `null` when the call really is evaluated once, at module scope. A class
- * field initialiser and a static block count: both run per construction rather
- * than once per module.
+ * The nearest enclosing node that means "this runs later, possibly many times"; a class field
+ * initialiser and a static block count, because both run per construction.
  */
 function enclosingRuntimeScope(node: AnyNode): AnyNode | null {
   let current: AnyNode = node
@@ -38,7 +34,6 @@ function enclosingRuntimeScope(node: AnyNode): AnyNode | null {
   }
 }
 
-/** A human description of where the offending call sits. */
 function describeScope(scope: AnyNode): string {
   if (scope.type === 'StaticBlock') return 'a class static block'
   if (scope.type === 'PropertyDefinition') return 'a class field initialiser'
@@ -82,8 +77,7 @@ const rule: Rule.RuleModule = {
       recommended: true,
       url: docsUrl('stable-definitions'),
     },
-    // No fix and no suggestion: hoisting the call out of a closure has to move
-    // whatever it captures with it, which is a refactor rather than an edit.
+    // No fix and no suggestion: hoisting the call has to move whatever it captures with it.
     schema: [
       {
         type: 'object',

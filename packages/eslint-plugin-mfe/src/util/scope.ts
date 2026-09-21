@@ -1,19 +1,15 @@
 /**
- * Lexical resolution helpers. Every rule answers "which binding is this name?"
- * through the scope manager rather than by comparing identifier text: bare name
- * matching cannot tell `window.fetch` from a local `const window = ...`, and it
- * cannot see `import { createWidget as mk }` at all.
+ * Lexical resolution helpers: every rule asks the scope manager which binding a name is, because
+ * bare name matching cannot tell `window.fetch` from a local `const window = ...`.
  */
 
 import type { Scope, SourceCode } from 'eslint'
 import type { AnyNode, MemberExpression } from './ast.ts'
 import { asNode, staticPropertyName, unwrapExpression } from './ast.ts'
 
-/** Names that denote the global object in a browser or worker realm. */
 const GLOBAL_OBJECT_NAMES: ReadonlySet<string> = new Set(['window', 'globalThis', 'self', 'global'])
 
-/** The variable a name resolves to and the scope that declares it, or `null`
- * when nothing does — in a browser realm, a global. */
+/** `null` when nothing declares the name, which in a browser realm means a global. */
 function lookup(
   scope: Scope.Scope | null,
   name: string,
@@ -25,30 +21,22 @@ function lookup(
   return null
 }
 
-/**
- * True when `name` refers to a real global: nothing declares it, or the only
- * declaration is a predefined global. A local, parameter, import or
- * module-level declaration of the same name shadows it and is not it.
- */
+/** A local, parameter, import or module-level declaration of the same name shadows the global. */
 export function isGlobalBinding(sourceCode: SourceCode, node: AnyNode, name: string): boolean {
   const found = lookup(sourceCode.getScope(node), name)
   if (found === null) return true
   if (found.scope.type !== 'global') return false
-  // A predefined global has no definition site; an implicit global is the one
-  // the code under review just created by assigning to an undeclared name,
-  // which is still the shared global object.
+  // An implicit global — created by assigning to an undeclared name — is still the shared global.
   return found.variable.defs.every(def => def.type === 'ImplicitGlobalVariable')
 }
 
-/** True when the name, used at `node`, is one of the global-object aliases. */
 export function isGlobalObjectName(sourceCode: SourceCode, node: AnyNode, name: string): boolean {
   return GLOBAL_OBJECT_NAMES.has(name) && isGlobalBinding(sourceCode, node, name)
 }
 
 /**
- * The canonical name of the global object an expression denotes: `window`
- * becomes `globalThis`, `globalThis.document` becomes `document`, and a
- * shadowed `history` becomes `null`.
+ * The canonical name of the global object an expression denotes: `window` becomes `globalThis`,
+ * `globalThis.document` becomes `document`, and a shadowed `history` becomes `null`.
  */
 export function resolveGlobalObject(
   sourceCode: SourceCode,
@@ -72,7 +60,6 @@ export function resolveGlobalObject(
   return null
 }
 
-/** A binding that originates from an `import` declaration. */
 export interface ImportedBinding {
   readonly source: string
   /** `default`, `*`, or the name as exported — never the local alias. */
@@ -82,8 +69,7 @@ export interface ImportedBinding {
 const ALIAS_DEPTH_LIMIT = 8
 
 /**
- * Follows local aliases (`const mk = createWidget`) and namespace members
- * (`const mk = mfe.createWidget`) back to the import. `null` for anything
+ * Follows local aliases and namespace members back to the import, and answers `null` for anything
  * locally declared, so a local `function createWidget() {}` shadows the export.
  */
 export function resolveImportedBinding(
@@ -113,11 +99,9 @@ export function resolveImportedBinding(
     if (def.type === 'Variable') {
       const init = def.node.init
       if (init === null || init === undefined) continue
-      // `const mk = createWidget`
       if (init.type === 'Identifier') {
         return resolveImportedBinding(sourceCode, asNode(def.node), init.name, depth + 1)
       }
-      // `const mk = mfe.createWidget`
       if (init.type === 'MemberExpression') {
         const resolved = resolveMemberBinding(
           sourceCode,
@@ -131,10 +115,7 @@ export function resolveImportedBinding(
   return null
 }
 
-/**
- * `namespace.member` where `namespace` is a namespace import, so
- * `import * as mfe ...; mfe.createWidget()` resolves like a named import.
- */
+/** `import * as mfe ...; mfe.createWidget()` resolves like a named import. */
 export function resolveMemberBinding(
   sourceCode: SourceCode,
   node: MemberExpression,

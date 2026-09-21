@@ -6,11 +6,7 @@ import { asParser } from '../configs/shared.ts'
 import { asNode } from './ast.ts'
 import { isGlobalBinding, resolveCalleeBinding, resolveGlobalObject } from './scope.ts'
 
-/**
- * These helpers are what makes the rules resolve bindings instead of matching
- * text, so they are tested directly: a probe rule reports whatever the helper
- * answers, and the assertions read that answer back.
- */
+/** A probe rule reports whatever the helper answers, so the helpers are tested directly. */
 function probe(code: string, visit: (context: Rule.RuleContext) => Rule.RuleListener): string[] {
   const linter = new Linter()
   const messages = linter.verify(code, {
@@ -103,8 +99,7 @@ describe('resolveGlobalObject', () => {
   })
 
   it('resolves a well-known global reached through the global object', () => {
-    // Member expressions are visited outermost first: `window.history` is the
-    // receiver of `.pushState`, and `window` is the receiver of `.history`.
+    // Member expressions are visited outermost first, so the receiver of `.pushState` comes first.
     expect(owners('window.history.pushState')).toEqual(['history', 'globalThis'])
   })
 
@@ -141,8 +136,7 @@ describe('isGlobalBinding', () => {
       'false',
       'false',
     ])
-    // Three occurrences: the imported name, the local binding it creates, and
-    // the use site. None of them is the global object.
+    // Three occurrences: the imported name, the local binding it creates, and the use site.
     expect(answers("import { window } from './shim.ts'\nwindow.x", 'window')).toEqual([
       'false',
       'false',
