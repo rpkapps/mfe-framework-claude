@@ -164,8 +164,21 @@ theme-specific on disk.
 | `<Steps>` / `<Step>`                        | A numbered procedure.                                    |
 | `<Tabs items={[…]}>` / `<Tab value="…">`    | Alternatives side by side. Renders Tecton `Tabs`.        |
 | `<Diagram>`                                 | Above.                                                   |
+| `<Details summary="…">`                     | Progressive disclosure. Below.                           |
 | `<Term>`                                    | The first use of a term on a page: renders a `<dfn>`.    |
 | `<Kbd>`                                     | A key cap.                                               |
+
+`<Details summary="…">` renders a Tecton `Collapsible`: closed on first render (pass `defaultOpen`
+to start it open), with the `summary` as its trigger and a chevron that rotates when it opens. The
+children are Markdown, rendered as prose once the disclosure is open, and they are still present —
+closed — in the prerendered HTML, so search still finds them.
+
+```mdx
+<Details summary="Why the boundary is drawn at the URL, not the component tree">
+  An App owns everything below the URL segment it is mounted at, because that is the one boundary
+  every router in the page already agrees on.
+</Details>
+```
 
 Headings get anchors, links go through the router, and a fenced code block gets a copy button plus,
 when the fence carries `title="path"`, a title bar with an icon for the language:
