@@ -5,37 +5,11 @@
 '@company/mfe-devtools': patch
 ---
 
-The host page has a scope of its own — `HOST_SCOPE`, `'@host'` — so it stores
-state, registers commands and breadcrumbs, and reads the registry as itself.
+The host page has its own scope, `HOST_SCOPE` (`'@host'`): it stores state, registers commands and breadcrumbs, and reads the registry as itself.
 
-- **Storage**: `MfeStorageStore.bindHost(declaration)`, `hostStorage(area?)`,
-  `establishSessionGeneration(store, identity)`, `mintSessionGeneration()`, and
-  `useStoredState` outside a mount. The definition-scoped paths refuse `@host`.
-- **Commands and breadcrumbs**: `CommandRegistry.registerHost(registration)`,
-  with `register()` refusing the host scope. `useCommand` outside a mount
-  registers there, `useBreadcrumbs` outside one publishes at depth 0.
-- **Registry selectors**: `useRegistryEntries`, `useApps`, `useWidgets`,
-  `useCapabilityPages(name?)` and `useActiveDefinition(pathname)`, over
-  `boundaryDefinitionId(url)` without React.
-- **Diagnostics**: `createMfeRuntime({ diagnostics })` adopts a hub the host
-  built first — `installShellAuth` runs before the runtime — and disposes only
-  the sinks it added. `telemetryDiagnosticsSink(provider)` is the translation
-  from a `Diagnostic` to a `TelemetryRecord`, and `new DiagnosticsHub(sinks)`
-  takes its sinks up front. `@company/mfe-host` re-exports `DiagnosticsHub` and
-  its types.
-- **Session and storage ownership**: `createMfeRuntime` builds the store and
-  establishes the first session generation for the identity in `shellState`
-  when no `sessionGeneration` is given, so a host needs neither before the
-  runtime. There is no `storage` option.
+- **Storage:** `MfeStorageStore.bindHost`, `hostStorage(area?)`, `establishSessionGeneration`, `mintSessionGeneration()`, `useStoredState` outside a mount.
+- **Commands/breadcrumbs/selectors:** `CommandRegistry.registerHost`, `useCommand`/`useBreadcrumbs` outside a mount, `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`, `useActiveDefinition(pathname)`.
+- **Diagnostics:** `createMfeRuntime({ diagnostics })` adopts a hub the host built; `telemetryDiagnosticsSink(provider)` and `DiagnosticsHub` (re-exported from `@company/mfe-host`).
+- `createMfeRuntime` now builds the store and establishes the first session generation itself; the `storage` option is gone, and `useTheme`/`useUser`/`useGroups` no longer require a mount.
 
-**No storage keys are migrated.** A host record's key is `@host:<name>`, so
-state kept under a shell's own key is neither read nor rewritten: clear it, or
-declare `migrate()`. The test shell's dashboard canvas moved this way, and its
-old `company:shell:dashboard` key is left where it lies. A reader outside the
-store — a pre-paint script, say — gets the envelope rather than a bare value,
-which is why the shell's theme is not a framework record at all: the legacy
-Angular applications read `localStorage["theme"]` directly as a bare string, so
-the shell keeps writing that key itself.
-
-**`useTheme`, `useUser` and `useGroups` no longer require a mount**; with no
-runtime at all they report `useMfeRuntime`'s failure, not `useMfeMount`'s.
+**Migration:** a host record's key is `@host:<name>`; state under a shell's own key is untouched, so clear it or declare `migrate()` (legacy `localStorage["theme"]` reads are unaffected, §24).
