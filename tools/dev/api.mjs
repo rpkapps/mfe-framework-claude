@@ -7,8 +7,10 @@
  */
 
 import { createServer } from 'node:http'
+import { fileURLToPath } from 'node:url'
 
-const PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
+/** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
+export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
 
 const ASSETS = {
   north: [
@@ -50,7 +52,7 @@ const server = createServer((request, response) => {
     return
   }
 
-  const url = new URL(request.url ?? '/', `http://localhost:${String(PORT)}`)
+  const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
   if (url.pathname === '/api/assets') {
     const site = url.searchParams.get('site') ?? 'north'
@@ -78,6 +80,9 @@ const server = createServer((request, response) => {
   json(response, 404, { error: `No route for ${url.pathname}.` })
 })
 
-server.listen(PORT, () => {
-  console.log(`dev api    :${String(PORT)}  /api/assets, /api/lab/probe`)
-})
+// Only when this file is the process `pnpm dev` spawned: importing it must not take the port.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  server.listen(DEV_API_PORT, () => {
+    console.log(`dev api    :${String(DEV_API_PORT)}  /api/assets, /api/lab/probe`)
+  })
+}

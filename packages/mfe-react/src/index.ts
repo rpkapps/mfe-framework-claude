@@ -83,7 +83,6 @@ export {
   type MfeErrorCode,
   type MfeStorage,
   type MfeStorageKey,
-  type MountState,
   type ShellState,
   type ShellTheme,
   type ShellUser,
@@ -92,6 +91,8 @@ export {
   /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
   type JsonSchemaValue,
+  /* Types a selection rule a host passes to `createMfeRuntime({ rules })`. */
+  type AdapterSelectionRule,
   /* An author reads these inside `useNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,

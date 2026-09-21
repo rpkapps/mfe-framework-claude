@@ -90,14 +90,23 @@ from `@company/mfe-core`, and its message names:
 
 1. the definition and, where known, its version;
 2. the operation and the relevant field or resource;
-3. what was expected;
+3. what was expected, when the failure can name it;
 4. what was observed;
-5. which side declared the expectation;
-6. one concrete repair step.
+5. one concrete repair step.
 
-For example:
+For example, `validateAgainstContract` rejecting `alertId: 7` against
+`examples/alert-panel`'s contract:
 
-> `alert-panel@1.4.0 failed to accept input alertId: expected a string, received undefined. The Widget provider declares this expectation. Check the alertId prop in the consuming component. The previous valid inputs remain displayed.`
+> ```
+> alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received number
+>   → at alertId. Check the alertId prop on the Widget.
+> ```
+
+A schema failure folds the expectation into what it observed, because Zod's own
+rendering already names both. Build diagnostics
+(`packages/mfe-rspack/src/diagnostics.ts`) carry one sentence more, naming which
+side declared the expectation; nothing at run time does, because `declaredBy`
+was removed from `MfeErrorDetails`.
 
 The code is a machine artifact; the message is what somebody actually reads
 while debugging. Budget real effort for it. Redact tokens and sensitive payload

@@ -32,6 +32,9 @@ describe('the App starter', () => {
     expect(entry).toContain('history,')
     expect(entry).toContain('context: { ...context }')
     expect(entry).toContain("declare module '@tanstack/react-router'")
+    // Types `staticData` with what the framework reads out of it, so the capability
+    // below is checked against the same shape the build extracts.
+    expect(entry).toContain('interface StaticDataRouteOption extends MfeStaticData {}')
 
     const settings = await readFile(join(directory, 'src/routes/settings.tsx'), 'utf8')
     expect(settings).toContain("capability: 'settings'")
@@ -104,6 +107,24 @@ describe('the App starter', () => {
 
     const files = await readdir(join(directory, 'src'))
     expect(files).not.toContain('routeTree.gen.ts')
+  })
+
+  it('ignores no local-values file, because nothing reads one', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    // `#mfe/config` fetches runtime-config.json from the container's public path and
+    // nowhere else, so a gitignored `.local.json` or `.env` would only mislead.
+    const ignored = await readFile(join(directory, '.gitignore'), 'utf8')
+    expect(ignored).not.toContain('runtime-config.local.json')
+    expect(ignored).not.toContain('.env')
+
+    const files = appTemplate({ id: 'operations', packageName: '@example/operations' })
+    expect(files.some(file => file.path === 'runtime-config.example.json')).toBe(false)
+
+    const readme = await readFile(join(directory, 'README.md'), 'utf8')
+    expect(readme).toContain('public/runtime-config.json')
+    expect(readme).not.toContain('runtime-config.example.json')
   })
 
   it('ships a component test that needs no shell and no credentials', async () => {

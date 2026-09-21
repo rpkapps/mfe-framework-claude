@@ -22,7 +22,7 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       options: WIDGET_SCOPES,
     },
     {
-      code: "ctx.emit('navigate', { to: '/reports' })",
+      code: "export function Panel({ emit }) {\n  return () => emit('navigate', { to: '/reports' })\n}",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
     },

@@ -216,12 +216,12 @@ pnpm dev            # the shell, every example and the dev API
 
 Then open <http://localhost:3000>:
 
-| Page                    | What it shows                                                             |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `/`                     | the widget dashboard — drag Widgets from three containers onto one canvas |
-| `/operations`           | an App, with a Widget from another container inside it                    |
-| `/operations/reports/…` | a second App delegated inside the first, reading its own URL              |
-| `/lab`                  | one page per framework feature, each with a control that makes it visible |
+| Page                    | What it shows                                                                |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `/`                     | the widget dashboard — drag five Widgets from two containers onto one canvas |
+| `/operations`           | an App, with a Widget from another container inside it                       |
+| `/operations/reports/…` | a second App delegated inside the first, reading its own URL                 |
+| `/lab`                  | one page per framework feature, each with a control that makes it visible    |
 
 The header's registry button (or ⌘K → "Open the registry") shows every entry
 the shell accepted, every entry it rejected, and why.
@@ -310,20 +310,30 @@ Everything above works on Windows. Two things to know:
 | `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                     |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                                                                                                                                                                                                   |
 | `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules. Development-only.                                                                                                                                                                                   |
+| `@company/create-mfe`         | `pnpm create @company/mfe <directory>`: the App and Widget starters. Writes files and imports no framework package.                                                                                                                             |
 
 The import DAG is enforced mechanically by `pnpm boundaries`, which reads both
 source imports and package manifests, so a forbidden dependency cannot be added
 by editing a manifest alone.
 
 ```
-        mfe-core
-           ^
-           |
-        mfe-host
-        ^      ^
-        |      |
-  mfe-react   mfe-legacy-angular
+              mfe-core
+              ^      ^
+              |      |
+     mfe-rspack     mfe-host
+                    ^      ^
+                    |      |
+              mfe-react   mfe-legacy-angular
+                    ^
+                    |
+              mfe-devtools
 ```
+
+Each arrow is a manifest dependency. `mfe-react`, `mfe-legacy-angular` and
+`mfe-devtools` also name `@company/mfe-core` directly, and `mfe-devtools` also
+names `@company/mfe-host`; only the longest edge is drawn. `@company/create-mfe`
+appears in neither direction: it writes files and depends on no framework
+package, and `@company/eslint-plugin-mfe` is development-only.
 
 ---
 
@@ -338,6 +348,16 @@ by editing a manifest alone.
   dashboard, the registry view, and what consuming the design system costs.
 - [`packages/eslint-plugin-mfe/README.md`](packages/eslint-plugin-mfe/README.md)
   — the presets and the four framework-specific rules.
+
+### Documentation
+
+The author documentation is a site of its own in [`apps/docs`](apps/docs):
+`pnpm docs:dev` serves it on port 3020 and `pnpm docs:build` builds it. It is a
+start-here page, ten guides — declaring, shape, lifecycle, storage, styling,
+config and data, what the shell gives you, what you must not do, the daily
+workflow, shipping and failures — and a glossary, with
+[`docs/design.md`](docs/design.md) as the map of how the pieces fit. The
+diagrams those pages embed are rendered with `pnpm diagrams:render`.
 
 ---
 

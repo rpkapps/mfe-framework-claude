@@ -96,7 +96,7 @@ plugin outside that scope.
 
 For the packages that implement the framework: `@company/mfe-core`,
 `@company/mfe-host`, `@company/mfe-react`, `@company/mfe-legacy-angular`,
-`@company/mfe-rspack`.
+`@company/mfe-rspack`, `@company/mfe-devtools`.
 
 It layers:
 
@@ -128,6 +128,10 @@ It layers:
   | `@company/mfe-host`           | the same, minus itself, plus `@company/mfe-react`                                                                                                        |
   | `@company/mfe-react`          | `single-spa`                                                                                                                                             |
   | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                     |
+  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                  |
+
+  Every zone also inherits `STATE_PATHS` and `TELEMETRY_PATTERNS`, so the
+  restrictions below apply inside each one on top of the row above.
 
 - **State and telemetry boundaries**, across every framework file: `zustand`,
   `redux`, `@reduxjs/toolkit`, `react-redux`, `mobx`, `mobx-react-lite`,
@@ -187,7 +191,7 @@ mfe.author({
   reactFiles: ['src/**/*.{ts,tsx}'],
   widgetScopes: ['src/widgets/**'],
   storageAllowedScopes: [],
-  routerFiles: mfe.DEFAULT_ROUTER_FILES,
+  routerFiles: mfe.DEFAULT_ROUTER_FILES, // the default; omit it, or spread it to add to it
   extraRestrictedPaths: [],
   extraRestrictedPatterns: [],
 })
@@ -322,9 +326,18 @@ symptom is an MFE that flickers and forgets.
 
 ```ts
 import { createWidget } from '@company/mfe-react'
+import { z } from 'zod'
+
+import { Summary } from './summary.tsx'
 
 export function Panel() {
-  return createWidget({ id: 'reports/summary' }) // a new definition per render
+  // A new definition identity on every render.
+  return createWidget({
+    id: 'reports-summary',
+    inputs: z.object({ reportId: z.string() }),
+    events: { opened: z.object({ reportId: z.string() }) },
+    render: Summary,
+  })
 }
 ```
 
@@ -342,27 +355,41 @@ export function useWidget() {
 // The classic: rebuilt inside a memo.
 import { lazyWidget } from '@company/mfe-react'
 export function Panel() {
-  return useMemo(() => lazyWidget(load), [])
+  return useMemo(() => lazyWidget('alert-panel', { contract: { inputs, events } }), [])
 }
 
 // A class field initialiser runs per construction, not per module.
 import { createApp } from '@company/mfe-react'
 export class Holder {
-  app = createApp({ id: 'reports' })
+  app = createApp({ id: 'reports', router: makeRouter })
 }
 ```
 
 **Valid**
 
-```ts
+```tsx
 import { createApp, createWidget, lazyWidget } from '@company/mfe-react'
+import { z } from 'zod'
 
-export const app = createApp({ id: 'reports' })
-export const widget = createWidget({ id: 'reports/summary' })
-export const Chart = lazyWidget(() => import('./chart.ts'))
+import { events, inputs } from '@example/alert-panel/contracts'
+import { makeRouter } from './router.ts'
+import { Summary } from './summary.tsx'
+
+export const app = createApp({ id: 'reports', router: makeRouter })
+
+export const widget = createWidget({
+  id: 'reports-summary',
+  inputs: z.object({ reportId: z.string() }),
+  events: { opened: z.object({ reportId: z.string() }) },
+  render: Summary,
+})
+
+// Consuming one: an id, and the contract its own build published.
+const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
 
 export function Panel() {
-  return render(widget) // reference the definition, do not rebuild it
+  // Reference the definition, do not rebuild it.
+  return <AlertPanel alertId="a-42" />
 }
 ```
 
@@ -426,14 +453,19 @@ const raw = localStorage
 
 ```ts
 import { useMfeStorage, useStoredState } from '@company/mfe-react'
+import { z } from 'zod'
+
+// Module scope: the schema is part of the key's declaration, not a per-render value.
+const prefs = z.object({ density: z.enum(['compact', 'comfortable']) })
+const theme = z.enum(['light', 'dark', 'system'])
 
 export function usePrefs() {
   const storage = useMfeStorage()
-  return storage.getItem('prefs')
+  return storage.key('prefs', prefs).get()
 }
 
 export function useTheme() {
-  return useStoredState('theme', 'system')
+  return useStoredState('theme', theme, { defaultValue: 'system' })
 }
 ```
 
@@ -470,7 +502,9 @@ shell override bootstrap opt out through `allowedScopes`.
 **Suggestion.** A single local replacement of the storage object with the
 project's accessor — `localStorage.getItem('k')` becomes
 `storage.getItem('k')` — offered as a suggestion rather than a fix, because it
-only compiles once the file binds `useMfeStorage()`.
+rewrites the object and nothing else: the file still has to bind
+`const storage = useMfeStorage()` and spell the read the boundary's way,
+`storage.key('k', schema).get()`.
 
 **Options**
 
@@ -521,8 +555,11 @@ document.head.innerHTML = '<title>Reports</title>'
 **Valid**
 
 ```ts
-// The repair the message asks for.
-ctx.emit('navigate', { to: '/reports' })
+// The repair the message asks for: an event this Widget declares, emitted from
+// its render props, which the owning App receives as `onNavigate`.
+export function Panel({ emit }) {
+  return () => emit('navigate', { to: '/reports' })
+}
 
 import { useNavigate } from '@tanstack/react-router'
 export function Panel() {
@@ -547,14 +584,16 @@ reported.
 
 **What the message says.** For history: a Widget does not drive the URL, because
 the host router, the owning App and every sibling MFE learn about the navigation
-only by accident; emit the Widget's declared navigation event
-(`ctx.emit("navigate", { to })`) and let the owning App navigate with its
-boundary router, or the shell with the host `BoundaryNavigator`. For the title: several Widgets can be mounted at
-once, so the last to render would win and the tab title would flicker; publish it
-through the Widget's declared outputs and let the owning App apply it with the
-host document-metadata API. For head metadata: the favicon, `<meta>` and
-`<title>` belong to the shell, and the change would outlive your unmount; emit
-the value and let the host document-metadata API apply and revert it.
+only by accident; declare a navigation event in the Widget's `events` contract
+and call `emit('navigate', { to })` from its render props, and the owning App —
+which receives it as `onNavigate` — navigates with its boundary router, or the
+shell with the host `BoundaryNavigator`. For the title: several Widgets can be
+mounted at once, so the last to render would win and the tab title would
+flicker; declare a title event and call `emit('title', { text })`, and the
+owning App sets what it owns. For head metadata: the favicon, `<meta>` and
+`<title>` belong to the shell, and the change would outlive your unmount;
+declare an event for the value and `emit` it, and the App that applies it is
+also the one that reverts it.
 
 **Options**
 

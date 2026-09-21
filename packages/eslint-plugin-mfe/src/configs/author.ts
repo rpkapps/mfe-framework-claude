@@ -31,7 +31,11 @@ import {
   restrictedImports,
 } from './restricted-imports.ts'
 
-const DEFAULT_ROUTER_FILES: readonly string[] = [
+/**
+ * Where TanStack Router's own rules run when `routerFiles` is not set. Exported because a
+ * repository that widens the list usually means to add to these rather than replace them.
+ */
+export const DEFAULT_ROUTER_FILES: readonly string[] = [
   '**/routes/**/*.{ts,tsx}',
   '**/*.route.{ts,tsx}',
   '**/*.routes.{ts,tsx}',
