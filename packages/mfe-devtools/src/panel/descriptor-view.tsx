@@ -1,21 +1,7 @@
 /**
- * A published descriptor, rendered as fields.
- *
- * This one is deliberately not built from `Item`. A descriptor is read two
- * levels down — inside a disclosure, inside a rejected entry's alert — to find
- * the single field that is wrong, and `Item` is a row component: it brings a
- * media slot, a filled block and 37px of height per pair, which turns six
- * fields into a scroll. What is wanted here is a dense readout, and the
- * design system has no component for one: `Table` is TanStack Table in this
- * workspace, which is a data grid with sorting and pagination.
- *
- * So it is a two-column grid, and the shell reached the same conclusion for the
- * same reason — `apps/shell/src/shell/readout.tsx` is hand-built for exactly
- * this shape. Only the colours come from the system.
- *
- * Showing raw JSON is the tempting shortcut and it is the wrong answer even
- * here: the one wrong field is what somebody is looking for, and
- * `JSON.stringify(…, null, 2)` buries it in punctuation.
+ * A published descriptor as a dense readout, hand-built because `Item` spends 37px of height per
+ * pair and this workspace's `Table` is a data grid. Raw JSON is the tempting shortcut and buries
+ * the one wrong field in punctuation.
  */
 
 import { Fragment, type ReactNode } from 'react'

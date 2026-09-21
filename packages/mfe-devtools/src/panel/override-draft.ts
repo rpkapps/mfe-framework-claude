@@ -1,30 +1,18 @@
 /**
- * Turning what a developer typed into an override the boot reader will accept.
- *
- * The validation here deliberately restates the reader's rule rather than
- * importing a shared predicate: the reader diagnoses a bad value *after* a
- * reload, which is exactly the round trip this panel exists to remove. Saying
- * the same thing twice is the price of saying it before the write.
+ * Turning what a developer typed into an override the boot reader will accept, restating the
+ * reader's rule rather than importing it: the reader diagnoses a bad value only after a reload,
+ * which is the round trip this panel exists to remove.
  */
 
 /** What a container's dev server serves its manifest as. */
 const MANIFEST_FILE = 'mf-manifest.json'
 
-/**
- * The manifest URL for a dev server the developer named by origin. Accepts
- * `localhost:3001`, `http://localhost:3001` and a full manifest URL, because
- * all three are things somebody reasonably pastes.
- */
+/** Accepts `localhost:3001`, `http://localhost:3001` and a full manifest URL, because all three get pasted. */
 export function manifestUrlFor(input: string): string | undefined {
   const trimmed = input.trim()
   if (trimmed === '') return undefined
 
-  /*
-   * A bare port is the common case — `pnpm dev` prints ports, not origins — and
-   * it cannot be handed straight to `new URL`: `http://3001` parses, with 3001
-   * read as a 32-bit host number, and resolves to http://0.0.11.185. A number
-   * on its own means a port on this machine.
-   */
+  // `http://3001` parses, with 3001 read as a 32-bit host number, and resolves to http://0.0.11.185.
   const withHost = /^\d+$/.test(trimmed) ? `localhost:${trimmed}` : trimmed
   const withProtocol = /^https?:\/\//i.test(withHost) ? withHost : `http://${withHost}`
 
@@ -36,9 +24,7 @@ export function manifestUrlFor(input: string): string | undefined {
   }
 
   if (!url.protocol.startsWith('http')) return undefined
-  // A path that already names a file is taken as given; a bare origin gets the
-  // manifest appended. `new URL` against a directory is what keeps a base path
-  // like /operations/ from being thrown away.
+  // `new URL` against a directory is what keeps a base path like /operations/ from being thrown away.
   if (url.pathname.endsWith('.json')) return url.href
 
   const base = url.pathname.endsWith('/') ? url : new URL(`${url.pathname}/`, url)
@@ -50,10 +36,7 @@ export interface DraftProblem {
   readonly message: string
 }
 
-/**
- * Every reason the boot reader would reject this draft, found before it is
- * written. An empty list means a reload will apply exactly what is shown.
- */
+/** Every reason the boot reader would reject this draft, found before it is written. */
 export function validateDraft(draft: ReadonlyMap<string, string | null>): readonly DraftProblem[] {
   const problems: DraftProblem[] = []
 
@@ -83,11 +66,7 @@ function isAbsoluteHttpUrl(value: string): boolean {
   }
 }
 
-/**
- * The containers whose definitions were pointed at different URLs. One
- * container is registered once, under one name, so these cannot both apply —
- * whichever registered first wins and the other silently does nothing.
- */
+/** One container is registered once, under one name, so two URLs for it cannot both apply. */
 export function conflictingContainers(
   resolved: ReadonlyMap<string, string>,
   containerOf: (id: string) => string | undefined,

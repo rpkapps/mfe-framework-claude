@@ -1,13 +1,7 @@
 /**
- * The trigger and the docked panel — everything in the lazy chunk.
- *
- * The trigger sits bottom-left. Bottom-right belongs to the shell's toaster,
- * and a developer tool that covers the notification telling you what just
- * failed is worse than no developer tool.
- *
- * The body only exists while the panel is open: closing unmounts it rather than
- * hiding it, so nothing subscribes and nothing is retained. Nothing here polls,
- * buffers events or keeps a history.
+ * The trigger and the docked panel — everything in the lazy chunk. The trigger sits bottom-left
+ * because bottom-right belongs to the shell's toaster, and closing unmounts the body rather than
+ * hiding it, so nothing subscribes and nothing is retained.
  */
 
 import { useCallback, useRef, useSyncExternalStore, type PointerEvent, type ReactNode } from 'react'
@@ -58,14 +52,7 @@ const SIDE_LABEL: Readonly<Record<DevtoolsSide, string>> = {
   left: 'Dock to the left',
 }
 
-/**
- * A rule on the one edge that faces the page.
- *
- * `flat` has no border of its own, and a shadow alone left the panel and the
- * app sharing an edge with nothing on it — on a light theme especially, the
- * two surfaces simply ran together. Only the docked edge gets one: the other
- * three are against the viewport.
- */
+/** `flat` has no border of its own, and a shadow alone let the panel and the app run together. */
 const EDGE_BORDER: Readonly<Record<DevtoolsSide, string>> = {
   top: 'border-b',
   right: 'border-l',
@@ -77,12 +64,7 @@ export function DevtoolsPanel(): ReactNode {
   const state = useSyncExternalStore(devtools.subscribe, devtools.getSnapshot, devtools.getSnapshot)
   const active = useActiveOverrides()
 
-  /*
-   * The trigger is the way in, not a toggle that stays put: a panel docked
-   * bottom or left covers the corner it sits in, so leaving it rendered meant a
-   * button underneath the panel that could be neither seen nor pressed. The
-   * header's close button is the way out.
-   */
+  // A panel docked bottom or left covers the corner, so a trigger left rendered could not be pressed.
   return state.open ? (
     <DevtoolsDock side={state.side} size={state.size} tab={state.tab} />
   ) : (
@@ -90,12 +72,7 @@ export function DevtoolsPanel(): ReactNode {
   )
 }
 
-/**
- * The round button. It reports an active override with a dot rather than a
- * count: the number is in the panel and on the shell's own notice strip, and a
- * badge that has to be read is a worse affordance than a mark that has to be
- * noticed.
- */
+/** A dot rather than a count: the number is in the panel, and a badge has to be read where a mark is noticed. */
 function DevtoolsTrigger({ hasOverrides }: { readonly hasOverrides: boolean }): ReactNode {
   return (
     <Button
@@ -120,11 +97,7 @@ function DevtoolsTrigger({ hasOverrides }: { readonly hasOverrides: boolean }): 
   )
 }
 
-/**
- * Below `sm` the dock is the whole viewport whatever side is chosen: a 28rem
- * drawer on a 375px screen leaves no room for the thing it contains, and the
- * side is a desktop preference rather than a phone one.
- */
+/** Below `sm` the dock is the whole viewport whatever side is chosen, because the side is a desktop preference. */
 function DevtoolsDock({
   side,
   size,
@@ -149,12 +122,7 @@ function DevtoolsDock({
       >
         <ResizeHandle side={side} />
 
-        {/*
-         * The tabs wrap the whole panel so their list can sit in the header,
-         * beside the title, where a panel this short cannot afford to spend a
-         * row on navigation. `Tabs` only requires that the list and the panes
-         * share an ancestor; it does not require them to be siblings.
-         */}
+        {/* Wrapped so the list can sit in the header: `Tabs` needs an ancestor in common, not siblings. */}
         <Tabs
           selectedKey={tab}
           onSelectionChange={key => {
@@ -165,24 +133,14 @@ function DevtoolsDock({
           <PanelHeader className="gap-2 border-b border-border-subtle">
             <PanelTitle className="flex items-center gap-2 text-sm">
               <WrenchIcon aria-hidden className="size-4 text-muted-foreground" />
-              {/* The name goes before the controls do: a narrow dock needs the
-                tabs and the close button more than it needs the label. */}
+              {/* A narrow dock needs the tabs and the close button more than it needs the label. */}
               <span className="@max-md:hidden">MFE devtools</span>
             </PanelTitle>
 
             {/*
-             * The height is set through the same variant the component sets it
-             * with. `TabsList` carries `group-data-horizontal/tabs:h-11`, which
-             * out-specifies a plain `h-7` and left the header 16px taller than
-             * the controls in it.
-             *
-             * Below 32rem of panel the labels go `sr-only` and the icons carry
-             * the tabs. A 420px side dock — the default for left and right —
-             * cannot hold a 198px tab strip, a dock control and a close button
-             * at once, and the alternative is the dock control collapsing into
-             * a menu on exactly the docks where moving the panel is what you
-             * came to do. `sr-only` rather than `hidden`, so the tabs keep
-             * their names.
+             * `TabsList` carries `group-data-horizontal/tabs:h-11`, which out-specifies a plain
+             * `h-7`. The labels go `sr-only` on a narrow dock, which cannot hold a 198px tab strip,
+             * a dock control and a close button at once.
              */}
             <TabsList
               variant="default"
@@ -200,20 +158,9 @@ function DevtoolsDock({
             </TabsList>
 
             {/*
-             * A real toolbar, and used for the thing it is for.
-             *
-             * The dock control is an `OverflowItem` carrying its own menu form,
-             * so a narrow dock moves it into the "more" menu and the header
-             * stays one row. Registering it is what makes that possible: the
-             * store writes the row's minimum size as an inline `min-inline-size`
-             * from its *fixed* children, so a toolbar of nothing but fixed
-             * children cannot shrink — it reported 188px into a 167px slot and
-             * wrapped the close button onto a second line, which is the one
-             * outcome an overflow row exists to avoid.
-             *
-             * The close button stays unwrapped, which is how this component
-             * spells "never leaves the row", and the menu is placed by hand so
-             * it sits before the close rather than after it.
+             * Registering the dock control is what lets a narrow header move it into the menu: the
+             * row's minimum size is measured from its *fixed* children, so a toolbar of nothing but
+             * fixed children reported 188px into a 167px slot and wrapped the close button.
              */}
             <PanelActions>
               <Toolbar aria-label="Developer tools panel" menu={false}>
@@ -289,11 +236,7 @@ function DevtoolsDock({
           </PanelHeader>
 
           <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
-            {/*
-             * The panes do not scroll; each tab does, so a tab with a pinned
-             * footer can keep it out of the scrolling region instead of floating
-             * it over the rows with a translucent background.
-             */}
+            {/* The panes do not scroll; each tab does, so a pinned footer stays out of the scrolling region. */}
             <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
               <OverridesTab />
             </TabsContent>
@@ -308,13 +251,8 @@ function DevtoolsDock({
 }
 
 /**
- * Drag to resize.
- *
- * Pointer capture rather than window listeners: the element that started the
- * drag keeps receiving the moves once the pointer leaves it, so there is
- * nothing to register on `window` and nothing to forget to remove. A tool that
- * leaked a `pointermove` listener per drag would be an odd thing to ship in a
- * package whose job is making a page easier to reason about.
+ * Pointer capture rather than window listeners: the element that started the drag keeps receiving
+ * the moves, so there is nothing to register on `window` and nothing to forget to remove.
  */
 function ResizeHandle({ side }: { readonly side: DevtoolsSide }): ReactNode {
   const dragging = useRef(false)

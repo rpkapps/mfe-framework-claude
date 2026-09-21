@@ -1,26 +1,7 @@
 /**
- * What the runtime believes about the registry, in one place.
- *
- * The registry is the whole model of the page: which surfaces exist, where they
- * load from, what they take. When something is missing from an app finder or a
- * Widget is absent from a catalogue, the answer is always here — either the
- * entry was never registered, or it was rejected and the rejection says exactly
- * why.
- *
- * Quarantine is the reason this view exists. A registry is assembled from
- * descriptors produced by builds the host does not control, so one of them
- * being wrong is a normal Tuesday rather than an exceptional event. The
- * framework validates every entry independently and rejects the bad ones one at
- * a time, so a container built against the wrong contract major costs the page
- * that one surface. That guarantee is only worth anything if a developer can
- * find out which entry was rejected and what to do about it, which is what the
- * rejected tab is for — the diagnostics below are the framework's own error
- * records, not a message this file wrote.
- *
- * A loaded entry is drawn as the same row as the overrides tab draws it: the id
- * in mono on the left, the origin on the right, the rest underneath. The two
- * tabs are two views of one list, and printing the id and the URL two different
- * ways was most of what made the second one feel like a different tool.
+ * What the runtime believes about the registry. Quarantine is why the view exists: the framework
+ * rejects bad entries one at a time, and that only helps if a developer can find out which entry
+ * was rejected and why.
  */
 
 import { Fragment, type ReactNode } from 'react'
@@ -53,15 +34,8 @@ import { OriginText } from './origin-text.tsx'
 import { useRegistryEntries } from './use-devtools.ts'
 
 /**
- * Columns rather than rows stretched to the panel — the same grid the overrides
- * list uses, at a wider track because these rows carry a contract under them.
- * See the note beside `ROW_GRID` there for why a docked panel has to do this.
- *
- * `auto-rows-fr` is what makes every card the same height. In a grid whose own
- * height is auto there is no free space to divide, so each `1fr` row resolves
- * to the tallest row's content and every card matches it — an entry with no
- * contract lines up with one that has two, without a hard-coded height that
- * would clip whichever entry turned out to have three.
+ * The overrides list's grid at a wider track, because these rows carry a contract under them.
+ * `auto-rows-fr` is what makes every card match the tallest, without a height that would clip one.
  */
 const ENTRY_GRID = 'grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))]'
 
@@ -77,11 +51,7 @@ export function RegistryTab(): ReactNode {
       defaultSelectedKey={quarantined.length > 0 ? 'rejected' : 'loaded'}
       className="flex min-h-0 flex-col gap-2.5"
     >
-      {/*
-       * An underline bar, not another segmented one. The panel's own tabs are
-       * segmented and live up in the header now, so these read as a filter
-       * inside the view rather than as a second copy of the same control.
-       */}
+      {/* An underline bar, so these read as a filter rather than a second copy of the panel's own tabs. */}
       <TabsList variant="line" aria-label="Registry entries" className="h-8 w-fit">
         <TabsTrigger id="loaded">
           <CircleCheckIcon /> Loaded
@@ -141,22 +111,13 @@ export function RegistryTab(): ReactNode {
                 <TriangleAlertIcon />
                 <AlertTitle className="font-mono">{entry.id}</AlertTitle>
                 <AlertDescription className="flex flex-col gap-1.5">
-                  {/*
-                   * The framework's own diagnostic: what was expected, what
-                   * arrived and the repair. Printed whole rather than
-                   * summarised, because the repair line is the actionable part.
-                   */}
+                  {/* The framework's own diagnostic, printed whole because the repair line is the actionable part. */}
                   <p className="whitespace-pre-wrap">{entry.error.message}</p>
                   <details className="text-[11px]">
                     <summary className="cursor-pointer text-muted-foreground">
                       The descriptor as published
                     </summary>
-                    {/*
-                     * Neutral text, inside a destructive alert. The descriptor
-                     * is data, and rendering every field in the alert's red
-                     * makes the one field that is actually wrong no easier to
-                     * find than the six that are fine.
-                     */}
+                    {/* Neutral text inside a destructive alert: red on every field hides the one that is wrong. */}
                     <div className="mt-1.5 rounded-md bg-background/60 p-2 text-foreground">
                       <DescriptorView source={entry.source} />
                     </div>
@@ -172,13 +133,8 @@ export function RegistryTab(): ReactNode {
 }
 
 /**
- * One accepted entry: identity on the first line, the human title on the
- * second, and the contract underneath as labelled pairs.
- *
- * Only `overridden` is a badge. A badge is a claim that something is unusual,
- * and when the version, every capability, every input and every event were all
- * badges too, the one row that had actually been re-pointed at a dev server
- * looked exactly like the seven that had not.
+ * Only `overridden` is a badge: with the version, the capabilities, the inputs and the events all
+ * badges too, the one row that had been re-pointed looked exactly like the seven that had not.
  */
 function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): ReactNode {
   const Icon = entry.definitionKind === 'app' ? AppWindowIcon : BoxIcon
@@ -207,11 +163,7 @@ function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): Rea
             </Badge>
           ) : null}
 
-          {/*
-           * The origin sits where the overrides tab puts it — hard right, so
-           * the ports line up down the column and a row that points somewhere
-           * unexpected is found by scanning rather than by reading.
-           */}
+          {/* Hard right, where the overrides tab puts it, so the ports line up down the column. */}
           <span
             title={entry.manifestUrl}
             className="ml-auto shrink-0 font-mono text-xs font-normal text-muted-foreground"

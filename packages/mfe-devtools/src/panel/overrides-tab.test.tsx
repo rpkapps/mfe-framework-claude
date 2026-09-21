@@ -1,19 +1,7 @@
 /**
- * The one interaction in this package that is easy to get subtly wrong.
- *
- * A row is text until it is pressed, and a box after — and the box has a
- * button in it. Focus therefore leaves the input on the way to a control that
- * belongs to the same edit, and the rule "blur ends the edit" cannot be read
- * off the input alone. Both halves have been wrong here: a guard on the input
- * ended the edit before the button's press landed, and then a guard that
- * ignored the button never ended the edit at all.
- *
- * None of that is visible in a screenshot of the resting state, and a browser
- * can only be driven when its window is in front, so it is asserted here.
- *
- * The registry comes from `use-devtools.ts`, which is three hooks over the
- * runtime. Standing a runtime up would be testing the runtime; the doubles
- * below are the two entries this file's rules are about.
+ * A row is text until it is pressed and a box after, and the box has a button in it, so "blur ends
+ * the edit" cannot be read off the input alone. The registry is doubled because standing a runtime
+ * up would be testing the runtime.
  */
 
 import { render, screen, within } from '@testing-library/react'
@@ -121,8 +109,6 @@ describe('editing a row', () => {
     await user.tab()
     await user.tab()
 
-    // Closing the box would hide the thing that has to be fixed, and the row
-    // would read as pointing at a URL it cannot point at.
     expect(urlBox('operations')).not.toBeNull()
     expect(screen.getByText(/absolute URL/)).toBeTruthy()
   })

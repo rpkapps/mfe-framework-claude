@@ -1,20 +1,9 @@
-/**
- * Where a docked panel sits, and which way its resize handle drags.
- *
- * Geometry only, so the panel's layout is testable without a DOM and the
- * component above it stays a component.
- */
+/** Geometry only, so the panel's layout is testable without a DOM. */
 
 import type { CSSProperties } from 'react'
 import type { DevtoolsSide } from '../devtools-settings.ts'
 
-/**
- * The order the dock control offers them in, which is the order they sit in on
- * screen read left to right: the two vertical docks on the outside, the two
- * horizontal ones between. Offering them clockwise from the top made the
- * buttons a list of four positions rather than a picture of where the panel
- * goes.
- */
+/** In the order they sit on screen, so the dock control reads as a picture rather than a list of four positions. */
 export const SIDES: readonly DevtoolsSide[] = ['left', 'top', 'bottom', 'right']
 
 /** True when the side is resized by height rather than width. */
@@ -22,11 +11,7 @@ export function isHorizontal(side: DevtoolsSide): boolean {
   return side === 'top' || side === 'bottom'
 }
 
-/**
- * The panel's own box. Fixed to one edge and sized on the one axis that
- * matters; the cross axis is always the full viewport, which is what makes a
- * docked panel read as docked rather than as a floating window.
- */
+/** The cross axis is always the full viewport, which is what makes a docked panel read as docked. */
 export function dockStyle(side: DevtoolsSide, size: number): CSSProperties {
   const extent = `${String(size)}px`
 
@@ -42,10 +27,7 @@ export function dockStyle(side: DevtoolsSide, size: number): CSSProperties {
   }
 }
 
-/**
- * The size a drag to `position` implies, in px from the panel's own edge.
- * `viewport` is the full extent on that axis.
- */
+/** The size a drag to `position` implies, in px from the panel's own edge; `viewport` is that axis in full. */
 export function sizeFromPointer(side: DevtoolsSide, position: number, viewport: number): number {
   switch (side) {
     case 'top':

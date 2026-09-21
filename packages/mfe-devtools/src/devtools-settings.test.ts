@@ -1,10 +1,7 @@
 /**
- * The flag, which is the only thing a page that never opts in pays for.
- *
- * Most of these are about a failure being survivable. A developer tool that
- * took the page down because a browser refused its storage, or because somebody
- * left a half-typed value in a key, would be a worse bug than the one it exists
- * to help find.
+ * The flag, which is the only thing a page that never opts in pays for. Most of these are about a
+ * failure being survivable: a tool that took the page down over a refused storage would be the
+ * worse bug.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
