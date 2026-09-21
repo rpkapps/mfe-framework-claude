@@ -1,0 +1,115 @@
+---
+title: 'Add a route'
+description: 'Add a page to your App as a file in src/routes, with a path written relative to your own boundary.'
+---
+
+Apps only. A route is one file in `src/routes`. Write its path as if your App owned the whole
+address bar, and the shell's prefix is added for you.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Create the route file
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+
+export const Route = createFileRoute('/assets')({
+  staticData: { breadcrumb: 'Assets' },
+  component: Assets,
+})
+
+function Assets(): ReactNode {
+  return <h2>Assets</h2>
+}
+```
+
+Write `/assets`, never `/operations/assets`. The file name decides the path, and `pnpm dev`
+rewrites `src/routeTree.gen.ts` as you add files.
+
+</Step>
+
+<Step>
+
+### 2. Load its data
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+export const Route = createFileRoute('/assets')({
+  validateSearch: z.object({ site: z.enum(['north', 'south', 'central']).default('north') }),
+  loaderDeps: ({ search }) => ({ site: search.site }),
+  loader: ({ context, deps }) => {
+    context.mfe.telemetry.debug('Loading assets', { site: deps.site })
+    return context.queryClient.ensureQueryData(assetsQueryOptions(deps.site))
+  },
+  component: Assets,
+})
+```
+
+`context.mfe` holds the user, the groups, the theme, telemetry, storage and the mount's abort
+signal. `context.queryClient` is the mount's own Query client.
+
+</Step>
+
+<Step>
+
+### 3. Link to it
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+const NAV = [
+  { to: '/', label: 'Overview', icon: LayoutGridIcon },
+  { to: '/assets', label: 'Assets', icon: BoxesIcon },
+  { to: '/wells', label: 'Wells', icon: DrillIcon },
+]
+```
+
+`Link` and `navigate` resolve under your boundary, so the same code works wherever the shell
+mounts you. Use `/wells/$wellId` for per-item pages.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open `http://localhost:3000/operations/assets`. The page renders below the
+shell's header, and the header trail ends with your `breadcrumb` label. Your nav link marks itself
+active, because it resolved under the same prefix the URL has.
+
+## Errors
+
+<Callout type="error" title="expected a routes directory">
+
+```text
+/home/you/orders/src/routes: 'orders' failed to generate the route tree: expected a routes
+directory, found no such directory.
+```
+
+**Fix.** Create `src/routes` with a `__root` route and an index route. A container with no routes
+exports Widgets rather than an App.
+
+</Callout>
+
+<Callout type="error" title="expected the reserved key forwarded unchanged">
+
+```text
+operations failed to merge route context for /assets: expected the reserved key "mfe" to be
+forwarded unchanged, received route /assets returned its own "mfe".
+```
+
+**Fix.** Rename the key you return from `beforeLoad`. The names `mfe` and `queryClient` belong to
+the framework.
+
+</Callout>
+
+## Related
+
+- [Create an App](/docs/create-an-app) — the entry file above these routes.
+- [Set breadcrumbs](/docs/set-breadcrumbs) — what each route contributes to the trail.
+- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — the client the loader uses.
+- [Embed another App inside yours](/docs/embed-another-app) — a route that hands over to another
+  App.
+- [Test an App](/docs/test-an-app) — how to render a route in a test.

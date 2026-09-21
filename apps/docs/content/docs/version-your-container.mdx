@@ -1,0 +1,117 @@
+---
+title: 'Version your container and its contract'
+description: 'The three versions a container carries, and which changes break the people who render you.'
+---
+
+Three versions travel with a container, and only one of them decides whether the shell loads you at
+all. Apps and Widgets carry the same three.
+
+## Steps
+
+| Version            | Where you set it                                      | What it does                                      |
+| ------------------ | ----------------------------------------------------- | ------------------------------------------------- |
+| definition version | `version` on `createApp` or `createWidget`            | names your build in every message and every entry |
+| package version    | `"version"` in the container's `package.json`         | your own release record. No entry carries it      |
+| contract major     | the framework release your container is built against | decides whether the shell accepts the entry       |
+
+<Steps>
+
+<Step>
+### 1. Write the definition version inline
+
+```ts title="examples/operations/src/mfe.ts (trimmed)"
+export default createApp({
+  id: 'operations',
+  version: '2.1.0',
+  router: makeRouter,
+})
+```
+
+It has to be a plain string literal, and every message about this App then names it as
+`operations@2.1.0`.
+
+</Step>
+
+<Step>
+### 2. Move the package version with it
+
+```json title="examples/operations/package.json (trimmed)"
+{
+  "name": "@example/operations",
+  "version": "2.1.0"
+}
+```
+
+The registry entry carries the definition version alone, and nothing checks that these two agree.
+
+</Step>
+
+<Step>
+### 3. Leave the contract major to the framework
+
+```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
+{ "contractMajor": 1 }
+```
+
+The build writes this number, and a shell accepts your entry only when it matches the shell's own
+major.
+
+</Step>
+
+<Step>
+### 4. Decide whether a change breaks your consumers
+
+| Change to a Widget contract | What a consumer gets                                             |
+| --------------------------- | ---------------------------------------------------------------- |
+| a new optional input        | nothing. Its inputs still pass                                   |
+| a new event                 | nothing, until it handles the new name                           |
+| an event removed or renamed | its `onX` handler is dropped, and never runs again               |
+| a new required input        | its first render fails, and its `fallback` renders instead       |
+| a tighter input schema      | the same failure, for whoever passes the old value               |
+| a new definition id         | a different definition. Its stored records stay under the old id |
+
+Ship any of the four breaking rows under a new name: a new event, a new input, or a new id.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open the developer tools' **Registry** tab. Each loaded entry prints its id with the version you
+declared. Make one of your screens fail on purpose, and the message names the same
+`<id>@<version>` pair.
+
+## Errors
+
+<Callout type="error" title="failed to read the definition version">
+
+```text
+src/mfe.ts:44:3: 'operations' failed to read the definition version: expected a plain string
+literal, found pkg.version.
+```
+
+**Fix.** Write the version inline, as `version: '2.1.0'`. The build reads it without running your
+code, so a computed version cannot be read at all.
+
+</Callout>
+
+<Callout type="error" title="contract/unsupported-major">
+
+```text
+legacy-reports failed to gate the advertised framework contract major: expected contract major 1,
+received contract major 2.
+```
+
+**Fix.** Rebuild the container against the framework major the shell runs, or wait for the shell to
+upgrade. Nothing you write sets this number.
+
+</Callout>
+
+## Related
+
+- [Build and publish a container](/docs/build-and-publish) — where these versions are written.
+- [Define inputs and events](/docs/define-inputs-and-events) — the contract a consumer compiles against.
+- [Undeploy or roll back](/docs/undeploy-or-roll-back) — going back to the version before.
+- [Registry entry](/docs/reference/registry-entry) — the fields an entry carries.
+- [Error codes](/docs/reference/error-codes) — every code, with its fix.

@@ -1,0 +1,121 @@
+---
+title: 'Supply values per deployment'
+description: 'Publish runtime-config.json beside your container assets, one file per environment.'
+---
+
+`runtime-config.json` belongs to the deployment, not to the build, so one build serves every
+environment. Whatever publishes your assets writes this file beside them, and your container reads
+it at load time.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Write the file for local development
+
+```json title="examples/operations/public/runtime-config.json"
+{
+  "apiBaseUrl": "http://localhost:3010/api/",
+  "telemetryEnabled": false
+}
+```
+
+A flat object of values: no metadata, no comments and no trailing commas.
+
+</Step>
+
+<Step>
+
+### 2. Hand the deployment the names
+
+```bash title="examples/operations/.mfe/.env.example (generated, trimmed)"
+# apiBaseUrl: a string in uri form
+# Declares an API origin: its origin joins this container's authentication allowlist.
+# Required.
+API_BASE_URL=
+
+# telemetryEnabled: true or false
+# Optional. Defaults to true.
+TELEMETRY_ENABLED=
+```
+
+The build writes this file from your declarations, with every name and expectation, and never a
+value.
+
+</Step>
+
+<Step>
+
+### 3. Validate the file before release
+
+```json title="examples/operations/.mfe/runtime-config.schema.json (generated, trimmed)"
+{
+  "type": "object",
+  "properties": {
+    "apiBaseUrl": { "type": "string", "format": "uri" }
+  },
+  "required": ["apiBaseUrl"],
+  "additionalProperties": false
+}
+```
+
+Validate the deployment's file against this schema before release, because it lists every required
+field and rejects a key you did not declare.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Start your container's dev server and open `http://localhost:3001/runtime-config.json`. It answers
+with the values your App will read. A container scaffolded as a Widget has no `public/` directory,
+so create one the first time you add configuration. The values are a snapshot, so changing one
+takes a new deployment and a page reload.
+
+## Errors
+
+<Callout type="error" title="config/missing">
+
+```text
+operations failed to load its runtime configuration: expected a file at
+http://localhost:3001/runtime-config.json, received 404 Not Found.
+```
+
+**Fix.** Publish the file next to the container's assets. In development, add
+`public/runtime-config.json` and restart the dev server.
+
+</Callout>
+
+<Callout type="error" title="config/unreachable">
+
+```text
+operations failed to load its runtime configuration: expected a 200 response from
+http://localhost:3001/runtime-config.json, received 503 Service Unavailable.
+```
+
+**Fix.** Check how the deployment serves the file. A container cannot start without its
+configuration, and nothing retries in the background.
+
+</Callout>
+
+<Callout type="error" title="config/invalid">
+
+```text
+operations failed to read its runtime configuration: expected a JSON object of configuration
+values, received a body that is not JSON.
+```
+
+**Fix.** Check what the deployment wrote. A server that answers an error page with status 200
+lands here.
+
+</Callout>
+
+## Related
+
+- [Declare an environment variable](/docs/declare-an-env-variable) — what the file has to carry.
+- [Read an environment variable](/docs/read-an-env-variable) — using the values in your code.
+- [Build and publish a container](/docs/build-and-publish) — the rest of what you ship.
+- [Deploy to production](/docs/deploy-to-production) — writing this file from your pipeline.

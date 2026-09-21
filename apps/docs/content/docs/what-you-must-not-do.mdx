@@ -1,5 +1,5 @@
 ---
-title: '5. What you must not do'
+title: 'What you must not do'
 description: 'The rules that keep one container from breaking the page it shares, what catches each one, and the fix.'
 ---
 
@@ -47,19 +47,13 @@ twice.
 
 ## Use the history and base path the shell gives you
 
-```ts title="src/mfe.ts"
-import { createApp, type AppRouterOptions } from '@company/mfe-react'
-import { createRouter } from '@tanstack/react-router'
-
-import { routeTree } from './routeTree.gen'
-
+```ts title="examples/lab/src/mfe.ts (trimmed)"
 function makeRouter({ basePath, history, context }: AppRouterOptions) {
   return createRouter({
     routeTree,
     basepath: basePath,
     history,
     context: { ...context },
-    defaultPreload: 'intent',
   })
 }
 
@@ -67,11 +61,8 @@ export default createApp({ id: 'lab', version: '1.0.0', router: makeRouter })
 ```
 
 One address bar and one history stack serve the whole page, and the shell owns both. Your factory
-runs once per mount. It receives the boundary, its history, the `mfe` namespace and the Query
-client, and you forward all four.
-
-Never call `createBrowserHistory()`. It reassigns `window.history.pushState`, so two routers on one
-page start correcting each other's URL.
+receives the boundary, its history, the `mfe` namespace and the Query client, and you forward all
+four. Never call `createBrowserHistory()`, which patches the history every container shares.
 
 <Callout type="error" title="mfe/no-global-patching">
 
@@ -85,28 +76,11 @@ own router, which already resolve under your base path.
 
 </Callout>
 
-<Details summary="Full message">
-
-```text
-Patching `window.history.pushState` hijacks navigation for the whole page, so the host router and
-the other MFEs learn about a navigation only by accident. Navigate through the framework instead:
-`navigate` or `Link` from your App's boundary router, which already resolve under the MFE base
-path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
-```
-
-</Details>
-
-The rule also reports a write to `globalThis.fetch` or `window.history`, and a patched
-`addEventListener` or `removeEventListener` on `window`, `document` or `globalThis`. Reading a
-global is not patching, and neither is calling one. No rule covers `window.location`, and a write
-there reloads the page for every other container.
-
 <Callout type="error" title="app/invalid-base-path">
 
 ```text
 operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
-unchanged as createRouter({ basepath }), received "/orders". Forward the basePath your factory
-received: createRouter({ basepath: basePath, … }).
+unchanged as createRouter({ basepath }), received "/orders".
 ```
 
 **Fix.** Pass the `basePath` argument straight into `createRouter({ basepath })`.
@@ -121,20 +95,17 @@ Three more checks run at mount, and each one fails as `app/invalid-router`.
 | `context.mfe`                     | `the supplied context.mfe namespace, spread into the router context unchanged` | Spread the supplied context, and add your own top-level keys to it. |
 | `context.queryClient`             | `the supplied top-level queryClient, forwarded unchanged`                      | Spread the supplied context instead of building your own client.    |
 
-`mfe` and `queryClient` are the [reserved context keys](/docs/glossary), and your own top-level keys
-survive every framework context update. A child route that returns its own `mfe` from `beforeLoad`
-is reported in development, with the repair `Rename the key you return from beforeLoad in
-/orders/$id.`
+`mfe` and `queryClient` are the [reserved context keys](/docs/reference/glossary), and your own
+top-level keys survive every framework context update.
 
 Write your routes relative to your boundary. Use `/settings`, never `/operations/settings`, because
-`basepath` resolves your routes under whatever boundary the shell assigned. Nothing checks this. The
-shell owns `/`, `/$appId` and `/$appId/$`, and nothing else.
+`basepath` resolves your routes under whatever boundary the shell assigned. Nothing checks this.
 
 ## A Widget does not change the URL, the tab title or the document head
 
 Declare an event in your Widget's `events` contract and `emit` it from the render props. The owning
 App receives it as `onNavigate`, `onTitle` or another `onX` prop, and acts on it
-([2. Declaring it](/docs/guides/declaring#declare-a-widget)).
+([ask the owning App to navigate](/docs/ask-the-app-to-navigate)).
 
 Several Widgets can be on screen at once. The last one to render would take the URL and the title,
 and the tab title would flicker.
@@ -151,48 +122,20 @@ shell with the host `BoundaryNavigator`.
 
 </Callout>
 
-<Details summary="Full message, and the two for the title and the head">
-
-```text
-A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host router,
-the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in
-this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the
-owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with
-the host `BoundaryNavigator`.
-
-`document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
-would win and the tab title would flicker. Declare a title event in this Widget's `events` contract
-and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle`
-and sets what it owns.
-
-Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches
-for `document.head` changes the page for every other MFE and leaves the change behind on unmount.
-Declare an event for the value in this Widget's `events` contract and `emit` it from the render
-props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also
-what reverts it.
-```
-
-</Details>
-
-The rule covers `history.pushState`, `replaceState`, `back`, `forward` and `go`. It also covers
-assignment to `document.title` and changes to `document.head`. Reading is not changing, so
-`const current = document.title` is fine.
-
-The rule stays off until your repository declares `widgetScopes`. This one declares
-`examples/alert-panel/src/**` and `examples/insights/src/**`. Declare the globs that hold your own
-Widget code, or the rule never runs on it.
+The rule covers `history.pushState`, `replaceState`, `back`, `forward` and `go`, plus writes to
+`document.title` and `document.head`. Reading is not changing. The rule stays off until your
+repository declares `widgetScopes`, so name the globs that hold your own Widget code.
 
 ## Store state through the framework, not `localStorage`
 
-```tsx title="src/routes/filters.tsx"
-const [filters, setFilters] = useStoredState('filters', filtersSchema, {
-  defaultValue: { status: 'open' },
+```tsx title="examples/lab/src/routes/storage.tsx (trimmed)"
+const [draft, setDraft] = useStoredState('draft', draftSchema, {
+  defaultValue: { note: '', pinned: false },
 })
 ```
 
-One browser profile carries several people over a day. Every container in the origin writes into one
-shared key space, so two teams choose one name and the keys collide. `useStoredState` prefixes your
-key with your definition id and clears it when the signed-in user changes.
+Every container in the origin writes into one shared key space, so two teams pick one name and the
+keys collide. `useStoredState` puts your definition id in front of your key.
 
 <Callout type="error" title="mfe/no-raw-storage">
 
@@ -203,27 +146,24 @@ as an unhandled exception.
 ```
 
 **Fix.** Use `useStoredState(name, schema, { defaultValue })` for rendered state, and
-`useMfeStorage()` for imperative access ([7. Storage](/docs/guides/storage)).
+`useMfeStorage()` for everything else ([remember a value](/docs/remember-a-value)).
 
 </Callout>
 
-The rule is off in test files alone, because a storage test has to reach the storage it verifies.
+The rule is off in test files alone, because a storage test has to reach the storage it checks.
 
 ## Keep styles inside your container
 
 Write your styles as utilities and design-system components in TSX, and ship no stylesheet of your
-own.
+own. The shell owns the document half: the reset, the fonts and the theme variables, all of which
+inherit into your subtree.
 
-The build collects the classes you rendered and wraps them in
-`@scope ([data-mfe-scope="alert-panel"]) to ([data-mfe-scope])`. The shell owns the document half:
-the reset, the fonts, `@property` and the theme variables. All of it inherits into your subtree.
-
-| Rule                                                       | Why                                                                                                                 | Caught by | Fix                                                           |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
-| Write selectors that match elements inside your container. | The [scope root](/docs/glossary) is your own root element, so a `:root`, `html` or `body` selector matches nothing. | Build     | Write the rule against an element your container renders.     |
-| Leave `@property` and `@font-face` to the shell.           | Both register a name page-wide, and the browser keeps whichever it parsed last.                                     | Nothing   | Ask the shell to define it.                                   |
-| Ship no stylesheet entry and no `postcss.config.mjs`.      | The build writes `.mfe/styles.css` from your TSX, and a second entry ships an unscoped sheet.                       | Nothing   | Write utilities and design-system components in TSX.          |
-| Colour with a semantic token or a palette step.            | The palette belongs to the design system, so a class such as `bg-red-500` generates no CSS.                         | Nothing   | Write `bg-primary`, `text-muted-foreground` or `bg-blue-120`. |
+| Rule                                                       | Why                                                                                           | Caught by | Fix                                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
+| Write selectors that match elements inside your container. | Your root element is not the document root, so `:root`, `html` and `body` match nothing.      | Build     | Write the rule against an element your container renders.     |
+| Leave `@property` and `@font-face` to the shell.           | Both register a name page-wide, and the browser keeps whichever it parsed last.               | Nothing   | Ask the shell to define it.                                   |
+| Ship no stylesheet entry and no `postcss.config.mjs`.      | The build writes `.mfe/styles.css` from your TSX, and a second entry ships an unscoped sheet. | Nothing   | Write utilities and design-system components in TSX.          |
+| Colour with a semantic token or a palette step.            | The palette belongs to the design system, so a class such as `bg-red-500` generates no CSS.   | Nothing   | Write `bg-primary`, `text-muted-foreground` or `bg-blue-120`. |
 
 <Callout type="error" title="A :root selector in a container stylesheet">
 
@@ -232,34 +172,19 @@ the reset, the fonts, `@property` and the theme variables. All of it inherits in
 `:host`, `html` and `body` only mean anything as the leading compound.
 ```
 
-**Fix.** Write the rule against an element your container renders. The scope plugin throws at build
-time and names the file and the selector.
+**Fix.** Write the rule against an element your container renders. The build stops and names the
+file and the selector ([add styles beyond utilities](/docs/add-custom-styles)).
 
 </Callout>
 
-<Details summary="The rest of the message">
-
-```text
-Write the rule against `[data-tecton-root]`, or pass `rootRules: "document"` to keep it at document
-level.
-```
-
-</Details>
-
-`[data-tecton-root]` in that message is the design system's name for the scope root. In a container,
-the scope root is the `data-mfe-scope` element the mount renders around your tree.
-
-`@keyframes` is safe, because the build renames the ones your sheet defines.
-[8. Styling](/docs/guides/styling) has the whole picture.
-
 ## Import from `@company/mfe-react` and nothing else in the framework
 
-```ts title="src/panel.tsx"
-import { useMfeStorage, useTelemetry } from '@company/mfe-react'
+```ts title="examples/lab/src/routes/storage.tsx (trimmed)"
+import { useMfeStorage, useStoredState } from '@company/mfe-react'
 ```
 
-Everything an author needs, types included, is re-exported from that one package. Lint blocks the
-rest, so no framework internal reaches your code and pins you to a patch release.
+Everything an author needs, types included, comes from that one package. Lint blocks the rest, so
+no framework internal reaches your code and pins you to a patch release.
 
 | Blocked import                                  | Why                                                                                                  |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -272,15 +197,12 @@ rest, so no framework internal reaches your code and pins you to a patch release
 | `@opentelemetry/*`, `@grafana/faro*`            | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
 
 Zustand, Redux, MobX, Jotai and `@tanstack/store` are allowed, because an MFE owns its own state.
-`pnpm boundaries` checks the framework's own package graph rather than yours, so lint is what covers
-your container.
 
 <Callout type="error" title="@typescript-eslint/no-restricted-imports">
 
 ```text
 Public API boundary: @company/mfe-core is a framework-internal contract package whose shape changes
-with the framework, not with its public API. Everything an MFE author needs, types included, is
-re-exported from @company/mfe-react.
+with the framework, not with its public API.
 ```
 
 **Fix.** Import from `@company/mfe-react`. If what you need is not exported there, that is a
@@ -290,7 +212,7 @@ framework bug worth filing.
 
 ## Reference assets through `import.meta.url`
 
-```ts title="src/panel.tsx"
+```ts
 const gearIcon = new URL('./icons/gear.svg', import.meta.url).href
 ```
 
@@ -309,22 +231,10 @@ resolve against your container's own deployed location.
 
 </Callout>
 
-<Details summary="The rest of the message">
-
-```text
-This expectation is declared by container-relative asset resolution. Import it (`import assetUrl
-from './icons/gear.svg'`) or write `new URL('./icons/gear.svg', import.meta.url).href`. Both
-resolve against the container's own deployed location; a bare string resolves against the shell
-document instead, which only agrees with the container while you are running a dev server.
-```
-
-</Details>
-
 ## Keep the contract literal, and follow the naming rules
 
 Declare the contract and every presentation field as literals in `src/mfe.ts`. The build reads your
-definition without running it, so a host can show a catalogue entry before it fetches anything.
-Literals are what make that reading possible.
+definition without running it, and only a literal can be read that way.
 
 | Rule                                                                                      | Caught by              | Fix                                                                                      |
 | ----------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
@@ -338,13 +248,9 @@ Literals are what make that reading possible.
 | `title`, `description`, `version`, `tags` and `id` are inline literals.                   | Build                  | Write the value inline. Pass `icon` as an imported identifier, which the build resolves. |
 | A container exports at most one App, and exports every definition from its entry.         | Build                  | Split the Apps into separate containers, and add `export` to every definition.           |
 
-A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one.
-Nothing checks that one.
-
 ## Call `lazyWidget`, `createApp` and `createWidget` at module scope
 
-```ts title="src/widgets.ts"
-/** Built at module scope because one built during render remounts the Widget every pass. */
+```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
 import { events, inputs } from '@example/alert-panel/contracts'
@@ -352,9 +258,8 @@ import { events, inputs } from '@example/alert-panel/contracts'
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
 ```
 
-Module scope means the top level of a file, outside every function. `lazyWidget(id)` returns a
-component, and React uses a component's identity to decide whether it is looking at the same
-element. One built during render is a new identity on every pass.
+Module scope means the top level of a file, outside every function. One built during render is a
+new component on every pass, so the host unmounts the running Widget and loads it again.
 
 <Callout type="error" title="mfe/stable-definitions">
 
@@ -367,29 +272,14 @@ render it.
 
 </Callout>
 
-<Details summary="Full message">
-
-```text
-`lazyWidget` (`lazyWidget` from @company/mfe-react) has to be called once, at module scope. Calling
-it in the body of `Panel` mints a new definition identity on every call, so the host treats it as a
-different MFE: it unmounts the running instance, throws away its state and refetches its data. Move
-the `lazyWidget(...)` call to the top level of this module and reference the resulting definition
-here.
-```
-
-</Details>
-
-The rule guards `createApp`, `createWidget` and `lazyWidget`. It reports a call inside a function
-body, an arrow function, a class static block or a class field initialiser. A host that learns its
-Widgets from the registry cannot follow the rule. It renders [`DynamicWidget`](/docs/glossary)
-instead, which takes the id as a prop and builds nothing during render.
+A host that learns its Widgets from the registry cannot name them in its source. It renders
+[`DynamicWidget`](/docs/render-a-widget-at-run-time) instead, which takes the id as a prop.
 
 ## Keep the render function in a module that exports only components
 
-```ts title="src/mfe.ts"
+```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
 import { AlertPanel } from './alert-panel.tsx'
 
-export const alertPanelContract = { inputs, events }
 export const alertPanel = createWidget({
   id: 'alert-panel',
   ...alertPanelContract,
@@ -398,11 +288,8 @@ export const alertPanel = createWidget({
 ```
 
 A hot update swaps a changed module into the running page without a reload. React Refresh does that
-only for a module whose every export is a component. One hook, constant or schema exported beside
-them stops it.
-
-The update then travels to whatever imported that module. It ends at an entry, which accepts
-nothing, so the page reloads and every piece of state on it is lost. Nothing reports why.
+only for a module whose every export is a component, and one schema exported beside them stops it.
+The page then reloads and every piece of state on it is lost.
 
 | Module                | What it exports                          | What an edit to it does   |
 | --------------------- | ---------------------------------------- | ------------------------- |
@@ -414,7 +301,8 @@ No lint rule checks this. `pnpm hmr:probe <file>` answers the question for one f
 
 ## Never edit generated output
 
-Edit the source a file is generated from, then build. Every generated module opens with this banner.
+Edit the source a file is generated from, then build. Every generated module opens with this
+banner.
 
 ```text
 /**
@@ -423,49 +311,42 @@ Edit the source a file is generated from, then build. Every generated module ope
 ```
 
 **If you write a generator of your own,** its output has to be a pure function of its sources. A
-timestamp, a counter or a random id makes every compilation a source change. The container then
-rebuilds without end, and you see hot updates that fail to fetch.
+timestamp, a counter or a random id makes every compilation a source change, so the container
+rebuilds without end.
 
 ## Log through telemetry, not `console.log`
 
-```ts title="src/panel.tsx"
+```tsx title="examples/lab/src/routes/telemetry.tsx (trimmed)"
 const telemetry = useTelemetry()
-telemetry.info('export started', { rows })
-telemetry.error(error)
+telemetry.info('Lab said hello', { where: 'telemetry page' })
 ```
 
 `no-console` allows `warn` and `error` alone, so `log`, `info`, `debug` and `table` are errors in
 your `src/`. Every telemetry record carries your definition id, kind, version, build hash and mount
-token. A `console.log` carries none of that and reaches nobody but you.
+token, and a `console.log` carries none of that.
 
 ## Start child spans before the first `await`
 
 Create child spans synchronously inside `startActiveSpan`. Start them with `startSpan` instead when
-you need one later, and correlate them by an explicit attribute.
-
-A span created after an `await` inside the callback becomes a root with a fresh trace id. You get no
-parent rather than a wrong one, because a wrong parent corrupts a production trace tree in silence.
-Nothing checks this rule.
+you need one later, and tie them together with an attribute of your own. A span created after an
+`await` becomes a root with a fresh trace id. Nothing checks this rule.
 
 ## Suppress a rule on one line, with a reason
 
-```ts title="src/filters.ts"
+```ts
 // eslint-disable-next-line react-hooks/exhaustive-deps -- the remaining options
 // are part of the key's module-scope declaration and cannot legally change.
 ```
 
 A suppression names one rule, sits on the line it applies to, and carries a specific reason.
 "Noisy" is not a reason. Never disable a check across a package to accommodate one exception.
-
 `react-hooks/rule-suppression` is a warning in both presets, so a suppressed React Hooks rule stays
 visible in `pnpm lint`.
 
-## Where next
+## Related
 
-- [6. Lifecycle](/docs/guides/lifecycle) — when each mount-time check runs.
-- [7. Storage](/docs/guides/storage) — the boundary `mfe/no-raw-storage` sends you to.
-- [8. Styling](/docs/guides/styling) — the scoped stylesheet and the palette.
-- [Decision 1](/docs/decisions#1-the-boundary-history-is-built-by-hand-because-createbrowserhistory-patches-globals)
-  — why the history is built by hand.
-- [Decision 18](/docs/decisions#18-react-refresh-only-replaces-a-module-whose-every-export-is-a-component)
-  — why one edit updates in place and another reloads.
+- [Lint rules](/docs/reference/lint-rules) — every rule, with its message in full.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, events, inputs.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why each rule exists.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — the module rule in practice.
+- [Error codes](/docs/reference/error-codes) — every code, when it happens, and the fix.

@@ -1,0 +1,110 @@
+---
+title: 'Route staticData fields'
+description: 'The four fields the framework reads from a route, and what each one changes.'
+---
+
+A route's `staticData` is where an App tells the shell about one of its pages. The framework reads four fields and ignores everything else you put there. Apps only: a Widget has no routes.
+
+## The four fields
+
+```tsx title="examples/operations/src/routes/settings.tsx"
+export const Route = createFileRoute('/settings')({
+  staticData: {
+    capability: 'settings',
+    label: 'Operations settings',
+    icon: 'settings',
+    breadcrumb: 'Settings',
+  },
+  component: Settings,
+})
+```
+
+| Field        | Type                                       | Read       | What it does                                                     |
+| ------------ | ------------------------------------------ | ---------- | ---------------------------------------------------------------- |
+| `capability` | `'settings'`, `'help'` or `'releaseNotes'` | build time | Marks this route as the page the shell opens by that name.       |
+| `label`      | `string`                                   | build time | The text the shell puts in its menu. Required with `capability`. |
+| `icon`       | `string` or `{ src: string }`              | build time | An icon name from the shell set, or an asset URL.                |
+| `breadcrumb` | `string` or `false`                        | run time   | The label for this segment, or `false` to hide it.               |
+
+The route's own path is published with the capability, so the shell knows where to navigate. You do not write it twice.
+
+## Typing the fields
+
+TanStack owns the `staticData` slot, so an App entry merges `MfeStaticData` into it. A misspelt capability is then a compile error rather than a page the shell never finds.
+
+```ts title="examples/operations/src/mfe.ts"
+declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption extends MfeStaticData {}
+}
+```
+
+## capability, label and icon
+
+All three are read out of your source at build time, before anything runs. Write them as literals.
+
+- One route per capability. Two routes marking `settings` fail the build.
+- `label` must be a non-empty string literal. A computed label cannot be read.
+- `icon` takes a name such as `'settings'`, or `{ src: '/icons/gear.svg' }`. SVG source is never accepted.
+- Capabilities are App-only. A container that exports Widgets alone fails the build.
+
+The three names are the only ones the shell has screens for.
+
+## breadcrumb
+
+The framework derives an App's trail from its router matches. For each match it resolves one label, in this order.
+
+1. `staticData.breadcrumb`, when it is a string.
+2. The title the route's own `head` function produced.
+3. The last segment of the route path, made readable: `asset-reports` becomes `Asset reports`.
+4. For a `$param` segment, the parameter's value, or the parameter name when there is none.
+
+`breadcrumb: false` drops that segment. Pathless layout routes and index routes never contribute one. A `$id` or `$_splat` segment contributes nothing either, because a raw id is not a label.
+
+```tsx title="examples/lab/src/routes/breadcrumbs.tsx"
+export const Route = createFileRoute('/breadcrumbs')({
+  staticData: { breadcrumb: 'Breadcrumbs' },
+  component: Breadcrumbs,
+})
+```
+
+To override the trail from inside a component, use `useBreadcrumbs`.
+
+## Errors
+
+<Callout type="error" title="registry/invalid-descriptor, at build time">
+
+```text
+/home/you/orders/src/routes/settings.tsx: 'orders' failed to extract the capability route '/settings': expected a non-empty `label` string literal, found no label. This expectation is declared by the capability contract. Add the text the shell puts in its menu, for example label: 'Order settings'. It is read at build time, so it cannot be computed.
+```
+
+**Fix.** Add `label` beside `capability`.
+
+</Callout>
+
+<Callout type="error" title="registry/invalid-descriptor, two routes">
+
+```text
+expected one route per capability, found '/settings' and '/preferences' both declare it. This expectation is declared by the capability contract. Remove the staticData marker from one of them. The shell opens exactly one route per capability, so two candidates have no tie-break.
+```
+
+**Fix.** Keep the marker on one route.
+
+</Callout>
+
+<Callout type="error" title="registry/invalid-descriptor, on a Widget">
+
+```text
+expected a capability declared by an App, found a container that exports Widgets only. This expectation is declared by the capability contract. Remove the marker. Capabilities are App-only: the shell opens them as a route, and a Widget has no routes of its own.
+```
+
+**Fix.** Move the page into an App, or drop the marker.
+
+</Callout>
+
+## Related
+
+- [Add a settings page](/docs/add-a-settings-page) — the recipe that uses `capability`.
+- [Set breadcrumbs](/docs/set-breadcrumbs) — the recipe that uses `breadcrumb`.
+- [Show an icon](/docs/show-an-icon) — where each icon appears.
+- [Registry entry](/docs/reference/registry-entry) — what the build publishes.
+- [Error codes](/docs/reference/error-codes) — every code, with the fix.

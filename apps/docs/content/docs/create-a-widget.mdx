@@ -1,0 +1,157 @@
+---
+title: 'Create a Widget'
+description: 'Declare a Widget in src/mfe.ts, with its render function in its own module.'
+---
+
+A Widget is a screen somebody else's page renders as a component: it takes props, emits the
+events it declares, and owns no URL. One container can export any number of Widgets.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Write the render function
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+import type { WidgetRenderProps } from '@company/mfe-react'
+import { Button } from '@tecton/react/components/button'
+import type { ReactNode } from 'react'
+
+import type { alertPanelContract } from './mfe.ts'
+
+export function AlertPanel({
+  inputs,
+  emit,
+}: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
+  return (
+    <>
+      <p>Alert {inputs.alertId}</p>
+      <Button
+        onPress={() => {
+          emit('acknowledged', {
+            alertId: inputs.alertId,
+            acknowledgedAt: new Date().toISOString(),
+          })
+        }}
+      >
+        Acknowledge
+      </Button>
+    </>
+  )
+}
+```
+
+Your function takes two props, `inputs` and `emit`, and lives in a module that exports components
+only. The contract comes in as a type import, so the two modules never depend on each other at run
+time.
+
+</Step>
+
+<Step>
+
+### 2. Declare the Widget in the entry
+
+```ts title="examples/alert-panel/src/mfe.ts"
+import { createWidget } from '@company/mfe-react'
+import { BellIcon } from 'lucide-react'
+import { z } from 'zod'
+
+import { AlertPanel } from './alert-panel.tsx'
+
+export const alertPanelContract = {
+  inputs: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+  }),
+  events: {
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+    dismissed: z.object({ alertId: z.string() }),
+  },
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  title: 'Alert panel',
+  description: 'Open alerts for one asset, acknowledged or dismissed in place.',
+  tags: ['alerts', 'operations', 'safety'],
+  icon: BellIcon,
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+The build reads `src/mfe.ts` and no other file, so export every definition from it and write
+`id`, `version`, `title`, `description` and `tags` as plain literals.
+
+</Step>
+
+<Step>
+
+### 3. Give the container a port and its ids
+
+```json title="examples/alert-panel/package.json"
+"mfe": {
+  "port": 3003,
+  "definitions": ["alert-panel"]
+}
+```
+
+`port` is this container's dev-server port, and `definitions` lists the ids `pnpm dev` prints a
+shell override for.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` from the repository root, then open the shell at `http://localhost:3000`. The
+dashboard's catalogue lists your Widget by the `title`, `description` and `tags` you declared,
+before anything loads it. Add it from the catalogue to mount it on the page. The icon you imported
+is drawn beside the name, because the build published its shapes rather than your component.
+
+## Errors
+
+<Callout type="error" title="registry/invalid-descriptor">
+
+```text
+Order_Book failed to createWidget: expected lower-case letters, digits and single hyphens (for
+example "alert-panel"), received "Order_Book".
+```
+
+**Fix.** Rename the id to `order-book`. The id is also your storage prefix and your CSS scope.
+
+</Callout>
+
+<Callout type="error" title="mount/failure">
+
+```text
+alert-panel failed to create Widget definition: expected a render function, received nothing.
+```
+
+**Fix.** Pass `render: AlertPanel`, imported from its own module.
+
+</Callout>
+
+<Callout type="error" title="registry/invalid-descriptor, at build time">
+
+```text
+/home/you/alert-panel/src/alert-panel.tsx:12:20: the build failed to collect the definitions this
+container exports: expected every definition to be declared in src/mfe.ts, found createWidget(…)
+in another module.
+```
+
+**Fix.** Move the `createWidget` call into `src/mfe.ts` and export it from there.
+
+</Callout>
+
+## Related
+
+- [Define inputs and events](/docs/define-inputs-and-events) — the contract your Widget takes.
+- [Render a Widget inside your App](/docs/render-a-widget) — consume it from an App.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — why `render` has its own module.
+- [Test a Widget](/docs/test-a-widget) — mount it with props in a test.
+- [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — every option.

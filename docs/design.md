@@ -28,7 +28,7 @@ The **registry** is the JSON array the shell fetches at boot, one entry per defi
 
 A **container** is one deployable, with its own build, version and origin. It holds one `src/mfe.ts`, exporting at most one App and any number of Widgets. It publishes `remoteEntry.js`, the file that lets a host load code out of another build, described by `mf-manifest.json`. Its scoped stylesheet and its registry descriptor sit beside them.
 
-`runtime-config.json` is published beside those assets, never built into them. Changing a value takes a new deployment and a reload. The generated `#mfe/fetch` resolves a relative URL against the first field declared `env(…, { api: true })`. The session token reaches those origins and no others, because the shell installs the page's one session ([decision 10](/docs/decisions#10-the-framework-owns-no-session-the-shell-installs-one-and-the-container-binds-to-it)).
+`runtime-config.json` is published beside those assets, never built into them. Changing a value takes a new deployment and a reload. The generated `#mfe/fetch` resolves a relative URL against the first field declared `env(…, { api: true })`. The session token reaches those origins and no others, because the shell installs the page's one session ([decision 10](/docs/how-it-works/decisions#10-the-framework-owns-no-session-the-shell-installs-one-and-the-container-binds-to-it)).
 
 | Party       | Owns                                                                                       |
 | ----------- | ------------------------------------------------------------------------------------------ |
@@ -54,7 +54,7 @@ Every entry is validated on its own, so one malformed entry loses only itself. A
 
 A container loads once per runtime per id. **Module Federation** is the bundler mechanism that loads code from another build at run time. Its load promise is cached, a rejection included, because React needs the same settled promise to show the failure. There is no deadline: the load suspends until it settles or fails, and a retry is a person's click.
 
-The **mount** is one live instance of a definition: its mount token, base path, telemetry, storage handles, abort signal, Query client and overlay root. The effect that creates it is the effect that destroys it. A mount built in a memo does not survive the remount React performs in StrictMode ([decision 14](/docs/decisions#14-a-mount-built-in-usememo-does-not-survive-a-remount-and-strictmode-remounts-everything)).
+The **mount** is one live instance of a definition: its mount token, base path, telemetry, storage handles, abort signal, Query client and overlay root. The effect that creates it is the effect that destroys it. A mount built in a memo does not survive the remount React performs in StrictMode ([decision 14](/docs/how-it-works/decisions#14-a-mount-built-in-usememo-does-not-survive-a-remount-and-strictmode-remounts-everything)).
 
 The **definition** is a side-effect-free descriptor. The adapter therefore checks what the author did with it: `basePath` passed through as `basepath`, the supplied history by identity, `context.mfe` and `context.queryClient` unchanged. A violation throws during render and names the repair. On any failure the consumer's `fallback` receives the error and a `retry` that forgets the cached definition.
 
@@ -87,7 +87,7 @@ The build plugin runs in the build rather than on the page, so it sits outside t
 
 An author touches `src/mfe.ts`, the route tree under `src/routes/`, `src/mfe.config.ts`, the generated modules and that one plugin line. Authors import from `@company/mfe-react` and nowhere else. The `author` lint preset blocks the core, the host and any deep path.
 
-The design rule is one sentence: every micro-frontend concern uses a mechanism TanStack Router already has, or it stays invisible. Module Federation stays invisible, in one framework file and one shell file ([decision 6](/docs/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host)). So do the registry JSON, everything under `.mfe/`, the mount token, the scope root, the overlay root and the diagnostics wiring.
+The design rule is one sentence: every micro-frontend concern uses a mechanism TanStack Router already has, or it stays invisible. Module Federation stays invisible, in one framework file and one shell file ([decision 6](/docs/how-it-works/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host)). So do the registry JSON, everything under `.mfe/`, the mount token, the scope root, the overlay root and the diagnostics wiring.
 
 ## How the adapters fit together
 
@@ -116,7 +116,7 @@ Shared services come from the host and are the same for both. One storage store,
 
 Removal is the point of the second adapter. When the last legacy application is migrated, delete the package, one row from the shell's adapter table and one import from its composition root. No other package changes. [Legacy Angular applications](/docs/reference/legacy-angular) is the reference for its fields, its lifecycle and its migration edit.
 
-The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository does not register this adapter yet, so it registers the framework contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
+The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/how-it-works/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository does not register this adapter yet, so it registers the framework contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
 
 ## The six isolation boundaries
 
@@ -135,15 +135,15 @@ The adapter is built and tested against production-equivalent fixtures and doubl
 
 ### URL
 
-The **base path** is the literal string form of the boundary. After `createRouter({ basepath })` it never appears again: every route, `Link` and `navigate` is relative to it. The **boundary history** is hand-built, because `createBrowserHistory()` reassigns `window.history.pushState` for the whole page ([decision 1](/docs/decisions#1-the-boundary-history-is-built-by-hand-because-createbrowserhistory-patches-globals)).
+The **base path** is the literal string form of the boundary. After `createRouter({ basepath })` it never appears again: every route, `Link` and `navigate` is relative to it. The **boundary history** is hand-built, because `createBrowserHistory()` reassigns `window.history.pushState` for the whole page ([decision 1](/docs/how-it-works/decisions#1-the-boundary-history-is-built-by-hand-because-createbrowserhistory-patches-globals)).
 
 ### Styles
 
-The `@scope` rule buys scope proximity in place of injection order, so two builds that both spell `bg-primary` no longer resolve by parse order. Each mount renders a **scope root** carrying `data-mfe-scope`, with a build-attached **style root** inside it. Overlays portal into a body-level **overlay root** carrying the same attribute. `@scope` is the narrowest-supported feature the framework requires, at Chrome 118, Firefox 146 and iOS Safari 17.4, with no fallback ([decision 17](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)).
+The `@scope` rule buys scope proximity in place of injection order, so two builds that both spell `bg-primary` no longer resolve by parse order. Each mount renders a **scope root** carrying `data-mfe-scope`, with a build-attached **style root** inside it. Overlays portal into a body-level **overlay root** carrying the same attribute. `@scope` is the narrowest-supported feature the framework requires, at Chrome 118, Firefox 146 and iOS Safari 17.4, with no fallback ([decision 17](/docs/how-it-works/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)).
 
 ### Storage
 
-The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back, rather than how long it lives: `'browser'` is the default and is never cleared, where `'user'` is cleared when the session generation changes. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
+The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back, rather than how long it lives: `'browser'` is the default and is never cleared, where `'user'` is cleared when the session generation changes. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
 
 ### Network
 
@@ -155,11 +155,11 @@ The message is composed to a fixed shape: `<id>[@<version>] failed to <operation
 
 ### Shared singletons
 
-Eight specifiers are shared with `strictVersion`: `react`, `react-dom`, `sonner`, the three `@company/mfe-*` packages, `@tanstack/react-router` and `@tanstack/react-query`. A second copy makes every hook fail with "rendered outside any mount", while both copies look correct on their own. A container may add to that list and cannot remove from it ([decision 30](/docs/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)).
+Eight specifiers are shared with `strictVersion`: `react`, `react-dom`, `sonner`, the three `@company/mfe-*` packages, `@tanstack/react-router` and `@tanstack/react-query`. A second copy makes every hook fail with "rendered outside any mount", while both copies look correct on their own. A container may add to that list and cannot remove from it ([decision 30](/docs/how-it-works/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)).
 
 ## Where to read next
 
-- [The shape: App or Widget](/docs/guides/shape) — the first decision, and the ten guides in order.
+- [Overview](/docs) — App or Widget, and a recipe for each task.
 - [Legacy Angular applications](/docs/reference/legacy-angular) — the second adapter, field by field.
-- [Glossary](/docs/glossary) — every term on this page, defined once.
-- [Decision log](/docs/decisions) — the argument behind each rule stated here.
+- [Glossary](/docs/reference/glossary) — every term on this page, defined once.
+- [Decision log](/docs/how-it-works/decisions) — the argument behind each rule stated here.

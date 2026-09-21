@@ -1,0 +1,144 @@
+---
+title: 'Test a Widget'
+description: 'Render your Widget with inputs, then assert on what it rendered and on the events it emitted.'
+---
+
+Widgets only. `renderWidget` renders your Widget through the production validation path. You pass
+the props a consumer would pass, and you assert on the markup and on every event payload.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Render it with inputs and a handler
+
+```tsx title="examples/alert-panel/src/mfe.test.tsx"
+import { renderWidget } from '@company/mfe-react/testing'
+import { screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { alertPanel } from './mfe.ts'
+
+let cleanup: (() => Promise<void>) | null = null
+
+it('renders the alert and emits a validated acknowledgement', async () => {
+  const onAcknowledged = vi.fn()
+  const rendered = renderWidget(alertPanel, {
+    props: { alertId: 'a-42', severity: 'critical', onAcknowledged },
+  })
+  cleanup = rendered.dispose
+
+  expect(screen.getByText('Alert a-42')).toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Acknowledge' }))
+
+  expect(onAcknowledged).toHaveBeenCalledTimes(1)
+})
+```
+
+`props` carries your declared inputs and one `on<Event>` handler per declared event. A prop a
+consumer sets for the host, such as `fallback`, never reaches your render function as an input.
+
+</Step>
+
+<Step>
+
+### 2. Assert on the payload, not only the call
+
+```tsx title="examples/alert-panel/src/mfe.test.tsx"
+const payload = onAcknowledged.mock.calls[0]?.[0] as {
+  alertId: string
+  acknowledgedAt: string
+}
+expect(payload.alertId).toBe('a-42')
+expect(typeof payload.acknowledgedAt).toBe('string')
+```
+
+The payload passed your event schema before the handler saw it.
+
+</Step>
+
+<Step>
+
+### 3. Check the default your schema declares
+
+```tsx title="examples/alert-panel/src/mfe.test.tsx"
+it('applies a schema default for an omitted optional input', async () => {
+  const rendered = renderWidget(alertPanel, { props: { alertId: 'a-1' } })
+  cleanup = rendered.dispose
+
+  expect(screen.getByText('Informational')).toBeInTheDocument()
+})
+```
+
+`severity` declares the default `'info'`, and this panel renders that as "Informational". The
+default is applied by the contract, so a consumer that omits the input still gets a valid one.
+
+</Step>
+
+<Step>
+
+### 4. Dispose after every test, then run
+
+```tsx title="examples/alert-panel/src/mfe.test.tsx"
+afterEach(async () => {
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
+  const dispose = cleanup
+  cleanup = null
+  await dispose?.()
+})
+```
+
+```sh
+pnpm test
+```
+
+`dispose()` unmounts the tree and runs the real teardown. The `test` script generates the `#mfe`
+modules first, then runs Vitest in jsdom.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The suite passes, and an input your schema rejects fails the test rather than rendering. A bad
+input on the first render throws, so assert it with
+`expect(() => renderWidget(…)).toThrowError(…)`. A Widget test needs no shell, no dev server and
+no network. The scaffolded Widget ships one event test and one rejected-input test in
+`src/mfe.test.tsx`, and they pass before you change a line.
+
+## Errors
+
+<Callout type="error" title="failed to accept input">
+
+```text
+alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
+number → at alertId. Check the alertId prop on the Widget.
+```
+
+**Fix.** Pass the input your schema declares. The message names the field and the value it received.
+
+</Callout>
+
+<Callout type="error" title="failed to emit event">
+
+```text
+alert-panel@1.4.0 failed to emit event 'resolved': expected one of the declared events
+(acknowledged, dismissed), received 'resolved', which this Widget does not declare.
+```
+
+**Fix.** Declare the event in your contract, or emit one of the events already there.
+
+</Callout>
+
+## Related
+
+- [Create a Widget](/docs/create-a-widget) — the definition this renders.
+- [Define inputs and events](/docs/define-inputs-and-events) — the schemas these checks run.
+- [Test an App](/docs/test-an-app) — the same runner, for a routed App.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — a Widget that fetches.
+- [Testing API](/docs/reference/testing-api) — every export, with its options.

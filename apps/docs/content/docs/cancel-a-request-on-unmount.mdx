@@ -1,0 +1,93 @@
+---
+title: 'Cancel a request on unmount'
+description: 'Pass the mount signal to fetch, listeners and timers, so background work stops on disposal.'
+---
+
+`useMfeSignal()` returns a signal that aborts once, when your mount goes away. Pass it to every
+request, listener and timer you start outside a route loader. Apps and Widgets.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Take the mount's signal
+
+```ts title="examples/lab/src/routes/index.tsx"
+const signal = useMfeSignal()
+```
+
+One signal serves the whole mount, so read it once and pass it around.
+
+</Step>
+
+<Step>
+
+### 2. Pass it to the request
+
+```ts
+const response = await fetch('assets?site=north', { signal })
+```
+
+An aborted request rejects with the browser's `AbortError`, which your error handling can ignore.
+
+</Step>
+
+<Step>
+
+### 3. Use it for listeners and timers
+
+```ts
+window.addEventListener('resize', onResize, { signal })
+
+const timer = setInterval(poll, 30_000)
+signal.addEventListener('abort', () => clearInterval(timer), { once: true })
+```
+
+A listener registered with `{ signal }` removes itself, and a timer needs the one abort handler
+above.
+
+</Step>
+
+<Step>
+
+### 4. Inside a loader, use the loader's own
+
+```ts
+loader: ({ abortController }) => fetchAssets({ signal: abortController.signal }),
+```
+
+A loader cancels with its own navigation, which happens more often than disposal.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open `/lab` in the shell. It prints `signal.aborted` for the live mount, which reads `live` until
+the mount is disposed. Navigate away, and any request still in flight is cancelled. Queries need
+nothing extra here, because disposal cancels the ones your mount's Query client is running. A
+second mount of the same definition gets its own signal, so one closing never stops the other.
+
+## Errors
+
+<Callout type="error" title="mount/failure">
+
+```text
+<unmounted> failed to call useMfeSignal: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Move the call into a component your App or Widget renders. A component rendered by the
+shell has no mount of its own.
+
+</Callout>
+
+## Related
+
+- [Call your API](/docs/call-your-api) — the request this signal cancels.
+- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — caching and loaders.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — when disposal happens.
+- [Hooks and components](/docs/reference/hooks-and-components) — every hook and its signature.

@@ -24,10 +24,10 @@ function Home() {
           <LinkButton href="/docs">
             Start here <ArrowRightIcon data-icon="inline-end" />
           </LinkButton>
-          <LinkButton variant="secondary" href="/docs/design">
+          <LinkButton variant="secondary" href="/docs/how-it-works/design">
             Design map
           </LinkButton>
-          <LinkButton variant="ghost" href="/docs/decisions">
+          <LinkButton variant="ghost" href="/docs/how-it-works/decisions">
             Decision log
           </LinkButton>
         </div>

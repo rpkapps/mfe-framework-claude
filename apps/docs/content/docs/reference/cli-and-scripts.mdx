@@ -1,0 +1,109 @@
+---
+title: 'CLI and scripts'
+description: 'Every command you run, what it does, and the ports and variables it uses.'
+---
+
+Two commands belong to a container: the scaffold that creates one, and the generator that writes what the build would write. Everything else is a script in the repository root. This page lists all of them.
+
+## pnpm create @company/mfe
+
+```sh
+pnpm create @company/mfe operations --id operations
+pnpm create @company/mfe alert-panel --id alert-panel --template widget
+```
+
+Creates a container in the directory you name.
+
+| Flag                | Value             | Default                             |
+| ------------------- | ----------------- | ----------------------------------- |
+| `--id <id>`         | the definition id | the last segment of the directory   |
+| `--template <kind>` | `app` or `widget` | `app`                               |
+| `--force`           | —                 | off. Refuses a non-empty directory. |
+| `--help`            | —                 | prints the usage above              |
+
+The id must be lower-case letters, digits and single hyphens. The package name is derived as `@example/<id>`. When it finishes it prints your next steps, and the browser-console snippet that points a shell at your dev server.
+
+## mfe-generate
+
+```sh
+pnpm run generate          # inside a container
+mfe-generate --root ../lab # or name the container
+```
+
+Writes what the build would generate for one container: the `#mfe/*` modules, the registry descriptor, the runtime configuration schema, `.env.example`, and an App's route tree. It runs on a fresh clone, so `#mfe/*` resolves before anything is built. It also reports the findings the build would report, and fails on them.
+
+| Flag                 | Value                                                             |
+| -------------------- | ----------------------------------------------------------------- |
+| `--root <directory>` | the container to generate for. Defaults to the working directory. |
+| `--help`             | prints the usage                                                  |
+
+Each container's own `generate` script calls it, and its `dev`, `build`, `typecheck` and `test` scripts run `generate` first.
+
+## Running things locally
+
+| Command                                  | What it does                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`                               | Starts the shell and every example, each on its own port.          |
+| `pnpm dev --only-mfes`                   | Starts the examples against a shell you started yourself.          |
+| `pnpm dev --only=operations,alert-panel` | Starts only those containers.                                      |
+| `pnpm dev:shell`                         | Starts the shell alone.                                            |
+| `pnpm run generate`                      | Generates every container, then assembles the shell's registry.    |
+| `pnpm hmr:probe <file>`                  | Edits a file and reports whether the page hot-updated or reloaded. |
+| `pnpm verify:page`                       | Drives a real browser over the shell and every example.            |
+
+`pnpm dev` checks that its ports are free before it starts anything. Your container's URL is written into the shell's registry, so a bundler that quietly moved to another port would produce a container nothing can find.
+
+`pnpm hmr:probe` takes a second argument for the page to open, for example `pnpm hmr:probe examples/lab/src/routes/index.tsx /lab`. `pnpm verify:page` takes `--url /operations` to check one page, and `--keep-open` to leave the browser up.
+
+## Checking your work
+
+| Command           | What it runs                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------- |
+| `pnpm check`      | `generate`, `format:check`, `lint`, `typecheck`, `boundaries`, `test`, in that order. |
+| `pnpm lint`       | ESLint over the workspace. `pnpm lint:fix` applies what is fixable.                   |
+| `pnpm typecheck`  | `tsc` in every package.                                                               |
+| `pnpm test`       | Vitest once. `pnpm test:watch` and `pnpm test:coverage` are the other two.            |
+| `pnpm format`     | Prettier over the workspace. `pnpm format:check` only reports.                        |
+| `pnpm boundaries` | Checks the package import graph.                                                      |
+
+## Building and publishing
+
+| Command                                | What it does                                               |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `pnpm build`                           | Builds every package.                                      |
+| `pnpm build:mfes`                      | Builds every example container.                            |
+| `pnpm changeset`                       | Records a version bump.                                    |
+| `pnpm release`                         | Publishes what the changesets describe.                    |
+| `pnpm docs:dev`                        | Runs this documentation site.                              |
+| `pnpm docs:build`, `pnpm docs:preview` | Builds and serves it.                                      |
+| `pnpm diagrams:render`                 | Renders the diagrams. `pnpm diagrams:check` reports drift. |
+
+## Ports
+
+| Port   | What listens on it     |
+| ------ | ---------------------- |
+| `3000` | the shell              |
+| `3001` | `examples/operations`  |
+| `3002` | `examples/reports`     |
+| `3003` | `examples/alert-panel` |
+| `3004` | `examples/insights`    |
+| `3005` | `examples/lab`         |
+| `3010` | the development API    |
+
+Each container's port comes from the `mfe.port` field in its own `package.json`. The scaffold sets `3101` for an App and `3103` for a Widget, so a new container does not collide with the examples.
+
+## Environment variables
+
+| Variable           | Read by             | Default                                              |
+| ------------------ | ------------------- | ---------------------------------------------------- |
+| `MFE_DEV_API_PORT` | `tools/dev/api.mjs` | `3010`. `pnpm dev` waits on whichever port it names. |
+
+The development API stands in for a real one, so `#mfe/fetch` has something to reach. It serves `/api/assets` and `/api/lab/probe`. It is not part of the framework, and a deployment brings its own API.
+
+## Related
+
+- [Quickstart](/docs/quickstart) — the scaffold, end to end.
+- [Run the shell with your container](/docs/run-the-shell-locally) — what `pnpm dev` starts.
+- [Run the checks before you push](/docs/run-the-checks) — what `pnpm check` reports.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — how to read `hmr:probe`.
+- [Build and publish a container](/docs/build-and-publish) — what the build writes.

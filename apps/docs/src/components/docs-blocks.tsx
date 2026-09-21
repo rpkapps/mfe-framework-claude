@@ -1,8 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
+import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
 import { Collapsible, CollapsibleContent } from '@tecton/react/components/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { cn } from 'cn'
@@ -186,5 +188,68 @@ export function DocsTab({
       )}
       {...props}
     />
+  )
+}
+
+/* ------------------------------------------------------------------------ */
+/* Cards — `<Cards>` with one `<Card href title>` per destination.          */
+/* ------------------------------------------------------------------------ */
+
+export function DocsCards({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-not-typeset
+      data-slot="cards"
+      className={cn('mt-6 grid gap-3 sm:grid-cols-2', className)}
+      {...props}
+    />
+  )
+}
+
+/**
+ * One destination: a title, and at most a line saying what is there. The whole card is the link,
+ * so the body is text rather than Markdown — a link inside a link is invalid HTML.
+ */
+export function DocsCard({
+  href,
+  title,
+  children,
+  className,
+}: {
+  /** A site path (`/docs/add-a-route`) navigates through the router. */
+  href: string
+  title: React.ReactNode
+  children?: React.ReactNode
+  className?: string
+}) {
+  const inner = (
+    <Card
+      size="sm"
+      className={cn(
+        'h-full gap-2 bg-card transition-colors group-hover/card-link:bg-accent group-hover/card-link:ring-accent',
+        className,
+      )}
+    >
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {children !== undefined && <CardDescription>{children}</CardDescription>}
+      </CardHeader>
+    </Card>
+  )
+
+  const linkClassName =
+    'group/card-link block h-full rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+
+  if (href.startsWith('/') && !href.startsWith('//')) {
+    return (
+      <Link to={href} className={linkClassName}>
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <a href={href} className={linkClassName} target="_blank" rel="noreferrer">
+      {inner}
+    </a>
   )
 }

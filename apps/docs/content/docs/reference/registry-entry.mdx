@@ -1,0 +1,141 @@
+---
+title: 'Registry entry'
+description: 'The descriptor your build writes, the entry a shell reads, and how one becomes the other.'
+---
+
+Your build writes one description record per container. A shell turns each definition in it into one registry entry, and that entry is all the shell knows about you before it fetches anything. Nobody hand-writes either file.
+
+## The descriptor your build writes
+
+```json title="examples/alert-panel/.mfe/mfe-registry.json"
+{
+  "manifestUrl": "mf-manifest.json",
+  "container": "example_alert_panel",
+  "contractMajor": 1,
+  "definitions": [
+    {
+      "id": "alert-panel",
+      "kind": "widget",
+      "version": "1.4.0",
+      "title": "Alert panel",
+      "description": "Open alerts for one asset, acknowledged or dismissed in place.",
+      "tags": ["alerts", "operations", "safety"],
+      "icon": {
+        "viewBox": "0 0 24 24",
+        "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]]
+      },
+      "contract": {
+        "events": ["acknowledged", "dismissed"],
+        "inputs": { "type": "object", "properties": { "alertId": { "type": "string" } } }
+      }
+    }
+  ],
+  "entries": { "alert-panel": "./widgets/alert-panel" },
+  "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" }
+}
+```
+
+| Field           | Type                  | What it is                                                     |
+| --------------- | --------------------- | -------------------------------------------------------------- |
+| `manifestUrl`   | `string`              | Where the container's `mf-manifest.json` sits, relative to it. |
+| `container`     | `string`              | The Module Federation container name.                          |
+| `contractMajor` | `number`              | The framework contract this build targets. It is `1`.          |
+| `definitions`   | array                 | One record per App or Widget the container exports.            |
+| `entries`       | definition id to path | The generated path each definition is published at.            |
+| `build`         | `{ hash?, time? }`    | Which build this came from. It never gates loading.            |
+
+Each record in `definitions` holds `id` and `kind`, plus the optional `version`, `capabilities` (Apps), `contract` (Widgets), `title`, `description`, `tags` and `icon`.
+
+## The entry a shell reads
+
+```json title="apps/shell/public/registry.json"
+{
+  "id": "alert-panel",
+  "kind": "widget",
+  "mfe": { "contractMajor": 1 },
+  "manifestUrl": "http://localhost:3003/mf-manifest.json",
+  "container": "example_alert_panel",
+  "expose": "./widgets/alert-panel",
+  "version": "1.4.0",
+  "contract": { "events": ["acknowledged", "dismissed"], "inputs": { "type": "object" } },
+  "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" },
+  "title": "Alert panel",
+  "description": "Open alerts for one asset, acknowledged or dismissed in place.",
+  "tags": ["alerts", "operations", "safety"],
+  "icon": { "viewBox": "0 0 24 24", "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]] }
+}
+```
+
+| Field                                  | Required | What it is                                                                             |
+| -------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `id`                                   | yes      | The definition id, under the usual character rule.                                     |
+| `kind`                                 | yes      | `"app"` or `"widget"`.                                                                 |
+| `mfe`                                  | yes      | `{ "contractMajor": 1 }`. Its presence is what commits the entry to this adapter.      |
+| `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                           |
+| `container`                            | no       | The federation container name. The React adapter reads it.                             |
+| `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.      |
+| `version`                              | no       | Recorded in diagnostics.                                                               |
+| `capabilities`                         | no       | App-only. One descriptor per marked route.                                             |
+| `contract`                             | no       | Widget-only. Declared event names, and the inputs schema when the build could read it. |
+| `build`                                | no       | Repeated from the descriptor onto every entry it produced.                             |
+| `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.          |
+| `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                         |
+
+A capability descriptor is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`.
+
+## How the descriptor becomes an entry
+
+In this repository `tools/dev/build-registry.mjs` does the assembly. It reads every container's descriptor and writes `apps/shell/public/registry.json`. For each definition it:
+
+1. resolves `manifestUrl` against the container's own origin,
+2. copies the `expose` path out of `entries`,
+3. repeats the descriptor's `build` block onto every entry,
+4. carries `version`, `capabilities`, `contract` and the four presentation fields across,
+5. applies the shell's own presentation last, so a deployment's wording wins.
+
+A definition whose descriptor names no `expose` path fails the assembly. Rebuild the container.
+
+## Presentation overrides
+
+A deployment keeps its own wording in `registry.source.json`, keyed by definition id. It is merged over what the author declared.
+
+```json title="apps/shell/registry.source.json"
+{
+  "presentation": {
+    "operations": { "title": "Operations", "icon": "OPS" },
+    "alert-panel": { "title": "Alert panel" }
+  }
+}
+```
+
+Nothing else in the registry is written here. Ids, kinds, versions, capabilities, container names and paths come from each container's own build.
+
+## Fixtures
+
+The same file carries a `fixtures` array of deliberately broken entries. They prove that a rejection stays with one entry: the shell keeps running, and every other entry still loads.
+
+```json title="apps/shell/registry.source.json"
+{
+  "fixtures": [
+    {
+      "id": "legacy-reports",
+      "kind": "app",
+      "mfe": { "contractMajor": 2 },
+      "manifestUrl": "http://localhost:3106/mf-manifest.json",
+      "container": "legacy_reports",
+      "expose": "./app",
+      "title": "Legacy Reports"
+    }
+  ]
+}
+```
+
+The first fixture declares contract major 2 and is rejected with `contract/unsupported-major`. The second declares no `manifestUrl` and is rejected with `registry/invalid-descriptor`.
+
+## Related
+
+- [Build and publish a container](/docs/build-and-publish) — what the build produces.
+- [Deploy to production with separate repositories](/docs/deploy-to-production) — who assembles the registry there.
+- [Error codes](/docs/reference/error-codes) — why an entry is rejected.
+- [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — where the presentation fields come from.
+- [Route staticData fields](/docs/reference/static-data) — where the capabilities come from.

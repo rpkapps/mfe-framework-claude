@@ -1,0 +1,115 @@
+---
+title: 'Ask the owning App to navigate or set the title'
+description: 'A Widget emits an event, and the App that renders it navigates or sets its heading.'
+---
+
+A Widget owns no URL and no tab title. To move the page, declare an event, emit it, and let the
+App that rendered you act with its own router.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Declare the event
+
+```ts title="examples/insights/src/mfe.tsx"
+export const fdaSummaryContract = {
+  inputs: z.object({
+    fdaId: z.enum(['fda-1-02', 'fda-2-3', 'fda-1-2']),
+    showActions: z.boolean().default(true),
+  }),
+  events: {
+    selected: z.object({ fdaId: z.string(), selected: z.boolean() }),
+    opened: z.object({ fdaId: z.string(), title: z.string() }),
+  },
+}
+```
+
+Name the event for what happened, and a `navigate` event carrying `{ to: z.string() }` follows
+the same shape.
+
+</Step>
+
+<Step>
+
+### 2. Emit it from the render function
+
+```tsx title="examples/insights/src/widgets.tsx (trimmed)"
+<FdaCard
+  fda={fda}
+  onOpen={() => {
+    emit('opened', { fdaId: fda.id, title: fda.title })
+  }}
+/>
+```
+
+Send only what the App needs to act, as JSON: a route id or a parameter, never a function.
+
+</Step>
+
+<Step>
+
+### 3. Act on it in the App
+
+```tsx
+const navigate = useNavigate()
+
+<FdaSummary
+  fdaId="fda-2-3"
+  onOpened={event => {
+    setHeading(event.title)
+    void navigate({ to: '/reports', search: { fda: event.fdaId } })
+  }}
+/>
+```
+
+Write the route as your App's own path, because the mount prefix is added for you wherever the
+shell put your App.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Press the control in the Widget. Your App's URL changes, the Widget stays mounted, and nothing
+else on the page moves. Run `pnpm lint` to check the other direction: the rule that forbids a
+Widget touching the URL reports it. That rule runs only over the globs your repository lists as
+Widget code.
+
+## Errors
+
+<Callout type="error" title="mfe/no-widget-global-effects">
+
+```text
+A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host
+router, the owning App and every sibling MFE learn about it only by accident.
+```
+
+**Fix.** Declare a navigation event and emit it. The App navigates with its own router.
+
+</Callout>
+
+<Callout type="error" title="mfe/no-widget-global-effects">
+
+```text
+`document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
+would win and the tab title would flicker.
+```
+
+**Fix.** Declare a title event and emit it. The App sets the heading it owns.
+
+</Callout>
+
+The rule also covers `replaceState`, `back`, `forward`, `go` and changes to `document.head`.
+Reading is allowed, so `const current = document.title` is fine.
+
+## Related
+
+- [Define inputs and events](/docs/define-inputs-and-events) — declaring the event.
+- [React to a Widget's events](/docs/react-to-widget-events) — the handler on the App's side.
+- [Link to another App](/docs/link-to-another-app) — when the target is outside your boundary.
+- [Lint rules](/docs/reference/lint-rules) — the full message and how to enable the rule.
+- [What you must not do](/docs/what-you-must-not-do) — every rule, and what enforces it.

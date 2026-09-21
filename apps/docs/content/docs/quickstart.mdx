@@ -1,0 +1,127 @@
+---
+title: 'Quickstart'
+description: 'Scaffold a container, start the shell, and watch your own App mount into it. About ten minutes.'
+---
+
+Ten minutes from an empty directory to your own App running inside the shell. You get a scaffolded
+container, a registry entry the shell reads at boot, and a page at `/<your-id>`.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Scaffold a container
+
+```sh
+pnpm create @company/mfe examples/field-notes --id field-notes
+```
+
+Run it from the repository root. An id is lower-case letters, digits and single hyphens. Pass
+`--template widget` for a Widget instead.
+
+</Step>
+
+<Step>
+
+### 2. Install the new package
+
+```sh
+pnpm install
+```
+
+`examples/*` is a workspace folder, so this links the container you scaffolded.
+
+</Step>
+
+<Step>
+
+### 3. Generate the registry
+
+```sh
+pnpm run generate
+```
+
+Every container writes its own descriptor, and the root script assembles them into
+`apps/shell/public/registry.json`. Nobody hand-writes that file.
+
+</Step>
+
+<Step>
+
+### 4. Start the shell and every container
+
+```sh
+pnpm dev
+```
+
+The shell serves `http://localhost:3000`. Each container serves its own port, and a scaffolded App
+takes 3101.
+
+</Step>
+
+<Step>
+
+### 5. Open your App
+
+```text
+http://localhost:3000/field-notes
+```
+
+The shell owns `/` and `/$appId`. Everything below your id is yours to route.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The shell chrome stays at the top, and your App renders below it. The scaffolded home route shows
+your id as a heading and names the signed-in user under it. Press <Kbd>⌘</Kbd><Kbd>K</Kbd> to open
+the palette. Your App is listed under **Go to**, and the settings page the scaffold wrote is listed
+under **Application pages** as `field-notes settings`.
+
+## Errors
+
+<Callout type="error" title="Port 3000 already in use">
+
+```text
+Port 3000 already in use.
+```
+
+**Fix.** A dev server from an earlier run still holds it. The message prints the `lsof` command that
+names the process, and `kill <pid>` stops it.
+
+</Callout>
+
+<Callout type="error" title="not a usable definition id">
+
+```text
+"Field_Notes" is not a usable definition id. Ids are lower-case letters, digits and single hyphens,
+for example "alert-panel".
+```
+
+**Fix.** Pass `--id field-notes`. The id is also your storage prefix and your CSS scope value.
+
+</Callout>
+
+<Callout type="error" title="No generated descriptor">
+
+```text
+No generated descriptor for field-notes. Run `pnpm run generate` first: the registry is assembled
+from what each container generates, never hand-written.
+```
+
+**Fix.** Run `pnpm install`, then `pnpm run generate` again. The container needs its dependencies
+before it can generate anything.
+
+</Callout>
+
+## Related
+
+- [Tutorial: build the operations App](/docs/tutorial) — routes, a settings page and a Widget.
+- [Architecture](/docs/architecture) — what you started, and where it runs.
+- [Create an App](/docs/create-an-app) — what the scaffolded `src/mfe.ts` declares.
+- [Run the shell with your container](/docs/run-the-shell-locally) — ports, and what `pnpm dev` starts.
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — for a container the registry already knows.

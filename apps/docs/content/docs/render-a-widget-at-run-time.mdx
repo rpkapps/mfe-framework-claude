@@ -1,0 +1,108 @@
+---
+title: 'Render a Widget chosen at run time'
+description: 'Render DynamicWidget when the Widget id is a value, and hear every event by name.'
+---
+
+When the id is a value rather than a name in your source, render `DynamicWidget`. It takes the id
+as a prop and delivers every declared event by name.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Read what the registry offers
+
+```ts title="apps/shell/src/shell/dashboard/page.tsx (trimmed)"
+import { useWidgets } from '@company/mfe-react'
+
+const widgets = useWidgets()
+```
+
+Each entry carries `id`, `title`, `description`, `tags`, `icon` and `contract`, and all of it is
+readable before any container is fetched.
+
+</Step>
+
+<Step>
+
+### 2. Render the Widget by id
+
+```tsx title="apps/shell/src/shell/dashboard/tile.tsx (trimmed)"
+import { DynamicWidget } from '@company/mfe-react'
+
+;<DynamicWidget
+  widgetId={tile.widgetId}
+  {...tile.inputs}
+  onEvent={onEvent}
+  pending={<MountingSkeleton />}
+  fallback={({ error, retry }) => (
+    <div role="alert">
+      <p>{error.message}</p>
+      <Button onPress={retry}>Retry</Button>
+    </div>
+  )}
+/>
+```
+
+Spread the inputs you collected: `DynamicWidget` takes no contract, and the Widget validates
+every input it is handed.
+
+</Step>
+
+<Step>
+
+### 3. Handle every event by name
+
+```tsx
+const onEvent = useCallback((name: string, payload: unknown) => {
+  setEvents(current => [{ name, payload, at: Date.now() }, ...current])
+}, [])
+```
+
+`onEvent` receives each declared event as a name and a payload, and `contract.events` on the
+registry entry lists the names to expect.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Add a Widget from the dashboard
+catalogue, fill in its inputs, and watch the activity list record what it emits. The dialog that
+asks for those inputs is drawn from `contract.inputs`, which is a JSON Schema. Change `widgetId`
+and the old mount is replaced rather than handed the new Widget's inputs.
+
+## Errors
+
+<Callout type="error" title="registry/invalid-descriptor">
+
+```text
+alert-panel failed to resolve Widget: no registry entry with this id.
+```
+
+**Fix.** Check the id you passed against the registry. Give every tile a `fallback`, because a
+saved layout outlives the registry that produced it.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch">
+
+```text
+alert-panel@1.4.0 failed to accept input severity: "urgent"; ✖ Invalid option: expected one of "info"|"warning"|"critical"
+  → at severity.
+```
+
+**Fix.** Offer only what the published schema allows. A `z.enum([…])` in the schema is a fixed
+list of choices.
+
+</Callout>
+
+## Related
+
+- [Render a Widget inside your App](/docs/render-a-widget) — when you know the id at build time.
+- [React to a Widget's events](/docs/react-to-widget-events) — typed handlers, one per event.
+- [Registry entry](/docs/reference/registry-entry) — every field you can read.
+- [Hooks and components](/docs/reference/hooks-and-components) — `useWidgets` and `DynamicWidget`.
