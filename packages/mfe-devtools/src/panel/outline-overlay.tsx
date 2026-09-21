@@ -68,7 +68,7 @@ function MountBox({ outline }: { readonly outline: MountOutline }): ReactNode {
   return (
     <div
       style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
-      className={`absolute rounded-xs border-2 ${style.box}`}
+      className={`absolute rounded-xs border ${style.box}`}
     >
       <span
         className={`absolute left-0 flex max-w-full items-center gap-1 rounded-xs px-1 py-0.5 font-mono text-[10px] leading-none whitespace-nowrap ${style.label} ${above ? 'bottom-full rounded-b-none' : 'top-0 rounded-t-none'}`}
