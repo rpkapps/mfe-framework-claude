@@ -8,6 +8,7 @@
     "...guides",
     "---Reference---",
     "glossary",
+    "reference/legacy-angular",
     "decisions"
   ]
 }

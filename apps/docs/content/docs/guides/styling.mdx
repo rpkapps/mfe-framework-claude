@@ -1,89 +1,43 @@
 ---
 title: '8. Styling'
-description: 'Why a shared page needs a CSS boundary, what the shell owns at document level, and what your container’s build does to the stylesheet it generates for you.'
+description: 'What your build does to your CSS, the three roots a mount renders, and the styling errors you will see.'
 ---
 
-You write Tailwind utility classes and `@tecton/react` components in your TSX, and they look right.
-Then a second team's surface mounts on the same page, built six weeks later against a different
-release of the design system, and your spacing moves. This page is the machinery that stops that,
-almost all of which runs without you writing a line of CSS: you ship no stylesheet entry, no
-`postcss.config` and no theme variables, and your build generates a stylesheet from the classes you
-used and wraps it in a CSS `@scope` rule keyed on your definition id.
+You write no CSS configuration in a container: no stylesheet entry, no `postcss.config`, no theme
+variables. Your build collects the classes you rendered, generates one <Term>scoped stylesheet</Term>,
+and wraps it in a CSS `@scope` rule keyed on your [definition id](/docs/glossary). Your rules then
+apply inside your
+own mount roots and nowhere else.
 
-## Why styles need a boundary on a shared page
+## What you write, and what the build generates
 
-A <Term>micro-frontend</Term> is a piece of one web page that is built, versioned and deployed on
-its own and loaded at run time into a page it does not own. A <Term>container</Term> is one such
-deployable: one package, one build, one origin, one `src/mfe.ts`. The <Term>shell</Term> is the
-single application on the page that is not listed in the registry; it owns the document and mounts
-your surface into itself.
+You write TSX, and the build generates everything else.
 
-One document means one cascade. The design system's own scope plugin states the problem:
+| You write                           | The build generates                                           | Where it lands                                 |
+| ----------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| TSX with Tailwind classes           | the utilities those classes need, and nothing else            | `.mfe/styles.css`, imported by every entry     |
+| no `postcss.config`                 | `@tailwindcss/postcss`, then the container scope plugin       | your Rsbuild config, appended by `pluginMfe()` |
+| no `@scope` rule                    | `@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`      | around every rule in the generated stylesheet  |
+| no reset, no fonts, no theme values | nothing: the shell's document half inherits into your subtree | `apps/shell/src/styles/app.css`                |
+| no overlay wiring                   | a style root component, when you depend on `@tecton/react`    | `.mfe/entries/style-root.tsx`                  |
 
-> A remote that brings its own `@tecton/react` spells `bg-primary`, `text-sm` and every component
-> class exactly like its host does, and the two builds do not necessarily mean the same thing by
-> them. At equal layer and specificity the copy injected last wins, and injection order follows
-> chunk loading, not ownership.
+The shell owns the document half of the page's CSS, and your container owns the rest.
 
-Chunk loading order depends on which surface the user visited first, which you do not control. So
-the framework does not try to win the cascade. It wraps every container's rules in `@scope`, which
-resolves ties by proximity to the scope root instead of by injection order.
+| The shell's half, page-wide                | Your half, inside your scope                    |
+| ------------------------------------------ | ----------------------------------------------- |
+| the preflight reset                        | the utilities your own classes need             |
+| `@font-face`, `--font-sans`, `--font-mono` | the design system's scoped entry, if you use it |
+| Tailwind's `@property` registrations       | the `@scope` rule wrapped around both           |
+| the theme variables on `:root`             | your `@keyframes`, renamed after your ids       |
 
-## What the shell owns at document level
+Everything in the shell's half inherits into every mounted subtree. A theme flip or a tenant
+customisation made once in the shell reaches every container with nothing wired up. Fonts arrive the
+same way: the shell declares them, and you read `--font-sans` and `--font-mono`.
 
-One stylesheet carries the document-level half for the whole page: the preflight reset, the
-`@font-face` declarations, Tailwind's `@property` registrations and the theme variables on `:root`.
-All four inherit into every mounted subtree, so a tenant customisation or a theme flip made once in
-the shell reaches every container with nothing wired up. Both of the shell's files are short enough
-to read whole:
+### The stylesheet your build writes
 
-```css title="apps/shell/src/styles/app.css"
-/* Tecton's palette replaces Tailwind's, so stock colour utilities (`bg-red-500`) generate no CSS at all. */
-
-@import '@tecton/react/globals.css';
-
-/* Each container ships the utilities its own classes need (§17); what stays here is the document-level half every mounted subtree inherits. */
-@source "../**/*.{ts,tsx}";
-
-/* The developer tools are a package rather than a container and render into the shell's own document, so their utilities belong in this sheet. */
-@source "../../../../packages/mfe-devtools/src/**/*.{ts,tsx}";
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-}
-```
-
-```js title="apps/shell/postcss.config.mjs"
-/** Tailwind v4 runs as a PostCSS plugin; the design system's globals.css is the entry it expands. */
-export default {
-  plugins: {
-    '@tailwindcss/postcss': {},
-  },
-}
-```
-
-Fonts reach you the way every other inherited value does: the shell declares them, you read
-`--font-sans` and `--font-mono`. No container depends on a font package.
-
-## What your container's build does to your CSS
-
-`pluginMfe()` contributes to your Rsbuild configuration and never replaces it. For CSS it appends
-two PostCSS plugins to whatever the container already has: `@tailwindcss/postcss` first — skipped
-when your own config already declares a plugin whose name contains `tailwindcss` — then the
-container scope plugin. The order is the point: "Tailwind before the scope plugin: scoping before
-the utilities exist would scope nothing."
-
-### The stylesheet entry the build generates
-
-Generation writes `.mfe/styles.css`, and every generated federation entry imports it, so it reaches
-the document before anything renders against it. For a container depending on `@tecton/react` this
-is the whole file, comments included:
+Generation writes `.mfe/styles.css`, and every generated federation entry imports it. For a
+container that depends on `@tecton/react`, this is the whole file:
 
 {/* prettier-ignore */}
 ```css title="examples/alert-panel/.mfe/styles.css (generated)"
@@ -118,14 +72,13 @@ is the whole file, comments included:
 @source "../src/**/*.{ts,tsx}";
 ```
 
-The design system's scoped entry appears only when `@tecton/react` is in your dependencies.
-Dropping that dependency removes the import and the style root described below, so keep it.
+`pluginMfe()` appends to your Rsbuild configuration and never replaces it. It skips
+`@tailwindcss/postcss` when your own config already declares a plugin whose name contains
+`tailwindcss`. Tailwind runs first either way, because scoping before the utilities exist would
+scope nothing. The design system's scoped entry appears only while `@tecton/react` is in your
+dependencies, so keep the dependency.
 
-### The `@scope` rule the framework emits
-
-A <Term>scoped stylesheet</Term> is the CSS a container ships for its own classes, wrapped so it
-applies only inside that container's mount roots. The framework supplies both selectors
-(`packages/mfe-rspack/src/css/scope.ts`):
+### The `@scope` rule
 
 ```ts title="packages/mfe-rspack/src/css/scope.ts"
 const SCOPE_ATTRIBUTE = 'data-mfe-scope'
@@ -145,31 +98,124 @@ return loadScopePlugin(options.containerRoot)({
 ```
 
 A container exporting four Widgets, like `examples/insights`, emits one rule whose start selector
-lists all four ids.
+lists all four ids. Three more things happen to the sheet.
+
+- Document-global at-rules are hoisted out of the scope unchanged: `@charset`, `@import`,
+  `@property`, `@font-face`, `@keyframes` and bodiless `@layer a, b;` statements.
+- Every `@keyframes` your sheet defines is renamed to `<name>--<your ids joined by hyphens>`, and
+  the references in `animation`, `animation-name` and `--animate-*` are rewritten to match. A name
+  your sheet does not define belongs to the shell and is left alone.
+- A leading `:root`, `html` or `body` compound is rewritten to `:scope`, so Tailwind's root defaults
+  land on your scope root. The same selectors anywhere else in a rule are a build error.
 
 <Callout type="warning" title="This is not the selector the design system's own docs show">
-  The design system documents `@scope (.mfe-a) to ([data-tecton-root])` — a class for the scope
-  root, `[data-tecton-root]` for the boundary. Those are the plugin's defaults, and this framework
-  overrides both. Your rules are keyed on the `data-mfe-scope` attribute, and the lower boundary is
-  the next mount root inside yours, so a nested container's CSS is never yours.
-  `tools/dev/verify-page.mjs` asserts that exact shape in a real browser.
+  The design system documents `@scope (.mfe-a) to ([data-tecton-root])`, which are the plugin's
+  defaults. This framework overrides both. Your rules are keyed on the `data-mfe-scope` attribute.
+  The lower boundary is the next mount root inside yours, so a nested container's CSS is never
+  yours.
 </Callout>
 
-Two more things happen to the sheet. Document-global at-rules are hoisted out of the scope
-unchanged — `@charset`, `@import`, `@property`, `@font-face`, `@keyframes` and bodiless
-`@layer a, b;` statements, all of which `@scope` would ignore. And every `@keyframes` your sheet
-defines is renamed to `<name>--<your ids joined by hyphens>`, with the references in `animation`,
-`animation-name` and any `--animate-*` property rewritten to match, because a keyframes name is
-page-wide whatever scopes the rules. A name your sheet does not define belongs to the shell and is
-left alone.
+## The three roots: scope, style, overlay
 
-A leading `:root`, `html` or `body` compound is rewritten to `:scope`, so Tailwind's own root
-defaults land on your scope root and inherit into your subtree. The same selectors anywhere else in
-a rule are a build error, quoted at the end of this page.
+Every <Term>mount</Term> renders three roots around your tree: scope, style and overlay.
 
-## The stylesheet entry you must not write
+| Root         | Element                                                  | What it carries                                                                   |
+| ------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| scope root   | a `display: contents` div around your whole tree         | `data-mfe-scope="<id>"`, `data-mfe-mount`, `data-mfe-kind`                        |
+| style root   | a generated component inside the scope root              | your container's own `ThemeRoot`, pointed at your overlay root                    |
+| overlay root | a div the framework appends to `document.body` per mount | the same `data-mfe-scope` value, plus `data-mfe-overlay-root`, `data-tecton-root` |
 
-You write none. Every CSS file under `examples/` is generated output:
+{/* prettier-ignore */}
+```html title="the page while an App is mounted"
+<body>
+  ... the shell chrome ...
+  <div data-mfe-scope="operations" data-mfe-kind="app" data-mfe-mount="operations#1"
+       style="display: contents">                    <!-- the scope root -->
+    <StyleRoot>                                      <!-- the container's own ThemeRoot -->
+      ... the App ...
+  <div data-mfe-scope="operations" data-mfe-mount="operations#1"
+       data-mfe-overlay-root data-tecton-root>       <!-- the overlay root -->
+    ... every dialog, popover, tooltip and menu ...
+```
+
+The scope root is `display: contents`, so it anchors a selector without becoming a box. Your
+outermost element is the one the host laid out, with no framework div in between. The overlay root
+carries the same `data-mfe-scope` value, so an overlay at body level still matches your `@scope`
+start selector.
+
+`data-tecton-root` on the overlay root is the other half. The design system hangs its base border
+and outline colours on that marker and its descendants. Portalled content descends from the overlay
+root rather than from your in-page tree, so without the marker a dialog would open with no base
+colours.
+
+`SCOPE_ATTRIBUTE` is exported from `@company/mfe-react` for code that needs the attribute name. The
+generated entry exports `withStyleRoot(authored, StyleRoot)` and calls
+`createOverlayRoot(definitionId, mountToken, document)` for you, so you call neither.
+
+<Diagram
+  src="/diagrams/styling-scope.svg"
+  alt="The shell's document-level stylesheet and the container's generated utilities, wrapped in an @scope rule, over the page they land on."
+  caption="One stylesheet in two halves: the document, then the utilities."
+>
+Two halves of the page's CSS run across the top. The page they land on sits below, and the stated
+limit sits to the right.
+
+- `apps/shell/src/styles/app.css`: preflight, the fonts, the theme variables. A dashed arrow
+  labelled "inherits into containers" runs down to the page.
+- `.mfe/styles.css`: this container's utilities, generated. An arrow labelled "after Tailwind" leads
+  right.
+- "The build wraps it": `@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])`. An arrow
+  labelled "scopes every rule" runs down to the scope root on the page.
+- "On the page, while the App is mounted" holds two elements. The scope root,
+  `<div data-mfe-scope="operations" data-mfe-kind="app">`, is `display: contents`. The overlay root,
+  `<div data-mfe-scope="operations" data-mfe-overlay-root>`, sits at body level.
+- "The stated limit": `@scope`, with no fallback below Chrome 118.
+- A legend names four colours: the shell and the document half, generated by the build, the browser
+  document, and a stated limit.
+
+</Diagram>
+
+## Use the design system inside a container
+
+Use the design system by importing components by subpath, as the examples do. There is no barrel
+import.
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
+import { Button } from '@tecton/react/components/button'
+import { CheckIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
+```
+
+Four rules apply inside a container.
+
+- **The theme is the shell's.** The generated style root renders `ThemeRoot` for you. Do not render
+  a second one, and do not set a theme on it.
+- **Overlays take care of themselves.** Dialog, sheet, popover, tooltip, select, combobox, menu and
+  drawer read their portal target from the design system's context. Raise them normally.
+- **Use `onPress`, not `onClick`.** The controls are built on React Aria. A `Button` with `onClick`
+  looks right and does nothing. The design system's `docs/components/button` page is the reference.
+- **Stock Tailwind colour classes generate no CSS.** The design system's theme block opens with
+  `--color-*: initial`, which unsets every stock colour before the Tecton families are declared.
+
+| Instead of                            | Write                                                                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bg-red-500`, `bg-white`              | a semantic token: `bg-destructive`, `bg-background`, `text-muted-foreground`, `border-border-subtle`                                          |
+| `text-zinc-400`, `dark:text-zinc-200` | a Tecton palette step: `text-gray-830`, `bg-blue-120`. The number is a contrast level, not a lightness, and there is no `dark:` pair to write |
+
+[Decision 17](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
+records why each container ships its own stylesheet.
+
+<Callout type="warning" title="Nothing fails when you get a colour wrong">
+  A stock colour class produces no CSS and no error. The lint rule that would catch it belongs to
+  `@tecton/eslint-config`, and a container scaffolded by `pnpm create @company/mfe` wires only
+  `mfe.author(...)`. In this repository the design system's `strict` preset is switched off at the
+  root, with a recorded reason. Check the colour in the browser rather than waiting for a failure.
+</Callout>
+
+## Do not write a stylesheet entry
+
+Write no `.css` file and no `postcss.config` in a container. Every CSS file under `examples/` is
+generated output:
 
 ```sh
 $ find examples -name "*.css" -o -name "postcss.config*"
@@ -181,174 +227,22 @@ examples/reports/.mfe/styles.css
 ```
 
 Five files, one per container, all under the gitignored `.mfe/` directory. No example container has
-an authored `.css` file, a `postcss.config.*` or a CSS import anywhere in `src/`, and CSS never
-appears in their `rsbuild.config.ts`, where `pluginMfe()` is one entry in `plugins`.
+an authored `.css` file, a `postcss.config.*` or a CSS import anywhere in `src/`.
 
-The design system's own "Micro-frontends" page tells a remote author to write
-`src/styles/remote.css` and a `postcss.config.mjs` by hand. That page is for a remote in any host;
-here the build writes both, with the framework's selectors rather than the defaults, so writing
-them yourself produces a second, differently scoped sheet. Three rules follow:
+The design system's own "Micro-frontends" page tells a remote author to write `src/styles/remote.css`
+and a `postcss.config.mjs` by hand. That page is for a remote in any host. Here the build writes
+both, with the framework's selectors rather than the defaults, so writing them yourself produces a
+second, differently scoped sheet. Three rules follow.
 
 - Do not define a `@property` or an `@font-face` in a container. Both register a name page-wide, and
   whichever the browser parsed last wins.
-- Do not redeclare a theme variable. `verify:page` asserts that your scope root inherits `--primary`
-  rather than setting its own.
+- Do not redeclare a theme variable. `pnpm verify:page` asserts that your scope root inherits
+  `--primary` rather than setting its own.
 - Do not portal an overlay to `document.body` by hand. It leaves your `@scope` and loses your CSS.
 
-## The scope root, the style root and the overlay root
+## Errors you will see
 
-Three elements exist per <Term>mount</Term> — one live instance of your definition on the page.
-
-The <Term>scope root</Term> is the element your CSS is keyed on. Every mount renders one around
-your whole tree
-(`packages/mfe-react/src/scope-root.tsx`):
-
-```tsx
-<div
-  {...{ [SCOPE_ATTRIBUTE]: definitionId, [MOUNT_ATTRIBUTE]: mountToken }}
-  data-mfe-kind={kind}
-  style={LAYOUT_NEUTRAL}
->
-```
-
-`SCOPE_ATTRIBUTE` is `'data-mfe-scope'`, exported from `@company/mfe-react`; it is the supported way
-to name the attribute from code. `LAYOUT_NEUTRAL` is `{ display: 'contents' }`, so the scope root
-anchors a selector without becoming a box: your outermost element is the one the host laid out, with
-no framework `<div>` in between.
-
-The <Term>overlay root</Term> is a `<div>` the framework appends to `document.body` per mount and
-removes on disposal. `createOverlayRoot(definitionId, mountToken, document)` gives it the same `data-mfe-scope`
-value as the in-page root, plus `data-mfe-mount` and `data-mfe-overlay-root`. That is the trick: an
-overlay at body level still matches your `@scope` start selector though it is nowhere near your
-subtree.
-
-The <Term>style root</Term> is a component the build generates and attaches to your definition, so
-the design system's React context — including its portal target — comes from _your_ copy of the
-library:
-
-```tsx title=".mfe/entries/style-root.tsx (generated)"
-export function StyleRoot({
-  overlayContainer,
-  children,
-}: {
-  readonly overlayContainer: HTMLElement
-  readonly children: ReactNode
-}): ReactNode {
-  useLayoutEffect(() => {
-    overlayContainer.setAttribute('data-tecton-root', '')
-    return () => {
-      overlayContainer.removeAttribute('data-tecton-root')
-    }
-  }, [overlayContainer])
-
-  return (
-    <ThemeRoot overlayContainer={overlayContainer} style={LAYOUT_NEUTRAL}>
-      {children}
-    </ThemeRoot>
-  )
-}
-```
-
-`data-tecton-root` on the overlay root is the second half of the trick. The library hangs its base
-border and outline colours on that marker and its descendants, and portalled contents are
-descendants of the overlay root rather than of the root inside the page, so without the marker a
-dialog would open inside your scope with no base colours.
-
-The generated entry then exports `withStyleRoot(authored, StyleRoot)`. `withStyleRoot` and
-`createOverlayRoot` are exported from `@company/mfe-react` only because that generated entry imports
-them. You never call either.
-
-<Diagram
-  src="/diagrams/styling-scope.svg"
-  alt="One stylesheet in two halves: the shell's document-level CSS above, and a container's scoped utilities wrapped in an @scope rule keyed on its mount roots."
-  caption="One stylesheet in two halves: the document is the shell’s, the utilities are the container’s."
->
-Three panels across the top, a wide one below them and one to the right.
-
-- **The shell owns the document half** (`apps/shell/src/styles/app.css`): the preflight reset, the
-  fonts and `--font-sans` / `--font-mono`, the `@property` registrations, the theme variables on
-  `:root`. A dashed arrow labelled "inherits into every container" runs from here down to the page
-  panel — no container ships a reset or a variable of its own.
-- **The container ships its own utilities** (`.mfe/styles.css`, generated): the layer order
-  statement, `tailwindcss/theme.css`, `tailwindcss/utilities.css`, then
-  `@tecton/react/styles/scoped.css`. Deliberately not `@import "tailwindcss"`, which would bring
-  preflight with it; Tailwind emits a utility only for a class it has seen, so this is the CSS for
-  this container and nothing else. An arrow leads from here to the third panel.
-- **What the build wraps it in** — the design system's plugin, after Tailwind, producing
-  `@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope]) { /* every rule this container
-emitted */ }`. The lower boundary is the next mount root below, so a nested container's CSS is
-  never this one's; `:root` and `:host` are rewritten onto the scope root, and `@keyframes` are
-  renamed after this container. An arrow labelled "loaded with the container" runs from here to the
-  page panel.
-- **What the page looks like while the App is mounted**: inside `<body>`, after the shell chrome, a
-  `<div data-mfe-scope="operations" data-mfe-kind="app" data-mfe-mount="operations#1"
-style="display: contents">` — the scope root — holding `<StyleRoot>`, the container's own
-  `ThemeRoot`, and the App. Separately at body level, a `<div data-mfe-scope="operations"
-data-mfe-mount="operations#1" data-mfe-overlay-root data-tecton-root>` — the overlay root —
-  holding every dialog, popover, tooltip and menu. The overlay root carrying the same attribute is
-  what keeps an overlay inside the container's scope instead of on a bare document body.
-- **The stated limit** (`docs/decisions.md` §5 and §17): `@scope` is the narrowest-supported feature
-  the framework requires and is emitted with no fallback. Below Chrome 118, Firefox 146 or iOS
-  Safari 17.4 the rule does not apply and the last stylesheet on the page wins, unscoped.
-
-</Diagram>
-
-## Using the design system inside a container
-
-Import components by subpath, as the examples do. There is no barrel import.
-
-```tsx title="examples/alert-panel/src/alert-panel.tsx"
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
-import { Button } from '@tecton/react/components/button'
-import { CheckIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
-```
-
-Four rules apply inside a container specifically.
-
-**The theme is the shell's, and you inherit it.** The generated style root renders `ThemeRoot` for
-you. Do not render a second one and do not set a theme on it: the shell holds one value, applies the
-`dark` class to `<html>`, and every container reads it through inheritance.
-
-**Overlays take care of themselves.** Dialog, sheet, popover, tooltip, select, combobox, menu and
-drawer read their portal target from the design system's context, which the style root points at
-your mount's overlay root. Raise them normally.
-
-**Use `onPress`, not `onClick`.** The controls are built on React Aria, and `onClick` on a `Button`
-renders a control that looks right and does nothing; the design system's own
-`docs/components/button` page is the reference.
-
-**Stock Tailwind colour utilities generate no CSS.** The design system's theme block opens with
-`--color-*: initial`, unsetting every stock colour before the Tecton families are declared, so
-`bg-red-500` and `text-zinc-400` emit nothing at all — not a wrong colour, no rule.
-
-| Instead of                            | Write                                                                                                                                         |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bg-red-500`, `bg-white`              | a semantic token: `bg-destructive`, `bg-background`, `text-muted-foreground`, `border-border-subtle`                                          |
-| `text-zinc-400`, `dark:text-zinc-200` | a Tecton palette step: `text-gray-830`, `bg-blue-120`. The number is a contrast level, not a lightness, and there is no `dark:` pair to write |
-
-<Callout type="error" title="Nothing fails when you get this wrong">
-  A stock colour class produces no CSS and no error. The lint rule that would catch it belongs to
-  `@tecton/eslint-config`, and a container scaffolded by `pnpm create @company/mfe` wires only
-  `mfe.author(...)`. In this repository the design system's `strict` preset is switched off at the
-  root with a recorded reason, so check the colour in the browser rather than waiting for a failure.
-</Callout>
-
-## Where `@scope` is not supported
-
-`@scope` has the narrowest browser support of anything the framework requires, and it is emitted
-with no fallback. `docs/decisions.md` §5 measured the whole feature set at **89.9685%** usage
-coverage against a 91% target, "native CSS `@scope` being the entire gap", and records that "an
-audience on Chrome below 118, Firefox below 146 or iOS Safari below 17.4 sees unscoped CSS".
-
-What such a user sees: the page renders, every surface mounts, nothing throws. The `@scope` rule is
-unknown, so its block is dropped, and the winner at equal layer and specificity becomes whichever
-container's stylesheet the document parsed last — for the whole page, the shell included. The
-symptom is colours, spacing and sizing that come from the wrong build and change depending on which
-surface the user opened first. There is no fallback to switch on.
-
-## When the styling is wrong: the messages you will see
-
-Two failures happen at build time, both from `packages/mfe-rspack/src/css/scope.ts`.
+Two of these errors happen at build time, both from `packages/mfe-rspack/src/css/scope.ts`.
 
 <Callout type="error" title="An empty scope list">
   `/work/alert-panel/src/mfe.ts: the build failed to scope this container stylesheet: expected at
@@ -357,9 +251,8 @@ Two failures happen at build time, both from `packages/mfe-rspack/src/css/scope.
   values the mount roots carry in their data-mfe-scope attribute, and the stylesheet is scoped to
   them.`
 
-**The fix:** export a definition from `src/mfe.ts`. The build discovers `createApp` and
-`createWidget` results statically, so one assigned to a local variable and never exported is
-invisible to it.
+**Fix.** Export a definition from `src/mfe.ts`. The build discovers `createApp` and `createWidget`
+results statically, so one assigned to a local variable and never exported is invisible to it.
 
 </Callout>
 
@@ -370,29 +263,62 @@ invisible to it.
   Install @tecton/react (>=0.1.0). Its PostCSS plugin is what contains a container stylesheet,
   whether or not the container renders the design system itself.`
 
-**The fix:** add `@tecton/react` to the container's dependencies. The plugin resolves from the
-container root first, so a container pinned to an older design system is scoped by that version's
-recipe; the build plugin's copy is only the fallback.
+**Fix.** Add `@tecton/react` to the container's dependencies. The plugin resolves from the container
+root first, so a container pinned to an older design system is scoped by that version's recipe.
 
 </Callout>
 
-A third failure comes from the scope plugin itself if you add a stylesheet with a `:root`, `:host`,
-`html` or `body` selector anywhere but as the leading compound. It throws, names the file and the
+A third failure comes from the scope plugin itself. It fires when a stylesheet carries a `:root`,
+`:host`, `html` or `body` selector anywhere but as the leading compound. It names the file and the
 selector, and tells you to write the rule against `[data-tecton-root]` instead.
 
 Everything else is caught in a browser by `pnpm verify:page`, which drives Chromium over the shell
-and every example and checks these, per definition id:
+and every example. Per definition id it asserts:
 
-| The check                                                                  | What a failure means                                                                                                                               |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<id>'s scoped stylesheet reached the document`                            | no `@scope` rule starting `[data-mfe-scope="<id>"]` and ending `[data-mfe-scope]` exists — the container did not load, or its sheet was not scoped |
-| `no :root or :host selector survives inside an @scope rule`                | the leading-selector rewrite did not run                                                                                                           |
-| `<id>'s scope root inherits --primary rather than redeclaring it`          | a container declared a theme variable of its own                                                                                                   |
-| `the w-60 utility exists only inside a container @scope, never shell-wide` | a container's utilities leaked to the document                                                                                                     |
-| `the overlay's ancestor scope root is the container's own overlay root`    | an overlay portalled to a bare `document.body`, or back inside the in-page mount                                                                   |
+| The check                                                                  | What a failure means                                                             |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `<id>'s scoped stylesheet reached the document`                            | the container did not load, or its sheet was not scoped                          |
+| `no :root or :host selector survives inside an @scope rule`                | the leading-selector rewrite did not run                                         |
+| `<id>'s scope root inherits --primary rather than redeclaring it`          | a container declared a theme variable of its own                                 |
+| `the w-60 utility exists only inside a container @scope, never shell-wide` | a container's utilities leaked to the document                                   |
+| `the overlay's ancestor scope root is the container's own overlay root`    | an overlay portalled to a bare `document.body`, or back inside the in-page mount |
+| the shell's own stylesheet carries no `@scope` rule                        | the document half was scoped, so it would inherit into nothing                   |
 
-It also asserts that the shell's own stylesheet carries no `@scope` rule, since a scoped document
-half would inherit into nothing. Use `--url /operations/wells` to check one page.
+The first check looks for an `@scope` rule starting `[data-mfe-scope="<id>"]` and ending
+`[data-mfe-scope]`. Use `--url /operations/wells` to check one page.
+
+## Browser support for `@scope`
+
+`@scope` has the narrowest browser support of anything the framework requires, and it is emitted
+with no fallback.
+
+| Browser    | Minimum version |
+| ---------- | --------------- |
+| Chrome     | 118             |
+| Firefox    | 146             |
+| iOS Safari | 17.4            |
+
+Below those versions the rule is unknown, so its block is dropped. The winner at equal layer and
+specificity becomes whichever stylesheet the document parsed last, for the whole page. The symptom
+is colours, spacing and sizing from the wrong build, changing with whichever screen the user opened
+first.
+
+`docs/decisions.md` §5 measured the whole feature set at **89.9685%** usage coverage against a 91%
+target, "native CSS `@scope` being the entire gap". There is no fallback to switch on.
+
+## Why a shared page needs a CSS boundary
+
+A shared page needs a CSS boundary because one document means one cascade. The design system's own
+scope plugin states the problem:
+
+> A remote that brings its own `@tecton/react` spells `bg-primary`, `text-sm` and every component
+> class exactly like its host does, and the two builds do not necessarily mean the same thing by
+> them. At equal layer and specificity the copy injected last wins, and injection order follows
+> chunk loading, not ownership.
+
+Chunk loading order depends on which screen the user visited first. You do not control that. So the
+framework does not try to win the cascade. `@scope` resolves ties by proximity to the scope
+root, and proximity is fixed by the DOM rather than by load order.
 
 ## Where next
 
@@ -400,5 +326,7 @@ half would inherit into nothing. Use `--url /operations/wells` to check one page
   developer tools show about a container that did not load.
 - [5. What you must not do](/docs/guides/what-you-must-not-do) — the rest of the rules about being
   one piece of a shared page.
-- [Decision 17: each container ships its own stylesheet, scoped to its own mount roots](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
-- [Decision 5: the browser support matrix was removed](/docs/decisions#5-the-browser-support-matrix-was-removed)
+- [Decision 17](/docs/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)
+  — why each container ships its own stylesheet.
+- [Decision 5](/docs/decisions#5-the-browser-support-matrix-was-removed) — why there is no browser
+  support matrix.

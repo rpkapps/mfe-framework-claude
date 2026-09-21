@@ -12,11 +12,13 @@
  * Usage:
  *   node tools/diagrams/render.mjs                 rewrite every SVG
  *   node tools/diagrams/render.mjs --only layers   one scene, by file name
- *   node tools/diagrams/render.mjs --check         render to a temporary directory and
- *                                                  fail if a committed SVG differs
+ *   node tools/diagrams/render.mjs --check         check the text budget, then render to a
+ *                                                  temporary directory and fail if a
+ *                                                  committed SVG differs
  */
 
 import { chromium } from '@playwright/test'
+import { reportTextBudget } from './check-text-budget.mjs'
 import { rspack } from '@rsbuild/core'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, statSync } from 'node:fs'
@@ -331,6 +333,25 @@ function reportLaunchFailure(cause) {
 
 async function main() {
   const options = parseArguments(process.argv.slice(2))
+
+  // Cheap, browser-free and about the scenes rather than the pictures, so it runs first: a
+  // diagram whose boxes carry paragraphs is wrong whatever the SVG beside it says.
+  if (options.check) {
+    const overBudget = await reportTextBudget()
+    if (overBudget.length > 0) {
+      fail(
+        [
+          `${String(overBudget.length)} box${overBudget.length === 1 ? '' : 'es'} over the text budget:`,
+          '',
+          ...overBudget.map(line => `  - ${line}`),
+          '',
+          'A box holds a name of four words and at most one subtitle of eight. The explanation',
+          "goes in the diagram's paragraph in tools/diagrams/README.md.",
+        ].join('\n'),
+      )
+    }
+  }
+
   const scenes = await listScenes(options.only)
   const bundleDir = await buildBundle()
   const { server, port } = await startServer(bundleDir)

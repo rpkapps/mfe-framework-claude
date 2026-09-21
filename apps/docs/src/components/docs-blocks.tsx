@@ -2,9 +2,11 @@
 
 import * as React from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
+import { Button } from '@tecton/react/components/button'
+import { Collapsible, CollapsibleContent } from '@tecton/react/components/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { cn } from 'cn'
-import { AlertTriangleIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react'
+import { AlertTriangleIcon, ChevronDownIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react'
 
 /* ------------------------------------------------------------------------ */
 /* Callout                                                                   */
@@ -48,6 +50,54 @@ export function Callout({
         {children}
       </AlertDescription>
     </Alert>
+  )
+}
+
+/* ------------------------------------------------------------------------ */
+/* Details — progressive disclosure. Closed by default.                     */
+/* ------------------------------------------------------------------------ */
+
+export function Details({
+  summary,
+  defaultOpen = false,
+  children,
+  className,
+}: {
+  /** The trigger's label. Stays visible, open or closed. */
+  summary: React.ReactNode
+  /** Open on first render. Defaults to closed. */
+  defaultOpen?: boolean
+  /** The body, as Markdown. Renders as prose once open. */
+  children: React.ReactNode
+  className?: string
+}) {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen)
+
+  return (
+    <Collapsible
+      data-slot="details"
+      isExpanded={isOpen}
+      onExpandedChange={setIsOpen}
+      className={cn('mt-6 overflow-hidden rounded-xl border border-border-subtle', className)}
+    >
+      <Button
+        slot="trigger"
+        variant="ghost"
+        className="not-typeset h-auto w-full justify-between gap-3 px-4 py-3 text-left font-medium"
+      >
+        {summary}
+        <ChevronDownIcon
+          data-icon="inline-end"
+          className={cn(
+            'shrink-0 text-muted-foreground transition-transform',
+            isOpen && 'rotate-180',
+          )}
+        />
+      </Button>
+      <CollapsibleContent>
+        <div className="typeset border-t border-border-subtle px-4 py-3 text-sm">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

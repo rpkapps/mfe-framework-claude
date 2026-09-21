@@ -1,0 +1,324 @@
+---
+title: 'Legacy Angular applications'
+description: 'The removable adapter that mounts an existing single-spa Angular application beside the Apps and Widgets a shell already loads.'
+---
+
+`@company/mfe-legacy-angular` mounts an existing single-spa Angular application into a shell, beside
+the Apps and Widgets that shell already loads. A <Term>parcel</Term> is a piece of an application
+that exposes `bootstrap`, `mount` and `unmount`, for another application to mount into an element.
+This adapter translates a legacy registry entry into the neutral record every shell screen reads,
+and drives that parcel.
+
+The shell in this repository does not register this adapter yet. A new micro-frontend is declared
+with `createApp` or `createWidget` from `@company/mfe-react` and needs none of this page.
+
+## What the adapter does
+
+- The adapter takes registry entries that declare no framework contract. Every entry that declares one
+  belongs to the [React adapter](/docs/design#how-the-adapters-fit-together).
+- It translates a legacy entry into a neutral registry entry, keeping every legacy field in
+  `adapterData`.
+- It loads the container through Module Federation and mounts the module it exposes as a
+  single-spa parcel.
+
+The package is the only one in the workspace that knows the legacy single-spa contract, the legacy
+registry vocabulary and the `<name>/single-spa-app` expose path. Nothing else imports it. It
+depends on no React, no router and no `@company/mfe-react`, and `pnpm boundaries` fails if that
+changes.
+
+## What a legacy application must expose
+
+A legacy application must expose these five things.
+
+| Requirement           | Value                                           | Where it comes from           |
+| --------------------- | ----------------------------------------------- | ----------------------------- |
+| an application name   | `name`, a non-empty string                      | the shell registry entry      |
+| a container manifest  | `mfManifestUrl`, a non-empty string             | the shell registry entry      |
+| a parcel module       | exposed at `./single-spa-app`                   | the application's build       |
+| the parcel lifecycles | `bootstrap`, `mount` and `unmount`              | the `./single-spa-app` module |
+| a base href           | its own `APP_BASE_HREF` provider, kept as it is | the application               |
+
+Each lifecycle is a function or a non-empty array of functions. The adapter accepts them exported
+directly or behind `default`, because both shapes exist. An `update` lifecycle is accepted and
+never required.
+
+## Register the adapter
+
+```ts title="apps/shell/src/boot.tsx"
+import { createLegacyAdapterRule } from '@company/mfe-legacy-angular'
+import { createMfeRuntime } from '@company/mfe-react'
+
+const { runtime } = createMfeRuntime({
+  registryEntries,
+  rules: [createLegacyAdapterRule()],
+  // …loader, shellState, telemetryProvider
+})
+```
+
+Register the adapter by passing `createLegacyAdapterRule()` in `rules`. `createMfeRuntime` always
+evaluates the framework contract rule first and appends the rules you give it, in the order you give
+them. The first rule that takes an entry owns it.
+
+The shell in this repository does not register this adapter yet, so it registers the framework
+contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
+
+## When the adapter takes an entry
+
+The rule takes an entry only when both are true.
+
+- The entry has no `mfe` key, so it declares no framework contract.
+- The entry carries a non-empty `name` and a non-empty `mfManifestUrl`.
+
+An entry that declares the framework contract is never taken here, however malformed that
+declaration is. The framework adapter sets it aside with a reason instead, and the registry marks
+it `quarantined`. Reading it as legacy instead would let a typo change how an application loads,
+unseen. An entry that no rule takes is set aside as well, with a message naming
+the adapters that were registered.
+
+## How a legacy application is mounted
+
+<Steps>
+
+<Step>
+
+`createLegacyContainerLoader({ runtime })` calls `registerRemotes([{ name, entry: mfManifestUrl }])`.
+Each container is registered once.
+
+</Step>
+
+<Step>
+
+It calls `loadRemote('<name>/single-spa-app')` and reads the lifecycles off the result.
+
+</Step>
+
+<Step>
+
+`LegacyParcelMount` calls the injected `mountRootParcel`, waits on `parcel.mountPromise`, and tears
+down with `parcel.unmount()`.
+
+</Step>
+
+</Steps>
+
+The mount's status is observable through `subscribe`.
+
+| Status       | Means                                                |
+| ------------ | ---------------------------------------------------- |
+| `idle`       | never mounted, or unmounted and ready to mount again |
+| `mounting`   | the parcel was created and is bootstrapping          |
+| `mounted`    | the mount promise resolved                           |
+| `unmounting` | `unmount()` is running                               |
+| `error`      | creating, mounting or unmounting the parcel threw    |
+| `disposed`   | terminal                                             |
+
+Two rules hold.
+
+- **A second mount without an unmount is refused**, rather than ignored, because two parcels
+  rendering into one element leave orphaned DOM behind.
+- **Disposal is terminal and idempotent.** Every caller awaits the same teardown, and the parcel is
+  unmounted at most once. A failed teardown still leaves the mount disposed, and a disposed mount
+  cannot be revived.
+
+`single-spa` is not a dependency of this package, not even an optional peer. The parcel, its
+configuration and `mountRootParcel` are structurally typed in `src/parcel/single-spa-contract.ts`,
+which is what lets the lifecycle be tested without single-spa, Angular or a bundler.
+
+## Registry translation
+
+The adapter translates every legacy field into one of two places.
+
+| Legacy `AppConfig` field | Where it goes                     | Notes                                                                                                            |
+| ------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `name`                   | `id`, `adapterData.containerName` | `id` is the name reduced to the framework identity rules. The loader registers the remote under the name itself. |
+| `mfManifestUrl`          | `manifestUrl`                     | Also the base for the release-notes sibling document                                                             |
+| `title`                  | `title`                           | Omitted when the legacy entry omitted it                                                                         |
+| `icon`                   | `icon`                            | Omitted when the legacy entry omitted it                                                                         |
+| `version`                | `version`                         | Never gates loading or selection                                                                                 |
+| `hidden`                 | `hidden`                          | Catalog flag only, not a security boundary                                                                       |
+| `onboardingType`         | `adapterData.onboardingType`      |                                                                                                                  |
+| `tags`                   | `adapterData.tags`                | Empty array when absent                                                                                          |
+| `categories`             | `adapterData.categories`          | Empty array when absent                                                                                          |
+| `externalUrl`            | `adapterData.externalUrl`         |                                                                                                                  |
+| `routes`                 | `adapterData.routes`              | Empty array when absent                                                                                          |
+| `settings.routes`        | `adapterData.settingsRoutes`      | Flattened to one array                                                                                           |
+| —                        | `adapterData.exposeName`          | Always `./single-spa-app`                                                                                        |
+| —                        | `adapterData.navigationOwnership` | Always `shell`                                                                                                   |
+
+Identity, manifest URL and presentation go in the neutral record. Every legacy-specific field
+travels in `adapterData`, where only this package reads it, so the neutral record names no legacy
+vocabulary.
+
+Shell screens read the payload back through `readLegacyAdapterData(entry)`. It is typed and
+refuses an entry that belongs to another adapter, so a translation change is a compile error rather
+than an empty tile.
+
+A validation failure throws a framework error naming the field, what was expected, what arrived and
+the repair. The host then sets that entry aside and keeps the rest of the registry.
+
+## Base href and navigation ownership
+
+Legacy applications keep `APP_BASE_HREF` and their existing base-href behaviour.
+`resolveLegacyBaseHref` resolves both documented cases, against the table `LEGACY_BASE_HREF_SEAMS`.
+
+| Kind         | Where the base href comes from                                                        | Example application                          |
+| ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `app-pinned` | The application provides it and keeps it, even when the shell offers a different one. | `asset-tracker`, pinned to `/asset-tracker/` |
+| `delegated`  | The application takes what single-spa supplies in its props.                          | `rigstream`, falling back to `/rigstream/`   |
+
+The resolved value carries the `source` it came from: `app-pinned`, `single-spa` or `fallback`. An
+application that is not in the table delegates and falls back to `/<name>/`, so a third legacy
+application needs no new code. A shell can pass its own table instead of editing this package.
+
+The shell owns the URL for a legacy application. Every resolved base href carries
+`navigationOwnership: 'shell'`, and so do the adapter payload, the loaded module and the object
+`createLegacyMigrationSeam` returns. New Apps own their own navigation instead.
+
+## Routes the shell keeps serving
+
+The shell keeps serving these seven route patterns.
+
+| Pattern                  | Serves                               |
+| ------------------------ | ------------------------------------ |
+| `settings`               | the shell's own settings             |
+| `:name/settings`         | one application's settings           |
+| `release-notes`          | the shell's own release notes        |
+| `:name/release-notes`    | one application's release notes      |
+| `solutions-health`       | the shell's own health page          |
+| `:name/solutions-health` | one application's health page        |
+| `:name/**`               | everything else under an application |
+
+Evaluation order is part of the contract. The catch-all is last, so it cannot swallow a more
+specific legacy route.
+
+`matchLegacyShellRoute(pathname)` returns the first pattern that takes a path. It returns the
+captured application name and the catch-all remainder with it, or `null` when the shell should look
+elsewhere. `isLegacyShellRoute` asks the same question as a predicate. Both ignore query strings,
+fragments and leading or trailing slashes.
+
+## Release notes
+
+Legacy release notes are a `release-notes.md` document published next to the container manifest.
+`resolveLegacyReleaseNotesUrl(manifestUrl)` resolves the sibling of the manifest, so a container
+that moves its manifest moves its release notes with it. A relative manifest URL needs an explicit
+`base`, which the resolver refuses to guess. `createLegacyReleaseNotesSource({ fetch })` fetches
+the document through an injected fetch and reports a missing or unreachable one as an error naming
+the status.
+
+This path stays available for every entry. The App-owned capability is additive.
+`selectReleaseNotesRoute` sends the shell into an App that declares the capability. It keeps the
+sibling document for every App that does not.
+
+## The one provider a legacy application replaces
+
+Each legacy application replaces exactly one provider. `provideRouter`, `singleSpaAngular`, the
+route tree, all feature code, the application's own `APP_BASE_HREF` provider and the
+`./single-spa-app` exposure all stay.
+
+<Steps>
+
+<Step>
+
+Find the initializer the application registers today.
+
+{/* prettier-ignore */}
+```ts title="src/app/app.config.ts (before)"
+import { skipLocationChangeOnNonImperativeRoutingTriggers } from './app/shell/navigation'
+
+providers: [
+  // ...
+  provideAppInitializer(skipLocationChangeOnNonImperativeRoutingTriggers),
+]
+```
+
+</Step>
+
+<Step>
+
+Replace it with the initializer this package builds.
+
+{/* prettier-ignore */}
+```ts title="src/app/app.config.ts (after)"
+import { createLegacyShellNavigationInitializer } from '@company/mfe-legacy-angular/angular'
+
+providers: [
+  // ...
+  provideAppInitializer(
+    createLegacyShellNavigationInitializer({
+      name: 'asset-tracker',
+      injectRouter: () => inject(Router),
+    }),
+  ),
+]
+```
+
+</Step>
+
+<Step>
+
+To tie the subscription to the application's injector, pass a teardown:
+`registerTeardown: teardown => inject(DestroyRef).onDestroy(teardown)`.
+
+</Step>
+
+</Steps>
+
+`injectRouter` is called from inside the initializer, which is where Angular's injection context
+exists. The initializer returns `undefined` on purpose, because Angular waits on anything
+promise-like an initializer returns.
+
+The replaced behaviour is preserved. The initializer watches `Router.events`. On a navigation the
+application did not start itself, it sets `skipLocationChange` on the current navigation. Angular
+then leaves the location alone, and writing it twice is what makes the back button skip entries.
+
+Angular is not a dependency of this package and must not become one: the application owns its
+Angular version. The Angular types the initializer touches are described structurally, and
+Angular's own `Router` satisfies them.
+
+`createLegacyMigrationSeam({ name, baseHref, routes, settingsRoutes })` returns what the edit
+preserves, in a form a test can assert rather than a comment can promise:
+
+- The resolved base href, and the `APP_BASE_HREF` value.
+- The single-spa activity predicate, and the parcel expose path.
+- The route metadata, and shell-owned navigation.
+- The name of the provider it replaces.
+
+The initializer carries the same record as `initializer.seam`.
+
+## What is proven, and what is not
+
+This adapter is proven against fixtures, and not against the real applications.
+
+<Callout type="warning">
+  The real Asset Tracker and Rigstream applications have never been run against this adapter. Their
+  repositories are not available here, so every check below runs against production-equivalent
+  contract fixtures and test doubles. The shell in this repository does not register this adapter
+  yet.
+</Callout>
+
+The tests prove:
+
+- The translation of every legacy registry field.
+- That an entry declaring a malformed framework contract is never taken by this adapter.
+- The parcel mount, unmount, remount, failure and disposal behaviour, against a structural double.
+- Both base-href kinds, including the fallback, and every shell-owned route pattern.
+- The release-notes sibling resolution, and what happens once an App owns its own release notes.
+
+They do not prove:
+
+- That a real legacy container exposes its lifecycles in the shape the double models.
+- That a real Angular `Router` behaves as the router double does.
+- That the real single-spa `mountRootParcel` sequences bootstrap and mount as assumed.
+- That `/asset-tracker/` and `/rigstream/` match the prefixes those applications actually ship.
+- That the real applications mount and unmount at all.
+
+A first run of a real legacy container against this adapter is still outstanding.
+
+## Where next
+
+- [Decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)
+  — proven against fixtures, not the real applications.
+- [The design map: how the adapters fit together](/docs/design#how-the-adapters-fit-together) — where this adapter sits.
+- [Glossary](/docs/glossary) — adapter, registry entry, container, definition id.
+- [Decision 6](/docs/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host) — why
+  the host stays neutral.
