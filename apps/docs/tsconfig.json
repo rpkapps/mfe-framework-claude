@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+
+    /*
+     * `@tecton/react` is a `link:`ed checkout, so TypeScript resolves through the symlink and
+     * looks for React, React Aria and the rest beside *that* checkout. These mappings point those
+     * specifiers back at this package's copies — the type-level counterpart of `resolve.dedupe`
+     * in vite.config.ts. `@/*` is the docs site's own alias, matching the Tecton docs site.
+     */
+    "paths": {
+      "@/*": ["./src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"],
+      "react-aria-components": ["./node_modules/react-aria-components"],
+      "cn": ["./node_modules/cn"],
+      "lucide-react": ["./node_modules/lucide-react"],
+      "next-themes": ["./node_modules/next-themes"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "source.config.ts"]
+}
