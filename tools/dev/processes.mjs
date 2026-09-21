@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 const isWindows = process.platform === 'win32'
 
@@ -15,9 +15,11 @@ export function killTree(child, { force = true } = {}) {
   if (child.pid === undefined || child.exitCode !== null) return
 
   if (isWindows) {
-    // Without /F taskkill asks, which a console process is free to ignore.
+    // Without /F taskkill asks, which a console process is free to ignore. Synchronous, because
+    // callers kill on the way out: a spawned taskkill has not run by the time `process.exit`
+    // takes the parent down, and every server it was meant to stop is left holding its port.
     const flags = force ? ['/T', '/F'] : ['/T']
-    spawn('taskkill', ['/pid', String(child.pid), ...flags], { stdio: 'ignore' })
+    spawnSync('taskkill', ['/pid', String(child.pid), ...flags], { stdio: 'ignore' })
     return
   }
 

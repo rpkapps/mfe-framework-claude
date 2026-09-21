@@ -5,6 +5,10 @@
  * page: each assertion below stands for a defect that compiled, type-checked and passed the
  * whole suite while rendering nothing (§12).
  *
+ * Every URL here is `localhost`, never `127.0.0.1`: the dev server binds whichever family the
+ * host resolves to, and on a machine that answers `localhost` with `::1` nothing is listening on
+ * the IPv4 literal at all.
+ *
  * Usage: pnpm run verify:page [--url /operations] [--keep-open]
  *
  * With no --url it checks every page in PAGES below.
@@ -175,7 +179,7 @@ async function collectContainers() {
     if (!manifest.scripts?.dev) continue
     containers.push({
       packageName: manifest.name,
-      manifestUrl: `http://127.0.0.1:${manifest.mfe.port}/mf-manifest.json`,
+      manifestUrl: `http://localhost:${manifest.mfe.port}/mf-manifest.json`,
     })
   }
   return containers
@@ -329,7 +333,7 @@ async function main() {
   for (const container of containers) start(container.packageName)
 
   await Promise.all([
-    waitForOk('http://127.0.0.1:3000/'),
+    waitForOk('http://localhost:3000/'),
     ...containers.map(container => waitForOk(container.manifestUrl)),
   ])
   console.log('All dev servers are up.\n')
@@ -353,7 +357,7 @@ async function main() {
 
   // Overrides are read at boot, so the key has to be in storage — which needs an origin —
   // before the document that reads them is fetched.
-  await page.goto('http://127.0.0.1:3000/', { waitUntil: 'domcontentloaded' })
+  await page.goto('http://localhost:3000/', { waitUntil: 'domcontentloaded' })
 
   for (const expected of pages) {
     pageErrors = []
@@ -367,7 +371,7 @@ async function main() {
     )
 
     // `networkidle` never arrives: every dev server holds a websocket open for hot updates.
-    await page.goto(`http://127.0.0.1:3000${expected.url}`, { waitUntil: 'load' })
+    await page.goto(`http://localhost:3000${expected.url}`, { waitUntil: 'load' })
     await page.waitForTimeout(6000)
     if (expected.prepare !== undefined) {
       await expected.prepare(page)
