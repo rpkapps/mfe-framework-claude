@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * `pnpm create @company/mfe`. The scaffold is a deliverable, not a convenience:
- * it sets the shape every team copies, so a step missing here is missing from
- * every project made from it. What it produces passes its own format, lint and
- * typecheck from a clean checkout.
+ * `pnpm create @company/mfe`: a deliverable, not a convenience, so every project made from it
+ * copies this shape exactly and what it produces must pass its own format, lint and typecheck
+ * from a clean checkout.
  */
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises'

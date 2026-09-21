@@ -1,7 +1,5 @@
 /**
- * The App starter. It writes the router bootstrap and the module augmentation
- * for the author, because those are the two pieces that are easy to get subtly
- * wrong and tedious to debug: a router built with the wrong base path renders
+ * Writes the App starter's router bootstrap and module augmentation: a wrong base path renders
  * at the wrong boundary, and a missing augmentation degrades every route's types.
  */
 

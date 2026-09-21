@@ -1,8 +1,4 @@
-/**
- * The App and Widget scaffolds. The CLI is the entry point; `scaffold` and the
- * templates are exported so the generated shape can be asserted directly, which
- * is what keeps the documented shape and the real shape from drifting.
- */
+// The App and Widget scaffolds, exported so tests can assert the generated shape directly.
 
 export { main, scaffold, type ScaffoldOptions } from './cli.ts'
 export { appTemplate } from './templates/app.ts'
