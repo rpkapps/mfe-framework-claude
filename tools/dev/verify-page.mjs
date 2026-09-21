@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 /**
- * Boots the shell and every example container, loads the page in a real
- * browser, and asserts that a container actually mounted.
- *
- * This exists because the unit suite cannot see the things that break a
- * federated page. Sharing conflicts, a bundler's dev-only transform, a global
- * that assumes one router per page, a second copy of a package that carries
- * React context — every one of those compiles, type-checks and passes 1000
- * tests while rendering nothing, or rendering the shell inside the App. Each
- * assertion below stands for a defect that shipped and was found this way.
+ * Boots the shell and every example container, loads the page in a real browser, and asserts
+ * that a container actually mounted, because the unit suite cannot see what breaks a federated
+ * page: each assertion below stands for a defect that compiled, type-checked and passed the
+ * whole suite while rendering nothing (§12).
  *
  * Usage: pnpm run verify:page [--url /operations] [--keep-open]
  *
@@ -35,22 +30,9 @@ const DEAD_MANIFEST_URL = 'http://127.0.0.1:9931/mf-manifest.json'
 const OVERRIDES_KEY = 'company:mfe:overrides'
 
 /**
- * Each entry is a claim the framework makes, checked against a real page.
- *
- * `nested` is the interesting one. A Widget mounted inside an App proves a
- * second container's module reached the first one's tree through the shared
- * scope; a child App mounted inside a parent App proves the same for a whole
- * routed boundary, and that the child reads its own URL rather than the prefix
- * the parent assigned it.
- *
- * `overrides` is written to the developer-override key before the document is
- * fetched, so a scenario can point a definition wherever it needs — including
- * at nothing. It is cleared for every page that does not ask for one, so the
- * pages stay independent of each other's order. `pageContains` reads the whole
- * document rather than a mount, for the scenarios where the claim is precisely
- * that nothing mounted; `present` names elements that have to exist; and
- * `allowedErrors` lists the console output a scenario deliberately provokes —
- * every other page still has to log nothing at all.
+ * Each entry is a claim the framework makes, checked against a real page. A `nested` entry is
+ * the claim that a second container's module reached the first one's tree, and `overrides` is
+ * cleared for every page that does not ask for one so the pages stay independent of their order.
  */
 const PAGES = [
   {
@@ -59,32 +41,26 @@ const PAGES = [
     nested: [{ parent: 'operations', child: 'alert-panel', contains: 'Alert a-1001' }],
   },
   {
-    // The child App is delegated at operations' own /reports/$ splat route, and
-    // /accounts/fda-2-3 below that is the child's URL contract, not the parent's.
+    // The child App is delegated at operations' own /reports/$ splat route, and the path below
+    // that is the child's URL contract rather than the parent's.
     url: '/operations/reports/accounts/fda-2-3',
     mounts: ['operations', 'reports'],
     nested: [{ parent: 'operations', child: 'reports', contains: 'Phased tie-back' }],
   },
   {
-    // The lab consumes a Widget from a third container and mounts it beside
-    // one consumed without a contract, so both consumption modes are on one
-    // page and both cross a container boundary.
+    // Both consumption modes on one page, with and without a contract, each crossing a
+    // container boundary.
     url: '/lab/widgets',
     mounts: ['lab'],
     nested: [{ parent: 'lab', child: 'alert-panel', contains: 'Alert a-1001' }],
   },
   {
-    // The claim the dashboard exists to make: the shell mounts a Widget it was
-    // never built against, named only by a registry entry, and the inputs come
-    // from a form generated out of that Widget's published schema.
+    // The claim the dashboard exists to make: the shell mounts a Widget it was never built
+    // against, named only by a registry entry, with inputs from its published schema.
     url: '/',
     async prepare(page) {
-      // The canvas has to start empty, or a layout left by an earlier run
-      // already holds the Widget this page is about to add. It lives in the
-      // framework store now, under the reserved host scope — the physical key
-      // is `@host:dashboard`, not the shell's old hand-rolled
-      // `company:shell:dashboard`. Removing the whole record is right: the
-      // store reads a missing key as the declared default, an empty canvas.
+      // The canvas has to start empty, or a layout left by an earlier run already holds the
+      // Widget this page adds; the store reads the missing key as its declared default.
       await page.evaluate(() => {
         localStorage.removeItem('@host:dashboard')
       })
@@ -103,11 +79,8 @@ const PAGES = [
     contains: 'Reduced DLS',
   },
   {
-    // The wells filter bar renders a Tecton Select; opening it is the
-    // clearest single-container overlay in the app. The popover has to
-    // portal into operations' own body-level overlay root — not a bare
-    // document.body, and not back inside the in-page mount — and pick up
-    // operations' own scoped CSS rather than the browser default.
+    // The popover has to portal into operations' own body-level overlay root, neither a bare
+    // document.body nor back inside the in-page mount, and carry that container's CSS (§17).
     url: '/operations/wells',
     mounts: ['operations'],
     nested: [],
@@ -120,9 +93,8 @@ const PAGES = [
     },
   },
   {
-    // An override pointing one App at a port nothing answers on is the
-    // everyday way a manifest becomes unloadable, and it must cost that App
-    // alone: the shell's own page is not downstream of any container.
+    // An unloadable manifest must cost that App alone: the shell's own page is not downstream
+    // of any container.
     url: '/',
     overrides: { operations: DEAD_MANIFEST_URL },
     mounts: [],
@@ -130,16 +102,9 @@ const PAGES = [
     pageContains: ['Widget dashboard', 'Registered Widgets'],
   },
   {
-    // The defect this stands for: with that override applied, the boundary
-    // showed its failure and then the *next* chunk the shell fetched brought
-    // the whole page down with it — the chrome included. A registered remote
-    // used to be re-initialised on every share the host resolved, so one
-    // unreachable manifest rejected the shell's own modules.
-    //
-    // Opening the developer tools is that next chunk: it is the shell's only
-    // lazily fetched code, and it is what a developer reaches for when an
-    // override is pointing somewhere wrong. The chrome surviving it, with the
-    // panel open beside the failure, is the whole guarantee.
+    // A registered remote used to be re-initialised on every share the host resolved, so one
+    // unreachable manifest took down the next chunk the shell fetched (§30). Opening the
+    // developer tools is that chunk: the shell's only lazily fetched code.
     url: '/operations',
     overrides: { operations: DEAD_MANIFEST_URL },
     async prepare(page) {
@@ -217,35 +182,18 @@ async function collectContainers() {
 }
 
 /**
- * Runs inside the page. Walks every stylesheet's rule tree — recursing into
- * whatever a rule nests, which covers `@layer`, `@media`, `@supports` and CSS
- * nesting alike — and reports what the per-container scoping mechanism
- * promises: each requested id's `@scope` rule reached the document; its scope
- * root carries the container's own Tailwind defaults while inheriting the
- * shell's theme; no `:root`/`:host` selector survived inside a `@scope` body
- * (the leading-selector rewrite ran); the shell's own stylesheet — identified
- * by declaring `--primary` on `:root`, which no container's stylesheet ever
- * does, since the design system's scoped entry declares no variables —
- * carries no `@scope` rule of its own; and where `.w-60` (a class only
- * examples/operations/src/routes/__root.tsx uses — see the check below) turns
- * up, scoped or not.
- *
- * A container's stylesheet is a `<link>` served from that container's own dev
- * server port, a different origin than the shell's, and this framework never
- * marks that `<link>` `crossorigin`, so `CSSStyleSheet.cssRules` throws a
- * `SecurityError` on it — a browser rule about reading a resource, unrelated
- * to whether it styled the page. For any sheet that throws, this re-fetches
- * its own `href` (the dev server already answers cross-origin GETs, the same
- * one MF's own remote-loading depends on) and parses the text into a detached
- * `CSSStyleSheet`, which has no origin at all and is always readable.
+ * Runs inside the page, walking every stylesheet's rule tree for what the per-container scoping
+ * promises (§17); the shell's own stylesheet is the one declaring `--primary` on `:root`. A
+ * container's stylesheet is served from its own origin and is never marked `crossorigin`, so
+ * `cssRules` throws on it and the sheet is re-fetched and parsed into a detached
+ * `CSSStyleSheet`, which has no origin at all.
  */
 async function collectCssFacts(ids) {
   function scopeBounds(rule) {
     let start = typeof rule.start === 'string' ? rule.start : null
     let end = typeof rule.end === 'string' ? rule.end : null
     if (start === null || end === null) {
-      // Chromium exposes `.start`/`.end` on CSSScopeRule; this is the fallback
-      // for an engine that only serializes the rule as text.
+      // The fallback for an engine that serializes a CSSScopeRule only as text.
       const match = /^@scope\s*\(([^)]*)\)\s*to\s*\(([^)]*)\)/.exec(rule.cssText ?? '')
       if (match !== null) {
         start = start ?? match[1]
@@ -275,7 +223,7 @@ async function collectCssFacts(ids) {
     return false
   }
 
-  const scopeRules = [] // { start, end, sheetKey }
+  const scopeRules = []
   const scopedSheetKeys = new Set()
   const primarySheetKeys = new Set()
   let rootOrHostInsideScope = false
@@ -395,8 +343,7 @@ async function main() {
   let pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
   page.on('console', message => {
-    // HMR sockets close as this script tears the servers down, which says
-    // nothing about the page.
+    // HMR sockets close as this script tears the servers down, which says nothing about the page.
     if (message.type() === 'error' && !message.text().includes('WebSocket')) {
       pageErrors.push(message.text())
     }
@@ -404,10 +351,8 @@ async function main() {
 
   const pages = values.url === undefined ? PAGES : [{ url: values.url, mounts: [], nested: [] }]
 
-  // Overrides are read at boot, before any remote is registered, so they have
-  // to be in storage before the document that reads them is fetched — and
-  // storage needs an origin. One cheap visit puts the page there; every
-  // iteration below then writes the key its scenario needs, or clears it.
+  // Overrides are read at boot, so the key has to be in storage — which needs an origin —
+  // before the document that reads them is fetched.
   await page.goto('http://127.0.0.1:3000/', { waitUntil: 'domcontentloaded' })
 
   for (const expected of pages) {
@@ -421,8 +366,7 @@ async function main() {
       { key: OVERRIDES_KEY, overrides: expected.overrides ?? null },
     )
 
-    // `networkidle` never arrives: every dev server holds a websocket open for
-    // hot updates, so the load event plus a settle is what says "ready".
+    // `networkidle` never arrives: every dev server holds a websocket open for hot updates.
     await page.goto(`http://127.0.0.1:3000${expected.url}`, { waitUntil: 'load' })
     await page.waitForTimeout(6000)
     if (expected.prepare !== undefined) {
@@ -443,8 +387,6 @@ async function main() {
     )
     const mounted = scopes.filter(scope => scope.text !== '')
 
-    // Every id this page claims to mount, in-page or nested — the CSS checks
-    // below apply to all of them.
     const ids = [...new Set([...expected.mounts, ...expected.nested.map(nested => nested.child)])]
     const cssFacts = await page.evaluate(collectCssFacts, ids)
 
@@ -459,8 +401,8 @@ async function main() {
         `no scope root named ${id} has content`,
       )
     }
-    // A page that states what the document has to contain is making its claim
-    // there; the rest have to mount something or they are checking nothing.
+    // A page that states what the document has to contain is making its claim there; the rest
+    // have to mount something or they are checking nothing.
     if (expected.mounts.length === 0 && expected.pageContains === undefined) {
       check('something mounted', mounted.length > 0, 'no scope root has content')
     }
@@ -497,11 +439,8 @@ async function main() {
       'a mount reported a hook called outside any mount',
     )
 
-    // Each container now ships its own stylesheet (pluginMfe's generated
-    // .mfe/styles.css), scoped with a PostCSS `@scope` wrapper so a parent
-    // App's rules cannot reach into a nested App's root. These checks fail if
-    // that mechanism regresses: a missing stylesheet, an unscoped leak, or a
-    // scope wrapper whose rewrite of `:root`/`:host` did not run.
+    // These fail if the per-container scoping regresses: a missing stylesheet, an unscoped
+    // leak, or a scope wrapper whose `:root`/`:host` rewrite did not run (§17).
     for (const id of ids) {
       check(
         `${id}'s scoped stylesheet reached the document`,
@@ -524,9 +463,8 @@ async function main() {
         : 'no stylesheet declares --primary on :root, so the shell stylesheet could not be identified',
     )
 
-    // Theme variables are declared once, by the shell's :root, and inherit
-    // down; a container's own Tailwind defaults (--spacing, the --text-*
-    // scale, …) land on its scope root through the :scope rewrite instead.
+    // Theme variables are declared once, by the shell's :root, and inherit down, where a
+    // container's own Tailwind defaults land on its scope root through the :scope rewrite.
     for (const id of ids) {
       const facts = cssFacts.perId[id]
       check(
@@ -548,18 +486,12 @@ async function main() {
       )
     }
 
-    // The page that actually mounts operations, not merely the one addressed
-    // at its URL: the scenario below points that App at a dead manifest on
-    // purpose, and a container that never loaded ships no stylesheet.
+    // The page that actually mounts operations, not merely the one addressed at its URL: a
+    // container pointed at a dead manifest never loaded and ships no stylesheet.
     if (expected.url === '/operations' && expected.mounts.includes('operations')) {
-      // `w-60` sizes the Operations layout's nav aside
-      // (examples/operations/src/routes/__root.tsx: `<aside className="...
-      // w-60 ...">`). It is absent from every other container's source, from
-      // apps/shell/src and from @tecton/react's own dist, so with the shell no
-      // longer @source-ing the examples, this utility's CSS can only exist
-      // inside operations' own @scope — proving the shell's stylesheet no
-      // longer covers the containers. The rendered width is the proof the
-      // rule actually reached the element, not just the stylesheet.
+      // `w-60` sizes operations' nav aside and appears in no other container, in apps/shell/src
+      // or in @tecton/react's dist, so its CSS can only exist inside operations' own @scope. The
+      // rendered width is what proves the rule reached the element rather than just the sheet.
       check(
         'the w-60 utility exists only inside a container @scope, never shell-wide',
         cssFacts.w60Occurrences.length > 0 &&
@@ -664,8 +596,8 @@ async function main() {
       )
     }
 
-    // A scenario that provokes a failure says so, by pattern. Every other page
-    // still has to log nothing at all.
+    // A scenario that provokes a failure lists its patterns; every other page has to log
+    // nothing at all.
     const unexpected = pageErrors.filter(
       text => !(expected.allowedErrors ?? []).some(pattern => pattern.test(text)),
     )

@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 /**
- * Starts the shell and every example micro-frontend with one command.
- *
- * Each MFE runs its own dev server on its own port, exactly as a developer's
- * real MFE would. The shell is the only thing that knows they exist, and it
- * learns that from its registry — so this script's other job is to print the
- * localStorage override snippets, with real ids and real URLs, that point the
- * shell at these local servers.
+ * Starts the shell and every example micro-frontend with one command, each on its own port as a
+ * real MFE would be. The shell learns they exist only from its registry, so the other job here
+ * is printing the localStorage override snippets that point it at these local servers.
  *
  * Usage:
  *   pnpm dev                 shell + every example
@@ -41,10 +37,8 @@ async function readManifest(directory) {
 }
 
 /**
- * Collects the runnable services.
- *
- * Ports and definition ids come from each package's own `mfe` block rather than
- * a list kept here, so adding an example is a one-file change in that example.
+ * Ports and definition ids come from each package's own `mfe` block rather than a list kept
+ * here, so adding an example is a one-file change in that example.
  */
 async function collectServices({ includeShell, only }) {
   const services = []
@@ -98,12 +92,8 @@ function manifestUrl(service) {
 }
 
 /**
- * Prints the connection instructions.
- *
- * The snippet preserves unrelated overrides and reloads, because changing an
- * override requires a reload: the old container's modules are already
- * registered in the federation runtime under the same name, and its chunks and
- * stylesheets are document-level. Disposing a mount touches none of that.
+ * The snippet preserves unrelated overrides and reloads, because the old container's modules
+ * stay registered in the federation runtime and disposing a mount does not reach them.
  */
 function printConnectionInstructions(services) {
   const remotes = services.filter(service => !service.isShell)
@@ -149,9 +139,8 @@ function prefixOutput(stream, label, colour) {
     buffered += chunk.toString()
     const lines = buffered.split('\n')
     buffered = lines.pop() ?? ''
-    // A terminated server's last words are its runner reporting the
-    // termination. During a shutdown the developer asked for, that reads as a
-    // failure and is not one.
+    // A terminated server's last words are its runner reporting the termination, which during
+    // a shutdown the developer asked for reads as a failure and is not one.
     if (stopping) return
     for (const line of lines) {
       process.stdout.write(`${colour}${label.padEnd(14)}${RESET} ${line}\n`)
@@ -160,9 +149,8 @@ function prefixOutput(stream, label, colour) {
 }
 
 /**
- * The stand-in API the examples fetch from. Started here rather than left to
- * the developer, because a container whose requests all fail teaches nothing
- * about the request boundary and looks like a broken example.
+ * The stand-in API the examples fetch from, started here rather than left to the developer
+ * because a container whose requests all fail looks like a broken example.
  */
 function startDevApi() {
   const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/api.mjs')], {
@@ -176,13 +164,9 @@ function startDevApi() {
 }
 
 /**
- * Regenerates every container's own artifacts before the registry is assembled
- * from them.
- *
- * Each container's `dev` script generates too, but that happens after its
- * server starts — which is after the registry has already been written. A
- * Widget whose contract changed therefore reached the shell one `pnpm dev`
- * late, and a clean clone had no descriptors to assemble from at all.
+ * Regenerates every container's artifacts before the registry is assembled from them: a
+ * container's own `dev` script generates only after its server starts, so a Widget whose
+ * contract changed reached the shell one `pnpm dev` late.
  */
 function generateContainers(services) {
   const containers = services.filter(service => !service.isShell)
@@ -202,10 +186,7 @@ function generateContainers(services) {
   })
 }
 
-/**
- * The shell's registry is assembled from what each container generated, so a
- * developer who adds an example never edits a registry by hand.
- */
+/** Assembled from what each container generated, so nobody edits a registry by hand. */
 function buildRegistry() {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/build-registry.mjs')], {
@@ -230,10 +211,8 @@ function start(service, colour) {
     cwd: repoRoot,
     env: { ...process.env, PORT: String(service.port), FORCE_COLOR: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
-    // Each child leads its own process group, which is what lets one signal
-    // reach the bundler pnpm started rather than only pnpm. It also means the
-    // terminal's Ctrl-C does not reach them, so shutdown below is the single
-    // path that stops anything — the same one on every platform.
+    // Each child leads its own process group, so one signal reaches the bundler pnpm started
+    // and the terminal's Ctrl-C does not, leaving `shutdown` the only path that stops anything.
     detached: detachedForGroupKill,
   })
 
@@ -262,8 +241,8 @@ async function main() {
     return
   }
 
-  // Before anything starts, and before generation: a busy port is reported
-  // once, by name, rather than as one bundler's fallback and another's crash.
+  // Before anything starts: a busy port is reported once, by name, rather than as one
+  // bundler's fallback and another's crash.
   const busy = await findBusyPorts(services.map(service => service.port))
   if (busy.length > 0) {
     console.error(busyPortsMessage(busy))
@@ -271,9 +250,6 @@ async function main() {
     return
   }
 
-  // Generation first, then the registry assembled from what it wrote. The shell
-  // fetches that at boot, and it names the ports the servers below are about to
-  // listen on.
   await generateContainers(services)
   await buildRegistry()
 
@@ -293,10 +269,8 @@ async function main() {
   const ports = services.map(service => service.port)
 
   /**
-   * One Ctrl-C stops everything and waits for the ports to come back, so the
-   * next `pnpm dev` starts. Returning to the prompt while a socket is still
-   * winding down is what leaves a developer looking at EADDRINUSE for a port
-   * they just released.
+   * One Ctrl-C stops everything and waits for the ports to come back, because returning to the
+   * prompt while a socket is still winding down leaves the next `pnpm dev` with EADDRINUSE.
    */
   const shutdown = async () => {
     if (stopping) {
@@ -310,8 +284,8 @@ async function main() {
     for (const child of children) killTree(child, { force: false })
     await Promise.all(children.map(exited))
 
-    // Anything that ignored the request. The port takes longer to come back
-    // this way, which is why it is the second attempt rather than the first.
+    // Whatever ignored the request; the port takes longer to come back this way, which is why
+    // it is the second attempt rather than the first.
     for (const child of children) killTree(child)
 
     const busy = await waitForPortsFree(ports)
@@ -330,8 +304,7 @@ async function main() {
   process.on('SIGINT', () => void shutdown())
   process.on('SIGTERM', () => void shutdown())
 
-  // A crash in this process must not leave the servers behind either. Nothing
-  // can be awaited here, so this is the forceful path by necessity.
+  // A crash must not leave the servers behind either, and nothing can be awaited here.
   process.on('exit', () => {
     for (const child of children) killTree(child)
   })

@@ -1,21 +1,9 @@
 #!/usr/bin/env node
 /**
- * Assembles the shell's registry from the containers' own generated
- * descriptors.
+ * Assembles the shell's registry from the containers' own generated descriptors.
  *
- * Nobody hand-writes registry JSON (§10.3.1). Every fact a shell needs to load
- * a container — its definition ids, kinds, versions, capabilities, federation
- * name and expose paths — is emitted by that container's build into
- * `.mfe/mfe-registry.json`, so copying any of it here would be a second source
- * that drifts. A hand-written registry is exactly how this repository ended up
- * pointing at containers that do not exist.
- *
- * Two things genuinely are the shell's and are read from
- * `apps/shell/registry.source.json`: how an entry is presented in the chrome,
- * and the deliberately invalid fixtures that prove quarantine.
- *
- * The dev URL is assembled from each package's own `mfe.port`, the same block
- * `pnpm dev` reads, so a port is declared once.
+ * Nobody hand-writes registry JSON (§10.3.1). Copying any of it here would be a second source
+ * that drifts, which is how this repository ended up pointing at containers that do not exist.
  */
 
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
@@ -53,14 +41,11 @@ function entriesFor(descriptor, presentation, origin) {
       expose,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
-      // What a Widget takes and emits. The shell's widget catalogue renders a
-      // form from this before anything is loaded, so it has to be in the
-      // registry rather than behind a container fetch.
+      // The widget catalogue renders a form from this before anything is loaded, so it has to
+      // be in the registry rather than behind a container fetch (§16).
       ...(definition.contract === undefined ? {} : { contract: definition.contract }),
-      // Which build this came from. It belongs to the container rather than to
-      // any one definition it exports, so every entry from that descriptor
-      // repeats it — a report names the build behind the surface that broke,
-      // and the shell has no other way to reach it without loading the thing.
+      // The build belongs to the container rather than to any definition it exports, so every
+      // entry from that descriptor repeats it; a bug report is the only reader (§29).
       ...(descriptor.build === undefined ? {} : { build: descriptor.build }),
       ...(presentation[definition.id] ?? {}),
     }
@@ -106,8 +91,7 @@ async function main() {
   }
 
   const registry = [...entries, ...(source.fixtures ?? [])]
-  // The registry is generated, so `public/` holds nothing a clone carries and
-  // does not exist until something makes it.
+  // The registry is generated, so `public/` does not exist until something makes it.
   await mkdir(dirname(output), { recursive: true })
   await writeFile(output, `${JSON.stringify(registry, null, 2)}\n`)
 

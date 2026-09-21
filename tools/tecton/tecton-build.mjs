@@ -1,14 +1,6 @@
 /**
- * What every build in this repository needs in order to consume the design
- * system, in one place.
- *
- * `@tecton/react` is a `link:` to a sibling checkout, which is what makes the
- * two repositories developable together, and it costs two things. Its files
- * resolve `react` and the rest of its peers from that checkout's own
- * `node_modules` — a second physical copy — so `tectonResolve` and
- * `useWorkspaceModules` name this workspace's directories absolutely. And pnpm
- * creates the link whether or not its target exists or has been built, so
- * `requireTecton` says which of the two is missing before anything is read.
+ * `@tecton/react` is a `link:` that pnpm creates whether or not the target exists or has been
+ * built, and whose files would resolve their peers from that checkout's own `node_modules`.
  */
 
 import { existsSync } from 'node:fs'
@@ -47,9 +39,8 @@ export function requireTecton(packageRoot, consumer = 'This package') {
 }
 
 /**
- * Tailwind resolves a stylesheet's `@import`s from that stylesheet's own
- * location and adds `NODE_PATH` to its module directories. Set from the config
- * rather than from a script: cross-platform, and before Tailwind reads it.
+ * Tailwind resolves a stylesheet's `@import`s from its own location and adds `NODE_PATH` to the
+ * module directories it searches, so this is set from the config rather than from a script.
  */
 export function useWorkspaceModules(packageRoot) {
   process.env['NODE_PATH'] = [
@@ -59,11 +50,9 @@ export function useWorkspaceModules(packageRoot) {
   ].join(delimiter)
 }
 
-/** The `resolve` block for a build that compiles the linked design system. */
 export function tectonResolve(packageRoot) {
   return {
-    // Symlinks stay resolved, so every other package still finds its own
-    // transitive dependencies the way pnpm's layout expects.
+    // Symlinks stay resolved, so every package still finds its own transitive dependencies.
     modules: [
       'node_modules',
       resolve(packageRoot, 'node_modules'),

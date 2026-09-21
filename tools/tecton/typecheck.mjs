@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Type-checks a package: the design-system checkout is verified first, and
- * `tsc` is run the one way that also works on Windows.
+ * Type-checks a package: the design-system checkout is verified first, and `tsc` is run the one
+ * way that also works on Windows.
  *
  * Usage, from a package's `typecheck` script:
  *   node ../../tools/tecton/typecheck.mjs [label]
@@ -16,8 +16,7 @@ import { requireTecton } from './tecton-build.mjs'
 const packageRoot = process.cwd()
 const label = process.argv[2] ?? relative(resolve(packageRoot, '../..'), packageRoot)
 
-// Before tsc, so a missing checkout is one sentence rather than a page of
-// "cannot find module" from every file that imports a component.
+// Before tsc, so a missing checkout is one sentence rather than a page of "cannot find module".
 try {
   requireTecton(packageRoot, `${label}`)
 } catch (error) {
@@ -26,11 +25,8 @@ try {
 }
 
 /**
- * TypeScript's own entry, run with this Node — not the `.bin` shim, which is an
- * extensionless shell script `spawnSync` cannot execute on Windows (ENOENT for
- * a file that plainly exists) and whose `.CMD` sibling Node refuses to spawn
- * without a shell. Resolution starts from the package being checked, so one
- * that installs its own TypeScript gets that copy.
+ * TypeScript's own entry rather than the `.bin` shim, which `spawnSync` cannot execute on
+ * Windows; resolution starts from the package being checked, so its own copy wins.
  */
 const requireFrom = createRequire(resolve(packageRoot, 'package.json'))
 

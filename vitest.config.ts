@@ -5,10 +5,9 @@ import { defineConfig } from 'vitest/config'
 import { tectonResolveForTests, tectonServerForTests } from './tools/tecton/vitest.mjs'
 
 /**
- * `#mfe/meta` is generated per container, so unlike `#mfe/config` and
- * `#mfe/fetch` it cannot be aliased to one fixture: it resolves to the real
- * generated module of whichever example imported it. A plugin rather than an
- * alias, because an alias cannot depend on the importer.
+ * `#mfe/meta` is generated per container, so it resolves to the real generated module of
+ * whichever example imported it — a plugin rather than an alias, because an alias cannot depend
+ * on the importer.
  */
 const mfeMeta = {
   name: 'mfe-meta-per-example',
@@ -102,16 +101,13 @@ export default defineConfig({
           setupFiles: ['../packages/mfe-react/vitest.setup.ts'],
           server: tectonServerForTests,
         },
-        // Each example also carries these in its own vitest config, for running
-        // one example's suite from inside it. Repeated here because this
-        // project collects every example from the repository root, where an
-        // example's own config is not read (§14).
+        // Repeated from each example's own vitest config, because this project collects every
+        // example from the repository root, where an example's own config is not read (§14).
         resolve: {
           ...tectonResolveForTests,
           alias: [
-            // The generated modules, as a test sees them (§14). `#mfe/config`
-            // and `#mfe/fetch` are replaced by fixtures; the source under test
-            // keeps its production imports.
+            // `#mfe/config` and `#mfe/fetch` are replaced by test fixtures, while the source
+            // under test keeps its production imports (§14).
             { find: /^#mfe\/config$/, replacement: '@company/mfe-react/testing/mfe-config' },
             { find: /^#mfe\/fetch$/, replacement: '@company/mfe-react/testing/mfe-fetch' },
             ...tectonResolveForTests.alias,

@@ -1,16 +1,10 @@
 #!/usr/bin/env node
 /**
- * Does editing this file hot-update the page, or reload it?
- *
- * A full reload looks almost identical to a hot update — the change appears —
- * so the difference is only visible in what was lost: scroll position, an open
- * dialog, a half-typed form, the dashboard you were building. This asks the
- * question directly by putting a value on `window` that a reload cannot carry.
+ * Does editing this file hot-update the page, or reload it? A full reload differs from a hot
+ * update only in what was lost — scroll position, an open dialog, a half-typed form — so this
+ * asks directly, by putting a value on `window` that a reload cannot carry (§18).
  *
  * Usage, against servers that are already running (`pnpm dev`):
- *   node tools/dev/hmr-probe.mjs <file> [url]
- *
- * For example:
  *   node tools/dev/hmr-probe.mjs apps/shell/src/shell/chrome.tsx
  *   node tools/dev/hmr-probe.mjs examples/lab/src/routes/index.tsx /lab
  */
@@ -41,8 +35,7 @@ const log = []
 page.on('console', message => log.push(`[${message.type()}] ${message.text()}`))
 page.on('pageerror', error => log.push(`pageerror: ${error.message}`))
 
-// `networkidle` never arrives: the dev servers hold a websocket open for hot
-// updates. The mount root is what says the page is ready.
+// `networkidle` never arrives, because the dev servers hold a websocket open for hot updates.
 await page.goto(`http://localhost:3000${path}`, { waitUntil: 'load' })
 await page.waitForSelector('[data-mfe-scope], [data-slot="shell-header"]', { timeout: 30_000 })
 await page.waitForTimeout(3000)
