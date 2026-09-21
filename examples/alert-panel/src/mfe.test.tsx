@@ -1,8 +1,3 @@
-/**
- * A component test written the way an author writes one: explicit fixtures,
- * no running shell, no live credentials, no federation.
- */
-
 import { renderWidget } from '@company/mfe-react/testing'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -13,8 +8,7 @@ import { alertPanel } from './mfe.ts'
 let cleanup: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new
-  // handle by the time this one resolves, and clearing then would drop it.
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = cleanup
   cleanup = null
   await dispose?.()
@@ -51,8 +45,7 @@ describe('alert-panel', () => {
 
   it('rejects an invalid input at the provider boundary with an actionable message', () => {
     expect(() => renderWidget(alertPanel, { props: { alertId: 7 } })).toThrowError(
-      // Names the field, the offending value and the repair. The connective
-      // wording is zod's and is deliberately not pinned here.
+      // The connective wording is zod's and is deliberately not pinned here.
       /alert-panel@1\.4\.0 failed to accept input alertId.*\b7\b.*Check the alertId prop/s,
     )
   })
@@ -63,8 +56,6 @@ describe('alert-panel', () => {
     })
     cleanup = rendered.dispose
 
-    // `fallback` is a host control prop; reaching the schema would have failed
-    // validation, so rendering at all proves it was filtered out.
     expect(screen.getByText('Alert a-2')).toBeInTheDocument()
   })
 })

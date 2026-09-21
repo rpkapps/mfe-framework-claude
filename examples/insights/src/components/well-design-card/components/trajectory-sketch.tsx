@@ -13,10 +13,6 @@ const W = 240
 const H = 200
 const PAD = { top: 16, right: 44, bottom: 12, left: 48 }
 
-/**
- * Minimal SVG well-trajectory sketch: a polyline from surface to TD with
- * casing shoes drawn as ticks and depth / hole-size labels.
- */
 function TrajectorySketch({
   className,
   design,

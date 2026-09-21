@@ -16,16 +16,6 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-/**
- * The framework lab: one page per thing the framework does, each with a control
- * that makes it visible.
- *
- * Every page here is an ordinary route in an ordinary TanStack Router
- * application. That is the claim being demonstrated as much as any individual
- * feature — an App author writes a router application, and the micro-frontend
- * concerns show up as hooks and generated modules rather than as a framework to
- * learn.
- */
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: LabLayout,
 })
@@ -60,10 +50,8 @@ function LabLayout(): ReactNode {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
       {/*
-       * The rail is the only way into nine of this App's ten pages, so below
-       * `md` it becomes a scrolling strip of the same links rather than
-       * disappearing. Hiding navigation at a breakpoint and putting nothing in
-       * its place is not responsive; it is a dead end with a media query.
+       * The rail is the only way into nine of this App's ten pages, so below `md` it becomes a
+       * scrolling strip of the same links rather than disappearing.
        */}
       <nav
         aria-label="Framework features"

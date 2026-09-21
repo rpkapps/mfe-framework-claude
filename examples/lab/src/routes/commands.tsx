@@ -24,8 +24,7 @@ function Commands(): ReactNode {
     setLog(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
   }
 
-  // Registration is a hook, so scoping follows component lifetime: leave this
-  // route and the command leaves the shell's palette with it.
+  // Registration is a hook, so leaving this route takes the command out of the shell's palette.
   useCommand({
     name: 'run-simulation',
     label: 'Run the simulation',

@@ -36,10 +36,6 @@ type FdaCardProps = Omit<React.ComponentProps<typeof Card>, 'children'> & {
   onCompare?: (fda: FdaSummary) => void
 }
 
-/**
- * Field development alternative card — code + status chip, description,
- * KPI stat group, complexity / risk / emissions meters and footer actions.
- */
 function FdaCard({
   className,
   fda,

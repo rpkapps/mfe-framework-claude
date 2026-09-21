@@ -1,12 +1,5 @@
-/**
- * What the Widget renders.
- *
- * Its own module, and every export a component, so React Refresh can replace it
- * in place. The entry beside it cannot be: `src/mfe.ts` exports the definition
- * and its contract by contract, neither of which is a component, so an edit
- * there propagates to the generated entry and reloads the page. Keeping the
- * render here is what makes editing a Widget feel like editing a component.
- */
+/** Every export here is a component, so React Refresh replaces this module in place instead of
+ * reloading the page (§18). */
 
 import type { WidgetRenderProps } from '@company/mfe-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'

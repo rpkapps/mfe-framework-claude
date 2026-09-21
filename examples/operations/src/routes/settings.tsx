@@ -3,11 +3,7 @@ import type { ReactNode } from 'react'
 
 import { SettingsPage } from '../components/settings-01/page.tsx'
 
-/**
- * Settings, help and release notes are pages, so they are routes. Marking a
- * route is all an App does; the build extracts marked routes statically into
- * the container descriptor and the shell owns where they open.
- */
+/** A marked route is extracted into the container descriptor, and the shell owns where it opens. */
 export const Route = createFileRoute('/settings')({
   staticData: {
     capability: 'settings',

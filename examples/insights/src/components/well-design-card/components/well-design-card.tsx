@@ -37,11 +37,6 @@ type WellDesignCardProps = Omit<React.ComponentProps<typeof Card>, 'children'> &
   onView?: (design: WellDesign) => void
 }
 
-/**
- * Well design summary card — name + trajectory chip, SVG trajectory
- * sketch, TD / MD / inclination stats, phase progress ring, risk meter
- * and a "View design" action.
- */
 function WellDesignCard({
   className,
   design,

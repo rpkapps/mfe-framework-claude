@@ -1,12 +1,4 @@
-/**
- * Reusable typed query options, shared by the route loader and the component so
- * they hit one cache entry rather than two.
- *
- * The query function goes through the generated authenticated fetch, passes
- * Query's cancellation signal, and throws a useful error for an unsuccessful
- * response. Supplying a client does not authenticate arbitrary query functions:
- * the request boundary is what does.
- */
+/** Shared by the route loader and the component, so the two hit one cache entry rather than two. */
 
 import { queryOptions } from '@tanstack/react-query'
 import { fetch } from '#mfe/fetch'

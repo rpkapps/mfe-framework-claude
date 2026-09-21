@@ -26,12 +26,6 @@ type FdaComparisonTableProps = React.ComponentProps<'div'> & {
   onAddComparison?: () => void
 }
 
-/**
- * FDA comparison table — ranked field development alternatives with mono
- * economics, an auto-coloured risk meter, status badges and a row menu.
- * TanStack Table state (sorting, selection) rendered with the React Aria
- * `Table` primitives in a compact, alternating-row layout.
- */
 function FdaComparisonTable({
   className,
   data = allAlternatives,

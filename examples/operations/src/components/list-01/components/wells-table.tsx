@@ -142,16 +142,10 @@ const pageSizeOptions = [10, 25, 50, 100]
 type WellsTableProps = React.ComponentProps<'div'> & {
   data: Well[]
   onOpen?: ((well: Well) => void) | undefined
-  /** Rows per page. */
   pageSize?: number
   onRowSelectionChange?: (selection: RowSelectionState) => void
 }
 
-/**
- * Paginated, sortable, selectable wells grid: TanStack Table state rendered
- * with the React Aria `Table` primitives. Cells stack into labelled rows on
- * narrow viewports.
- */
 function WellsTable({
   className,
   data,

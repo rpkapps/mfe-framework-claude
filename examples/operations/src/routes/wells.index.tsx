@@ -3,11 +3,6 @@ import type { ReactNode } from 'react'
 
 import { WellsListPage } from '../components/list-01/page.tsx'
 
-/**
- * A whole page composed from one design-system component. An MFE does not earn
- * its keep by re-drawing tables; it earns it by owning a routable surface that
- * deploys on its own.
- */
 export const Route = createFileRoute('/wells/')({
   component: Wells,
 })

@@ -36,20 +36,15 @@ function Overview(): ReactNode {
   const theme = useTheme()
   const [acknowledged, setAcknowledged] = useState<string | null>(null)
 
-  // A subscribed value and a stable setter. No effect keeps it in sync, and the
-  // value survives a reload because it is stored under this App's own prefix.
-  // `retention: 'browser'` deliberately: a display density belongs to the
-  // browser rather than to a person, so it is fine for everyone here to share
-  // it. Anything derived from the signed-in user takes the 'user' default.
+  // `retention: 'browser'` deliberately: a display density belongs to the browser rather than to a
+  // person, so everyone here shares it, and anything derived from the user takes 'user' (§21).
   const [density, setDensity] = useStoredState('table-density', densitySchema, {
     defaultValue: 'comfortable',
     retention: 'browser',
   })
 
-  // Registration is a hook, so mount scoping follows component lifetime: this
-  // command appears in the shell's palette while this route is on screen and
-  // disappears with it. The inline callbacks need no memoization to stay
-  // current.
+  // Registration is a hook, so this command is in the shell's palette while this route is on screen
+  // and gone with it.
   useCommand({
     name: 'toggle-density',
     label: `Switch to ${density === 'compact' ? 'comfortable' : 'compact'} density`,
@@ -74,11 +69,6 @@ function Overview(): ReactNode {
           </PageHeaderDescription>
         </PageHeaderContent>
         <PageHeaderActions>
-          {/*
-           * Share is a link to exactly this page, which is a real action a
-           * route-addressable surface can offer. A button that opened nothing
-           * would be worse than no button.
-           */}
           <CopyButton variant="outline" value={window.location.href}>
             Share
           </CopyButton>
@@ -120,9 +110,7 @@ function Overview(): ReactNode {
             <FdaCard
               key={fda.id}
               fda={fda}
-              // Both open the Reports application, which is delegated at a
-              // route inside this one: opening an alternative is the child
-              // App's deep link, and comparing them is its index.
+              // Both open the Reports App, delegated at a route inside this one.
               onOpen={selected => {
                 void navigate({
                   to: '/reports/$',
@@ -148,11 +136,6 @@ function Overview(): ReactNode {
             ordinary component: its inputs are props and its events are <code>onX</code> props.
           </p>
 
-          {/*
-           * Inputs go in as props, events come back as onX props. The contract
-           * is imported from the provider's own contracts entry, so both are
-           * typed and both are validated at the boundary.
-           */}
           <AlertPanel
             alertId="a-1001"
             severity="warning"

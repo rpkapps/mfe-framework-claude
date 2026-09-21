@@ -19,24 +19,14 @@ import type { ReactNode } from 'react'
 
 import { ProjectTree, projectTree } from '../components/dashboard-01/page.tsx'
 
-/**
- * A layout is a root route with an outlet, which is the native way to express
- * it. There is no layout or render option on createApp.
- *
- * The shell owns the header above this and renders nothing else, so the region
- * below it is this App's to lay out — a navigation rail and its own scrolling
- * body. An App that wanted a single centred column would render that instead;
- * the framework has no opinion.
- */
+/** The shell owns the header above this and renders nothing else, so everything below it is this
+ * App's to lay out; `createApp` has no layout option because a root route already is one. */
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: OperationsLayout,
 })
 
-/**
- * `basepath` makes every link resolve under whatever boundary the shell
- * assigned, so the App writes ordinary absolute-looking paths and never sees
- * its own mount prefix.
- */
+/** `basepath` resolves these under whatever boundary the shell assigned, so the App never sees its
+ * own mount prefix. */
 const NAV: readonly { to: string; label: string; icon: LucideIcon }[] = [
   { to: '/', label: 'Overview', icon: LayoutGridIcon },
   { to: '/assets', label: 'Assets', icon: BoxesIcon },
@@ -59,11 +49,8 @@ function OperationsLayout(): ReactNode {
   const groups = useGroups()
 
   /*
-   * Registered by the layout rather than by a page, so they live as long as
-   * this application is mounted: they are in the shell's palette on every
-   * Operations route and gone the moment another application takes the
-   * boundary. A page's own command (the density toggle on the overview) is
-   * scoped to that page instead — same hook, different lifetime.
+   * Registered by the layout rather than by a page, so they live as long as this application is
+   * mounted; a page's own command is scoped to that page instead.
    */
   useCommand({
     name: 'open-wells',
@@ -95,8 +82,7 @@ function OperationsLayout(): ReactNode {
   useCommand({
     name: 'open-reports',
     label: 'Operations: open the alternatives ranking',
-    // The ranking is the Reports application delegated at a route here, and it
-    // is the one surface in this App that a group actually gates.
+    // The one surface in this App that a group actually gates.
     canExecute: () =>
       groups.includes('well-planning.read')
         ? allow()
@@ -109,10 +95,8 @@ function OperationsLayout(): ReactNode {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
       {/*
-       * The rail is the only way into this App's other pages, so below `lg` it
-       * becomes a scrolling strip of the same links rather than disappearing.
-       * Hiding navigation at a breakpoint and putting nothing in its place is
-       * not responsive; it is a dead end with a media query.
+       * The rail is the only way into this App's other pages, so below `lg` it becomes a scrolling
+       * strip of the same links rather than disappearing.
        */}
       <nav aria-label="Operations" className="shrink-0 border-b border-border-subtle lg:hidden">
         <ScrollArea className="overflow-x-auto overflow-y-hidden">
@@ -166,10 +150,7 @@ function OperationsLayout(): ReactNode {
             )
           })}
 
-          {/*
-           * The child App is delegated at a splat route, so the link names that
-           * route with an empty splat and the child's own index renders.
-           */}
+          {/* An empty splat is what lands on the child App's own index. */}
           <Link
             to="/reports/$"
             params={{ _splat: '' }}

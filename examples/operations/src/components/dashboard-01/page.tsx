@@ -35,15 +35,9 @@ import { TopNav } from './components/top-nav'
 import { project } from './data'
 
 type DashboardProps = React.ComponentProps<typeof AppShell> & {
-  /** Hide the right-hand agent panel. */
   hideAgent?: boolean
 }
 
-/**
- * Full application dashboard: top navigation, project tree sidebar,
- * work area with FDA and well design cards plus the cost vs risk panel,
- * and the AI agent docked in the right aside.
- */
 function Dashboard({ className, hideAgent = false, ...props }: DashboardProps) {
   const [section, setSection] = React.useState('overview')
   const [agentOpen, setAgentOpen] = React.useState(!hideAgent)
@@ -139,7 +133,6 @@ function Dashboard({ className, hideAgent = false, ...props }: DashboardProps) {
   )
 }
 
-/** Route-ready page. */
 export default function DashboardPage() {
   return <Dashboard />
 }

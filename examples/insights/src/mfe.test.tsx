@@ -1,13 +1,4 @@
-/**
- * The contracts this container publishes, checked the way a consumer meets
- * them: inputs in, declared events out, and a rejection at the provider when
- * the inputs are wrong.
- *
- * The markup is the design system's and is not re-asserted here. What belongs
- * to this container is the contract, and that a host reading the registry can
- * satisfy it — the enum members below are exactly what the shell's catalogue
- * offers as a dropdown.
- */
+/** The markup belongs to the design system, so only the contract is asserted here. */
 
 import { renderWidget } from '@company/mfe-react/testing'
 import { screen } from '@testing-library/react'
@@ -19,8 +10,7 @@ import { agentPanel, costVsRisk, fdaSummary, wellDesign } from './mfe.tsx'
 let cleanup: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new
-  // handle by the time this one resolves, and clearing then would drop it.
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = cleanup
   cleanup = null
   await dispose?.()
@@ -80,8 +70,7 @@ describe('cost-vs-risk', () => {
     cleanup = rendered.dispose
 
     expect(Object.keys(costVsRisk.contract.events)).toEqual([])
-    // The panel's own header counts what the `compare` input selected, and the
-    // schema default selects two.
+    // The header counts what `compare` selected, and the schema default selects two.
     expect(screen.getByText('2 Selected')).toBeInTheDocument()
   })
 })

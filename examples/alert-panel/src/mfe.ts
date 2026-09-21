@@ -1,20 +1,7 @@
-/**
- * A Widget: a non-routable, independently mountable surface.
- *
- * The schemas are the source of truth for both runtime validation and the
- * author-facing types, so `inputs` and `emit` in the render function are fully
- * typed without a single type annotation to keep in sync. The build reads the
- * same schemas statically and publishes them in the registry, which is what
- * lets a host offer this Widget in a catalogue without loading this container.
- *
- * The contract is exported separately so a consumer can import it and get
- * inference plus consumer-side event validation. A consumer may equally declare
- * its own tolerant contract containing only the fields it uses.
- *
- * The render function lives in its own module. This one exports a contract and
- * a definition, so React Refresh cannot replace it and an edit here reloads the
- * page; `alert-panel.tsx` exports only a component and hot-updates.
- */
+/** The build reads these schemas statically and publishes them in the registry, so a host can offer
+ * this Widget in a catalogue without loading the container (§16). The render function lives in
+ * `alert-panel.tsx` because a module exporting a contract and a definition is no React Refresh
+ * boundary, so an edit here would reload the page (§18). */
 
 import { createWidget } from '@company/mfe-react'
 import { z } from 'zod'

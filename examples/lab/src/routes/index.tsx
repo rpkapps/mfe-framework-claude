@@ -65,9 +65,8 @@ function Overview(): ReactNode {
         </p>
 
         {/*
-         * A container may export several definitions, and which ones is a list
-         * with three fields per row. That is a table; it was an array of JSON
-         * objects, which is a table someone has to reassemble by eye.
+         * Three fields per definition is a table, and an array of JSON objects is a table someone
+         * has to reassemble by eye.
          */}
         <Table aria-label="Definitions this container exports">
           <TableHeader>
@@ -132,7 +131,7 @@ function Overview(): ReactNode {
   )
 }
 
-/** The reader's locale. An ISO string is a machine's format, not a person's. */
+/** An ISO string is a machine's format, so this renders the reader's locale instead. */
 function formatBuildTime(iso: string): string {
   const date = new Date(iso)
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString()

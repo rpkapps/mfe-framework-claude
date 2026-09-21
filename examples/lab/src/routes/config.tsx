@@ -15,8 +15,7 @@ export const Route = createFileRoute('/config')({
 })
 
 function Config(): ReactNode {
-  // Disabled until asked: this lab has no API behind it, and the interesting
-  // part is the request that goes out, not the response that comes back.
+  // Disabled until asked: this lab has no API behind it, and the request is the interesting part.
   const probe = useQuery({
     queryKey: ['lab', 'probe'],
     enabled: false,
@@ -72,10 +71,8 @@ function Config(): ReactNode {
         </div>
 
         {/*
-         * The result keeps the same room whichever way it lands: a skeleton
-         * while the request is out, then the response or the failure in its
-         * place. A panel that grows by 120px when an answer arrives moves the
-         * button the reader just pressed.
+         * The result keeps the same room whichever way it lands, because a panel that grows when an
+         * answer arrives moves the button the reader just pressed.
          */}
         {probe.isFetching ? (
           <div className="flex flex-col gap-2" role="status" aria-label="Waiting for the response">

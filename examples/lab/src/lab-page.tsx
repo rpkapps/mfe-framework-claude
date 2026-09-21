@@ -1,20 +1,6 @@
-/**
- * The frame every lab page shares: what the page demonstrates, what to try, and
- * a readout of what actually happened.
- *
- * The readout vocabulary is the substance of this file. Every page here exists
- * to show a value the framework produced, and the obvious way to show one —
- * `JSON.stringify(value, null, 2)` in a `<pre>` — is the wrong one. It turns a
- * user into a string of braces, a list of groups into a bracketed column, and a
- * boolean into a word that looks exactly like the string next to it; it scrolls
- * sideways on a phone; and it makes a framework whose whole claim is "these are
- * ordinary typed values" look like a debugger. So values get presentations:
- * labelled rows, a tag per member, a state word for a boolean, and monospace
- * kept for the things that really are identifiers.
- *
- * Shared so each page is only the feature it is about. Components only, so an
- * edit to a lab page hot-updates instead of reloading the shell around it.
- */
+/** Values get presentations rather than `JSON.stringify` in a `<pre>`, which makes ordinary typed
+ * values look like a debugger. Every export is a component, so an edit hot-updates the page instead
+ * of reloading the shell around it (§18). */
 
 import { Badge } from '@tecton/react/components/badge'
 import { Separator } from '@tecton/react/components/separator'
@@ -51,17 +37,14 @@ export function LabPage({
   readonly children: ReactNode
 }): ReactNode {
   return (
-    // A measure, not a full-bleed column: these pages are prose plus readouts,
-    // and a 1900px-wide paragraph is unreadable at any font size.
+    // A measure, not a full-bleed column: a 1900px-wide paragraph is unreadable at any font size.
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
       <PageHeader>
         <PageHeaderContent>
           <PageHeaderEyebrow>{eyebrow}</PageHeaderEyebrow>
           {/*
-           * Tecton's title is one line by design — the header is a single row
-           * that collapses its actions rather than stacking. These titles are
-           * sentences, and on a phone a single line of one turns into "Identity,
-           * groups and theme come…", so this page opts into wrapping.
+           * Tecton's title is one line by design and these titles are sentences, so on a phone one
+           * would truncate mid-word; this page opts into wrapping instead.
            */}
           <PageHeaderTitle className="text-2xl text-clip whitespace-normal">
             {title}
@@ -99,11 +82,8 @@ export function LabSection({
   return (
     <Panel>
       {/*
-       * The header wraps rather than truncating. The note beside each title is
-       * the API this section is about — `tracer.startActiveSpan`, a long name
-       * by design — and on a phone it took enough of the row to turn the title
-       * into "Structured lo…", which loses the one word that says what the
-       * section is.
+       * The note is a long API name, so on a phone it took enough of the row to truncate the title
+       * past the one word that says what the section is; the header wraps instead.
        */}
       <PanelHeader className="flex-wrap gap-y-1">
         <PanelTitle className="text-clip whitespace-normal">{title}</PanelTitle>
@@ -137,10 +117,8 @@ export function DataList({
   )
 }
 
-/**
- * One row. The label sits above the value on a phone and beside it from `sm`
- * up — a two-column grid at 390px leaves every value a three-word column.
- */
+/** The label sits above the value on a phone, because a two-column grid at 390px leaves every value
+ * a three-word column. */
 export function DataRow({
   label,
   hint,
@@ -179,7 +157,7 @@ export function Identifier({
   )
 }
 
-/** A list of names — groups, definitions, event names. Never a JSON array. */
+/** A list of names — groups, definitions, event names — never a JSON array. */
 export function Tags({
   values,
   variant = 'secondary',
@@ -202,14 +180,8 @@ export function Tags({
   )
 }
 
-/**
- * A boolean as a state, not a verdict.
- *
- * A dot rather than a tick and a cross: half the booleans on these pages are
- * facts with no good or bad side — `signal.aborted` is false while the mount is
- * healthy, `leavesBoundary` is false for a navigation that stays — and a red ✗
- * beside "live" reads as a failure the page is reporting.
- */
+/** A dot rather than a tick and a cross, because half these booleans have no good or bad side and a
+ * red cross beside "live" would read as a failure the page is reporting. */
 export function Flag({
   value,
   trueLabel = 'true',
@@ -287,10 +259,7 @@ export function Value({ value }: { readonly value: unknown }): ReactNode {
   return <span className="text-sm text-muted-foreground">a {typeof value}</span>
 }
 
-/**
- * An object whose keys are not known in advance — a config block, a stored
- * draft, a response body — as one row per field.
- */
+/** An object whose keys are not known in advance, as one row per field. */
 export function Fields({ value }: { readonly value: unknown }): ReactNode {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     return (
@@ -315,14 +284,8 @@ export function Fields({ value }: { readonly value: unknown }): ReactNode {
   )
 }
 
-/**
- * What happened, in order, with the time it happened at.
- *
- * Several pages here record a running log of what they did — a span ended, an
- * event arrived, a command ran. Joining those lines with `\n` into one
- * monospace block made them a single opaque value; a row each, newest first,
- * with the time in its own column, is the same information read at a glance.
- */
+/** A row each, newest first, with the time in its own column, because joining the lines into one
+ * monospace block made the log a single opaque value. */
 export function EventLog({
   entries,
   empty,
@@ -366,13 +329,8 @@ const TONE_DOT: Record<LogTone, string> = {
   destructive: 'bg-destructive',
 }
 
-/**
- * What a Widget's box holds while its container is on the wire.
- *
- * Handed to the Widget through its `pending` slot, so the wait is contained by
- * the Widget's own boundary: mounting one, or retrying one that failed, used to
- * suspend the whole page and flicker everything back in around it.
- */
+/** Handed to the Widget through its `pending` slot, so a mount or a retry suspends that Widget's box
+ * rather than the whole page. */
 export function WidgetSkeleton(): ReactNode {
   return (
     <div

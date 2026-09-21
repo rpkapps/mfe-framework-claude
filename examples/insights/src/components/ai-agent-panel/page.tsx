@@ -16,10 +16,6 @@ type AiAgentPanelProps = Omit<React.ComponentProps<typeof Panel>, 'children'> & 
   onClose?: () => void
 }
 
-/**
- * AI Agent side panel — header, scrolling conversation (assistant / user /
- * tool-activity messages with action chips) and a composer.
- */
 function AiAgentPanel({
   className,
   initialMessages = agentConversation,

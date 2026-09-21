@@ -4,15 +4,9 @@ import type { ReactNode } from 'react'
 
 import { alternatives } from '../components/fda-comparison-table/page.tsx'
 
-/**
- * A child App's layout. It renders no chrome of its own: this App is mounted
- * inside another App's page as often as it is mounted at a boundary of its own,
- * and a second header would be wrong in both.
- *
- * It still registers this App's commands. Commands are not chrome — the shell
- * lists them wherever this App happens to be mounted, including when it is
- * nested two boundaries deep inside Operations, and they disappear with it.
- */
+/** No chrome of its own, because this App is as often mounted inside another App's page as at a
+ * boundary of its own. Commands are not chrome: the shell lists them wherever this App is mounted
+ * and drops them with it. */
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: ReportsLayout,
 })
@@ -36,8 +30,7 @@ function ReportsLayout(): ReactNode {
     label: 'Reports: copy the ranking',
     canExecute: () => (alternatives.length === 0 ? deny('There is nothing to copy.') : allow()),
     execute: () => {
-      // Tab-separated, so it pastes into a spreadsheet as columns rather than
-      // as one cell of punctuation.
+      // Tab-separated, so it pastes into a spreadsheet as columns rather than one cell.
       const rows = [
         ['Rank', 'Code', 'Name', 'NPV $MM', 'IRR %', 'CAPEX $MM', 'Status'].join('\t'),
         ...alternatives.map((alternative, index) =>

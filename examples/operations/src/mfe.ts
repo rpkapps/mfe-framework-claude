@@ -1,14 +1,5 @@
-/**
- * An App: a routable, independently deployable product surface.
- *
- * This whole file is the framework-specific part of an App. Everything else in
- * this project is ordinary TanStack Router, React and Query.
- *
- * The factory runs once per mount, not once per module, so an App mounted twice
- * gets two routers and disposal drops the router rather than reusing a
- * module-scope singleton. `basePath`, `history` and `context` are passed
- * straight through; the framework validates that at mount.
- */
+/** `router` is a factory called once per mount, not once per module, so two mounts get two
+ * independent routers from the one generated tree (§2). */
 
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
@@ -23,13 +14,11 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
     history,
     context: { ...context },
     defaultPreload: 'intent',
-    // A route that fails is this App's to present. The shell's fallback covers
-    // an App that could not be loaded at all, which is a different failure.
+    // The shell's fallback covers an App that could not load at all, which is a different failure.
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: RouteNotFound,
     defaultPendingComponent: RoutePending,
-    // Route preloading defers freshness decisions to Query for data it caches,
-    // so the two caches do not compete.
+    // Freshness is Query's decision for data it caches, so the two caches do not compete.
     defaultPreloadStaleTime: 0,
   })
 }

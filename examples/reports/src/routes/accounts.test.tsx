@@ -1,11 +1,5 @@
-/**
- * A child App reads its own URL contract, and reads the same URL whatever
- * boundary it was mounted at. The two cases below are the whole claim: the
- * route sees `accountId` and never the mount prefix.
- *
- * Each assertion waits: an App's router resolves its first match
- * asynchronously, so `renderApp` returns before the route has rendered.
- */
+/** An App's router resolves its first match asynchronously, so `renderApp` returns before the route
+ * has rendered and every assertion has to wait. */
 
 import { renderApp, setMfeConfig } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
@@ -16,8 +10,7 @@ import reports from '../mfe.ts'
 let mounted: (() => Promise<void>) | null = null
 
 afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new
-  // handle by the time this one resolves, and clearing then would drop it.
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = mounted
   mounted = null
   await dispose?.()
@@ -33,16 +26,12 @@ describe('the account report route', () => {
     await waitFor(() => {
       expect(screen.getByText('Satellite drill locations')).toBeInTheDocument()
     })
-    // The parameter itself, as the page read it — not a name that could have
-    // come from anywhere.
     expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
   })
 
   it('reads the same parameter whatever boundary it was mounted at', async () => {
     setMfeConfig({ apiBaseUrl: 'https://api.example.test/v1/' })
 
-    // The URL below the boundary is identical; only the prefix the host
-    // assigned differs, and the child never sees it.
     const rendered = renderApp(reports, {
       basePath: '/workspace/reports',
       initialEntries: ['/accounts/fda-1-02'],

@@ -1,17 +1,5 @@
-/**
- * A Widget container: four non-routable surfaces, independently mountable, all
- * deployed as one unit.
- *
- * Four Widgets in one container rather than four containers is a deployment
- * decision, not a framework one — they change together, so they ship together.
- * Nothing about consuming them changes: a host reaches each one by its own id
- * and never learns they are neighbours.
- *
- * Every Widget here is a thin wrapper over a component built from the design
- * system. That is the point: the interesting part of a Widget is its contract
- * — what it takes, what it emits, and the fact that both are validated at this
- * boundary — and not the markup.
- */
+/** Four Widgets in one container is a deployment decision, not a framework one: a host reaches each
+ * by its own id and never learns they are neighbours. */
 
 import { createWidget } from '@company/mfe-react'
 import { z } from 'zod'
@@ -23,15 +11,8 @@ import {
   WellDesignWidget,
 } from './widgets.tsx'
 
-/**
- * The schemas are the source of truth twice over: the provider validates
- * against them at runtime, and the build reads them statically to publish an
- * input schema in the registry — which is what lets a host that never imported
- * this container offer these Widgets in a catalogue and ask for their inputs.
- *
- * So `z.enum([...])` here is not decoration. It is why the shell's dashboard
- * shows a dropdown of alternative ids rather than a text box.
- */
+/** The build reads these schemas statically into the registry, so `z.enum([...])` is what makes the
+ * shell's dashboard draw a dropdown for a Widget it never imported (§16). */
 export const fdaSummaryContract = {
   inputs: z.object({
     fdaId: z.enum(['fda-1-02', 'fda-2-3', 'fda-1-2']),
@@ -69,7 +50,6 @@ export const wellDesign = createWidget({
 
 export const costVsRiskContract = {
   inputs: z.object({
-    /** Which designs start compared. Free text so the catalogue shows a list. */
     compare: z.array(z.enum(['initial', 'dls', 'htdp', 'liner'])).default(['initial', 'liner']),
   }),
   events: {},

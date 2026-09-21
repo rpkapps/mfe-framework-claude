@@ -14,10 +14,8 @@ export const Route = createFileRoute('/storage')({
   component: Storage,
 })
 
-/**
- * Schemas are declared at module scope, as the storage contract requires: a key
- * is a declaration, and one rebuilt every render would rebind on every render.
- */
+/** Schemas are declared at module scope, as the storage contract requires: one rebuilt every render
+ * would rebind the key on every render. */
 const draftSchema = z.object({ note: z.string(), pinned: z.boolean() })
 const visitsSchema = z.number().int().nonnegative()
 
@@ -26,10 +24,8 @@ function Storage(): ReactNode {
   const local = useMfeStorage()
   const [readBack, setReadBack] = useState<unknown>(undefined)
 
-  // `retention: 'browser'` survives a sign-out — which also means the next
-  // person to sign in on this browser reads it. 'user' is the default and is
-  // what anything derived from the signed-in user wants. The distinction is
-  // declared with the key rather than decided at write time.
+  // `retention: 'browser'` survives a sign-out, so the next person to sign in on this browser reads
+  // it; 'user' is the default and is what anything derived from the signed-in user wants (§21).
   const [draft, setDraft] = useStoredState('draft', draftSchema, {
     defaultValue: { note: '', pinned: false },
     retention: 'browser',
