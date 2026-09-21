@@ -2,9 +2,13 @@
  * Compose a page out of Widgets the shell was never built against: it knows an id, an input
  * schema and a list of event names, all read from the registry. Adding a Widget here is a
  * registry change, not a shell release.
+ *
+ * The three columns fill the height they are given and the user decides how the width is split.
+ * The catalogue and the activity feed collapse, because on a narrow screen the canvas is the
+ * thing worth the room.
  */
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   defaultInputsFor,
   describeWidgetInputs,
@@ -12,7 +16,6 @@ import {
   useWidgets,
   type NeutralRegistryEntry,
 } from '@company/mfe-react'
-import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -24,13 +27,10 @@ import {
   EmptyTitle,
 } from '@tecton/react/components/empty'
 import {
-  PageHeader,
-  PageHeaderActions,
-  PageHeaderContent,
-  PageHeaderDescription,
-  PageHeaderEyebrow,
-  PageHeaderTitle,
-} from '@tecton/react/tecton/page-header'
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@tecton/react/components/resizable'
 import {
   Panel,
   PanelActions,
@@ -38,21 +38,37 @@ import {
   PanelHeader,
   PanelTitle,
 } from '@tecton/react/tecton/panel'
+import { CanvasOverlay, CanvasToolbar } from '@tecton/react/tecton/canvas'
+import { Toggle } from '@tecton/react/components/toggle'
+import { usePanelRef } from 'react-resizable-panels'
 import {
-  ChevronDownIcon,
-  LayersIcon,
+  ArrowUpToLineIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
   LayoutDashboardIcon,
   MousePointerClickIcon,
   Trash2Icon,
   ZapIcon,
 } from 'lucide-react'
 
-import { useDashboardLayout, useIsCompact } from '../hooks.ts'
+import { useDashboardLayout, useDashboardPanels, useIsCompact, useSnapToTop } from '../hooks.ts'
 import { ValueView } from '../readout.tsx'
+import { DashboardCanvas } from './canvas.tsx'
 import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
+import {
+  canvasColumns,
+  canvasRows,
+  columnsIn,
+  compact,
+  pixelsFromCells,
+  resolveCollisions,
+  type Rect,
+} from './grid.ts'
 import { InputsDialog } from './inputs-dialog.tsx'
-import { addTile, moveTile, tileKey, type DashboardTile, type TileSpan } from './layout-store.ts'
+import { addTile, NOMINAL_COLUMNS, placeTile, tileKey, type DashboardTile } from './layout-store.ts'
+import { ACTIVITY_PANEL, CANVAS_PANEL, CATALOGUE_PANEL } from './panels-store.ts'
 import { Tile } from './tile.tsx'
+import { tileKeyboardMove, useTileDrag } from './use-tile-drag.ts'
 
 interface WidgetEvent {
   readonly key: string
@@ -73,13 +89,31 @@ export function DashboardPage(): ReactNode {
   const widgets = useWidgets()
   // Stored, not this component's state: the palette and settings both write it from outside.
   const [{ tiles }, setLayout] = useDashboardLayout()
+  const [panels, setPanels] = useDashboardPanels()
+  const [snapToTop, setSnapToTop] = useSnapToTop()
   const [editing, setEditing] = useState<Editing | null>(null)
   const [events, setEvents] = useState<readonly WidgetEvent[]>([])
   const [isDropTarget, setIsDropTarget] = useState(false)
-  /** The tile being dragged. A ref, because nothing renders differently for it. */
-  const dragging = useRef<string | null>(null)
+  const [placement, setPlacement] = useState('')
+  const isCompact = useIsCompact()
+
+  const surface = useRef<HTMLDivElement | null>(null)
+  const cataloguePanel = usePanelRef()
+  const activityPanel = usePanelRef()
+  const [collapsed, setCollapsed] = useState({ catalogue: false, activity: false })
+
+  const measured = useCanvasColumns(surface)
 
   const byId = useMemo(() => new Map(widgets.map(entry => [entry.id, entry] as const)), [widgets])
+
+  /**
+   * The surface is at least as wide as the window and as wide as its rightmost tile, so a layout
+   * built on a monitor scrolls on a laptop instead of being squeezed into itself.
+   */
+  const columns = useMemo(
+    () => canvasColumns(tiles, measured ?? NOMINAL_COLUMNS),
+    [tiles, measured],
+  )
 
   const commit = useCallback(
     (next: readonly DashboardTile[]) => {
@@ -97,16 +131,35 @@ export function DashboardPage(): ReactNode {
       }
 
       setLayout(layout =>
-        addTile(layout, {
-          key: tileKey(entry.id),
-          widgetId: entry.id,
-          inputs: defaultInputsFor(describeWidgetInputs(entry.contract)),
-          span: 6,
-        }),
+        addTile(
+          layout,
+          {
+            key: tileKey(entry.id),
+            widgetId: entry.id,
+            inputs: defaultInputsFor(describeWidgetInputs(entry.contract)),
+          },
+          columns,
+        ),
       )
     },
-    [setLayout],
+    [setLayout, columns],
   )
+
+  /** One path for every placement, so a drag, a keyboard nudge and a size preset all settle the same way. */
+  const place = useCallback(
+    (key: string, rect: Rect) => {
+      setLayout(layout => {
+        const settled = resolveCollisions(placeTile(layout.tiles, key, rect), key)
+        return { tiles: snapToTop ? compact(settled) : settled }
+      })
+      setPlacement(
+        `Moved to column ${String(rect.x + 1)}, row ${String(rect.y + 1)}, ${String(rect.w)} by ${String(rect.h)} cells.`,
+      )
+    },
+    [setLayout, snapToTop],
+  )
+
+  const drag = useTileDrag(columns, place)
 
   const recordEvent = useCallback((widgetId: string, name: string, payload: unknown) => {
     setEvents(current =>
@@ -123,123 +176,219 @@ export function DashboardPage(): ReactNode {
     )
   }, [])
 
+  const catalogue = (
+    <CataloguePanel
+      widgets={widgets}
+      onAdd={add}
+      hasTiles={tiles.length > 0}
+      onClear={() => {
+        commit([])
+      }}
+      onCollapse={() => cataloguePanel.current?.collapse()}
+    />
+  )
+
+  const activity = (
+    <ActivityFeed
+      events={events}
+      onClear={() => {
+        setEvents([])
+      }}
+      onCollapse={() => activityPanel.current?.collapse()}
+    />
+  )
+
+  const canvas = (
+    <DashboardCanvas
+      label="Dashboard canvas"
+      isDropTarget={isDropTarget}
+      isGesturing={drag.gesture !== null}
+      surfaceRef={surface}
+      onDragOver={event => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setIsDropTarget(true)
+      }}
+      onDragLeave={() => {
+        setIsDropTarget(false)
+      }}
+      onDrop={event => {
+        event.preventDefault()
+        setIsDropTarget(false)
+        const widgetId = event.dataTransfer.getData(WIDGET_MEDIA_TYPE)
+        const entry = widgetId === '' ? undefined : byId.get(widgetId)
+        if (entry !== undefined) add(entry)
+      }}
+      overlay={
+        <>
+          {/* Each restore control sits at the edge the panel collapsed into, so it reads as that
+              panel rather than as a canvas tool. */}
+          {collapsed.catalogue ? (
+            <CanvasOverlay position="left">
+              <CanvasToolbar orientation="vertical" aria-label="Catalogue">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Show the catalogue"
+                  onPress={() => cataloguePanel.current?.expand()}
+                >
+                  <ChevronsRightIcon />
+                </Button>
+              </CanvasToolbar>
+            </CanvasOverlay>
+          ) : null}
+          {collapsed.activity ? (
+            <CanvasOverlay position="right">
+              <CanvasToolbar orientation="vertical" aria-label="Activity">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Show the activity feed"
+                  onPress={() => activityPanel.current?.expand()}
+                >
+                  <ChevronsLeftIcon />
+                </Button>
+              </CanvasToolbar>
+            </CanvasOverlay>
+          ) : null}
+          {tiles.length === 0 ? null : (
+            <CanvasOverlay position="top-right">
+              <CanvasToolbar orientation="horizontal" aria-label="Canvas">
+                <Toggle
+                  size="sm"
+                  aria-label="Snap tiles to the top"
+                  isSelected={snapToTop}
+                  onChange={next => {
+                    setSnapToTop(next)
+                    // Turning it on closes the gaps that are already there, or the setting would
+                    // look like it had done nothing until the next drag.
+                    if (next) setLayout(layout => ({ tiles: compact(layout.tiles) }))
+                  }}
+                >
+                  <ArrowUpToLineIcon />
+                </Toggle>
+              </CanvasToolbar>
+            </CanvasOverlay>
+          )}
+        </>
+      }
+    >
+      {tiles.length === 0 ? (
+        <EmptyCanvas hasWidgets={widgets.length > 0} />
+      ) : (
+        <div
+          className="relative"
+          style={{
+            width: pixelsFromCells(columns),
+            minHeight: pixelsFromCells(canvasRows(tiles)),
+          }}
+        >
+          {tiles.map(tile => {
+            const isMoving = drag.gesture?.key === tile.key
+            return (
+              <Tile
+                key={tile.key}
+                tile={tile}
+                entry={byId.get(tile.widgetId)}
+                rect={isMoving && drag.gesture !== null ? drag.gesture.rect : tile}
+                isMoving={isMoving}
+                onConfigure={() => {
+                  const entry = byId.get(tile.widgetId)
+                  if (entry !== undefined) setEditing({ mode: 'edit', entry, tile })
+                }}
+                onRemove={() => {
+                  commit(tiles.filter(candidate => candidate.key !== tile.key))
+                }}
+                onResize={size => {
+                  place(tile.key, { x: tile.x, y: tile.y, ...size })
+                }}
+                onEvent={(name, payload) => {
+                  recordEvent(tile.widgetId, name, payload)
+                }}
+                onMoveStart={event => {
+                  drag.startMove(event, tile.key, tile)
+                }}
+                onResizeStart={(event, edge) => {
+                  drag.startResize(event, tile.key, tile, edge)
+                }}
+                onKeyDown={event => {
+                  tileKeyboardMove(tile.key, tile, event, columns, place)
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
+    </DashboardCanvas>
+  )
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-6 md:px-6">
-        <PageHeader>
-          <PageHeaderContent>
-            <PageHeaderEyebrow>Shell · composition</PageHeaderEyebrow>
-            {/* Wrapping, not truncating: a page title is the one thing that must survive a phone. */}
-            <PageHeaderTitle className="text-clip whitespace-normal">
-              Widget dashboard
-            </PageHeaderTitle>
-            <PageHeaderDescription>
-              Every Widget below is served by a different container on a different origin. The shell
-              was not built against any of them: it reads their ids, their input schemas and their
-              event names from the registry. Drag one onto the canvas to mount it.
-            </PageHeaderDescription>
-          </PageHeaderContent>
-          <PageHeaderActions>
-            <Button
-              variant="outline"
-              onPress={() => {
-                devtools.open('registry')
-              }}
-            >
-              <LayersIcon /> Registry
-            </Button>
-            {tiles.length === 0 ? null : (
-              <Button
-                variant="outline"
-                onPress={() => {
-                  commit([])
-                }}
-              >
-                <Trash2Icon /> Clear canvas
-              </Button>
-            )}
-          </PageHeaderActions>
-        </PageHeader>
-
-        {/* `items-start`, and no `flex-1`: a shared row height sized by the viewport left the canvas shorter than its own tiles. */}
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-4 xl:col-span-3">
-            <CataloguePanel widgets={widgets} onAdd={add} />
-          </div>
-
-          <section
-            aria-label="Dashboard canvas"
-            onDragOver={event => {
-              event.preventDefault()
-              event.dataTransfer.dropEffect = dragging.current === null ? 'copy' : 'move'
-              setIsDropTarget(true)
-            }}
-            onDragLeave={() => {
-              setIsDropTarget(false)
-            }}
-            onDrop={event => {
-              event.preventDefault()
-              setIsDropTarget(false)
-              dragging.current = null
-
-              const widgetId = event.dataTransfer.getData(WIDGET_MEDIA_TYPE)
-              const entry = widgetId === '' ? undefined : byId.get(widgetId)
-              if (entry !== undefined) add(entry)
-            }}
-            className={`min-h-96 rounded-xl border border-dashed p-3 transition-colors lg:col-span-8 xl:col-span-6 ${
-              isDropTarget ? 'border-primary bg-primary/5' : 'border-border-subtle'
-            }`}
-          >
-            {tiles.length === 0 ? (
-              <EmptyCanvas hasWidgets={widgets.length > 0} />
-            ) : (
-              <div className="grid grid-cols-12 gap-3">
-                {tiles.map(tile => (
-                  <Tile
-                    key={tile.key}
-                    tile={tile}
-                    entry={byId.get(tile.widgetId)}
-                    onConfigure={() => {
-                      const entry = byId.get(tile.widgetId)
-                      if (entry !== undefined) setEditing({ mode: 'edit', entry, tile })
-                    }}
-                    onRemove={() => {
-                      commit(tiles.filter(candidate => candidate.key !== tile.key))
-                    }}
-                    onSpanChange={(span: TileSpan) => {
-                      commit(
-                        tiles.map(candidate =>
-                          candidate.key === tile.key ? { ...candidate, span } : candidate,
-                        ),
-                      )
-                    }}
-                    onEvent={(name, payload) => {
-                      recordEvent(tile.widgetId, name, payload)
-                    }}
-                    onDragStart={() => {
-                      dragging.current = tile.key
-                    }}
-                    onDropBefore={() => {
-                      const from = dragging.current
-                      dragging.current = null
-                      if (from !== null) commit(moveTile(tiles, from, tile.key))
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <div className="lg:col-span-12 xl:col-span-3">
-            <ActivityFeed
-              events={events}
-              onClear={() => {
-                setEvents([])
-              }}
-            />
-          </div>
+      {/* One column below the breakpoint: a drag handle between panels is unusable on a phone. */}
+      {isCompact ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+          {catalogue}
+          <div className="flex min-h-96 flex-col">{canvas}</div>
+          {activity}
         </div>
-      </div>
+      ) : (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1"
+          defaultLayout={panels}
+          onLayoutChanged={(layout, meta) => {
+            // Only what the user did: mount and constraint recomputes would overwrite their split.
+            if (meta.isUserInteraction) setPanels(layout)
+          }}
+        >
+          <ResizablePanel
+            id={CATALOGUE_PANEL}
+            panelRef={cataloguePanel}
+            collapsible
+            collapsedSize="0"
+            minSize="14"
+            maxSize="40"
+            onResize={size => {
+              setCollapsed(current =>
+                current.catalogue === (size.asPercentage === 0)
+                  ? current
+                  : { ...current, catalogue: size.asPercentage === 0 },
+              )
+            }}
+            className="flex min-h-0 flex-col"
+          >
+            {catalogue}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel id={CANVAS_PANEL} minSize="30" className="flex min-h-0 flex-col">
+            {canvas}
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            id={ACTIVITY_PANEL}
+            panelRef={activityPanel}
+            collapsible
+            collapsedSize="0"
+            minSize="14"
+            maxSize="40"
+            onResize={size => {
+              setCollapsed(current =>
+                current.activity === (size.asPercentage === 0)
+                  ? current
+                  : { ...current, activity: size.asPercentage === 0 },
+              )
+            }}
+            className="flex min-h-0 flex-col"
+          >
+            {activity}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
+
+      {/* A pointer drag shows where a tile went; a keyboard one has to say so. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {placement}
+      </p>
 
       <InputsDialog
         key={
@@ -262,12 +411,11 @@ export function DashboardPage(): ReactNode {
           if (editing === null) return
           if (editing.mode === 'add') {
             setLayout(layout =>
-              addTile(layout, {
-                key: tileKey(editing.entry.id),
-                widgetId: editing.entry.id,
-                inputs,
-                span: 6,
-              }),
+              addTile(
+                layout,
+                { key: tileKey(editing.entry.id), widgetId: editing.entry.id, inputs },
+                columns,
+              ),
             )
           } else {
             const target = editing.tile.key
@@ -280,53 +428,78 @@ export function DashboardPage(): ReactNode {
   )
 }
 
-/** In one column the catalogue is a closed disclosure, or five Widgets' worth of contract puts the canvas off the bottom of a phone. */
+/**
+ * The canvas decides how many columns there are, so it is measured rather than assumed. `null`
+ * until it has a width: the first paint reports zero, and treating that as a real canvas would
+ * fit every tile down to the minimum.
+ */
+function useCanvasColumns(surface: React.RefObject<HTMLDivElement | null>): number | null {
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const element = surface.current
+    if (element === null) return
+
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0]
+      if (entry !== undefined) setWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+    }
+  }, [surface])
+
+  return width === 0 ? null : columnsIn(width)
+}
+
 function CataloguePanel({
   widgets,
   onAdd,
+  hasTiles,
+  onClear,
+  onCollapse,
 }: {
   readonly widgets: readonly NeutralRegistryEntry[]
   readonly onAdd: (entry: NeutralRegistryEntry) => void
+  readonly hasTiles: boolean
+  readonly onClear: () => void
+  readonly onCollapse: () => void
 }): ReactNode {
-  const isCompact = useIsCompact()
-  const [isOpen, setIsOpen] = useState(false)
-  const isExpanded = !isCompact || isOpen
-
   return (
-    <Panel className="lg:max-h-[calc(100svh-18rem)]">
+    <Panel className="min-h-0 flex-1 lg:rounded-none lg:border-y-0 lg:border-l-0">
       <PanelHeader>
-        <PanelTitle>Registered Widgets</PanelTitle>
+        <PanelTitle>Widgets</PanelTitle>
         <PanelActions>
           <Badge variant="secondary" size="default">
             {widgets.length}
           </Badge>
-          {isCompact ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-expanded={isOpen}
-              aria-label={isOpen ? 'Hide the catalogue' : 'Show the catalogue'}
-              onPress={() => {
-                setIsOpen(current => !current)
-              }}
-            >
-              <ChevronDownIcon className={isOpen ? 'rotate-180' : ''} />
+          {hasTiles ? (
+            <Button variant="ghost" size="icon-sm" aria-label="Clear the canvas" onPress={onClear}>
+              <Trash2Icon />
             </Button>
           ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the catalogue"
+            className="hidden lg:inline-flex"
+            onPress={onCollapse}
+          >
+            <ChevronsLeftIcon />
+          </Button>
         </PanelActions>
       </PanelHeader>
-      {isExpanded ? (
-        <PanelContent>
-          <Catalogue widgets={widgets} onAdd={onAdd} />
-        </PanelContent>
-      ) : null}
+      <PanelContent>
+        <Catalogue widgets={widgets} onAdd={onAdd} />
+      </PanelContent>
     </Panel>
   )
 }
 
 function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNode {
   return (
-    <div className="flex h-full">
+    <div className="flex h-full items-center justify-center p-6">
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon">
@@ -342,8 +515,8 @@ function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNod
         {hasWidgets ? (
           <EmptyContent>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MousePointerClickIcon className="size-3.5" /> Tiles are reorderable, resizable and
-              saved across reloads.
+              <MousePointerClickIcon className="size-3.5" /> Tiles snap to the grid, and the layout
+              is saved across reloads.
             </p>
           </EmptyContent>
         ) : null}
@@ -356,12 +529,14 @@ function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNod
 function ActivityFeed({
   events,
   onClear,
+  onCollapse,
 }: {
   readonly events: readonly WidgetEvent[]
   readonly onClear: () => void
+  readonly onCollapse: () => void
 }): ReactNode {
   return (
-    <Panel className="xl:max-h-[calc(100svh-18rem)]">
+    <Panel className="min-h-0 flex-1 lg:rounded-none lg:border-y-0 lg:border-r-0">
       <PanelHeader>
         <PanelTitle>Activity</PanelTitle>
         <PanelActions>
@@ -375,9 +550,18 @@ function ActivityFeed({
               </Button>
             </>
           )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the activity feed"
+            className="hidden lg:inline-flex"
+            onPress={onCollapse}
+          >
+            <ChevronsRightIcon />
+          </Button>
         </PanelActions>
       </PanelHeader>
-      <PanelContent className="max-h-96 xl:max-h-none">
+      <PanelContent>
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing yet. Acknowledge an alert, select a design — anything a Widget declares as an

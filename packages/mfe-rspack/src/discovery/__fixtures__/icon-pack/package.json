@@ -1,0 +1,6 @@
+{
+  "name": "icon-pack",
+  "version": "0.0.0",
+  "private": true,
+  "module": "index.mjs"
+}

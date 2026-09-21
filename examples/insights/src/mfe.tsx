@@ -2,6 +2,7 @@
  * by its own id and never learns they are neighbours. */
 
 import { createWidget } from '@company/mfe-react'
+import { ChartScatterIcon, ClipboardListIcon, RouteIcon, SparklesIcon } from 'lucide-react'
 import { z } from 'zod'
 
 import {
@@ -27,6 +28,10 @@ export const fdaSummaryContract = {
 export const fdaSummary = createWidget({
   id: 'fda-summary',
   version: '1.0.0',
+  title: 'FDA summary',
+  description: 'Headline figures for a field development area, with drill-down actions.',
+  tags: ['insights', 'planning', 'summary'],
+  icon: ClipboardListIcon,
   ...fdaSummaryContract,
   render: FdaSummaryWidget,
 })
@@ -44,6 +49,10 @@ export const wellDesignContract = {
 export const wellDesign = createWidget({
   id: 'well-design',
   version: '1.0.0',
+  title: 'Well design',
+  description: 'Trajectory and casing for one candidate design.',
+  tags: ['insights', 'planning', 'drilling'],
+  icon: RouteIcon,
   ...wellDesignContract,
   render: WellDesignWidget,
 })
@@ -58,6 +67,10 @@ export const costVsRiskContract = {
 export const costVsRisk = createWidget({
   id: 'cost-vs-risk',
   version: '1.0.0',
+  title: 'Cost vs risk',
+  description: 'Compares candidate designs on cost against assessed risk.',
+  tags: ['insights', 'analysis', 'drilling'],
+  icon: ChartScatterIcon,
   ...costVsRiskContract,
   render: CostVsRiskWidget,
 })
@@ -74,6 +87,10 @@ export const agentPanelContract = {
 export const agentPanel = createWidget({
   id: 'agent-panel',
   version: '0.9.0',
+  title: 'AI agent',
+  description: 'Asks questions about the current selection and answers in the panel.',
+  tags: ['insights', 'assistant'],
+  icon: SparklesIcon,
   ...agentPanelContract,
   render: AgentPanelWidget,
 })

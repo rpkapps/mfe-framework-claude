@@ -30,6 +30,7 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@tecton/react/components/item'
+import { Separator } from '@tecton/react/components/separator'
 import { ActionBar, ActionBarActions, ActionBarMessage } from '@tecton/react/tecton/action-bar'
 import {
   AppWindowIcon,
@@ -412,50 +413,58 @@ function PendingBar({
   readonly problem?: string
   readonly onApply: () => void
 }): ReactNode {
-  return (
-    <ActionBar
-      placement="toolbar"
-      isOpen={pending > 0 || active > 0}
-      {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
-      className="shrink-0 border-t border-border-subtle"
-    >
-      {/* Why "apply" is refusing, in the same bar as the button that is refusing. */}
-      <ActionBarMessage className={problem === undefined ? '' : 'text-destructive'}>
-        {problem ??
-          (pending > 0
-            ? `${String(pending)} pending — applied on reload`
-            : `${String(active)} override${active === 1 ? '' : 's'} applied at boot`)}
-      </ActionBarMessage>
+  const isOpen = pending > 0 || active > 0
 
-      <ActionBarActions>
-        {pending > 0 ? (
-          <>
+  return (
+    <>
+      {/* A real divider rather than a border rule on the bar: `ActionBar`'s toolbar placement is a
+          filled, rounded surface with no border of its own, so the line belongs between the list
+          and the bar rather than on it. It comes and goes with the bar it divides. */}
+      {isOpen ? <Separator className="shrink-0" /> : null}
+      <ActionBar
+        placement="toolbar"
+        isOpen={isOpen}
+        {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
+        className="shrink-0"
+      >
+        {/* Why "apply" is refusing, in the same bar as the button that is refusing. */}
+        <ActionBarMessage className={problem === undefined ? '' : 'text-destructive'}>
+          {problem ??
+            (pending > 0
+              ? `${String(pending)} pending — applied on reload`
+              : `${String(active)} override${active === 1 ? '' : 's'} applied at boot`)}
+        </ActionBarMessage>
+
+        <ActionBarActions>
+          {pending > 0 ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => {
+                  devtools.clearDraft()
+                }}
+              >
+                Discard
+              </Button>
+              <Button size="sm" isDisabled={!canApply} onPress={onApply}>
+                Apply and reload
+              </Button>
+            </>
+          ) : (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onPress={() => {
                 devtools.clearDraft()
+                if (devtools.apply(browserStorage(), new Map())) window.location.reload()
               }}
             >
-              Discard
+              <Trash2Icon /> Clear all
             </Button>
-            <Button size="sm" isDisabled={!canApply} onPress={onApply}>
-              Apply and reload
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={() => {
-              devtools.clearDraft()
-              if (devtools.apply(browserStorage(), new Map())) window.location.reload()
-            }}
-          >
-            <Trash2Icon /> Clear all
-          </Button>
-        )}
-      </ActionBarActions>
-    </ActionBar>
+          )}
+        </ActionBarActions>
+      </ActionBar>
+    </>
   )
 }

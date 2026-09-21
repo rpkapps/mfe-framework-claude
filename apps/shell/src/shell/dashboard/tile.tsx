@@ -1,10 +1,13 @@
 /**
  * One tile: a Widget from another container, mounted inside the shell. The shell cannot reach
  * into the Widget, so everything crossing the line does so as inputs in and declared events out.
+ *
+ * The tile owns its rectangle on the canvas. The pointer gestures are handed in rather than
+ * started here, because a drag that began on this tile keeps running over every other one.
  */
 
 import { memo, type ReactNode } from 'react'
-import { DynamicWidget, type NeutralRegistryEntry } from '@company/mfe-react'
+import { DefinitionIcon, DynamicWidget, type NeutralRegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -31,60 +34,103 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 
+import { pixelsFromCells, type Rect, type ResizeEdge } from './grid.ts'
 import { summarizeInputs } from './input-schema.ts'
-import { TILE_SPANS, type DashboardTile, type TileSpan } from './layout-store.ts'
+import type { DashboardTile } from './layout-store.ts'
 
-/** Twelve-column canvas. Static strings, because Tailwind cannot see a built name. */
-const SPAN_CLASS: Record<TileSpan, string> = {
-  4: 'lg:col-span-4',
-  6: 'lg:col-span-6',
-  8: 'lg:col-span-8',
-  12: 'lg:col-span-12',
-}
+/** The sizes worth one click. Anything between them is a drag. */
+export const TILE_PRESETS = [
+  { label: 'Small', w: 16, h: 10 },
+  { label: 'Medium', w: 24, h: 14 },
+  { label: 'Large', w: 36, h: 20 },
+] as const
+
+/** Which handle sits where. The corners come last so they take the press at an overlap. */
+const HANDLES: readonly { readonly edge: ResizeEdge; readonly className: string }[] = [
+  { edge: 'n', className: 'top-0 right-2 left-2 h-1.5 cursor-ns-resize' },
+  { edge: 's', className: 'right-2 bottom-0 left-2 h-1.5 cursor-ns-resize' },
+  { edge: 'w', className: 'top-2 bottom-2 left-0 w-1.5 cursor-ew-resize' },
+  { edge: 'e', className: 'top-2 right-0 bottom-2 w-1.5 cursor-ew-resize' },
+  { edge: 'nw', className: 'top-0 left-0 size-3 cursor-nwse-resize' },
+  { edge: 'ne', className: 'top-0 right-0 size-3 cursor-nesw-resize' },
+  { edge: 'sw', className: 'bottom-0 left-0 size-3 cursor-nesw-resize' },
+  { edge: 'se', className: 'right-0 bottom-0 size-3 cursor-nwse-resize' },
+]
 
 export interface TileProps {
   readonly tile: DashboardTile
   readonly entry: NeutralRegistryEntry | undefined
+  /** Where to draw it: the tile's own rectangle, or where a gesture in flight is taking it. */
+  readonly rect: Rect
+  readonly isMoving: boolean
   readonly onConfigure: () => void
   readonly onRemove: () => void
-  readonly onSpanChange: (span: TileSpan) => void
+  readonly onResize: (size: { readonly w: number; readonly h: number }) => void
   readonly onEvent: (event: string, payload: unknown) => void
-  readonly onDragStart: () => void
-  readonly onDropBefore: () => void
+  readonly onMoveStart: (event: React.PointerEvent) => void
+  readonly onResizeStart: (event: React.PointerEvent, edge: ResizeEdge) => void
+  readonly onKeyDown: (event: React.KeyboardEvent) => void
 }
 
 export function Tile({
   tile,
   entry,
+  rect,
+  isMoving,
   onConfigure,
   onRemove,
-  onSpanChange,
+  onResize,
   onEvent,
-  onDragStart,
-  onDropBefore,
+  onMoveStart,
+  onResizeStart,
+  onKeyDown,
 }: TileProps): ReactNode {
+  const name = entry?.title ?? tile.widgetId
+
   return (
     <div
-      className={`col-span-12 flex ${SPAN_CLASS[tile.span]}`}
-      onDragOver={event => {
-        event.preventDefault()
-      }}
-      onDrop={event => {
-        event.preventDefault()
-        onDropBefore()
+      className={`absolute p-1.5 ${isMoving ? 'z-20' : 'z-10'}`}
+      style={{
+        left: pixelsFromCells(rect.x),
+        top: pixelsFromCells(rect.y),
+        width: pixelsFromCells(rect.w),
+        height: pixelsFromCells(rect.h),
       }}
     >
-      <Panel className="w-full">
+      <Panel
+        className={`h-full w-full transition-shadow ${isMoving ? 'shadow-lg ring-1 ring-primary' : ''}`}
+      >
+        {/* The whole header drags, which is where anyone reaches for a tile. It has to be this
+            element rather than a Button inside it: React Aria runs a Button's props through
+            `filterDOMProps`, which drops `onPointerDown` before it reaches the DOM. */}
         <PanelHeader
-          draggable
-          onDragStart={event => {
-            event.dataTransfer.effectAllowed = 'move'
-            onDragStart()
-          }}
           className="cursor-grab active:cursor-grabbing"
+          onPointerDown={event => {
+            // A press that landed on a control in the header belongs to that control.
+            if ((event.target as Element).closest('button,a,input,select,[role="button"]') !== null)
+              return
+            onMoveStart(event)
+          }}
         >
-          <GripVerticalIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <PanelTitle>{entry?.title ?? tile.widgetId}</PanelTitle>
+          {/* A plain element for the same reason, and focusable so the keyboard can place a tile. */}
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`Move ${name}. Arrow keys move it, shift and arrow keys resize it.`}
+            className="mt-0.5 shrink-0 rounded-sm text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+            onPointerDown={onMoveStart}
+            onKeyDown={onKeyDown}
+          >
+            <GripVerticalIcon aria-hidden className="size-4" />
+          </span>
+          {entry?.icon === undefined || typeof entry.icon === 'string' ? null : (
+            <DefinitionIcon
+              icon={entry.icon}
+              size={16}
+              className="shrink-0 text-muted-foreground"
+            />
+          )}
+          <PanelTitle>{name}</PanelTitle>
           {/* `min-w-0` lets this shrink before the title does: a flex item's default minimum is its content. */}
           <span
             title={summarizeInputs(tile.inputs)}
@@ -101,16 +147,20 @@ export function Tile({
                 <MoreVerticalIcon />
               </Button>
               <DropdownMenu placement="bottom end" className="min-w-52">
-                {TILE_SPANS.map(span => (
+                {TILE_PRESETS.map(preset => (
                   <DropdownMenuItem
-                    key={span}
-                    textValue={`Width ${String(span)} of 12`}
+                    key={preset.label}
+                    textValue={preset.label}
                     onAction={() => {
-                      onSpanChange(span)
+                      onResize({ w: preset.w, h: preset.h })
                     }}
                   >
-                    {span === tile.span ? <CheckIcon /> : <span className="size-4" />}
-                    Width {span} / 12
+                    {preset.w === rect.w && preset.h === rect.h ? (
+                      <CheckIcon />
+                    ) : (
+                      <span className="size-4" />
+                    )}
+                    {preset.label}
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
@@ -122,7 +172,6 @@ export function Tile({
           </PanelActions>
         </PanelHeader>
 
-        {/* The height floor is on the fallback rather than here, or a genuinely small Widget would be padded out to the largest thing the canvas might mount. */}
         <PanelContent>
           {entry === undefined ? (
             <MissingEntry widgetId={tile.widgetId} />
@@ -131,6 +180,19 @@ export function Tile({
           )}
         </PanelContent>
       </Panel>
+
+      {/* Outside the Panel, so a Widget that paints to its own edge cannot sit over them. */}
+      {HANDLES.map(handle => (
+        <span
+          key={handle.edge}
+          aria-hidden
+          data-resize-edge={handle.edge}
+          className={`absolute z-10 ${handle.className}`}
+          onPointerDown={event => {
+            onResizeStart(event, handle.edge)
+          }}
+        />
+      ))}
     </div>
   )
 }

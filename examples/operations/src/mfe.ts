@@ -2,6 +2,7 @@
  * independent routers from the one generated tree (§2). */
 
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
 
 import { routeTree } from './routeTree.gen'
@@ -32,5 +33,8 @@ declare module '@tanstack/react-router' {
 export default createApp({
   id: 'operations',
   version: '2.1.0',
+  description: 'Day-to-day field operations: wells, alerts and daily reports.',
+  tags: ['operations'],
+  icon: HardHatIcon,
   router: makeRouter,
 })

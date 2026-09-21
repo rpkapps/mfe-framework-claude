@@ -4,6 +4,7 @@
  * boundary, so an edit here would reload the page (§18). */
 
 import { createWidget } from '@company/mfe-react'
+import { BellIcon } from 'lucide-react'
 import { z } from 'zod'
 
 import { AlertPanel } from './alert-panel.tsx'
@@ -22,6 +23,10 @@ export const alertPanelContract = {
 export const alertPanel = createWidget({
   id: 'alert-panel',
   version: '1.4.0',
+  title: 'Alert panel',
+  description: 'Open alerts for one asset, acknowledged or dismissed in place.',
+  tags: ['alerts', 'operations', 'safety'],
+  icon: BellIcon,
   ...alertPanelContract,
   render: AlertPanel,
 })

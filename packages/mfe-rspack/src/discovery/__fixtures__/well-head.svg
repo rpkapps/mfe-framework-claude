@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 20" fill="none" stroke="currentColor" stroke-width="1.5" class="ignored" id="ignored">
+  <path d="M2 18 L16 2 L30 18" />
+  <g transform="translate(0 1)">
+    <rect x="12" y="10" width="8" height="8" rx="1" />
+  </g>
+  <script>alert(1)</script>
+</svg>

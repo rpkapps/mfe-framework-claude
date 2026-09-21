@@ -4,7 +4,6 @@
 import type { WidgetRenderProps } from '@company/mfe-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
-import { ButtonGroup } from '@tecton/react/components/button-group'
 import { CheckIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
@@ -40,32 +39,37 @@ export function AlertPanel({
         {label}
         {state === 'acknowledged' ? ' · acknowledged by you' : ''}
       </AlertDescription>
+      {/* Two decisions about the alert, not one control: a ButtonGroup joined them into a shape
+          that read as a segmented selector. Both are ghost, which is what `AlertAction` tints to
+          the alert's own severity — a solid primary was a second palette inside a coloured
+          surface. The label against the icon is what separates the two, not the weight. */}
       <AlertAction>
-        <ButtonGroup>
-          <Button
-            size="sm"
-            isDisabled={state === 'acknowledged'}
-            onPress={() => {
-              setState('acknowledged')
-              emit('acknowledged', {
-                alertId: inputs.alertId,
-                acknowledgedAt: new Date().toISOString(),
-              })
-            }}
-          >
-            <CheckIcon /> Acknowledge
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={() => {
-              setState('dismissed')
-              emit('dismissed', { alertId: inputs.alertId })
-            }}
-          >
-            <XIcon /> Dismiss
-          </Button>
-        </ButtonGroup>
+        <Button
+          variant="ghost"
+          size="sm"
+          isDisabled={state === 'acknowledged'}
+          onPress={() => {
+            setState('acknowledged')
+            emit('acknowledged', {
+              alertId: inputs.alertId,
+              acknowledgedAt: new Date().toISOString(),
+            })
+          }}
+        >
+          <CheckIcon data-icon="inline-start" />
+          {state === 'acknowledged' ? 'Acknowledged' : 'Acknowledge'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Dismiss alert ${inputs.alertId}`}
+          onPress={() => {
+            setState('dismissed')
+            emit('dismissed', { alertId: inputs.alertId })
+          }}
+        >
+          <XIcon />
+        </Button>
       </AlertAction>
     </Alert>
   )
