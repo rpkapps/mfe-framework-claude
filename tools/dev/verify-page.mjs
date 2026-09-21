@@ -103,7 +103,9 @@ const PAGES = [
     overrides: { operations: DEAD_MANIFEST_URL },
     mounts: [],
     nested: [],
-    pageContains: ['Widget dashboard', 'Registered Widgets'],
+    // The catalogue's panel is titled "Widgets"; a registered name beside it is the stronger
+    // claim, because the shell reads that from the registry without loading any container (§16).
+    pageContains: ['Widget dashboard', 'Alert panel'],
   },
   {
     // A registered remote used to be re-initialised on every share the host resolved, so one
