@@ -150,7 +150,6 @@ describe('failure and retry', () => {
     controller.retry()
     await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
 
-    // a perfectly good download is not thrown away to re-run a render.
     expect(load).toHaveBeenCalledTimes(1)
     expect(attach).toHaveBeenCalledTimes(2)
   })
@@ -242,7 +241,6 @@ describe('attempt fencing', () => {
     attaches[0]?.resolve()
     await flush()
 
-    // it does not get to leave a tree behind.
     expect(detach).toHaveBeenCalledTimes(1)
     expect(controller.state).toEqual({ status: 'mounted' })
   })
@@ -309,8 +307,8 @@ describe('deadlines', () => {
   })
 
   it('measures the mount deadline after the code is ready rather than sharing one clock', async () => {
-    // each phase takes two thirds of its own deadline, so a single
-    // shared clock would have expired.
+    // each phase takes two thirds of its own deadline, so a single shared clock would
+    // have expired.
     const { controller } = createController(
       operations({
         load: () =>
@@ -342,7 +340,6 @@ describe('deadlines', () => {
     await vi.advanceTimersByTimeAsync(5_000)
     await assertion
 
-    // the mount is terminal regardless, so late callbacks stay fenced.
     expect(controller.state).toEqual({ status: 'disposed' })
     expect(controller.isDisposed).toBe(true)
     expect(controller.signal.aborted).toBe(true)
@@ -369,8 +366,6 @@ describe('disposal', () => {
 
     const disposal = controller.dispose()
 
-    // the failed or disposed surface is already gone, and the mount is
-    // already terminal, before anything is awaited.
     expect(order).toEqual(['detach', 'cleanup-started'])
     expect(controller.state).toEqual({ status: 'disposed' })
 

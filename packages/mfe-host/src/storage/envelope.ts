@@ -1,10 +1,7 @@
 /**
- * Reading and writing the persisted `{ v, r, g, d }` record.
- *
- * Kept apart from the store because it is pure: given a raw string and a
- * declaration it yields a snapshot, and every failure path — malformed JSON, a
- * retired generation, an unsupported version, a migration that throws — is
- * decided here rather than tangled with caching and subscription.
+ * Reading and writing the persisted `{ v, r, g, d }` record, kept apart from the store
+ * because it is pure: every failure path is decided here rather than tangled with caching
+ * and subscription.
  */
 
 import {
@@ -101,8 +98,8 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
         repair: 'Give the store its generation before mounting anything that reads session state.',
       })
     }
-    // A record from another generation is absent, whether a retired session left
-    // it behind or another tab wrote it late.
+    // A record from another generation is absent, whether a retired session left it
+    // behind or another tab wrote it late.
     if (envelope.g !== generation) return { snapshot: context.defaultSnapshot, raw }
   }
 
@@ -137,9 +134,8 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
 }
 
 /**
- * Convert, validate, then write — and only while the generation the conversion
- * started in is still in force. It runs inside the single parse of a changed
- * record, so once per key rather than once per subscriber.
+ * Convert, validate, then write, and only while the generation the conversion started in
+ * is still in force.
  */
 function migrateInto(
   context: EnvelopeContext,
@@ -210,8 +206,8 @@ export function serializeEnvelope(
   fail: (verb: string, detail: Detail) => MfeError,
 ): string {
   try {
-    // An object literal always stringifies to a string or throws, so there is no
-    // undefined case to handle here.
+    // An object literal always stringifies to a string or throws, so there is no undefined
+    // case to handle here.
     return JSON.stringify({
       v: declaration.version,
       r: declaration.retention,

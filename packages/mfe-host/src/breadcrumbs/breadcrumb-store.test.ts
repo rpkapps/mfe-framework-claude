@@ -22,8 +22,8 @@ describe('composition', () => {
   })
 
   it('orders contributions parent to child by depth', () => {
-    // the nested App registers before its parent, so only depth can
-    // produce the right order.
+    // the nested App registers before its parent, so only depth can produce the right
+    // order.
     const store = new BreadcrumbStore()
     const child = store.registerMount('report-detail', 'mount-child', 2)
     const parent = store.registerMount('reports', 'mount-parent', 1)
@@ -80,8 +80,8 @@ describe('composition', () => {
 
 describe('equal contributions', () => {
   it('keeps the published trail and notifies nobody when equal items are supplied again', () => {
-    // the router re-renders and hands over a fresh array holding
-    // equal records, as it does for unrelated state such as fetch status.
+    // the router re-renders and hands over a fresh array holding equal records, as it does
+    // for unrelated state such as fetch status.
     const store = new BreadcrumbStore()
     const handle = store.registerMount('reports', 'mount-1', 1)
     handle.update([crumb('reports'), crumb('quarterly')])
@@ -126,17 +126,14 @@ describe('equal contributions', () => {
 
 describe('overrides', () => {
   it('replaces only the overriding mount’s own portion of the trail', () => {
-    // a parent App and a nested App both contribute.
     const store = new BreadcrumbStore()
     const parent = store.registerMount('reports', 'mount-parent', 1)
     const child = store.registerMount('report-detail', 'mount-child', 2)
     parent.update([crumb('reports')])
     child.update([crumb('detail')])
 
-    // the nested App opens a multi-step flow.
     store.setOverride('mount-child', [crumb('wizard'), crumb('step-1')], 'owner-a')
 
-    // the parent's contribution is untouched.
     expect(keysOf(store.getSnapshot())).toEqual(['reports', 'wizard', 'step-1'])
   })
 
@@ -181,8 +178,6 @@ describe('overrides', () => {
 
     store.setOverride('mount-1', [crumb('other-flow')], 'owner-b')
 
-    // the first override stands and the conflict is reported rather
-    // than resolved by render order.
     expect(store.getSnapshot()).toBe(published)
     expect(keysOf(store.getSnapshot())).toEqual(['wizard', 'step-1'])
     expect(records).toHaveLength(1)

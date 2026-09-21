@@ -1,10 +1,7 @@
 /**
- * The container-loading port: an internal seam, not a public loader API.
- *
- * The host orchestrates loading but never performs it — the Module Federation
- * implementation lives in the React adapter and tests supply an in-process
- * loader. That inversion keeps federation out of this package entirely and lets
- * the contract tests run with no bundler, manifest or network.
+ * The container-loading port: an internal seam, not a public loader API. The host
+ * orchestrates loading but never performs it, which is what keeps federation in the React
+ * adapter rather than this package (§6).
  */
 
 import {
@@ -14,7 +11,6 @@ import {
   type NeutralRegistryEntry,
 } from '@company/mfe-core'
 
-/** The identity the container advertises, plus the module its adapter mounts. */
 export interface LoadedDefinition<TModule = unknown> {
   readonly identity: DefinitionIdentity
   readonly module: TModule
@@ -25,19 +21,11 @@ export interface ContainerLoader<TModule = unknown> {
     entry: NeutralRegistryEntry,
     options: { readonly signal: AbortSignal },
   ): Promise<LoadedDefinition<TModule>>
-  /**
-   * Optional speculative warm-up. It may resolve metadata, code, styles and
-   * configuration, but must never create an active mount or produce resources
-   * that need a mounted owner to clean up.
-   */
+  /** Speculative warm-up that must never create a mount, or anything a mount would clean up. */
   preload?(entry: NeutralRegistryEntry, options: { readonly signal: AbortSignal }): Promise<void>
 }
 
-/**
- * Deduplicates concurrent loads of the same container and caches the result.
- * The shared promise is tied to no single caller's signal, so one caller
- * abandoning a load cannot cancel work another still needs.
- */
+/** The shared promise is tied to no caller's signal, so abandoning a load cannot cancel it. */
 export class SharedContainerLoader<TModule = unknown> implements ContainerLoader<TModule> {
   readonly #inner: ContainerLoader<TModule>
   readonly #inFlight = new Map<string, Promise<LoadedDefinition<TModule>>>()
@@ -61,8 +49,8 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
 
     let shared = this.#inFlight.get(entry.id)
     if (!shared) {
-      // Deliberately not `options.signal`: the shared work outlives any one
-      // waiter. An abandoning caller rejects below without cancelling it.
+      // Deliberately not `options.signal`: the shared work outlives any one waiter, which
+      // rejects below without cancelling it.
       shared = this.#inner
         .load(entry, { signal: neverAborted() })
         .then(loaded => {
@@ -80,10 +68,8 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
 
   preload(entry: NeutralRegistryEntry, options: { readonly signal: AbortSignal }): Promise<void> {
     if (this.#inner.preload) return this.#inner.preload(entry, options)
-    // Warming the shared load is a valid preload: it resolves code without
-    // creating a mount. Failures are swallowed because an abandoned or failed
-    // preload must not break the currently mounted App; a later real
-    // navigation takes the standard error and retry path.
+    // Failures are swallowed because an abandoned or failed preload must not break the
+    // currently mounted App; a later real navigation takes the error and retry path.
     return this.load(entry, options).then(
       () => undefined,
       () => undefined,
@@ -100,10 +86,7 @@ function neverAborted(): AbortSignal {
   return new AbortController().signal
 }
 
-/**
- * Lets one waiter give up without disturbing the shared work, which is always
- * observed so an eventual rejection cannot surface as an unhandled one.
- */
+/** The shared work is always observed, so an eventual rejection is never an unhandled one. */
 function raceWithAbort<T>(
   shared: Promise<T>,
   signal: AbortSignal,
@@ -122,8 +105,7 @@ function raceWithAbort<T>(
     })
 
   if (signal.aborted) {
-    // The shared work keeps running for the other waiters, so it still has to
-    // be observed here or this caller's exit surfaces as an unhandled rejection.
+    // The shared work keeps running for the other waiters, so it still has to be observed.
     shared.catch(() => undefined)
     return Promise.reject(abandonment())
   }
@@ -136,8 +118,7 @@ function raceWithAbort<T>(
     signal.addEventListener('abort', abandon, { once: true })
   })
 
-  // Racing the two rather than re-wrapping the shared promise is what keeps a
-  // rejection of the shared work reaching this caller exactly as it was thrown.
+  // Racing rather than re-wrapping keeps a rejection reaching this caller exactly as thrown.
   return Promise.race([shared, cancelled]).finally(() => {
     if (abandon !== undefined) signal.removeEventListener('abort', abandon)
   })

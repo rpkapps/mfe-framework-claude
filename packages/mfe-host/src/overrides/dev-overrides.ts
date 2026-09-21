@@ -1,7 +1,6 @@
 /**
- * Boot-time developer URL overrides. A URL only: accepting configuration,
- * contract or adapter changes here is what would turn it into a second
- * configuration surface.
+ * Boot-time developer URL overrides, a URL only: accepting configuration, contract or
+ * adapter changes here would turn it into a second configuration surface.
  */
 
 import { createMfeError, type MfeError } from '@company/mfe-core'
@@ -10,9 +9,9 @@ import { createMfeError, type MfeError } from '@company/mfe-core'
 export const OVERRIDES_STORAGE_KEY = 'company:mfe:overrides'
 
 export interface DevOverridesResult {
-  /** Definition id → absolute manifest URL. Empty when nothing is overridden. */
+  /** Definition id → absolute manifest URL, empty when nothing is overridden. */
   readonly overrides: ReadonlyMap<string, string>
-  /** Problems worth showing a developer. Malformed JSON is diagnosed, not ignored. */
+  /** Malformed JSON is diagnosed rather than ignored. */
   readonly diagnostics: readonly MfeError[]
 }
 
@@ -42,9 +41,8 @@ function onlyDiagnostic(details: OverrideProblem): DevOverridesResult {
 }
 
 /**
- * Reads overrides before remotes are registered. Every failure mode is
- * reported: an override that silently did nothing is the phantom bug the
- * visible-override requirement exists to prevent.
+ * Every failure mode is reported, because an override that silently did nothing is the
+ * phantom bug the visible-override requirement exists to prevent.
  */
 export function readDevOverrides(
   storage: Pick<Storage, 'getItem'> | undefined,
@@ -136,9 +134,8 @@ function isAbsoluteUrl(value: string): boolean {
 }
 
 /**
- * A multi-definition container whose exports were pointed at different URLs,
- * diagnosed before registration rather than resolved by whichever registered
- * first.
+ * A multi-definition container whose exports were pointed at different URLs, diagnosed
+ * before registration rather than resolved by whichever registered first.
  */
 export function findConflictingContainerOverrides(
   overrides: ReadonlyMap<string, string>,
@@ -174,14 +171,12 @@ export function findConflictingContainerOverrides(
   return diagnostics
 }
 
-/** What writing an override needs. `getItem` too, so a write preserves the rest. */
+/** `getItem` too, so a write preserves the rest of the map. */
 export type OverrideWritableStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 /**
- * Replaces the whole override map. An empty map removes the key rather than
- * leaving `{}` behind, so "no overrides" reads the same as never having set
- * one. Returns false when the browser refuses storage for this origin, so the
- * caller can say so instead of claiming it worked.
+ * An empty map removes the key rather than leaving `{}` behind, and false means the browser
+ * refused storage, so the caller can say so instead of claiming it worked.
  */
 export function writeDevOverrides(
   storage: OverrideWritableStorage | undefined,

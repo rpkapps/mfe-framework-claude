@@ -1,7 +1,6 @@
 /**
- * An in-memory navigation bridge for tests and non-browser hosts. It keeps its
- * own entry list, so back and forward behave like a browser without touching
- * one. Under `/testing` because nothing shipped to a browser should reach it.
+ * An in-memory navigation bridge that keeps its own entry list, so back and forward behave
+ * like a browser without touching one.
  */
 
 import type { BoundaryLocation, NavigationBridge } from '@company/mfe-core'

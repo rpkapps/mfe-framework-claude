@@ -28,9 +28,8 @@ function advertisedEntry(overrides: Record<string, unknown> = {}): Record<string
 }
 
 /**
- * A descriptor in the shape the previous generation of containers published:
- * no advertised contract, a differently named manifest field and route
- * metadata the legacy adapter translates at its own boundary.
+ * A descriptor in the shape the previous generation of containers published: no advertised
+ * contract, and route metadata the legacy adapter translates at its own boundary.
  */
 function legacyEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -42,10 +41,8 @@ function legacyEntry(overrides: Record<string, unknown> = {}): Record<string, un
 }
 
 /**
- * Stands in for the legacy adapter's real selection rule. It only exists to
- * prove two things about the selection table: that an entry with legacy
- * metadata and no advertised contract reaches it, and that an entry with a
- * broken advertised contract never does.
+ * Stands in for the legacy adapter's real selection rule, to prove that an entry with
+ * legacy metadata reaches it and one with a broken advertised contract never does.
  */
 function createLegacyRule(): {
   readonly rule: AdapterSelectionRule
@@ -150,8 +147,8 @@ describe('adapter selection', () => {
   })
 
   it('reports a contract error for a malformed advertised contract and never falls back to legacy', () => {
-    // an entry that claims the new contract *and* still carries every
-    // piece of legacy metadata, so a fallback would look plausible.
+    // an entry that claims the new contract *and* still carries every piece of legacy
+    // metadata, so a fallback would look plausible.
     const legacy = createLegacyRule()
     const ambiguous = {
       id: 'reports',
@@ -166,8 +163,6 @@ describe('adapter selection', () => {
       rules: [createMfeContractRule(), legacy.rule],
     })
 
-    // quarantined with an explicit descriptor error, and the legacy
-    // rule was never given the chance to claim it.
     expect(registry.entries.size).toBe(0)
     const quarantined = quarantinedEntry(registry, 'reports')
     expect(codeOf(quarantined.error)).toBe('registry/invalid-descriptor')
@@ -288,8 +283,6 @@ describe('duplicate definition ids', () => {
 
     const registry = normalize([first, advertisedEntry({ id: 'billing' }), second])
 
-    // Neither "last wins" nor "first wins": the id is unusable until a human
-    // renames one of them.
     expect(registry.entries.has('reports')).toBe(false)
     expect([...registry.entries.keys()]).toEqual(['billing'])
   })
@@ -372,8 +365,8 @@ describe('boot-time URL overrides', () => {
 })
 
 /**
- * A host has to render a Widget catalogue before it fetches anything, so what a
- * Widget takes travels in the registry rather than behind a container load.
+ * A host renders a Widget catalogue before it fetches anything, so what a Widget takes travels in
+ * the registry (§16).
  */
 describe('published Widget contract', () => {
   const contract = {
@@ -393,9 +386,8 @@ describe('published Widget contract', () => {
   })
 
   /**
-   * "Takes nothing" and "the build could not read the schema" call for
-   * different behaviour in a catalogue, so an unread schema is absent rather
-   * than an empty object standing in for one.
+   * "Takes nothing" and "the build could not read the schema" call for different behaviour in a
+   * catalogue, so an unread schema is absent rather than empty.
    */
   it('accepts a contract that publishes events without an inputs schema', () => {
     const registry = normalize([
@@ -541,10 +533,8 @@ describe('optional descriptor fields', () => {
 })
 
 /**
- * The build a container came from is the "which build?" a bug report is
- * otherwise written without. It reaches the registry from the container's own
- * descriptor, so it is validated exactly as loosely as it is trusted: never
- * gating the entry, never passed on as something it is not.
+ * The build is validated exactly as loosely as it is trusted: never gating the entry, never
+ * passed on as something it is not (§29).
  */
 describe('build provenance', () => {
   it('carries the hash and the time through to the neutral entry', () => {

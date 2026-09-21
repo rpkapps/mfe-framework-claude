@@ -1,10 +1,6 @@
 /**
- * Telemetry and tracing binding.
- *
- * A provider-neutral telemetry service bound to one mount: identity attached
- * automatically, limits enforced, provider failures contained, and a
- * framework-owned tracer with explicit context propagation. No vendor telemetry
- * package is imported here, so an author bundle never resolves one.
+ * A provider-neutral telemetry service bound to one mount, with a framework-owned tracer.
+ * No vendor telemetry package is imported here, so an author bundle never resolves one.
  */
 
 export {

@@ -1,11 +1,8 @@
 /**
- * Scoped command registration: hold the current set, publish a palette
- * snapshot. A scope is one mount, or the host page itself — a palette that had
- * to merge a registry snapshot with a hard-coded list of the host's own
- * commands would be two code paths where the user sees one list. The
- * performance contract is the interesting part — replacing
- * `execute`/`canExecute` closure identity must not change the public snapshot,
- * and updating one command must not re-evaluate any other.
+ * Scoped command registration, where the host page is one more scope so a palette renders
+ * one list instead of merging a snapshot with a hard-coded one (§26). The performance
+ * contract is the interesting part: replacing `execute`/`canExecute` closure identity must
+ * not change the public snapshot, and updating one command must not re-evaluate any other.
  */
 
 import {
@@ -76,10 +73,8 @@ export interface CommandRegistryOptions {
 }
 
 /**
- * Commands are stored per scope so duplicate-name validation is scoped the way
- * the contract describes: a name may repeat across mounts, never inside one.
- * The host page is one more scope, so its own commands are validated by the
- * same rule and cannot be removed by a mount's disposal.
+ * Commands are stored per scope, so a name may repeat across mounts but never inside one
+ * and a mount's disposal cannot take the host page's with it (§26).
  */
 export class CommandRegistry {
   readonly #byScope = new Map<string, Map<string, RegisteredCommand>>()
@@ -101,9 +96,8 @@ export class CommandRegistry {
   }
 
   /**
-   * Registers one command for one mount. Duplicate local names within a mount
-   * are rejected rather than overwritten; the same local name in a different
-   * mount is fine because the runtime qualifies it.
+   * Duplicate local names within a mount are rejected rather than overwritten; the same name in
+   * another mount is fine because the runtime qualifies it.
    */
   register(
     definitionId: string,
@@ -124,29 +118,22 @@ export class CommandRegistry {
   }
 
   /**
-   * Registers one command the host page itself owns, in the reserved host
-   * scope. A host has no definition id and no mount token, so reaching
-   * `register` meant inventing both — and a made-up token is indistinguishable
-   * from a real mount's, which puts the host's commands at the mercy of
-   * `removeMount`.
-   *
-   * Everything else is the mount path's, so a palette renders host and mount
-   * commands through one snapshot and one execute call.
+   * A host has no definition id and no mount token, and a made-up token cannot be told
+   * from a real mount's, which would put the host's commands at the mercy of
+   * `removeMount` (§26).
    */
   registerHost(registration: CommandRegistration): CommandRegistrationHandle {
     return this.#add(HOST_SCOPE, HOST_SCOPE, registration)
   }
 
-  /** Removes every command owned by a mount. Used by disposal. */
   removeMount(mountToken: string): void {
     if (!this.#byScope.delete(mountToken)) return
     this.#publish()
   }
 
   /**
-   * Re-evaluates every registration. The palette calls this when it opens; no
-   * other path evaluates all commands, because updating one command must not
-   * re-evaluate the rest.
+   * The palette calls this when it opens; no other path evaluates all commands, because updating
+   * one must not re-evaluate the rest.
    */
   evaluateAll(): void {
     let changed = false
@@ -160,9 +147,8 @@ export class CommandRegistry {
   }
 
   /**
-   * Executes a command after re-checking the latest committed `canExecute`.
-   * A denial does not run the command and does not fail silently: the reason
-   * reaches the shell's notification surface and the entry's state updates.
+   * A denial does not run the command and does not fail silently: the reason reaches the
+   * shell's notification surface and the entry's state updates.
    */
   async execute(qualifiedId: string): Promise<CommandExecutionResult> {
     const command = this.#find(qualifiedId)
@@ -261,8 +247,8 @@ export class CommandRegistry {
   #update(command: RegisteredCommand, next: CommandRegistration): void {
     const commands = this.#scopeCommands(command.scopeToken)
 
-    // Changing `name` replaces the local registration, with the same duplicate
-    // validation as a fresh register.
+    // Changing `name` replaces the local registration, with the same duplicate validation
+    // as a fresh register.
     if (next.name !== command.registration.name) {
       this.#assertValid(command.definitionId, next)
       if (commands.has(next.name)) {
@@ -279,9 +265,8 @@ export class CommandRegistry {
 
     command.registration = next
 
-    // Evaluate only this registration. An identical visible result keeps the
-    // existing entry reference, so the palette's snapshot does not change and
-    // no subscriber re-renders.
+    // An identical visible result keeps the existing entry reference, so the palette's
+    // snapshot does not change and no subscriber re-renders.
     const candidate = this.#buildEntry(command.qualifiedId, command.definitionId, next)
     if (commandEntryEqual(command.entry, candidate)) return
 
@@ -316,9 +301,8 @@ export class CommandRegistry {
     try {
       return canExecute()
     } catch (error) {
-      // A throwing availability check is a defect in the registering component.
-      // Treating it as allowed would run a command whose preconditions are
-      // unknown, so it denies and reports instead.
+      // Treating a throwing availability check as allowed would run a command whose
+      // preconditions are unknown, so it denies and reports instead.
       this.#options.diagnostics?.report(
         toMfeError(error, {
           code: 'mount/failure',

@@ -1,11 +1,6 @@
 /**
- * Authentication and transport.
- *
- * The shell owns the session — Better Auth, Auth0, MSAL or its own endpoint —
- * and satisfies `AccessTokenSource`. The framework adds the token at the
- * interceptor and only for origins the author declared as APIs.
- * `createSessionTokenService` is an opt-in single-flight adapter for a shell
- * with no library of its own, not the path.
+ * The shell owns the session and satisfies `AccessTokenSource`; the framework adds the
+ * token at the interceptor, and only for origins the author declared as APIs (§10).
  */
 
 export {

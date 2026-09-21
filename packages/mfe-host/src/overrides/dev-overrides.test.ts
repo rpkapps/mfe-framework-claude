@@ -1,9 +1,7 @@
 /**
- * The override bootstrap, from both ends.
- *
- * Every assertion here is about a failure being *reported* rather than
- * swallowed: an override that silently did nothing is the phantom bug the
- * whole visible-override requirement exists to prevent.
+ * Every assertion here is about a failure being *reported* rather than swallowed, because
+ * an override that silently did nothing is the phantom bug the visible-override requirement
+ * exists to prevent.
  */
 
 import { describe, expect, it } from 'vitest'

@@ -156,8 +156,8 @@ describe('duplicate names', () => {
 
 describe('update performance contract', () => {
   it('does not republish when only the execute and canExecute closures changed', () => {
-    // a command whose visible state (label, placements, decision) is
-    // stable across renders, but whose callbacks are new closures each time.
+    // a command whose visible state is stable across renders, but whose callbacks are new
+    // closures each time.
     const { register, registry } = setup()
     const handle = register({ execute: () => undefined, canExecute: () => allow() })
     const before = registry.getSnapshot()
@@ -166,7 +166,6 @@ describe('update performance contract', () => {
 
     handle.update(registration({ execute: () => undefined, canExecute: () => allow() }))
 
-    // the palette's snapshot is untouched, so nothing re-renders.
     expect(registry.getSnapshot()).toBe(before)
     expect(subscriber).not.toHaveBeenCalled()
   })
@@ -211,7 +210,6 @@ describe('update performance contract', () => {
 
     refresh.update(registration({ name: 'refresh', canExecute: refreshCanExecute }))
 
-    // the untouched command's availability check never ran.
     expect(refreshCanExecute).toHaveBeenCalledTimes(1)
     expect(exportCanExecute).toHaveBeenCalledTimes(0)
   })
@@ -375,7 +373,6 @@ describe('execution', () => {
   })
 
   it('re-checks the latest committed availability rather than the published entry', async () => {
-    // registered while allowed, then the mount commits a denial.
     const execute = vi.fn()
     const notifyDenial = vi.fn()
     const { register, registry } = setup({ notifyDenial })
@@ -423,8 +420,8 @@ describe('execution', () => {
     expect(result.status).toBe('unavailable')
     expect(records).toHaveLength(1)
     expect(records[0]?.severity).toBe('warning')
-    // The text has to fit a host command as well as a mount's: either owner can
-    // go away between the palette's snapshot and the execute call.
+    // The text has to fit a host command as well as a mount's: either owner can go away
+    // between the palette's snapshot and the execute call.
     expect(records[0]?.error.message).toContain('from a mount or from the host page')
   })
 
@@ -453,7 +450,6 @@ describe('execution', () => {
 
     const result = await registry.execute('reports:refresh')
 
-    // an unknown precondition denies rather than running the command.
     expect(result).toEqual({
       status: 'denied',
       reason: 'This command is unavailable because its availability check failed.',
@@ -579,10 +575,6 @@ describe('the host scope', () => {
     expect(result).toEqual({ status: 'denied', reason: 'There is nothing on the canvas.' })
   })
 
-  /**
-   * The reason the host has a scope of its own rather than a made-up mount
-   * token: disposing a mount must not take the page's own commands with it.
-   */
   it('keeps host commands when a mount is disposed', () => {
     const { register, registry } = setup()
     register(undefined, 'mount-1')
@@ -612,8 +604,8 @@ describe('the host scope', () => {
   })
 
   /**
-   * A host command outlives no mount, but it is still removed when the chrome
-   * that registered it unmounts — so `unavailable` has to read sensibly for it.
+   * A host command is still removed when the chrome that registered it unmounts, so `unavailable`
+   * has to read sensibly for it too.
    */
   it('reports a removed host command as unavailable, without blaming a mount', async () => {
     const { registry, records } = setup()

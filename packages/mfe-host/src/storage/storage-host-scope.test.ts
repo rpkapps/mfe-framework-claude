@@ -1,10 +1,7 @@
 /**
- * The reserved host scope: state the page owns rather than any definition on it.
- *
- * The behaviour worth pinning is the part a shell was hand-rolling before it
- * existed — that a host record is a framework record like any other, that
- * nothing retires it when it says so, and that it is reachable with no mount
- * and no session in force.
+ * The reserved host scope, pinning what a shell was hand-rolling before it existed: a host
+ * record is a framework record like any other, and it is reachable with no mount and no
+ * session in force (§24).
  */
 
 import { describe, expect, it, afterEach, beforeEach } from 'vitest'

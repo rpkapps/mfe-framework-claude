@@ -191,7 +191,6 @@ describe('SharedContainerLoader deduplication', () => {
 
 describe('abandoning a shared load', () => {
   it('does not cancel work another caller still needs', async () => {
-    // two mounts want the same container.
     const inner = createControllableLoader()
     const shared = new SharedContainerLoader(inner.loader)
     const entry = entryFor('reports')
@@ -203,7 +202,6 @@ describe('abandoning a shared load', () => {
     // the first mount is disposed mid-load.
     abandoning.abort()
 
-    // it gives up, the other caller is unaffected.
     await expect(abandoned).rejects.toMatchObject({ code: 'load/entry-failure', id: 'reports' })
     const loaded = loadedFor('reports')
     settle(inner.pending[0], loaded)
@@ -264,7 +262,6 @@ describe('preload', () => {
     settle(inner.pending[0], loaded)
     await expect(warming).resolves.toBeUndefined()
 
-    // a later real navigation is served from the warmed cache.
     await expect(shared.load(entry, { signal: new AbortController().signal })).resolves.toBe(loaded)
     expect(inner.load).toHaveBeenCalledTimes(1)
   })

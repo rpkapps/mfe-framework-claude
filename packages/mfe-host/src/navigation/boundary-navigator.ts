@@ -1,10 +1,7 @@
 /**
- * The explicit shell-boundary navigation bridge and blocker negotiation.
- *
- * Nothing here reassigns a global History or event-listener method — *calling*
- * `pushState` is ordinary use of a browser API, *replacing* it is the patch this
- * replaced. Negotiation lives here because ordering across nested mounts is a
- * host concern: innermost first, stopping at the first refusal.
+ * The explicit shell-boundary navigation bridge and blocker negotiation. Nothing here
+ * reassigns a global History or event-listener method (§1), and negotiation lives here
+ * because ordering across nested mounts is a host concern.
  */
 
 import {
@@ -18,26 +15,17 @@ import {
   type Unsubscribe,
 } from '@company/mfe-core'
 
-/**
- * How one mount participates in a navigation it would lose. The MFE decides
- * whether to block and owns whatever UI it shows; the host only asks.
- */
+/** The MFE owns the decision and whatever UI it shows; the host only asks. */
 export interface NavigationBlocker {
-  /** Depth in the mount tree. Higher is more deeply nested, and asked first. */
+  /** Higher is more deeply nested, and asked first. */
   readonly depth: number
-  /** A synchronous read of whether this mount currently wants to block. */
   shouldBlock(intent: NavigationIntent): boolean
-  /**
-   * Presents the mount's own confirmation UI and resolves once the user
-   * decides. The mount stays mounted throughout, so its UI remains usable.
-   */
+  /** The mount stays mounted while its own confirmation UI is up, so that UI remains usable. */
   confirm(intent: NavigationIntent): Promise<'proceed' | 'reset'>
   /**
-   * Whether closing or reloading the tab should raise the browser's own
-   * prompt. It is a separate question from `shouldBlock`: a reload is not a
-   * navigation, there is no intent to inspect and nothing may be rendered, so
-   * the only available answer is the browser's. Omitted means yes, which is
-   * what TanStack's `enableBeforeUnload` defaults to.
+   * A reload is not a navigation, so the browser's prompt is a separate synchronous
+   * question rather than a count of registrations (§20); omitted means yes, which is what
+   * TanStack's `enableBeforeUnload` defaults to.
    */
   shouldBlockUnload?(): boolean
 }
@@ -49,29 +37,19 @@ export interface BoundaryNavigatorOptions {
   readonly diagnostics?: DiagnosticsHub
 }
 
-/** One registration: which mount it belongs to, and what it answers. */
 interface BlockerEntry {
   readonly mountToken: string
   readonly blocker: NavigationBlocker
 }
 
-/** Coordinates blockers over one navigation bridge. */
 export class BoundaryNavigator {
   readonly #bridge: NavigationBridge
   readonly #diagnostics: DiagnosticsHub | undefined
-  /*
-   * A set of registrations rather than a map keyed by mount token: one mount
-   * can have more than one thing to lose. The framework registers the App's
-   * router blockers on the mount's behalf, and an author may register another
-   * for a Widget or a non-routed editor in the same mount — keying by the token
-   * made the second registration silently delete the first.
-   */
+  // One mount can have more than one thing to lose, so keying by mount token would let a
+  // second registration silently delete the first.
   readonly #blockers = new Set<BlockerEntry>()
-  /*
-   * Listeners that heard an external navigation while one was being negotiated.
-   * A browser back moves the URL before anyone is asked, so a mount told about
-   * it straight away would leave the page the user is still being asked about.
-   */
+  // A browser back moves the URL before anyone is asked, so a mount told about it straight
+  // away would leave the page the user is still being asked about (§20).
   readonly #deferred = new Set<(location: BoundaryLocation) => void>()
   #negotiating = false
 
@@ -96,18 +74,13 @@ export class BoundaryNavigator {
     }
   }
 
-  /** Removes every blocker a mount registered, as part of disposal. */
   removeMount(mountToken: string): void {
     for (const entry of [...this.#blockers]) {
       if (entry.mountToken === mountToken) this.#blockers.delete(entry)
     }
   }
 
-  /**
-   * Whether anything registered wants the browser's unload prompt. A host asks
-   * this from its own `beforeunload`, which is the one navigation no mount can
-   * negotiate: the answer has to be synchronous and the browser draws the UI.
-   */
+  /** A host asks this from its own `beforeunload`, where the answer has to be synchronous. */
   wantsUnloadPrompt(): boolean {
     for (const { blocker } of this.#blockers) {
       if (this.#safeShouldBlockUnload(blocker)) return true
@@ -119,31 +92,15 @@ export class BoundaryNavigator {
     return this.#bridge.read()
   }
 
-  /**
-   * The opaque state stored with the current entry.
-   *
-   * Delegated rather than omitted, because the navigator is itself the bridge a
-   * mount's boundary history is built over. A navigator that did not forward it
-   * left every entry an App pushed with no state at all: the position
-   * bookkeeping both histories keep there was lost, back and forward could not
-   * be told apart, and a refused back navigation had no delta to roll back by.
-   */
+  /** Without it an App's entries carry no state, so no history can compute a delta (§1). */
   readState(): unknown {
     return this.#bridge.readState?.()
   }
 
   /**
-   * Navigations this host did not perform — browser back and forward.
-   *
-   * Held while a negotiation is under way, and released only if it proceeded.
-   * A refusal is followed by the host restoring the URL, which arrives as
-   * another event of its own; there is nothing to report about a navigation
-   * that did not happen.
-   *
-   * The microtask is what makes this independent of the order the host's own
-   * popstate listener and this one were registered in. The host starts its
-   * negotiation synchronously from that event, so by the next microtask the
-   * answer to "is one under way" is settled either way.
+   * Navigations this host did not perform, held while a negotiation is under way and
+   * released only if it proceeded (§20). The microtask is what makes that independent of
+   * the order the host's own popstate listener and this one were registered in.
    */
   subscribe(listener: (location: BoundaryLocation) => void): Unsubscribe {
     let live = true
@@ -164,17 +121,16 @@ export class BoundaryNavigator {
   }
 
   /**
-   * Asks every affected mount, innermost first, and commits once if they agree.
-   * The commit happens after negotiation finishes rather than from inside it,
-   * so a proceed cannot re-enter the same blockers through the bridge.
+   * Asks every affected mount, innermost first, and commits after the negotiation finishes
+   * rather than from inside it, so a proceed cannot re-enter the same blockers.
    */
   async requestNavigation(
     intent: NavigationIntent,
     commit: () => void,
   ): Promise<NavigationOutcome> {
     if (this.#negotiating) {
-      // A second confirmation flow for one navigation would let a user answer
-      // two dialogs for one intent, so the later request is refused outright.
+      // A second flow for one navigation would let a user answer two dialogs for one
+      // intent, so the later request is refused outright.
       return 'blocked'
     }
 
@@ -192,8 +148,6 @@ export class BoundaryNavigator {
     try {
       for (const blocker of blocking) {
         const decision = await this.#safeConfirm(blocker, intent)
-        // Stop at the first refusal: the current UI and route stay intact and
-        // the remaining mounts are never asked.
         if (decision === 'reset') {
           this.#releaseDeferred('blocked')
           return 'blocked'
@@ -208,11 +162,7 @@ export class BoundaryNavigator {
     return 'proceeded'
   }
 
-  /**
-   * Hands on, or discards, whatever arrived mid-negotiation. Read fresh rather
-   * than replayed: what a mount needs is where the page ended up, not the
-   * location as it was when the question was asked.
-   */
+  /** Read fresh rather than replayed: a mount needs where the page ended up, not where it was. */
   #releaseDeferred(outcome: NavigationOutcome): void {
     if (this.#deferred.size === 0) return
     const listeners = [...this.#deferred]
@@ -239,10 +189,7 @@ export class BoundaryNavigator {
     this.#bridge.forward()
   }
 
-  /**
-   * Relative traversal, falling back to a single step when the bridge has no
-   * `go`. Doing nothing for a larger jump would strand a router mid-rollback.
-   */
+  /** A bridge with no `go` falls back to one step; doing nothing would strand a rollback. */
   go(delta: number): void {
     if (this.#bridge.go) {
       this.#bridge.go(delta)
@@ -256,15 +203,12 @@ export class BoundaryNavigator {
     this.#bridge.reload()
   }
 
-  /**
-   * Forced cleanup after session revocation, failure or explicit host disposal
-   * is not a user navigation transaction and cannot be vetoed.
-   */
+  /** Forced cleanup is not a user navigation transaction, so it cannot be vetoed. */
   clearBlockers(): void {
     this.#blockers.clear()
     this.#negotiating = false
-    // Nothing is going to answer for these now, and a mount left waiting on a
-    // navigation that will never settle never hears about the URL again.
+    // Nothing will answer for these now, and a mount left waiting on a negotiation that
+    // never settles never hears about the URL again.
     this.#releaseDeferred('proceeded')
   }
 
@@ -281,8 +225,8 @@ export class BoundaryNavigator {
 
   #safeShouldBlockUnload(blocker: NavigationBlocker): boolean {
     try {
-      // Unstated is yes: a blocker that has not thought about the reload case
-      // is treated the way TanStack treats one, rather than losing the prompt.
+      // Unstated is yes: a blocker that has not thought about the reload case is treated
+      // the way TanStack treats one, rather than losing the prompt.
       return blocker.shouldBlockUnload?.() ?? true
     } catch (error) {
       this.#reportBlockerFailure(
@@ -325,9 +269,8 @@ export class BoundaryNavigator {
 }
 
 /**
- * A bridge over the real browser History API: it calls `pushState`/`replaceState`
- * and listens for `popstate`, never reassigns them, never wraps
- * `addEventListener` and never emits synthetic `popstate` events.
+ * A bridge over the real browser History API: it calls `pushState`/`replaceState` and
+ * listens for `popstate`, never reassigns them and never emits a synthetic one (§1).
  */
 export function createBrowserNavigationBridge(target: Window = window): NavigationBridge {
   const read = (): BoundaryLocation => ({
@@ -340,8 +283,8 @@ export function createBrowserNavigationBridge(target: Window = window): Navigati
     read,
 
     readState: () => {
-      // `History.state` is `any`; the bridge contract hands back `unknown` so a
-      // caller has to narrow it before reading anything off it.
+      // `History.state` is `any`; the bridge contract hands back `unknown` so a caller has
+      // to narrow it before reading anything off it.
       const state: unknown = target.history.state
       return state
     },
@@ -367,7 +310,6 @@ export function createBrowserNavigationBridge(target: Window = window): Navigati
   }
 }
 
-/** Builds an intent, deciding whether the transition leaves the boundary. */
 export function createNavigationIntent(
   from: BoundaryLocation,
   to: BoundaryLocation,
@@ -387,16 +329,10 @@ export function createNavigationIntent(
 }
 
 /**
- * Which definition owns the boundary a path falls inside, or `undefined` for
- * the host's own page.
- *
- * A host places each App at `/<id>` and everything below belongs to the App, so
- * the first segment is the answer — one derivation, rather than a `split('/')`
- * in the blocker and a scan of router matches in the chrome that can disagree.
- *
- * The segment is returned whatever it says: a path naming something the
- * registry never heard of is a real state a host has to render, and the
- * boundary below is already reporting that it could not be loaded.
+ * Which definition owns the boundary a path falls inside, or `undefined` for the host's
+ * own page; a host places each App at `/<id>`, so this is the one derivation rather than
+ * several that can disagree (§26). The segment is returned whatever it says, because a
+ * path naming something the registry never heard of is a real state a host has to render.
  */
 export function boundaryDefinitionId(url: string): string | undefined {
   const [first] = parseBoundaryLocation(url)

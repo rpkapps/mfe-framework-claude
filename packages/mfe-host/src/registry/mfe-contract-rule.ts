@@ -153,14 +153,9 @@ function readCapabilities(id: string, value: unknown): readonly CapabilityDescri
 }
 
 /**
- * The published Widget contract: the input JSON Schema and the event names the
- * build read from the Widget's own schemas.
- *
- * `inputs` is optional on purpose. A build that could not read the schema
- * statically publishes the event names alone, and a host that needs the shape
- * then knows it does not have it — which is a different situation from a Widget
- * that genuinely takes nothing, and the two must not collapse into an empty
- * object.
+ * `inputs` is optional on purpose: a build that could not read the schema statically
+ * publishes the event names alone, which must not collapse into the empty object a Widget
+ * that genuinely takes nothing would publish.
  */
 function readWidgetContract(id: string, value: unknown): PublishedWidgetContract | undefined {
   if (value === undefined) return undefined
@@ -201,14 +196,9 @@ function readWidgetContract(id: string, value: unknown): PublishedWidgetContract
 }
 
 /**
- * Which build the container came from.
- *
- * Carried rather than checked: a shell reads it to say which build a page was
- * running when something went wrong, and a report that cannot name the build is
- * the one that costs an engineer a day. It gates nothing, so a container that
- * publishes a malformed `build` still loads — but the field is dropped rather
- * than passed on, because a hash that is not a string would reach a bug report
- * as `[object Object]` and be believed.
+ * Carried rather than checked, so a container that publishes a malformed `build` still
+ * loads; the field is dropped rather than passed on, because a hash that is not a string
+ * would reach a bug report as `[object Object]` and be believed (§29).
  */
 function readBuildProvenance(value: unknown): BuildProvenance | undefined {
   if (!isRecord(value)) return undefined
@@ -295,9 +285,8 @@ export function createMfeContractRule(adapter: 'react' = 'react'): AdapterSelect
         })
       }
 
-      // The federation container name and expose path are adapter-private:
-      // they are implementation details the neutral record must not name, so
-      // they travel in adapterData where only the owning adapter reads them.
+      // The federation container name and expose path are adapter-private, so they
+      // travel in adapterData where only the owning adapter reads them.
       const adapterData =
         typeof entry.container === 'string'
           ? {

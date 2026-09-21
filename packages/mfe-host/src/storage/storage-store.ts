@@ -1,10 +1,7 @@
 /**
- * The framework's single owner of browser storage.
- *
- * A failure is always structured, never a silent fallback to the declared
- * default. A key is parsed once per changed record, not once per subscriber. The
- * opaque session generation fences retired data, so a late cross-tab write or a
- * failed delete cannot resurrect it.
+ * The framework's single owner of browser storage. A failure is always structured, never a
+ * silent fallback to the declared default, and the opaque session generation fences retired
+ * data so a late cross-tab write or a failed delete cannot resurrect it.
  */
 
 import {
@@ -187,8 +184,7 @@ export class MfeStorageStore {
   }
 
   /**
-   * Establishes the first generation of a continuous session. Rotating an
-   * existing one goes through `applySessionTransition`, which invalidates the
+   * Rotating an existing generation goes through `applySessionTransition`, which invalidates the
    * records the retired session left behind first.
    */
   establishSession(generation: string): void {
@@ -213,11 +209,9 @@ export class MfeStorageStore {
   }
 
   /**
-   * Theme and token refresh invalidate nothing, and a reordered but identical
-   * group set is a no-op. An identity or semantic group change retires the
-   * in-memory snapshots, drops the persisted session records of every definition
-   * whether mounted or not, then publishes the defaults. Browser-retained
-   * records survive, which is exactly why they must hold nothing personal.
+   * An identity or semantic group change retires every user-retained record, mounted or
+   * not; browser-retained records survive, which is exactly why they must hold nothing
+   * personal (§21).
    */
   applySessionTransition(
     transition: StorageSessionTransition,
@@ -295,8 +289,7 @@ export class MfeStorageStore {
   }
 
   /**
-   * Removes every record marked `r: 'user'` from both stores. Anything that is
-   * not a framework envelope is left alone: this store never removes what it did
+   * Anything that is not a framework envelope is left alone: this store never removes what it did
    * not write.
    */
   #purgeSessionRecords(): number {
@@ -346,14 +339,9 @@ export class MfeStorageStore {
   }
 
   /**
-   * The same binding, in the reserved host scope: state the page owns rather
-   * than any definition on it. Declared exactly like a definition's key, and
-   * everything the store does for one it does for this — the envelope, the
-   * schema in both directions, versioning, the structured failure when the
-   * store is blocked, the `storage` events another tab raises.
-   *
-   * There is no mount to hang it off, so this is the one binding a host
-   * component can make; `useStoredState` called outside a mount binds here.
+   * The same binding in the reserved host scope, for state the page owns rather than any
+   * definition on it (§24). There is no mount to hang it off, so `useStoredState` called
+   * outside a mount binds here.
    */
   bindHost<T>(declaration: StorageKeyBinding<T> & { readonly defaultValue: T }): BoundStorageKey<T>
   bindHost<T>(declaration: StorageKeyBinding<T>): BoundStorageKey<T | null>
@@ -389,17 +377,13 @@ export class MfeStorageStore {
     return handle as unknown as BoundStorageKey<T | null>
   }
 
-  /** The imperative surface. A write through it notifies the key's subscribers. */
+  /** A write through the imperative surface notifies the key's subscribers. */
   storageFor(definitionId: string, area: StorageArea = DEFAULT_AREA): MfeStorage {
     this.#assertDefinitionScope(definitionId, 'open the storage surface')
     return this.#storageFor(definitionId, area)
   }
 
-  /**
-   * The same imperative surface for the reserved host scope. `bindHost` is what
-   * a React host uses through `useStoredState`; this is for a host that has no
-   * component to hang a binding off — a boot script, or a non-React shell.
-   */
+  /** For a host with no component to hang a binding off — a boot script, or a non-React shell. */
   hostStorage(area: StorageArea = DEFAULT_AREA): MfeStorage {
     return this.#storageFor(HOST_SCOPE, area)
   }
@@ -421,8 +405,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * Removes every key under the exact `<id>:` prefix. `acme-orders` never touches
-   * `acme-orders-legacy:`, the shell's keys, or a third party's.
+   * The prefix is exact, so `acme-orders` never touches `acme-orders-legacy:`, the shell's keys,
+   * or a third party's.
    */
   clearDefinition(definitionId: string, area?: StorageArea): number {
     this.#assertDefinitionScope(definitionId, 'clear storage')
@@ -480,8 +464,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * Applies a native `storage` event from another tab. An event for a key nobody
-   * is bound to is ignored, and a store-wide clear checks only the active keys.
+   * An event for a key nobody is bound to is ignored, and a store-wide clear checks only the
+   * active keys.
    */
   handleStorageEvent(event: StorageEventLike): void {
     if (this.#disposed || this.#entries.size === 0) return
@@ -500,8 +484,8 @@ export class MfeStorageStore {
     for (const area of areas) {
       const entry = this.#entries.get(entryKeyFor(area, event.key))
       if (entry === undefined) continue
-      // Trust the payload only when the event named a store we own; otherwise read
-      // it, so an event of unknown provenance cannot invent a value.
+      // Trust the payload only when the event named a store we own, so an event of
+      // unknown provenance cannot invent a value.
       if (knownArea) this.#applyRaw(entry, event.newValue)
       else this.#refresh(entry)
     }
@@ -641,8 +625,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * Active declarations for one key must agree. The disagreement is reported to
-   * the consumer that disagrees, not resolved in favour of whoever rendered first.
+   * A disagreement is reported to the consumer that disagrees, not resolved in favour of whoever
+   * rendered first.
    */
   #assertCompatible(entry: KeyEntry, incoming: ResolvedDeclaration, compareDefault: boolean): void {
     const active = entry.declaration
@@ -736,9 +720,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * `declaresDefault` comes from the caller's own declaration: a consumer that
-   * declared no default reads `null` for a missing key whether or not another
-   * consumer of the same key is mounted.
+   * `declaresDefault` comes from the caller's own declaration, so a consumer that declared
+   * none reads `null` for a missing key whether or not another consumer is mounted.
    */
   #readValue(entry: KeyEntry, forceRead: boolean, declaresDefault: boolean): unknown {
     if (forceRead) this.#refresh(entry)
@@ -761,8 +744,8 @@ export class MfeStorageStore {
 
     let candidate = next
     if (typeof next === 'function') {
-      // A functional update resolves against the latest stored value, not against
-      // whatever this document last rendered.
+      // A functional update resolves against the latest stored value, not against whatever
+      // this document last rendered.
       this.#refresh(entry)
       const snapshot = entry.snapshot
       if (snapshot.status === 'error') {
@@ -900,10 +883,9 @@ export class MfeStorageStore {
   }
 
   /**
-   * An imperative operation reuses the active entry when the key is bound, so the
-   * write notifies its subscribers; otherwise it works through a detached entry
-   * that caches nothing. An imperative declaration carries no default, so it is
-   * not compared against the bound one.
+   * An imperative operation reuses the active entry when the key is bound, so the write
+   * notifies its subscribers; otherwise it works through a detached entry that caches
+   * nothing.
    */
   #workingEntry(definitionId: string, declaration: ResolvedDeclaration): KeyEntry {
     const physicalKey = physicalStorageKey(definitionId, declaration.name)
@@ -1002,10 +984,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * A failure of the store itself rather than of one definition's key. Its
-   * subject is the host page, so it is named by the reserved host scope — the
-   * same id a host-owned record's failure carries — rather than by a made-up
-   * `'shell'`, which a definition could also be called.
+   * A failure of the store itself is named by the reserved host scope rather than a made-up
+   * `'shell'`, which a definition could also be called (§24).
    */
   #failStore(operation: string, detail: Detail): MfeError {
     const error = createMfeError({ ...detail, code: 'storage/failure', id: HOST_SCOPE, operation })
@@ -1028,9 +1008,8 @@ export class MfeStorageStore {
   }
 
   /**
-   * What makes the host scope reserved rather than conventional: one way in, so
-   * "this record belongs to the page" is declared at the call site instead of
-   * inferred from an id somebody chose.
+   * One way in, so "this record belongs to the page" is declared at the call site instead of
+   * inferred from an id somebody chose (§24).
    */
   #assertDefinitionScope(definitionId: string, operation: string): void {
     if (definitionId !== HOST_SCOPE) return

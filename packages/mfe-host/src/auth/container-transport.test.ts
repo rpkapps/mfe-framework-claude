@@ -75,11 +75,6 @@ describe('createContainerTransport: the shell owns the session', () => {
     await expect(createContainerTransport(BINDING).getAccessToken()).resolves.toBe('token-1')
   })
 
-  /**
-   * §10.5: one refresh for the whole page. Two containers resolving their own
-   * transports must still reach one source, or a rotating refresh token gets
-   * presented twice.
-   */
   it('gives every container the one installed session', async () => {
     const session = installSession()
     const reports: ContainerAuthBinding = { id: 'reports', apiOrigins: [REPORTS] }
@@ -96,11 +91,6 @@ describe('createContainerTransport: the shell owns the session', () => {
 })
 
 describe('createContainerTransport: binding before the shell installed a session', () => {
-  /**
-   * The generated module is evaluated during container load. Binding eagerly
-   * would make a wiring mistake present as an unloadable container instead of
-   * an actionable error on the request that needed the token.
-   */
   it('binds without a session and picks up the one installed afterwards', async () => {
     const transport = createContainerTransport(BINDING)
     const session = installSession()

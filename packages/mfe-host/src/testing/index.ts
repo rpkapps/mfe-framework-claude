@@ -1,11 +1,4 @@
-/**
- * `@company/mfe-host/testing` — the fakes a test drives the host with.
- *
- * They live behind their own entry point because every one of them is a full
- * implementation of a production seam (a store, a bridge, a loader, a telemetry
- * provider) and none of them belongs in a browser bundle. A separate subpath is
- * what makes that structural rather than a tree-shaking hope.
- */
+/** Behind their own entry point because none of these fakes belongs in a browser bundle. */
 
 export { createInProcessLoader } from './in-process-loader.ts'
 

@@ -300,7 +300,6 @@ describe('disposal finalizes outstanding spans', () => {
     expect(one.attributes['mfe.span.end_reason']).toBe('mount-disposed')
     expect(one.status.code).toBe(SpanStatusCode.UNSET)
     expect(one.status.code).not.toBe(SpanStatusCode.ERROR)
-    // A status the author set is preserved: cancellation does not overwrite it.
     expect(two.status.code).toBe(SpanStatusCode.OK)
     expect(two.attributes['mfe.span.cancelled']).toBe(true)
 
@@ -372,7 +371,6 @@ describe('tracing switched off or broken', () => {
     expect(result).toBe('ran')
     expect(telemetry.counters.sinkFailures).toBe(1)
     expect(telemetry.tracer.startSpan('anything').isRecording()).toBe(false)
-    // Author telemetry still reaches the provider: only tracing is degraded.
     telemetry.event('checkout.started')
     expect(provider.events()).toHaveLength(1)
   })

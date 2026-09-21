@@ -1,10 +1,7 @@
 /**
- * The async-correlation gate.
- *
- * These tests pin down exactly which parent relationships the context manager
- * guarantees and which it refuses to guess. The refusals are as important as
- * the guarantees: a missing parent is a visible gap in a trace, while a wrong
- * parent is a lie that survives into production dashboards.
+ * Which parent relationships the context manager guarantees and which it refuses to guess;
+ * a missing parent is a visible gap in a trace, while a wrong parent is a lie that survives
+ * into production dashboards (§4).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -78,7 +75,6 @@ describe('synchronous correlation (guaranteed)', () => {
 
     const checkout = spanNamed(provider, 'checkout')
     expect(spanNamed(provider, 'manual').parent).toBe(checkout)
-    // Still the active span's child, not the manual span's child.
     expect(spanNamed(provider, 'after-manual').parent).toBe(checkout)
   })
 
@@ -146,8 +142,6 @@ describe('correlation across await (the documented limit)', () => {
       span.end()
     })
 
-    // The synchronous region ended at the await, and a browser hands back no
-    // way to know which logical operation resumed. The span becomes a root.
     const afterAwait = spanNamed(provider, 'after-await')
     expect(afterAwait.parent).toBeUndefined()
     expect(traceIdOf(afterAwait)).not.toBe(traceIdOf(spanNamed(provider, 'checkout')))
@@ -175,8 +169,6 @@ describe('correlation across await (the documented limit)', () => {
     const { provider, tracer } = setup()
 
     await tracer.startActiveSpan('checkout', async span => {
-      // Captured while the span is still active: this is the supported way to
-      // keep an asynchronous continuation correlated.
       const continueWork = bindTelemetryContext(() => {
         tracer.startSpan('after-await-bound').end()
       })
@@ -245,11 +237,8 @@ describe('concurrent operations', () => {
 
     const a = spanNamed(provider, 'op-a')
     const b = spanNamed(provider, 'op-b')
-    // Each synchronous prologue is correlated to its own operation.
     expect(spanNamed(provider, 'op-a.sync').parent).toBe(a)
     expect(spanNamed(provider, 'op-b.sync').parent).toBe(b)
-    // The continuations are roots. Crucially, neither was adopted by the other
-    // operation: an incorrect parent would be worse than no parent.
     for (const name of ['op-a.async', 'op-b.async']) {
       const span = spanNamed(provider, name)
       expect(span.parent).toBeUndefined()
@@ -308,7 +297,6 @@ describe('two mounts interleaved', () => {
     const widget = setup('alert-panel')
 
     app.tracer.startActiveSpan('app-root', appSpan => {
-      // The widget mounts and traces while the app span is active.
       widget.tracer.startActiveSpan('widget-root', widgetSpan => {
         widget.tracer.startSpan('widget-child').end()
         app.tracer.startSpan('app-child-inside-widget').end()
@@ -323,8 +311,6 @@ describe('two mounts interleaved', () => {
     expect(widgetRoot.parent).toBeUndefined()
     expect(traceIdOf(widgetRoot)).not.toBe(traceIdOf(appRoot))
     expect(spanNamed(widget.provider, 'widget-child').parent).toBe(widgetRoot)
-    // The app's own span, created while the widget's context is active, is not
-    // adopted by the widget: ownership is checked before parentage.
     expect(spanNamed(app.provider, 'app-child-inside-widget').parent).toBeUndefined()
   })
 
@@ -336,7 +322,6 @@ describe('two mounts interleaved', () => {
       widget.tracer.startActiveSpan('widget-root', widgetSpan => {
         widgetSpan.end()
       })
-      // Back under the app's own context.
       expect(getActiveSpanContext()?.name).toBe('app-root')
       app.tracer.startSpan('app-child-after-widget').end()
       appSpan.end()

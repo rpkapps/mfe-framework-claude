@@ -161,8 +161,8 @@ describe('createAuthenticatedFetch: URL resolution', () => {
   })
 
   it('resolves against the API base rather than the shell document URL', async () => {
-    // jsdom serves the shell document from localhost; a relative request must
-    // never pick that up.
+    // jsdom serves the shell document from localhost; a relative request must never pick
+    // that up.
     expect(globalThis.location.origin).not.toBe(API)
 
     const api = harness()
@@ -260,7 +260,6 @@ describe('createAuthenticatedFetch: token attachment', () => {
 
     expect(api.calls).toHaveLength(1)
     expect(authOf(at(api.calls))).toBeNull()
-    // The token is never even read for an origin that may not have it.
     expect(tokens.getAccessToken).not.toHaveBeenCalled()
   })
 
@@ -455,8 +454,8 @@ describe('createAuthenticatedFetch: requests that cannot be replayed', () => {
     const { tokens, refreshToken } = rotatingSession()
     const api = harness({ tokens, diagnostics }, unauthorized)
 
-    // `duplex` is mandatory on the platform whenever the body is a stream, and
-    // is not part of `RequestInit` in this TypeScript release yet.
+    // `duplex` is mandatory on the platform whenever the body is a stream, and is not part
+    // of `RequestInit` in this TypeScript release yet.
     const init: RequestInit & { readonly duplex: 'half' } = {
       method: 'POST',
       body: streamingBody(),
@@ -513,9 +512,8 @@ describe('createAuthenticatedFetch: session failure and cancellation', () => {
     const tokens = createSessionTokenService({ getToken: () => 'token-1', refreshToken })
     const api = harness({ tokens }, unauthorized)
 
-    // Whichever mount fires first gets an ordinary 401 Response to handle in its
-    // data layer; it does not get a framework error to fail its mount with. The
-    // session event itself is the shell auth library's to raise.
+    // A mount gets an ordinary 401 Response to handle in its data layer, not a framework
+    // error to fail its mount with.
     const first = await api.call('assets')
     const second = await api.call('orders')
 

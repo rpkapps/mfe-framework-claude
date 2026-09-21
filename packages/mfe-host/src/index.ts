@@ -1,9 +1,7 @@
 /**
- * `@company/mfe-host` — neutral loading, mounting and shell-service orchestration.
- *
- * Nothing here imports React, a router, single-spa or Module Federation: the
- * container loader is injected through the port in `loader/`, which is what
- * lets the host own lifecycle, retry, deadlines and cleanup without them.
+ * `@company/mfe-host` — neutral loading, mounting and shell-service orchestration. Nothing
+ * here imports React, a router, single-spa or Module Federation, because the container
+ * loader is injected through the port in `loader/` (§6).
  */
 
 export { normalizeRegistry, type NormalizeRegistryOptions } from './registry/normalize.ts'
@@ -70,9 +68,8 @@ export * from './storage/index.ts'
 export * from './auth/index.ts'
 export * from './telemetry/index.ts'
 
-// The provider contract a shell implements. It is defined in mfe-core, but a
-// shell depends on this package, not on core, so naming it has to be possible
-// from here.
+// The provider contract a shell implements is defined in mfe-core, but a shell depends on
+// this package rather than on core, so naming it has to be possible from here.
 export type {
   MeasurementUnit,
   Span,
@@ -87,11 +84,8 @@ export type {
 } from '@company/mfe-core'
 
 /**
- * The diagnostics hub, for the same reason the provider contract is named
- * above: a shell depends on this package rather than on core, and the hub is
- * what a shell has to construct itself when auth and the runtime are to share
- * one — `installShellAuth` is called before `createMfeRuntime` exists to make
- * one, so a hub created inside the runtime is a hub auth never reaches.
+ * Re-exported for the same reason: a shell constructs the hub itself, because
+ * `installShellAuth` runs before `createMfeRuntime` exists to make one (§25).
  */
 export {
   DiagnosticsHub,
@@ -100,9 +94,4 @@ export {
   type DiagnosticsSink,
 } from '@company/mfe-core'
 
-/**
- * Resolving an App's capability page to a route. Appended as its own block
- * rather than beside the registry exports above, so a concurrent edit to that
- * block and this one cannot collide.
- */
 export { capabilityRoute } from './registry/capability-route.ts'
