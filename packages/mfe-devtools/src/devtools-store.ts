@@ -94,6 +94,11 @@ export const devtools = {
     publish({ ...source.getSnapshot(), tab })
   },
 
+  /** Outlining survives closing the panel, so the page can be looked at without the dock over it. */
+  setOutline(outline: boolean): void {
+    publish({ ...source.getSnapshot(), outline })
+  },
+
   /** Stages an override. `null` stages a removal; `undefined` drops the edit. */
   stage(id: string, url: string | null | undefined): void {
     const current = source.getSnapshot()

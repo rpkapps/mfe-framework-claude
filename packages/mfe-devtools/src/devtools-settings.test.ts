@@ -37,6 +37,7 @@ const SETTINGS: DevtoolsSettings = {
   size: 500,
   open: false,
   tab: 'registry',
+  outline: true,
 }
 
 afterEach(() => {
