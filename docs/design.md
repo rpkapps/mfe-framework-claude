@@ -26,7 +26,7 @@ The **shell** is the application that serves that page. It owns the chrome, the 
 
 The **registry** is the JSON array the shell fetches at boot, one entry per definition. An entry carries the id, the kind, the manifest URL, and the federation container and expose path. The rest is optional: a version, and either a Widget's published contract or an App's capabilities. Each entry is generated from the container's own build, because a hand-written second copy drifts.
 
-A **container** is one deployable, with its own build, version and origin. It holds one `src/mfe.ts`, exporting at most one App and any number of Widgets. It publishes `remoteEntry.js`, the file that lets a host load code out of another build, described by `mf-manifest.json`. Its scoped stylesheet and its registry descriptor sit beside them.
+A **container** is one deployable, with its own build, version and origin. It holds one `src/mfe.ts`, exporting at most one App and any number of Widgets. It publishes `remoteEntry.js`, the file that lets a host load code out of another build, described by `mf-manifest.json`. Its scoped stylesheet and its registry entry sit beside them.
 
 `runtime-config.json` is published beside those assets, never built into them. Changing a value takes a new deployment and a reload. The generated `#mfe/fetch` resolves a relative URL against the first field declared `env(…, { api: true })`. The session token reaches those origins and no others, because the shell installs the page's one session ([decision 10](/docs/how-it-works/decisions#10-the-framework-owns-no-session-the-shell-installs-one-and-the-container-binds-to-it)).
 
@@ -34,7 +34,7 @@ A **container** is one deployable, with its own build, version and origin. It ho
 | ----------- | ------------------------------------------------------------------------------------------ |
 | the shell   | the document, the theme, the session, the registry fetch, the boundary routes, diagnostics |
 | a container | its definitions, its route tree, the classes its CSS needs, its `runtime-config.json`      |
-| the build   | the `#mfe/*` modules, the container entry, the federation options, the descriptor, the CSS |
+| the build   | the `#mfe/*` modules, the container entry, the federation options, the entry, the CSS      |
 
 ## What happens between a page load and a rendered App
 
@@ -42,10 +42,10 @@ A **container** is one deployable, with its own build, version and origin. It ho
 
 **In words.** Titled `boot-to-mount`, under "Page load to a rendered App, in the order the code runs." Twelve boxes: seven numbered steps in two columns, and five red error codes.
 
-- Left column, "In the shell — `apps/shell/src/boot.tsx`": **1. The document boots**, **2. Diagnostics, then session** (`installShellAuth`), **3. The registry arrives** (`await fetch('/registry.json')`), **4. Runtime, then normalization** (`createMfeRuntime, then normalizeRegistry`).
+- Left column, "In the shell — `apps/shell/src/boot.tsx`": **1. The document boots**, **2. Diagnostics, then session** (`installShellAuth`), **3. The registry arrives** (`await fetch('/registry.json')`), **4. Runtime reads the registry** (`createMfeRuntime, then readRegistry`).
 - An arrow carries step 4 into the right column, "In the framework — `@company/mfe-react`".
 - That column holds **5. URL picks the boundary** (`<AppHost appId='operations' basePath='/operations'>`), **6. The container loads once** (`loadRemote('operations/app')`) and **7. The App renders** (`useOwnedMount, then RouterProvider`).
-- A red arrow **thrown** leaves step 6 for **When step 6 fails**: `load/manifest-failure`, `load/entry-failure`, `registry/invalid-descriptor`.
+- A red arrow **thrown** leaves step 6 for **When step 6 fails**: `load/manifest-failure`, `load/entry-failure`, `registry/invalid-entry`.
 - A red arrow **thrown** leaves step 7 for **When step 7 fails** ("caught, and drawn with a Retry"): `app/invalid-base-path`, `app/invalid-router`.
 
 Order carries weight at the start. The shell builds the diagnostics hub first, so `installShellAuth` has somewhere to report, and it installs the session before any remote is registered. It then fetches the registry and assembles the runtime, which adopts that hub rather than making one. A registry that fails to load is a diagnostic, not a crash.
@@ -56,7 +56,7 @@ A container loads once per runtime per id. **Module Federation** is the bundler 
 
 The **mount** is one live instance of a definition: its mount token, base path, telemetry, storage handles, abort signal, Query client and overlay root. The effect that creates it is the effect that destroys it. A mount built in a memo does not survive the remount React performs in StrictMode ([decision 14](/docs/how-it-works/decisions#14-a-mount-built-in-usememo-does-not-survive-a-remount-and-strictmode-remounts-everything)).
 
-The **definition** is a side-effect-free descriptor. The adapter therefore checks what the author did with it: `basePath` passed through as `basepath`, the supplied history by identity, `context.mfe` and `context.queryClient` unchanged. A violation throws during render and names the repair. On any failure the consumer's `fallback` receives the error and a `retry` that forgets the cached definition.
+The **definition** is a side-effect-free record. The adapter therefore checks what the author did with it: `basePath` passed through as `basepath`, the supplied history by identity, `context.mfe` and `context.queryClient` unchanged. A violation throws during render and names the repair. On any failure the consumer's `fallback` receives the error and a `retry` that forgets the cached definition.
 
 ## The packages, and which way the imports point
 
@@ -83,7 +83,7 @@ An arrow in the picture points at what a package depends on. `pnpm boundaries` r
 | `@company/eslint-plugin-mfe`  | The `framework` and `author` lint presets.                    | nothing               | —                                             |
 | `apps/shell`                  | The host page: the chrome, the boundary routes, the session.  | React, host, devtools | —                                             |
 
-The build plugin runs in the build rather than on the page, so it sits outside that graph. One `pluginMfe()` line in a container's `rsbuild.config.ts` generates the `#mfe/*` modules, the container and App entries, the registry descriptor and the scoped stylesheet.
+The build plugin runs in the build rather than on the page, so it sits outside that graph. One `pluginMfe()` line in a container's `rsbuild.config.ts` generates the `#mfe/*` modules, the container and App entries, the registry entry and the scoped stylesheet.
 
 An author touches `src/mfe.ts`, the route tree under `src/routes/`, `src/mfe.config.ts`, the generated modules and that one plugin line. Authors import from `@company/mfe-react` and nowhere else. The `author` lint preset blocks the core, the host and any deep path.
 
@@ -91,32 +91,34 @@ The design rule is one sentence: every micro-frontend concern uses a mechanism T
 
 ## How the adapters fit together
 
-![The shell's registry entering the neutral host, one rule per adapter, and each adapter's container.](./diagrams/adapters.svg)
+![The shell's registry entering the neutral host, one adapter per kind of entry, and each adapter's container.](./diagrams/adapters.svg)
 
 **In words.** Titled `adapters`, under "One neutral host; one adapter per framework." Twelve boxes, read top to bottom.
 
 - **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into **The neutral host** ("@company/mfe-host — no React, no router, no federation").
-- The host holds **Shared services** ("storage, commands, navigation bridge, diagnostics") and, under it, **Registry normalization** ("the first matching rule owns the entry").
-- Inside that, **Rule 1 — framework contract** (`createMfeContractRule()`) and **Rule 2 — legacy Angular** (`createLegacyAdapterRule()`), joined by an arrow **no mfe key**.
-- An arrow **selects** drops from each rule to its adapter. **The React adapter** holds **Federation loader** (`createMf2ContainerLoader`), **App and Widget definitions** (`createApp, createWidget`) and **Boundary and style roots** (`createBoundaryHistory, StyleRoot`). **The legacy Angular adapter** ("removable") holds **Registry translation**, **Parcel lifecycle** (`mountRootParcel`) and **Base href, shell routes** (`resolveLegacyBaseHref, matchLegacyShellRoute`).
+- The host holds **Shared services** ("storage, commands, navigation bridge, diagnostics") and, under it, **Reading the registry** ("one adapter recognises each entry").
+- Inside that, **Entries with mfe** (`reactAdapter`) and **Entries without mfe** (`legacyAngularAdapter`).
+- An arrow **read by** drops from each of them to its adapter. **The React adapter** holds **Federation loader** (`createMf2ContainerLoader`), **App and Widget definitions** (`createApp, createWidget`) and **Boundary and style roots** (`createBoundaryHistory, StyleRoot`). **The legacy Angular adapter** ("removable") holds **Registry translation**, **Parcel lifecycle** (`mountRootParcel`) and **Base href, shell routes** (`resolveLegacyBaseHref, matchLegacyShellRoute`).
 - An arrow **loads, mounts** drops from each adapter to its blue container, `operations` and `asset-tracker`. The legend names the shell, a neutral package, an adapter package and a container.
 
-The host is neutral: `@company/mfe-core` and `@company/mfe-host` import no React, no router and no Module Federation. The host defines a `ContainerLoader` port and orchestrates loading through it, and an adapter supplies the implementation. Normalizing the registry is one pass, and each raw entry goes to the first adapter rule that takes it. The framework contract rule runs first, and the rules a shell passes in `createMfeRuntime({ rules })` run after it, in order.
+The host is neutral: `@company/mfe-core` and `@company/mfe-host` import no React, no router and no Module Federation. `@company/mfe-core` holds the `MfeAdapter` interface and the common `RegistryEntry` shape, and names no adapter. The host defines a `ContainerLoader` port and orchestrates loading through it, and an adapter supplies the implementation.
 
-| Adapter                       | Takes an entry when                                      | Mounts it with           | Removable |
+`readRegistry` is one pass, and each raw entry is offered to every registered adapter's `detect`. Exactly one adapter must recognise it. None and the entry is rejected as unrecognised, more than one and it is rejected as ambiguous with both adapters named. Order therefore means nothing: `reactAdapter` is always registered, and `createMfeRuntime({ adapters })` names the rest.
+
+| Adapter                       | Recognises an entry when                                 | Mounts it with           | Removable |
 | ----------------------------- | -------------------------------------------------------- | ------------------------ | --------- |
-| `@company/mfe-react`          | the entry declares the framework contract (an `mfe` key) | React, Module Federation | no        |
+| `@company/mfe-react`          | it names the framework version it was built for (`mfe`)  | React, Module Federation | no        |
 | `@company/mfe-legacy-angular` | there is no `mfe` key, plus a `name` and `mfManifestUrl` | a single-spa parcel      | yes       |
 
-The React adapter loads a container through Module Federation. It then mounts the `createApp` and `createWidget` definitions that container exposes. The legacy adapter translates a legacy entry into the same neutral record, keeping every legacy field in `adapterData`. It drives the application's own parcel lifecycle, resolves the base href that application expects, and leaves a fixed set of routes to the shell.
+The React adapter loads a container through Module Federation. It then mounts the `createApp` and `createWidget` definitions that container exposes. The legacy adapter reads a legacy entry into the same common shape, with the legacy fields typed on its own entry type and reached through `legacyAngularAdapter.is(entry)`. It drives the application's own parcel lifecycle, resolves the base href that application expects, and leaves a fixed set of routes to the shell.
 
-Nothing falls back silently. An entry that declares the framework contract belongs to the React adapter, whatever state that declaration is in. A malformed declaration is set aside with a reason, and the registry marks it `quarantined`. Reading it as legacy instead would let a typo change how an application loads, unseen.
+Nothing falls back silently. An entry naming the framework version it was built for belongs to the React adapter, whatever state the rest of it is in. A malformed entry is set aside with a reason, and the registry lists it under `rejected`. Reading it as legacy instead would let a typo change how an application loads, unseen.
 
-Shared services come from the host and are the same for both. One storage store, one command registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the normalized registry and never asks which adapter an entry came from.
+Shared services come from the host and are the same for both. One storage store, one command registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the registry and never asks which adapter an entry came from.
 
-Removal is the point of the second adapter. When the last legacy application is migrated, delete the package, one row from the shell's adapter table and one import from its composition root. No other package changes. [Legacy Angular applications](/docs/reference/legacy-angular) is the reference for its fields, its lifecycle and its migration edit.
+Removal is the point of the second adapter. When the last legacy application is migrated, delete the package, one entry from the shell's `adapters` list and one import from its composition root. No other package changes. [Legacy Angular applications](/docs/reference/legacy-angular) is the reference for its fields, its lifecycle and its migration edit.
 
-The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/how-it-works/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository does not register this adapter yet, so it registers the framework contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
+The adapter is built and tested against production-equivalent fixtures and doubles. The real Asset Tracker and Rigstream applications have never been run against it ([decision 9](/docs/how-it-works/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)). The shell in this repository registers it in `apps/shell/src/boot.tsx`, so a legacy entry in its registry is read rather than rejected.
 
 ## The six isolation boundaries
 

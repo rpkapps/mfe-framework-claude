@@ -306,7 +306,7 @@ async function bootToMount() {
     ['1. The document boots', 'apps/shell/src/boot.tsx'],
     ['2. Diagnostics, then session', 'installShellAuth({ tokens, diagnostics })'],
     ['3. The registry arrives', "await fetch('/registry.json')"],
-    ['4. Runtime, then normalization', 'createMfeRuntime, then normalizeRegistry'],
+    ['4. Runtime reads the registry', 'createMfeRuntime, then readRegistry'],
   ].map(([name, subtitle], position) =>
     tile(scene, {
       x: 0,
@@ -362,7 +362,7 @@ async function bootToMount() {
     dashed: true,
     heading: 'When step 6 fails',
   })
-  ;['load/manifest-failure', 'load/entry-failure', 'registry/invalid-descriptor'].forEach(
+  ;['load/manifest-failure', 'load/entry-failure', 'registry/invalid-entry'].forEach(
     (name, position) => code(scene, { x: 1018, y: 186 + position * 44, w: 294, name }),
   )
 
@@ -1304,27 +1304,27 @@ async function adapters() {
     w: 1242,
     h: 138,
     dashed: true,
-    heading: 'Registry normalization',
-    caption: 'the first matching rule owns the entry',
+    heading: 'Reading the registry',
+    caption: 'one adapter recognises each entry',
   })
-  const contractRule = tile(scene, {
+  const reactEntries = tile(scene, {
     x: 130,
     y: 424,
     w: 520,
     h: 62,
     fill: FILL.page,
-    name: 'Rule 1 — framework contract',
-    subtitle: 'createMfeContractRule()',
+    name: 'Entries with mfe',
+    subtitle: 'reactAdapter',
     subtitleMono: true,
   })
-  const legacyRule = tile(scene, {
+  const legacyEntries = tile(scene, {
     x: 790,
     y: 424,
     w: 520,
     h: 62,
     fill: FILL.page,
-    name: 'Rule 2 — legacy Angular',
-    subtitle: 'createLegacyAdapterRule()',
+    name: 'Entries without mfe',
+    subtitle: 'legacyAngularAdapter',
     subtitleMono: true,
   })
 
@@ -1353,7 +1353,7 @@ async function adapters() {
     caption: '@company/mfe-legacy-angular — removable',
   })
   ;[
-    ['Registry translation', 'legacy AppConfig into adapterData', false],
+    ['Registry translation', 'legacy AppConfig into typed fields', false],
     ['Parcel lifecycle', 'mountRootParcel: mount, unmount', true],
     ['Base href, shell routes', 'resolveLegacyBaseHref, matchLegacyShellRoute', true],
   ].forEach(([name, subtitle, subtitleMono], position) =>
@@ -1390,22 +1390,16 @@ async function adapters() {
     labelDx: 92,
   })
   scene.arrow({
-    from: { shape: contractRule, side: 'right' },
-    to: { shape: legacyRule, side: 'left' },
-    label: 'no mfe key',
-    labelOffset: -18,
-  })
-  scene.arrow({
-    from: { shape: contractRule, side: 'bottom' },
+    from: { shape: reactEntries, side: 'bottom' },
     to: { shape: reactAdapter, side: 'top', at: 0.5 },
-    label: 'selects',
+    label: 'read by',
     labelDx: 58,
     labelOffset: 14,
   })
   scene.arrow({
-    from: { shape: legacyRule, side: 'bottom' },
+    from: { shape: legacyEntries, side: 'bottom' },
     to: { shape: legacyAdapter, side: 'top', at: 0.5 },
-    label: 'selects',
+    label: 'read by',
     labelDx: 58,
     labelOffset: 14,
   })
