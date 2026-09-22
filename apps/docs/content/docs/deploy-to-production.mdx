@@ -119,15 +119,15 @@ requests from the shell's origin.
 
 </Callout>
 
-<Callout type="error" title="no adapter recognised this descriptor">
+<Callout type="error" title="no adapter recognised this entry">
 
 ```text
-expected a descriptor matching one of the registered adapters (react), received a descriptor that
-matched none of them.
+expected exactly one of the registered adapters (react) to recognise the entry, received an entry
+none of them recognised.
 ```
 
-**Fix.** Register the generated record rather than a hand-written entry. An entry without the `mfe`
-marker belongs to no adapter.
+**Fix.** Register the entry your build generated rather than a hand-written one. An entry with no
+`mfe` key belongs to no adapter here.
 
 </Callout>
 

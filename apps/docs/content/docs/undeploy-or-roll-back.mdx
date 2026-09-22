@@ -67,14 +67,14 @@ loading now reaches it. What everyone else gets depends on when their page loade
 
 | Who                                  | What they get                                                |
 | ------------------------------------ | ------------------------------------------------------------ |
-| a page loaded after the change       | the failure box, code `registry/invalid-descriptor`          |
+| a page loaded after the change       | the failure box, code `registry/invalid-entry`               |
 | an open tab yet to load you          | the failure box with **Retry**, code `load/manifest-failure` |
 | an open tab with your Widget mounted | nothing. It runs until that page reloads                     |
 | a saved dashboard in this shell      | the tile marked "not in the registry"                        |
 
 ## Errors
 
-<Callout type="error" title="registry/invalid-descriptor">
+<Callout type="error" title="registry/invalid-entry">
 
 ```text
 operations failed to resolve App: no registry entry with this id.

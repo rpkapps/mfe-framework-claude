@@ -118,7 +118,7 @@ load promise outlive the mount, so mounting the same App again does not refetch 
 | a container that never loads                | nothing is thrown                           | the pending slot, until the load settles              |
 
 `RetryBoundary` exists only when the consumer supplied a `fallback`. It catches the throw,
-normalizes anything that is not an `MfeError` to `code: 'mount/failure'`, and calls
+converts anything that is not an `MfeError` to `code: 'mount/failure'`, and calls
 `fallback({ error, retry })`. Retry drops the cached outcome, so the next attempt is a fresh one.
 
 Every failure here also reaches the diagnostics hub the shell installed. A hub with no sinks

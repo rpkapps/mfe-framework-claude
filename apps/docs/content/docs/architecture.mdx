@@ -49,13 +49,13 @@ Twelve boxes: seven numbered steps in two columns, and five error codes.
 
 - The left column is **In the shell**, `apps/shell/src/boot.tsx`. It holds **1. The document
   boots**, **2. Diagnostics, then session** (`installShellAuth`), **3. The registry arrives**
-  (`await fetch('/registry.json')`) and **4. Runtime, then normalization**.
+  (`await fetch('/registry.json')`) and **4. Runtime reads the registry**.
 - An arrow carries step 4 into the right column, **In the framework**, `@company/mfe-react`.
 - That column holds **5. URL picks the boundary**
   (`<AppHost appId='operations' basePath='/operations'>`), **6. The container loads once**
   (`loadRemote('operations/app')`) and **7. The App renders**.
 - A red arrow **thrown** leaves step 6 for **When step 6 fails**: `load/manifest-failure`,
-  `load/entry-failure` and `registry/invalid-descriptor`.
+  `load/entry-failure` and `registry/invalid-entry`.
 - A red arrow **thrown** leaves step 7 for **When step 7 fails**, drawn with a Retry:
   `app/invalid-base-path` and `app/invalid-router`.
 
@@ -104,7 +104,7 @@ overwrites it.
 
 <Diagram
   src="/diagrams/adapters.svg"
-  alt="The shell's registry entering the neutral host, one rule per adapter, and the container each adapter mounts."
+  alt="The shell's registry entering the neutral host, one adapter per kind of entry, and the container each adapter mounts."
   caption="One neutral host, and one adapter per framework."
 >
 Twelve boxes, read top to bottom.
@@ -112,10 +112,10 @@ Twelve boxes, read top to bottom.
 - **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into
   **The neutral host**, `@company/mfe-host`, which holds no React, no router and no federation.
 - The host holds **Shared services** (storage, commands, navigation bridge, diagnostics) and
-  **Registry normalization**, where the first matching rule owns the entry.
-- Inside that: **Rule 1 — framework contract** (`createMfeContractRule()`) and **Rule 2 — legacy
-  Angular** (`createLegacyAdapterRule()`), joined by an arrow **no mfe key**.
-- An arrow **selects** drops from each rule to its adapter. **The React adapter** holds the
+  **Reading the registry**, where one adapter recognises each entry.
+- Inside that: **Entries with mfe** (`reactAdapter`) and **Entries without mfe**
+  (`legacyAngularAdapter`).
+- An arrow **read by** drops from each of them to its adapter. **The React adapter** holds the
   federation loader, the App and Widget definitions, and the boundary and style roots. **The legacy
   Angular adapter**, marked removable, holds registry translation, the parcel lifecycle, and the
   base href and shell routes.
@@ -125,13 +125,14 @@ Twelve boxes, read top to bottom.
 
 </Diagram>
 
-A neutral host reads the registry and hands each record to the adapter that owns it. Your entry
-declares the framework contract, so the React adapter takes it, loads your container and mounts the
-`createApp` and `createWidget` definitions inside. An existing single-spa Angular application
-declares no such contract, and a second, removable adapter takes it instead. Nothing falls back on
-its own. An entry that declares the framework contract stays with the React
-adapter, even when a field in it is wrong. A bad record is set aside with a reason. Storage, commands, navigation and
-diagnostics come from the host, so both kinds behave alike.
+A neutral host reads the registry and offers each entry to every adapter it has. Exactly one
+adapter must recognise it. Your entry names the framework version your container was built for. The
+React adapter reads it, loads your container and mounts the `createApp` and `createWidget`
+definitions inside. An existing single-spa Angular application names no such version, and a second,
+removable adapter reads it instead. Nothing falls back on its own. An entry that names a framework
+version stays with the React adapter, even when a field in it is wrong. That entry is set aside
+with a reason. Storage, commands, navigation and diagnostics come from the host, so both kinds
+behave alike.
 
 ## Related
 
@@ -139,4 +140,4 @@ diagnostics come from the host, so both kinds behave alike.
 - [Tutorial: build the operations App](/docs/tutorial) — this architecture, end to end.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — the stages behind the second diagram.
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — what a mount is separated from.
-- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — the selection rules in full.
+- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — the two adapters in full.
