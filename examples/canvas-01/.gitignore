@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Generated build output. Generation runs before typecheck, test and build.
+routeTree.gen.ts
+.mfe/
