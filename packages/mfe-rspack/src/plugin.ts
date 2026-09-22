@@ -13,6 +13,7 @@ import type { Compilation, Compiler, RspackPluginInstance, RuleSetUse } from '@r
 import { withFrameworkMetadata } from './federation/federation-options.ts'
 import { generateContainer } from './generate/container.ts'
 import { ownsRouteTree, routeTreeOptions } from './generate/route-tree.ts'
+import { RUNTIME_CONFIG_DEFAULTS_FILE } from './generate/runtime-config.ts'
 import type { MfePluginOptions } from './options.ts'
 import type { ContainerPlan } from './plan.ts'
 
@@ -20,13 +21,23 @@ const require = createRequire(import.meta.url)
 
 const PLUGIN_NAME = 'MfePlugin'
 
+export interface MfeRspackPluginSettings {
+  /**
+   * Ship the declared defaults as the container's runtime configuration. Off for a dev server,
+   * whose `public/` copy carries the developer's values; defaults to a production-mode compile.
+   */
+  readonly emitRuntimeConfig?: boolean
+}
+
 export class MfeRspackPlugin implements RspackPluginInstance {
   readonly name = PLUGIN_NAME
   readonly #options: MfePluginOptions
+  readonly #settings: MfeRspackPluginSettings
   #plan: ContainerPlan | undefined
 
-  constructor(options: MfePluginOptions = {}) {
+  constructor(options: MfePluginOptions = {}, settings: MfeRspackPluginSettings = {}) {
     this.#options = options
+    this.#settings = settings
   }
 
   /** The same generation `mfe-generate` performs, so a build and an editor read one function. */
@@ -58,6 +69,9 @@ export class MfeRspackPlugin implements RspackPluginInstance {
       this.#refresh(containerRoot)
     })
 
+    const emitRuntimeConfig =
+      this.#settings.emitRuntimeConfig ?? compiler.options.mode === 'production'
+
     compiler.hooks.thisCompilation.tap(PLUGIN_NAME, compilation => {
       const current = this.#plan ?? plan
       for (const diagnostic of current.diagnostics) compilation.errors.push(diagnostic)
@@ -68,7 +82,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
           stage: compiler.rspack.Compilation.PROCESS_ASSETS_STAGE_DERIVED,
         },
         () => {
-          emitContainerArtifacts(compiler, compilation, current)
+          emitContainerArtifacts(compiler, compilation, current, emitRuntimeConfig)
         },
       )
 
@@ -148,19 +162,27 @@ function addFrameworkMetadata(
   )
 }
 
-/** Ships the registry entry and config schema with the container. */
+/**
+ * Ships the registry entry and config schema with the container, and in a build the declared
+ * defaults as its runtime configuration, which the start-up script writes the environment over.
+ */
 function emitContainerArtifacts(
   compiler: Compiler,
   compilation: Compilation,
   plan: ContainerPlan,
+  emitRuntimeConfig: boolean,
 ): void {
   const { RawSource } = compiler.rspack.sources
 
   for (const file of plan.generated.files) {
     // Normalized, because `join` uses backslashes on Windows and these checks are about shape.
-    const name = relative(plan.options.generatedDir, file.path).split(sep).join('/')
+    let name = relative(plan.options.generatedDir, file.path).split(sep).join('/')
     if (!name.endsWith('.json') || name.includes('/')) continue
     if (name === 'tsconfig.paths.json') continue
+    if (name === RUNTIME_CONFIG_DEFAULTS_FILE) {
+      if (!emitRuntimeConfig) continue
+      name = plan.options.runtimeConfigFileName
+    }
     if (compilation.getAsset(name) !== undefined) continue
     compilation.emitAsset(name, new RawSource(file.contents))
   }

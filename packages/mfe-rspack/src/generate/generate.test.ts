@@ -84,7 +84,9 @@ describe('generated inventory', () => {
       '.mfe/fetch.ts',
       '.mfe/meta.ts',
       '.mfe/mfe-registry.json',
+      '.mfe/runtime-config.defaults.json',
       '.mfe/runtime-config.schema.json',
+      '.mfe/runtime-config.sh',
       '.mfe/styles.css',
       '.mfe/tsconfig.paths.json',
     ])

@@ -16,7 +16,7 @@ the rest is yours to provide.
 | the shell reading `/registry.json`                  | `apps/shell/src/boot.tsx`                             |
 | an image and an origin per container                | your platform                                         |
 | a registry service the pipeline writes to           | your platform                                         |
-| `runtime-config.json`, written from the environment | your platform                                         |
+| `runtime-config.json`, written from the environment | `.mfe/runtime-config.sh`, run by your image           |
 
 <Steps>
 
@@ -34,14 +34,15 @@ Serve the `dist/` directory from an image of your own, one image per container.
 <Step>
 ### 2. Write the deployment's values at container start
 
-```json title="examples/operations/public/runtime-config.json"
-{
-  "apiBaseUrl": "http://localhost:3010/api/",
-  "telemetryEnabled": false
-}
+```dockerfile title="Dockerfile (after the build stage)"
+FROM nginx:alpine
+COPY --from=build /app/dist/ /usr/share/nginx/html/
+COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
 ```
 
-Your start-up step reads the environment and writes this file beside the container's assets.
+The generated script reads the environment and writes `runtime-config.json` beside the container's
+assets, so each environment only sets its variables. See
+[Supply values per deployment](/docs/supply-values-per-deployment#run-it-in-a-docker-image).
 
 </Step>
 

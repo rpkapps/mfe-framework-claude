@@ -68,7 +68,9 @@ Your dev server publishes `public/` beside your assets, which is where the value
 Run `pnpm run generate` in your container. It writes `.mfe/.env.example`, which lists every
 variable name and what it has to look like, and never a value. It also writes
 `.mfe/runtime-config.schema.json`, the JSON Schema a deployment validates its file against. Every
-field without a `.default(…)` is listed there as required.
+field without a `.default(…)` is listed there as required. `.mfe/runtime-config.defaults.json`
+holds the `.default(…)` values the build ships, and `.mfe/runtime-config.sh` writes the environment
+over them when your image starts.
 
 ## Errors
 
