@@ -120,6 +120,9 @@ catalogs:
     globby:
       specifier: 16.2.4
       version: 16.2.4
+    jiti:
+      specifier: 2.7.0
+      version: 2.7.0
     jsdom:
       specifier: 30.1.0
       version: 30.1.0
@@ -204,9 +207,6 @@ importers:
       '@tanstack/router-generator':
         specifier: 'catalog:'
         version: 1.167.38
-      '@tecton/eslint-config':
-        specifier: link:../tecton-ui-1/packages/eslint-config-tecton
-        version: link:../tecton-ui-1/packages/eslint-config-tecton
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.2
@@ -222,6 +222,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: 'catalog:'
         version: 7.1.1(eslint@10.10.0(jiti@2.7.0))
+      jiti:
+        specifier: 'catalog:'
+        version: 2.7.0
       jsdom:
         specifier: 'catalog:'
         version: 30.1.0

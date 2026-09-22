@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  // The TypeScript that belongs to the repository rather than to any package: the ESLint
+  // configuration, the Vitest workspace, and the types of the plain-JavaScript helpers in
+  // `tools/`. Without a project of their own the type-aware lint rules have no program for
+  // them and report a parsing error on every one.
+  "include": ["eslint.config.ts", "vitest.config.ts", "tools/**/*.d.mts"]
+}

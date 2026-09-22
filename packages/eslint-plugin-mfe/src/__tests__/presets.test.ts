@@ -1,6 +1,6 @@
 import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
-import plugin, { author, configs, framework, rules } from '../index.ts'
+import plugin, { author, configs, framework, rules, tooling } from '../index.ts'
 
 const RULE_IDS = [
   'mfe/no-global-patching',
@@ -44,8 +44,63 @@ describe('plugin surface', () => {
   it('offers the presets both as arrays and as factories', () => {
     expect(Array.isArray(configs.framework)).toBe(true)
     expect(Array.isArray(configs.author)).toBe(true)
+    expect(Array.isArray(configs.tooling)).toBe(true)
     expect(plugin.framework).toBe(framework)
     expect(plugin.author).toBe(author)
+    expect(plugin.tooling).toBe(tooling)
+  })
+})
+
+describe('tooling preset', () => {
+  const preset = tooling()
+
+  it('is a non-empty flat-config array with a name on every entry', () => {
+    expect(preset.length).toBeGreaterThan(0)
+    for (const entry of preset) expect(entry.name, JSON.stringify(entry.files)).toBeTypeOf('string')
+  })
+
+  it('registers a plugin in every config object that turns one of its rules on', () => {
+    for (const entry of preset) {
+      const registered = new Set(Object.keys(entry.plugins ?? {}))
+      for (const ruleId of Object.keys(entry.rules ?? {})) {
+        const separator = ruleId.lastIndexOf('/')
+        if (separator === -1) continue
+        expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(
+          ruleId.slice(0, separator),
+        )
+      }
+    }
+  })
+
+  it('keeps the type-aware layers and leaves out the rules about being an MFE', () => {
+    const ids = configuredRuleIds(preset)
+    expect(ids).toContain('@typescript-eslint/no-floating-promises')
+    expect(ids).toContain('@typescript-eslint/no-unsafe-assignment')
+    expect(ids).toContain('@typescript-eslint/consistent-type-imports')
+    expect(ids).toContain('no-debugger')
+    // A build configuration is not part of the runtime import DAG, so none of these apply.
+    for (const absent of [...RULE_IDS, 'react-hooks/rules-of-hooks']) {
+      expect([...ids], absent).not.toContain(absent)
+    }
+  })
+
+  it('covers the files named after the tool that reads them, and no package source', () => {
+    const patterns = new Set(preset.flatMap(entry => entry.files ?? []).flat())
+    expect(patterns).toContain('**/rsbuild.config.{ts,mts,cts}')
+    expect(patterns).toContain('**/vitest.setup.{ts,tsx}')
+    // `src/mfe.config.ts` is the package's own source: a bare `*.config.ts` would claim it.
+    for (const pattern of patterns) expect(pattern).not.toBe('**/*.config.{ts,mts,cts}')
+  })
+
+  it('allows the single-extends interface only in a setup file', () => {
+    const entry = preset.find(config => config.name === 'mfe/tooling/matcher-augmentation')
+    expect(entry?.rules?.['@typescript-eslint/no-empty-object-type']).toEqual([
+      'error',
+      { allowInterfaces: 'with-single-extends' },
+    ])
+    for (const pattern of entry?.files ?? []) {
+      expect(Array.isArray(pattern) ? pattern.at(-1) : pattern).toBe('**/vitest.setup.{ts,tsx}')
+    }
   })
 })
 

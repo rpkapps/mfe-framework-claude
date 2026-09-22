@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { author, framework } from '../index.ts'
+import { author, framework, tooling } from '../index.ts'
 
 const TSCONFIG = JSON.stringify({
   compilerOptions: {
@@ -320,5 +320,64 @@ export const Route = createFileRoute('/')({
     const { results } = await lint(root, preset)
     const clean = resultFor(results, 'src/clean.ts')
     expect(clean?.messages).toEqual([])
+  })
+})
+
+/** A build config with an empty interface and a dropped promise, in one file. */
+const TOOLING_SOURCE = `interface Base {
+  name: string
+}
+export interface Config extends Base {}
+export const config: Config = { name: 'x' }
+export async function load(): Promise<void> {
+  await Promise.resolve()
+}
+export function boot(): void {
+  load()
+}
+`
+
+describe('tooling preset, linting real files', () => {
+  const root = makeProject({
+    'vitest.config.ts': TOOLING_SOURCE,
+    'vitest.setup.ts': `interface Matchers {
+  toBeThing(): void
+}
+declare module 'test-runner' {
+  interface Assertion extends Matchers {}
+}
+export const ready = true
+`,
+    // Named for the package it configures, not for a tool: the package's own preset owns it.
+    'src/mfe.config.ts': TOOLING_SOURCE,
+  })
+
+  const preset = tooling({ tsconfigRootDir: root })
+
+  it('runs without a configuration error and parses every file it claims', async () => {
+    const summary = await lint(root, preset)
+    expect(summary.fatal).toEqual([])
+    expect(summary.unattributed).toEqual([])
+    expect(summary.results.length).toBeGreaterThan(0)
+  })
+
+  it('applies the shared correctness layers to a build configuration file', async () => {
+    const { results } = await lint(root, preset)
+    const ruleIds = (resultFor(results, 'vitest.config.ts')?.messages ?? []).map(
+      message => message.ruleId,
+    )
+    expect(ruleIds).toContain('@typescript-eslint/no-floating-promises')
+    expect(ruleIds).toContain('@typescript-eslint/no-empty-object-type')
+  })
+
+  it('accepts the matcher augmentation a setup file has to declare', async () => {
+    const { results } = await lint(root, preset)
+    expect(resultFor(results, 'vitest.setup.ts')?.messages).toEqual([])
+  })
+
+  it('leaves a package source named `*.config.ts` to that package', async () => {
+    const { results } = await lint(root, preset)
+    const linted = results.map(result => result.filePath.split(sep).join('/'))
+    expect(linted.some(path => path.endsWith('src/mfe.config.ts'))).toBe(false)
   })
 })
