@@ -1,0 +1,309 @@
+---
+title: 'Tutorial: build the operations App'
+description: 'Declare an App, add a route that calls your API, publish a settings page and release notes, render a Widget from another container, and test it.'
+---
+
+Build the App that ships in this repository as `examples/operations`. By the end you have four
+things:
+
+- a routed App on its own stretch of the URL,
+- two pages the shell opens for you,
+- a Widget from another container rendered inside yours,
+- a test that passes.
+
+Every file below is a real file in that example.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Declare the App
+
+```ts title="examples/operations/src/mfe.ts"
+import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { HardHatIcon } from 'lucide-react'
+import { createRouter } from '@tanstack/react-router'
+
+import { routeTree } from './routeTree.gen'
+
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({
+    routeTree,
+    basepath: basePath,
+    history,
+    context: { ...context },
+    defaultPreload: 'intent',
+  })
+}
+
+export default createApp({
+  id: 'operations',
+  version: '2.1.0',
+  description: 'Day-to-day field operations: wells, alerts and daily reports.',
+  icon: HardHatIcon,
+  router: makeRouter,
+})
+```
+
+`router` is a factory the framework calls once per mount. Forward all three arguments: `basePath`
+as `basepath`, the `history` as it arrived, and the `context` spread into your own. Add your own
+top-level context keys freely.
+
+</Step>
+
+<Step>
+
+### 2. Add a route
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { z } from 'zod'
+
+import { assetsQueryOptions } from '../queries/assets.ts'
+
+export const Route = createFileRoute('/assets')({
+  staticData: { breadcrumb: 'Assets' },
+  validateSearch: z.object({ site: z.enum(['north', 'south', 'central']).default('north') }),
+  loaderDeps: ({ search }) => ({ site: search.site }),
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(assetsQueryOptions(deps.site)),
+  component: Assets,
+})
+
+function Assets() {
+  const { site } = Route.useSearch()
+  const { data } = useSuspenseQuery(assetsQueryOptions(site))
+
+  return (
+    <ul>
+      {data.map(asset => (
+        <li key={asset.id}>{asset.name}</li>
+      ))}
+    </ul>
+  )
+}
+```
+
+Write the path relative to your boundary. This route is `/assets`, never `/operations/assets`. The
+`queryClient` on the context belongs to your mount, so the loader and the component share one cache
+entry.
+
+</Step>
+
+<Step>
+
+### 3. Call your API
+
+```ts title="examples/operations/src/mfe.config.ts"
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+  telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
+}
+```
+
+```ts title="examples/operations/src/queries/assets.ts"
+import { queryOptions } from '@tanstack/react-query'
+import { fetch } from '#mfe/fetch'
+import { z } from 'zod'
+
+const assetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['operational', 'degraded', 'offline']),
+})
+
+export function assetsQueryOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ['operations', 'assets', { siteId }],
+    queryFn: async ({ signal }): Promise<z.infer<typeof assetSchema>[]> => {
+      const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+      if (!response.ok) throw new Error(`Loading assets failed with ${response.status}.`)
+      return z.array(assetSchema).parse(await response.json())
+    },
+    staleTime: 30_000,
+  })
+}
+```
+
+`src/mfe.config.ts` declares names and schemas, never values. The values arrive in the deployed
+`runtime-config.json`. A relative request through `#mfe/fetch` resolves against the field marked
+`{ api: true }`, and only those origins receive the session token.
+
+</Step>
+
+<Step>
+
+### 4. Mark the settings page
+
+```tsx title="examples/operations/src/routes/settings.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+
+import { SettingsPage } from '../components/settings-01/page.tsx'
+
+export const Route = createFileRoute('/settings')({
+  staticData: {
+    capability: 'settings',
+    label: 'Operations settings',
+    icon: 'settings',
+    breadcrumb: 'Settings',
+  },
+  component: SettingsPage,
+})
+```
+
+A capability page is an ordinary route with a marker on it. The build extracts the marker into your
+registry entry, and the shell decides where the page opens. The path comes from `createFileRoute`,
+and `label` is the text the shell puts in its menu.
+
+</Step>
+
+<Step>
+
+### 5. Publish release notes
+
+```tsx title="examples/operations/src/routes/release-notes.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/release-notes')({
+  staticData: {
+    capability: 'releaseNotes',
+    label: 'Operations release notes',
+  },
+  component: () => <h2>What changed in 2.1.0</h2>,
+})
+```
+
+There are three capability names: `settings`, `help` and `releaseNotes`. One route may claim each,
+and only an App may claim any. The page is yours to write, and the shell opens it at
+`/operations/release-notes`.
+
+</Step>
+
+<Step>
+
+### 6. Render a Widget from another container
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+```tsx title="examples/operations/src/routes/index.tsx"
+import { useState } from 'react'
+
+import { AlertPanel } from '../widgets.ts'
+
+function Overview() {
+  const [acknowledged, setAcknowledged] = useState<string | null>(null)
+
+  return (
+    <>
+      <AlertPanel
+        alertId="a-1001"
+        severity="warning"
+        pending={<p>Loading the alert panel…</p>}
+        onAcknowledged={event => {
+          setAcknowledged(event.acknowledgedAt)
+        }}
+      />
+      {acknowledged === null ? null : <p>Acknowledged at {acknowledged}.</p>}
+    </>
+  )
+}
+```
+
+Call `lazyWidget` at module scope, once. A Widget's inputs are ordinary props, and each event it
+declares arrives as an `onX` prop. `pending` fills the space while the other container is fetched.
+
+</Step>
+
+<Step>
+
+### 7. Write a test
+
+```tsx title="examples/operations/src/routes/assets.test.tsx"
+import { renderApp, setMfeApiBaseUrl, setMfeConfig, setMfeFetch } from '@company/mfe-react/testing'
+import { screen, waitFor } from '@testing-library/react'
+import { expect, it } from 'vitest'
+
+import operations from '../mfe.ts'
+
+const API = 'https://api.example.test/v1/'
+
+it('renders what the API returned', async () => {
+  setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+  setMfeApiBaseUrl(API)
+  setMfeFetch(
+    () => new Response(JSON.stringify([{ id: 'a-1', name: 'Pump 4', status: 'operational' }])),
+  )
+
+  const rendered = renderApp(operations, { initialEntries: ['/assets'] })
+
+  await waitFor(() => {
+    expect(screen.getByText('Pump 4')).toBeInTheDocument()
+  })
+
+  await rendered.dispose()
+})
+```
+
+`renderApp` runs the real adapter over a memory history and in-memory stores. Your source keeps its
+production imports, and the test runner points `#mfe/config` and `#mfe/fetch` at fixtures. Dispose
+the render, so the next test starts clean.
+
+</Step>
+
+<Step>
+
+### 8. Run it
+
+```sh
+pnpm run generate
+pnpm dev
+```
+
+Generation writes your descriptor and the shell's registry. `pnpm dev` starts the shell on port 3000
+and each container on its own.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open `http://localhost:3000/operations`. The shell chrome stays above your App, and the alert panel
+renders inside your overview from another deployment. Go to `/operations/assets`, change the site,
+and the URL carries the choice. Press <Kbd>⌘</Kbd><Kbd>K</Kbd>: **Operations settings** and
+**Operations release notes** are listed under **Application pages**. The shell's own settings panel
+lists the settings page under **Application settings**. Run `pnpm test` inside the container for the
+test you wrote.
+
+## Errors
+
+<Callout type="error" title="a non-empty label string literal">
+
+```text
+failed to extract the capability route '/release-notes': expected a non-empty `label` string
+literal, found no label.
+```
+
+**Fix.** Add `label` beside the capability, as an inline string. The build reads it without running
+your code, so it cannot be computed.
+
+</Callout>
+
+## Related
+
+- [Architecture](/docs/architecture) — what you have deployed once this runs.
+- [Add a settings page](/docs/add-a-settings-page) — the capability route on its own.
+- [Publish release notes](/docs/publish-release-notes) — the same marker, third name.
+- [Render a Widget inside your App](/docs/render-a-widget) — inputs, events and the pending slot.
+- [Test an App](/docs/test-an-app) — more of what `renderApp` gives you.

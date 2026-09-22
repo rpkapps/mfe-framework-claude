@@ -1,0 +1,100 @@
+---
+title: 'Clear a value when the user changes'
+description: 'Declare retention: user so the shell deletes the record when the signed-in person changes.'
+---
+
+A stored record is kept until something removes it, and every user of this browser profile reads it
+back. Declare `retention: 'user'` for anything derived from the signed-in person. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Declare the retention
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+const [visits, setVisits] = useStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  retention: 'user',
+})
+```
+
+The shell deletes this record when the signed-in identity changes or the group set changes.
+
+</Step>
+<Step>
+### 2. Leave the impersonal values alone
+
+```tsx title="examples/operations/src/routes/index.tsx"
+const [density, setDensity] = useStoredState('table-density', densitySchema, {
+  defaultValue: 'comfortable',
+})
+```
+
+A display density, a collapsed panel or a chosen tab belongs to the browser rather than to a
+person. Leave `retention` unset for those.
+
+</Step>
+<Step>
+### 3. Combine it with the storage area
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+const [visits, setVisits] = useStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  retention: 'user',
+  storage: 'session',
+})
+```
+
+| What happens                                       | The default | `retention: 'user'` |
+| -------------------------------------------------- | ----------- | ------------------- |
+| a sign-in, a sign-out, an account or tenant switch | kept        | deleted             |
+| the group set changes                              | kept        | deleted             |
+| a reload                                           | kept        | kept                |
+| the tab closes, with `storage: 'session'`          | gone        | gone                |
+
+`storage` decides how long the browser keeps a value. Retention decides who reads it back. A theme
+change, a token refresh and a reordered group list change nothing.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Sign out in the shell and sign back in as somebody else. A `retention: 'user'` record reads as
+absent, and you get your declared default. Records for definitions that are not on screen go too.
+A record you left on the default is still there, with the value the last person set.
+
+## Errors
+
+<Callout type="error" title="storage/failure, at write">
+
+```text
+lab failed to write the local storage key visits: expected the session generation to be established
+before a user value is written, received no session in force.
+```
+
+**Fix.** A `retention: 'user'` record needs a signed-in session. Wait for `useUser()` to stop
+returning `null` before you write, or leave the value on the default retention.
+
+</Callout>
+
+<Callout type="error" title="storage/failure, at bind">
+
+```text
+lab failed to bind the local storage key draft: expected retention 'browser', received retention
+'user'.
+```
+
+**Fix.** Two components bound one key with different retentions. Declare the options in one shared
+module, and import them where the key is read.
+
+</Callout>
+
+## Related
+
+- [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
+- [Share a value with the shell](/docs/share-a-value-with-the-shell) — the page's own records
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — change identity in a test
+- [Error codes](/docs/reference/error-codes) — every `storage/failure` message
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why a record is cleared

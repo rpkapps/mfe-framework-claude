@@ -1,0 +1,149 @@
+---
+title: 'Test with env values and a fake API'
+description: 'Install the configuration a deployment would supply, answer the request yourself, and assert on the URL that went out.'
+---
+
+Apps and Widgets. Your container reads `#mfe/config` for its values and calls `#mfe/fetch` for its
+requests. In a test both come from fixtures you fill, so your source keeps the imports it ships
+with.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Install the values the deployment would supply
+
+```ts title="examples/operations/src/routes/assets.test.tsx"
+import {
+  mfeRequests,
+  renderApp,
+  setMfeAccessToken,
+  setMfeApiBaseUrl,
+  setMfeConfig,
+  setMfeFetch,
+} from '@company/mfe-react/testing'
+
+const API = 'https://api.example.test/v1/'
+
+setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+setMfeApiBaseUrl(API)
+```
+
+`setMfeConfig` fills every field you declared with `env()`. `setMfeApiBaseUrl` gives the request
+boundary the base a relative URL resolves against.
+
+</Step>
+
+<Step>
+
+### 2. Answer the request yourself
+
+```ts title="examples/operations/src/routes/assets.test.tsx"
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+setMfeAccessToken('token-7')
+setMfeFetch(() => json(ASSETS))
+```
+
+Pass `null` to `setMfeAccessToken` for a shell with nobody signed in. Return a 503 from the handler
+to check what your page shows when the API fails.
+
+</Step>
+
+<Step>
+
+### 3. Assert on the request that went out
+
+```ts title="examples/operations/src/routes/assets.test.tsx"
+const rendered = renderApp(operations, { initialEntries: ['/assets'] })
+mounted = rendered.dispose
+
+await waitFor(() => {
+  expect(mfeRequests()).toHaveLength(1)
+})
+expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=north')
+expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
+```
+
+`mfeRequests()` records the URL the boundary resolved and the header it attached. Each record holds
+`url`, `method` and `authorization`.
+
+</Step>
+
+<Step>
+
+### 4. Clear the fixtures between tests
+
+```ts title="vitest.setup.ts"
+import { resetGeneratedAliases } from '@company/mfe-react/testing'
+
+afterEach(() => {
+  resetGeneratedAliases()
+})
+```
+
+Both fixtures are module state, so one test would otherwise inherit another's values.
+`resetMfeConfig()` and `resetMfeFetch()` clear them one at a time.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Your container's `vitest.config.ts` already points `#mfe/config` and `#mfe/fetch` at these
+fixtures, and the scaffold writes it for you. The production interceptor still runs, so the test
+exercises base-URL resolution, the declared-origin list and the token. Reading a field nobody
+installed throws and names the field.
+
+## Errors
+
+<Callout type="error" title="failed to read the configuration field">
+
+```text
+the test environment failed to read the configuration field 'apiBaseUrl': expected configuration
+installed by the test, received nothing installed.
+```
+
+**Fix.** Call `setMfeConfig({ apiBaseUrl: … })` before you render.
+
+</Callout>
+
+<Callout type="error" title="among the installed values">
+
+```text
+the test environment failed to read the configuration field 'telemetryEnabled': expected
+'telemetryEnabled' among the installed values, received only apiBaseUrl.
+```
+
+**Fix.** Add the field to the `setMfeConfig` call for this test. Your source reads it, so the test
+has to supply it.
+
+</Callout>
+
+<Callout type="error" title="failed to answer">
+
+```text
+the test environment failed to answer https://api.example.test/v1/assets?site=north: expected a
+request handler installed by the test, received nothing installed.
+```
+
+**Fix.** Call `setMfeFetch(request => new Response(…))` before you render. A test never reaches the
+network.
+
+</Callout>
+
+## Related
+
+- [Call your API](/docs/call-your-api) — the request path this fakes.
+- [Declare an environment variable](/docs/declare-an-env-variable) — where these fields come from.
+- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — which origins get the token.
+- [Test an App](/docs/test-an-app) — rendering the App around these requests.
+- [Testing API](/docs/reference/testing-api) — every setter, with its options.

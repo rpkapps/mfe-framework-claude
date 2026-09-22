@@ -1,0 +1,103 @@
+---
+title: 'Run the checks before you push'
+description: 'Run the same command CI runs, and read what lint tells you when it stops you.'
+---
+
+Apps and Widgets. One command runs everything CI runs, in the order CI runs it. Each part also runs
+on its own, which is what you want while you are fixing one of them.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Run the lot
+
+```sh
+pnpm check
+```
+
+```json title="package.json"
+"check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
+```
+
+Generation first, because the rest read the generated `#mfe` modules and the route tree.
+
+</Step>
+
+<Step>
+
+### 2. Run one part while you fix it
+
+```sh
+pnpm format      # write the formatting
+pnpm lint        # the rules
+pnpm typecheck   # tsc --noEmit, strict
+pnpm test        # every suite
+```
+
+</Step>
+
+<Step>
+
+### 3. Run them inside your own container
+
+```sh
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm format:check
+```
+
+Your container has the same four scripts. `typecheck` and `test` generate first, so they never run
+against stale output.
+
+</Step>
+
+<Step>
+
+### 4. Read what lint says
+
+```text
+src/routes/settings.tsx
+  12:10  error  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so
+  another MFE in this origin can read or overwrite it … Use `useStoredState()` for component state
+  or `useMfeStorage()` for imperative access, both from @company/mfe-react  mfe/no-raw-storage
+```
+
+Read it from the ends in. The file, line and column say where. The rule name at the far right says
+which rule. The message between them says what it found and what to write instead.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+`pnpm check` exits 0, and CI runs the same command on your branch. The four `mfe/` rules never
+rewrite your code, because no repair for them keeps the same meaning. `mfe/no-raw-storage` offers a
+suggestion your editor can apply. The others give you the repair in the message and leave the edit
+to you. `pnpm verify:page` drives a real browser and is deliberately not part of `pnpm check`.
+
+## Errors
+
+<Callout type="error" title="was not found by the project service">
+
+```text
+Parsing error: /home/you/operations/src/routes/probe.tsx was not found by the project service.
+Consider either including it in the tsconfig.json or including it in allowDefaultProject
+```
+
+**Fix.** Add the file to your `tsconfig.json`, or set `tsconfigRootDir` in `eslint.config.mjs` when
+ESLint runs from another directory. The rules that need types cannot read a file no project owns.
+
+</Callout>
+
+## Related
+
+- [Test an App](/docs/test-an-app) — the suites `pnpm test` runs.
+- [Run the shell with your container](/docs/run-the-shell-locally) — the servers, before the checks.
+- [What you must not do](/docs/what-you-must-not-do) — the rules behind the four `mfe/` messages.
+- [Lint rules](/docs/reference/lint-rules) — every rule, its full message and its fix.
+- [CLI and scripts](/docs/reference/cli-and-scripts) — every script, with its flags.

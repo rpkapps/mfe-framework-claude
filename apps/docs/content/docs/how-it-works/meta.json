@@ -1,0 +1,11 @@
+{
+  "title": "How it works",
+  "defaultOpen": false,
+  "pages": [
+    "design",
+    "the-mount-lifecycle",
+    "the-isolation-boundaries",
+    "adapters-and-legacy-angular",
+    "decisions"
+  ]
+}

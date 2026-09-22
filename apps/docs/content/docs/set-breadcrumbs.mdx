@@ -1,0 +1,97 @@
+---
+title: 'Set breadcrumbs'
+description: 'Name the crumb a route contributes, hide one, or replace your part of the trail while a flow is running.'
+---
+
+Apps only. The shell owns the first crumbs, the workspace and your App. Everything below them
+comes from your routes, and you can name, hide or replace that part.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Name a route's crumb
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+export const Route = createFileRoute('/assets')({
+  staticData: { breadcrumb: 'Assets' },
+  component: Assets,
+})
+```
+
+Without `breadcrumb`, the route falls back to its own `head` title, and then to its path segment
+in words. A `$param` segment shows the parameter's value.
+
+</Step>
+
+<Step>
+
+### 2. Hide a segment
+
+```tsx title="examples/operations/src/routes/wells.$wellId.tsx"
+export const Route = createFileRoute('/wells/$wellId')({
+  staticData: { breadcrumb: false },
+  component: WellDetail,
+})
+```
+
+`false` drops that one crumb and keeps the rest. Use it where the segment would otherwise show a
+raw identifier. Index routes and pathless layout routes contribute nothing either way.
+
+</Step>
+
+<Step>
+
+### 3. Replace the trail for a flow
+
+```tsx title="examples/lab/src/routes/breadcrumbs.tsx"
+import { useBreadcrumbs } from '@company/mfe-react'
+
+const FLOW = [
+  { key: 'wizard', label: 'New study' },
+  { key: 'step-2', label: 'Step 2 · Inputs' },
+]
+
+useBreadcrumbs(inFlow ? FLOW : [])
+```
+
+A wizard has steps your route tree does not name, so you supply them. An empty array means no
+override, and the override clears itself when you navigate away or unmount.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open `http://localhost:3000/lab/breadcrumbs`. The trail in the header reads
+"Discovery / Framework lab / Breadcrumbs". The last two come from the registry and from
+`staticData.breadcrumb` on the route. Press "Override the trail" and your part becomes the two
+flow steps, with the workspace crumb untouched.
+
+To drop your App's own crumb everywhere, pass `breadcrumbs: false` to `createApp`. A nested App
+keeps contributing its own.
+
+## Errors
+
+<Callout type="error" title="expected at most one active breadcrumb override per App mount">
+
+```text
+operations failed to install a breadcrumb override: expected at most one active breadcrumb
+override per App mount, received a second override while another is still mounted.
+```
+
+**Fix.** Lift the override into one component, or unmount the first before the second appears.
+This is reported to the developer tools in development, and the second override is refused.
+
+</Callout>
+
+## Related
+
+- [Add a route](/docs/add-a-route) — where `staticData` goes.
+- [Embed another App inside yours](/docs/embed-another-app) — how a nested App adds its crumbs.
+- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
+- [Hooks and components](/docs/reference/hooks-and-components) — the `useBreadcrumbs` signature.
+- [Open the devtools panel](/docs/open-the-devtools) — where the warning above appears.

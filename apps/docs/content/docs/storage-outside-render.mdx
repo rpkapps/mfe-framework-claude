@@ -1,0 +1,105 @@
+---
+title: 'Read or write storage outside render'
+description: 'Take the imperative storage handle with useMfeStorage for handlers, loaders and cleanups.'
+---
+
+`useMfeStorage()` gives you a handle you can call from an event handler, a loader or a cleanup. It
+reads and writes the same records `useStoredState` binds. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Take the handle
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+import { useMfeStorage } from '@company/mfe-react'
+
+const local = useMfeStorage() // 'local' by default; pass 'session' for the other area
+```
+
+Call it in a component, as you would any hook. The handle stays the same for the mount's lifetime.
+
+</Step>
+<Step>
+### 2. Read and write in a handler
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+const draft = local.key('draft', draftSchema).get()
+local.key('draft', draftSchema).set({ note: 'filed', pinned: true })
+local.remove('draft')
+```
+
+`get()` returns the value, or `null` when the key is absent. It reads the browser store again
+rather than a cached value, and it never subscribes. Anything you render still uses
+[useStoredState](/docs/remember-a-value).
+
+</Step>
+<Step>
+### 3. Reach it from a route callback
+
+```ts title="examples/operations/src/routes/assets.tsx"
+loader: ({ context }) => {
+  const site = context.mfe.storage.local.key('last-site', siteSchema).get()
+  return context.queryClient.ensureQueryData(assetsQueryOptions(site ?? 'north'))
+}
+```
+
+A loader, an action and a `beforeLoad` get the same handle on `context.mfe.storage`, under `local`
+and `session`. No hook is involved, so there is no component to render it in.
+
+</Step>
+<Step>
+### 4. Clear your own records
+
+```ts title="examples/lab/src/routes/storage.tsx"
+local.clear()
+```
+
+`clear()` removes only the keys under your own `lab:` prefix. A definition called `acme-orders`
+never touches `acme-orders-legacy:`, the shell's keys or another team's.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Write through the handle while a `useStoredState` on the same key is on screen. The rendered value
+updates, because a write here notifies that key's subscribers. Pass the same schema object and the
+same options both places. Remove the key and the rendered value falls back to your declared
+default.
+
+## Errors
+
+<Callout type="error" title="mount/failure, outside a mount">
+
+```text
+<unmounted> failed to call useMfeStorage: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Move the call into a component your App or Widget renders. A module-level helper runs
+before the mount exists.
+
+</Callout>
+
+<Callout type="error" title="mfe/no-raw-storage">
+
+```text
+`localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this
+origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes
+as an unhandled exception.
+```
+
+**Fix.** Take the handle with `useMfeStorage()`, or bind the key with `useStoredState()`. The
+editor offers the rewrite as a suggestion, and it compiles once the file binds the handle.
+
+</Callout>
+
+## Related
+
+- [Remember a value across reloads](/docs/remember-a-value) — the rendered value
+- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — `version`
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work outside render
+- [Lint rules](/docs/reference/lint-rules) — `mfe/no-raw-storage` in full
+- [Hooks and components](/docs/reference/hooks-and-components) — the handle's three methods

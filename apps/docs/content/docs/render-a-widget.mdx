@@ -1,0 +1,124 @@
+---
+title: 'Render a Widget inside your App'
+description: 'Call lazyWidget at module scope, then render the Widget as an ordinary component.'
+---
+
+A Widget you know the id of at build time is an ordinary lazy component. Its inputs are props
+and its events are `onX` props, both typed from the contract.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Depend on the provider's container
+
+```json title="examples/operations/package.json"
+"dependencies": {
+  "@example/alert-panel": "workspace:*"
+}
+```
+
+You import the contract from that package, and the Widget itself arrives over the network at run
+time.
+
+</Step>
+
+<Step>
+
+### 2. Call lazyWidget at module scope
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+Module scope means the top level of a file, outside every function, and the contract is optional:
+`lazyWidget('alert-panel')` types the inputs as `Record<string, unknown>`.
+
+</Step>
+
+<Step>
+
+### 3. Render it with inputs, a placeholder and a fallback
+
+```tsx title="examples/operations/src/routes/index.tsx (trimmed)"
+<AlertPanel
+  alertId="a-1001"
+  severity="warning"
+  pending={<Skeleton className="h-24 w-full" />}
+  onAcknowledged={event => {
+    setAcknowledged(event.acknowledgedAt)
+  }}
+  fallback={({ error, retry }) => (
+    <div role="alert">
+      <p>{error.message}</p>
+      <Button onPress={retry}>Retry</Button>
+    </div>
+  )}
+/>
+```
+
+`pending` fills the box while the container is fetched, and `fallback` receives the error and a
+`retry` function.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The panel renders inside your page, styled by its own container. Change an input and the mounted
+Widget updates without remounting or losing its state. A Widget that fails to load loses its own
+box, and the rest of the page keeps working. Without a `fallback`, that failure reaches your own
+error boundary instead. `examples/lab/src/routes/widgets.tsx` shows all three cases side by side.
+
+## Errors
+
+<Callout type="error" title="mfe/stable-definitions">
+
+```text
+`AlertPanel` (`lazyWidget` from @company/mfe-react) has to be called once, at module scope.
+```
+
+**Fix.** Move the call to the top level of the module and render the resulting component.
+
+</Callout>
+
+<Callout type="error" title="registry/invalid-descriptor">
+
+```text
+alert-panel failed to resolve Widget: no registry entry with this id.
+```
+
+**Fix.** Check the id against the generated registry. In development, point the shell at your dev
+server.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch">
+
+```text
+alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received number
+  → at alertId.
+```
+
+**Fix.** Send the type the contract declares, for example `String(alert.id)`.
+
+</Callout>
+
+On the first render there is nothing to fall back to, so your `fallback` renders. On a later
+update the Widget keeps its last valid inputs on screen and reports the rejection.
+
+## Related
+
+- [React to a Widget's events](/docs/react-to-widget-events) — handle what it emits.
+- [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time) — when the id is a value.
+- [Define inputs and events](/docs/define-inputs-and-events) — the contract you import.
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — load a local
+  container.
+- [Hooks and components](/docs/reference/hooks-and-components) — every export and its signature.

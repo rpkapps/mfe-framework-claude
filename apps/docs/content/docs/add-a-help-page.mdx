@@ -1,0 +1,130 @@
+---
+title: 'Add a help page'
+description: 'Mark one route in your App as the help capability, so the shell can send people to your own help page.'
+---
+
+Apps only. Mark one route as your help page, and the shell lists it in the command palette and can
+open it by name. It is an ordinary route, so you write whatever the page needs.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Mark the route
+
+```tsx title="examples/operations/src/routes/help.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+
+export const Route = createFileRoute('/help')({
+  staticData: {
+    capability: 'help',
+    label: 'Operations help',
+    icon: 'circle-help',
+    breadcrumb: 'Help',
+  },
+  component: Help,
+})
+
+function Help(): ReactNode {
+  return <h2>Operations help</h2>
+}
+```
+
+`capability` and `label` are both required. The build reads them out of the file without running
+it, so write them as plain strings.
+
+</Step>
+
+<Step>
+
+### 2. Generate the description record
+
+```sh
+pnpm run generate
+```
+
+This writes your container's description record and rebuilds the registry the shell reads at boot.
+`pnpm dev` runs both steps when it starts.
+
+</Step>
+
+<Step>
+
+### 3. Confirm what the build published
+
+```json title="examples/operations/.mfe/mfe-registry.json"
+"capabilities": [
+  { "name": "help", "label": "Operations help", "icon": "circle-help", "path": "/help" }
+]
+```
+
+`path` comes from `createFileRoute`. An App publishes at most one help page.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or
+
+<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> and look under "Application pages". Your label is there, and running it
+goes to `/operations/help`. The shell's own help panel, on <Kbd>?</Kbd>, is its keyboard list and
+does not show your page.
+
+## Errors
+
+<Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
+
+```text
+/home/you/operations/src/routes/help.tsx:5:5: 'operations' failed to extract a capability route:
+expected one of 'settings', 'help' and 'releaseNotes', found "Help".
+```
+
+**Fix.** The three names are case-sensitive. Write `capability: 'help'`.
+
+</Callout>
+
+<Callout type="error" title="expected a non-empty `label` string literal">
+
+```text
+/home/you/operations/src/routes/help.tsx:4:5: 'operations' failed to extract the capability route
+'/help': expected a non-empty `label` string literal, found no label.
+```
+
+**Fix.** Add the text the palette shows, for example `label: 'Operations help'`.
+
+</Callout>
+
+<Callout type="error" title="expected one route per capability">
+
+```text
+/home/you/operations/src/routes/support.tsx: 'operations' failed to extract the 'help' capability
+route: expected one route per capability, found '/help' and '/support' both declare it.
+```
+
+**Fix.** Remove the mark from one of the two routes, and link to it from the other.
+
+</Callout>
+
+<Callout type="error" title="expected a capability declared by an App">
+
+```text
+/home/you/alerts/src/routes/help.tsx:5:5: the build failed to extract the 'help' capability
+route: expected a capability declared by an App, found a container that exports Widgets only.
+```
+
+**Fix.** Move the route into a container that exports an App. A Widget has no routes of its own.
+
+</Callout>
+
+## Related
+
+- [Add a settings page](/docs/add-a-settings-page) — the same mark, a different name.
+- [Publish release notes](/docs/publish-release-notes) — the third capability page.
+- [Add a route](/docs/add-a-route) — what an ordinary route in your App looks like.
+- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

@@ -1,0 +1,119 @@
+---
+title: 'The isolation boundaries'
+description: 'The six boundaries between one mounted container and the rest of the page, and the mechanism that holds each one.'
+---
+
+For framework maintainers and shell builders. If you are writing an App or a Widget, the recipes
+tell you what you need.
+
+Six boundaries separate one mount from the rest of the page: the URL, styles, storage, the network,
+errors and shared singletons. Each one answers the same question in a different medium. What can
+this container reach, and what can reach it?
+
+<Diagram
+  src="/diagrams/isolation-boundaries.svg"
+  alt="One mounted container in the middle, ringed by six boundaries: URL, styles, storage, network, errors and shared singletons."
+  caption="Six boundaries between one mounted container and the page."
+>
+Seven boxes. **One mount**, holding one token, one base path and one scope root, sits in the middle.
+One dashed arrow points out to each of the six boxes around it.
+
+- **URL** — the base path into `createRouter`, and the boundary history.
+- **Styles** — `@scope` per definition, and the shell owns preflight.
+- **Storage** — the key `<definitionId>:<name>`, and retention decides who reads it.
+- **Network** — `#mfe/fetch`, and the token reaches declared origins only.
+- **Errors** — one `MfeError` code, into the diagnostics hub.
+- **Shared singletons** — one copy per page, resolved loaded-first.
+
+</Diagram>
+
+## The URL
+
+The base path is the string form of the boundary, and it is the only prefix an author is given.
+After `createRouter({ basepath })` it never appears again. Every route, `Link` and `navigate`
+resolves under it.
+
+The framework builds the boundary history by hand. `createBrowserHistory()` reassigns
+`window.history.pushState` for the whole page, so two routers built that way start correcting each
+other's URL. The shell owns `/`, `/$appId` and `/$appId/$`, and nothing else. Decision 1 argues the
+hand-built history.
+
+## Styles
+
+The build wraps every rule in a container's stylesheet in one scope rule,
+`@scope ([data-mfe-scope="<id>"]) to ([data-mfe-scope])`. Scope proximity then decides ties, in
+place of injection order. Two builds that both spell `bg-primary` no longer resolve by whichever
+chunk the browser parsed last.
+
+Three roots carry that attribute. The scope root is a `display: contents` div around the whole tree,
+carrying `data-mfe-scope`, `data-mfe-mount` and `data-mfe-kind`. The generated style root sits
+inside it. The overlay root is appended to `document.body` per mount, with the same scope value, so
+a dialog at body level still matches the start selector.
+
+Three more things happen to the sheet. Document-global at-rules are hoisted out of the scope
+unchanged. Every `@keyframes` the sheet defines is renamed after the container's ids, and its
+references are rewritten to match. A leading `:root`, `html` or `body` compound is rewritten to
+`:scope`, and the same selectors anywhere else are a build error.
+
+`@scope` is the narrowest-supported feature the framework requires, at Chrome 118, Firefox 146 and
+iOS Safari 17.4. There is no fallback, and decisions 17 and 5 record why.
+
+## Storage
+
+The key is `<definitionId>:<name>`, and it carries no mount token. Two mounts of one definition
+therefore read one record. A definition id may not contain a colon, because the colon separates the
+id from the name.
+
+Retention says who may read a value back, rather than how long it lives. The default, `'browser'`,
+keeps a record until something removes it, and every user of that browser profile reads it. A record
+declared `retention: 'user'` carries the session generation, an opaque string kept at
+`@host:session-generation`.
+
+The shell reports identity changes and changed group sets. Each one starts a new generation. The
+framework then deletes every `retention: 'user'` record in both stores, including records for
+definitions that are not mounted. A record that survives a failed delete still reads as absent,
+because its generation no longer matches.
+
+`@host` is the scope outside any mount. It is spelled with an `@` because no definition id can hold
+one, which is what makes the scope unclaimable. Decisions 21 and 24 argue both halves.
+
+## The network
+
+`#mfe/fetch` is a standard `fetch` bound to one container's transport, so a route loader passes its
+own `signal` straight in. The generated module resolves a relative URL against the first field
+declared `env(…, { api: true })`.
+
+The allowlist is an exact set of scheme, host and port, with no wildcards and no substring matching.
+A wildcard would hand the session token to any host the pattern happened to match. A request to an
+undeclared origin goes out without a token.
+
+The transport retries once after a 401, and only when the request can be replayed. A 403 passes
+through untouched, because attaching a token is not authorization.
+
+## Errors and diagnostics
+
+Every framework failure is composed to one shape:
+`<id>[@<version>] failed to <operation>[ <path>]: expected …, received …. <repair>`. The code comes
+from a closed union, so adding one is a deliberate contract change.
+
+Diagnostics fan out to the sinks the shell registered. A sink that throws cannot stop the others,
+and a hub with no sinks discards everything.
+
+## Shared singletons
+
+The framework packages, the router, Query, React and the design system's own list are shared as
+singletons, each with a strict version requirement. A container shares a candidate only when it
+depends on that package.
+
+A second copy of any of them is the failure this boundary exists to prevent. Both copies look
+correct on their own, and every framework hook inside the container then reports being rendered
+outside any mount. A container may add to the candidate list and cannot remove from it. Decision 30
+records how a host resolves those shares.
+
+## Related
+
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what allocates the roots and the signal.
+- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — the host that owns storage and diagnostics.
+- [What you must not do](/docs/what-you-must-not-do) — the same boundaries, as rules with fixes.
+- [Design map](/docs/how-it-works/design) — where these boundaries sit in the whole system.
+- [Decision log](/docs/how-it-works/decisions) — the argument behind each rule above.

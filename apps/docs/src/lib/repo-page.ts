@@ -1,5 +1,5 @@
 /**
- * Frontmatter for the two repository Markdown files.
+ * Frontmatter for the two repository Markdown files, and the folder they are rendered in.
  *
  * `docs/decisions.md` is rendered unchanged and `docs/design.md` has to stay plain Markdown that
  * renders on GitHub, so neither carries frontmatter. An async collection ships only the
@@ -11,6 +11,21 @@
  * that nothing else here depends on. The shape below is the part of that interface `fumadocs-mdx`
  * reads, so a schema is still inferred structurally.
  */
+
+/**
+ * The folder of the page tree the two files are mapped into: they render at
+ * `/docs/how-it-works/design` and `/docs/how-it-works/decisions`. `source.ts` passes it to
+ * `toFumadocsSource({ baseDir })`, which prefixes the virtual file paths the loader derives slugs
+ * from, and `content.ts` takes it off again to find the compiled body in the collection.
+ */
+export const REPO_DOCS_DIR = 'how-it-works'
+
+/**
+ * Titles for files whose own `# ` heading is not the name the page tree should show, keyed by file
+ * name: `fumadocs-mdx` hands the schema an absolute path. `design.md` opens with `# Design map`,
+ * and the folder it renders in already says "How it works".
+ */
+const TITLES: Record<string, string> = { 'design.md': 'The design map' }
 
 export interface RepoPageData {
   title: string
@@ -82,7 +97,10 @@ export function repoPageSchema(ctx: { path: string; source: string }): RepoPageS
       vendor: 'company-docs',
       validate(value: unknown) {
         const data = asRecord(value)
-        const title = asString(data['title']) ?? firstHeading(ctx.source) ?? 'Untitled'
+        const path = ctx.path.replaceAll('\\', '/')
+        const name = path.slice(path.lastIndexOf('/') + 1)
+        const title =
+          asString(data['title']) ?? TITLES[name] ?? firstHeading(ctx.source) ?? 'Untitled'
         const declared = asString(data['description'])
         const description = declared ?? firstParagraph(ctx.source)
         if (description === undefined) return { value: { title } }

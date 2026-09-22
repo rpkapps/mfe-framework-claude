@@ -1,0 +1,107 @@
+---
+title: 'Point the shell at your dev server'
+description: 'One localStorage entry sends the shell to your container instead of the published one, and a reload applies it.'
+---
+
+Apps and Widgets. An override replaces the URL the registry names for a container with your dev
+server, in your browser only. It is a URL and nothing else, never a token and never configuration.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Start your container
+
+```sh
+pnpm dev
+```
+
+Note the port it prints. Your manifest is at `http://localhost:<port>/mf-manifest.json`.
+
+</Step>
+
+<Step>
+
+### 2. Point the shell at it from the panel
+
+Open the shell and press <Kbd>g</Kbd> <Kbd>d</Kbd>, which opens the developer tools on the
+**Overrides** tab. Type your port into the **Dev server** field, press **Point `<id>` at the dev
+server** on your row, then press **Apply and reload**.
+
+</Step>
+
+<Step>
+
+### 3. Or run the snippet `pnpm dev` printed
+
+{/* prettier-ignore */}
+```js
+const key = "company:mfe:overrides"
+const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+overrides["operations"] = "http://localhost:3001/mf-manifest.json"
+localStorage.setItem(key, JSON.stringify(overrides))
+location.reload()
+```
+
+Run it in the shell's browser console. The reload is not optional: the old container's modules stay
+registered in the page until it reloads.
+
+</Step>
+
+<Step>
+
+### 4. Take it off again
+
+```js
+delete overrides['operations']
+```
+
+The same snippet with that middle line clears one id and keeps the others. In the panel, use
+**Clear the override for `<id>`**, or **Clear all**.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Press <Kbd>g</Kbd> <Kbd>r</Kbd> for the **Registry** tab. Your entry is marked `overridden`, and
+the origin beside it is your dev server. With the panel closed, the wrench button carries a
+mark while any override is active, and the bug report lists every one. Nothing else on the page says so, so an override left
+pointing at a stopped dev server looks exactly like a broken deployment.
+
+## Errors
+
+<Callout type="error" title="Needs an absolute URL">
+
+```text
+Needs an absolute URL, for example http://localhost:3001/mf-manifest.json — a relative one resolves
+against the shell, not the remote.
+```
+
+**Fix.** Paste the whole manifest URL. The panel refuses the entry before writing it, so nothing
+changes until you correct it.
+
+</Callout>
+
+<Callout type="error" title="cannot load from two URLs">
+
+```text
+insights cannot load from two URLs. One container is registered once, under one name. Point
+fda-summary and well-design at the same manifest, or only one of them will apply.
+```
+
+**Fix.** Give every definition from one container the same manifest URL. A container that exports
+an App and two Widgets is still loaded once.
+
+</Callout>
+
+## Related
+
+- [Run the shell with your container](/docs/run-the-shell-locally) — starting the servers this points at.
+- [Open the devtools panel](/docs/open-the-devtools) — where overrides are listed and edited.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — what an edit costs once it loads.
+- [Build and publish a container](/docs/build-and-publish) — the manifest URL a deployment publishes.
+- [Registry entry](/docs/reference/registry-entry) — the record the override replaces a URL in.

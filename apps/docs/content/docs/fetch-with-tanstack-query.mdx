@@ -1,0 +1,105 @@
+---
+title: 'Fetch with TanStack Query'
+description: 'Share one query between a route loader and its component, using the mount Query client.'
+---
+
+Your App is handed a Query client through its router context, so you never build one. Put each
+request in a `queryOptions` factory, and the loader and the component share one cache entry.
+Apps only.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Put the request in a factory
+
+```ts title="examples/operations/src/queries/assets.ts"
+export function assetsQueryOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ['operations', 'assets', { siteId }],
+    queryFn: async ({ signal }): Promise<Asset[]> => {
+      const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+      if (!response.ok) throw new Error(`Loading assets failed with ${response.status}.`)
+      return z.array(assetSchema).parse(await response.json())
+    },
+    staleTime: 30_000,
+  })
+}
+```
+
+Every variable that changes the response belongs in the key, and the key starts with your
+definition id.
+
+</Step>
+
+<Step>
+
+### 2. Load it in the route
+
+```ts title="examples/operations/src/routes/assets.tsx"
+loader: ({ context, deps }) => {
+  return context.queryClient.ensureQueryData(assetsQueryOptions(deps.site))
+},
+```
+
+`context.queryClient` is the client this mount owns, and the loader's own `signal` reaches your
+`queryFn`.
+
+</Step>
+
+<Step>
+
+### 3. Read it in the component
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+const { data, isFetching, refetch } = useSuspenseQuery(assetsQueryOptions(site))
+```
+
+The same factory means the same key, so the component reads what the loader already fetched.
+
+</Step>
+
+<Step>
+
+### 4. Refresh after a change
+
+```ts
+const queryClient = useQueryClient()
+
+await queryClient.invalidateQueries({ queryKey: ['operations', 'assets'] })
+```
+
+A key prefix invalidates everything under it, which is why the definition id comes first.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open the page and watch the network panel: one request, not two. Each mount of your App owns its
+own client, so a second copy on the page keeps its own cache. Disposal cancels the queries that
+client is running. Pass the loader's `signal` inside a loader, because that one cancels with the
+navigation.
+
+## Errors
+
+<Callout type="error" title="app/invalid-router">
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied top-level queryClient, forwarded
+unchanged, received a different Query client.
+```
+
+**Fix.** Spread the context your router factory received, and delete your own `new QueryClient()`.
+
+</Callout>
+
+## Related
+
+- [Call your API](/docs/call-your-api) — the `fetch` inside the `queryFn`.
+- [Create an App](/docs/create-an-app) — the factory that forwards the context.
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work started outside a loader.
+- [Test an App](/docs/test-an-app) — rendering a route that loads data.

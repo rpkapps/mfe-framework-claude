@@ -1,0 +1,116 @@
+---
+title: 'Adapters and legacy Angular'
+description: 'The neutral host, the rule that picks an adapter for each registry entry, and the removable adapter that mounts a legacy Angular application.'
+---
+
+For framework maintainers and shell builders. If you are writing an App or a Widget, the recipes
+tell you what you need.
+
+One shell page can hold applications built two different ways. This page answers three questions.
+What stays neutral, how an entry is matched to an adapter, and what the legacy Angular adapter adds.
+The reference page holds the fields and the migration edit.
+
+<Diagram
+  src="/diagrams/adapters.svg"
+  alt="The shell's registry entering the neutral host, one rule per adapter, and the container each adapter mounts."
+  caption="One neutral host, and one adapter per framework."
+>
+Twelve boxes, read top to bottom.
+
+- **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into
+  **The neutral host**, `@company/mfe-host`, which holds no React, no router and no federation.
+- The host holds **Shared services** (storage, commands, navigation bridge, diagnostics) and
+  **Registry normalization**, where the first matching rule owns the entry.
+- Inside that: **Rule 1 — framework contract** (`createMfeContractRule()`) and **Rule 2 — legacy
+  Angular** (`createLegacyAdapterRule()`), joined by an arrow **no mfe key**.
+- An arrow **selects** drops from each rule to its adapter. **The React adapter** holds the
+  federation loader, the App and Widget definitions, and the boundary and style roots. **The legacy
+  Angular adapter**, marked removable, holds registry translation, the parcel lifecycle, and the
+  base href and shell routes.
+- An arrow **loads, mounts** drops from each adapter to its container, `operations` and
+  `asset-tracker`. The legend names the shell, a neutral package, an adapter package and a
+  container.
+
+</Diagram>
+
+## What stays neutral
+
+`@company/mfe-core` and `@company/mfe-host` import no React, no router and no Module Federation.
+The host defines a `ContainerLoader` port and orchestrates loading through it. An adapter supplies
+the implementation.
+
+That is what keeps a second adapter cheap. Everything a shell screen reads is the normalized
+registry, so no screen asks which adapter an entry came from.
+
+## How an adapter is chosen
+
+Normalizing the registry is one pass, and each raw entry goes to the first rule that takes it. The
+framework contract rule always runs first. Rules a shell passes in `createMfeRuntime({ rules })`
+run after it, in the order given.
+
+| Adapter                       | Takes an entry when                                      | Mounts it with           | Removable |
+| ----------------------------- | -------------------------------------------------------- | ------------------------ | --------- |
+| `@company/mfe-react`          | the entry declares the framework contract, an `mfe` key  | React, Module Federation | no        |
+| `@company/mfe-legacy-angular` | there is no `mfe` key, plus a `name` and `mfManifestUrl` | a single-spa parcel      | yes       |
+
+Nothing falls back on its own. An entry that declares the framework contract belongs to the React
+adapter, whatever state that declaration is in. A malformed one is set aside with a reason, and the
+normalized registry lists it as `quarantined`. Reading it as legacy instead would let a typo change
+how an application loads, unseen.
+
+Every entry is validated on its own, so one bad entry loses only itself. An entry that no rule takes
+is set aside too, with a message naming the adapters that were registered.
+
+## The React adapter
+
+The React adapter loads a container through Module Federation, then mounts the `createApp` and
+`createWidget` definitions that container exposes. It owns the pieces that need React: the boundary
+history, the scope and style roots, and the definition checks a mount runs.
+
+Federation lives here rather than in the host, in one framework file and one shell file. Decision 6
+argues that placement.
+
+## The legacy Angular adapter
+
+The legacy adapter translates a legacy entry into the same neutral record, keeping every
+legacy-specific field in `adapterData`. Identity, manifest URL and presentation go in the neutral
+record, so the record itself names no legacy vocabulary.
+
+It then drives the application's own parcel lifecycle. A <Term>parcel</Term> is a piece of an
+application exposing `bootstrap`, `mount` and `unmount`, for another application to mount into an
+element. The adapter loads the module exposed at `./single-spa-app` and mounts it. It also resolves
+the base href that application expects, and leaves a fixed set of routes to the shell.
+
+Two rules hold there. A second mount without an unmount is refused, because two parcels rendering
+into one element leave orphaned DOM behind. Disposal is terminal and idempotent, so every caller
+awaits one teardown and a disposed mount cannot be revived.
+
+`single-spa` is not a dependency of the package, not even an optional peer. The parcel, its
+configuration and `mountRootParcel` are typed structurally, which is what lets the lifecycle be
+tested without single-spa, Angular or a bundler.
+
+## What both adapters share
+
+Shared services come from the host and are the same for both. One storage store, one command
+registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime.
+
+Removal is the point of the second adapter. When the last legacy application is migrated, delete the
+package, one row from the shell's adapter table and one import from its composition root. No other
+package changes.
+
+## What is proven, and what is not
+
+The legacy adapter is built and tested against production-equivalent fixtures and doubles. The real
+Asset Tracker and Rigstream applications have never been run against it, and decision 9 records
+that.
+
+The shell in this repository does not register the adapter yet, so it registers the framework
+contract rule alone. A legacy entry in its registry is set aside as `registry/invalid-descriptor`.
+
+## Related
+
+- [Legacy Angular applications](/docs/reference/legacy-angular) — the fields, the lifecycle and the migration edit.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what the React adapter does after the load.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — the services the host shares.
+- [Architecture](/docs/architecture) — the same picture, at consumer level.
+- [Decision log](/docs/how-it-works/decisions) — decisions 6 and 9 in full.

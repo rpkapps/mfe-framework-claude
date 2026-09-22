@@ -16,32 +16,46 @@ on first lines and first words).
 
 One page, one job. A how-to that also teaches theory serves neither reader (Diátaxis).
 
-| Page                                           | Diátaxis type                     | Job                                          |
-| ---------------------------------------------- | --------------------------------- | -------------------------------------------- |
-| `index.mdx`                                    | orientation (map)                 | What this is, the two shapes, where to go    |
-| `guides/*.mdx`                                 | how-to, with named _why_ sections | Get the reader's task done                   |
-| `glossary.mdx`, `reference/*.mdx`, `decisions` | reference                         | Look one fact up mid-work                    |
-| `docs/design.md`                               | explanation                       | Understand the system away from the keyboard |
+| Page                                              | Diátaxis type     | Job                                          |
+| ------------------------------------------------- | ----------------- | -------------------------------------------- |
+| `index.mdx`                                       | orientation (map) | What this is, the two shapes, where to go    |
+| the recipes at the root of `content/docs/`        | how-to            | Get the reader's one task done               |
+| `reference/*.mdx`                                 | reference         | Look one fact up mid-work                    |
+| `how-it-works/*.mdx`, `design.md`, `decisions.md` | explanation       | Understand the system away from the keyboard |
 
-**Guide template (fixed).**
+**The consumer rule.** Every sentence on a recipe page answers "what do I do" or "what happens". A
+sentence answering "how does the framework do it" moves to a How it works page. Explain a mechanism
+only where the reader has to choose because of it, or will see an error caused by it. "Your styles
+cannot leak out and the shell's cannot leak in" is enough for a recipe. The `@scope` rule that makes
+it true belongs to How it works.
 
-1. **Title** — a task or a noun phrase: `Store state across reloads`, `Storage`. Never a sentence.
-2. **"What you get" opener** — one paragraph, at most three sentences: what the thing is, and what
-   you can do once you have read the page. No history, no rationale, no warning.
-3. **Sections**, in this order inside each one:
-   1. the smallest working code (fenced, with `title=`) or the one concrete instruction;
-   2. the reason, in at most three sentences;
-   3. the errors this section produces, each as `<Callout type="error">` with a bold `**Fix.**`, or
-      as a table when there is more than one.
-4. **Explanation sections** are allowed, but named as such (`Why …`) and placed after the doing.
-5. **"Where next"** — three to six links, each with a reason of ten words or fewer.
+**Recipe template (fixed headings, this order).**
 
-Use at most three `<Term>` definitions in the opener. Every other term links to the glossary.
+1. **Title** — the task, in the words a reader would search for: `Add a settings page`. Never a
+   sentence.
+2. **"What you get" opener** — one or two sentences before the first heading: what you get. For a
+   shell recipe, name the shape it applies to: "Apps only." or "Apps and Widgets."
+3. **`## Steps`** — one `<Steps>` block, one `<Step>` per step. Each step opens with a `###`
+   heading, then the code (fenced, with a `title=` naming a real file from `examples/`), then at
+   most one sentence.
+4. **`## Check it works`** — where it appears in the shell, or the test to run. Two to four
+   sentences, or a short list.
+5. **`## Errors`** — only the messages this task can produce. Each is a
+   `<Callout type="error" title="…">` holding the first sentence of the real message verbatim, then
+   a bold `**Fix.**` of one or two sentences. Omit the section when the task produces no error.
+6. **`## Related`** — three to five links, each with a reason of ten words or fewer: the
+   neighbouring recipes, the reference entry, the How it works page.
 
-**Design map template (explanation).** Title, then one paragraph saying which questions this page
-answers. Then one section per view of the system, each: the `<Diagram>` with its text equivalent,
-then at most five short paragraphs of _why_, then a link to the decision that argued it. No API
-signatures, no option tables, no error messages — those belong to the guides and the reference.
+Length: 200 to 500 words of prose. A recipe that runs longer is two recipes.
+
+Use at most three `<Term>` definitions per page, on first use. Every other term links to the
+glossary.
+
+**Explanation template (How it works, the design map).** Title, then one paragraph saying which
+questions this page answers and who it is for. Then one section per view of the system, each: the
+`<Diagram>` with its text equivalent, then at most five short paragraphs of _why_, then a link to
+the decision that argued it. No API signatures, no option tables, no error messages — those belong
+to the recipes and the reference.
 
 ## Sentence rules
 
@@ -142,7 +156,8 @@ mechanism (Write the Docs: documentation is for the reader, not the writer).
 
 > **Now:** "The default is the safe answer, so the safe answer is the one you get by not deciding."
 >
-> **Rewrite:** "Leave `retention` unset. The default, `'user'`, clears the record when the signed-in
+> **Rewrite:** "Leave `retention` unset. The default, `'browser'`, keeps the record until something
+> removes it. Per-user data declares `retention: 'user'`, which the shell clears when the signed-in
 > user changes."
 
 **10. No "which is why", "that is", "in other words" chains.** One clause should not need a second
@@ -236,23 +251,24 @@ Answer yes to all of these before approving a docs change.
 12. Are all parallel facts of three or more items in a list or a table?
 13. Does every error have a `**Fix.**`?
 14. Does every diagram obey the box, label and count limits, with the rest in the text equivalent?
-15. Does the page end with a "Where next" list of three to six links?
+15. Does the page end with a "Related" list of three to five links?
+16. Does every sentence on a recipe page answer "what do I do" or "what happens"?
 
 ## Measurable targets
 
 Measured over prose only: exclude code fences, tables, quoted error messages and diagram text
 equivalents from the averages, and hold the text equivalents to the same ceilings.
 
-| Target                                                              | Value                | Where we are now                                   |
-| ------------------------------------------------------------------- | -------------------- | -------------------------------------------------- |
-| Average sentence length, per page                                   | **< 18 words**       | 17.3–20.5 (guides), 26.8 (design map)              |
-| Longest sentence, per page                                          | **≤ 25 words**       | 40–71 words                                        |
-| Sentences over 25 words                                             | **0%**               | 19–29% (guides), 45% (design map)                  |
-| Flesch reading ease, prose paragraphs                               | **≥ 50**             | below the technical-docs 40–60 band at the top end |
-| First sentence of a section names its topic                         | **100% of sections** | not tracked                                        |
-| Sentences before the first code or instruction, in a how-to section | **≤ 2**              | commonly 4–6                                       |
-| Guide length                                                        | **≤ 2,000 words**    | 2,300–3,400                                        |
-| Paragraph length                                                    | **≤ 4 sentences**    | not tracked                                        |
+| Target                                                    | Value                | Where we are now                                   |
+| --------------------------------------------------------- | -------------------- | -------------------------------------------------- |
+| Average sentence length, per page                         | **< 18 words**       | 17.3–20.5 (guides), 26.8 (design map)              |
+| Longest sentence, per page                                | **≤ 25 words**       | 40–71 words                                        |
+| Sentences over 25 words                                   | **0%**               | 19–29% (guides), 45% (design map)                  |
+| Flesch reading ease, prose paragraphs                     | **≥ 50**             | below the technical-docs 40–60 band at the top end |
+| First sentence of a section names its topic               | **100% of sections** | not tracked                                        |
+| Sentences before the first code or instruction, in a step | **≤ 2**              | commonly 4–6                                       |
+| Recipe length                                             | **200–500 words**    | not tracked                                        |
+| Paragraph length                                          | **≤ 4 sentences**    | not tracked                                        |
 
 ## Sources
 

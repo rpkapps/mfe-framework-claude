@@ -15,7 +15,7 @@ with `createApp` or `createWidget` from `@company/mfe-react` and needs none of t
 ## What the adapter does
 
 - The adapter takes registry entries that declare no framework contract. Every entry that declares one
-  belongs to the [React adapter](/docs/design#how-the-adapters-fit-together).
+  belongs to the [React adapter](/docs/how-it-works/design#how-the-adapters-fit-together).
 - It translates a legacy entry into a neutral registry entry, keeping every legacy field in
   `adapterData`.
 - It loads the container through Module Federation and mounts the module it exposes as a
@@ -314,11 +314,11 @@ They do not prove:
 
 A first run of a real legacy container against this adapter is still outstanding.
 
-## Where next
+## Related
 
-- [Decision 9](/docs/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)
+- [Decision 9](/docs/how-it-works/decisions#9-legacy-angular-compatibility-is-proven-against-fixtures-not-the-real-applications)
   — proven against fixtures, not the real applications.
-- [The design map: how the adapters fit together](/docs/design#how-the-adapters-fit-together) — where this adapter sits.
-- [Glossary](/docs/glossary) — adapter, registry entry, container, definition id.
-- [Decision 6](/docs/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host) — why
+- [The design map: how the adapters fit together](/docs/how-it-works/design#how-the-adapters-fit-together) — where this adapter sits.
+- [Glossary](/docs/reference/glossary) — adapter, registry entry, container, definition id.
+- [Decision 6](/docs/how-it-works/decisions#6-federation-lives-in-the-react-adapter-not-in-the-neutral-host) — why
   the host stays neutral.

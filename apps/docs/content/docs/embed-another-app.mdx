@@ -1,0 +1,103 @@
+---
+title: 'Embed another App inside yours'
+description: 'Hand a branch of your URL to another App with mfeRoute, and let it route everything below that point.'
+---
+
+Apps only. One route of yours hands a branch of the address bar to another App. That App routes
+everything below the branch and never learns where you put it.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Hand over at a splat route
+
+```ts title="examples/operations/src/routes/reports.$.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import { mfeRoute } from '@company/mfe-react'
+
+export const Route = createFileRoute('/reports/$')(mfeRoute({ appId: 'reports' }))
+```
+
+The splat is what makes the handover work. The child is mounted at the path above the splat, so
+`reports` runs at `/operations/reports` and routes `/accounts/fda-2-3` for itself.
+
+</Step>
+
+<Step>
+
+### 2. Link to it
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+void navigate({ to: '/reports/$', params: { _splat: '' } })
+```
+
+It is one of your own routes, so your own `Link` and `navigate` reach it. An empty splat lands on
+the child's index page.
+
+</Step>
+
+<Step>
+
+### 3. Draw your own box when it fails
+
+```tsx title="examples/operations/src/routes/reports.$.tsx"
+export const Route = createFileRoute('/reports/$')({
+  ...mfeRoute({ appId: 'reports' }),
+  errorComponent: ReportsUnavailable,
+})
+```
+
+`mfeRoute` returns ordinary route options, so your own merge in beside it. A failure to load the
+child reaches this `errorComponent` and leaves the rest of your App running.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open `http://localhost:3000/operations/reports`. The Reports App renders inside
+the Operations page, and the header trail shows both. Click through to an account and the address
+bar reads `/operations/reports/accounts/fda-2-3`, with `/reports` on its own still serving the
+same App at the top level.
+
+Per-instance data goes through the child's own URL, as a path segment or a search parameter. An
+App takes no props. A screen that needs props is a Widget.
+
+## Errors
+
+<Callout type="error" title="no registry entry with this id">
+
+```text
+reports failed to resolve App: no registry entry with this id. Check the id against the generated
+registry descriptor, or add a localStorage override pointing at your dev server.
+```
+
+**Fix.** Check the spelling of `appId` against the registry. In development, point the shell at
+the child's dev server.
+
+</Callout>
+
+<Callout type="error" title="expected a definition created with createApp">
+
+```text
+reports failed to resolve App: expected a definition created with createApp, received a Widget
+definition, which owns no URL boundary.
+```
+
+**Fix.** The id names a Widget. Render it with `lazyWidget` instead, or name the App you meant.
+
+</Callout>
+
+## Related
+
+- [Add a route](/docs/add-a-route) — the route file this one replaces.
+- [Link to another App](/docs/link-to-another-app) — where `Link` reaches and where it does not.
+- [Render a Widget inside your App](/docs/render-a-widget) — the other way to reuse someone's
+  screen.
+- [Set breadcrumbs](/docs/set-breadcrumbs) — how the child's crumbs join yours.
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — the override
+  the first message mentions.

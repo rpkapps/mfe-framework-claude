@@ -157,7 +157,7 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
   /** Every page of the tree, for the empty state — the same list the sidebar shows. */
   const browse = React.useMemo(
     () =>
-      getSections(tree).map(section => ({
+      getSections(tree, 'Start here').map(section => ({
         id: section.id,
         heading: section.label,
         items: section.pages.map(page => ({

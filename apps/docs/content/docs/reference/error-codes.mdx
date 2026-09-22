@@ -1,0 +1,246 @@
+---
+title: 'Error codes'
+description: 'Every framework error code, every build diagnostic and every registry rejection, with the fix.'
+---
+
+Every framework failure carries a code. Paste the code into this page's search to find what it means, when it happens and what to do. Build messages carry a file, a line and a column instead, and they are listed further down.
+
+A runtime message reads `<id> failed to <operation>: expected <x>, received <y>. <repair>`. A build message reads `<file>:<line>:<column>: <subject> failed to <operation>: expected <x>, found <y>. <repair>`.
+
+## Registry and contract codes
+
+| Code                          | When it happens                                                                                                  | Fix                                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `registry/invalid-descriptor` | A registry entry, or a definition's own declaration, is not the shape the framework requires.                    | Rebuild the container. Registry JSON is generated, never hand-written.                          |
+| `registry/duplicate-id`       | Two definitions in one container, or two registry entries, claim one id.                                         | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
+| `contract/unsupported-major`  | The entry declares a framework contract major the shell does not support.                                        | Rebuild against the shell's major, or upgrade the shell.                                        |
+| `contract/input-mismatch`     | A prop failed the Widget's `inputs` schema, an input name is reserved, or the build could not read the contract. | Send the declared type, or rename the input.                                                    |
+| `contract/event-mismatch`     | An emitted payload failed its schema, or an event name breaks the naming rule.                                   | Check the payload against the schema, or rename the event.                                      |
+
+<Callout type="error" title="contract/input-mismatch">
+
+```text
+alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received number → at alertId. Check the alertId prop on the Widget.
+```
+
+**Fix.** Send the type the contract declares. On a first render the Widget throws and your `fallback` renders. On a later update it keeps its last valid inputs and reports the rejection instead.
+
+</Callout>
+
+<Callout type="error" title="registry/duplicate-id">
+
+```text
+orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.
+```
+
+**Fix.** Rename one definition and rebuild. The shell sets aside every entry that claimed the id.
+
+</Callout>
+
+## Configuration and network codes
+
+| Code                     | When it happens                                                                                                       | Fix                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `config/missing`         | No `runtime-config.json` beside the container's assets, or a relative request URL with no `apiBaseUrl`.               | Publish the file with the container, or declare an `{ api: true }` field.                     |
+| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with neither 200 nor 404.                          | Check that the deployment publishes the file and that its origin answers.                     |
+| `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, or the shell installed no session. | Set the value in the deployment, fix the spelling, or install the session at boot.            |
+| `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.              | Declare the origin if it is your API. Leave it undeclared if it must never receive the token. |
+
+<Callout type="error" title="config/missing">
+
+```text
+operations failed to load its runtime configuration: expected a file at http://localhost:3001/runtime-config.json, received 404 Not Found. The container configuration contract declares this expectation. Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.
+```
+
+**Fix.** Publish the file with the container. In development, create `public/runtime-config.json` and restart the dev server.
+
+</Callout>
+
+<Callout type="error" title="auth/undeclared-origin">
+
+```text
+operations failed to attach the access token for https://reports.example.test: expected a request to an origin the author declared as an API with { api: true }, received a request to https://reports.example.test, which is not declared.
+```
+
+**Fix.** The request was sent without a token, so an endpoint that needs one answers 401. Declare the origin, or leave it undeclared on purpose.
+
+</Callout>
+
+## Loading and lifecycle codes
+
+| Code                    | When it happens                                                                           | Fix                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                    | Check that the manifest URL is reachable and serves a valid manifest.                              |
+| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.         | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
+| `load/share-conflict`   | Declared, and never raised on the React path.                                             | A duplicated shared singleton reaches you as a hook reported outside any mount.                    |
+| `load/timeout`          | Declared for a host that loads under a deadline. The React adapter sets none.             | Check the network panel for the request that never settled, then retry.                            |
+| `mount/failure`         | Mounting threw, a hook was called in the wrong place, or a command threw.                 | See the two messages below, or fix what the message names.                                         |
+| `mount/timeout`         | Declared for a host that mounts under a deadline. The React adapter sets none.            | Check the network panel, then retry.                                                               |
+| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal. | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
+| `dispose/timeout`       | Declared for a host that disposes under a deadline. The React adapter sets none.          | Check the diagnostics for the cleanup step that did not finish.                                    |
+
+<Callout type="error" title="mount/failure, outside a mount">
+
+```text
+<unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget mount, received a component rendered outside any mount. Move the useTelemetry call into a component the App or Widget renders.
+```
+
+**Fix.** Move the call inside your definition's tree. A module-level helper runs before the mount exists.
+
+</Callout>
+
+<Callout type="error" title="mount/failure, no runtime">
+
+```text
+<no-runtime> failed to render useUser(): expected an MfeProvider above this component, or an enclosing App or Widget mount, received neither. Wrap the shell in <MfeProvider runtime={runtime}> once at boot.
+```
+
+**Fix.** In a shell, wrap the application once at boot. Inside a container, this usually means a second copy of `@company/mfe-react` on the page.
+
+</Callout>
+
+## Router, command and storage codes
+
+| Code                     | When it happens                                                                                                | Fix                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `app/invalid-base-path`  | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.      | Pass `basepath: basePath` to `createRouter`.                                                        |
+| `app/invalid-router`     | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                               | Forward the history, and spread the context you were given.                                         |
+| `command/duplicate-name` | Two commands in one mount share a name, a registration is invalid, or a command ran after its owner went away. | Rename one command, or fix the field the message names.                                             |
+| `storage/failure`        | A stored record could not be read, written or removed.                                                         | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
+
+<Callout type="error" title="app/invalid-base-path">
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through unchanged as createRouter({ basepath }), received no basepath on the router. Forward the basePath your factory received: createRouter({ basepath: basePath, … }).
+```
+
+**Fix.** Add `basepath: basePath` to the `createRouter` call. A hard-coded prefix fails the same way, with your string in place of `no basepath on the router`.
+
+</Callout>
+
+<Callout type="error" title="app/invalid-router">
+
+```text
+operations@2.1.0 failed to mount App: expected the exact history instance the framework supplied, received a different history object. Do not create, wrap, replace or mutate the history; forward the one your factory received.
+```
+
+**Fix.** Drop `createBrowserHistory()` and forward the `history` your factory received.
+
+</Callout>
+
+## Build diagnostics: finding your definitions
+
+Every build message names the file, and most name the line and column.
+
+| What the build expected                                         | Fix                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `src/mfe.ts`, or `src/mfe.tsx` when the entry contains JSX      | Create the entry module and export your definitions from it.       |
+| exactly one entry module                                        | Delete one. Keep `src/mfe.tsx` only when the entry itself has JSX. |
+| every definition to be declared in the container entry          | Move the `createApp` or `createWidget` call into `src/mfe.ts`.     |
+| every definition in the entry module to be exported             | Add `export` to the declaration.                                   |
+| at least one exported App or Widget                             | Export a definition from this module.                              |
+| at most one App per container                                   | Split them into separate containers.                               |
+| one definition per id                                           | Give each definition its own id.                                   |
+| named exports when a container exports more than one definition | Name the default export.                                           |
+
+## Build diagnostics: reading a definition
+
+| What the build expected                                                | Fix                                                                   |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| an `id` property                                                       | Add an id, for example `{ id: 'order-row', … }`.                      |
+| a plain string literal, for an id, a version, a title or a description | Write the value inline. The build reads it without running your code. |
+| lower-case letters, digits and single hyphens                          | Rename the definition.                                                |
+| an array of plain, non-empty string literals, for `tags`               | Write the tags inline.                                                |
+| an imported identifier the build can resolve to a drawable icon        | Import the icon and pass the identifier, or import the `.svg`.        |
+
+## Build diagnostics: a Widget's contract
+
+| What the build expected                                    | Fix                                                                        |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| an `inputs` schema, or an `events` map                     | Add both. Use `z.object({})` and `{}` when the Widget takes or emits none. |
+| a schema the build can read without running the module     | Declare the schema as an exported top-level const in this container.       |
+| a schema that does not reach back into the container entry | Move the schema into its own module.                                       |
+| a schema built from imports and top-level declarations     | Declare it at the top level, or move the whole schema into its own module. |
+| a lower-camel-case event name                              | Rename the event.                                                          |
+| event names that map to distinct handler props             | Rename one of them.                                                        |
+| an input name that is not reserved                         | Rename the input. `key`, `ref`, `fallback` and `onX` belong to the host.   |
+
+## Build diagnostics: capability routes
+
+| What the build expected                                | Fix                                                 |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| one route per capability                               | Remove the `staticData` marker from one of them.    |
+| a plain string literal, for `capability`               | Write the capability inline.                        |
+| one of `settings`, `help` and `releaseNotes`           | Use one of the three names, or drop the marker.     |
+| a capability declared by an App                        | Remove the marker. Capabilities are App-only.       |
+| a non-empty `label` string literal                     | Add the text the shell puts in its menu.            |
+| an icon name from the shell set, or `{ src: '<url>' }` | Pass a name or a URL. SVG source is never accepted. |
+
+## Build diagnostics: configuration
+
+Every one of these carries the code `config/invalid`.
+
+| What the build expected                                        | Fix                                                              |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| a default-exported object literal, and a default export at all | Export the object directly from `src/mfe.config.ts`.             |
+| a property assigned an `env(…)` declaration                    | Write each field as `name: env('ENV_VAR', schema)`.              |
+| a lower-camel-case field name                                  | Rename the field. It becomes a property on the generated module. |
+| one field per environment variable                             | Give each field its own variable.                                |
+| an environment variable name written inline                    | Write the name as a literal. It is copied into `.env.example`.   |
+| a schema argument                                              | Pass the schema the value has to satisfy.                        |
+| an options object literal, and `api: true` or `api: false`     | Write the options inline.                                        |
+| a schema the build can read without running it                 | Use a schema the generated JSON Schema can be built from.        |
+
+## Build diagnostics: styles, assets and the build itself
+
+| What the build expected                                              | Fix                                                              |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| at least one definition id to scope to                               | Export a definition from `src/mfe.ts`.                           |
+| to resolve `@tecton/react/postcss/scope`                             | Install `@tecton/react` in the container.                        |
+| a reference the build can rewrite to the deployed container          | Import the asset, or write `new URL('…', import.meta.url).href`. |
+| a routes directory                                                   | Create `src/routes` with a root route and an index route.        |
+| a `package.json` at the container root, holding valid JSON           | Point `pluginMfe({ containerRoot })` at the right directory.     |
+| a host root whose `node_modules` holds at least one shared candidate | Pass `root` the directory holding the host's `package.json`.     |
+
+A stylesheet selector that reaches the document fails too. That check belongs to the design system's own plugin, which names the file, the line and the selector.
+
+## Why the registry set your entry aside
+
+The shell checks every entry on its own, so one bad entry loses only itself. A rejected entry is recorded with a reason, and the registry marks it `quarantined`.
+
+| Reason                                     | What it means                                                  | Fix                                          |
+| ------------------------------------------ | -------------------------------------------------------------- | -------------------------------------------- |
+| no adapter recognised this descriptor      | The record matched none of the registered adapters.            | Publish the descriptor your build generated. |
+| the react adapter rejected this descriptor | The record declares the framework contract but breaks it.      | Rebuild the container.                       |
+| invalid definition id                      | The id is not lower-case letters, digits and single hyphens.   | Rename the id and rebuild.                   |
+| duplicate definition id                    | Two or more entries claimed the id. All of them are set aside. | Rename one definition and rebuild.           |
+
+The React adapter takes any entry with an `mfe` property, then checks it strictly. A typo fails here rather than being read as another adapter's entry.
+
+| The adapter requires                       | Fix                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `mfe.contractMajor`, an integer equal to 1 | Rebuild against the shell's framework major, or upgrade the shell.            |
+| a non-empty `id`                           | Set a stable id on the `createApp` or `createWidget` call.                    |
+| a non-empty `manifestUrl`                  | Point the entry at the container's `mf-manifest.json`, or set a dev override. |
+| `kind` of `"app"` or `"widget"`            | Rebuild. The kind comes from which factory you called.                        |
+| no Widget contract on an App               | Drop the contract, or declare the piece as a Widget.                          |
+| no capabilities on a Widget                | Move the capability routes into an App.                                       |
+| a valid capability name, label and path    | Correct the route's `staticData` and rebuild.                                 |
+
+<Callout type="error" title="contract/unsupported-major">
+
+```text
+legacy-reports failed to gate the advertised framework contract major: expected contract major 1, received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.
+```
+
+**Fix.** Rebuild the container against the framework major the shell runs, or upgrade the shell.
+
+</Callout>
+
+## Related
+
+- [Read a failure message](/docs/read-a-failure-message) — how a message is put together.
+- [Lint rules](/docs/reference/lint-rules) — what your editor catches before any of this.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — the rules behind these checks.
+- [Registry entry](/docs/reference/registry-entry) — what a valid entry holds.
+- [Open the devtools panel](/docs/open-the-devtools) — where these appear in the browser.
