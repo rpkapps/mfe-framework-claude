@@ -1,0 +1,66 @@
+{
+  "name": "@company/mfe-angular",
+  "version": "0.1.0",
+  "description": "Angular 19 (zoneless) author and host surface for the MFE framework: createApp, createWidget, route data, injectables over the shell's services, a boundary location strategy, the mfe-widget and mfe-app-host components, and self-mounting definitions a React shell mounts into an element.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    },
+    "./testing/mfe-config": {
+      "types": "./src/testing/generated/config.ts",
+      "default": "./src/testing/generated/config.ts"
+    },
+    "./testing/mfe-fetch": {
+      "types": "./src/testing/generated/fetch.ts",
+      "default": "./src/testing/generated/fetch.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-core": "workspace:*",
+    "@company/mfe-host": "workspace:*"
+  },
+  "peerDependencies": {
+    "@angular/common": "catalog:",
+    "@angular/core": "catalog:",
+    "@angular/platform-browser": "catalog:",
+    "@angular/router": "catalog:",
+    "@module-federation/runtime": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@module-federation/runtime": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@angular/common": "catalog:",
+    "@angular/compiler": "catalog:",
+    "@angular/core": "catalog:",
+    "@angular/platform-browser": "catalog:",
+    "@angular/router": "catalog:",
+    "jsdom": "catalog:",
+    "rxjs": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

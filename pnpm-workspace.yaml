@@ -23,9 +23,20 @@ allowBuilds:
   # We do not use MSW (§15.1 keeps it optional), so its script must not run.
   msw: false
 
+# `@angular/core` 19 declares `zone.js` as a required peer. The Angular adapter runs zoneless
+# only and never imports it, so the peer is deliberately absent rather than installed.
+peerDependencyRules:
+  ignoreMissing:
+    - zone.js
+
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.
 catalog:
+  '@angular/common': 19.2.25
+  '@angular/compiler': 19.2.25
+  '@angular/core': 19.2.25
+  '@angular/platform-browser': 19.2.25
+  '@angular/router': 19.2.25
   '@babel/core': 8.0.5
   '@changesets/cli': 3.0.3
   '@excalidraw/excalidraw': 0.18.1
@@ -81,6 +92,7 @@ catalog:
   react: 19.3.0
   'react-aria-components': 1.21.1
   react-dom: 19.3.0
+  rxjs: 7.8.2
   shiki: 4.4.3
   tailwindcss: 4.3.3
   typescript: 6.0.3
