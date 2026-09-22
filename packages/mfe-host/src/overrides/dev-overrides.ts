@@ -30,7 +30,7 @@ interface OverrideProblem {
 
 function overrideError(details: OverrideProblem): MfeError {
   return createMfeError({
-    code: 'registry/invalid-descriptor',
+    code: 'registry/invalid-entry',
     ...details,
   })
 }

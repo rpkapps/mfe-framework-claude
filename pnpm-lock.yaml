@@ -325,6 +325,9 @@ importers:
       '@company/mfe-host':
         specifier: workspace:*
         version: link:../../packages/mfe-host
+      '@company/mfe-legacy-angular':
+        specifier: workspace:*
+        version: link:../../packages/mfe-legacy-angular
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react

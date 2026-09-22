@@ -1,18 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { isMfeError, type RegistryEntry } from '@company/mfe-core'
 
-import { createLegacyAdapterRule } from '../registry/legacy-rule.ts'
+import { legacyAngularAdapter } from '../registry/legacy-adapter.ts'
 import {
   createLegacyContainerLoader,
   type LegacyFederationRuntime,
 } from './legacy-container-loader.ts'
 import type { LegacyParcelConfig } from './single-spa-contract.ts'
 
-const rule = createLegacyAdapterRule()
-
-function legacyRegistryEntry(overrides: Record<string, unknown> = {}): NeutralRegistryEntry {
-  return rule.normalize({
+function legacyRegistryEntry(overrides: Record<string, unknown> = {}): RegistryEntry {
+  return legacyAngularAdapter.parse({
     name: 'asset-tracker',
     mfManifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
     version: '4.7.1',
@@ -175,7 +173,7 @@ describe('createLegacyContainerLoader failures', () => {
   it('refuses an entry that is not a legacy entry at all', async () => {
     const { runtime } = createRuntime(() => Promise.resolve(parcelConfig()))
     const loader = createLegacyContainerLoader({ runtime })
-    const reactEntry: NeutralRegistryEntry = {
+    const reactEntry: RegistryEntry = {
       id: 'reports',
       definitionKind: 'app',
       adapter: 'react',
@@ -183,7 +181,7 @@ describe('createLegacyContainerLoader failures', () => {
     }
 
     await expect(loader.load(reactEntry, { signal: liveSignal() })).rejects.toThrow(
-      /an entry claimed by the legacy adapter/,
+      /an entry the legacy adapter parsed/,
     )
   })
 })

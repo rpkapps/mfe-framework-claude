@@ -1,16 +1,16 @@
 /**
- * A published descriptor as a dense readout, hand-built because `Item` spends 37px of height per
- * pair and this workspace's `Table` is a data grid. Raw JSON is the tempting shortcut and buries
- * the one wrong field in punctuation.
+ * A published registry entry as a dense readout, hand-built because `Item` spends 37px of height
+ * per pair and this workspace's `Table` is a data grid. Raw JSON is the tempting shortcut and
+ * buries the one wrong field in punctuation.
  */
 
 import { Fragment, type ReactNode } from 'react'
 
-export function DescriptorView({ source }: { readonly source: unknown }): ReactNode {
+export function EntryView({ source }: { readonly source: unknown }): ReactNode {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     return (
       <p className="font-mono text-[11px] break-all">
-        <DescriptorValue value={source} />
+        <EntryValue value={source} />
       </p>
     )
   }
@@ -21,7 +21,7 @@ export function DescriptorView({ source }: { readonly source: unknown }): ReactN
         <Fragment key={name}>
           <dt className="truncate font-mono text-muted-foreground">{name}</dt>
           <dd className="min-w-0 font-mono break-all">
-            <DescriptorValue value={value} />
+            <EntryValue value={value} />
           </dd>
         </Fragment>
       ))}
@@ -30,7 +30,7 @@ export function DescriptorView({ source }: { readonly source: unknown }): ReactN
 }
 
 /** A value rendered for what it is, rather than as the text of its JSON. */
-function DescriptorValue({ value }: { readonly value: unknown }): ReactNode {
+function EntryValue({ value }: { readonly value: unknown }): ReactNode {
   if (value === null) return <span className="text-muted-foreground">null</span>
   if (value === undefined) return <span className="text-muted-foreground">not set</span>
 

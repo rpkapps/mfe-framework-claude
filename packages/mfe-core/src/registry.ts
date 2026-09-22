@@ -1,4 +1,4 @@
-/** The neutral registry record; legacy fields stay behind the legacy adapter's own boundary. */
+/** The registry entry every adapter produces, and the adapter interface the host reads it through. */
 
 import type {
   BuildProvenance,
@@ -8,13 +8,15 @@ import type {
   PublishedWidgetContract,
 } from './definition.ts'
 
-/** Which adapter mounts an entry; extending it means adding a selection rule. */
-export type AdapterKind = 'react' | 'legacy-angular'
-
-export interface NeutralRegistryEntry {
+/**
+ * The fields every entry has, whatever built it. An adapter's own fields are added by its own
+ * entry type and reached through its `is()` guard, so nothing here names a framework.
+ */
+export interface RegistryEntry {
   readonly id: string
   readonly definitionKind: DefinitionKind
-  readonly adapter: AdapterKind
+  /** The `kind` of the adapter that parsed the entry, so a view can name it without asking. */
+  readonly adapter: string
   readonly manifestUrl: string
   readonly version?: string
   /** App-only; extracted statically at build time. */
@@ -31,14 +33,37 @@ export interface NeutralRegistryEntry {
   readonly tags?: readonly string[]
   /** A string is a short text mark the host draws itself; `IconData` is a parsed icon. */
   readonly icon?: string | IconData
-  /** Adapter-private payload, so the neutral shape above stays framework-free. */
-  readonly adapterData?: unknown
   /** True when a developer override replaced `manifestUrl` at boot. */
   readonly overridden?: boolean
 }
 
-/** An entry that failed validation; quarantined rather than dropped silently. */
-export interface QuarantinedRegistryEntry {
+/**
+ * One adapter per kind of container. `detect` and `parse` are deliberately split: detection is
+ * cheap and total, so a broken entry is still recognised by the adapter it was built for and
+ * fails there rather than being read as something else.
+ *
+ * Exactly one adapter must recognise an entry. None and the entry is rejected as unrecognised,
+ * more than one and it is rejected as ambiguous, so there is no order to register adapters in.
+ *
+ * This is the reading half. The mount half — load and mount a container of this kind — joins
+ * this interface in a later change, where `ContainerLoader` lives today.
+ */
+export interface MfeAdapter<K extends string = string, E extends RegistryEntry = RegistryEntry> {
+  /** What `entry.adapter` says on everything this adapter parses. */
+  readonly kind: K
+  /** Cheap, and total: bad input returns false rather than throwing. */
+  detect(raw: unknown): boolean
+  /**
+   * Strict. Throws an `MfeError` coded `registry/invalid-entry`, or
+   * `contract/unsupported-major`, carrying `path`, `expected`, `observed` and `repair`.
+   */
+  parse(raw: unknown): E
+  /** How a caller gets back to this adapter's own fields without a cast. */
+  is(entry: RegistryEntry): entry is E
+}
+
+/** An entry that could not be read; rejected with a reason rather than dropped silently. */
+export interface RejectedRegistryEntry {
   /** Best-effort: the `id` if one could be read, otherwise a positional label. */
   readonly id: string
   readonly reason: string
@@ -46,17 +71,9 @@ export interface QuarantinedRegistryEntry {
   readonly source: unknown
 }
 
-export interface NormalizedRegistry {
-  readonly entries: ReadonlyMap<string, NeutralRegistryEntry>
-  readonly quarantined: readonly QuarantinedRegistryEntry[]
-}
-
-/** Evaluated in order; a malformed contract fails rather than falling through to legacy. */
-export interface AdapterSelectionRule<TSource = unknown> {
-  readonly adapter: AdapterKind
-  readonly advertises: (source: TSource) => boolean
-  /** Throwing produces a per-entry quarantine. */
-  readonly normalize: (source: TSource) => NeutralRegistryEntry
+export interface Registry {
+  readonly entries: ReadonlyMap<string, RegistryEntry>
+  readonly rejected: readonly RejectedRegistryEntry[]
 }
 
 export const FRAMEWORK_CONTRACT_MAJOR = 1

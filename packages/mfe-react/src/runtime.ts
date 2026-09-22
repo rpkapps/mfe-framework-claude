@@ -7,7 +7,7 @@ import type {
   DiagnosticsHub,
   MfeStorage,
   MfeTelemetry,
-  NormalizedRegistry,
+  Registry,
   TelemetryProvider,
 } from '@company/mfe-core'
 import type {
@@ -22,7 +22,7 @@ import type { QueryClient } from '@tanstack/react-query'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
-  readonly registry: NormalizedRegistry
+  readonly registry: Registry
   readonly loader: ContainerLoader
   readonly shellState: ShellStateStore
   readonly storage: MfeStorageStore

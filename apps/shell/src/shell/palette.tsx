@@ -20,7 +20,7 @@ import {
   useWidgets,
   type Decision,
   type MfeRuntime,
-  type NeutralRegistryEntry,
+  type RegistryEntry,
   type StoredStateSetter,
 } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
@@ -206,7 +206,7 @@ export function CommandPalette({
     onOpenChange(false)
   }
 
-  const add = (entry: NeutralRegistryEntry): void => {
+  const add = (entry: RegistryEntry): void => {
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
     const needsInputs = needsInputPrompt(entry.contract)
     const inputs = defaultInputsFor(describeWidgetInputs(entry.contract))

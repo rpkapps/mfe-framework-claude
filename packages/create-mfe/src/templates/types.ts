@@ -236,7 +236,7 @@ export default [
  *
  * The plugin owns what makes this a container: definition discovery, the
  * generated \`#mfe/*\` modules and the stylesheet beside them, Module
- * Federation's name, exposes and sharing, the registry descriptor,
+ * Federation's name, exposes and sharing, the registry entry,
  * container-relative asset URLs, the PostCSS pipeline that compiles that
  * stylesheet and scopes it to this container's mount roots, and the React
  * Compiler transform. None of that is repeated here, and none of it is

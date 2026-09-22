@@ -5,7 +5,7 @@
 
 import { createMfeError } from '@company/mfe-core'
 
-import { LEGACY_NAVIGATION_OWNERSHIP, type NavigationOwnership } from './registry/legacy-config.ts'
+import { LEGACY_NAVIGATION_OWNERSHIP, type NavigationOwnership } from './registry/legacy-adapter.ts'
 
 /** How one legacy app obtains its base href. */
 export type LegacyBaseHrefSeam =
