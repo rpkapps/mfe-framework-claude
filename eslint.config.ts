@@ -1,12 +1,18 @@
-// @ts-check
 /**
  * Which preset a directory gets is a statement about what that code *is*, not where it sits:
  * the shell is the host, so it legitimately imports the loader, the registry and the
  * federation runtime that the author preset exists to forbid.
+ *
+ * The file is TypeScript so that ESLint loads it, and the workspace plugin's own `.ts` sources
+ * behind it, through jiti. As `.mjs` it reached the plugin's entry as an untransformed `.ts`
+ * import that only a Node with type stripping could read, so an editor running ESLint on its own
+ * bundled Node met a configuration error on every file instead of a lint result.
  */
+import type { Linter } from 'eslint'
+
 import mfe from '@company/eslint-plugin-mfe'
 
-export default [
+const config: Linter.Config[] = [
   {
     ignores: [
       '**/node_modules/**',
@@ -61,16 +67,23 @@ export default [
     widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
   }),
 
+  ...mfe.tooling({
+    tsconfigRootDir: import.meta.dirname,
+    files: [
+      // The defaults, plus the two files this workspace names differently: fumadocs reads
+      // `source.config.ts`, and the `.d.mts` files are the types of the plain-JavaScript
+      // helpers beside them.
+      ...mfe.DEFAULT_TOOLING_FILES,
+      'apps/docs/source.config.ts',
+      'tools/tecton/*.d.mts',
+    ],
+  }),
+
   /*
-   * The design system's `strict` preset is off: its `ui` alias cannot resolve in a workspace
-   * consuming Tecton through subpath exports, so its token rules flag every bracketed utility,
-   * grid templates included. Re-enable it by giving `components.json` an `aliases.ui` this
-   * workspace resolves, then restoring the block below.
+   * The design system's `strict` preset used to run over the shell and the examples. Tecton
+   * removed `@tecton/eslint-config`, so there is no preset left to compose and the block that
+   * did it is gone; nothing in this workspace checks a Tailwind class against the token set.
    */
-  // ...tecton.configs.strict.map(config => ({
-  //   ...config,
-  //   files: ['apps/shell/src/**/*.{ts,tsx}', 'examples/*/src/**/*.{ts,tsx}'],
-  // })),
 
   {
     // The one file that adapts the neutral telemetry contract to Faro.
@@ -109,3 +122,5 @@ export default [
     },
   },
 ]
+
+export default config

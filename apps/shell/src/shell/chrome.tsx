@@ -3,7 +3,7 @@
  * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -78,6 +78,7 @@ import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
+import { createShellShortcutRegistry } from './shortcuts.ts'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
@@ -119,6 +120,9 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // Shell state is the theme's one source of truth, so a mounted App reads the same value
   // through the same hook.
   const theme = useTheme()
+  // Built once: a fresh registry per render re-subscribes the listener and drops every
+  // registration a mounted App has made against it.
+  const [registry] = useState(createShellShortcutRegistry)
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.
@@ -154,7 +158,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
 
   return (
     // One registry for the page: a mounted App registers its own shortcuts into the same one (§26).
-    <ShortcutsProvider>
+    <ShortcutsProvider registry={registry}>
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
         {/* A React Aria link with an `href` is a document navigation unless a router is provided, and every breadcrumb click tore the shell down. */}

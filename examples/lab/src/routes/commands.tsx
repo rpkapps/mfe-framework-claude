@@ -94,7 +94,12 @@ function Commands(): ReactNode {
       <LabSection title="What ran" note="execute">
         <EventLog
           entries={log}
-          empty="Nothing yet. Press ⌘K and run one of this page's commands from the palette."
+          empty={
+            <>
+              Nothing yet. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> and run one of this page&apos;s commands
+              from the palette.
+            </>
+          }
         />
       </LabSection>
     </LabPage>

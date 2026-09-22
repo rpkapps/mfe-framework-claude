@@ -175,8 +175,8 @@ Five containers, all mounted by one shell, each on its own dev server:
 
 ### Prerequisites
 
-- **Node 22.12 or newer.** The build and the tooling run TypeScript sources
-  directly, which needs Node's type stripping.
+- **Node 22.18 or newer.** The build and the tooling run TypeScript sources
+  directly, which needs Node's type stripping — on by default from 22.18.
 - **pnpm 10 or newer.** The repository is a pnpm workspace and uses `catalog:`
   versions. No `packageManager` field pins it, deliberately (`docs/decisions.md`
   8).

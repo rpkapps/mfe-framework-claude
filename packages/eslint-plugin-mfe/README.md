@@ -1,7 +1,7 @@
 # @company/eslint-plugin-mfe
 
 The shared lint contract for this monorepo and for every repository that ships an
-MFE against it: two composable flat-config presets and four MFE-specific rules.
+MFE against it: three composable flat-config presets and four MFE-specific rules.
 
 The presets are where the framework's boundaries become something a developer
 meets in the editor, on the line that broke them, with the repair in the message.
@@ -14,15 +14,15 @@ This package is development-only. It is never part of the runtime import DAG.
 
 ## Install and use
 
-```js
-// eslint.config.mjs, in a framework repository
+```ts
+// eslint.config.ts, in a framework repository
 import mfe from '@company/eslint-plugin-mfe'
 
 export default [...mfe.configs.framework]
 ```
 
-```js
-// eslint.config.mjs, in an MFE repository
+```ts
+// eslint.config.ts, in an MFE repository
 import mfe from '@company/eslint-plugin-mfe'
 
 export default [
@@ -31,32 +31,41 @@ export default [
     widgetScopes: ['src/widgets/**'],
     storageAllowedScopes: ['src/bootstrap/storage.ts'],
   }),
+  ...mfe.tooling({ tsconfigRootDir: import.meta.dirname }),
 ]
 ```
 
+Write the config as `eslint.config.ts`, not `.mjs`. This package's entry is
+TypeScript, so a `.mjs` config reaches it as an untransformed `.ts` import that
+only a Node with type stripping can read; a `.ts` config goes through jiti, which
+transforms it and everything it imports on any Node. Install `jiti` alongside
+ESLint.
+
 These rules are about being one fragment of a page. They are not about the
-design system, and they deliberately say nothing about it: a repository that
-renders with `@tecton/react` adds `@tecton/eslint-config` alongside them, which
-is what catches an application restyling a component the design system owns —
-and `bg-red-500`, which generates no CSS under Tecton's palette and therefore
-fails silently. This repository composes both; `eslint.config.mjs` at its root
-is the worked example.
+design system, and they deliberately say nothing about it. `@tecton/eslint-config`
+used to sit alongside them and catch an application restyling a component the
+design system owns — and `bg-red-500`, which generates no CSS under Tecton's
+palette and therefore fails silently. Tecton has removed that preset, so nothing
+checks a class against the token set any more. `eslint.config.ts` at this
+repository's root is the worked example of composing what remains.
 
-Both presets exist in two spellings that produce the same configuration:
+Every preset exists in two spellings that produce the same configuration:
 
-| Spelling                                        | Shape                           | Use it when                                       |
-| ----------------------------------------------- | ------------------------------- | ------------------------------------------------- |
-| `mfe.configs.framework`, `mfe.configs.author`   | `Linter.Config[]`               | the defaults are right, and you want to spread    |
-| `mfe.framework(options)`, `mfe.author(options)` | `(options?) => Linter.Config[]` | you need to declare scopes or a `tsconfigRootDir` |
+| Spelling                                                                | Shape                           | Use it when                                       |
+| ----------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
+| `mfe.configs.framework`, `mfe.configs.author`, `mfe.configs.tooling`    | `Linter.Config[]`               | the defaults are right, and you want to spread    |
+| `mfe.framework(options)`, `mfe.author(options)`, `mfe.tooling(options)` | `(options?) => Linter.Config[]` | you need to declare scopes or a `tsconfigRootDir` |
 
 Because a preset is a plain array, anything after it in your config wins. Turn a
 rule down, scope one off for a directory, or drop a config object out of the
 array entirely — nothing is hidden behind an opaque `extends`.
 
-Both presets need type information (`no-floating-promises` and the `no-unsafe-*`
+Every preset needs type information (`no-floating-promises` and the `no-unsafe-*`
 family are the rules worth having here, and none of them work without a
 program). They set `parserOptions.projectService: true`; pass `tsconfigRootDir`
-if ESLint's working directory is not your project root.
+if ESLint's working directory is not your project root. A file no `tsconfig.json`
+includes has no program and reports a parsing error instead of a lint result, so
+a build or test configuration file has to be in its package's `include`.
 
 **`files` governs the whole preset.** Every config object a preset produces is
 scoped to it, including ESLint's recommended baseline, and every narrower scope —
@@ -199,9 +208,41 @@ mfe.author({
 
 ---
 
+## The `tooling` preset
+
+For a workspace's build and test configuration: the bundler and test-runner
+configs, the test setup files, and the hand-written declarations beside a
+plain-JavaScript helper. None of it is part of the runtime import DAG, so the
+MFE rules and the package zones say nothing about it — but it is TypeScript a
+person writes and breaks, so the recommended baselines and the async,
+type-safety and maintainability layers apply exactly as they do elsewhere.
+
+`files` defaults to `mfe.DEFAULT_TOOLING_FILES`: `eslint.config`, `rsbuild.config`,
+`vite.config`, `vitest.config` and `vitest.setup`. It deliberately does not match
+`*.config.ts` on its own, because a file named after the package it configures —
+`src/mfe.config.ts` — is that package's source and belongs to that package's
+preset. Pass `files` to add the ones a workspace names differently.
+
+In a setup file, `no-empty-object-type` allows an interface with a single
+`extends`: a matcher library reaches the runner's `Assertion` through an
+interface that extends it and declares nothing of its own, and declaration
+merging accepts no other shape. That is the preset's only exception — the rules
+the other two relax in test scope are ones this preset never turns on.
+
+### Options
+
+```ts
+mfe.tooling({
+  tsconfigRootDir: import.meta.dirname,
+  files: [...mfe.DEFAULT_TOOLING_FILES, 'source.config.ts'],
+})
+```
+
+---
+
 ## Scoped exceptions
 
-Both presets switch five rules off in test files, and only in test files
+The `framework` and `author` presets switch five rules off in test files, and only in test files
 (`**/*.test.{ts,tsx,mts,cts}`, `**/*.spec.{ts,tsx,mts,cts}`, `**/__tests__/**`,
 `**/vitest.setup.{ts,tsx}` — never a whole package). Each is a considered
 exception, recorded here so nobody has to guess later whether it was deliberate.

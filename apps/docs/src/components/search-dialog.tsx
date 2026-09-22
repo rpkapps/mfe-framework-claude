@@ -12,6 +12,7 @@ import {
   CommandItem,
   CommandList,
 } from '@tecton/react/components/command'
+import { Kbd } from '@tecton/react/components/kbd'
 import { cn } from 'cn'
 import { useDocsSearch } from 'fumadocs-core/search/client'
 import { staticClient } from 'fumadocs-core/search/client/orama-static'
@@ -32,18 +33,18 @@ const client = staticClient({ from: '/api/search' })
 const itemClassName =
   'h-auto items-start rounded-md border border-transparent px-3! py-2! font-normal data-focused:border-input data-focused:bg-input/50 data-selected:border-input data-selected:bg-input/50'
 
+/** Lifted off the footer strip the caps sit on, which already carries their own `bg-muted`. */
+const capClassName = 'border bg-background'
+
 const groupClassName =
   'p-0! **:[[cmdk-group-heading]]:scroll-mt-16 **:[[cmdk-group-heading]]:p-3! **:[[cmdk-group-heading]]:pb-1!'
 
-function SearchKbd({ className, ...props }: React.ComponentProps<'kbd'>) {
+function isEditable(node: EventTarget | null) {
+  if (node instanceof HTMLElement && node.isContentEditable) return true
   return (
-    <kbd
-      className={cn(
-        "pointer-events-none flex h-5 items-center justify-center gap-1 rounded border bg-background px-1 font-sans text-[0.7rem] font-medium text-muted-foreground select-none [&_svg:not([class*='size-'])]:size-3",
-        className,
-      )}
-      {...props}
-    />
+    node instanceof HTMLInputElement ||
+    node instanceof HTMLTextAreaElement ||
+    node instanceof HTMLSelectElement
   )
 }
 
@@ -136,15 +137,10 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
       const isShortcut =
         (event.key === 'k' && (event.metaKey || event.ctrlKey)) || event.key === '/'
       if (!isShortcut) return
-      const target = event.target
-      if (
-        (target instanceof HTMLElement && target.isContentEditable) ||
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement
-      ) {
-        return
-      }
+      // `activeElement` as well as the target: React Aria re-dispatches this dialog's own
+      // keydown onto the focused option, so a `/` typed into the search field arrives here
+      // aimed at something that is not a field, and used to close the dialog.
+      if (isEditable(event.target) || isEditable(document.activeElement)) return
       event.preventDefault()
       setOpen(isOpen => !isOpen)
     }
@@ -298,17 +294,17 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
         </Command>
         <div className="absolute inset-x-0 bottom-0 z-20 flex h-10 items-center gap-4 rounded-b-xl border-t bg-muted/60 px-4 text-xs font-medium text-muted-foreground">
           <div className="flex items-center gap-2">
-            <SearchKbd>
+            <Kbd className={capClassName}>
               <CornerDownLeftIcon />
-            </SearchKbd>{' '}
+            </Kbd>{' '}
             Go to result
           </div>
           <div className="hidden items-center gap-2 sm:flex">
-            <SearchKbd>↑</SearchKbd>
-            <SearchKbd>↓</SearchKbd> Move
+            <Kbd className={capClassName}>↑</Kbd>
+            <Kbd className={capClassName}>↓</Kbd> Move
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <SearchKbd>Esc</SearchKbd> Close
+            <Kbd className={capClassName}>Esc</Kbd> Close
           </div>
         </div>
       </CommandDialog>

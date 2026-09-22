@@ -194,7 +194,9 @@ afterEach(() => {
       }),
     },
     {
-      path: 'eslint.config.mjs',
+      // TypeScript, so ESLint loads it — and the plugin's own `.ts` sources behind
+      // it — through jiti, on whatever Node an editor happens to bundle.
+      path: 'eslint.config.ts',
       contents: `import mfe from '@company/eslint-plugin-mfe'
 
 export default [
@@ -203,6 +205,8 @@ export default [
     tsconfigRootDir: import.meta.dirname,
     files: ['src/**/*.{ts,tsx}'],
   }),
+  // This file, and the rsbuild, vitest and test-setup files beside it.
+  ...mfe.tooling({ tsconfigRootDir: import.meta.dirname }),
 ]
 `,
     },

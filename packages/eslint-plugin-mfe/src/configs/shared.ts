@@ -1,4 +1,4 @@
-/** The pieces both presets are built from: plain flat-config arrays, spreadable and overridable. */
+/** The pieces every preset is built from: plain flat-config arrays, spreadable and overridable. */
 
 import type { ESLint, Linter } from 'eslint'
 import { builtinRules } from 'eslint/use-at-your-own-risk'

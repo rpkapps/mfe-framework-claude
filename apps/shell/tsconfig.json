@@ -30,5 +30,5 @@
       "sonner": ["./node_modules/sonner"]
     }
   },
-  "include": ["src", "scripts", "tests"]
+  "include": ["src", "scripts", "tests", "rsbuild.config.ts"]
 }

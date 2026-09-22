@@ -206,10 +206,10 @@ Four rules apply inside a container.
 records why each container ships its own stylesheet.
 
 <Callout type="warning" title="Nothing fails when you get a colour wrong">
-  A stock colour class produces no CSS and no error. The lint rule that would catch it belongs to
-  `@tecton/eslint-config`, and a container scaffolded by `pnpm create @company/mfe` wires only
-  `mfe.author(...)`. In this repository the design system's `strict` preset is switched off at the
-  root, with a recorded reason. Check the colour in the browser rather than waiting for a failure.
+  A stock colour class produces no CSS and no error. The lint rule that would catch it belonged to
+  `@tecton/eslint-config`, which the design system has removed, so no preset in this workspace
+  checks a class against the token set. Check the colour in the browser rather than waiting for a
+  failure.
 </Callout>
 
 ## Do not write a stylesheet entry

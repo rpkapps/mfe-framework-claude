@@ -35,6 +35,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@tecton/react/components/command'
+import { ShortcutKeys, useShortcuts } from '@tecton/react/tecton/shortcuts'
 import { toast } from 'sonner'
 import {
   AppWindowIcon,
@@ -70,39 +71,52 @@ interface Live {
   readonly setLayout: StoredStateSetter<DashboardLayout>
 }
 
-/** One row of the palette, whatever produced it. `text` is extra search words. */
+/**
+ * One row of the palette, whatever produced it. `text` is extra search words. The trailing column
+ * is one of two things and never both: `keys` is a shortcut, drawn as key caps; `hint` is a word
+ * — a version, a path, a Widget id, a tile count, the reason a command is denied.
+ */
 interface Row {
   readonly id: string
   readonly text: string
   readonly icon: ReactNode
   readonly label: string
-  readonly hint?: string
+  /** Registry syntax, as the shortcut itself is written: `g r`, `mod+j`. */
+  readonly keys?: string | undefined
+  readonly hint?: string | undefined
   readonly isDisabled?: boolean
   readonly run: () => void
 }
 
 /** A shell command: from what it can read now, to the row it draws. */
-type HostCommand = (live: Live) => Omit<Row, 'id' | 'isDisabled'> & { canExecute?: () => Decision }
+type HostCommand = (live: Live) => Omit<Row, 'id' | 'isDisabled' | 'keys'> & {
+  canExecute?: () => Decision
+  /**
+   * The id of the shortcut whose keys this row shows, looked up in the live registry rather than
+   * typed out here, so the palette and the header cannot disagree about a key (§26).
+   */
+  shortcut?: string
+}
 
 const HOST_COMMANDS: Readonly<Record<string, HostCommand>> = {
   registry: () => ({
     label: 'Open the registry',
     icon: <LayersIcon />,
-    hint: 'G R',
+    shortcut: 'shell.registry',
     text: 'loaded rejected entries',
     run: () => devtools.open('registry'),
   }),
   settings: () => ({
     label: 'Open settings',
     icon: <SettingsIcon />,
-    hint: 'G S',
+    shortcut: 'shell.settings',
     text: 'theme dashboard overrides',
     run: () => shellUi.show('settings'),
   }),
   help: () => ({
     label: 'Help and keyboard shortcuts',
     icon: <CircleHelpIcon />,
-    hint: '?',
+    shortcut: 'shell.help',
     text: 'keyboard shortcuts',
     run: () => shellUi.show('help'),
   }),
@@ -121,7 +135,7 @@ const HOST_COMMANDS: Readonly<Record<string, HostCommand>> = {
   theme: live => ({
     label: live.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
     icon: live.theme === 'dark' ? <SunIcon /> : <MoonIcon />,
-    hint: '⌘J',
+    shortcut: 'shell.theme',
     text: 'switch light dark',
     run: () => live.runtime.shellState.apply({ theme: live.theme === 'dark' ? 'light' : 'dark' }),
   }),
@@ -170,6 +184,8 @@ export function CommandPalette({
   const pages = useCapabilityPages()
   const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
+  // The same registry the header registers into and the help sheet lists (§26).
+  const shortcuts = useShortcuts()
   const commands = useSyncExternalStore(
     runtime.commands.subscribe,
     runtime.commands.getSnapshot,
@@ -206,6 +222,10 @@ export function CommandPalette({
     onOpenChange(false)
   }
 
+  /** A shortcut nothing has registered draws no caps, rather than caps for a key that is dead. */
+  const keysFor = (id: string | undefined): string | undefined =>
+    id === undefined ? undefined : shortcuts.find(shortcut => shortcut.id === id)?.keys
+
   const add = (entry: NeutralRegistryEntry): void => {
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
     const needsInputs = needsInputPrompt(entry.contract)
@@ -230,10 +250,13 @@ export function CommandPalette({
       text: entry.definitionId,
       icon: allowed ? <TerminalIcon /> : <BanIcon />,
       label: entry.label,
-      // A mount command's shortcut column names its owner; one of the shell's shows its keys.
-      hint: command === undefined ? entry.definitionId : '',
+      // A mount command's trailing column names its owner; one of the shell's shows its keys.
+      hint: command === undefined ? entry.definitionId : undefined,
       ...command,
-      ...(allowed ? {} : { hint: entry.decision.reason }),
+      keys: keysFor(command?.shortcut),
+      // A denied row spends that column on the reason instead, which is the whole point of
+      // listing it rather than hiding it.
+      ...(allowed ? {} : { hint: entry.decision.reason, keys: undefined }),
       id: entry.id,
       isDisabled: !allowed,
       run: () => void runtime.commands.execute(entry.id),
@@ -249,7 +272,7 @@ export function CommandPalette({
       text: 'home widgets',
       icon: <LayoutDashboardIcon />,
       label: 'Widget dashboard',
-      hint: 'G W',
+      keys: keysFor('shell.dashboard'),
       run: () => void navigate({ to: '/' }),
     },
     ...apps.map(app => ({
@@ -336,7 +359,13 @@ function Groups({
             >
               {row.icon}
               <span>{row.label}</span>
-              <CommandShortcut>{row.hint}</CommandShortcut>
+              {/* `tracking-widest` is for a word in this slot; it would space out the key caps. */}
+              {row.keys === undefined ? null : (
+                <CommandShortcut className="tracking-normal">
+                  <ShortcutKeys keys={row.keys} />
+                </CommandShortcut>
+              )}
+              {row.hint === undefined ? null : <CommandShortcut>{row.hint}</CommandShortcut>}
             </CommandItem>
           ))}
         </CommandGroup>
