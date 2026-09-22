@@ -71,7 +71,9 @@ it declares its own. A palette step is a contrast level rather than a lightness,
 
 Render the component and switch the theme in the shell with <Kbd>⌘J</Kbd>. The colours follow, and
 you changed nothing. A wrong colour class fails quietly. It produces no CSS and no error, so check
-the element in the browser.
+the element in the browser. No lint rule catches it. The rule that did belonged to
+`@tecton/eslint-config`, which the design system has removed, so nothing checks a class against the
+token set.
 
 ## Errors
 
