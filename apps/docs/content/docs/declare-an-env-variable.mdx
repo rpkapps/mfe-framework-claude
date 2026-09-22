@@ -1,0 +1,116 @@
+---
+title: 'Declare an environment variable'
+description: 'Declare the values each deployment supplies in src/mfe.config.ts, with a schema for each.'
+---
+
+Your container is built once and deployed many times, so declare the values a deployment supplies
+in `src/mfe.config.ts`. The file holds declarations and never values, so no secret and no
+environment's URL is committed with your code.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Declare each field
+
+```ts title="examples/operations/src/mfe.config.ts"
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+  telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
+}
+```
+
+Each `env(name, schema, options?)` declares one field of the object your code reads at run time.
+
+</Step>
+
+<Step>
+
+### 2. Keep every part readable
+
+| Part              | Rule                                                                        |
+| ----------------- | --------------------------------------------------------------------------- |
+| the field name    | Lower camel case. It is the property name you read.                         |
+| the variable name | Upper snake case, written inline. A deployment has to set it in a shell.    |
+| the schema        | A Zod schema, written inline. Your field's type comes from it.              |
+| an optional value | `.default(…)` on the schema. Everything else is required of the deployment. |
+| `{ api: true }`   | Marks the value as one of your API origins.                                 |
+
+The build reads this file without running it, so write a default-exported object literal with no
+spreads and no shorthand.
+
+</Step>
+
+<Step>
+
+### 3. Add a value for local development
+
+```json title="examples/operations/public/runtime-config.json"
+{
+  "apiBaseUrl": "http://localhost:3010/api/",
+  "telemetryEnabled": false
+}
+```
+
+Your dev server publishes `public/` beside your assets, which is where the values are read from.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm run generate` in your container. It writes `.mfe/.env.example`, which lists every
+variable name and what it has to look like, and never a value. It also writes
+`.mfe/runtime-config.schema.json`, the JSON Schema a deployment validates its file against. Every
+field without a `.default(…)` is listed there as required.
+
+## Errors
+
+<Callout type="error" title="config/invalid, at build time">
+
+```text
+/home/you/orders/src/mfe.config.ts:6:16: 'apiBaseUrl' failed to read the configuration field
+'apiBaseUrl': expected an env(…) declaration, found process.env.API_BASE_URL.
+```
+
+**Fix.** Declare the field with `env()`. Values arrive from the deployment at load time, so your
+build never reads a variable.
+
+</Callout>
+
+<Callout type="error" title="config/invalid, at build time">
+
+```text
+/home/you/orders/src/mfe.config.ts:7:24: 'apiBaseUrl' failed to read the schema for 'apiBaseUrl':
+expected a schema the build can read without running it, found .catch(…), which replaces an
+invalid value instead of reporting it.
+```
+
+**Fix.** Use `.default(…)` for a value the deployment may omit, and let an invalid value fail.
+
+</Callout>
+
+<Callout type="error" title="config/invalid, at build time">
+
+```text
+/home/you/orders/src/mfe.config.ts:9:3: the build failed to read the container configuration:
+expected a property assigned an env(…) declaration, found ...shared.
+```
+
+**Fix.** Write each field out as `name: env('ENV_VAR', schema)`.
+
+</Callout>
+
+## Related
+
+- [Read an environment variable](/docs/read-an-env-variable) — use the value in your code.
+- [Supply values per deployment](/docs/supply-values-per-deployment) — what each environment
+  publishes.
+- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — what `{ api: true }` changes.
+- [Error codes](/docs/reference/error-codes) — every `config/` code in one table.

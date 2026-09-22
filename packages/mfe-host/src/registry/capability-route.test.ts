@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NeutralRegistryEntry } from '@company/mfe-core'
+import type { RegistryEntry } from '@company/mfe-core'
 
 import { capabilityRoute } from './capability-route.ts'
 
-function entry(overrides: Partial<NeutralRegistryEntry> = {}): NeutralRegistryEntry {
+function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
   return {
     id: 'operations',
     definitionKind: 'app',
@@ -15,7 +15,7 @@ function entry(overrides: Partial<NeutralRegistryEntry> = {}): NeutralRegistryEn
 }
 
 describe('capabilityRoute', () => {
-  it('answers with the path the App advertised for that capability', () => {
+  it('answers with the path the App published for that capability', () => {
     const operations = entry({
       capabilities: [
         { name: 'settings', label: 'Operations settings', path: '/settings' },
@@ -27,7 +27,7 @@ describe('capabilityRoute', () => {
     expect(capabilityRoute(operations, 'releaseNotes')).toBe('/release-notes')
   })
 
-  it('answers with nothing for a capability the App does not advertise', () => {
+  it('answers with nothing for a capability the App does not publish', () => {
     const operations = entry({
       capabilities: [{ name: 'settings', label: 'Operations settings', path: '/settings' }],
     })
@@ -35,7 +35,7 @@ describe('capabilityRoute', () => {
     expect(capabilityRoute(operations, 'help')).toBeUndefined()
   })
 
-  it('answers with nothing for an entry that advertises none at all', () => {
+  it('answers with nothing for an entry that publishes none at all', () => {
     expect(capabilityRoute(entry(), 'releaseNotes')).toBeUndefined()
     expect(capabilityRoute(entry({ capabilities: [] }), 'releaseNotes')).toBeUndefined()
   })

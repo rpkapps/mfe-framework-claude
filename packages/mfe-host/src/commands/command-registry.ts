@@ -377,7 +377,7 @@ export class CommandRegistry {
         expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
         observed: JSON.stringify(placement),
         repair:
-          'Only command-palette is standardized. Future placements add placement descriptors to this model.',
+          'Only command-palette is standardized. Future placements add placement records to this model.',
       })
     }
   }

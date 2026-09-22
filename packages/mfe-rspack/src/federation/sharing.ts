@@ -106,7 +106,7 @@ function policyOf(candidate: string): SharingPolicy {
 }
 
 // A workspace protocol resolves to the only version this container was built against, and
-// advertising nothing would have Module Federation infer the protocol string as the range.
+// declaring nothing would have Module Federation infer the protocol string as the range.
 function entry(
   candidate: string,
   range: string,

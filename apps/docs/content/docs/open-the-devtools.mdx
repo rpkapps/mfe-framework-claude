@@ -1,0 +1,77 @@
+---
+title: 'Open the devtools panel'
+description: 'Open the panel that lists what the shell registered, where each container loaded from, and what it rejected.'
+---
+
+Apps and Widgets. The developer tools are part of the shell, and they ship in every build. They
+tell you which containers the shell registered, which URL each one loaded from, and which entries
+it set aside.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Open the panel
+
+Press <Kbd>g</Kbd> <Kbd>d</Kbd> for the **Overrides** tab, or <Kbd>g</Kbd> <Kbd>r</Kbd> for the
+**Registry** tab. Either shortcut turns the tools on and remembers it. The command palette
+(<Kbd>⌘</Kbd> <Kbd>K</Kbd>) has "Open the registry" too.
+
+</Step>
+
+<Step>
+
+### 2. Or turn them on from the address bar
+
+```text
+http://localhost:3000/?devtools=1
+```
+
+`?devtools=0` turns them off again. The answer is kept under the `company:mfe:devtools` key, so the
+next page load needs no parameter.
+
+</Step>
+
+<Step>
+
+### 3. Read the tab you need
+
+| Tab                     | What it shows                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| **Overrides**           | every registered definition, where it loaded from, and the actions that repoint it     |
+| **Registry → Loaded**   | each accepted entry: id, version, origin, and the pages, inputs and events it declares |
+| **Registry → Rejected** | each entry the shell set aside, the message that says why, and the record as published |
+
+Both registry views carry a count, so a missing container is one glance.
+
+</Step>
+
+<Step>
+
+### 4. Put the panel where you want it
+
+Drag the inner edge to resize it, and use **Panel position** to dock it top, right, bottom or left.
+**Outline the micro-frontends** draws a box round every App and Widget on the page, and stays on
+when you close the panel.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The panel docks along the bottom, with the tabs in its header. Closing it leaves a wrench button in
+the bottom-left corner, which carries a mark while an override is active. Your dock side, size and
+tab are remembered. The palette's "Report a bug" collects the same facts as
+Markdown. It carries every rejected entry and every override, for a colleague who cannot open the
+page.
+
+## Related
+
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — the Overrides tab, used in anger.
+- [Run the shell with your container](/docs/run-the-shell-locally) — starting the page this panel sits on.
+- [Read a failure message](/docs/read-a-failure-message) — how to read what the Rejected tab prints.
+- [Registry entry](/docs/reference/registry-entry) — the fields the Loaded tab shows.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

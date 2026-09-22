@@ -1,5 +1,5 @@
 /**
- * `createApp` and `createWidget` both return plain, side-effect-free descriptors, so the build
+ * `createApp` and `createWidget` both return plain, side-effect-free records, so the build
  * plugin can discover them statically without invoking a render function.
  */
 
@@ -160,7 +160,7 @@ function assertValidId(id: unknown, operation: string): asserts id is string {
   if (isValidDefinitionId(id)) return
 
   throw createMfeError({
-    code: 'registry/invalid-descriptor',
+    code: 'registry/invalid-entry',
     id: typeof id === 'string' && id !== '' ? id : '<missing>',
     operation,
     expected: DEFINITION_ID_RULE,

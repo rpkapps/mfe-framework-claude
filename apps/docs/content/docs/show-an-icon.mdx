@@ -1,0 +1,129 @@
+---
+title: 'Show an icon'
+description: 'Give your App, your Widget or a capability page an icon, and see where the shell draws it.'
+---
+
+Apps and Widgets. An icon travels in the registry as plain shapes, so a host can draw your entry
+before it has loaded anything of yours. You declare it in two places: on the definition, and on a
+capability route.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Give the definition an icon
+
+```ts title="examples/alert-panel/src/mfe.ts"
+import { createWidget } from '@company/mfe-react'
+import { BellIcon } from 'lucide-react'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  title: 'Alert panel',
+  icon: BellIcon,
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+Pass an imported identifier, never a component you wrote inline. An imported `.svg` works the same
+way: `import wellHead from './well-head.svg'`, then `icon: wellHead`.
+
+</Step>
+
+<Step>
+
+### 2. Give a capability page an icon
+
+```tsx title="examples/operations/src/routes/settings.tsx"
+export const Route = createFileRoute('/settings')({
+  staticData: {
+    capability: 'settings',
+    label: 'Operations settings',
+    icon: 'settings',
+  },
+  component: Settings,
+})
+```
+
+Here `icon` is a name the host looks up, or `{ src: '/icons/gear.svg' }` for a file the browser
+fetches. Markup is refused in both forms.
+
+</Step>
+
+<Step>
+
+### 3. Confirm what the build published
+
+```json title="examples/operations/.mfe/mfe-registry.json"
+"icon": {
+  "viewBox": "0 0 24 24",
+  "attributes": { "fill": "none", "stroke": "currentColor", "stroke-width": "2" },
+  "node": [["path", { "d": "M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5" }]]
+}
+```
+
+Run `pnpm run generate` first. The build follows your import and writes the shapes out, so no
+component and no markup crosses into the host.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. What this shell draws today:
+
+- a Widget's icon, in the dashboard catalogue and in the header of each tile
+- an App's icon, nowhere: the application finder draws a short text mark from the registry instead
+- a capability page's icon, nowhere: the settings panel and the palette use their own marks
+
+Every entry still carries what you declared, so another host can draw all three.
+
+## Errors
+
+<Callout type="error" title="expected an imported identifier the build can resolve">
+
+```text
+/home/you/alerts/src/mfe.ts:8:3: 'alert-panel' failed to read the definition icon: expected an
+imported identifier the build can resolve to a drawable icon, found 'bell'.
+```
+
+**Fix.** Import the icon and pass the identifier. A string name is for a capability route, not for
+`createApp` or `createWidget`.
+
+</Callout>
+
+<Callout type="error" title="expected an icon name from the shell set, or { src }">
+
+```text
+/home/you/operations/src/routes/settings.tsx:11:5: 'operations' failed to extract the icon for the
+'settings' capability: expected an icon name from the shell set, or { src: '<url>' }, found markup.
+```
+
+**Fix.** Pass a name, or point `src` at a file. SVG source is refused in every form, including a
+data URL.
+
+</Callout>
+
+<Callout type="error" title="extra properties">
+
+```text
+/home/you/operations/src/routes/settings.tsx:11:5: 'operations' failed to extract the icon for the
+'settings' capability: expected an icon name from the shell set, or { src: '<url>' }, found extra
+properties 'width' and 'height'.
+```
+
+**Fix.** Keep the object to a single `src`. The host decides the size.
+
+</Callout>
+
+## Related
+
+- [Create a Widget](/docs/create-a-widget) — the rest of the `createWidget` options.
+- [Create an App](/docs/create-an-app) — the same options on an App.
+- [Add a settings page](/docs/add-a-settings-page) — the route the second icon belongs to.
+- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
+- [Registry entry](/docs/reference/registry-entry) — the shape the icon travels in.

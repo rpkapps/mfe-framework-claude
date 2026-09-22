@@ -1,0 +1,80 @@
+---
+title: 'Add styles beyond utilities'
+description: 'Reach a value no utility covers, with arbitrary values and the style prop, and ship no stylesheet.'
+---
+
+You write your styles in TSX, and your build turns the classes you rendered into one stylesheet of
+your own. Your rules stay inside your part of the page. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Put the value in the class
+
+```tsx title="examples/insights/src/components/cost-vs-risk-panel/components/quadrant-chart.tsx"
+<span className="ml-auto text-[0.625rem] text-muted-foreground">Recommended</span>
+<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">…</dl>
+```
+
+Square brackets take a value no named utility covers. Your build scans `src/**/*.{ts,tsx}` and
+generates a rule for every class it finds there.
+
+</Step>
+<Step>
+### 2. Compute a value with the style prop
+
+```tsx title="examples/insights/src/components/cost-vs-risk-panel/components/quadrant-chart.tsx"
+<span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: point.color }} />
+```
+
+Use `style` for a value that comes from data at run time, such as a colour on a chart point. A
+class name assembled from a variable is not scanned, so it generates nothing.
+
+</Step>
+<Step>
+### 3. Ship no stylesheet of your own
+
+```sh
+$ find examples -name "*.css" -o -name "postcss.config*"
+examples/alert-panel/.mfe/styles.css
+examples/insights/.mfe/styles.css
+examples/lab/.mfe/styles.css
+examples/operations/.mfe/styles.css
+examples/reports/.mfe/styles.css
+```
+
+Write no `.css` file and no `postcss.config` in a container. The generated stylesheet is the one
+your build writes, and a second entry would ship rules nothing keeps inside your part of the page.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Load your container in the shell and inspect the element. Your rule applies inside your own roots
+and nowhere else, and the shell's reset, fonts and theme variables inherit into your subtree. Run
+`pnpm verify:page` for the browser checks. They assert that your utilities never reach the
+document, and that your root inherits the theme variables instead of declaring its own.
+
+## Errors
+
+<Callout type="error" title="A root selector in a container stylesheet">
+
+```text
+`.card :root` matches nothing inside `@scope`: the scope root is not the document root, so `:root`,
+`:host`, `html` and `body` only mean anything as the leading compound.
+```
+
+**Fix.** Write the rule against an element your container renders. The build names the file and the
+selector, and a stylesheet that reaches your build from a dependency can carry one too.
+
+</Callout>
+
+## Related
+
+- [Use the design system](/docs/use-the-design-system) — tokens and palette steps
+- [Follow the shell theme](/docs/follow-the-shell-theme) — colours that switch for you
+- [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) — styling an overlay
+- [What you must not do](/docs/what-you-must-not-do) — the rest of the shared-page rules
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — how the limit is drawn

@@ -1,0 +1,352 @@
+---
+title: 'What you must not do'
+description: 'The rules that keep one container from breaking the page it shares, what catches each one, and the fix.'
+---
+
+Your <Term>container</Term> loads into a document the shell owns, beside other people's code. Four
+things on that page are shared: the URL and its history, the document head, the style cascade and
+Web Storage. Each rule below gives you the reason, the message you will see and the fix.
+
+## The rules, at a glance
+
+| Rule                                                                                                                                         | Protects    | Caught by              |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- |
+| [Forward the `history` and `basePath` your router factory receives.](#use-the-history-and-base-path-the-shell-gives-you)                     | URL         | Lint, Mount            |
+| [Spread the router context, and keep `mfe` and `queryClient`.](#use-the-history-and-base-path-the-shell-gives-you)                           | URL         | Mount                  |
+| [Write your routes relative to your boundary.](#use-the-history-and-base-path-the-shell-gives-you)                                           | URL         | Nothing                |
+| [Never assign to `window.location`.](#use-the-history-and-base-path-the-shell-gives-you)                                                     | URL         | Nothing                |
+| [Keep a Widget out of the URL, the tab title and the document head.](#a-widget-does-not-change-the-url-the-tab-title-or-the-document-head)   | document    | Lint                   |
+| [Store every value with `useStoredState` or `useMfeStorage`.](#store-state-through-the-framework-not-localstorage)                           | storage     | Lint                   |
+| [Write selectors that match elements inside your container.](#keep-styles-inside-your-container)                                             | styles      | Build                  |
+| [Leave `@property` and `@font-face` to the shell.](#keep-styles-inside-your-container)                                                       | styles      | Nothing                |
+| [Ship no stylesheet entry and no `postcss.config.mjs`.](#keep-styles-inside-your-container)                                                  | styles      | Nothing                |
+| [Colour with a semantic token or a palette step.](#keep-styles-inside-your-container)                                                        | styles      | Nothing                |
+| [Import from `@company/mfe-react`, and from nothing else in the framework.](#import-from-companymfe-react-and-nothing-else-in-the-framework) | imports     | Lint                   |
+| [Reference an asset through `new URL(…, import.meta.url)`.](#reference-assets-through-importmetaurl)                                         | imports     | Build                  |
+| [Write the contract and every presentation field as literals.](#keep-the-contract-literal-and-follow-the-naming-rules)                       | contract    | Build                  |
+| [Name ids, events and inputs the way the contract requires.](#keep-the-contract-literal-and-follow-the-naming-rules)                         | contract    | Build, Mount, Registry |
+| [Send only what JSON can carry in inputs and payloads.](#keep-the-contract-literal-and-follow-the-naming-rules)                              | contract    | Mount                  |
+| [Call `lazyWidget`, `createApp` and `createWidget` at module scope.](#call-lazywidget-createapp-and-createwidget-at-module-scope)            | mounts      | Lint                   |
+| [Keep the render function in a module that exports only components.](#keep-the-render-function-in-a-module-that-exports-only-components)     | dev loop    | Nothing                |
+| [Never edit generated output.](#never-edit-generated-output)                                                                                 | dev loop    | Nothing                |
+| [Log through `useTelemetry()`, not `console.log`.](#log-through-telemetry-not-consolelog)                                                    | diagnostics | Lint                   |
+| [Start child spans before the first `await`.](#start-child-spans-before-the-first-await)                                                     | diagnostics | Nothing                |
+| [Suppress a rule on one line, with a reason.](#suppress-a-rule-on-one-line-with-a-reason)                                                    | diagnostics | Nothing                |
+
+Four tools appear in that last column.
+
+| Caught by    | What it is                                                                          |
+| ------------ | ----------------------------------------------------------------------------------- |
+| **Lint**     | A rule in the `author` ESLint preset. You see it in your editor and in `pnpm lint`. |
+| **Build**    | `pluginMfe()` stops the build and names the file, the line and the repair.          |
+| **Mount**    | The mount throws a framework error, and the consumer sees a failure box.            |
+| **Registry** | The shell sets your entry aside at boot. Every other container still loads.         |
+
+**Nothing** means no tool checks that rule. You find out when something breaks, so read those rows
+twice.
+
+## Use the history and base path the shell gives you
+
+```ts title="examples/lab/src/mfe.ts (trimmed)"
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({
+    routeTree,
+    basepath: basePath,
+    history,
+    context: { ...context },
+  })
+}
+
+export default createApp({ id: 'lab', version: '1.0.0', router: makeRouter })
+```
+
+One address bar and one history stack serve the whole page, and the shell owns both. Your factory
+receives the boundary, its history, the `mfe` namespace and the Query client, and you forward all
+four. Never call `createBrowserHistory()`, which patches the history every container shares.
+
+<Callout type="error" title="mfe/no-global-patching">
+
+```text
+Patching `window.history.pushState` hijacks navigation for the whole page, so the host router and
+the other MFEs learn about a navigation only by accident.
+```
+
+**Fix.** Forward the `history` your factory received. Navigate with `navigate` or `Link` from your
+own router, which already resolve under your base path.
+
+</Callout>
+
+<Callout type="error" title="app/invalid-base-path">
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
+unchanged as createRouter({ basepath }), received "/orders".
+```
+
+**Fix.** Pass the `basePath` argument straight into `createRouter({ basepath })`.
+
+</Callout>
+
+Three more checks run at mount, and each one fails as `app/invalid-router`.
+
+| What the mount compares           | What it expects                                                                | Fix                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| the history your factory returned | `the exact history instance the framework supplied`                            | Forward the history you were given, unwrapped and unreplaced.       |
+| `context.mfe`                     | `the supplied context.mfe namespace, spread into the router context unchanged` | Spread the supplied context, and add your own top-level keys to it. |
+| `context.queryClient`             | `the supplied top-level queryClient, forwarded unchanged`                      | Spread the supplied context instead of building your own client.    |
+
+`mfe` and `queryClient` are the [reserved context keys](/docs/reference/glossary), and your own
+top-level keys survive every framework context update.
+
+Write your routes relative to your boundary. Use `/settings`, never `/operations/settings`, because
+`basepath` resolves your routes under whatever boundary the shell assigned. Nothing checks this.
+
+## A Widget does not change the URL, the tab title or the document head
+
+Declare an event in your Widget's `events` contract and `emit` it from the render props. The owning
+App receives it as `onNavigate`, `onTitle` or another `onX` prop, and acts on it
+([ask the owning App to navigate](/docs/ask-the-app-to-navigate)).
+
+Several Widgets can be on screen at once. The last one to render would take the URL and the title,
+and the tab title would flicker.
+
+<Callout type="error" title="mfe/no-widget-global-effects">
+
+```text
+A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host router,
+the owning App and every sibling MFE learn about it only by accident.
+```
+
+**Fix.** Declare a navigation event and emit it. The App navigates with its boundary router, or the
+shell with the host `BoundaryNavigator`.
+
+</Callout>
+
+The rule covers `history.pushState`, `replaceState`, `back`, `forward` and `go`, plus writes to
+`document.title` and `document.head`. Reading is not changing. The rule stays off until your
+repository declares `widgetScopes`, so name the globs that hold your own Widget code.
+
+## Store state through the framework, not `localStorage`
+
+```tsx title="examples/lab/src/routes/storage.tsx (trimmed)"
+const [draft, setDraft] = useStoredState('draft', draftSchema, {
+  defaultValue: { note: '', pinned: false },
+})
+```
+
+Every container in the origin writes into one shared key space, so two teams pick one name and the
+keys collide. `useStoredState` puts your definition id in front of your key.
+
+<Callout type="error" title="mfe/no-raw-storage">
+
+```text
+`localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this
+origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes
+as an unhandled exception.
+```
+
+**Fix.** Use `useStoredState(name, schema, { defaultValue })` for rendered state, and
+`useMfeStorage()` for everything else ([remember a value](/docs/remember-a-value)).
+
+</Callout>
+
+The rule is off in test files alone, because a storage test has to reach the storage it checks.
+
+## Keep styles inside your container
+
+Write your styles as utilities and design-system components in TSX, and ship no stylesheet of your
+own. The shell owns the document half: the reset, the fonts and the theme variables, all of which
+inherit into your subtree.
+
+| Rule                                                       | Why                                                                                           | Caught by | Fix                                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
+| Write selectors that match elements inside your container. | Your root element is not the document root, so `:root`, `html` and `body` match nothing.      | Build     | Write the rule against an element your container renders.     |
+| Leave `@property` and `@font-face` to the shell.           | Both register a name page-wide, and the browser keeps whichever it parsed last.               | Nothing   | Ask the shell to define it.                                   |
+| Ship no stylesheet entry and no `postcss.config.mjs`.      | The build writes `.mfe/styles.css` from your TSX, and a second entry ships an unscoped sheet. | Nothing   | Write utilities and design-system components in TSX.          |
+| Colour with a semantic token or a palette step.            | The palette belongs to the design system, so a class such as `bg-red-500` generates no CSS.   | Nothing   | Write `bg-primary`, `text-muted-foreground` or `bg-blue-120`. |
+
+<Callout type="error" title="A :root selector in a container stylesheet">
+
+```text
+`:root` matches nothing inside `@scope`: the scope root is not the document root, so `:root`,
+`:host`, `html` and `body` only mean anything as the leading compound.
+```
+
+**Fix.** Write the rule against an element your container renders. The build stops and names the
+file and the selector ([add styles beyond utilities](/docs/add-custom-styles)).
+
+</Callout>
+
+## Import from `@company/mfe-react` and nothing else in the framework
+
+```ts title="examples/lab/src/routes/storage.tsx (trimmed)"
+import { useMfeStorage, useStoredState } from '@company/mfe-react'
+```
+
+Everything an author needs, types included, comes from that one package. Lint blocks the rest, so
+no framework internal reaches your code and pins you to a patch release.
+
+| Blocked import                                  | Why                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `@company/mfe-core`                             | It is a framework-internal contract package whose shape changes with the framework.                  |
+| `@company/mfe-host`                             | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
+| `react-dom/client`                              | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
+| a deep path, such as `@company/mfe-react/src/*` | A deep import reaches past the entry point into files that change in a patch release.                |
+| `single-spa`, `single-spa-*`                    | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |
+| `@module-federation/*`                          | Module Federation is an implementation detail of the build and of the shell's loader.                |
+| `@opentelemetry/*`, `@grafana/faro*`            | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
+
+Zustand, Redux, MobX, Jotai and `@tanstack/store` are allowed, because an MFE owns its own state.
+
+<Callout type="error" title="@typescript-eslint/no-restricted-imports">
+
+```text
+Public API boundary: @company/mfe-core is a framework-internal contract package whose shape changes
+with the framework, not with its public API.
+```
+
+**Fix.** Import from `@company/mfe-react`. If what you need is not exported there, that is a
+framework bug worth filing.
+
+</Callout>
+
+## Reference assets through `import.meta.url`
+
+```ts
+const gearIcon = new URL('./icons/gear.svg', import.meta.url).href
+```
+
+A bare relative string resolves against the shell document, not against your container. It works in
+development, where the two share a host, and breaks the first time they do not.
+
+<Callout type="error" title="A bare relative asset reference">
+
+```text
+src/panel.tsx:12:19: the build failed to resolve an asset reference: expected a reference the build
+can rewrite to the deployed container, found the bare relative path './icons/gear.svg'.
+```
+
+**Fix.** Import the asset, or write `new URL('./icons/gear.svg', import.meta.url).href`. Both
+resolve against your container's own deployed location.
+
+</Callout>
+
+## Keep the contract literal, and follow the naming rules
+
+Declare the contract and every presentation field as literals in `src/mfe.ts`. The build reads your
+definition without running it, and only a literal can be read that way.
+
+| Rule                                                                                      | Caught by              | Fix                                                                                      |
+| ----------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| A definition id holds lower-case letters, digits and single hyphens, as in `alert-panel`. | Build, Mount, Registry | Rename the definition. The id is also your storage prefix and your CSS scope value.      |
+| Two definitions may not share an id.                                                      | Build, Registry        | Give each definition its own id. The registry sets both entries aside.                   |
+| An event name is lower camel case, as in `selectionChanged`.                              | Build, Mount           | Rename the event. Consumers subscribe to it as `onSelectionChanged`.                     |
+| An input may not be called `key`, `ref`, `fallback` or `onSomething`.                     | Build, Mount           | Rename the input. Those names belong to the host.                                        |
+| Inputs and event payloads carry only what JSON can carry.                                 | Mount                  | Send data. A consumer that needs a callback subscribes to an event instead.              |
+| A Widget declares both `inputs` and `events`.                                             | Build                  | Write `inputs: z.object({})` when the Widget takes none.                                 |
+| Declare the schema where the build can read it without running the module.                | Build                  | Declare it inline in `src/mfe.ts`, or export it from another module of this container.   |
+| `title`, `description`, `version`, `tags` and `id` are inline literals.                   | Build                  | Write the value inline. Pass `icon` as an imported identifier, which the build resolves. |
+| A container exports at most one App, and exports every definition from its entry.         | Build                  | Split the Apps into separate containers, and add `export` to every definition.           |
+
+## Call `lazyWidget`, `createApp` and `createWidget` at module scope
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+Module scope means the top level of a file, outside every function. One built during render is a
+new component on every pass, so the host unmounts the running Widget and loads it again.
+
+<Callout type="error" title="mfe/stable-definitions">
+
+```text
+`lazyWidget` (`lazyWidget` from @company/mfe-react) has to be called once, at module scope.
+```
+
+**Fix.** Move the call to the top level of the module, as above, and reference the result where you
+render it.
+
+</Callout>
+
+A host that learns its Widgets from the registry cannot name them in its source. It renders
+[`DynamicWidget`](/docs/render-a-widget-at-run-time) instead, which takes the id as a prop.
+
+## Keep the render function in a module that exports only components
+
+```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
+import { AlertPanel } from './alert-panel.tsx'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+A hot update swaps a changed module into the running page without a reload. React Refresh does that
+only for a module whose every export is a component, and one schema exported beside them stops it.
+The page then reloads and every piece of state on it is lost.
+
+| Module                | What it exports                          | What an edit to it does   |
+| --------------------- | ---------------------------------------- | ------------------------- |
+| `src/mfe.ts`          | the definition, and usually its contract | reloads the page          |
+| `src/alert-panel.tsx` | the render function, and nothing else    | updates the page in place |
+
+No lint rule checks this. `pnpm hmr:probe <file>` answers the question for one file, and prints
+`hot-updated in place` or `(the page reloaded)`.
+
+## Never edit generated output
+
+Edit the source a file is generated from, then build. Every generated module opens with this
+banner.
+
+```text
+/**
+ * Generated by @company/mfe-rspack. Do not edit: the next build overwrites it.
+ */
+```
+
+**If you write a generator of your own,** its output has to be a pure function of its sources. A
+timestamp, a counter or a random id makes every compilation a source change, so the container
+rebuilds without end.
+
+## Log through telemetry, not `console.log`
+
+```tsx title="examples/lab/src/routes/telemetry.tsx (trimmed)"
+const telemetry = useTelemetry()
+telemetry.info('Lab said hello', { where: 'telemetry page' })
+```
+
+`no-console` allows `warn` and `error` alone, so `log`, `info`, `debug` and `table` are errors in
+your `src/`. Every telemetry record carries your definition id, kind, version, build hash and mount
+token, and a `console.log` carries none of that.
+
+## Start child spans before the first `await`
+
+Create child spans synchronously inside `startActiveSpan`. Start them with `startSpan` instead when
+you need one later, and tie them together with an attribute of your own. A span created after an
+`await` becomes a root with a fresh trace id. Nothing checks this rule.
+
+## Suppress a rule on one line, with a reason
+
+```ts
+// eslint-disable-next-line react-hooks/exhaustive-deps -- the remaining options
+// are part of the key's module-scope declaration and cannot legally change.
+```
+
+A suppression names one rule, sits on the line it applies to, and carries a specific reason.
+"Noisy" is not a reason. Never disable a check across a package to accommodate one exception.
+`react-hooks/rule-suppression` is a warning in both presets, so a suppressed React Hooks rule stays
+visible in `pnpm lint`.
+
+## Related
+
+- [Lint rules](/docs/reference/lint-rules) — every rule, with its message in full.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, events, inputs.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why each rule exists.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — the module rule in practice.
+- [Error codes](/docs/reference/error-codes) — every code, when it happens, and the fix.

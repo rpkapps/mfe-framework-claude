@@ -1,0 +1,143 @@
+---
+title: 'Architecture'
+description: 'What is deployed and where, what runs between a page load and your App, which packages you touch, and how the adapters fit together.'
+---
+
+Four pictures of the system your App or Widget loads into. Each one answers a single question, and
+each has a text equivalent you can open instead of the picture. The mechanisms behind them are on
+the How it works pages.
+
+## What is deployed, and where
+
+<Diagram
+  src="/diagrams/system-at-rest.svg"
+  alt="The shell origin with its registry, three container origins, the files every container publishes, the API and the browser page."
+  caption="What is deployed where, before anyone opens the page."
+>
+Eleven boxes, read left to right.
+
+- **The shell origin**, on `http://localhost:3000` in development, holds `index.html` and
+  `registry.json`, which carries one record per definition.
+- An arrow **manifestUrl** reaches **Three container origins**: `operations` (an App, `:3001`),
+  `alert-panel` (one Widget, `:3003`) and `insights` (four Widgets, `:3004`).
+- An arrow **publishes** reaches **Every container publishes**, holding `mf-manifest.json`,
+  `remoteEntry.js`, `styles.css` and `runtime-config.json`.
+- An arrow **names the API** drops from `runtime-config.json` to **The API**, on `:3010` in
+  development, serving `GET /api/assets`.
+- **The browser page** sits at the bottom left, one document from the shell origin. An arrow
+  **served from** points up to the shell origin, and **fetched into** points down from the
+  published files. A legend names the five colours.
+
+</Diagram>
+
+Your container is a deployment of its own, with its own build, version and origin. It publishes
+four files: `mf-manifest.json`, `remoteEntry.js`, `styles.css` and `runtime-config.json`. The shell
+is a separate deployment, and it serves the page. At boot it fetches one `registry.json` holding one
+record per App or Widget. Your build writes your record, so nobody hand-writes that JSON. The page
+stays one browser document with one React tree, and there is no iframe. Your API is a third
+deployment. `runtime-config.json` names its URL, so moving the API is a deployment rather than a
+rebuild.
+
+## What happens between a page load and your App
+
+<Diagram
+  src="/diagrams/boot-to-mount.svg"
+  alt="Seven numbered steps from the shell booting to a rendered App, with two panels of failure codes."
+  caption="Page load to a rendered App, in the order the code runs."
+>
+Twelve boxes: seven numbered steps in two columns, and five error codes.
+
+- The left column is **In the shell**, `apps/shell/src/boot.tsx`. It holds **1. The document
+  boots**, **2. Diagnostics, then session** (`installShellAuth`), **3. The registry arrives**
+  (`await fetch('/registry.json')`) and **4. Runtime reads the registry**.
+- An arrow carries step 4 into the right column, **In the framework**, `@company/mfe-react`.
+- That column holds **5. URL picks the boundary**
+  (`<AppHost appId='operations' basePath='/operations'>`), **6. The container loads once**
+  (`loadRemote('operations/app')`) and **7. The App renders**.
+- A red arrow **thrown** leaves step 6 for **When step 6 fails**: `load/manifest-failure`,
+  `load/entry-failure` and `registry/invalid-entry`.
+- A red arrow **thrown** leaves step 7 for **When step 7 fails**, drawn with a Retry:
+  `app/invalid-base-path` and `app/invalid-router`.
+
+</Diagram>
+
+The shell boots first. It builds its diagnostics, installs the page's one session, then fetches
+`registry.json`. Nothing of yours has run yet, because your code is not in the shell's build. The
+URL then picks a boundary. At `/operations/wells` the shell mounts the App whose id is `operations`
+and hands it `/operations` as its base path. The framework loads your container once per page,
+checks the definition `src/mfe.ts` exports, creates the mount and renders your router. A container
+that will not load costs that one region. The chrome stays, the other Apps stay reachable, and the
+person sees your failure message and a Retry button.
+
+## The packages you import, and the one you configure
+
+<Diagram
+  src="/diagrams/layers.svg"
+  alt="The framework packages, which way their imports point, and what the build plugin generates."
+  caption="The packages, which way the imports point, and who sees them."
+>
+Twelve boxes in two regions.
+
+- **In the browser**, where an arrow points at what a package depends on. `apps/shell` and
+  `examples/operations` both point at `@company/mfe-react`. `@company/mfe-react` and
+  `@company/mfe-legacy-angular` both point at `@company/mfe-host`, which points at
+  `@company/mfe-core`.
+- A line under that graph names what sits beside it: `@company/create-mfe`,
+  `@company/eslint-plugin-mfe` and `@company/mfe-devtools`.
+- **At build time**, one entry in the container's `rsbuild.config.ts`: `@company/mfe-rspack`
+  (`pluginMfe()`), with one arrow **generates** into `#mfe/config`, `#mfe/fetch`, `#mfe/meta`,
+  `.mfe/entries/` and `.mfe/styles.css`.
+- A green dot marks what an author writes or imports: `examples/operations`, `@company/mfe-react`,
+  `#mfe/config` and `#mfe/fetch`. The legend names the four colours and the dot.
+
+</Diagram>
+
+You import from `@company/mfe-react` and from nothing else in the framework. Everything an author
+needs is re-exported there, types included, and lint blocks the rest. `@company/mfe-host` and
+`@company/mfe-core` sit under it and hold no React. Your build adds one line, `pluginMfe()` in
+`rsbuild.config.ts`. That line generates `#mfe/config`, `#mfe/fetch`, `#mfe/meta`, your container
+entries and your scoped stylesheet. You write `src/mfe.ts`, the routes under `src/routes/`,
+`src/mfe.config.ts` and that plugin line. Everything under `.mfe/` is generated, and the next build
+overwrites it.
+
+## How the adapters fit together
+
+<Diagram
+  src="/diagrams/adapters.svg"
+  alt="The shell's registry entering the neutral host, one adapter per kind of entry, and the container each adapter mounts."
+  caption="One neutral host, and one adapter per framework."
+>
+Twelve boxes, read top to bottom.
+
+- **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into
+  **The neutral host**, `@company/mfe-host`, which holds no React, no router and no federation.
+- The host holds **Shared services** (storage, commands, navigation bridge, diagnostics) and
+  **Reading the registry**, where one adapter recognises each entry.
+- Inside that: **Entries with mfe** (`reactAdapter`) and **Entries without mfe**
+  (`legacyAngularAdapter`).
+- An arrow **read by** drops from each of them to its adapter. **The React adapter** holds the
+  federation loader, the App and Widget definitions, and the boundary and style roots. **The legacy
+  Angular adapter**, marked removable, holds registry translation, the parcel lifecycle, and the
+  base href and shell routes.
+- An arrow **loads, mounts** drops from each adapter to its container, `operations` and
+  `asset-tracker`. The legend names the shell, a neutral package, an adapter package and a
+  container.
+
+</Diagram>
+
+A neutral host reads the registry and offers each entry to every adapter it has. Exactly one
+adapter must recognise it. Your entry names the framework version your container was built for. The
+React adapter reads it, loads your container and mounts the `createApp` and `createWidget`
+definitions inside. An existing single-spa Angular application names no such version, and a second,
+removable adapter reads it instead. Nothing falls back on its own. An entry that names a framework
+version stays with the React adapter, even when a field in it is wrong. That entry is set aside
+with a reason. Storage, commands, navigation and diagnostics come from the host, so both kinds
+behave alike.
+
+## Related
+
+- [Quickstart](/docs/quickstart) — scaffold a container and watch it load.
+- [Tutorial: build the operations App](/docs/tutorial) — this architecture, end to end.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — the stages behind the second diagram.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — what a mount is separated from.
+- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — the two adapters in full.

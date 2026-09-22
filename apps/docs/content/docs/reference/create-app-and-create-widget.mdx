@@ -1,0 +1,168 @@
+---
+title: 'createApp and createWidget options'
+description: 'Every option the two definition factories take, with its type and what reads it.'
+---
+
+`createApp` and `createWidget` return a <Term>definition</Term>: a plain value with no side effects. Your build reads it without running your code, so every option has to be written inline. Both factories come from `@company/mfe-react`.
+
+## createApp options
+
+```ts title="examples/operations/src/mfe.ts"
+import { createApp, type AppRouterOptions } from '@company/mfe-react'
+import { HardHatIcon } from 'lucide-react'
+import { createRouter } from '@tanstack/react-router'
+
+import { routeTree } from './routeTree.gen'
+
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({ routeTree, basepath: basePath, history, context: { ...context } })
+}
+
+export default createApp({
+  id: 'operations',
+  version: '2.1.0',
+  description: 'Day-to-day field operations: wells, alerts and daily reports.',
+  tags: ['operations'],
+  icon: HardHatIcon,
+  router: makeRouter,
+})
+```
+
+| Option        | Type                                       | Required | What it does                                                            |
+| ------------- | ------------------------------------------ | -------- | ----------------------------------------------------------------------- |
+| `id`          | `string`                                   | yes      | The definition id. Also the storage prefix and the CSS scope value.     |
+| `router`      | `(options: AppRouterOptions) => AnyRouter` | yes      | Called once per mount, never once per module.                           |
+| `version`     | `string`                                   | no       | Recorded in diagnostics, so a failure names the build that was running. |
+| `breadcrumbs` | `false`                                    | no       | Drops this App's own breadcrumb segment. Nested Apps still contribute.  |
+| `title`       | `string`                                   | no       | Presentation. See the table below.                                      |
+| `description` | `string`                                   | no       | Presentation.                                                           |
+| `tags`        | `readonly string[]`                        | no       | Presentation.                                                           |
+| `icon`        | imported identifier                        | no       | Presentation.                                                           |
+
+## createWidget options
+
+```ts title="examples/alert-panel/src/mfe.ts"
+import { createWidget } from '@company/mfe-react'
+import { BellIcon } from 'lucide-react'
+import { z } from 'zod'
+
+import { AlertPanel } from './alert-panel.tsx'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  title: 'Alert panel',
+  description: 'Open alerts for one asset, acknowledged or dismissed in place.',
+  tags: ['alerts', 'operations', 'safety'],
+  icon: BellIcon,
+  inputs: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+  }),
+  events: {
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+    dismissed: z.object({ alertId: z.string() }),
+  },
+  render: AlertPanel,
+})
+```
+
+| Option        | Type                                      | Required | What it does                                                               |
+| ------------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `id`          | `string`                                  | yes      | The definition id, under the same rule as an App's.                        |
+| `inputs`      | `z.ZodType`                               | yes      | One schema for every prop. A Widget that takes none writes `z.object({})`. |
+| `events`      | `Record<string, z.ZodType>`               | yes      | Event name to payload schema. A Widget that emits none writes `{}`.        |
+| `render`      | `(props: WidgetRenderProps) => ReactNode` | yes      | The component. Keep it in its own module.                                  |
+| `version`     | `string`                                  | no       | Recorded in diagnostics.                                                   |
+| `title`       | `string`                                  | no       | Presentation.                                                              |
+| `description` | `string`                                  | no       | Presentation.                                                              |
+| `tags`        | `readonly string[]`                       | no       | Presentation.                                                              |
+| `icon`        | imported identifier                       | no       | Presentation.                                                              |
+
+## The four presentation options
+
+A host reads these from the registry before it has fetched your container. All four are optional, and all four must be written as literals.
+
+| Option        | Value                                        | Who reads it                                                     |
+| ------------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| `title`       | a plain string literal                       | A catalogue. The shell's own wording can override it.            |
+| `description` | a plain string literal                       | A catalogue.                                                     |
+| `tags`        | an array of plain, non-empty string literals | A catalogue filters on them and never reads their meaning.       |
+| `icon`        | an imported identifier or an imported `.svg` | The build follows the import and publishes the shapes behind it. |
+
+Nothing reads the `icon` value you pass. The registry crosses an origin boundary, so it carries data rather than components.
+
+## What your router factory receives
+
+```ts title="examples/operations/src/mfe.ts"
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({ routeTree, basepath: basePath, history, context: { ...context } })
+}
+```
+
+| Field      | Type               | Rule                                                                             |
+| ---------- | ------------------ | -------------------------------------------------------------------------------- |
+| `basePath` | `string`           | Pass it through unchanged as `createRouter({ basepath })`.                       |
+| `history`  | `RouterHistory`    | Forward the exact instance. Never create, wrap or mutate one.                    |
+| `context`  | `MfeRouterContext` | Spread it. Add your own top-level keys, and leave `mfe` and `queryClient` alone. |
+
+## What your render function receives
+
+| Field    | Type                       | What it is                                                       |
+| -------- | -------------------------- | ---------------------------------------------------------------- |
+| `inputs` | `ContractInputs<C>`        | The validated props, typed from your `inputs` schema.            |
+| `emit`   | `(event, payload) => void` | Sends one declared event. The payload is validated at this call. |
+
+## What each factory returns
+
+`createApp` returns `{ kind: 'app', id, version?, createRouter, contributesBreadcrumbs }`. `createWidget` returns `{ kind: 'widget', id, version?, contract, render }`. Both carry a private brand, which is how the mount boundary recognises them. Treat the result as an opaque value and export it from `src/mfe.ts`.
+
+## Errors
+
+<Callout type="error" title="registry/invalid-entry">
+
+```text
+Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for example "alert-panel"), received "Order_Book". Give the definition a stable id; it is also its storage prefix and CSS scope value.
+```
+
+**Fix.** Rename the id to `order-book`. The same rule applies to `createWidget`.
+
+</Callout>
+
+<Callout type="error" title="app/invalid-router">
+
+```text
+orders failed to create App definition: expected a router factory function, received nothing. Pass the named factory that calls createRouter; it runs once per mount.
+```
+
+**Fix.** Pass the factory itself, not a router you already built.
+
+</Callout>
+
+<Callout type="error" title="mount/failure">
+
+```text
+alert-panel failed to create Widget definition: expected a render function, received nothing. Pass a component function as `render`; its props are typed from the schemas.
+```
+
+**Fix.** Pass `render: AlertPanel`, imported from its own module.
+
+</Callout>
+
+<Callout type="error" title="contract/event-mismatch">
+
+```text
+alert-panel failed to declare event 'alert-acknowledged': expected a lower-camel-case event name, for example "acknowledged", received "alert-acknowledged". Rename the event; consumers subscribe to it as onYourEvent.
+```
+
+**Fix.** Rename it to `alertAcknowledged`. The name has to survive the mapping to an `onX` prop.
+
+</Callout>
+
+## Related
+
+- [Create an App](/docs/create-an-app) — the recipe this page backs.
+- [Create a Widget](/docs/create-a-widget) — the Widget recipe.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, events, inputs.
+- [Route staticData fields](/docs/reference/static-data) — what a route adds to a definition.
+- [Error codes](/docs/reference/error-codes) — every code, with the fix.

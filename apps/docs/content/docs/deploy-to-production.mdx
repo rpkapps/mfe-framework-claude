@@ -1,0 +1,140 @@
+---
+title: 'Deploy to production with separate repositories'
+description: 'Ship one image per container, register it on deploy, and let the shell read one registry.'
+---
+
+You deploy each container on its own, from its own repository, and the shell learns about it from
+the registry. This repository holds a development assembler and a shell that reads a registry, and
+the rest is yours to provide.
+
+## Steps
+
+| Piece                                               | Where it comes from                                   |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| a description record that names no origin           | your container build                                  |
+| a registry assembled from those records             | `tools/dev/build-registry.mjs`, for local development |
+| the shell reading `/registry.json`                  | `apps/shell/src/boot.tsx`                             |
+| an image and an origin per container                | your platform                                         |
+| a registry service the pipeline writes to           | your platform                                         |
+| `runtime-config.json`, written from the environment | your platform                                         |
+
+<Steps>
+
+<Step>
+### 1. Publish each container on its own origin
+
+```sh
+pnpm --filter @example/operations run build
+```
+
+Serve the `dist/` directory from an image of your own, one image per container.
+
+</Step>
+
+<Step>
+### 2. Write the deployment's values at container start
+
+```json title="examples/operations/public/runtime-config.json"
+{
+  "apiBaseUrl": "http://localhost:3010/api/",
+  "telemetryEnabled": false
+}
+```
+
+Your start-up step reads the environment and writes this file beside the container's assets.
+
+</Step>
+
+<Step>
+### 3. Register the container as the pipeline deploys it
+
+```sh
+curl -X PUT "$REGISTRY_URL/containers/operations" \
+  --data-binary @.mfe/mfe-registry.json
+```
+
+Your pipeline sends the generated record to a registry service of your own, which resolves
+`manifestUrl` against the origin you deployed to.
+
+</Step>
+
+<Step>
+### 4. Serve one registry from the shell's own origin
+
+```tsx title="apps/shell/src/boot.tsx (trimmed)"
+const response = await fetch('/registry.json')
+```
+
+The shell reads that file once, at boot, so a container registered later arrives on the next page
+load.
+
+</Step>
+
+<Step>
+### 5. Keep the shell's own overrides in the shell's deployment
+
+```json title="apps/shell/registry.source.json (trimmed)"
+{
+  "presentation": {
+    "operations": { "title": "Operations", "icon": "OPS" }
+  }
+}
+```
+
+A deployment may retitle or re-icon a definition here, and it writes no id, kind, version,
+capability, container name or expose path.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open the shell and the developer tools' **Registry** tab. Every definition you deployed appears
+under **Loaded**, each with the origin it loaded from. Open one of your own screens, and confirm
+its requests reach the API the deployment configured.
+
+## Errors
+
+<Callout type="error" title="config/missing">
+
+```text
+operations failed to load its runtime configuration: expected a file at
+https://operations.example.com/runtime-config.json, received 404 Not Found.
+```
+
+**Fix.** Publish the runtime configuration with the container. The generated `.env.example` lists
+every value the file has to carry.
+
+</Callout>
+
+<Callout type="error" title="load/manifest-failure">
+
+```text
+Check that https://operations.example.com/mf-manifest.json is reachable and serves a valid manifest.
+```
+
+**Fix.** Confirm the origin in the registry entry is the one you deployed to, and that it answers
+requests from the shell's origin.
+
+</Callout>
+
+<Callout type="error" title="no adapter recognised this entry">
+
+```text
+expected exactly one of the registered adapters (react) to recognise the entry, received an entry
+none of them recognised.
+```
+
+**Fix.** Register the entry your build generated rather than a hand-written one. An entry with no
+`mfe` key belongs to no adapter here.
+
+</Callout>
+
+## Related
+
+- [Build and publish a container](/docs/build-and-publish) — what a build writes.
+- [Undeploy or roll back](/docs/undeploy-or-roll-back) — taking a container out again.
+- [Supply values per deployment](/docs/supply-values-per-deployment) — the values file in detail.
+- [Registry entry](/docs/reference/registry-entry) — every field the registry reads.
+- [Run the shell with your container](/docs/run-the-shell-locally) — the same pieces locally.

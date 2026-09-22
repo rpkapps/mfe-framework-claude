@@ -8,11 +8,11 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { NeutralRegistryEntry } from '@company/mfe-react'
+import type { RegistryEntry } from '@company/mfe-react'
 import { devtools } from '../devtools-store.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 
-const ENTRIES: readonly NeutralRegistryEntry[] = [
+const ENTRIES: readonly RegistryEntry[] = [
   {
     id: 'operations',
     definitionKind: 'app',
@@ -28,7 +28,7 @@ const ENTRIES: readonly NeutralRegistryEntry[] = [
 ]
 
 vi.mock('./use-devtools.ts', () => ({
-  useRegistryEntries: (): readonly NeutralRegistryEntry[] => ENTRIES,
+  useRegistryEntries: (): readonly RegistryEntry[] => ENTRIES,
   useActiveOverrides: (): ReadonlyMap<string, string> => new Map(),
   useContainerLookup: (): ((id: string) => string | undefined) => () => undefined,
 }))

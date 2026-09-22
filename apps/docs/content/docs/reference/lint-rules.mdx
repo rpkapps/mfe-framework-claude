@@ -1,0 +1,157 @@
+---
+title: 'Lint rules'
+description: 'Every rule in @company/eslint-plugin-mfe, the message it prints and the repair.'
+---
+
+`@company/eslint-plugin-mfe` ships four rules of its own, a set of restricted imports and one tightened core rule. They cover the failures no general-purpose rule can see, because they are about being one fragment of a page you do not own. Add them with `mfe.author({ … })` in your `eslint.config.ts`. Add `mfe.tooling({ … })` beside it, so the build and test configuration files are linted too.
+
+All four rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you: `mfe/no-raw-storage` offers a suggestion, and the other three leave the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
+
+## mfe/no-global-patching
+
+**Reports.** Assignment to, `delete` of, or `defineProperty` on `fetch`, `history.pushState`, `history.replaceState`, `window.history`, and `addEventListener` or `removeEventListener` on `window`, `document` or `globalThis`.
+
+**Message, for `fetch`.**
+
+```text
+Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in this page, and the last bundle to evaluate wins. Wrap your own requests instead: call `fetch` through a module-local client in this MFE and pass `useMfeSignal()` (@company/mfe-react) as the request signal so the call is cancelled on unmount. Page-wide instrumentation is the shell's to install, once.
+```
+
+**Message, for the History API.**
+
+```text
+Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
+```
+
+**Message, for listener registration.**
+
+```text
+Patching `{{target}}` changes event dispatch for every MFE and outlives your own unmount. Register listeners normally and let the framework tear them down: `target.addEventListener(type, handler, { signal: useMfeSignal() })`, since @company/mfe-react aborts that signal on unmount.
+```
+
+**Fix.** Read and call the global instead of replacing it. Use `#mfe/fetch` for your own requests, your router for navigation, and `{ signal: useMfeSignal() }` for listeners.
+
+**Options.** None.
+
+## mfe/stable-definitions
+
+**Reports.** `createApp`, `createWidget` or `lazyWidget` called anywhere but module scope. A component body, a hook, a `useMemo` and a class field initialiser all count.
+
+**Message.**
+
+```text
+`{{local}}` (`{{name}}` from {{source}}) has to be called once, at module scope. Calling it in {{where}} mints a new definition identity on every call, so the host treats it as a different MFE: it unmounts the running instance, throws away its state and refetches its data. Move the `{{name}}(...)` call to the top level of this module and reference the resulting definition here.
+```
+
+**Fix.** Move the call to the top level of the module and reference the result.
+
+**Options.**
+
+```ts
+'mfe/stable-definitions': ['error', {
+  modules: ['@company/mfe-react', '@company/mfe-host', '@company/mfe-core'],
+  factories: ['createApp', 'createWidget', 'lazyWidget'],
+}]
+```
+
+## mfe/no-raw-storage
+
+**Reports.** Direct reads and writes of `localStorage` and `sessionStorage`, including `window.localStorage` and a bare reference to the object.
+
+**Message.**
+
+```text
+`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for imperative access, both from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.
+```
+
+**Suggestion.**
+
+```text
+Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = useMfeStorage()`.
+```
+
+**Fix.** Use `useStoredState()` in a component, or `useMfeStorage()` everywhere else. The suggestion rewrites the object only, so the file still has to bind the accessor and spell the read the boundary's way.
+
+**Options.**
+
+```ts
+'mfe/no-raw-storage': ['error', {
+  allowedScopes: [],
+  objects: ['localStorage', 'sessionStorage'],
+  storageAccessor: 'storage',
+}]
+```
+
+## mfe/no-widget-global-effects
+
+**Reports.** History navigation, `document.title` writes and document-head changes, inside declared Widget scopes only.
+
+**`widgetScopes` decides where it applies.** Ownership is never guessed from a file name. The rule reports only inside the globs you list, and with none configured it does nothing at all. The same code in an App route is not reported.
+
+```ts title="eslint.config.ts"
+mfe.author({
+  widgetScopes: ['src/widgets/**'],
+})
+```
+
+**Message, for history.**
+
+```text
+A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the host `BoundaryNavigator`.
+```
+
+**Message, for the title.**
+
+```text
+`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle` and sets what it owns.
+```
+
+**Message, for head metadata.**
+
+```text
+Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from the render props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also what reverts it.
+```
+
+**Fix.** Declare the event, emit it from your render props, and let the owning App act.
+
+**Options.**
+
+```ts
+'mfe/no-widget-global-effects': ['error', { widgetScopes: [] }]
+```
+
+## Restricted imports
+
+The `author` preset turns three package paths and three path groups into errors. Each one prints the sentence below in place of ESLint's own wording.
+
+| What you imported                                      | The message says                                                                                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `@company/mfe-core`                                    | It is a framework-internal contract package. Everything an author needs is re-exported from `@company/mfe-react`.                   |
+| `@company/mfe-host`                                    | It is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. |
+| `react-dom/client`                                     | The host owns the React root. Calling `createRoot` yourself detaches you from the mount lifecycle.                                  |
+| A deep path such as `@company/mfe-react/src/*`         | A deep import reaches past the entry point into files that are free to change in a patch release.                                   |
+| `single-spa`, `single-spa-*`                           | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                                                     |
+| `@module-federation/*`                                 | Module Federation is an implementation detail of the build integration and the loader.                                              |
+| `@opentelemetry/*`, `@grafana/faro`, `@grafana/faro-*` | An MFE does not ship its own telemetry SDK. Two in one page mean two trace contexts and twice the bundle.                           |
+
+The telemetry group restricts type-only imports too. Use `useTelemetry()`, or `context.mfe.telemetry` in a route callback. For everything else, import from `@company/mfe-react`. If something you need is not exported there, that is a framework bug worth filing.
+
+## no-console
+
+**Reports.** Any `console` call other than `console.warn` and `console.error`.
+
+**Message.**
+
+```text
+Unexpected console statement. Only these console methods are allowed: warn, error.
+```
+
+**Fix.** Use `useTelemetry()`. A `console.log` reaches nobody once your container is deployed, and it carries none of the attribution the telemetry record does.
+
+## Related
+
+- [Run the checks before you push](/docs/run-the-checks) — how to run and read them.
+- [What you must not do](/docs/what-you-must-not-do) — the same rules as prose.
+- [Ask the owning App to navigate](/docs/ask-the-app-to-navigate) — the repair for a Widget.
+- [Log an event](/docs/log-an-event) — what replaces `console.log`.
+- [Error codes](/docs/reference/error-codes) — the runtime failures these prevent.

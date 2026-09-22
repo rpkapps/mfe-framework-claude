@@ -7,6 +7,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
+import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
 import { createMf2ContainerLoader, createMfeRuntime, MfeProvider } from '@company/mfe-react'
 import {
   createBrowserNavigationBridge,
@@ -28,7 +29,7 @@ import { notices } from './shell/workspace.ts'
 import './styles/app.css'
 
 /** A registry that will not load is a diagnostic, not a crash: the shell still boots. */
-async function readRegistry(): Promise<readonly unknown[]> {
+async function fetchRegistryEntries(): Promise<readonly unknown[]> {
   try {
     const response = await fetch('/registry.json')
     if (!response.ok) throw new Error(`registry.json responded ${String(response.status)}`)
@@ -77,7 +78,9 @@ installShellAuth({
 const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
-  registryEntries: await readRegistry(),
+  registryEntries: await fetchRegistryEntries(),
+  // The framework adapter is always registered; this shell also serves legacy Angular apps.
+  adapters: [legacyAngularAdapter],
   // The only place in the shell that knows federation exists.
   loader: createMf2ContainerLoader({
     runtime: {

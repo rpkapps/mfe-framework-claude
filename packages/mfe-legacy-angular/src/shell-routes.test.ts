@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { isMfeError, type RegistryEntry } from '@company/mfe-core'
 
-import { createLegacyAdapterRule } from './registry/legacy-rule.ts'
+import { legacyAngularAdapter } from './registry/legacy-adapter.ts'
 import {
   createLegacyReleaseNotesSource,
   isLegacyShellRoute,
@@ -13,10 +13,8 @@ import {
   type LegacyReleaseNotesFetch,
 } from './shell-routes.ts'
 
-const rule = createLegacyAdapterRule()
-
-function legacyEntry(overrides: Record<string, unknown> = {}): NeutralRegistryEntry {
-  return rule.normalize({
+function legacyEntry(overrides: Record<string, unknown> = {}): RegistryEntry {
+  return legacyAngularAdapter.parse({
     name: 'asset-tracker',
     mfManifestUrl: 'https://cdn.example.test/apps/asset-tracker/mf-manifest.json',
     ...overrides,
@@ -24,7 +22,7 @@ function legacyEntry(overrides: Record<string, unknown> = {}): NeutralRegistryEn
 }
 
 /** A migrated App that owns its release notes, for the additive-capability case. */
-function migratedEntry(): NeutralRegistryEntry {
+function migratedEntry(): RegistryEntry {
   return {
     ...legacyEntry(),
     capabilities: [{ name: 'releaseNotes', label: 'What’s new', path: '/release-notes' }],
@@ -222,7 +220,7 @@ describe('createLegacyReleaseNotesSource', () => {
 })
 
 describe('release notes when an App owns its own', () => {
-  it('sends the shell into the App when it advertises the capability', () => {
+  it('sends the shell into the App when it declares the capability', () => {
     expect(selectReleaseNotesRoute(migratedEntry())).toEqual({
       kind: 'app-capability',
       path: '/release-notes',
@@ -236,7 +234,7 @@ describe('release notes when an App owns its own', () => {
     })
   })
 
-  it('leaves the legacy path working for an entry that also advertises the capability', async () => {
+  it('leaves the legacy path working for an entry that also declares the capability', async () => {
     const { fetch, calls } = okFetch('# still published')
     const source = createLegacyReleaseNotesSource({ fetch })
 

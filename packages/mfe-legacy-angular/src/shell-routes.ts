@@ -3,7 +3,7 @@
  * release notes beside their manifest. An app that has not migrated keeps this fallback.
  */
 
-import { createMfeError, type MfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { createMfeError, type MfeError, type RegistryEntry } from '@company/mfe-core'
 import { capabilityRoute } from '@company/mfe-host'
 
 /** Evaluation order is part of the contract: the catch-all is last so it cannot swallow a route. */
@@ -120,10 +120,7 @@ export interface LegacyReleaseNotes {
 }
 
 export interface LegacyReleaseNotesSource {
-  load(
-    entry: NeutralRegistryEntry,
-    init?: { readonly signal?: AbortSignal },
-  ): Promise<LegacyReleaseNotes>
+  load(entry: RegistryEntry, init?: { readonly signal?: AbortSignal }): Promise<LegacyReleaseNotes>
 }
 
 function unreachable(id: string, url: string, observed: string, cause?: unknown): MfeError {
@@ -168,7 +165,7 @@ export type ReleaseNotesRoute =
 
 /** Only the legacy branch is this package's: the capability read is a neutral registry question. */
 export function selectReleaseNotesRoute(
-  entry: NeutralRegistryEntry,
+  entry: RegistryEntry,
   options: { readonly base?: string | undefined } = {},
 ): ReleaseNotesRoute {
   const path = capabilityRoute(entry, 'releaseNotes')

@@ -128,7 +128,7 @@ function addFrameworkMetadata(
   if (asset === undefined) {
     compilation.errors.push(
       new Error(
-        `${PLUGIN_NAME}: no ${name} was emitted, so this container advertises no framework ` +
+        `${PLUGIN_NAME}: no ${name} was emitted, so this container declares no framework ` +
           'contract and a shell cannot tell which major it was built against. Check that the ' +
           "Rsbuild config still applies pluginMfe() and that nothing replaced the container's " +
           'moduleFederation options.',
@@ -148,7 +148,7 @@ function addFrameworkMetadata(
   )
 }
 
-/** Ships the registry descriptor and config schema with the container. */
+/** Ships the registry entry and config schema with the container. */
 function emitContainerArtifacts(
   compiler: Compiler,
   compilation: Compilation,

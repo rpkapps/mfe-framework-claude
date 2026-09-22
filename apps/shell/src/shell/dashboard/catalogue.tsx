@@ -1,5 +1,5 @@
 /**
- * The catalogue of Widgets the registry advertises: everything shown is read from the registry
+ * The catalogue of Widgets the registry lists: everything shown is read from the registry
  * entry, with no container loaded at the point this list renders (§16).
  *
  * A card is an icon and a name, because that is what someone picking a Widget reads. The
@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState, type ReactNode } from 'react'
-import { DefinitionIcon, type NeutralRegistryEntry } from '@company/mfe-react'
+import { DefinitionIcon, type RegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -37,12 +37,12 @@ import { readInputFields, type InputField } from './input-schema.ts'
 export const WIDGET_MEDIA_TYPE = 'application/x-mfe-widget'
 
 export interface CatalogueProps {
-  readonly widgets: readonly NeutralRegistryEntry[]
-  readonly onAdd: (entry: NeutralRegistryEntry) => void
+  readonly widgets: readonly RegistryEntry[]
+  readonly onAdd: (entry: RegistryEntry) => void
 }
 
 /** Name, id, description and tags: everything a reader might type to mean this Widget. */
-function searchText(entry: NeutralRegistryEntry): string {
+function searchText(entry: RegistryEntry): string {
   return [entry.title ?? '', entry.id, entry.description ?? '', ...(entry.tags ?? [])]
     .join(' ')
     .toLowerCase()
@@ -185,8 +185,8 @@ function CatalogueItem({
   entry,
   onAdd,
 }: {
-  readonly entry: NeutralRegistryEntry
-  readonly onAdd: (entry: NeutralRegistryEntry) => void
+  readonly entry: RegistryEntry
+  readonly onAdd: (entry: RegistryEntry) => void
 }): ReactNode {
   const name = entry.title ?? entry.id
 
@@ -240,7 +240,7 @@ function CatalogueItem({
 }
 
 /** A parsed icon when the author declared one, and the id's initials when they did not. */
-function WidgetIcon({ entry }: { readonly entry: NeutralRegistryEntry }): ReactNode {
+function WidgetIcon({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   if (entry.icon !== undefined && typeof entry.icon !== 'string') {
     return (
       <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
@@ -257,7 +257,7 @@ function WidgetIcon({ entry }: { readonly entry: NeutralRegistryEntry }): ReactN
 }
 
 /** The published contract, in two lines: inputs in, events out. */
-function ContractDetail({ entry }: { readonly entry: NeutralRegistryEntry }): ReactNode {
+function ContractDetail({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   const fields = readInputFields(entry.contract)
   const events = entry.contract?.events ?? []
 

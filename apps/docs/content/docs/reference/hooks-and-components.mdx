@@ -1,0 +1,308 @@
+---
+title: 'Hooks and components'
+description: 'Every export of @company/mfe-react an author calls, with its signature and an example.'
+---
+
+`@company/mfe-react` is the one package an App or a Widget imports from. This page lists every export you call, in the order you are likely to need them. Each entry gives the signature, one example and the recipe that uses it.
+
+## Shell state
+
+These three read what the shell owns. Each subscribes to one field, so a theme change never rerenders a component that only reads the user.
+
+### useUser
+
+```ts
+useUser(): ShellUser | null
+useUser<T>(selector: (user: ShellUser | null) => T): T
+```
+
+Returns the signed-in user, or `null` when nobody is signed in. `ShellUser` carries `id`, `name` and the optional `email`, `accountId` and `tenantId`. It is data for rendering, not an authorization check.
+
+```ts
+const name = useUser(user => user?.name ?? 'Signed out')
+```
+
+Recipe: [Clear a value when the user changes](/docs/clear-a-value-on-sign-out).
+
+### useGroups
+
+```ts
+useGroups(): readonly string[]
+useGroups<T>(selector: (groups: readonly string[]) => T): T
+```
+
+Returns the group names the shell reports for the signed-in user.
+
+```ts title="examples/lab/src/routes/commands.tsx"
+const groups = useGroups()
+
+useCommand({
+  name: 'export-results',
+  label: 'Export results',
+  canExecute: () =>
+    groups.includes('well-planning.read')
+      ? allow()
+      : deny('You need the well-planning.read group to export.'),
+  execute: () => {
+    record('Exported the results')
+  },
+})
+```
+
+Recipe: [Add a command to the palette](/docs/add-a-command).
+
+### useTheme
+
+```ts
+useTheme(): ShellTheme
+useTheme<T>(selector: (theme: ShellTheme) => T): T
+```
+
+Returns `'light'` or `'dark'`. The shell owns the value, and your container follows it.
+
+```ts
+const theme = useTheme()
+```
+
+Recipe: [Follow the shell theme](/docs/follow-the-shell-theme).
+
+## Mount services
+
+These four read services the mount owns. Each needs a component your App or Widget renders.
+
+### useBasePath
+
+```ts
+useBasePath(): string
+```
+
+Returns the URL prefix this App mount owns, as a literal string. A Widget owns no boundary and gets `''`. Use it for URLs you hand to another system, never for your own routes.
+
+```ts
+const basePath = useBasePath()
+const shareUrl = new URL(`${basePath}/wells/${wellId}`, location.origin).href
+```
+
+Recipe: [Link to another App](/docs/link-to-another-app).
+
+### useMfeSignal
+
+```ts
+useMfeSignal(): AbortSignal
+```
+
+Returns the signal that aborts when this mount is disposed. Pass it to `fetch`, to an event listener, or to anything else that has to stop with the mount.
+
+```ts
+const signal = useMfeSignal()
+window.addEventListener('resize', onResize, { signal })
+```
+
+Recipe: [Cancel a request on unmount](/docs/cancel-a-request-on-unmount).
+
+### useMfeStorage
+
+```ts
+useMfeStorage(area?: 'local' | 'session'): MfeStorage
+```
+
+Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name)` and `clear()`, and a bound key has `get()`, `set(value)` and `remove()`. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
+
+```ts title="examples/lab/src/routes/storage.tsx"
+const local = useMfeStorage()
+```
+
+Recipe: [Read or write storage outside render](/docs/storage-outside-render).
+
+### useTelemetry
+
+```ts
+useTelemetry(): MfeTelemetry
+```
+
+Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `error`, `measure` and `tracer`. The handle is stable for the mount's life, and emitting never causes a rerender.
+
+```ts title="examples/lab/src/routes/telemetry.tsx"
+const telemetry = useTelemetry()
+```
+
+Recipe: [Log an event](/docs/log-an-event).
+
+## Shell features
+
+### useCommand
+
+```ts
+useCommand(registration: CommandRegistration): void
+```
+
+Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read.
+
+```ts title="examples/lab/src/routes/commands.tsx"
+useCommand({
+  name: 'run-simulation',
+  label: 'Run the simulation',
+  canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
+  execute: () => {
+    record('Ran the simulation')
+  },
+})
+```
+
+Recipe: [Add a command to the palette](/docs/add-a-command).
+
+### allow and deny
+
+```ts
+allow(): Decision
+deny(reason: string): Decision
+```
+
+Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user.
+
+Recipe: [Add a command to the palette](/docs/add-a-command).
+
+### useBreadcrumbs
+
+```ts
+useBreadcrumbs(items: readonly BreadcrumbItem[]): void
+```
+
+Overrides this App's own part of the trail while the component is rendered. A `BreadcrumbItem` is `{ key, label, href?, current? }`. An empty array is no override, so a trail derived from your routes stays as it was.
+
+```ts title="examples/lab/src/routes/breadcrumbs.tsx"
+useBreadcrumbs(override ? FLOW : [])
+```
+
+Recipe: [Set breadcrumbs](/docs/set-breadcrumbs).
+
+### useNavigationBlock
+
+```ts
+useNavigationBlock(shouldBlock: boolean | ((intent: NavigationIntent) => boolean)): NavigationBlock
+```
+
+Registers this mount as a navigation blocker. It returns `{ pending, proceed, stay }`. While `pending` is set, the mount stays mounted and renders its own confirmation. Inside an App, use TanStack's own `useBlocker` instead, which covers your own routes too.
+
+```tsx
+const block = useNavigationBlock(isDirty)
+
+if (block.pending) {
+  return <ConfirmLeave onLeave={block.proceed} onStay={block.stay} />
+}
+```
+
+Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-unsaved).
+
+### useStoredState
+
+```ts
+useStoredState<T>(
+  name: string,
+  schema: z.ZodType<T>,
+  options: { defaultValue: T; storage?: 'local' | 'session'; retention?: 'user' | 'browser'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
+): readonly [T, (next: T | ((current: T) => T)) => void]
+```
+
+Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data.
+
+```ts title="examples/lab/src/routes/storage.tsx"
+const [draft, setDraft] = useStoredState('draft', draftSchema, {
+  defaultValue: { note: '', pinned: false },
+  retention: 'browser',
+})
+```
+
+Recipe: [Remember a value across reloads](/docs/remember-a-value).
+
+## Rendering a Widget
+
+### lazyWidget
+
+```ts
+lazyWidget(widgetId: string): (props: LazyWidgetProps<undefined>) => ReactNode
+lazyWidget<C extends WidgetContract>(widgetId: string, options: { contract: C }): (props: LazyWidgetProps<C>) => ReactNode
+```
+
+Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates events on your side.
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { events, inputs } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+```
+
+The returned component takes the Widget's inputs as props and one `onX` handler per declared event. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
+
+Recipe: [Render a Widget inside your App](/docs/render-a-widget).
+
+### DynamicWidget
+
+```tsx
+<DynamicWidget widgetId={string} onEvent={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
+```
+
+Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so events arrive by name through one `onEvent` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
+
+```tsx title="apps/shell/src/shell/dashboard/tile.tsx"
+<DynamicWidget
+  widgetId={tile.widgetId}
+  {...tile.inputs}
+  onEvent={onEvent}
+  pending={<MountingSkeleton />}
+/>
+```
+
+Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
+
+## Icons
+
+### DefinitionIcon
+
+```tsx
+<DefinitionIcon icon={IconData} size={number} label={string} />
+```
+
+Draws the icon a registry entry carries. `size` is the edge length in pixels and defaults to `24`. Without `label` the icon is decoration and stays hidden from assistive technology. Only `path`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse` and `g` are drawn, and anything else in the record is dropped.
+
+```tsx title="apps/shell/src/shell/dashboard/tile.tsx"
+<DefinitionIcon icon={entry.icon} size={16} className="shrink-0 text-muted-foreground" />
+```
+
+Recipe: [Show an icon](/docs/show-an-icon).
+
+## Definition factories
+
+`createApp` and `createWidget` are also exported here. Every option they take has its own page: [createApp and createWidget options](/docs/reference/create-app-and-create-widget).
+
+## Host-side exports
+
+These place or compose containers. A shell calls them. An App calls `mfeRoute` when it nests a child App at a splat route, and nothing else here.
+
+| Export                                                  | Signature                        | What it is for                                         |
+| ------------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
+| `AppHost`                                               | `{ appId, basePath, fallback? }` | Mounts an App at a boundary the caller chooses.        |
+| `mfeRoute`                                              | `({ appId, basePath? })`         | Route options that mount a child App. The author path. |
+| `MfeProvider`                                           | `{ runtime, children }`          | Wraps a shell once at boot.                            |
+| `createMfeRuntime`                                      | `(options) => MfeRuntimeHandle`  | Builds the runtime a shell provides.                   |
+| `createContainerTransport`, `installShellAuth`          | see `@company/mfe-host`          | Bind the shell's session to `#mfe/fetch`.              |
+| `createOverlayRoot`, `withStyleRoot`, `SCOPE_ATTRIBUTE` | —                                | Used by generated code and by the shell's own chrome.  |
+
+## Where each hook may be called
+
+| Hook                                                                                 | Inside a mount | On the host page |
+| ------------------------------------------------------------------------------------ | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
+
+Called in the wrong place, a hook throws `mount/failure` and names itself.
+
+## Related
+
+- [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — the two factories.
+- [Route staticData fields](/docs/reference/static-data) — what a route declares.
+- [Testing API](/docs/reference/testing-api) — how to render these in a test.
+- [Error codes](/docs/reference/error-codes) — what each failure means.
+- [Glossary](/docs/reference/glossary) — mount, boundary, contract.

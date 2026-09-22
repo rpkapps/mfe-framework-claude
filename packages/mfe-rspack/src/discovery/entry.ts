@@ -15,7 +15,7 @@ export function resolveEntryModule(containerRoot: string): string {
   const first = present[0]
   if (first === undefined) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: join(containerRoot, 'src/mfe.ts'),
       operation: 'find the container entry module',
       expected: 'src/mfe.ts, or src/mfe.tsx when the entry contains JSX',
@@ -28,7 +28,7 @@ export function resolveEntryModule(containerRoot: string): string {
 
   if (present.length > 1) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: first,
       operation: 'find the container entry module',
       expected: 'exactly one entry module',

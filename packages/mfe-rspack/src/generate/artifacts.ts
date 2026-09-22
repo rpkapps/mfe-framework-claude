@@ -64,7 +64,7 @@ export function containerDescriptor(
   }
 }
 
-/** Read from the descriptor, so the manifest and the descriptor cannot disagree. */
+/** Read from the same record, so the manifest and the registry entry cannot disagree. */
 export function frameworkMetadata(
   context: GenerateContext,
   descriptor: ContainerDescriptor,

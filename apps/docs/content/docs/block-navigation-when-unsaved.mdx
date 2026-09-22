@@ -1,0 +1,113 @@
+---
+title: 'Block navigation when edits are unsaved'
+description: 'Refuse a navigation while a form is dirty, and draw your own confirmation, inside an App or inside a Widget.'
+---
+
+Apps and Widgets. You decide what counts as unsaved, and you draw the dialog. The shell asks you
+before it moves, so the same check covers your own links and a jump to another application.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Block inside your App
+
+```tsx title="examples/lab/src/routes/unsaved.tsx"
+import { useBlocker } from '@tanstack/react-router'
+
+const isDirty = draft.name !== saved.name || draft.note !== saved.note
+
+const blocker = useBlocker({
+  shouldBlockFn: () => isDirty,
+  enableBeforeUnload: () => isDirty,
+  withResolver: true,
+})
+```
+
+Use TanStack's own hook. It covers moves inside your App and the moves the shell makes, because
+the framework asks it about both.
+
+</Step>
+
+<Step>
+
+### 2. Draw your own confirmation
+
+```tsx title="examples/lab/src/routes/unsaved.tsx"
+<Dialog isOpen={blocker.status === 'blocked'} isDismissable={false}>
+  <DialogTitle>Leave with unsaved changes?</DialogTitle>
+  <Button onPress={() => blocker.reset?.()}>Keep editing</Button>
+  <Button variant="destructive" onPress={() => blocker.proceed?.()}>
+    Discard and leave
+  </Button>
+</Dialog>
+```
+
+`blocker.next` is where the navigation was going. Its `routeId` is `__notFound__` when the target
+is outside your App, so you can word the two cases differently.
+
+</Step>
+
+<Step>
+
+### 3. Block inside a Widget
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+import { useNavigationBlock } from '@company/mfe-react'
+
+const { pending, proceed, stay } = useNavigationBlock(isDirty)
+
+if (pending === null) return null
+return <ConfirmDialog onConfirm={proceed} onCancel={stay} />
+```
+
+A Widget has no router of its own, so it uses this hook instead. Pass a function to look at the
+navigation first, as `useNavigationBlock(intent => intent.leavesBoundary && isDirty)`. A function
+also asks for the browser's reload prompt every time, so pass a boolean when nothing is at risk.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open `http://localhost:3000/lab/unsaved`. Type in the form, then try to leave
+four ways:
+
+- a link in the App's own nav
+- the application finder at the top left
+- the command palette
+- the browser's back button
+
+All four stop and wait for your dialog. Save the form, and the same navigation goes straight
+through.
+
+A reload is not a navigation, and no page may draw its own dialog for one. `enableBeforeUnload`
+decides whether the browser shows its own prompt.
+
+## Errors
+
+<Callout type="error" title="expected a component rendered inside an App or Widget mount">
+
+```text
+<unmounted> failed to call useNavigationBlock: expected a component rendered inside an App or
+Widget mount, received a component rendered outside any mount. Move the useNavigationBlock call
+into a component the App or Widget renders.
+```
+
+**Fix.** Move the call into a component your App or Widget renders. Shell chrome and test harness
+code sit outside every mount.
+
+</Callout>
+
+## Related
+
+- [Add a route](/docs/add-a-route) — where the form in this example lives.
+- [Create a Widget](/docs/create-a-widget) — the shape that uses `useNavigationBlock`.
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — how to test a held
+  navigation.
+- [Hooks and components](/docs/reference/hooks-and-components) — the full signatures.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — why the mount stays alive while
+  you answer.

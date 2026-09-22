@@ -1,0 +1,137 @@
+---
+title: 'Add a command to the palette'
+description: 'Register an action with useCommand, and the shell lists it in the command palette for as long as your component is on the page.'
+---
+
+Apps and Widgets. Call `useCommand` and your action appears in the shell's command palette. You
+decide what it does and whether it may run right now.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Register the command
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+import { useCommand } from '@company/mfe-react'
+
+export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
+  const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
+
+  useCommand({
+    name: 'acknowledge-alert',
+    label: 'Acknowledge this alert',
+    execute: () => {
+      setState('acknowledged')
+      emit('acknowledged', { alertId: inputs.alertId, acknowledgedAt: new Date().toISOString() })
+    },
+  })
+
+  return <Alert>{/* … */}</Alert>
+}
+```
+
+`name` is letters, digits and hyphens, starting with a letter. The command lives as long as the
+component renders, so leaving the page takes it out of the palette.
+
+</Step>
+
+<Step>
+
+### 2. Say when it may run
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+import { allow, deny, useCommand } from '@company/mfe-react'
+
+useCommand({
+  name: 'acknowledge-alert',
+  label: 'Acknowledge this alert',
+  canExecute: () => (state === 'open' ? allow() : deny('This alert was already acknowledged.')),
+  execute: () => {
+    setState('acknowledged')
+  },
+})
+```
+
+A denied command stays in the list, greyed out, with your reason beside it. Keep `canExecute` a
+plain read of state you already have, and do the work in `execute`.
+
+</Step>
+
+<Step>
+
+### 3. Register App-wide commands from your layout
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+useCommand({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  canExecute: () => allow(),
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+A command registered by a layout route lasts as long as the App is mounted. A command registered
+by a page lasts as long as that page.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Add the Alert panel to the dashboard
+from the palette, under "Add to the dashboard". Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd>
+
+<Kbd>K</Kbd> again and look under "From the mounted application". The right-hand column names the
+App or Widget that owns the command, and a denied one shows your reason there instead.
+
+## Errors
+
+<Callout type="error" title="expected a name of letters, digits and hyphens">
+
+```text
+alert-panel failed to register command: expected a name of letters, digits and hyphens starting
+with a letter (for example "refresh"), received "acknowledge alert".
+```
+
+**Fix.** Rename the command to `acknowledge-alert`. Spaces, dots and colons are not allowed.
+
+</Callout>
+
+<Callout type="error" title="expected one registration per command name within a mount">
+
+```text
+alert-panel failed to register command 'refresh': expected one registration per command name
+within a mount, received a second registration of 'refresh' in the same mount.
+```
+
+**Fix.** Rename one of the two. Neither is dropped in favour of the other, so the second one
+throws instead.
+
+</Callout>
+
+<Callout type="error" title="expected a non-empty label">
+
+```text
+alert-panel failed to register command 'refresh': expected a non-empty label, received an empty
+string.
+```
+
+**Fix.** Give the command the words you want in the palette. It is the only text the reader sees.
+
+</Callout>
+
+## Related
+
+- [Create a Widget](/docs/create-a-widget) — the container this example lives in.
+- [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — a Widget must
+  not move the page itself.
+- [Hooks and components](/docs/reference/hooks-and-components) — the full `useCommand` signature.
+- [Run the shell with your container](/docs/run-the-shell-locally) — how to get the palette on
+  screen.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

@@ -1,0 +1,65 @@
+---
+title: 'Render dialogs, menus and tooltips'
+description: 'Raise an overlay normally and keep your own styles, without portalling by hand.'
+---
+
+An overlay opens outside your part of the page, at the end of the document. The framework gives
+each mount its own root there, so your styles still reach it. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Raise the overlay normally
+
+```tsx title="examples/lab/src/routes/unsaved.tsx"
+<Dialog isOpen={blocker.status === 'blocked'} isDismissable={false} showCloseButton={false}>
+  <DialogHeader>
+    <DialogTitle>Leave with unsaved changes?</DialogTitle>
+  </DialogHeader>
+</Dialog>
+```
+
+There is nothing to wire up. Your container's own copy of the design system already knows where to
+put it.
+
+</Step>
+<Step>
+### 2. Use the same approach for the rest
+
+```tsx title="examples/operations/src/routes/assets.tsx"
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@tecton/react/components/select'
+```
+
+Dialog, alert dialog, sheet, drawer, popover, tooltip, hover card, select, combobox, dropdown menu
+and context menu all place themselves the same way.
+
+</Step>
+<Step>
+### 3. Do not portal to the body yourself
+
+```tsx title="examples/lab/src/routes/unsaved.tsx"
+// Not this: it leaves your part of the page and loses your stylesheet.
+createPortal(<Confirm />, document.body)
+```
+
+A hand-written portal lands outside your styles and outside the design system's base colours. The
+overlay renders, and it renders wrong.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Open the overlay and inspect it. It sits in a `div` at the end of `<body>`. That element carries
+your definition id in its `data-mfe-scope` attribute, so your utilities apply inside it. Run
+`pnpm verify:page` for the browser checks. They assert that the overlay's nearest scoped ancestor
+is your container's own overlay root, and that your own CSS styled it.
+
+## Related
+
+- [Use the design system](/docs/use-the-design-system) — importing the components
+- [Follow the shell theme](/docs/follow-the-shell-theme) — an overlay keeps the theme
+- [Add styles beyond utilities](/docs/add-custom-styles) — what your stylesheet may hold
+- [What you must not do](/docs/what-you-must-not-do) — the rest of the shared-page rules
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — how the roots fit together

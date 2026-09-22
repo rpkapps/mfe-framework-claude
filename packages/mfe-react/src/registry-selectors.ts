@@ -4,19 +4,19 @@
  */
 
 import { useMemo } from 'react'
-import type { CapabilityDescriptor, CapabilityName, NeutralRegistryEntry } from '@company/mfe-core'
+import type { CapabilityDescriptor, CapabilityName, RegistryEntry } from '@company/mfe-core'
 import { boundaryDefinitionId } from '@company/mfe-host'
 
 import { useMfeRuntime } from './runtime-context.tsx'
 
 /** Every accepted entry, in registry order. */
-export function useRegistryEntries(): readonly NeutralRegistryEntry[] {
+export function useRegistryEntries(): readonly RegistryEntry[] {
   const { entries } = useMfeRuntime('a registry view').registry
   return useMemo(() => [...entries.values()], [entries])
 }
 
 /** `hidden` is a listing rule, not a security boundary: a hidden App reached by URL mounts. */
-export function useApps(): readonly NeutralRegistryEntry[] {
+export function useApps(): readonly RegistryEntry[] {
   const entries = useRegistryEntries()
   return useMemo(
     () => entries.filter(entry => entry.definitionKind === 'app' && entry.hidden !== true),
@@ -24,7 +24,7 @@ export function useApps(): readonly NeutralRegistryEntry[] {
   )
 }
 
-export function useWidgets(): readonly NeutralRegistryEntry[] {
+export function useWidgets(): readonly RegistryEntry[] {
   const entries = useRegistryEntries()
   return useMemo(
     () => entries.filter(entry => entry.definitionKind === 'widget' && entry.hidden !== true),
@@ -33,7 +33,7 @@ export function useWidgets(): readonly NeutralRegistryEntry[] {
 }
 
 export interface CapabilityPage {
-  readonly app: NeutralRegistryEntry
+  readonly app: RegistryEntry
   readonly capability: CapabilityDescriptor
 }
 
@@ -55,7 +55,7 @@ export interface ActiveDefinition {
   /** The id in the URL, the one fact that is always true. */
   readonly id: string
   /** Undefined when the URL names an App the registry does not know. */
-  readonly entry: NeutralRegistryEntry | undefined
+  readonly entry: RegistryEntry | undefined
 }
 
 /**

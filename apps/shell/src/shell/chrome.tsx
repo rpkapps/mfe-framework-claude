@@ -12,7 +12,7 @@ import {
   useTheme,
   useUser,
   type BreadcrumbItem,
-  type NeutralRegistryEntry,
+  type RegistryEntry,
 } from '@company/mfe-react'
 import {
   boundaryDefinitionId,
@@ -102,7 +102,7 @@ const DASHBOARD = {
  */
 function appFace(
   id: string,
-  entry: NeutralRegistryEntry | undefined,
+  entry: RegistryEntry | undefined,
 ): { readonly icon: string; readonly tone: 'blue' | 'saffron'; readonly name: string } {
   return {
     // The finder's tile draws a short text mark; a parsed icon is data it has no slot for, so an

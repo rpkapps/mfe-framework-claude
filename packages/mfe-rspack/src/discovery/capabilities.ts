@@ -62,7 +62,7 @@ export function extractCapabilities(
     const existing = byName.get(entry.descriptor.name)
     if (existing !== undefined) {
       throw createBuildError({
-        code: 'registry/invalid-descriptor',
+        code: 'registry/invalid-entry',
         file: entry.file,
         ...(options.appId === undefined ? {} : { id: options.appId }),
         operation: `extract the '${entry.descriptor.name}' capability route`,
@@ -144,7 +144,7 @@ function readCapability(
 
   if (name === null) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file,
       line,
       column,
@@ -159,7 +159,7 @@ function readCapability(
 
   if (!isCapabilityName(name)) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file,
       line,
       column,
@@ -175,7 +175,7 @@ function readCapability(
 
   if (!options.hasApp) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file,
       line,
       column,
@@ -212,7 +212,7 @@ function readLabel(
     const anchor = label ?? marked.staticData
     const { line, column } = positionOf(sourceFile, anchor)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file,
       line,
       column,
@@ -244,7 +244,7 @@ function readIcon(
 
   const reject = (observed: string, repair: string): never => {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file,
       line,
       column,

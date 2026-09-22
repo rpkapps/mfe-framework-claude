@@ -1,0 +1,117 @@
+---
+title: 'Log an event'
+description: 'Record a log line, a named event or a measurement with useTelemetry, already attributed.'
+---
+
+`useTelemetry()` gives you the telemetry service for your mount. Every record it takes already
+carries who you are, so you write no attribution. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Take the service
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+import { useTelemetry } from '@company/mfe-react'
+
+const telemetry = useTelemetry()
+```
+
+It stays the same for the mount's lifetime, and recording never causes a re-render.
+
+</Step>
+<Step>
+### 2. Log a line with attributes
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+telemetry.info('Lab said hello', { where: 'telemetry page' })
+telemetry.warn('Lab is about to do something odd', { deliberate: true })
+```
+
+`debug`, `info`, `warn` and `error` take a message and attributes. Use `telemetry.event('name', …)`
+for something that happened rather than something worth reading.
+
+</Step>
+<Step>
+### 3. Record a number with a unit
+
+```ts title="examples/operations/src/routes/assets.tsx"
+context.mfe.telemetry.measure('assets.rows', rows.length, { unit: 'count' })
+```
+
+`measure` takes one observation and a unit of `'ms'`, `'bytes'` or `'count'`. A route loader, an
+action and a `beforeLoad` reach the same service on `context.mfe.telemetry`, with no hook.
+
+</Step>
+<Step>
+### 4. Keep attributes small
+
+```ts title="examples/operations/src/routes/assets.tsx"
+context.mfe.telemetry.debug('Loading assets', { site: deps.site })
+```
+
+| What                        | The limit                          |
+| --------------------------- | ---------------------------------- |
+| Attribute values            | strings, numbers and booleans only |
+| Attributes on one record    | 64, and the rest are dropped       |
+| Length of a string value    | 1024 characters, then cut          |
+| Length of a name or message | 256 characters, then cut           |
+
+Never pass a request body, a credential or a whole URL. The framework owns a set of names under
+`mfe.`, and a value you put under one of them is discarded.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, read the records back: `renderApp(app).environment.telemetry.logs('info')` holds the
+line you logged, with its attributes. In the browser the shell decides where records go. The
+development shell here keeps none unless it was started with a collector, so a test is the reliable
+check.
+
+## Errors
+
+<Callout type="error" title="mount/failure, outside a mount">
+
+```text
+<unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Move the call into a component your App or Widget renders. In a route callback, read
+`context.mfe.telemetry` instead.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch, in development">
+
+```text
+lab failed to record a telemetry event: expected attribute keys outside the host-owned "mfe."
+attribution namespace, received reserved key mfe.definition.id.
+```
+
+**Fix.** Rename the attribute. The framework attaches your definition id, kind and version itself,
+and the value you supplied was dropped.
+
+</Callout>
+
+<Callout type="error" title="no-console">
+
+```text
+Unexpected console statement. Only these console methods are allowed: warn, error.
+```
+
+**Fix.** Replace `console.log` with `telemetry.info` or `telemetry.debug`. A console line carries
+no attribution and reaches nobody but you.
+
+</Callout>
+
+## Related
+
+- [Trace an operation](/docs/trace-an-operation) — spans around work that takes time
+- [Report an error](/docs/report-an-error) — reporting a failure you caught
+- [Hooks and components](/docs/reference/hooks-and-components) — the whole telemetry service
+- [Lint rules](/docs/reference/lint-rules) — `no-console` and the telemetry import rule
+- [Test an App](/docs/test-an-app) — reading records back in a test

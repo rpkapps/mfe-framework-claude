@@ -1,11 +1,11 @@
 /**
- * What the runtime believes about the registry. Quarantine is why the view exists: the framework
+ * What the runtime believes about the registry. Rejection is why the view exists: the framework
  * rejects bad entries one at a time, and that only helps if a developer can find out which entry
  * was rejected and why.
  */
 
 import { Fragment, type ReactNode } from 'react'
-import { useMfeRuntime, type NeutralRegistryEntry } from '@company/mfe-react'
+import { useMfeRuntime, type RegistryEntry } from '@company/mfe-react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
 import {
@@ -28,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/componen
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { AppWindowIcon, BoxIcon, CircleCheckIcon, TriangleAlertIcon } from 'lucide-react'
 
-import { DescriptorView } from './descriptor-view.tsx'
+import { EntryView } from './entry-view.tsx'
 import { factsOf } from './entry-facts.ts'
 import { OriginText } from './origin-text.tsx'
 import { useRegistryEntries } from './use-devtools.ts'
@@ -43,12 +43,12 @@ const ENTRY_GRID = 'grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100
 const PROSE = 'max-w-3xl'
 
 export function RegistryTab(): ReactNode {
-  const { quarantined } = useMfeRuntime('the developer tools registry view').registry
+  const { rejected } = useMfeRuntime('the developer tools registry view').registry
   const accepted = useRegistryEntries()
 
   return (
     <Tabs
-      defaultSelectedKey={quarantined.length > 0 ? 'rejected' : 'loaded'}
+      defaultSelectedKey={rejected.length > 0 ? 'rejected' : 'loaded'}
       className="flex min-h-0 flex-col gap-2.5"
     >
       {/* An underline bar, so these read as a filter rather than a second copy of the panel's own tabs. */}
@@ -61,8 +61,8 @@ export function RegistryTab(): ReactNode {
         </TabsTrigger>
         <TabsTrigger id="rejected">
           <TriangleAlertIcon /> Rejected
-          <Badge variant={quarantined.length > 0 ? 'destructive' : 'secondary'} size="default">
-            {quarantined.length}
+          <Badge variant={rejected.length > 0 ? 'destructive' : 'secondary'} size="default">
+            {rejected.length}
           </Badge>
         </TabsTrigger>
       </TabsList>
@@ -90,7 +90,7 @@ export function RegistryTab(): ReactNode {
       </TabsContent>
 
       <TabsContent id="rejected">
-        {quarantined.length === 0 ? (
+        {rejected.length === 0 ? (
           <Empty className={PROSE}>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -102,7 +102,7 @@ export function RegistryTab(): ReactNode {
           </Empty>
         ) : (
           <div className={`flex flex-col gap-2 ${PROSE}`}>
-            {quarantined.map((entry, index) => (
+            {rejected.map((entry, index) => (
               <Alert
                 key={`${entry.id}-${String(index)}`}
                 variant="destructive"
@@ -115,11 +115,11 @@ export function RegistryTab(): ReactNode {
                   <p className="whitespace-pre-wrap">{entry.error.message}</p>
                   <details className="text-[11px]">
                     <summary className="cursor-pointer text-muted-foreground">
-                      The descriptor as published
+                      The entry as published
                     </summary>
                     {/* Neutral text inside a destructive alert: red on every field hides the one that is wrong. */}
                     <div className="mt-1.5 rounded-md bg-background/60 p-2 text-foreground">
-                      <DescriptorView source={entry.source} />
+                      <EntryView source={entry.source} />
                     </div>
                   </details>
                 </AlertDescription>
@@ -136,7 +136,7 @@ export function RegistryTab(): ReactNode {
  * Only `overridden` is a badge: with the version, the capabilities, the inputs and the events all
  * badges too, the one row that had been re-pointed looked exactly like the seven that had not.
  */
-function AcceptedEntry({ entry }: { readonly entry: NeutralRegistryEntry }): ReactNode {
+function AcceptedEntry({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   const Icon = entry.definitionKind === 'app' ? AppWindowIcon : BoxIcon
   const overridden = entry.overridden === true
   const facts = factsOf(entry)

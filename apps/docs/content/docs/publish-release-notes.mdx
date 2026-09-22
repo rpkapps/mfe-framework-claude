@@ -1,0 +1,140 @@
+---
+title: 'Publish release notes'
+description: "Mark one route in your App as the releaseNotes capability, so the shell can send people to your own what's new page."
+---
+
+Apps only. Mark one route as your release notes, and the shell lists it in the command palette and
+can open it by name. You own the page, so the notes can be a list, a document or a feed.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Mark the route
+
+```tsx title="examples/operations/src/routes/release-notes.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+
+export const Route = createFileRoute('/release-notes')({
+  staticData: {
+    capability: 'releaseNotes',
+    label: "What's new in Operations",
+    icon: 'sparkles',
+    breadcrumb: 'Release notes',
+  },
+  component: ReleaseNotes,
+})
+
+function ReleaseNotes(): ReactNode {
+  return <h2>What&apos;s new in Operations</h2>
+}
+```
+
+The name is `releaseNotes`, in camel case. `label` is required, and both fields are plain strings.
+
+</Step>
+
+<Step>
+
+### 2. Generate the description record
+
+```sh
+pnpm run generate
+```
+
+This writes your container's description record and rebuilds the registry the shell reads at boot.
+`pnpm dev` runs both steps when it starts.
+
+</Step>
+
+<Step>
+
+### 3. Confirm what the build published
+
+```json title="examples/operations/.mfe/mfe-registry.json"
+"capabilities": [
+  {
+    "name": "releaseNotes",
+    "label": "What's new in Operations",
+    "icon": "sparkles",
+    "path": "/release-notes"
+  }
+]
+```
+
+`path` comes from `createFileRoute`. An App publishes at most one release notes page.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or
+
+<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> and look under "Application pages". Your label is there, and running it
+goes to `/operations/release-notes`. The "What's new" button in the header opens the shell's own
+notes, which are written by whoever owns the shell.
+
+A legacy Angular application publishes a `release-notes.md` document beside its manifest instead.
+That path stays open for every entry that declares no capability, and
+[Legacy Angular applications](/docs/reference/legacy-angular) has the details.
+
+## Errors
+
+<Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
+
+```text
+/home/you/operations/src/routes/release-notes.tsx:5:5: 'operations' failed to extract a capability
+route: expected one of 'settings', 'help' and 'releaseNotes', found "release-notes".
+```
+
+**Fix.** The name is the camel-case `releaseNotes`, whatever the route path is called.
+
+</Callout>
+
+<Callout type="error" title="expected a non-empty `label` string literal">
+
+```text
+/home/you/operations/src/routes/release-notes.tsx:4:5: 'operations' failed to extract the
+capability route '/release-notes': expected a non-empty `label` string literal, found no label.
+```
+
+**Fix.** Add the text the palette shows, for example `label: "What's new in Operations"`.
+
+</Callout>
+
+<Callout type="error" title="expected a plain string literal">
+
+```text
+/home/you/operations/src/routes/release-notes.tsx:5:5: 'operations' failed to extract a capability
+route: expected a plain string literal, found RELEASE_NOTES.
+```
+
+**Fix.** Write the name inline, as `capability: 'releaseNotes'`. The build reads the file without
+running it, so a constant or a variable cannot be resolved.
+
+</Callout>
+
+<Callout type="error" title="expected a capability declared by an App">
+
+```text
+/home/you/alerts/src/routes/release-notes.tsx:5:5: the build failed to extract the 'releaseNotes'
+capability route: expected a capability declared by an App, found a container that exports
+Widgets only.
+```
+
+**Fix.** Move the route into a container that exports an App. A Widget has no routes of its own.
+
+</Callout>
+
+## Related
+
+- [Add a settings page](/docs/add-a-settings-page) — the same mark, a different name.
+- [Add a help page](/docs/add-a-help-page) — the third capability page.
+- [Version your container and its contract](/docs/version-your-container) — what the version means.
+- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
+- [Legacy Angular applications](/docs/reference/legacy-angular) — the document-based path.

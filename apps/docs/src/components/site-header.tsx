@@ -84,7 +84,7 @@ function MobileNav({
     setOpenedFrom(isOpen ? pathname : null)
   }
 
-  const sections = getSections(tree)
+  const sections = getSections(tree, 'Start here')
 
   return (
     <SheetTrigger isOpen={open} onOpenChange={setOpen}>
