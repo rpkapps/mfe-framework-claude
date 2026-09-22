@@ -1,7 +1,14 @@
-import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
+import {
+  createApp,
+  createWidget,
+  type AppRouterOptions,
+  type MfeStaticData,
+} from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
-import { MapIcon } from 'lucide-react'
+import { BoxIcon, MapIcon } from 'lucide-react'
+import { z } from 'zod'
 
+import { SubsurfaceWell3dWidget } from './components/well-3d-widget.tsx'
 import { routeTree } from './routeTree.gen'
 
 // Called once per mount, not once per module. Pass basePath, history and
@@ -31,7 +38,7 @@ declare module '@tanstack/react-router' {
   interface StaticDataRouteOption extends MfeStaticData {}
 }
 
-export default createApp({
+export const subsurfaceCanvas = createApp({
   id: 'subsurface-canvas',
   version: '0.1.0',
   title: 'Subsurface Canvas',
@@ -39,4 +46,20 @@ export default createApp({
   tags: ['canvas', 'geoscience'],
   icon: MapIcon,
   router: makeRouter,
+})
+
+export const subsurfaceWell3dContract = {
+  inputs: z.object({}),
+  events: {},
+}
+
+export const subsurfaceWell3d = createWidget({
+  id: 'subsurface-well-3d',
+  version: '0.1.0',
+  title: '3D well and surfaces',
+  description: 'Explore a native WebGL well trajectory through interpreted subsurface horizons.',
+  tags: ['subsurface', 'well', 'geoscience', '3d'],
+  icon: BoxIcon,
+  ...subsurfaceWell3dContract,
+  render: SubsurfaceWell3dWidget,
 })

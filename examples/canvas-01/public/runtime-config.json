@@ -1,3 +1,4 @@
 {
-  "apiBaseUrl": "https://api.example.test/v1/"
+  "apiBaseUrl": "https://api.example.test/v1/",
+  "webSocketUrl": "wss://api.example.test/v1/"
 }

@@ -6,7 +6,8 @@
   "mfe": {
     "port": 3006,
     "definitions": [
-      "canvas-01"
+      "subsurface-canvas",
+      "subsurface-well-3d"
     ]
   },
   "scripts": {
