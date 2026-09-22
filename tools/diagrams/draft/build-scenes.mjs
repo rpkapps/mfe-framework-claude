@@ -932,7 +932,7 @@ async function storageRetention() {
     h: 64,
     fill: FILL.storage,
     name: 'What it binds to',
-    subtitle: "storage 'local', retention 'user', version 1",
+    subtitle: "storage 'local', retention 'browser', version 1",
   })
   const stored = tile(scene, {
     x: 880,
@@ -1004,8 +1004,8 @@ async function storageRetention() {
     w: 420,
     h: 64,
     fill: FILL.failure,
-    name: "retention: 'browser'",
-    subtitle: 'nothing clears it; everyone here reads it',
+    name: "retention: 'user'",
+    subtitle: 'asked for when the data is personal',
   })
 
   scene.legend({
@@ -1015,7 +1015,7 @@ async function storageRetention() {
       ['container', 'what an author writes'],
       ['storage', 'the storage boundary'],
       ['shell', "the host page's own scope"],
-      ['failure', 'the choice that can leak between users'],
+      ['failure', "skip it, and 'browser' leaks between every user"],
     ),
   })
 

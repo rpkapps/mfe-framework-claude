@@ -86,7 +86,11 @@ describe('establishSessionGeneration', () => {
   it('makes user-retained writes possible, which is the whole reason it exists', () => {
     const session = createMemoryStorageArea()
     const store = storeOver(session)
-    const before = store.bind('acme-orders', { name: 'draft', schema: draftSchema })
+    const before = store.bind('acme-orders', {
+      name: 'draft',
+      schema: draftSchema,
+      retention: 'user',
+    })
 
     expect(() => before.set({ text: 'refused' })).toThrow(/session/)
 

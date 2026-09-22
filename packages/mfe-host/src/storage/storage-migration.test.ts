@@ -104,6 +104,7 @@ describe('migration', () => {
       name: 'filters',
       schema: filtersV2,
       version: 2,
+      retention: 'user',
       migrate: migrateFilters,
     })
 
@@ -278,6 +279,7 @@ describe('migration', () => {
       name: 'filters',
       schema: filtersV2,
       version: 2,
+      retention: 'user',
       defaultValue: { status: 'all', page: 1 },
       migrate,
     })
@@ -299,6 +301,7 @@ describe('migration', () => {
       name: 'filters',
       schema: filtersV2,
       version: 2,
+      retention: 'user',
       migrate,
     })
 

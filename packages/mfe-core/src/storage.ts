@@ -9,7 +9,7 @@ export type StorageArea = 'local' | 'session'
 export type StorageRetention = 'user' | 'browser'
 
 export interface StorageKeyOptions<T> {
-  /** Defaults to `'user'`; see `StorageRetention` before choosing `'browser'`. */
+  /** Defaults to `'browser'`; anything derived from a user's data must declare `'user'`. */
   readonly retention?: StorageRetention
   readonly version?: number
   /** Synchronous, side-effect-free conversion from a known older version. */
@@ -41,7 +41,7 @@ export interface StorageEnvelope {
 }
 
 export const DEFAULT_SCHEMA_VERSION = 1
-export const DEFAULT_RETENTION: StorageRetention = 'user'
+export const DEFAULT_RETENTION: StorageRetention = 'browser'
 
 /** Hand-written so the core bundle need not carry Zod to re-check four fields it wrote itself. */
 export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
