@@ -2,7 +2,7 @@
 
 /** Closed union, so adding a code is a contract change and two conditions use a near one (§7). */
 export type MfeErrorCode =
-  | 'registry/invalid-descriptor'
+  | 'registry/invalid-entry'
   | 'registry/duplicate-id'
   | 'contract/unsupported-major'
   | 'contract/input-mismatch'

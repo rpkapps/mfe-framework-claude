@@ -114,7 +114,7 @@ export function describeWidgetInputs(
   const properties = asObject(inputs['properties'])
   if (properties === undefined) return null
 
-  // A descriptor comes from a build this side does not control, so `required` is unvalidated JSON.
+  // An entry comes from a build this side does not control, so `required` is unvalidated JSON.
   const declared = asArray(inputs['required']) ?? []
   const required = new Set(declared.filter(name => typeof name === 'string'))
 

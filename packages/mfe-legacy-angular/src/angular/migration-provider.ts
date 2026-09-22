@@ -12,7 +12,7 @@ import {
   LEGACY_NAVIGATION_OWNERSHIP,
   LEGACY_PARCEL_EXPOSE_NAME,
   type NavigationOwnership,
-} from '../registry/legacy-config.ts'
+} from '../registry/legacy-adapter.ts'
 
 export interface LegacyRouterSubscription {
   unsubscribe(): void

@@ -6,7 +6,7 @@ the legacy single-spa contract, the legacy registry vocabulary and the
 
 Nothing else in the workspace imports it. When the last legacy Angular
 application is migrated, this directory is deleted, the shell drops one entry
-from its adapter-selection table and one import from its composition root, and
+from its `adapters` list and one import from its composition root, and
 no other package changes. The package boundary check enforces the other half of
 that promise: this package never depends on React, on a router, or on
 `@company/mfe-react`.
@@ -24,7 +24,8 @@ applications actually match them. That check is a first run of a real legacy
 container against this adapter, and it is still outstanding.
 
 Concretely, the tests prove: the translation of every legacy registry field; that
-an entry advertising a malformed new contract is never claimed by this adapter;
+an entry naming a framework version is never recognised by this adapter, however
+malformed that version marker is;
 the parcel mount, unmount, remount, failure and disposal behaviour against a
 structural parcel double; both documented base-href seams including the
 fallback; every shell-owned route pattern; and the release-notes sibling
@@ -38,60 +39,59 @@ mount as assumed; or that the two seam values (`/asset-tracker/` and
 
 ## Registry translation
 
-`createLegacyAdapterRule()` is the second rule in the shell's selection table,
-registered after the rule for the new framework contract. A shell passes it to
-`createMfeRuntime`, which always evaluates the contract rule first and appends
-whatever it is given:
+`legacyAngularAdapter` is an `MfeAdapter`. A shell registers it beside the React
+adapter, which `createMfeRuntime` always registers itself:
 
 ```ts
-import { createLegacyAdapterRule } from '@company/mfe-legacy-angular'
+import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
 import { createMfeRuntime } from '@company/mfe-react'
 
 const { runtime } = createMfeRuntime({
   registryEntries,
-  rules: [createLegacyAdapterRule()],
+  adapters: [legacyAngularAdapter],
   // …loader, shellState, telemetryProvider
 })
 ```
 
-It claims an entry only when the entry does **not** advertise the new contract
-(no `mfe` key) and carries the minimum legacy metadata — an app `name` and an
-`mfManifestUrl`.
+Order means nothing. Exactly one adapter must recognise an entry: none and the
+entry is rejected as unrecognised, more than one and it is rejected as ambiguous.
 
-That ordering is the no-silent-fallback guarantee. An entry that advertises the
-new contract belongs to the new adapter whatever state its advertisement is in;
-if this rule claimed a malformed one, a typo in new metadata would quietly change
-how an app loads instead of failing loudly. `advertises` therefore asks only
-whether the new contract was advertised at all, and never inspects how well.
+`detect` recognises an entry only when it carries **no** framework version (no
+`mfe` key) and has the minimum legacy metadata — an app `name` and an
+`mfManifestUrl`. That is the no-silent-fallback guarantee. An entry naming a
+framework version belongs to a framework adapter whatever state the rest of it is
+in; if this adapter recognised a malformed one, a typo in framework metadata would
+quietly change how an app loads instead of failing loudly. `detect` therefore asks
+only whether a framework version is named at all, and never inspects how well.
 
-Translation puts identity, manifest URL and presentation in the neutral record,
-and every legacy-specific field in `adapterData`, where only this package reads
-it. The neutral record stays free of legacy vocabulary.
+`parse` puts identity, manifest URL and presentation on the common fields, and
+the legacy-specific fields on `LegacyRegistryEntry`, which only this package
+reads. No caller has to know the legacy vocabulary.
 
-| Legacy `AppConfig` field | Where it goes                     | Notes                                                                                                                                   |
-| ------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                   | `id`, `adapterData.containerName` | `id` is the name reduced to the framework identity rules; the name itself is preserved because the loader registers the remote under it |
-| `mfManifestUrl`          | `manifestUrl`                     | Also the base for the release-notes sibling document                                                                                    |
-| `title`                  | `title`                           | Omitted when the legacy entry omitted it                                                                                                |
-| `icon`                   | `icon`                            | Omitted when the legacy entry omitted it                                                                                                |
-| `version`                | `version`                         | Never gates loading or selection                                                                                                        |
-| `hidden`                 | `hidden`                          | Catalog flag only, not a security boundary                                                                                              |
-| `onboardingType`         | `adapterData.onboardingType`      |                                                                                                                                         |
-| `tags`                   | `adapterData.tags`                | Empty array when absent                                                                                                                 |
-| `categories`             | `adapterData.categories`          | Empty array when absent                                                                                                                 |
-| `externalUrl`            | `adapterData.externalUrl`         |                                                                                                                                         |
-| `routes`                 | `adapterData.routes`              | Empty array when absent                                                                                                                 |
-| `settings.routes`        | `adapterData.settingsRoutes`      | Flattened to one array                                                                                                                  |
-| —                        | `adapterData.exposeName`          | Always `./single-spa-app`                                                                                                               |
-| —                        | `adapterData.navigationOwnership` | Always `shell`                                                                                                                          |
+| Legacy `AppConfig` field | Where it goes         | Notes                                                                                                                                   |
+| ------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                   | `id`, `containerName` | `id` is the name reduced to the framework identity rules; the name itself is preserved because the loader registers the remote under it |
+| `mfManifestUrl`          | `manifestUrl`         | Also the base for the release-notes sibling document                                                                                    |
+| `title`                  | `title`               | Omitted when the legacy entry omitted it                                                                                                |
+| `icon`                   | `icon`                | Omitted when the legacy entry omitted it                                                                                                |
+| `version`                | `version`             | Never gates loading or which adapter reads the entry                                                                                    |
+| `hidden`                 | `hidden`              | Catalog flag only, not a security boundary                                                                                              |
+| `onboardingType`         | `onboardingType`      |                                                                                                                                         |
+| `tags`                   | `tags`                | Empty array when absent                                                                                                                 |
+| `categories`             | `categories`          | Empty array when absent                                                                                                                 |
+| `externalUrl`            | `externalUrl`         |                                                                                                                                         |
+| `routes`                 | `routes`              | Empty array when absent                                                                                                                 |
+| `settings.routes`        | `settingsRoutes`      | Flattened to one array                                                                                                                  |
+| —                        | `exposeName`          | Always `./single-spa-app`                                                                                                               |
+| —                        | `navigationOwnership` | Always `shell`                                                                                                                          |
 
-Shell surfaces read the payload back through `readLegacyAdapterData(entry)`,
-which is typed and refuses an entry that belongs to another adapter, so a
-translation change is a compile error rather than an empty tile.
+Shell surfaces reach those fields through `legacyAngularAdapter.is(entry)`, which
+narrows the entry to `LegacyRegistryEntry`, so a translation change is a compile
+error rather than an empty tile.
 
-Validation failures throw structured framework errors that name the field, what
-was expected, what arrived and the repair. The host quarantines the entry and
-keeps the rest of the registry.
+`parse` failures throw structured framework errors that name the field, what was
+expected, what arrived and the repair. The host rejects the entry with a reason
+and keeps the rest of the registry.
 
 ## Parcel lifecycle
 
@@ -245,9 +245,9 @@ error naming the status.
 
 This path is a compatibility fallback and stays available for every entry. The
 App-owned release-notes capability is **additive**: `selectReleaseNotesRoute`
-sends the shell into an App that advertises the capability and keeps the legacy
-sibling document for every App that does not, and advertising the capability does
-not disable the legacy path for anyone — including for the app that advertised
+sends the shell into an App that declares the capability and keeps the legacy
+sibling document for every App that does not, and declaring the capability does
+not disable the legacy path for anyone — including for the app that declared
 it.
 
 ## Tests

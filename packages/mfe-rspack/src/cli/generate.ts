@@ -11,7 +11,7 @@ const USAGE = `
 mfe-generate [options]
 
 Writes what the build would generate for the container in the current
-directory: the #mfe/* modules, the registry descriptor, the runtime
+directory: the #mfe/* modules, the registry entry, the runtime
 configuration schema and .env.example, and an App's route tree.
 
 Options:

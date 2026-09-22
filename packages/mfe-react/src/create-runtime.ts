@@ -6,10 +6,10 @@
 import {
   DiagnosticsHub,
   isMfeError,
-  type AdapterSelectionRule,
   type DiagnosticsSink,
+  type MfeAdapter,
   type NavigationBridge,
-  type NormalizedRegistry,
+  type Registry,
   type ShellState,
   type TelemetryProvider,
 } from '@company/mfe-core'
@@ -18,11 +18,10 @@ import {
   BreadcrumbStore,
   CommandRegistry,
   createBrowserNavigationBridge,
-  createMfeContractRule,
   createMountTelemetry,
   establishSessionGeneration,
   mintSessionGeneration,
-  normalizeRegistry,
+  readRegistry,
   MfeStorageStore,
   findConflictingContainerOverrides,
   readDevOverrides,
@@ -35,6 +34,7 @@ import {
 import { QueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { reactAdapter } from './registry/react-adapter.ts'
 import { createOverlayRoot } from './scope-root.tsx'
 import { createMountToken, type MfeMount, type MfeRuntime } from './runtime.ts'
 
@@ -50,12 +50,11 @@ export interface CreateRuntimeOptions {
   /** An existing hub to report into; `dispose()` removes only the sinks it added (§25). */
   readonly diagnostics?: DiagnosticsHub
   /**
-   * Extra adapter selection rules, evaluated after the framework contract rule, which always
-   * runs first. The first rule that advertises an entry owns it, so a descriptor advertising
-   * the framework contract can never fall through to another adapter because a field in it was
-   * malformed: that entry is quarantined instead of loading a different way.
+   * Adapters besides `reactAdapter`, which is always registered. Order means nothing: exactly
+   * one adapter must recognise an entry, so an entry a framework build published can never be
+   * read by another adapter because one of its fields was malformed. It is rejected instead.
    */
-  readonly rules?: readonly AdapterSelectionRule[]
+  readonly adapters?: readonly MfeAdapter[]
   readonly notifyCommandDenial?: CommandDenialNotifier
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
@@ -98,8 +97,8 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
   const overrides = readDevOverrides(options.overrideStorage)
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
-  const registry: NormalizedRegistry = normalizeRegistry(options.registryEntries, {
-    rules: [createMfeContractRule(), ...(options.rules ?? [])],
+  const registry: Registry = readRegistry(options.registryEntries, {
+    adapters: [reactAdapter, ...(options.adapters ?? [])],
     overrides: overrides.overrides,
   })
 
@@ -112,12 +111,12 @@ export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandl
     diagnostics.report(error, { severity: 'warning' })
   }
 
-  // A quarantined entry never removes unrelated valid ones.
-  for (const quarantined of registry.quarantined) {
-    if (isMfeError(quarantined.error)) {
-      diagnostics.report(quarantined.error, {
+  // A rejected entry never removes unrelated valid ones.
+  for (const rejected of registry.rejected) {
+    if (isMfeError(rejected.error)) {
+      diagnostics.report(rejected.error, {
         severity: 'error',
-        context: { entry: quarantined.id, reason: quarantined.reason },
+        context: { entry: rejected.id, reason: rejected.reason },
       })
     }
   }

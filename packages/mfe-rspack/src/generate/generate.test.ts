@@ -356,7 +356,7 @@ export const alertPanel = createWidget({
   })
 })
 
-describe('shell registry descriptor', () => {
+describe('the registry entry the build publishes', () => {
   it('names the definitions, the shared manifest and the contract major', () => {
     const { fileFor, plan } = planFixture({
       'src/mfe.ts': APP_ENTRY,

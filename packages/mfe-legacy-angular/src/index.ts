@@ -3,13 +3,14 @@
  * expose path, so it is deleted whole once the last legacy app is migrated.
  */
 
-export { createLegacyAdapterRule } from './registry/legacy-rule.ts'
-
 export {
-  readLegacyAdapterData,
-  type LegacyAdapterData,
+  deriveLegacyDefinitionId,
+  LEGACY_NAVIGATION_OWNERSHIP,
+  LEGACY_PARCEL_EXPOSE_NAME,
+  legacyAngularAdapter,
+  type LegacyRegistryEntry,
   type NavigationOwnership,
-} from './registry/legacy-config.ts'
+} from './registry/legacy-adapter.ts'
 
 export {
   createLegacyContainerLoader,

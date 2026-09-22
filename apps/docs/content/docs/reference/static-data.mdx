@@ -71,7 +71,7 @@ To override the trail from inside a component, use `useBreadcrumbs`.
 
 ## Errors
 
-<Callout type="error" title="registry/invalid-descriptor, at build time">
+<Callout type="error" title="registry/invalid-entry, at build time">
 
 ```text
 /home/you/orders/src/routes/settings.tsx: 'orders' failed to extract the capability route '/settings': expected a non-empty `label` string literal, found no label. This expectation is declared by the capability contract. Add the text the shell puts in its menu, for example label: 'Order settings'. It is read at build time, so it cannot be computed.
@@ -81,7 +81,7 @@ To override the trail from inside a component, use `useBreadcrumbs`.
 
 </Callout>
 
-<Callout type="error" title="registry/invalid-descriptor, two routes">
+<Callout type="error" title="registry/invalid-entry, two routes">
 
 ```text
 expected one route per capability, found '/settings' and '/preferences' both declare it. This expectation is declared by the capability contract. Remove the staticData marker from one of them. The shell opens exactly one route per capability, so two candidates have no tie-break.
@@ -91,7 +91,7 @@ expected one route per capability, found '/settings' and '/preferences' both dec
 
 </Callout>
 
-<Callout type="error" title="registry/invalid-descriptor, on a Widget">
+<Callout type="error" title="registry/invalid-entry, on a Widget">
 
 ```text
 expected a capability declared by an App, found a container that exports Widgets only. This expectation is declared by the capability contract. Remove the marker. Capabilities are App-only: the shell opens them as a route, and a Widget has no routes of its own.

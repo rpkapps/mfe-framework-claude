@@ -9,13 +9,13 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 
 ## Registry and contract codes
 
-| Code                          | When it happens                                                                                                  | Fix                                                                                             |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `registry/invalid-descriptor` | A registry entry, or a definition's own declaration, is not the shape the framework requires.                    | Rebuild the container. Registry JSON is generated, never hand-written.                          |
-| `registry/duplicate-id`       | Two definitions in one container, or two registry entries, claim one id.                                         | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
-| `contract/unsupported-major`  | The entry declares a framework contract major the shell does not support.                                        | Rebuild against the shell's major, or upgrade the shell.                                        |
-| `contract/input-mismatch`     | A prop failed the Widget's `inputs` schema, an input name is reserved, or the build could not read the contract. | Send the declared type, or rename the input.                                                    |
-| `contract/event-mismatch`     | An emitted payload failed its schema, or an event name breaks the naming rule.                                   | Check the payload against the schema, or rename the event.                                      |
+| Code                         | When it happens                                                                                                  | Fix                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                    | Rebuild the container. Registry JSON is generated, never hand-written.                          |
+| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                           | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
+| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                    | Rebuild against the shell's major, or upgrade the shell.                                        |
+| `contract/input-mismatch`    | A prop failed the Widget's `inputs` schema, an input name is reserved, or the build could not read the contract. | Send the declared type, or rename the input.                                                    |
+| `contract/event-mismatch`    | An emitted payload failed its schema, or an event name breaks the naming rule.                                   | Check the payload against the schema, or rename the event.                                      |
 
 <Callout type="error" title="contract/input-mismatch">
 
@@ -206,16 +206,17 @@ A stylesheet selector that reaches the document fails too. That check belongs to
 
 ## Why the registry set your entry aside
 
-The shell checks every entry on its own, so one bad entry loses only itself. A rejected entry is recorded with a reason, and the registry marks it `quarantined`.
+The shell reads every entry on its own, so one bad entry loses only itself. A rejected entry is recorded with a reason, and the registry lists it under `rejected`.
 
-| Reason                                     | What it means                                                  | Fix                                          |
-| ------------------------------------------ | -------------------------------------------------------------- | -------------------------------------------- |
-| no adapter recognised this descriptor      | The record matched none of the registered adapters.            | Publish the descriptor your build generated. |
-| the react adapter rejected this descriptor | The record declares the framework contract but breaks it.      | Rebuild the container.                       |
-| invalid definition id                      | The id is not lower-case letters, digits and single hyphens.   | Rename the id and rebuild.                   |
-| duplicate definition id                    | Two or more entries claimed the id. All of them are set aside. | Rename one definition and rebuild.           |
+| Reason                                      | What it means                                                | Fix                                     |
+| ------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- |
+| no adapter recognised this entry            | No registered adapter recognised the entry.                  | Publish the entry your build generated. |
+| more than one adapter recognised this entry | Two adapters both recognised it. The reason names them.      | Publish the entry your build generated. |
+| the react adapter rejected this entry       | The entry names a framework version but breaks the shape.    | Rebuild the container.                  |
+| invalid definition id                       | The id is not lower-case letters, digits and single hyphens. | Rename the id and rebuild.              |
+| duplicate definition id                     | Two or more entries used the id. All of them are set aside.  | Rename one definition and rebuild.      |
 
-The React adapter takes any entry with an `mfe` property, then checks it strictly. A typo fails here rather than being read as another adapter's entry.
+The React adapter recognises any entry with an `mfe` property, then reads it strictly. A typo fails here rather than being read as another adapter's entry.
 
 | The adapter requires                       | Fix                                                                           |
 | ------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -230,7 +231,7 @@ The React adapter takes any entry with an `mfe` property, then checks it strictl
 <Callout type="error" title="contract/unsupported-major">
 
 ```text
-legacy-reports failed to gate the advertised framework contract major: expected contract major 1, received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.
+legacy-reports failed to read the framework version the container was built for: expected contract major 1, received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.
 ```
 
 **Fix.** Rebuild the container against the framework major the shell runs, or upgrade the shell.

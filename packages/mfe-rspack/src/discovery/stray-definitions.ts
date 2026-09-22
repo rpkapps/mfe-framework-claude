@@ -58,7 +58,7 @@ export function findStrayDefinitions(
       const { line, column } = positionOf(sourceFile, node)
       errors.push(
         createBuildError({
-          code: 'registry/invalid-descriptor',
+          code: 'registry/invalid-entry',
           file,
           line,
           column,

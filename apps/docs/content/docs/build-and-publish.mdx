@@ -97,7 +97,7 @@ JSON carries your definitions under `metaData.mfe`. Then open the shell and the 
 <Callout type="error" title="MfePlugin: no mf-manifest.json was emitted">
 
 ```text
-MfePlugin: no mf-manifest.json was emitted, so this container advertises no framework contract and
+MfePlugin: no mf-manifest.json was emitted, so this container declares no framework contract and
 a shell cannot tell which major it was built against.
 ```
 
@@ -106,10 +106,10 @@ a shell cannot tell which major it was built against.
 
 </Callout>
 
-<Callout type="error" title="No generated descriptor">
+<Callout type="error" title="Nothing generated">
 
 ```text
-No generated descriptor for insights, lab. Run `pnpm run generate` first: the registry is assembled
+Nothing generated for insights, lab. Run `pnpm run generate` first: the registry is assembled
 from what each container generates, never hand-written.
 ```
 
@@ -121,7 +121,7 @@ registry from what they wrote.
 <Callout type="error" title="names no expose path">
 
 ```text
-alert-panel: its container's descriptor names no expose path. Rebuild the container.
+alert-panel: its container's build names no expose path. Rebuild the container.
 ```
 
 **Fix.** Rebuild. The `entries` map in the record comes from the definitions your `src/mfe.ts`

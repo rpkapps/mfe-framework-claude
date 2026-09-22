@@ -187,9 +187,9 @@ export function SettingsSheet({
                   <Badge variant="success" appearance="outline">
                     {runtime.registry.entries.size} loaded
                   </Badge>
-                  {runtime.registry.quarantined.length === 0 ? null : (
+                  {runtime.registry.rejected.length === 0 ? null : (
                     <Badge variant="destructive" appearance="outline">
-                      {runtime.registry.quarantined.length} rejected
+                      {runtime.registry.rejected.length} rejected
                     </Badge>
                   )}
                 </span>

@@ -99,8 +99,8 @@ code, so a computed version cannot be read at all.
 <Callout type="error" title="contract/unsupported-major">
 
 ```text
-legacy-reports failed to gate the advertised framework contract major: expected contract major 1,
-received contract major 2.
+legacy-reports failed to read the framework version the container was built for: expected
+contract major 1, received contract major 2.
 ```
 
 **Fix.** Rebuild the container against the framework major the shell runs, or wait for the shell to

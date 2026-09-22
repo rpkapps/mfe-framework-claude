@@ -3,14 +3,14 @@
  * hand back the lifecycles. The federation runtime is injected, so importing starts nothing.
  */
 
-import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { createMfeError, toMfeError, type RegistryEntry } from '@company/mfe-core'
 import type { ContainerLoader, LoadedDefinition } from '@company/mfe-host'
 
 import {
+  legacyAngularAdapter,
   LEGACY_PARCEL_EXPOSE_NAME,
-  readLegacyAdapterData,
   type NavigationOwnership,
-} from '../registry/legacy-config.ts'
+} from '../registry/legacy-adapter.ts'
 import {
   isLegacyParcelConfig,
   missingParcelLifecycles,
@@ -38,7 +38,7 @@ const EXPOSE_PATH = LEGACY_PARCEL_EXPOSE_NAME.replace(/^\.\//, '')
 /** A legacy container may export its lifecycles directly or behind `default`, depending on its build. */
 function extractParcelConfig(
   moduleExports: unknown,
-  entry: NeutralRegistryEntry,
+  entry: RegistryEntry,
   containerName: string,
 ): LegacyParcelConfig {
   if (isLegacyParcelConfig(moduleExports)) return moduleExports
@@ -71,7 +71,18 @@ export function createLegacyContainerLoader(options: {
     load: async (entry, { signal }): Promise<LoadedDefinition<LegacyParcelModule>> => {
       signal.throwIfAborted()
 
-      const { containerName, navigationOwnership } = readLegacyAdapterData(entry)
+      if (!legacyAngularAdapter.is(entry)) {
+        throw createMfeError({
+          code: 'registry/invalid-entry',
+          id: entry.id,
+          operation: 'load the legacy container',
+          expected: 'an entry the legacy adapter parsed',
+          observed: `an entry the ${entry.adapter} adapter parsed`,
+          repair: 'Register legacyAngularAdapter so the shell reads legacy entries through it.',
+        })
+      }
+
+      const { containerName, navigationOwnership } = entry
 
       if (!registered.has(containerName)) {
         try {

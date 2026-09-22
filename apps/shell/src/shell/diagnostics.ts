@@ -1,6 +1,6 @@
 /** Collected on demand, because a snapshot held from boot would describe a page that no longer exists. */
 
-import type { MfeRuntime, NeutralRegistryEntry } from '@company/mfe-react'
+import type { MfeRuntime, RegistryEntry } from '@company/mfe-react'
 
 import { notices, workspace } from './workspace.ts'
 
@@ -24,7 +24,7 @@ export interface Diagnostics {
 }
 
 export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
-  const { entries, quarantined } = runtime.registry
+  const { entries, rejected } = runtime.registry
   const user = runtime.shellState.getUser()
   const path = window.location.pathname
   const mountedId = path.split('/').filter(Boolean)[0]
@@ -37,7 +37,7 @@ export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
     user: user?.id ?? 'not signed in',
     groups: runtime.shellState.getGroups(),
     registryLoaded: entries.size,
-    registryRejected: quarantined.map(entry => `${entry.id}: ${entry.reason}`),
+    registryRejected: rejected.map(entry => `${entry.id}: ${entry.reason}`),
     builds: [...entries.values()].map(describeBuild),
     registryError: notices.registryError === null ? null : notices.registryError.message,
     overrides: [...notices.overrides].map(([id, url]) => `${id} → ${url}`),
@@ -48,7 +48,7 @@ export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
 }
 
 /** One entry's build, as `<id>: <hash> · <time>`. */
-function describeBuild(entry: NeutralRegistryEntry): string {
+function describeBuild(entry: RegistryEntry): string {
   const build = entry.build
   if (build === undefined) return `${entry.id}: no build published`
   return `${entry.id}: ${build.hash ?? 'unknown hash'} · ${build.time ?? 'unknown time'}`

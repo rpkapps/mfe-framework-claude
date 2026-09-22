@@ -43,7 +43,7 @@ pnpm install
 pnpm run generate
 ```
 
-Every container writes its own descriptor, and the root script assembles them into
+Every container writes its own registry entry, and the root script assembles them into
 `apps/shell/public/registry.json`. Nobody hand-writes that file.
 
 </Step>
@@ -106,10 +106,10 @@ for example "alert-panel".
 
 </Callout>
 
-<Callout type="error" title="No generated descriptor">
+<Callout type="error" title="Nothing generated">
 
 ```text
-No generated descriptor for field-notes. Run `pnpm run generate` first: the registry is assembled
+Nothing generated for field-notes. Run `pnpm run generate` first: the registry is assembled
 from what each container generates, never hand-written.
 ```
 

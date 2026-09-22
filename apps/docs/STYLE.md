@@ -130,25 +130,24 @@ argue by contrast (Diátaxis, reference vs explanation).
 Jargon is the thing expert readers complain about most (NN/g, "Plain language is for everyone, even
 experts", and plainlanguage.gov).
 
-> **Now:** "a failure **quarantines** it — sets it aside with a reason and an error — rather than
-> dropping it"
+> **Now:** "a failure **sets it aside** — with a reason and an error — rather than dropping it"
 >
-> **Rewrite:** "The shell sets the entry aside and records the reason. The registry marks it
-> `quarantined`. Every other entry still loads."
+> **Rewrite:** "The shell sets the entry aside and records the reason. The registry lists it under
+> `rejected`. Every other entry still loads."
 
 | Write this               | Instead of         | Keep the code word where                      |
 | ------------------------ | ------------------ | --------------------------------------------- |
-| set aside, rejected      | quarantined        | registry field and messages: `quarantined`    |
+| set aside                | rejected           | registry field and messages: `rejected`       |
 | limited to, cleared when | fenced             | nowhere — no message uses "fenced"            |
 | boundary, edge           | seam               | nowhere                                       |
 | stored record            | envelope           | messages: "a framework envelope at version 1" |
-| declares                 | advertises         | messages: "the kind the registry advertised"  |
+| declares                 | advertises         | nowhere — no message says "advertises"        |
 | ends, replaced           | retired            | repair text: "a retired session's data"       |
 | creates, issues          | mints              | nowhere                                       |
 | deletes                  | physically removes | nowhere                                       |
 | checks                   | screens            | nowhere                                       |
 | screen, panel            | surface            | nowhere                                       |
-| description record       | descriptor         | error code: `registry/invalid-descriptor`     |
+| registry entry           | descriptor         | nowhere — the error code is `invalid-entry`   |
 | takes ownership of       | claims             | nowhere                                       |
 
 **9. No aphorisms or slogans as explanations.** A memorable phrase is not an answer. State the

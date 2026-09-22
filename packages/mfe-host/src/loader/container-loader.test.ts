@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { isMfeError, type RegistryEntry } from '@company/mfe-core'
 
 import {
   SharedContainerLoader,
@@ -14,7 +14,7 @@ interface TestModule {
   readonly name: string
 }
 
-function entryFor(id: string): NeutralRegistryEntry {
+function entryFor(id: string): RegistryEntry {
   return {
     id,
     definitionKind: 'app',
@@ -38,7 +38,7 @@ function createControllableLoader(): {
   const signals: AbortSignal[] = []
   const load = vi.fn(
     (
-      _entry: NeutralRegistryEntry,
+      _entry: RegistryEntry,
       options: { readonly signal: AbortSignal },
     ): Promise<LoadedDefinition<TestModule>> => {
       signals.push(options.signal)

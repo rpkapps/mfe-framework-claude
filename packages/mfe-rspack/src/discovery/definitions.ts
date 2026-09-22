@@ -214,7 +214,7 @@ function assertEveryDefinitionIsExported(
 
     const { line, column } = positionOf(sourceFile, node)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -296,7 +296,7 @@ function readPresentationString(
   if (value === null) {
     const { line, column } = positionOf(sourceFile, property)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -332,7 +332,7 @@ function readTags(
   if (!ts.isArrayLiteralExpression(array) || tags.length !== array.elements.length) {
     const { line, column } = positionOf(sourceFile, property)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -371,7 +371,7 @@ function readIcon(
   if (icon === null) {
     const { line, column } = positionOf(sourceFile, property)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -394,7 +394,7 @@ function readIdentity(sourceFile: ts.SourceFile, factory: FactoryCall): string {
 
   if (property === undefined) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -409,7 +409,7 @@ function readIdentity(sourceFile: ts.SourceFile, factory: FactoryCall): string {
   const value = stringLiteralValue(property.initializer)
   if (value === null) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -424,7 +424,7 @@ function readIdentity(sourceFile: ts.SourceFile, factory: FactoryCall): string {
 
   if (!isValidDefinitionId(value)) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -453,7 +453,7 @@ function readVersion(
   if (value === null) {
     const { line, column } = positionOf(sourceFile, property)
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: sourceFile.fileName,
       line,
       column,
@@ -476,7 +476,7 @@ function assertContainerShape(
 ): void {
   if (definitions.length === 0) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: entryFile,
       operation: 'collect the definitions this container exports',
       expected: 'at least one exported App or Widget',
@@ -509,7 +509,7 @@ function assertContainerShape(
   const apps = definitions.filter(definition => definition.kind === 'app')
   if (apps.length > 1) {
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: entryFile,
       operation: 'collect the definitions this container exports',
       expected: 'at most one App per container',
@@ -524,7 +524,7 @@ function assertContainerShape(
   if (defaultExports.length > 0 && definitions.length > 1) {
     const offender = defaultExports[0]
     throw createBuildError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       file: entryFile,
       ...(offender === undefined ? {} : { id: offender.id }),
       operation: 'collect the definitions this container exports',

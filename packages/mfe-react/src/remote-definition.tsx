@@ -43,12 +43,12 @@ export function loadDefinition(
   const pending = (async (): Promise<MfeDefinition> => {
     if (!entry) {
       throw toMfeError(null, {
-        code: 'registry/invalid-descriptor',
+        code: 'registry/invalid-entry',
         id,
         operation: `resolve ${label}`,
         observed: 'no registry entry with this id',
         repair:
-          'Check the id against the generated registry descriptor, or add a localStorage override pointing at your dev server.',
+          'Check the id against the generated registry entry, or add a localStorage override pointing at your dev server.',
       })
     }
 
@@ -99,7 +99,7 @@ interface RetryBoundaryProps {
   readonly operation: string
 }
 
-/** Holds the raw value so the props-dependent normalization can happen in render. */
+/** Holds the raw value so the props-dependent coercion can happen in render. */
 interface RetryBoundaryState {
   readonly thrown: { readonly value: unknown } | null
 }
