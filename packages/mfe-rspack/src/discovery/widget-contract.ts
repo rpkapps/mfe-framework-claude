@@ -3,11 +3,9 @@
  * any container (§16).
  */
 
-import { statSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-
 import { readStaticSchema, type JsonObject } from '../config/zod-static.ts'
 import { createBuildError } from '../diagnostics.ts'
+import { findExportedExpression, resolveRelativeModule } from './local-modules.ts'
 import {
   calleeName,
   collectImportedBindings,
@@ -63,8 +61,6 @@ interface WidgetContractReadResult {
   readonly inputSchema?: JsonObject
   readonly source: WidgetContractSource
 }
-
-const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.js', '.jsx'] as const
 
 interface CopyState {
   /** Names already emitted into the prelude, in insertion order. */
@@ -374,58 +370,4 @@ function literalKeys(object: ts.ObjectLiteralExpression): readonly string[] {
     if (name !== null) keys.push(name)
   }
   return keys
-}
-
-/** Resolves a relative specifier to a file on disk, or `null` for a bare one. */
-function resolveRelativeModule(fromFile: string, specifier: string): string | null {
-  if (!specifier.startsWith('.')) return null
-
-  const base = resolve(dirname(fromFile), specifier)
-  const candidates: string[] = [base]
-  // `./schemas.js` is how a TypeScript ESM import spells `./schemas.ts`.
-  if (base.endsWith('.js')) candidates.push(`${base.slice(0, -3)}.ts`, `${base.slice(0, -3)}.tsx`)
-  for (const extension of MODULE_EXTENSIONS) candidates.push(`${base}${extension}`)
-  for (const extension of MODULE_EXTENSIONS) candidates.push(resolve(base, `index${extension}`))
-
-  for (const candidate of candidates) {
-    try {
-      if (statSync(candidate).isFile()) return candidate
-    } catch {
-      // Not a file: try the next candidate.
-    }
-  }
-  return null
-}
-
-/** The initialiser of an exported top-level binding in another module. */
-function findExportedExpression(sourceFile: ts.SourceFile, name: string): ts.Expression | null {
-  const topLevel = collectTopLevelBindings(sourceFile)
-  const localImports = collectImportedBindings(sourceFile)
-
-  for (const statement of sourceFile.statements) {
-    if (ts.isVariableStatement(statement)) {
-      const exported = (ts.getModifiers(statement) ?? []).some(
-        modifier => modifier.kind === ts.SyntaxKind.ExportKeyword,
-      )
-      if (!exported) continue
-      for (const declaration of statement.declarationList.declarations) {
-        if (!ts.isIdentifier(declaration.name)) continue
-        if (declaration.name.text !== name) continue
-        if (declaration.initializer === undefined) continue
-        return unwrapExpression(declaration.initializer)
-      }
-    }
-    if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined) {
-      if (!ts.isNamedExports(statement.exportClause)) continue
-      for (const element of statement.exportClause.elements) {
-        if (element.name.text !== name) continue
-        const local = (element.propertyName ?? element.name).text
-        const expression = topLevel.get(local)
-        if (expression !== undefined) return unwrapExpression(expression)
-        if (localImports.has(local)) return null
-      }
-    }
-  }
-
-  return null
 }

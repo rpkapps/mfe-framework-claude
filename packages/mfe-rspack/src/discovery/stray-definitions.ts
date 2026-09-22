@@ -5,7 +5,7 @@ import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import { DEFINITION_MODULES } from './definitions.ts'
+import { frameworkOfModule } from './definitions.ts'
 import {
   calleeName,
   collectImportedBindings,
@@ -45,7 +45,7 @@ export function findStrayDefinitions(
 
     const factories = new Set<string>()
     for (const [local, binding] of imports) {
-      if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
+      if (frameworkOfModule(binding.moduleSpecifier) === undefined) continue
       if (FACTORY_NAMES.has(binding.imported)) factories.add(local)
     }
     if (factories.size === 0) continue

@@ -7,6 +7,7 @@ import {
   isValidDefinitionId,
   isValidEventName,
   RESERVED_INPUT_NAMES,
+  type DefinitionFramework,
   type DefinitionKind,
   type IconData,
 } from '@company/mfe-core'
@@ -30,8 +31,25 @@ import {
   type ImportedBinding,
 } from './ts-ast.ts'
 
-/** The modules `createApp` and `createWidget` may be imported from. */
-export const DEFINITION_MODULES: readonly string[] = ['@company/mfe-react']
+/** The package each adapter is published as; generated modules import its runtime helpers. */
+export const ADAPTER_MODULES: Readonly<Record<DefinitionFramework, string>> = {
+  react: '@company/mfe-react',
+  angular: '@company/mfe-angular',
+}
+
+/**
+ * The modules `createApp` and `createWidget` may be imported from, and the adapter each one is:
+ * where the entry imports its factories from is what decides how the container is built.
+ */
+export const DEFINITION_MODULES: Readonly<Record<string, DefinitionFramework>> = {
+  [ADAPTER_MODULES.react]: 'react',
+  [ADAPTER_MODULES.angular]: 'angular',
+}
+
+/** The adapter a module specifier names, or `undefined` for any other module. */
+export function frameworkOfModule(specifier: string): DefinitionFramework | undefined {
+  return Object.hasOwn(DEFINITION_MODULES, specifier) ? DEFINITION_MODULES[specifier] : undefined
+}
 
 const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
   ['createApp', 'app'],
@@ -69,6 +87,8 @@ interface Presentation {
 }
 
 export interface DiscoveryResult {
+  /** The adapter the entry imports its factories from. */
+  readonly framework: DefinitionFramework
   readonly definitions: readonly DiscoveredDefinition[]
   readonly app: DiscoveredDefinition | undefined
   readonly widgets: readonly DiscoveredDefinition[]
@@ -88,11 +108,19 @@ export function discoverDefinitions(entryFile: string): DiscoveryResult {
 
   // Resolved through the import bindings, so `createWidget as make` is recognised by alias.
   const factories = new Map<string, DefinitionKind>()
+  // In source order, so a diagnostic points at the import that introduced a second adapter.
+  const frameworks = new Map<DefinitionFramework, string>()
   for (const [local, binding] of imports) {
-    if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
+    const framework = frameworkOfModule(binding.moduleSpecifier)
+    if (framework === undefined) continue
     const kind = FACTORY_KINDS.get(binding.imported)
-    if (kind !== undefined) factories.set(local, kind)
+    if (kind === undefined) continue
+    factories.set(local, kind)
+    if (!frameworks.has(framework)) frameworks.set(framework, binding.moduleSpecifier)
   }
+
+  const framework = singleFramework(sourceFile, frameworks)
+  if (framework === undefined) throw noDefinitionError(entryFile)
 
   assertEveryDefinitionIsExported(sourceFile, factories, topLevel)
 
@@ -106,10 +134,40 @@ export function discoverDefinitions(entryFile: string): DiscoveryResult {
   assertContainerShape(entryFile, definitions)
 
   return {
+    framework,
     definitions,
     app: definitions.find(definition => definition.kind === 'app'),
     widgets: definitions.filter(definition => definition.kind === 'widget'),
   }
+}
+
+/** One adapter builds, shares and mounts a container, so its factories come from one module. */
+function singleFramework(
+  sourceFile: ts.SourceFile,
+  frameworks: ReadonlyMap<DefinitionFramework, string>,
+): DefinitionFramework | undefined {
+  const [first, second] = frameworks
+  if (second === undefined) return first?.[0]
+
+  const [, secondModule] = second
+  const declaration = sourceFile.statements.find(
+    statement =>
+      ts.isImportDeclaration(statement) &&
+      stringLiteralValue(statement.moduleSpecifier) === secondModule,
+  )
+  const { line, column } = positionOf(sourceFile, declaration ?? sourceFile)
+  throw createBuildError({
+    code: 'registry/invalid-entry',
+    file: sourceFile.fileName,
+    line,
+    column,
+    operation: 'decide which adapter builds this container',
+    expected: 'createApp and createWidget imported from one adapter',
+    observed: `factories imported from ${listNames([...frameworks.values()])}`,
+    declaredBy: 'The container contract',
+    repair:
+      'Split the definitions into one container per adapter. A container is built, shared and mounted by exactly one adapter, so React and Angular definitions cannot come from the same entry.',
+  })
 }
 
 interface FactoryCall {
@@ -474,18 +532,7 @@ function assertContainerShape(
   entryFile: string,
   definitions: readonly DiscoveredDefinition[],
 ): void {
-  if (definitions.length === 0) {
-    throw createBuildError({
-      code: 'registry/invalid-entry',
-      file: entryFile,
-      operation: 'collect the definitions this container exports',
-      expected: 'at least one exported App or Widget',
-      observed: 'no definition',
-      declaredBy: 'Static discovery',
-      repair:
-        "Export a definition from this module, for example `export const orders = createApp({ id: 'orders', router: makeRouter })`. Definitions declared anywhere else are not discovered.",
-    })
-  }
+  if (definitions.length === 0) throw noDefinitionError(entryFile)
 
   const seen = new Map<string, DiscoveredDefinition>()
   for (const definition of definitions) {
@@ -541,6 +588,19 @@ function assertContainerShape(
     assertUsableEventNames(entryFile, definition)
     assertUsableInputNames(entryFile, definition)
   }
+}
+
+function noDefinitionError(entryFile: string): Error {
+  return createBuildError({
+    code: 'registry/invalid-entry',
+    file: entryFile,
+    operation: 'collect the definitions this container exports',
+    expected: 'at least one exported App or Widget',
+    observed: 'no definition',
+    declaredBy: 'Static discovery',
+    repair:
+      "Export a definition from this module, for example `export const orders = createApp({ id: 'orders', router: makeRouter })`. Definitions declared anywhere else are not discovered.",
+  })
 }
 
 function assertUsableEventNames(entryFile: string, definition: DiscoveredDefinition): void {

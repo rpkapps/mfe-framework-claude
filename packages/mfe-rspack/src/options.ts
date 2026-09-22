@@ -10,13 +10,19 @@ export interface MfePluginOptions {
   readonly containerRoot?: string
   /** Additive: the adapter's defaults are kept, and there is no way to remove one. */
   readonly shared?: Readonly<Record<string, string>>
-  /** Exists so a repository can run its test matrix compiled and uncompiled. */
+  /**
+   * React only: exists so a repository can run its test matrix compiled and uncompiled. Setting
+   * it for an Angular container is a build error, because there is nothing for it to switch.
+   */
   readonly reactCompiler?: boolean
-  /** Pass `false` when the container's config already applies `@tanstack/router-plugin` first. */
+  /**
+   * React only: pass `false` when the container's config already applies
+   * `@tanstack/router-plugin` first. Setting it for an Angular container is a build error.
+   */
   readonly router?: boolean | Readonly<Record<string, unknown>>
   /** Build-managed output directory, relative to the container root. */
   readonly generatedDir?: string
-  /** The App's file-based routes, relative to the container root. */
+  /** A React App's file-based routes, relative to the container root. */
   readonly routesDirectory?: string
   /** The deployment-provided config file, relative to the container's assets. */
   readonly runtimeConfigFileName?: string
