@@ -24,6 +24,7 @@ import {
   widgetContractModules,
   type GenerateContext,
 } from './modules.ts'
+import { runtimeConfigDefaultsFile, runtimeConfigScriptFile } from './runtime-config.ts'
 import { cssModuleTypes, styleRootModule, stylesheetFile } from './styles.ts'
 
 export interface GeneratedOutput {
@@ -59,6 +60,12 @@ export function generateContainerFiles(
 
   const envExample = envExampleFile(context)
   if (envExample !== null) base.push(envExample)
+
+  const defaults = runtimeConfigDefaultsFile(context)
+  if (defaults !== null) base.push(defaults)
+
+  const script = runtimeConfigScriptFile(context)
+  if (script !== null) base.push(script)
 
   const buildHash = contentHash(base, context.options.generatedDir)
 

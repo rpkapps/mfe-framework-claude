@@ -4,8 +4,8 @@ description: 'Publish runtime-config.json beside your container assets, one file
 ---
 
 `runtime-config.json` belongs to the deployment, not to the build, so one build serves every
-environment. Whatever publishes your assets writes this file beside them, and your container reads
-it at load time.
+environment. The build ships the file with your declared defaults only. Your deployment writes its
+values into it, and your container reads it at load time.
 
 ## Steps
 
@@ -68,6 +68,49 @@ field and rejects a key you did not declare.
 
 </Steps>
 
+## Run it in a Docker image
+
+The build writes `.mfe/runtime-config.sh` from your declarations. It needs only `sh` and `awk`, so
+it runs in `nginx:alpine`. The official nginx image runs every script in `/docker-entrypoint.d/`
+before it starts serving.
+
+```dockerfile title="Dockerfile"
+FROM node:22 AS build
+WORKDIR /app
+COPY . .
+RUN corepack enable && pnpm install --frozen-lockfile && pnpm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist/ /usr/share/nginx/html/
+COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
+```
+
+```sh
+docker run -e API_BASE_URL=https://api.example.com/ -e TELEMETRY_ENABLED=false my-container
+```
+
+When the container starts, the script:
+
+| Case                                   | What it writes                                                        |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| the variable is set                    | that value, typed by its schema: `false` is a boolean, `25` a number  |
+| the variable is unset or empty         | the value already in the file, which is the default the build shipped |
+| a required variable has no value       | nothing: the container exits with the variable's name                 |
+| a value has the wrong shape            | nothing: the container exits, naming the variable and the value       |
+| a nullable field gets the value `null` | `null`                                                                |
+| an array or object field               | the variable's text as JSON, for example `HOSTS='["a.example.com"]'`  |
+
+The script checks booleans, numbers and enum members. The browser still validates every value
+against your full schema, formats and bounds included.
+
+A file mounted over `runtime-config.json`, for example from a Kubernetes ConfigMap, works the same
+way: the variables you set replace its values, and everything else is kept.
+
+Another server works as well. Run the script before the server starts and pass it the served
+directory, as in `runtime-config.sh /srv/www`, or set `MFE_RUNTIME_CONFIG_DIR`. Without either, it
+writes to `/usr/share/nginx/html`. It has to be able to write there, so an unprivileged nginx image
+needs that directory owned by its user.
+
 ## Check it works
 
 Start your container's dev server and open `http://localhost:3001/runtime-config.json`. It answers
@@ -76,6 +119,17 @@ so create one the first time you add configuration. The values are a snapshot, s
 takes a new deployment and a page reload.
 
 ## Errors
+
+<Callout type="error" title="runtime-config.sh: … is required">
+
+```text
+runtime-config.sh: API_BASE_URL is required (apiBaseUrl: a string in uri form). Set it on the container.
+```
+
+**Fix.** Set the variable on the container, for example with `docker run -e API_BASE_URL=…`. The
+container stops at start so the browser never loads a file with the value missing.
+
+</Callout>
 
 <Callout type="error" title="config/missing">
 

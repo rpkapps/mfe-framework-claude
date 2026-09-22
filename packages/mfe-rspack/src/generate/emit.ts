@@ -1,13 +1,15 @@
 /** The same sources produce the same bytes, so a watching build never restarts itself (§19). */
 
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 
 export interface GeneratedFile {
   /** Absolute path the file is written to. */
   readonly path: string
   readonly contents: string
+  /** A script the deployment runs, so it is written with its execute bits set. */
+  readonly executable?: boolean
 }
 
 export function banner(alias?: string): string {
@@ -54,11 +56,13 @@ export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly G
     } catch {
       current = null
     }
-    if (current === file.contents) continue
-
-    mkdirSync(dirname(file.path), { recursive: true })
-    writeFileSync(file.path, file.contents, 'utf8')
-    written.push(file)
+    if (current !== file.contents) {
+      mkdirSync(dirname(file.path), { recursive: true })
+      writeFileSync(file.path, file.contents, 'utf8')
+      written.push(file)
+    }
+    // Also when unchanged: a copy that lost the bit would otherwise never get it back.
+    if (file.executable === true) chmodSync(file.path, 0o755)
   }
 
   return written

@@ -29,11 +29,15 @@ The script runs `pnpm run generate && rsbuild build`, and the output lands in `d
 | `remoteEntry.js`                            | the file a host loads your code from           | the shell's loader              |
 | `mf-manifest.json`                          | the federation manifest describing that file   | the shell's loader              |
 | `mfe-registry.json`                         | your container's description record            | whoever assembles the registry  |
+| `runtime-config.json`                       | the declared defaults, and nothing else        | the start-up script, then you   |
 | `runtime-config.schema.json`                | the shape of the deployment's values           | your deployment, before release |
 | one chunk per definition, and one CSS asset | your code, and the styles scoped to your roots | the browser                     |
 
-The build copies every top-level `.json` file out of `.mfe/`, and writes the schema file only for a
-container that has `src/mfe.config.ts`.
+The build copies every top-level `.json` file out of `.mfe/`, and writes the two configuration files
+only for a container that has `src/mfe.config.ts`. It never copies `public/runtime-config.json`,
+because that file holds your local values. Outside `dist/`, it also writes
+`.mfe/runtime-config.sh`, which your image runs at start to write the environment into
+`runtime-config.json`.
 
 </Step>
 
@@ -48,8 +52,10 @@ alert-panel.example.com/
   runtime-config.json
 ```
 
-Publish every built file to the origin your entry will point at, and let the deployment write
-`runtime-config.json` beside them.
+Publish every built file to the origin your entry will point at, and let the deployment write its
+values into `runtime-config.json` beside them. The
+[Docker recipe](/docs/supply-values-per-deployment#run-it-in-a-docker-image) does that from the
+container's environment.
 
 </Step>
 

@@ -1,6 +1,6 @@
 /** It contributes configuration and never replaces it, so an author's options stay theirs (§13). */
 
-import type { RsbuildPlugin } from '@rsbuild/core'
+import type { RsbuildConfig, RsbuildPlugin } from '@rsbuild/core'
 
 import { containerPostcssPlugins } from './css/postcss-plugins.ts'
 import { buildFederationOptions } from './federation/federation-options.ts'
@@ -26,7 +26,9 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
         // `moduleFederation.options` before a plugin's arrive, so these three are repeated (§13).
         const original = api.getRsbuildConfig('original')
 
-        return mergeRsbuildConfig(config, {
+        const isBuild = api.context.action === 'build'
+
+        const merged = mergeRsbuildConfig(config, {
           moduleFederation: { options: buildFederationOptions(plan) },
           server: {
             // A remote is read cross-origin by a shell, always.
@@ -36,7 +38,7 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
           },
           // Rsbuild's default asset prefix is the serving path, which for a remote is the
           // *shell's*; development instead needs this container's own dev server (§13).
-          ...(api.context.action === 'build'
+          ...(isBuild
             ? { output: { assetPrefix: 'auto' as const } }
             : {
                 dev: {
@@ -62,10 +64,36 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
                 }),
               )
             },
-            rspack: { plugins: [new MfeRspackPlugin(options)] },
+            rspack: { plugins: [new MfeRspackPlugin(options, { emitRuntimeConfig: isBuild })] },
           },
         })
+
+        // The build ships the declared defaults instead; a developer's `public/` copy would
+        // otherwise overwrite them with local values, like a localhost API.
+        if (isBuild && plan.configSource !== undefined) {
+          merged.server = {
+            ...merged.server,
+            publicDir: withoutRuntimeConfig(
+              merged.server?.publicDir,
+              plan.options.runtimeConfigFileName,
+            ),
+          }
+        }
+        return merged
       })
     },
   }
+}
+
+type PublicDir = NonNullable<NonNullable<RsbuildConfig['server']>['publicDir']>
+
+/** Rsbuild reads `ignore` relative to each public directory, and fills in the default name. */
+function withoutRuntimeConfig(publicDir: PublicDir | undefined, fileName: string): PublicDir {
+  if (publicDir === false) return false
+  const ignore = (entry: { readonly ignore?: string[] } | undefined) => ({
+    ...entry,
+    ignore: [...(entry?.ignore ?? []), fileName],
+  })
+  if (Array.isArray(publicDir)) return publicDir.map(entry => ignore(entry))
+  return ignore(publicDir)
 }
