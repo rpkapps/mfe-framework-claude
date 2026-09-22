@@ -1,0 +1,105 @@
+---
+title: 'Undeploy or roll back'
+description: 'Take a container out or put an earlier build back, and know what open pages see.'
+---
+
+Rolling back is a redeploy under the same id, and undeploying is one entry removed from the
+registry. What people see depends on whether their page loaded before or after the change.
+
+## Steps
+
+<Steps>
+
+<Step>
+### 1. Roll back by redeploying the earlier build
+
+```sh
+git checkout v2.0.3
+pnpm --filter @example/operations run build
+```
+
+Publish that build to the same origin under the same id, and register its record again.
+
+</Step>
+
+<Step>
+### 2. Undeploy by removing the entry
+
+```sh
+curl -X DELETE "$REGISTRY_URL/containers/operations"
+```
+
+The endpoint belongs to your own registry service, and the entry stops reaching new page loads as
+soon as it answers.
+
+</Step>
+
+<Step>
+### 3. Rebuild the registry in this repository
+
+```sh
+pnpm run generate
+```
+
+The assembler reads the containers that are still in `examples/`, so one you removed leaves the
+registry.
+
+</Step>
+
+<Step>
+### 4. Expect the stored records to stay
+
+```text
+lab:draft
+lab:visits
+```
+
+Removing an entry removes no storage, so a redeploy under the same id reads these keys back.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Reload the shell. Your definition is gone from the developer tools' **Registry** tab, and no page
+loading now reaches it. What everyone else gets depends on when their page loaded.
+
+| Who                                  | What they get                                                |
+| ------------------------------------ | ------------------------------------------------------------ |
+| a page loaded after the change       | the failure box, code `registry/invalid-entry`               |
+| an open tab yet to load you          | the failure box with **Retry**, code `load/manifest-failure` |
+| an open tab with your Widget mounted | nothing. It runs until that page reloads                     |
+| a saved dashboard in this shell      | the tile marked "not in the registry"                        |
+
+## Errors
+
+<Callout type="error" title="registry/invalid-entry">
+
+```text
+operations failed to resolve App: no registry entry with this id.
+```
+
+**Fix.** Nothing, when you meant to remove it. If you did not, register the container's record
+again, or point the id at a dev server with a local override.
+
+</Callout>
+
+<Callout type="error" title="load/manifest-failure">
+
+```text
+Check that https://operations.example.com/mf-manifest.json is reachable and serves a valid manifest.
+```
+
+**Fix.** A tab that loaded before the removal still holds the old entry. Reload the page, or leave
+the container's files reachable until those tabs have gone.
+
+</Callout>
+
+## Related
+
+- [Deploy to production with separate repositories](/docs/deploy-to-production) — the registry service.
+- [Build and publish a container](/docs/build-and-publish) — what a deploy publishes.
+- [Version your container and its contract](/docs/version-your-container) — which changes break consumers.
+- [Read a failure message](/docs/read-a-failure-message) — the parts of the box your users see.
+- [Error codes](/docs/reference/error-codes) — every code, with its fix.

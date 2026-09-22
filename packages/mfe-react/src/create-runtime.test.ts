@@ -1,12 +1,12 @@
 /**
- * The shell's selection table: the framework contract rule owns every entry that advertises the
- * contract, and a host that ships a second adapter registers its rule behind it.
+ * What `createMfeRuntime` registers: `reactAdapter` always, plus whatever the shell passes in
+ * `adapters`. Order means nothing — exactly one adapter has to recognise each entry.
  */
 
 import { afterEach, expect, it } from 'vitest'
 import { createNoopTelemetryProvider } from '@company/mfe-host'
 import { createInProcessLoader } from '@company/mfe-host/testing'
-import type { AdapterSelectionRule, NeutralRegistryEntry } from '@company/mfe-core'
+import type { MfeAdapter, RegistryEntry } from '@company/mfe-core'
 
 import { createMfeRuntime, type MfeRuntimeHandle } from './create-runtime.ts'
 
@@ -18,51 +18,83 @@ afterEach(() => {
   current?.dispose()
 })
 
-/** A descriptor from before the framework contract: no `mfe` key, its own manifest field. */
+/** An entry from before the framework existed: no `mfe` key, its own manifest field. */
 const LEGACY_ENTRY = {
   id: 'billing',
   mfManifestUrl: 'https://cdn.example.test/billing/manifest.json',
   routes: ['/billing'],
 }
 
-/** Stands in for `createLegacyAdapterRule()`, which lives in a package this one may not import. */
-const legacyRule: AdapterSelectionRule = {
-  adapter: 'legacy-angular',
-  advertises: source =>
-    source !== null &&
-    typeof source === 'object' &&
-    typeof (source as Record<string, unknown>)['mfManifestUrl'] === 'string',
-  normalize: (source): NeutralRegistryEntry => ({
-    id: (source as Record<string, string>)['id'] ?? '',
-    definitionKind: 'app',
-    adapter: 'legacy-angular',
-    manifestUrl: (source as Record<string, string>)['mfManifestUrl'] ?? '',
-  }),
+/** A framework entry, so one wiring can hold both kinds. */
+const FRAMEWORK_ENTRY = {
+  id: 'reports',
+  kind: 'app',
+  mfe: { contractMajor: 1 },
+  manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+  container: 'example_reports',
 }
 
-function wire(rules?: readonly AdapterSelectionRule[]): MfeRuntimeHandle {
+/** Stands in for `legacyAngularAdapter`, which lives in a package this one may not import. */
+const legacyAdapter: MfeAdapter = {
+  kind: 'legacy-angular',
+  detect: raw =>
+    raw !== null &&
+    typeof raw === 'object' &&
+    !('mfe' in raw) &&
+    typeof (raw as Record<string, unknown>)['mfManifestUrl'] === 'string',
+  parse: (raw): RegistryEntry => ({
+    id: (raw as Record<string, string>)['id'] ?? '',
+    definitionKind: 'app',
+    adapter: 'legacy-angular',
+    manifestUrl: (raw as Record<string, string>)['mfManifestUrl'] ?? '',
+  }),
+  is: (entry): entry is RegistryEntry => entry.adapter === 'legacy-angular',
+}
+
+function wire(options: {
+  readonly entries?: readonly unknown[]
+  readonly adapters?: readonly MfeAdapter[]
+}): MfeRuntimeHandle {
   handle = createMfeRuntime({
-    registryEntries: [LEGACY_ENTRY],
+    registryEntries: options.entries ?? [LEGACY_ENTRY],
     loader: createInProcessLoader(new Map()),
     shellState: { user: null, groups: [], theme: 'dark' },
     telemetryProvider: createNoopTelemetryProvider(),
     sessionGeneration: 'gen-1',
     overrideStorage: { getItem: () => null },
-    ...(rules === undefined ? {} : { rules }),
+    ...(options.adapters === undefined ? {} : { adapters: options.adapters }),
   })
   return handle
 }
 
-it('quarantines an entry no registered rule advertises', () => {
-  const { runtime } = wire()
+it('reads a framework entry through the adapter it always registers', () => {
+  const { runtime } = wire({ entries: [FRAMEWORK_ENTRY] })
 
-  expect(runtime.registry.entries.has('billing')).toBe(false)
-  expect(runtime.registry.quarantined.map(entry => entry.id)).toEqual(['billing'])
+  expect(runtime.registry.rejected).toEqual([])
+  expect(runtime.registry.entries.get('reports')?.adapter).toBe('react')
 })
 
-it('accepts that entry through a rule the caller registers behind the contract rule', () => {
-  const { runtime } = wire([legacyRule])
+it('rejects an entry no registered adapter recognises', () => {
+  const { runtime } = wire({})
 
-  expect(runtime.registry.quarantined).toEqual([])
+  expect(runtime.registry.entries.has('billing')).toBe(false)
+  expect(runtime.registry.rejected.map(entry => entry.id)).toEqual(['billing'])
+  expect(runtime.registry.rejected[0]?.reason).toBe('no adapter recognised this entry')
+})
+
+it('accepts that entry through an adapter the caller adds', () => {
+  const { runtime } = wire({ adapters: [legacyAdapter] })
+
+  expect(runtime.registry.rejected).toEqual([])
   expect(runtime.registry.entries.get('billing')?.adapter).toBe('legacy-angular')
+})
+
+it('keeps the React adapter registered alongside the ones the caller adds', () => {
+  const { runtime } = wire({
+    entries: [FRAMEWORK_ENTRY, LEGACY_ENTRY],
+    adapters: [legacyAdapter],
+  })
+
+  expect(runtime.registry.rejected).toEqual([])
+  expect([...runtime.registry.entries.keys()].sort()).toEqual(['billing', 'reports'])
 })

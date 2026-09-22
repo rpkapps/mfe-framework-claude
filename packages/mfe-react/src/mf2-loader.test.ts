@@ -3,13 +3,14 @@
  * one surface, and every other definition still loads (§30).
  */
 
-import { isMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { isMfeError } from '@company/mfe-core'
 import type { AnyRouter } from '@tanstack/react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createApp, createWidget, type AppDefinition } from './definition.ts'
 import { createMf2ContainerLoader } from './mf2-loader.ts'
+import type { ReactRegistryEntry } from './registry/react-adapter.ts'
 
 /** What the federation runtime throws when it cannot fetch or parse a manifest. */
 function manifestError(manifestUrl: string): Error {
@@ -20,13 +21,18 @@ function manifestError(manifestUrl: string): Error {
   )
 }
 
-function appEntry(id: string, containerName: string, manifestUrl: string): NeutralRegistryEntry {
+function appEntry(id: string, container: string, manifestUrl: string): ReactRegistryEntry {
+  return { id, definitionKind: 'app', adapter: 'react', manifestUrl, container, expose: './app' }
+}
+
+function widgetEntry(id: string, container: string, manifestUrl: string): ReactRegistryEntry {
   return {
     id,
-    definitionKind: 'app',
+    definitionKind: 'widget',
     adapter: 'react',
     manifestUrl,
-    adapterData: { containerName, exposeName: './app' },
+    container,
+    expose: `./widgets/${id}`,
   }
 }
 
@@ -56,7 +62,7 @@ function createRuntime(containers: Readonly<Record<string, () => Promise<unknown
 }
 
 describe('createMf2ContainerLoader', () => {
-  it('loads a definition from the container its descriptor names', async () => {
+  it('loads a definition from the container its registry entry names', async () => {
     const definition = anApp('operations')
     const { runtime, registerRemotes, loadRemote } = createRuntime({
       example_operations: () => Promise.resolve({ operations: definition }),
@@ -108,13 +114,7 @@ describe('createMf2ContainerLoader', () => {
     expect(afterwards.module).toBe(reports)
 
     const widget = await loader.load(
-      {
-        id: 'alert-panel',
-        definitionKind: 'widget',
-        adapter: 'react',
-        manifestUrl: 'http://localhost:3003/mf-manifest.json',
-        adapterData: { containerName: 'example_alert_panel', exposeName: './widgets/alert-panel' },
-      },
+      widgetEntry('alert-panel', 'example_alert_panel', 'http://localhost:3003/mf-manifest.json'),
       { signal: liveSignal() },
     )
     expect(widget.module).toBe(panel)

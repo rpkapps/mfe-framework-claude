@@ -7,7 +7,7 @@
  */
 
 import { memo, type ReactNode } from 'react'
-import { DefinitionIcon, DynamicWidget, type NeutralRegistryEntry } from '@company/mfe-react'
+import { DefinitionIcon, DynamicWidget, type RegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -59,7 +59,7 @@ const HANDLES: readonly { readonly edge: ResizeEdge; readonly className: string 
 
 export interface TileProps {
   readonly tile: DashboardTile
-  readonly entry: NeutralRegistryEntry | undefined
+  readonly entry: RegistryEntry | undefined
   /** Where to draw it: the tile's own rectangle, or where a gesture in flight is taking it. */
   readonly rect: Rect
   readonly isMoving: boolean
@@ -256,7 +256,7 @@ function MissingEntry({ widgetId }: { readonly widgetId: string }): ReactNode {
         <p className="text-sm text-muted-foreground">
           This dashboard was saved when <code className="font-mono">{widgetId}</code> was
           registered. It is not in the registry now — its container may be unregistered, renamed, or
-          quarantined. Open the registry to check, or remove the tile.
+          rejected. Open the registry to check, or remove the tile.
         </p>
       </div>
     </div>

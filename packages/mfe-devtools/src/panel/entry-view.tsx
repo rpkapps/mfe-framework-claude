@@ -1,0 +1,58 @@
+/**
+ * A published registry entry as a dense readout, hand-built because `Item` spends 37px of height
+ * per pair and this workspace's `Table` is a data grid. Raw JSON is the tempting shortcut and
+ * buries the one wrong field in punctuation.
+ */
+
+import { Fragment, type ReactNode } from 'react'
+
+export function EntryView({ source }: { readonly source: unknown }): ReactNode {
+  if (source === null || typeof source !== 'object' || Array.isArray(source)) {
+    return (
+      <p className="font-mono text-[11px] break-all">
+        <EntryValue value={source} />
+      </p>
+    )
+  }
+
+  return (
+    <dl className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px] leading-5">
+      {Object.entries(source as Record<string, unknown>).map(([name, value]) => (
+        <Fragment key={name}>
+          <dt className="truncate font-mono text-muted-foreground">{name}</dt>
+          <dd className="min-w-0 font-mono break-all">
+            <EntryValue value={value} />
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  )
+}
+
+/** A value rendered for what it is, rather than as the text of its JSON. */
+function EntryValue({ value }: { readonly value: unknown }): ReactNode {
+  if (value === null) return <span className="text-muted-foreground">null</span>
+  if (value === undefined) return <span className="text-muted-foreground">not set</span>
+
+  if (typeof value === 'boolean') {
+    return <span className={value ? 'text-success' : 'text-muted-foreground'}>{String(value)}</span>
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') return <>{String(value)}</>
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted-foreground">empty</span>
+    return (
+      <>
+        {value.map((item, index) => (
+          <Fragment key={index}>
+            {index === 0 ? null : <span className="text-muted-foreground">, </span>}
+            {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+          </Fragment>
+        ))}
+      </>
+    )
+  }
+
+  return <span className="text-muted-foreground">{JSON.stringify(value)}</span>
+}

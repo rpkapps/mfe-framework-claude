@@ -21,7 +21,7 @@ export interface MfePluginOptions {
   /** The deployment-provided config file, relative to the container's assets. */
   readonly runtimeConfigFileName?: string
   readonly manifestFileName?: string
-  /** The shell registry descriptor file name. */
+  /** The file name the container's registry entry is written to. */
   readonly registryFileName?: string
   /** Federation container name; defaults to a sanitized package name. */
   readonly name?: string

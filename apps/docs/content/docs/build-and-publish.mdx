@@ -1,0 +1,138 @@
+---
+title: 'Build and publish a container'
+description: 'What your container build writes, where to publish it, and how its entry reaches the registry.'
+---
+
+Your build writes the files a shell loads your code from, plus one description record naming every
+definition you export. Apps and Widgets publish the same way.
+
+## Steps
+
+<Steps>
+
+<Step>
+### 1. Build the container
+
+```sh
+pnpm --filter @example/alert-panel run build
+```
+
+The script runs `pnpm run generate && rsbuild build`, and the output lands in `dist/`.
+
+</Step>
+
+<Step>
+### 2. Check what the build wrote
+
+| File                                        | What it is                                     | Who reads it                    |
+| ------------------------------------------- | ---------------------------------------------- | ------------------------------- |
+| `remoteEntry.js`                            | the file a host loads your code from           | the shell's loader              |
+| `mf-manifest.json`                          | the federation manifest describing that file   | the shell's loader              |
+| `mfe-registry.json`                         | your container's description record            | whoever assembles the registry  |
+| `runtime-config.schema.json`                | the shape of the deployment's values           | your deployment, before release |
+| one chunk per definition, and one CSS asset | your code, and the styles scoped to your roots | the browser                     |
+
+The build copies every top-level `.json` file out of `.mfe/`, and writes the schema file only for a
+container that has `src/mfe.config.ts`.
+
+</Step>
+
+<Step>
+### 3. Publish the whole output directory
+
+```text
+alert-panel.example.com/
+  mf-manifest.json
+  remoteEntry.js
+  mfe-registry.json
+  runtime-config.json
+```
+
+Publish every built file to the origin your entry will point at, and let the deployment write
+`runtime-config.json` beside them.
+
+</Step>
+
+<Step>
+### 4. Hand the description record over
+
+```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
+{
+  "manifestUrl": "mf-manifest.json",
+  "container": "example_alert_panel",
+  "contractMajor": 1,
+  "definitions": [{ "id": "alert-panel", "kind": "widget", "version": "1.4.0" }],
+  "entries": { "alert-panel": "./widgets/alert-panel" }
+}
+```
+
+`manifestUrl` is relative to your container, so whoever assembles the registry resolves it against
+the origin you deployed to.
+
+</Step>
+
+<Step>
+### 5. Rebuild the registry
+
+```sh
+pnpm run generate
+```
+
+In this repository `tools/dev/build-registry.mjs` reads every container's record and writes the
+registry the shell reads, so nobody writes registry JSON by hand.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Request `mf-manifest.json` from the origin you published to. It has to answer with JSON, and that
+JSON carries your definitions under `metaData.mfe`. Then open the shell and the developer tools'
+**Registry** tab. **Loaded** names every accepted entry with the origin it loaded from, and
+**Rejected** names the ones the shell set aside.
+
+## Errors
+
+<Callout type="error" title="MfePlugin: no mf-manifest.json was emitted">
+
+```text
+MfePlugin: no mf-manifest.json was emitted, so this container declares no framework contract and
+a shell cannot tell which major it was built against.
+```
+
+**Fix.** Keep `pluginMfe()` in the `plugins` list of your Rsbuild config. Do not set
+`moduleFederation.options` yourself, because the plugin contributes them.
+
+</Callout>
+
+<Callout type="error" title="Nothing generated">
+
+```text
+Nothing generated for insights, lab. Run `pnpm run generate` first: the registry is assembled
+from what each container generates, never hand-written.
+```
+
+**Fix.** Run `pnpm run generate` at the root. It generates each container, then rebuilds the
+registry from what they wrote.
+
+</Callout>
+
+<Callout type="error" title="names no expose path">
+
+```text
+alert-panel: its container's build names no expose path. Rebuild the container.
+```
+
+**Fix.** Rebuild. The `entries` map in the record comes from the definitions your `src/mfe.ts`
+exports.
+
+</Callout>
+
+## Related
+
+- [Deploy to production with separate repositories](/docs/deploy-to-production) — one image per container.
+- [Supply values per deployment](/docs/supply-values-per-deployment) — what `runtime-config.json` carries.
+- [Version your container and its contract](/docs/version-your-container) — the three versions.
+- [Registry entry](/docs/reference/registry-entry) — every field of the record.
+- [Read a failure message](/docs/read-a-failure-message) — the parts every message has.

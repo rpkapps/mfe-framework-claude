@@ -112,11 +112,10 @@ export {
 export {
   FRAMEWORK_CONTRACT_MAJOR,
   isSupportedContractMajor,
-  type AdapterKind,
-  type AdapterSelectionRule,
-  type NeutralRegistryEntry,
-  type NormalizedRegistry,
-  type QuarantinedRegistryEntry,
+  type MfeAdapter,
+  type Registry,
+  type RegistryEntry,
+  type RejectedRegistryEntry,
 } from './registry.ts'
 
 export {

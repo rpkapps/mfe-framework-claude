@@ -74,7 +74,7 @@ export const releases: readonly Release[] = [
     notes: [
       {
         kind: 'added',
-        text: 'Per-entry registry quarantine, with the rejection reason and the repair in the registry view.',
+        text: 'Per-entry registry rejection, with the reason and the repair in the registry view.',
       },
       {
         kind: 'added',

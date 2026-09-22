@@ -21,7 +21,7 @@ export interface HostSharedOptions {
 
 /**
  * The `shared` map for a host's `moduleFederation.options`; a host provides the modules, so it
- * advertises the version installed and shares what resolves rather than what it lists (§27).
+ * declares the version installed and shares what resolves rather than what it lists (§27).
  */
 export function hostShared(
   options: HostSharedOptions,

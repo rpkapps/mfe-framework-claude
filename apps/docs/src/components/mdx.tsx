@@ -5,7 +5,16 @@ import { cn } from 'cn'
 
 import { CopyButton } from './copy-button.tsx'
 import { Diagram, Term } from './diagram.tsx'
-import { Callout, Details, DocsTab, DocsTabs, Step, Steps } from './docs-blocks.tsx'
+import {
+  Callout,
+  Details,
+  DocsCard,
+  DocsCards,
+  DocsTab,
+  DocsTabs,
+  Step,
+  Steps,
+} from './docs-blocks.tsx'
 import { getIconForLanguageExtension } from './language-icon.tsx'
 
 import type { MDXComponents } from 'mdx/types'
@@ -162,6 +171,8 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     ),
     img: DocsImage,
     Callout,
+    Card: DocsCard,
+    Cards: DocsCards,
     Details,
     Diagram,
     Kbd,

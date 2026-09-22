@@ -1,0 +1,111 @@
+---
+title: 'Link to another App'
+description: 'Where Link and navigate reach, what to do about an App at another boundary, and how to build an absolute URL into your own.'
+---
+
+Apps and Widgets. Your router reaches everything under your own prefix, including an App you
+embed. The shell owns moves between two Apps, and the framework gives you no API for them.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Move inside your own App
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+<Link to="/assets">Assets</Link>
+```
+
+Write the path your route file declares. The shell's prefix is added for you, so `/operations`
+never appears in your code.
+
+</Step>
+
+<Step>
+
+### 2. Go to an App you embed
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+void navigate({ to: '/reports/$', params: { _splat: '' } })
+```
+
+An App you host at a splat route is one of your own routes. An empty splat lands on the child's
+index page.
+
+</Step>
+
+<Step>
+
+### 3. Build an absolute URL into your App
+
+```tsx title="examples/lab/src/routes/index.tsx"
+import { useBasePath } from '@company/mfe-react'
+
+const basePath = useBasePath()
+const deepLink = `${window.location.origin}${basePath}/wells/W-114`
+```
+
+Use this for an email, a work order or any system outside the page. You never need it for routing.
+A Widget owns no URL and gets an empty string.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open `http://localhost:3000/operations`. The nav links move you inside the App,
+and the address bar keeps the `/operations` prefix. To reach another App, use the application
+finder at the top left or the command palette, and watch the prefix change.
+
+A plain `<a href="/reports">` also arrives, at the cost of a full page load. The shell boots again
+and every other mount on the page is discarded. A Widget asks the App around it to move, rather
+than moving the page itself.
+
+## Errors
+
+<Callout type="error" title="mfe/no-global-patching">
+
+```text
+Patching `history.pushState` hijacks navigation for the whole page, so the host router and the
+other MFEs learn about a navigation only by accident.
+```
+
+**Fix.** Use `navigate` or `Link` from your router. They already resolve under your prefix.
+
+</Callout>
+
+<Callout type="error" title="Public API boundary">
+
+```text
+Public API boundary: @company/mfe-host is the shell's loader and registry. An MFE that imports it
+can mount itself outside the host lifecycle and will leak on unmount.
+```
+
+**Fix.** Import from `@company/mfe-react` only. The loader and the navigator belong to whoever
+owns the page.
+
+</Callout>
+
+<Callout type="error" title="expected a component rendered inside an App or Widget mount">
+
+```text
+<unmounted> failed to call useBasePath: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Move the call into a component your App or Widget renders.
+
+</Callout>
+
+## Related
+
+- [Add a route](/docs/add-a-route) — the paths `Link` resolves against.
+- [Embed another App inside yours](/docs/embed-another-app) — how the second step's route is set
+  up.
+- [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — the Widget
+  side of this.
+- [What you must not do](/docs/what-you-must-not-do) — the rules the two lint messages come from.
+- [Hooks and components](/docs/reference/hooks-and-components) — the `useBasePath` signature.

@@ -89,6 +89,17 @@ resolve consistently. The tracer bullet therefore runs with an in-process loader
 and federation-specific values travel in the registry record's adapter-private
 payload, so the neutral shape stays free of that vocabulary.
 
+**Amendment (2026-09-22):** the adapter-private payload is gone, and so is the
+last place the host named an adapter. `@company/mfe-core` holds `MfeAdapter` and
+the common `RegistryEntry` shape and names no framework; each adapter ships its
+own entry type, with its own fields typed on it and reached through its `is()`
+guard, so the federation container name is `ReactRegistryEntry.container` rather
+than an `unknown` the loader casts back. The React adapter's registry code moved
+out of `@company/mfe-host` into `@company/mfe-react`, where the federation loader
+already lived. The host now knows only the interface, which is what the port was
+always meant to buy: one payload nobody could type, re-validated at every reader,
+was buying the opposite.
+
 ---
 
 ## 7. Two error conditions have no exact code in the closed union
@@ -131,6 +142,18 @@ most importantly — that an entry advertising a malformed new contract fails
 rather than being reinterpreted as legacy, where a typo would change how an app
 loads unnoticed. They do not prove that the real applications mount and unmount;
 that is the entry condition for the legacy gate.
+
+**Amendment (2026-09-22):** that guarantee no longer rests on evaluation order.
+Ordered rules bought it by putting the framework rule first, which meant the
+guarantee lived in a list the shell assembled rather than in either adapter.
+Exactly one adapter must now recognise an entry: none and it is rejected as
+unrecognised, more than one and it is rejected as ambiguous, with both adapters
+named. `reactAdapter.detect` still recognises any entry carrying an `mfe` key
+however malformed, and `legacyAngularAdapter.detect` still recognises only entries
+without one, so the same entries reach the same adapter — but now because of what
+the two adapters say about themselves, and not because of where a shell put them
+in a list. The shell in this repository registers the legacy adapter, so a legacy
+entry in its registry is read rather than rejected.
 
 ---
 
@@ -501,10 +524,10 @@ enum would ship a control set (§22).
 
 §23 left the bug report as the only place on the page that says what the shell was
 running, and it could name no build. `BuildProvenance` (`hash`, `time`, meaning
-what §19 made them mean) is a named type in the core,
-`NeutralRegistryEntry.build` carries it, and the report lists one line per
-accepted entry. It is validated loosely and never quarantines — a container that
-cannot describe its own build still mounts, but a malformed `build` is dropped,
+what §19 made them mean) is a named type in the core, the registry entry's `build`
+field carries it, and the report lists one line per
+accepted entry. It is validated loosely and never rejects the entry — a container
+that cannot describe its own build still mounts, but a malformed `build` is dropped,
 since a hash that is not a string would reach a bug report as `[object Object]`
 and be believed. An entry that named no build says so, because a missing line
 reads as a missing container; and it is a list, because the registry is the only

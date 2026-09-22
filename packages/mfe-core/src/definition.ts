@@ -2,7 +2,7 @@
 
 export type DefinitionKind = 'app' | 'widget'
 
-/** App-only; a Widget cannot advertise a capability. */
+/** App-only; a Widget cannot declare a capability. */
 export const CAPABILITY_NAMES = ['settings', 'help', 'releaseNotes'] as const
 export type CapabilityName = (typeof CAPABILITY_NAMES)[number]
 

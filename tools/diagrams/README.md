@@ -221,14 +221,14 @@ Subtitle: "Page load to a rendered App, in the order the code runs." Twelve boxe
 steps in two columns, and five red error codes. The left column, headed "In the shell —
 apps/shell/src/boot.tsx": **1. The document boots** (`apps/shell/src/boot.tsx`), **2.
 Diagnostics, then session** (`installShellAuth({ tokens, diagnostics })`), **3. The registry
-arrives** (`await fetch('/registry.json')`), **4. Runtime, then normalization**
-(`createMfeRuntime, then normalizeRegistry`). An arrow leaves step 4, turns up the gutter and
+arrives** (`await fetch('/registry.json')`), **4. Runtime reads the registry**
+(`createMfeRuntime, then readRegistry`). An arrow leaves step 4, turns up the gutter and
 enters the top of the right column, headed "In the framework — @company/mfe-react": **5. URL
 picks the boundary** (`<AppHost appId='operations' basePath='/operations'>`), **6. The container
 loads once** (`loadRemote('operations/app')`), **7. The App renders** (`useOwnedMount, then
 RouterProvider`). Two red dashed arrows, each labelled **thrown**, leave steps 6 and 7 for two
 dashed panels on the right: **When step 6 fails**, holding `load/manifest-failure`,
-`load/entry-failure` and `registry/invalid-descriptor`; and **When step 7 fails** ("caught, and
+`load/entry-failure` and `registry/invalid-entry`; and **When step 7 fails** ("caught, and
 drawn with a Retry"), holding `app/invalid-base-path` and `app/invalid-router`.
 
 Not on the figure. The twelve steps this used to draw are folded into seven, and the detail is
@@ -236,8 +236,8 @@ here. `index.html` has already set the theme before first paint. The diagnostics
 before the runtime because `installShellAuth` runs before a runtime exists to report into, and
 the runtime adopts that hub rather than making one; the session is installed before any remote is
 registered. A registry that fails to load is a diagnostic, not a crash. `createMfeRuntime` reads
-the developer overrides before anything registers, then normalizes every entry on its own, so one
-malformed entry is quarantined and loses only itself. The shell claims exactly one path segment,
+the developer overrides before anything registers, then reads every entry on its own, so one
+malformed entry is rejected and loses only itself. The shell claims exactly one path segment,
 `/$appId`, and renders nothing of its own below the boundary. A container is loaded once per
 runtime and the load is shared by every waiter. The mount is made by the effect that ends it, and
 the router factory is called once per mount and then checked — the `basePath` passed through
@@ -268,8 +268,8 @@ Not on the figure: `pnpm boundaries` reads the imports and the manifests, so no 
 reversed by editing a `package.json`; neither `mfe-core` nor `mfe-host` may import React, a
 router or Module Federation. `pluginMfe()` is the container's whole build integration —
 discovery, the generated modules, the federation options, the asset URLs and the container's own
-scoped stylesheet — and it also writes the registry descriptor, `.mfe/mfe-registry.json`, which
-is what `registry.json` is assembled from. `@company/create-mfe` writes the App and Widget
+scoped stylesheet — and it also writes the container's registry entry, `.mfe/mfe-registry.json`,
+which is what `registry.json` is assembled from. `@company/create-mfe` writes the App and Widget
 starters and imports no framework package, `@company/eslint-plugin-mfe` carries the author and
 framework presets, and `@company/mfe-devtools` ships in every build behind one runtime key.
 
@@ -279,15 +279,15 @@ Subtitle: "One neutral host; one adapter per framework." Twelve boxes, read top 
 the top, a yellow **The shell** (`apps/shell/src/boot.tsx`), with an arrow labelled
 **registry.json** into a panel **The neutral host** ("@company/mfe-host — no React, no router, no
 federation"). That panel holds a grey **Shared services** ("storage, commands, navigation bridge,
-diagnostics") and, under it, a dashed inner panel **Registry normalization** ("the first matching
-rule owns the entry") holding two grey boxes side by side: **Rule 1 — framework contract**
-(`createMfeContractRule()`) and **Rule 2 — legacy Angular** (`createLegacyAdapterRule()`), joined
-by an arrow labelled **no mfe key**. An arrow labelled **selects** drops from each rule to one of
-two adapter panels below. **The React adapter** ("@company/mfe-react") holds **Federation
-loader** (`createMf2ContainerLoader`), **App and Widget definitions** (`createApp, createWidget`)
-and **Boundary and style roots** (`createBoundaryHistory, StyleRoot`). **The legacy Angular
-adapter** ("@company/mfe-legacy-angular — removable") holds **Registry translation** ("legacy
-AppConfig into adapterData"), **Parcel lifecycle** (`mountRootParcel: mount, unmount`) and
+diagnostics") and, under it, a dashed inner panel **Reading the registry** ("one adapter
+recognises each entry") holding two grey boxes side by side: **Entries with mfe**
+(`reactAdapter`) and **Entries without mfe** (`legacyAngularAdapter`). An arrow labelled **read
+by** drops from each of them to one of two adapter panels below. **The React adapter**
+("@company/mfe-react") holds **Federation loader** (`createMf2ContainerLoader`), **App and Widget
+definitions** (`createApp, createWidget`) and **Boundary and style roots**
+(`createBoundaryHistory, StyleRoot`). **The legacy Angular adapter** ("@company/mfe-legacy-angular
+— removable") holds **Registry translation** ("legacy AppConfig into typed fields"), **Parcel
+lifecycle** (`mountRootParcel: mount, unmount`) and
 **Base href, shell routes** (`resolveLegacyBaseHref, matchLegacyShellRoute`). An arrow labelled
 **loads, mounts** drops from each adapter to the blue container it mounts: `operations` ("a React
 App, or Widgets") and `asset-tracker` ("a legacy Angular application"). The legend says which
@@ -298,16 +298,17 @@ Not on the figure. The host is framework-agnostic by construction: `@company/mfe
 `@company/mfe-host` define the contracts and orchestrate loading, and both are forbidden — by the
 lint presets and by `pnpm boundaries` — from importing React, a router, single-spa or Module
 Federation (§6). Loading therefore happens through a port: the host declares `ContainerLoader`
-and each adapter implements it. Adding a framework is a table entry. `normalizeRegistry` walks
-the raw registry entries and hands each one to the first rule whose `advertises` returns true;
-that rule owns the entry even when its own `normalize` then fails, which is the no-silent-fallback
-guarantee. `createMfeContractRule()` is always evaluated first — `createMfeRuntime` puts it at
-the head of the table and appends whatever `rules` option it is given — and it claims any entry
-carrying an `mfe` key, however malformed the rest of it is; a typo in new metadata is quarantined
-rather than quietly reinterpreted as legacy (§9). `createLegacyAdapterRule()` claims only entries
-with no `mfe` key that carry a legacy `name` and `mfManifestUrl`. Each rule produces the same
-neutral record, with everything adapter-private travelling in `adapterData`, so no shell surface
-has to know which adapter an entry belongs to. The shared services are the host's and outlive any
+and each adapter implements it. Adding a framework is one more adapter. `readRegistry` walks the
+raw registry entries and offers each one to every registered adapter's `detect`. Exactly one
+adapter must recognise it: none and the entry is rejected as unrecognised, more than one and it is
+rejected as ambiguous with both named, so there is no order to register adapters in.
+`reactAdapter` is always registered — `createMfeRuntime` adds it to whatever the `adapters` option
+names — and it recognises any entry carrying an `mfe` key, however malformed the rest of it is; a
+typo in framework metadata is rejected rather than quietly read as legacy (§9).
+`legacyAngularAdapter` recognises only entries with no `mfe` key that carry a legacy `name` and
+`mfManifestUrl`. Each adapter's `parse` produces a `RegistryEntry` with the same common fields,
+and its own fields are typed on its own entry type and reached through its `is()` guard, so no
+shell surface has to know which adapter an entry came from. The shared services are the host's and outlive any
 one mount: validated storage, the command registry, breadcrumbs, the navigation bridge and the
 `DiagnosticsHub`. The React adapter is the only place that knows federation exists: it
 registers the remote and loads the expose path, turns what the container exposed into a checked
@@ -428,7 +429,7 @@ container is fetched — the shell's "Loading operations", or the pending prop a
 passed; one load per container per runtime, shared by every waiter and cached, a rejection
 included; there is no time budget on this path, the load suspends until it settles. **The
 definition is checked**: what the container exposed has to be a definition made by `createApp` or
-`createWidget`, of the kind the registry advertised, and for an App the router the author's
+`createWidget`, of the kind the registry entry named, and for an App the router the author's
 factory returned is checked too — the `basePath` passed through unchanged, the supplied history
 itself, and the supplied context. **The mount is created**: an effect creates it and the same
 effect's cleanup destroys it, so one render passes with no mount; it holds a mount token, the

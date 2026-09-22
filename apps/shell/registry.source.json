@@ -29,7 +29,7 @@
       "title": "AI agent"
     }
   },
-  "$fixtures": "Deliberately invalid entries. Each one proves a quarantine path stays per-entry: the shell keeps running and every other entry stays available.",
+  "$fixtures": "Deliberately invalid entries. Each one proves a rejection stays per-entry: the shell keeps running and every other entry stays available.",
   "fixtures": [
     {
       "id": "legacy-reports",

@@ -1,0 +1,146 @@
+---
+title: 'Create an App'
+description: 'Scaffold a container, declare an App in src/mfe.ts, and have the shell mount it at its own URL prefix.'
+---
+
+An App owns a prefix of the address bar and brings its own router. You declare it once, in the
+container's entry file, and the shell mounts it at whatever prefix it assigns.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Scaffold the container
+
+```sh
+pnpm create @company/mfe operations --id operations
+```
+
+The id is lower-case letters, digits and single hyphens. It is also your storage prefix and your
+style scope, so pick one you can live with.
+
+</Step>
+
+<Step>
+
+### 2. Declare the App in the entry file
+
+```ts title="examples/operations/src/mfe.ts"
+import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
+import { createRouter } from '@tanstack/react-router'
+
+import { routeTree } from './routeTree.gen'
+
+function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({
+    routeTree,
+    basepath: basePath,
+    history,
+    context: { ...context },
+    defaultPreload: 'intent',
+  })
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof makeRouter>
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- an augmentation adds no field.
+  interface StaticDataRouteOption extends MfeStaticData {}
+}
+
+export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
+```
+
+Pass all three values straight through. `basepath: basePath` keeps every `Link` and `navigate`
+relative, so your routes stay `/assets` and `/wells/$wellId`.
+
+</Step>
+
+<Step>
+
+### 3. Declare the dev port
+
+```json title="examples/operations/package.json"
+"mfe": {
+  "port": 3001,
+  "definitions": ["operations"]
+}
+```
+
+The registry builder reads the port and writes your dev URL into the shell's registry. Without it
+the registry build stops.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` from the repository root and open `http://localhost:3000`. Your App is in the
+application finder at the top left, under the title the registry gives it. Opening it puts you at
+`http://localhost:3000/operations`, with your own routes below that.
+
+The entry file is read, never run. Write `id`, `version`, `title` and `description` as plain
+strings, and export every definition from `src/mfe.ts`.
+
+## Errors
+
+<Callout type="error" title="expected lower-case letters, digits and single hyphens">
+
+```text
+Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for
+example "alert-panel"), received "Order_Book".
+```
+
+**Fix.** Rename the id to `order-book`. The registry sets aside an entry whose id breaks the rule.
+
+</Callout>
+
+<Callout type="error" title="expected a router factory function">
+
+```text
+orders failed to create App definition: expected a router factory function, received nothing.
+```
+
+**Fix.** Pass `router: makeRouter`, the factory itself. It runs once per mount, not once per
+module.
+
+</Callout>
+
+<Callout type="error" title="expected the supplied basePath passed through unchanged">
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
+unchanged as createRouter({ basepath }), received no basepath on the router.
+```
+
+**Fix.** Add `basepath: basePath` to the `createRouter` call. A hard-coded prefix fails the same
+check, because a nested App is mounted somewhere else.
+
+</Callout>
+
+<Callout type="error" title="expected the supplied context.mfe namespace">
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied context.mfe namespace, spread into the
+router context unchanged, received no mfe key.
+```
+
+**Fix.** Write `context: { ...context, yourKey }`. Add your own top-level keys freely, and leave
+`mfe` and `queryClient` alone.
+
+</Callout>
+
+## Related
+
+- [Add a route](/docs/add-a-route) — the next file you write.
+- [Quickstart](/docs/quickstart) — the same thing end to end, in ten minutes.
+- [Add a settings page](/docs/add-a-settings-page) — give the shell a page to link to.
+- [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — every
+  option, one row each.
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — for a container
+  outside this repository.

@@ -46,26 +46,104 @@ function linkedPackageRoots(specifier: string): string[] {
  * Every page of the site, listed so a broken link cannot silently drop one from the build.
  * `crawlLinks` stays on as the safety net for anything added later.
  */
-const GUIDES = [
-  'shape',
-  'declaring',
-  'config-and-data',
-  'what-the-shell-gives-you',
+const RECIPES = [
+  // Plug into the shell
+  'add-a-settings-page',
+  'add-a-help-page',
+  'publish-release-notes',
+  'add-a-command',
+  'block-navigation-when-unsaved',
+  'show-an-icon',
+  'set-breadcrumbs',
+  // Apps
+  'create-an-app',
+  'add-a-route',
+  'link-to-another-app',
+  'embed-another-app',
+  // Widgets
+  'create-a-widget',
+  'define-inputs-and-events',
+  'render-a-widget',
+  'render-a-widget-at-run-time',
+  'react-to-widget-events',
+  'ask-the-app-to-navigate',
+  // Env
+  'declare-an-env-variable',
+  'read-an-env-variable',
+  'supply-values-per-deployment',
+  'mark-a-url-as-your-api',
+  // Data
+  'call-your-api',
+  'fetch-with-tanstack-query',
+  'cancel-a-request-on-unmount',
+  // Storage
+  'remember-a-value',
+  'clear-a-value-on-sign-out',
+  'change-the-shape-of-a-stored-value',
+  'storage-outside-render',
+  'share-a-value-with-the-shell',
+  // Look and feel
+  'use-the-design-system',
+  'follow-the-shell-theme',
+  'render-dialogs-and-tooltips',
+  'add-custom-styles',
+  // Telemetry
+  'log-an-event',
+  'trace-an-operation',
+  'report-an-error',
+  // Testing
+  'test-an-app',
+  'test-a-widget',
+  'test-with-env-and-a-fake-api',
+  'test-storage-and-lifecycle',
+  // Working locally
+  'run-the-shell-locally',
+  'point-the-shell-at-your-dev-server',
+  'keep-hot-updates-working',
+  'open-the-devtools',
+  'run-the-checks',
+  // Shipping
+  'build-and-publish',
+  'deploy-to-production',
+  'version-your-container',
+  'undeploy-or-roll-back',
+  'read-a-failure-message',
+  // Rules
   'what-you-must-not-do',
-  'lifecycle',
-  'storage',
-  'styling',
-  'daily-workflow',
-  'shipping-and-failures',
+]
+
+/** `docs/design.md` and `docs/decisions.md` are mapped into this folder by `src/lib/source.ts`. */
+const HOW_IT_WORKS = [
+  'design',
+  'the-mount-lifecycle',
+  'the-isolation-boundaries',
+  'adapters-and-legacy-angular',
+  'decisions',
+]
+
+const REFERENCE = [
+  'create-app-and-create-widget',
+  'hooks-and-components',
+  'static-data',
+  'naming-and-contract-rules',
+  'lint-rules',
+  'error-codes',
+  'registry-entry',
+  'cli-and-scripts',
+  'testing-api',
+  'glossary',
+  'legacy-angular',
 ]
 
 const PAGES = [
   '/',
   '/docs',
-  '/docs/design',
-  ...GUIDES.map(name => `/docs/guides/${name}`),
-  '/docs/glossary',
-  '/docs/decisions',
+  '/docs/architecture',
+  '/docs/quickstart',
+  '/docs/tutorial',
+  ...RECIPES.map(name => `/docs/${name}`),
+  ...HOW_IT_WORKS.map(name => `/docs/how-it-works/${name}`),
+  ...REFERENCE.map(name => `/docs/reference/${name}`),
   // Not a page: the exported search index, written to `api/search` in the client output.
   '/api/search',
 ]

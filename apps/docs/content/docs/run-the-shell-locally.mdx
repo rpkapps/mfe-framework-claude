@@ -1,0 +1,132 @@
+---
+title: 'Run the shell with your container'
+description: 'One command starts the shell, every example container and the stand-in API, each on its own port.'
+---
+
+Apps and Widgets. Seeing your container on a page means running the shell that owns the page.
+`pnpm dev` starts the shell, every example container and a stand-in API, and prints the address of
+each one.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Start everything
+
+```sh
+pnpm dev
+```
+
+It checks that the ports are free, generates every container, assembles the shell's registry from
+what they generated, then starts the servers. One <Kbd>Ctrl</Kbd> <Kbd>C</Kbd> stops them all and
+waits for the ports to come back.
+
+</Step>
+
+<Step>
+
+### 2. Open the shell
+
+```text
+http://localhost:3000
+```
+
+| Service                                                            | Port      |
+| ------------------------------------------------------------------ | --------- |
+| `apps/shell`                                                       | 3000      |
+| `examples/operations`, `reports`, `alert-panel`, `insights`, `lab` | 3001–3005 |
+| the stand-in API (`tools/dev/api.mjs`)                             | 3010      |
+
+</Step>
+
+<Step>
+
+### 3. Start less than everything
+
+```sh
+pnpm dev:shell                                       # the shell alone
+pnpm dev:mfes                                        # containers, against a shell you started
+node tools/dev/dev.mjs --only=operations,alert-panel # two of them
+```
+
+</Step>
+
+<Step>
+
+### 4. Start your own container
+
+```sh
+pnpm dev
+```
+
+In your own container this starts its dev server and nothing else. The port comes from the `mfe`
+block in its `package.json`, and the build refuses to move off it.
+
+```json title="examples/operations/package.json"
+"mfe": {
+  "port": 3001,
+  "definitions": ["operations"]
+}
+```
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The command prints one line per service, then the snippets that
+[point the shell at a container](/docs/point-the-shell-at-your-dev-server). The shell lists what
+its registry names, so a container of your own needs one of those snippets before it appears. The
+stand-in API answers `GET /api/assets?site=north` and `GET /api/lab/probe`, which is what the
+examples fetch. `MFE_DEV_API_PORT` moves it.
+
+## Errors
+
+<Callout type="error" title="Port 3001 already in use.">
+
+```text
+Port 3001 already in use.
+
+These are not preferences: `pnpm run generate` writes each container's URL
+into the shell registry, so a container cannot be moved to another port
+without the shell losing it. Usually this is a dev server from an earlier
+run that did not shut down.
+```
+
+**Fix.** Run `lsof -i :3001`, then `kill <pid>`. On Windows the message prints
+`netstat -ano | findstr :3001` and `taskkill /PID <pid> /F` instead.
+
+</Callout>
+
+<Callout type="error" title="Nothing generated">
+
+```text
+Nothing generated for operations. Run `pnpm run generate` first: the registry is assembled
+from what each container generates, never hand-written.
+```
+
+**Fix.** Run `pnpm run generate` at the root. It is the fix whenever a build acts as though a
+generated file is missing.
+
+</Callout>
+
+<Callout type="error" title="declares no mfe.port">
+
+```text
+operations: package.json declares no mfe.port, so its dev URL is unknown.
+```
+
+**Fix.** Add the `mfe` block above, with a free port and the ids this container exports.
+
+</Callout>
+
+## Related
+
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — the override that loads your code.
+- [Open the devtools panel](/docs/open-the-devtools) — what the shell registered, and from where.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — why one edit reloads the page.
+- [Run the checks before you push](/docs/run-the-checks) — what CI runs.
+- [CLI and scripts](/docs/reference/cli-and-scripts) — every command and its flags.

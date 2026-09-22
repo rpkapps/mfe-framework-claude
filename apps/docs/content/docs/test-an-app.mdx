@@ -1,0 +1,129 @@
+---
+title: 'Test an App'
+description: 'Render your App over a memory history and assert on the page your routes produce.'
+---
+
+Apps only. `renderApp` mounts your App through the adapter production uses, over a memory history
+and in-memory stores. You assert on the page your routes render, with the real router, the real
+validation and the real teardown.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Render the App at one of its own URLs
+
+```tsx title="examples/reports/src/routes/accounts.test.tsx"
+import { renderApp, setMfeConfig } from '@company/mfe-react/testing'
+import { screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+
+import reports from '../mfe.ts'
+
+let mounted: (() => Promise<void>) | null = null
+
+it('reads its path parameter from its own URL', async () => {
+  setMfeConfig({ apiBaseUrl: 'https://api.example.test/v1/' })
+
+  const rendered = renderApp(reports, { initialEntries: ['/accounts/fda-1-02'] })
+  mounted = rendered.dispose
+
+  await waitFor(() => {
+    expect(screen.getByText('Satellite drill locations')).toBeInTheDocument()
+  })
+  expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
+})
+```
+
+`initialEntries` holds paths relative to your App, so write `/accounts/fda-1-02`. The router
+resolves its first match asynchronously, so every first assertion goes inside `waitFor`.
+
+</Step>
+
+<Step>
+
+### 2. Dispose after every test
+
+```tsx title="examples/reports/src/routes/accounts.test.tsx"
+afterEach(async () => {
+  // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
+  const dispose = mounted
+  mounted = null
+  await dispose?.()
+})
+```
+
+`dispose()` unmounts the tree and runs the real teardown. Every example test disposes this way.
+
+</Step>
+
+<Step>
+
+### 3. Check the App at the boundary the shell gives it
+
+```tsx title="examples/reports/src/routes/accounts.test.tsx"
+const rendered = renderApp(reports, {
+  basePath: '/workspace/reports',
+  initialEntries: ['/accounts/fda-1-02'],
+})
+```
+
+`basePath` is the prefix the shell mounts you at. Your paths do not change, which is the point of
+the test.
+
+</Step>
+
+<Step>
+
+### 4. Run it
+
+```sh
+pnpm test
+```
+
+Your container's `test` script generates the `#mfe` modules, then runs Vitest in jsdom.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The suite passes, and each test reports one assertion of yours. `renderApp` returns everything
+Testing Library returns, plus `environment` for the shell state and stores, and `dispose`. Pass
+`shellState` to sign a different user in. A route that reads configuration needs
+[values installed first](/docs/test-with-env-and-a-fake-api).
+
+## Errors
+
+<Callout type="error" title="failed to read the configuration field">
+
+```text
+the test environment failed to read the configuration field 'apiBaseUrl': expected configuration
+installed by the test, received nothing installed.
+```
+
+**Fix.** Call `setMfeConfig({ apiBaseUrl: … })` before rendering, with every field your routes read.
+
+</Callout>
+
+<Callout type="error" title="failed to mount App">
+
+```text
+reports@1.0.0 failed to mount App: expected the supplied basePath "" passed through unchanged as
+createRouter({ basepath }), received no basepath on the router.
+```
+
+**Fix.** Forward what your router factory receives: `createRouter({ basepath: basePath, … })`.
+
+</Callout>
+
+## Related
+
+- [Test a Widget](/docs/test-a-widget) — inputs in, events out.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — configuration and requests.
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seeded records and identity changes.
+- [Testing API](/docs/reference/testing-api) — every export, with its options.
+- [Create an App](/docs/create-an-app) — the router factory these checks read.

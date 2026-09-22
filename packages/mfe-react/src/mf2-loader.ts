@@ -3,10 +3,11 @@
  * exists: the neutral host orchestrates loading through a port and this implements it (§6).
  */
 
-import { createMfeError, toMfeError, type NeutralRegistryEntry } from '@company/mfe-core'
+import { createMfeError, toMfeError, type RegistryEntry } from '@company/mfe-core'
 import type { ContainerLoader, LoadedDefinition } from '@company/mfe-host'
 
 import { isMfeDefinition, type MfeDefinition } from './definition.ts'
+import { reactAdapter } from './registry/react-adapter.ts'
 
 /** The subset of the federation runtime this loader uses. */
 interface FederationRuntime {
@@ -22,39 +23,28 @@ export interface Mf2LoaderOptions {
   readonly runtime: FederationRuntime
 }
 
-/** The neutral record keeps this in `adapterData`, so a caller asks here rather than casting. */
-export function containerNameOf(entry: NeutralRegistryEntry): string | undefined {
-  const data = entry.adapterData as { containerName?: unknown } | undefined
-  return typeof data?.containerName === 'string' && data.containerName !== ''
-    ? data.containerName
-    : undefined
+/** The container name is the React adapter's own field, so a caller asks here rather than casting. */
+export function containerNameOf(entry: RegistryEntry): string | undefined {
+  return reactAdapter.is(entry) && entry.container !== '' ? entry.container : undefined
 }
 
-function readAdapterData(entry: NeutralRegistryEntry): {
-  containerName: string
-  exposeName: string
-} {
-  const data = entry.adapterData as { containerName?: unknown; exposeName?: unknown } | undefined
-
-  if (typeof data?.containerName !== 'string' || data.containerName === '') {
+/** The expose path a build leaves to the framework convention. */
+function federationTarget(entry: RegistryEntry): { container: string; expose: string } {
+  if (!reactAdapter.is(entry)) {
     throw createMfeError({
-      code: 'registry/invalid-descriptor',
+      code: 'registry/invalid-entry',
       id: entry.id,
       operation: 'resolve federation container',
-      expected: 'a container name in the generated registry descriptor',
-      observed: 'none',
-      repair: 'Rebuild the container; registry JSON is generated, never hand-written.',
+      expected: 'an entry the React adapter parsed',
+      observed: `an entry the ${entry.adapter} adapter parsed`,
+      repair: 'Load the entry through the adapter that parsed it.',
     })
   }
 
-  const exposeName =
-    typeof data.exposeName === 'string' && data.exposeName !== ''
-      ? data.exposeName
-      : entry.definitionKind === 'app'
-        ? './app'
-        : `./widgets/${entry.id}`
-
-  return { containerName: data.containerName, exposeName }
+  return {
+    container: entry.container,
+    expose: entry.expose ?? (entry.definitionKind === 'app' ? './app' : `./widgets/${entry.id}`),
+  }
 }
 
 /**
@@ -95,7 +85,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
     load: async (entry, { signal }): Promise<LoadedDefinition<MfeDefinition>> => {
       signal.throwIfAborted()
 
-      const { containerName, exposeName } = readAdapterData(entry)
+      const { container: containerName, expose } = federationTarget(entry)
 
       if (!registered.has(containerName)) {
         try {
@@ -114,7 +104,7 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
       let moduleExports: unknown
       try {
         moduleExports = await withoutCurrentRouterGlobal(() =>
-          options.runtime.loadRemote(`${containerName}/${exposeName.replace(/^\.\//, '')}`),
+          options.runtime.loadRemote(`${containerName}/${expose.replace(/^\.\//, '')}`),
         )
       } catch (error) {
         throw toMfeError(
@@ -142,12 +132,12 @@ export function createMf2ContainerLoader(options: Mf2LoaderOptions): ContainerLo
 
       if (definition.kind !== entry.definitionKind) {
         throw createMfeError({
-          code: 'registry/invalid-descriptor',
+          code: 'registry/invalid-entry',
           id: entry.id,
           operation: 'load definition',
-          expected: `a ${entry.definitionKind} definition, as the registry advertises`,
+          expected: `a ${entry.definitionKind} definition, as the registry entry says`,
           observed: `a ${definition.kind} definition`,
-          repair: 'Rebuild the container so its descriptor matches what src/mfe.ts exports.',
+          repair: 'Rebuild the container so its registry entry matches what src/mfe.ts exports.',
         })
       }
 

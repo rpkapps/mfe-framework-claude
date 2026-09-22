@@ -1,0 +1,137 @@
+---
+title: 'Add a settings page'
+description: 'Mark one route in your App as the settings capability, and the shell links to it from its own settings panel.'
+---
+
+Apps only. Mark one route as your settings page, and the shell links to it from its own settings
+panel and from the command palette. The shell decides where the link goes and never reads the page.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Mark the route
+
+```tsx title="examples/operations/src/routes/settings.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
+
+import { SettingsPage } from '../components/settings-01/page.tsx'
+
+export const Route = createFileRoute('/settings')({
+  staticData: {
+    capability: 'settings',
+    label: 'Operations settings',
+    icon: 'settings',
+    breadcrumb: 'Settings',
+  },
+  component: Settings,
+})
+
+function Settings(): ReactNode {
+  return <SettingsPage />
+}
+```
+
+`capability` and `label` are both required. Write every field as a plain string, because the build
+reads the mark out of the file without running it.
+
+</Step>
+
+<Step>
+
+### 2. Generate the description record
+
+```sh
+pnpm run generate
+```
+
+This writes your container's description record and rebuilds the registry the shell reads at boot.
+`pnpm dev` runs both steps when it starts.
+
+</Step>
+
+<Step>
+
+### 3. Confirm what the build published
+
+```json title="examples/operations/.mfe/mfe-registry.json"
+"capabilities": [
+  { "name": "settings", "label": "Operations settings", "icon": "settings", "path": "/settings" }
+]
+```
+
+`path` comes from `createFileRoute`, so the route file decides the URL. One App publishes at most
+one settings page.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>g</Kbd> <Kbd>s</Kbd>, or
+use the gear button in the header. Your page is listed under "Application settings", with your
+`label` and the path `/operations/settings`. That is your `/settings` route under the prefix the
+shell mounts your App at. It is also in the command palette, under "Application pages", which
+opens with <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>.
+
+## Errors
+
+<Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
+
+```text
+/home/you/operations/src/routes/settings.tsx:9:5: 'operations' failed to extract a capability
+route: expected one of 'settings', 'help' and 'releaseNotes', found "setings".
+```
+
+**Fix.** Use one of the three names. To make a misspelling a compile error instead, type the
+`staticData` slot as [Create an App](/docs/create-an-app) shows.
+
+</Callout>
+
+<Callout type="error" title="expected a non-empty `label` string literal">
+
+```text
+/home/you/operations/src/routes/settings.tsx:8:5: 'operations' failed to extract the capability
+route '/settings': expected a non-empty `label` string literal, found no label.
+```
+
+**Fix.** Add the text the shell puts in its menu, for example `label: 'Operations settings'`.
+
+</Callout>
+
+<Callout type="error" title="expected one route per capability">
+
+```text
+/home/you/operations/src/routes/preferences.tsx: 'operations' failed to extract the 'settings'
+capability route: expected one route per capability, found '/settings' and '/preferences' both
+declare it.
+```
+
+**Fix.** Remove the mark from one of the two routes. The shell opens exactly one page per
+capability.
+
+</Callout>
+
+<Callout type="error" title="expected a capability declared by an App">
+
+```text
+/home/you/alerts/src/routes/settings.tsx:9:5: the build failed to extract the 'settings'
+capability route: expected a capability declared by an App, found a container that exports
+Widgets only.
+```
+
+**Fix.** Move the route into a container that exports an App. A Widget has no routes of its own.
+
+</Callout>
+
+## Related
+
+- [Add a help page](/docs/add-a-help-page) — the same mark, a different name.
+- [Publish release notes](/docs/publish-release-notes) — the third capability page.
+- [Show an icon](/docs/show-an-icon) — the mark beside the label.
+- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

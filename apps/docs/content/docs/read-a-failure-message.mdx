@@ -1,0 +1,97 @@
+---
+title: 'Read a failure message'
+description: 'The parts every framework message is built from, and where each one turns up.'
+---
+
+Every message the framework writes is built from the same parts, whoever raised it. The last
+sentence is always one action you can take.
+
+## Steps
+
+<Steps>
+
+<Step>
+### 1. Read the parts of a runtime message
+
+```text
+<id>@<version> failed to <operation> <field>: expected <expected>, received <observed>. <repair>
+```
+
+The version, the field and the expected clause each appear only when there is one to print.
+
+</Step>
+
+<Step>
+### 2. Match a real one against that shape
+
+```text
+operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
+unchanged as createRouter({ basepath }), received no basepath on the router. Forward the basePath
+your factory received: createRouter({ basepath: basePath, … }).
+```
+
+`operations@2.1.0` is the build that failed, `mount App` is what it was doing, and the rest is the
+comparison and the repair.
+
+</Step>
+
+<Step>
+### 3. Expect two extra parts from the build
+
+```text
+src/panel.tsx:12:19: the build failed to resolve an asset reference: expected a reference the build
+can rewrite to the deployed container, found the bare relative path './icons/gear.svg'. This
+expectation is declared by container-relative asset resolution. Import it (…)
+```
+
+A build message opens with the file and the position, and it names the side that set the
+expectation.
+
+<Callout type="info" title="Only build messages name that side">
+  A runtime message carries no such sentence. Read it as the shape in step 1.
+</Callout>
+</Step>
+
+<Step>
+### 4. Do what the last sentence says
+
+```text
+Rebuild the container; the registry entry is generated, never hand-written.
+```
+
+The repair is always an instruction, and this one closes most failures that come from a registry
+entry.
+
+</Step>
+
+<Step>
+### 5. Search on the code, not the text
+
+```text
+load/manifest-failure
+```
+
+The code is stable while the message around it is written for a reader, so look the code up in
+[Error codes](/docs/reference/error-codes).
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The same message reaches you in three places.
+
+- **Your terminal**, when the build stops. It names the file, and often the line and column.
+- **The box the shell renders** in place of the screen that failed. It carries the definition id,
+  the whole message, a **Retry** button and the code.
+- **The developer tools' Registry tab**, under **Rejected**, for an entry the shell set aside at
+  boot. Each one prints the whole message, over the record as published.
+
+## Related
+
+- [Error codes](/docs/reference/error-codes) — every code, when it happens, and the fix.
+- [Lint rules](/docs/reference/lint-rules) — the messages your editor reports.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — which stage each failure comes from.
+- [Open the devtools panel](/docs/open-the-devtools) — where rejected entries are listed.
+- [Undeploy or roll back](/docs/undeploy-or-roll-back) — the messages a removed entry produces.

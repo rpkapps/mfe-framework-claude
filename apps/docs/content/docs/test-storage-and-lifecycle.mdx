@@ -1,0 +1,168 @@
+---
+title: 'Test storage and the lifecycle'
+description: 'Seed a stored record, render through the test environment, then change the signed-in user and see what is cleared.'
+---
+
+Apps and Widgets. `createMfeTestEnvironment` gives you the pieces of a mount directly: a wrapper
+to render into, the stores, and a way to change the signed-in user. Use it for storage, for hooks,
+and for anything that outlives one render.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Create the environment, and dispose it after each test
+
+```tsx title="src/routes/storage.test.tsx"
+import { useStoredState } from '@company/mfe-react'
+import { createMfeTestEnvironment } from '@company/mfe-react/testing'
+import { renderHook } from '@testing-library/react'
+import { StrictMode } from 'react'
+import { afterEach, expect, it } from 'vitest'
+import { z } from 'zod'
+
+const visitsSchema = z.number().int().nonnegative()
+const draftSchema = z.object({ note: z.string(), pinned: z.boolean() })
+
+let environment: ReturnType<typeof createMfeTestEnvironment> | null = null
+
+afterEach(async () => {
+  const current = environment
+  environment = null
+  await current?.dispose()
+})
+```
+
+Declare each schema once, at module scope. The test and the component have to hand the framework
+the same schema for the same key.
+
+</Step>
+
+<Step>
+
+### 2. Seed the records before you render
+
+```tsx title="src/routes/storage.test.tsx"
+environment = createMfeTestEnvironment({ definitionId: 'lab' })
+const env = environment
+const storage = env.mount.storage.local
+
+storage.key('visits', visitsSchema, { retention: 'user' }).set(3)
+storage.key('draft', draftSchema, { retention: 'browser' }).set({ note: 'rig 4', pinned: true })
+```
+
+The stores are in memory and start empty, so a test that reads a record writes it first.
+`definitionId` becomes the key prefix, which makes the record above `lab:visits`. Hold the
+environment in a local as well, so the steps below have one that is never `null`.
+
+</Step>
+
+<Step>
+
+### 3. Render through the environment's wrapper
+
+```tsx title="src/routes/storage.test.tsx"
+const { result } = renderHook(
+  () => useStoredState('visits', visitsSchema, { defaultValue: 0, retention: 'user' }),
+  { wrapper: env.wrapper },
+)
+
+expect(result.current[0]).toBe(3)
+```
+
+The wrapper puts your component inside the same providers a real mount does. Use it for components
+as well as hooks.
+
+</Step>
+
+<Step>
+
+### 4. Change the signed-in user
+
+```tsx title="src/routes/storage.test.tsx"
+env.setShellState({ user: { id: 'u-2', name: 'Sam Reyes' } })
+
+expect(result.current[0]).toBe(0)
+expect(env.storageAreas.local.getItem('lab:visits')).toBeNull()
+expect(storage.key('draft', draftSchema, { retention: 'browser' }).get()).toEqual({
+  note: 'rig 4',
+  pinned: true,
+})
+```
+
+`setShellState` runs the identity change the shell runs. Every `retention: 'user'` record is
+deleted, and the hook reports its declared default again. A record left at the default retention,
+`'browser'`, is still there.
+
+</Step>
+
+<Step>
+
+### 5. Run it under StrictMode
+
+```tsx title="src/routes/storage.test.tsx"
+const options = { defaultValue: 0, retention: 'user' } as const
+
+const { result } = renderHook(() => useStoredState('visits', visitsSchema, options), {
+  wrapper: ({ children }) => (
+    <StrictMode>
+      <env.wrapper>{children}</env.wrapper>
+    </StrictMode>
+  ),
+})
+```
+
+The shell renders every container under StrictMode in development. React mounts, unmounts and
+mounts again, so an effect of yours that cannot run twice fails here rather than on the page.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The suite passes, and the assertions above hold in either order. Pass `shellState` to start with a
+different user, groups or theme. The environment carries the rest of the mount too.
+
+| Field           | For                                           |
+| --------------- | --------------------------------------------- |
+| `telemetry`     | the events, logs and spans the mount recorded |
+| `diagnostics`   | what the framework reported                   |
+| `navigation`    | where the mount asked to go                   |
+| `routerContext` | calling a route callback                      |
+| `storageAreas`  | inspecting what was written                   |
+| `runtime`       | the registry, the stores and the shell state  |
+
+## Errors
+
+<Callout type="error" title="failed to call useMfeStorage">
+
+```text
+<unmounted> failed to call useMfeStorage: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Render through `environment.wrapper`, which supplies the mount.
+
+</Callout>
+
+<Callout type="error" title="the same schema object every active consumer already declared">
+
+```text
+lab failed to bind the local storage key visits: expected the same schema object every active
+consumer already declared, received a different schema object.
+```
+
+**Fix.** Import the one schema into the test instead of writing a second copy of it.
+
+</Callout>
+
+## Related
+
+- [Remember a value across reloads](/docs/remember-a-value) — the hook under test.
+- [Clear a value when the user changes](/docs/clear-a-value-on-sign-out) — what `retention: 'user'` means.
+- [Read or write storage outside render](/docs/storage-outside-render) — the imperative handle used to seed.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what a mount owns and when it is disposed.
+- [Testing API](/docs/reference/testing-api) — every field of the environment.

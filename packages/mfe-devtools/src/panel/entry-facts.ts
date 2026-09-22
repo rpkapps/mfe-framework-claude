@@ -4,7 +4,7 @@
  * published schema, because a second walk is how this panel and the shell's dashboard drifted (§28).
  */
 
-import { describeWidgetInputs, type NeutralRegistryEntry } from '@company/mfe-react'
+import { describeWidgetInputs, type RegistryEntry } from '@company/mfe-react'
 
 export interface EntryFact {
   readonly label: string
@@ -12,7 +12,7 @@ export interface EntryFact {
   readonly values: readonly string[]
 }
 
-export function factsOf(entry: NeutralRegistryEntry): readonly EntryFact[] {
+export function factsOf(entry: RegistryEntry): readonly EntryFact[] {
   const facts: EntryFact[] = []
 
   const capabilities = entry.capabilities ?? []
@@ -36,7 +36,7 @@ export function factsOf(entry: NeutralRegistryEntry): readonly EntryFact[] {
 }
 
 /** Input names, with TypeScript's `?` on the optional ones, where a badge would cost a row. */
-function inputNames(entry: NeutralRegistryEntry): readonly string[] {
+function inputNames(entry: RegistryEntry): readonly string[] {
   const fields = describeWidgetInputs(entry.contract)
   if (fields === null) return []
 

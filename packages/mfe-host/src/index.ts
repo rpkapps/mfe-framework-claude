@@ -4,9 +4,7 @@
  * loader is injected through the port in `loader/` (§6).
  */
 
-export { normalizeRegistry, type NormalizeRegistryOptions } from './registry/normalize.ts'
-
-export { createMfeContractRule } from './registry/mfe-contract-rule.ts'
+export { readRegistry, type ReadRegistryOptions } from './registry/read-registry.ts'
 
 export {
   SharedContainerLoader,

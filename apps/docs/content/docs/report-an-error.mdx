@@ -1,0 +1,101 @@
+---
+title: 'Report an error'
+description: 'Record a failure you caught, and see what happens to one you did not.'
+---
+
+`telemetry.error` reports a failure without throwing it or handling it. A failure you do not catch
+costs your part of the page and nothing else. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Report a failure you caught
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+try {
+  await save(draft)
+} catch (error) {
+  telemetry.error(error, { step: 'save' })
+}
+```
+
+The record carries the error's name, its message and your attributes. It is a report, not a rethrow.
+
+</Step>
+<Step>
+### 2. Let the boundary take the rest
+
+```tsx title="examples/lab/src/routes/failure.tsx"
+function Exploder(): ReactNode {
+  throw new Error('The lab threw on purpose, from inside a mounted App.')
+}
+```
+
+A throw you do not catch reaches the boundary around your mount. The reader sees the message and a
+Retry button in your region. The shell chrome stays, and every other App on the page stays
+reachable.
+
+</Step>
+<Step>
+### 3. Give a rendered Widget its own fallback
+
+```tsx title="examples/operations/src/routes/index.tsx"
+<AlertPanel
+  alertId="a-1001"
+  fallback={({ error, retry }) => (
+    <div role="alert">
+      <p>{error.message}</p>
+      <Button onPress={retry}>Retry</Button>
+    </div>
+  )}
+/>
+```
+
+When you render somebody else's Widget, `fallback` is your chance to keep the rest of your screen
+working. `retry` is a fresh attempt rather than a re-render of the broken tree.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, `environment.telemetry.logs('error')` holds the report, with `error.type` set from the
+error's name. In the shell, open `/lab/failure` and throw on purpose. Your region shows the
+failure, the header keeps working, and the application finder still moves you elsewhere. Framework
+failures, such as a storage or command failure, are reported to the shell for you before they are
+thrown.
+
+## Errors
+
+<Callout type="error" title="dispose/failure, in development">
+
+```text
+lab failed to record a error log: expected telemetry only while the mount is live, received a
+telemetry call arrived after the mount was disposed.
+```
+
+**Fix.** The work that failed outlived your mount. Cancel it with `useMfeSignal()`, or check the
+signal before you report.
+
+</Callout>
+
+<Callout type="error" title="mount/failure, outside a mount">
+
+```text
+<unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+**Fix.** Move the call into a component your App or Widget renders. In a route callback, read
+`context.mfe.telemetry` instead.
+
+</Callout>
+
+## Related
+
+- [Log an event](/docs/log-an-event) — lines, events and measurements
+- [Trace an operation](/docs/trace-an-operation) — spans and their status
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — `useMfeSignal`
+- [Read a failure message](/docs/read-a-failure-message) — how a message is put together
+- [Error codes](/docs/reference/error-codes) — every code and its fix

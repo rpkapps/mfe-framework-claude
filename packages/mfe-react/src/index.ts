@@ -91,15 +91,15 @@ export {
   /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
   type JsonSchemaValue,
-  /* Types a selection rule a host passes to `createMfeRuntime({ rules })`. */
-  type AdapterSelectionRule,
   /* An author reads these inside `useNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,
-  type NeutralRegistryEntry,
-  type NormalizedRegistry,
   type PublishedWidgetContract,
-  type QuarantinedRegistryEntry,
+  /* What a shell author needs to write or register an adapter of their own. */
+  type MfeAdapter,
+  type Registry,
+  type RegistryEntry,
+  type RejectedRegistryEntry,
 } from '@company/mfe-core'
 
 /* Shell-facing composition */
@@ -129,6 +129,8 @@ export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-con
 export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
 export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
+/** Always registered by `createMfeRuntime`; exported so a shell can name it and read its fields. */
+export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.ts'
 export {
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,

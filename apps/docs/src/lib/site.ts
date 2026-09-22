@@ -13,7 +13,7 @@ export const siteConfig: {
   description: 'Build an App or a Widget for the TanStack React shell.',
   nav: [
     { title: 'Docs', href: '/docs' },
-    { title: 'Guides', href: '/docs/guides/shape' },
-    { title: 'Design', href: '/docs/design' },
+    { title: 'Quickstart', href: '/docs/quickstart' },
+    { title: 'How it works', href: '/docs/how-it-works/design' },
   ],
 }

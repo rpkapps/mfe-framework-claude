@@ -14,7 +14,7 @@ import {
   describeWidgetInputs,
   needsInputPrompt,
   useWidgets,
-  type NeutralRegistryEntry,
+  type RegistryEntry,
 } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -80,8 +80,8 @@ interface WidgetEvent {
 
 /** Which tile the dialog is editing, and whether confirming adds or updates it. */
 type Editing =
-  | { readonly mode: 'add'; readonly entry: NeutralRegistryEntry }
-  | { readonly mode: 'edit'; readonly entry: NeutralRegistryEntry; readonly tile: DashboardTile }
+  | { readonly mode: 'add'; readonly entry: RegistryEntry }
+  | { readonly mode: 'edit'; readonly entry: RegistryEntry; readonly tile: DashboardTile }
 
 const MAX_EVENTS = 40
 
@@ -124,7 +124,7 @@ export function DashboardPage(): ReactNode {
 
   /** A Widget whose inputs are all optional or defaulted needs nothing from the developer, so asking would be ceremony (§28). */
   const add = useCallback(
-    (entry: NeutralRegistryEntry) => {
+    (entry: RegistryEntry) => {
       if (needsInputPrompt(entry.contract)) {
         setEditing({ mode: 'add', entry })
         return
@@ -460,8 +460,8 @@ function CataloguePanel({
   onClear,
   onCollapse,
 }: {
-  readonly widgets: readonly NeutralRegistryEntry[]
-  readonly onAdd: (entry: NeutralRegistryEntry) => void
+  readonly widgets: readonly RegistryEntry[]
+  readonly onAdd: (entry: RegistryEntry) => void
   readonly hasTiles: boolean
   readonly onClear: () => void
   readonly onCollapse: () => void

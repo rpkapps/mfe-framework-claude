@@ -6,7 +6,7 @@
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
-import type { NeutralRegistryEntry } from '@company/mfe-core'
+import type { RegistryEntry } from '@company/mfe-core'
 
 import { MfeProvider } from './runtime-context.tsx'
 import {
@@ -27,7 +27,7 @@ afterEach(async () => {
   await current?.dispose()
 })
 
-function entry(overrides: Partial<NeutralRegistryEntry> & { id: string }): NeutralRegistryEntry {
+function entry(overrides: Partial<RegistryEntry> & { id: string }): RegistryEntry {
   return {
     definitionKind: 'app',
     adapter: 'react',
@@ -65,7 +65,7 @@ function hosted(): (props: { readonly children: ReactNode }) => ReactNode {
     ...environment.runtime,
     registry: {
       entries: new Map(REGISTRY.map(candidate => [candidate.id, candidate])),
-      quarantined: [],
+      rejected: [],
     },
   }
 

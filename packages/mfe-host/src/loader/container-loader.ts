@@ -8,7 +8,7 @@ import {
   toMfeError,
   type DefinitionIdentity,
   type MfeError,
-  type NeutralRegistryEntry,
+  type RegistryEntry,
 } from '@company/mfe-core'
 
 export interface LoadedDefinition<TModule = unknown> {
@@ -18,11 +18,11 @@ export interface LoadedDefinition<TModule = unknown> {
 
 export interface ContainerLoader<TModule = unknown> {
   load(
-    entry: NeutralRegistryEntry,
+    entry: RegistryEntry,
     options: { readonly signal: AbortSignal },
   ): Promise<LoadedDefinition<TModule>>
   /** Speculative warm-up that must never create a mount, or anything a mount would clean up. */
-  preload?(entry: NeutralRegistryEntry, options: { readonly signal: AbortSignal }): Promise<void>
+  preload?(entry: RegistryEntry, options: { readonly signal: AbortSignal }): Promise<void>
 }
 
 /** The shared promise is tied to no caller's signal, so abandoning a load cannot cancel it. */
@@ -41,7 +41,7 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
   }
 
   async load(
-    entry: NeutralRegistryEntry,
+    entry: RegistryEntry,
     options: { readonly signal: AbortSignal },
   ): Promise<LoadedDefinition<TModule>> {
     const cached = this.#resolved.get(entry.id)
@@ -66,7 +66,7 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
     return await raceWithAbort(shared, options.signal, entry)
   }
 
-  preload(entry: NeutralRegistryEntry, options: { readonly signal: AbortSignal }): Promise<void> {
+  preload(entry: RegistryEntry, options: { readonly signal: AbortSignal }): Promise<void> {
     if (this.#inner.preload) return this.#inner.preload(entry, options)
     // Failures are swallowed because an abandoned or failed preload must not break the
     // currently mounted App; a later real navigation takes the error and retry path.
@@ -90,7 +90,7 @@ function neverAborted(): AbortSignal {
 function raceWithAbort<T>(
   shared: Promise<T>,
   signal: AbortSignal,
-  entry: NeutralRegistryEntry,
+  entry: RegistryEntry,
 ): Promise<T> {
   if (!signal.aborted && typeof signal.addEventListener !== 'function') return shared
 

@@ -1,0 +1,107 @@
+---
+title: 'Keep hot updates working'
+description: 'Keep your render function in a module of components only, and one edit updates the page instead of reloading it.'
+---
+
+Apps and Widgets. React Refresh replaces a module in place only when every export in it is a
+component. One exported schema, constant or definition beside them costs you a full page reload on
+every edit, with the state on the page.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Keep the definition in one module
+
+```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
+export const alertPanelContract = {
+  inputs: z.object({ alertId: z.string() }),
+  events: { acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }) },
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+This module exports a contract and a definition, so editing it reloads the page. That is fine,
+because you edit it rarely.
+
+</Step>
+
+<Step>
+
+### 2. Keep the render function in another
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+export function AlertPanel({
+  inputs,
+  emit,
+}: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
+  const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
+  // …
+}
+```
+
+Components only. This is the module you edit all day, and an edit to it updates the page in place.
+
+</Step>
+
+<Step>
+
+### 3. Ask which one a file is
+
+```sh
+pnpm hmr:probe examples/lab/src/routes/index.tsx /lab
+```
+
+```text
+file:      examples/lab/src/routes/index.tsx
+url:       http://localhost:3000/lab
+result:    hot-updated in place
+console:   (nothing about hot updates)
+```
+
+Start the servers first, with `pnpm dev`. The probe appends a comment to the file, waits, and puts
+the file back.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+`result: hot-updated in place` means your edit kept the page and its state. The other answer is
+`result: (the page reloaded)`, and the command exits 1 so a script can read it. The symptom is
+quiet otherwise: everything still works, it is only slower and starts over each time.
+
+| Module                | What it exports                      | What an edit costs                      |
+| --------------------- | ------------------------------------ | --------------------------------------- |
+| `src/mfe.ts`          | a definition, and usually a contract | the page reloads, and its state is gone |
+| `src/alert-panel.tsx` | the render function alone            | a hot update in place, with state kept  |
+
+## Errors
+
+<Callout type="error" title="Usage">
+
+```text
+Usage: node tools/dev/hmr-probe.mjs <file> [url]
+```
+
+**Fix.** Name the file to edit, and the page to watch. The URL defaults to `/`, which is the
+shell's own dashboard rather than your App.
+
+</Callout>
+
+## Related
+
+- [Run the shell with your container](/docs/run-the-shell-locally) — the servers the probe drives.
+- [Create a Widget](/docs/create-a-widget) — where the render function goes.
+- [Create an App](/docs/create-an-app) — the definition module for an App.
+- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — loading your code at all.
+- [CLI and scripts](/docs/reference/cli-and-scripts) — the probe's arguments and exit codes.

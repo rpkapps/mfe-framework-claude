@@ -1,0 +1,123 @@
+---
+title: 'Read an environment variable'
+description: 'Import #mfe/config and read the values this deployment supplied, typed from your schemas.'
+---
+
+The values a deployment supplied arrive through `#mfe/config`. The build generates that module
+from your `src/mfe.config.ts`, so the type of every field comes from the schema you wrote.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Import the config
+
+```ts title="examples/lab/src/routes/config.tsx"
+import config from '#mfe/config'
+```
+
+A named import works too: `import { config } from '#mfe/config'`.
+
+</Step>
+
+<Step>
+
+### 2. Read a field
+
+```tsx title="examples/lab/src/routes/config.tsx (trimmed)"
+<span>GET {String(config.apiBaseUrl)}lab/probe</span>
+```
+
+Read fields anywhere, including at module scope, because the values are in place before your code
+runs.
+
+</Step>
+
+<Step>
+
+### 3. Name the type where you need it
+
+```ts
+import type { MfeConfig } from '#mfe/config'
+
+function describe(values: MfeConfig): string {
+  return values.apiBaseUrl
+}
+```
+
+`MfeConfig` is generated from the same schemas, so it cannot drift from what is validated.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Open `/lab/config` in the shell. It prints every field this deployment supplied, with the values
+your local `public/runtime-config.json` holds. The values are frozen: changing one takes a new
+deployment and a page reload, and nothing polls. A container with no `src/mfe.config.ts` gets no
+`#mfe/config` and fetches nothing.
+
+## Errors
+
+A bad value stops the container before any of your modules run, so these arrive instead of your
+first screen.
+
+<Callout type="error" title="config/missing">
+
+```text
+operations failed to load its runtime configuration: expected a file at
+http://localhost:3001/runtime-config.json, received 404 Not Found.
+```
+
+**Fix.** Publish the file with the container. In development, add `public/runtime-config.json` and
+restart the dev server.
+
+</Callout>
+
+<Callout type="error" title="config/unreachable">
+
+```text
+operations failed to load its runtime configuration: expected a readable file at
+http://localhost:3001/runtime-config.json, received a request that never completed.
+```
+
+**Fix.** Check that the container's own origin answers. An answer that is neither 200 nor 404
+reads `received 503 Service Unavailable` instead.
+
+</Callout>
+
+<Callout type="error" title="config/invalid">
+
+```text
+operations failed to validate apiBaseUrl: expected a string in uri form, received Invalid input:
+expected string, received undefined.
+```
+
+**Fix.** Add the field to the deployment's file, or give the schema a `.default(…)`.
+
+</Callout>
+
+<Callout type="error" title="config/invalid">
+
+```text
+operations failed to read its runtime configuration: expected only the declared fields
+(apiBaseUrl, telemetryEnabled), received apiBaseURL.
+```
+
+**Fix.** Correct the spelling in the file, or declare the key with `env()`. An undeclared key is
+usually a misspelled one.
+
+</Callout>
+
+## Related
+
+- [Declare an environment variable](/docs/declare-an-env-variable) — where these fields come from.
+- [Supply values per deployment](/docs/supply-values-per-deployment) — the file each environment
+  writes.
+- [Call your API](/docs/call-your-api) — the other generated module.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — install values in a
+  test.
+- [Error codes](/docs/reference/error-codes) — every code, with its fix.

@@ -1,8 +1,10 @@
 'use client'
 
 import * as React from 'react'
+import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
+import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
 import { Collapsible, CollapsibleContent } from '@tecton/react/components/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { cn } from 'cn'
@@ -41,12 +43,24 @@ export function Callout({
       data-not-typeset
       variant={CALLOUT_VARIANT[type]}
       appearance="outline"
-      className={cn('mt-6 w-auto rounded-2xl md:-mx-1 **:[code]:border', className)}
+      className={cn(
+        // The box spans the prose column, bleeding the same 4px as a code fence from `md` up.
+        // A code fence inside keeps its own margins (`mx-0`) and scrolls in place: its `<pre>`
+        // is a scroll container, but a scroll container still reports the long line as its
+        // min-content width, which would set the minimum of the `1fr` description track.
+        'mt-6 w-full rounded-2xl md:-mx-1 md:w-[calc(100%+(--spacing(2)))]',
+        '**:[figure]:mx-0 **:[figure]:min-w-0 **:[figure]:max-w-full',
+        // The border belongs to the inline code chip; a fence's own `<code>` is the scrolled grid.
+        '**:[code]:border [&_pre_code]:border-0',
+        className,
+      )}
       {...props}
     >
       {CALLOUT_ICON[type]}
-      {title !== undefined && <AlertTitle>{title}</AlertTitle>}
-      <AlertDescription className="[&_p]:my-0 [&_ul]:my-2 [&_ul]:list-disc">
+      {title !== undefined && <AlertTitle className="min-w-0">{title}</AlertTitle>}
+      {/* `min-w-0`: the description is the `1fr` grid item, so without it its content sets the
+          track's minimum and everything inside runs past the alert's own border. */}
+      <AlertDescription className="w-full min-w-0 [&_p]:my-0 [&_ul]:my-2 [&_ul]:list-disc">
         {children}
       </AlertDescription>
     </Alert>
@@ -186,5 +200,68 @@ export function DocsTab({
       )}
       {...props}
     />
+  )
+}
+
+/* ------------------------------------------------------------------------ */
+/* Cards — `<Cards>` with one `<Card href title>` per destination.          */
+/* ------------------------------------------------------------------------ */
+
+export function DocsCards({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-not-typeset
+      data-slot="cards"
+      className={cn('mt-6 grid gap-3 sm:grid-cols-2', className)}
+      {...props}
+    />
+  )
+}
+
+/**
+ * One destination: a title, and at most a line saying what is there. The whole card is the link,
+ * so the body is text rather than Markdown — a link inside a link is invalid HTML.
+ */
+export function DocsCard({
+  href,
+  title,
+  children,
+  className,
+}: {
+  /** A site path (`/docs/add-a-route`) navigates through the router. */
+  href: string
+  title: React.ReactNode
+  children?: React.ReactNode
+  className?: string
+}) {
+  const inner = (
+    <Card
+      size="sm"
+      className={cn(
+        'h-full gap-2 bg-card transition-colors group-hover/card-link:bg-accent group-hover/card-link:ring-accent',
+        className,
+      )}
+    >
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        {children !== undefined && <CardDescription>{children}</CardDescription>}
+      </CardHeader>
+    </Card>
+  )
+
+  const linkClassName =
+    'group/card-link block h-full rounded-xl no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+
+  if (href.startsWith('/') && !href.startsWith('//')) {
+    return (
+      <Link to={href} className={linkClassName}>
+        {inner}
+      </Link>
+    )
+  }
+  return (
+    <a href={href} className={linkClassName} target="_blank" rel="noreferrer">
+      {inner}
+    </a>
   )
 }

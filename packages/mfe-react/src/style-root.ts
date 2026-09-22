@@ -11,7 +11,7 @@ export interface StyleRootProps {
 
 export type MfeStyleRoot = ComponentType<StyleRootProps>
 
-/** A symbol key, so no serialized descriptor or `Object.keys` walk ever sees it. */
+/** A symbol key, so no serialized record or `Object.keys` walk ever sees it. */
 const STYLE_ROOT = Symbol.for('@company/mfe.styleRoot')
 
 interface StyleRootCarrier {

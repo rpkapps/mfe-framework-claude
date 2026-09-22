@@ -1,8 +1,10 @@
 /**
  * Reading a fumadocs page tree in the shapes the chrome needs.
  *
- * `content/docs/meta.json` divides the tree with `---Section---` separators, so a sidebar group is
- * "a separator and the nodes that follow it", not a folder.
+ * `content/docs/meta.json` divides the tree with `---Section---` separators, so a group is "a
+ * separator and the nodes that follow it", not a folder. A folder is read two ways: the sidebar
+ * keeps it whole so it can open and close (`getSidebarSections`), and the flat lists in the header
+ * and the search dialog take its pages out and label them with the folder's name (`getSections`).
  */
 import * as React from 'react'
 
@@ -17,8 +19,19 @@ export interface TreeSection {
   pages: TreePage[]
 }
 
+/** A node a sidebar draws in place: one page, or a folder it can collapse. */
+export type TreeNode = TreePage | PageTree.Folder
+
+/** A separator and the nodes under it, with folders kept whole. */
+export interface TreeSidebarSection {
+  /** Stable key: the separator's id, or the label for the leading group. */
+  id: string
+  label: string
+  nodes: TreeNode[]
+}
+
 /** All pages of a folder, depth first (nested folders are flattened). */
-function pagesOfFolder(folder: PageTree.Folder): TreePage[] {
+export function pagesOfFolder(folder: PageTree.Folder): TreePage[] {
   const pages: TreePage[] = []
   if (folder.index) pages.push(folder.index)
   for (const child of folder.children) {
@@ -57,6 +70,35 @@ export function getSections(tree: PageTree.Root, fallbackLabel = 'Documentation'
       sections.push({ id: node.$id ?? label, label, pages: pagesOfFolder(node) })
       current = { id: `${label}:after`, label: fallbackLabel, pages: [] }
     }
+  }
+  flush()
+
+  return sections
+}
+
+/**
+ * The tree as the sidebar draws it: one section per separator, and a folder left as one node so
+ * the sidebar can collapse it. Pages before the first separator land in `fallbackLabel`.
+ */
+export function getSidebarSections(
+  tree: PageTree.Root,
+  fallbackLabel = 'Documentation',
+): TreeSidebarSection[] {
+  const sections: TreeSidebarSection[] = []
+  let current: TreeSidebarSection = { id: fallbackLabel, label: fallbackLabel, nodes: [] }
+
+  const flush = () => {
+    if (current.nodes.length > 0) sections.push(current)
+  }
+
+  for (const node of tree.children) {
+    if (node.type === 'separator') {
+      flush()
+      const label = nodeName(node)
+      current = { id: node.$id ?? label, label, nodes: [] }
+      continue
+    }
+    if (node.type === 'page' || node.type === 'folder') current.nodes.push(node)
   }
   flush()
 

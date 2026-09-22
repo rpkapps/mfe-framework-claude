@@ -1,0 +1,105 @@
+---
+title: 'Change the shape of a stored value'
+description: 'Raise version and declare migrate so an old record is converted instead of failing the read.'
+---
+
+A stored record written by an older build no longer matches your schema. Raise `version` and
+declare `migrate` beside it, and the next read converts the old record. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Raise the version and convert
+
+```ts title="examples/lab/src/routes/storage.tsx"
+const [draft] = useStoredState('draft', draftSchema, {
+  defaultValue: { note: '', pinned: false },
+  version: 2,
+  migrate: (value, fromVersion) =>
+    fromVersion === 0
+      ? { note: '', pinned: false }
+      : { note: (value as { text: string }).text, pinned: false },
+})
+```
+
+`version` starts at `1` and is an integer. Raise it whenever the stored shape changes.
+
+</Step>
+<Step>
+### 2. Handle version 0
+
+```ts title="examples/lab/src/routes/storage.tsx"
+if (fromVersion === 0) return { note: '', pinned: false }
+```
+
+A record that is valid JSON but was not written by the framework arrives as `fromVersion` 0. That
+covers anything written before this boundary existed.
+
+</Step>
+<Step>
+### 3. Keep migrate synchronous and free of side effects
+
+```ts title="examples/lab/src/routes/storage.tsx"
+// No fetch, no await, no set() on another key: migrate runs inside a read.
+migrate: (value, fromVersion) => convert(value, fromVersion)
+```
+
+The framework converts the value, validates it against your schema, then writes it back. Nothing is
+written when `migrate` throws, returns a value your schema rejects, or the signed-in person changes
+while it runs. The old record is left as it was.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Store a value on the old build, then load the new one. The value on screen is the converted one,
+and the record in Local storage now carries the new version. Run it a second time and nothing
+converts, because the record already matches. In a test, seed the old record and read it back
+through the new declaration.
+
+## Errors
+
+<Callout type="error" title="storage/failure, at read">
+
+```text
+lab failed to read the local storage key draft: expected version 2, received version 1 with no
+migrate() declared.
+```
+
+**Fix.** Declare `migrate` beside the raised `version`, or remove the key.
+
+</Callout>
+
+<Callout type="error" title="storage/failure, at read">
+
+```text
+lab failed to read the local storage key draft: expected version 1, received version 2, written by
+a newer build.
+```
+
+**Fix.** Reload into the current build. A record from the future is never overwritten, so nothing
+was lost.
+
+</Callout>
+
+<Callout type="error" title="storage/failure, at migrate">
+
+```text
+lab failed to migrate the local storage key draft: expected a value at version 2, received
+migrate() threw (TypeError: …).
+```
+
+**Fix.** Guard the fields you read in `migrate`. The previous record is preserved, so you can try
+again with a fixed conversion.
+
+</Callout>
+
+## Related
+
+- [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
+- [Read or write storage outside render](/docs/storage-outside-render) — the same options
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed an old record
+- [Error codes](/docs/reference/error-codes) — every `storage/failure` message
+- [Version your container and its contract](/docs/version-your-container) — the other versions

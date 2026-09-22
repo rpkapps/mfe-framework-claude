@@ -1,0 +1,99 @@
+---
+title: 'Use the design system'
+description: 'Import Tecton components by subpath, handle presses with onPress, and colour with tokens.'
+---
+
+The design system is a dependency your container and the shell both take. Its components read the
+shell's theme with nothing wired up by you. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Keep the dependency
+
+```json title="examples/alert-panel/package.json"
+{
+  "dependencies": {
+    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "lucide-react": "^1.45.0"
+  }
+}
+```
+
+Your build needs `@tecton/react` whether or not you render a component from it. General icons come
+from `lucide-react`.
+
+</Step>
+<Step>
+### 2. Import components by subpath
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
+import { Button } from '@tecton/react/components/button'
+import { CheckIcon, InfoIcon } from 'lucide-react'
+```
+
+There is no barrel import. Tecton's own compositions sit under `@tecton/react/tecton/`, such as
+`@tecton/react/tecton/page-header`.
+
+</Step>
+<Step>
+### 3. Handle a press with `onPress`
+
+```tsx title="examples/operations/src/routes/index.tsx"
+<Button onPress={() => setDensity('compact')}>Compact density</Button>
+```
+
+The controls are built on React Aria. A `Button` with `onClick` looks right and does nothing.
+
+</Step>
+<Step>
+### 4. Colour with a token or a palette step
+
+```tsx title="examples/operations/src/routes/index.tsx"
+<p className="text-xs text-muted-foreground">from another container</p>
+```
+
+| Instead of                            | Write                                                       |
+| ------------------------------------- | ----------------------------------------------------------- |
+| `bg-red-500`, `bg-white`              | `bg-destructive`, `bg-background`, `border-border-subtle`   |
+| `text-zinc-400`, `dark:text-zinc-200` | `text-muted-foreground`, or a palette step: `text-gray-830` |
+
+A stock Tailwind colour class produces no CSS. The design system unsets every stock colour before
+it declares its own. A palette step is a contrast level rather than a lightness, so there is no
+`dark:` pair to write.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Render the component and switch the theme in the shell with <Kbd>⌘J</Kbd>. The colours follow, and
+you changed nothing. A wrong colour class fails quietly. It produces no CSS and no error, so check
+the element in the browser. No lint rule catches it. The rule that did belonged to
+`@tecton/eslint-config`, which the design system has removed, so nothing checks a class against the
+token set.
+
+## Errors
+
+<Callout type="error" title="The scope plugin could not be resolved">
+
+```text
+/work/alert-panel/package.json: the build failed to load the stylesheet scope plugin: expected to
+resolve '@tecton/react/postcss/scope' from the container or from the build plugin, found no copy of
+@tecton/react beside either.
+```
+
+**Fix.** Add `@tecton/react` to the container's dependencies. Its plugin is what keeps your
+stylesheet inside your own mount, whether or not you render its components.
+
+</Callout>
+
+## Related
+
+- [Follow the shell theme](/docs/follow-the-shell-theme) — reading light or dark
+- [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) — overlays
+- [Add styles beyond utilities](/docs/add-custom-styles) — when a utility is not enough
+- [Show an icon](/docs/show-an-icon) — the icon the shell draws for you
+- [Read a failure message](/docs/read-a-failure-message) — how a build message is put together

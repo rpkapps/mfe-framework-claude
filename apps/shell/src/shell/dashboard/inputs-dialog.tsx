@@ -4,7 +4,7 @@
  */
 
 import { useId, useState, type ReactNode } from 'react'
-import { coerceInputs, type NeutralRegistryEntry } from '@company/mfe-react'
+import { coerceInputs, type RegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@tecton/react/components/dialog'
@@ -24,7 +24,7 @@ import { InfoIcon } from 'lucide-react'
 import { initialValues, readInputFields, type InputField } from './input-schema.ts'
 
 export interface InputsDialogProps {
-  readonly entry: NeutralRegistryEntry | null
+  readonly entry: RegistryEntry | null
   readonly current: Readonly<Record<string, unknown>>
   readonly title: string
   readonly confirmLabel: string

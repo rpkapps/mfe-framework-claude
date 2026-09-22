@@ -1,0 +1,105 @@
+---
+title: 'Trace an operation'
+description: 'Wrap work in a span, set its status, and keep child spans inside the same trace.'
+---
+
+A span records how long a piece of work took and how it ended. You start it, you end it, and the
+framework attributes it to your definition. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Wrap the work in a span
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+telemetry.tracer.startActiveSpan('lab.compute', span => {
+  span.setAttribute('lab.rows', 128)
+  span.setStatus({ code: SpanStatusCode.OK })
+  span.end()
+})
+```
+
+Name the span after the work, prefixed with your definition id. `SpanStatusCode` and `SpanKind`
+come from `@company/mfe-react`, and importing an OpenTelemetry package is a lint error.
+
+</Step>
+<Step>
+### 2. End it in a finally
+
+```tsx title="examples/lab/src/routes/telemetry.tsx"
+telemetry.tracer.startActiveSpan('lab.failing', span => {
+  try {
+    return compute()
+  } catch (error) {
+    span.recordException(error)
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'Deliberate failure' })
+    throw error
+  } finally {
+    span.end()
+  }
+})
+```
+
+Ending the span is yours to do. A throw, a returned value and a returned promise all pass straight
+back out of `startActiveSpan`.
+
+</Step>
+<Step>
+### 3. Start child spans before the first await
+
+```ts title="examples/lab/src/routes/telemetry.tsx"
+telemetry.tracer.startActiveSpan('lab.export', parent => {
+  // Synchronous: this one joins the parent's trace.
+  telemetry.tracer.startActiveSpan('lab.export.prepare', child => child.end())
+  return run().finally(() => parent.end())
+})
+```
+
+A span started after an `await` inside the callback becomes a root with a new trace id. Start the
+children synchronously, or use `telemetry.tracer.startSpan(name)` later and tie the two together
+with an attribute of your own.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, `environment.telemetry.spansNamed('lab.compute')` holds the span, with its attributes
+and its status. `environment.telemetry.endedSpans()` shows which ones you closed. Children started
+synchronously carry the same `mfe.trace.id` as their parent, so a span with a trace id of its own
+was started too late.
+
+## Errors
+
+<Callout type="error" title="dispose/failure, in development">
+
+```text
+lab@1.0.0 failed to dispose the mount telemetry: expected every span started by the mount to be
+ended by its author, received 1 span(s) still open: lab.compute.
+```
+
+**Fix.** End the span in a `finally` block, so a throw inside the callback still closes it. The
+open ones were closed as cancelled.
+
+</Callout>
+
+<Callout type="error" title="config/invalid, in development">
+
+```text
+lab failed to set a span attribute: expected changes only while the span is open, received a change
+to span "lab.compute" after it ended.
+```
+
+**Fix.** Move the call before `end()`, or start a new span. The change was ignored, and the
+recorded span is the one you closed.
+
+</Callout>
+
+## Related
+
+- [Log an event](/docs/log-an-event) — a line, an event or a measurement
+- [Report an error](/docs/report-an-error) — a failure you caught
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — ending work with the mount
+- [Hooks and components](/docs/reference/hooks-and-components) — the tracer and the span
+- [Error codes](/docs/reference/error-codes) — `dispose/failure` and the rest

@@ -1,0 +1,114 @@
+---
+title: 'Call your API'
+description: 'Use the generated #mfe/fetch to send requests that carry the shell session token.'
+---
+
+Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
+API base and attaches the shell's session token. The browser's own `fetch` is left alone.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Import the generated fetch
+
+```ts title="examples/operations/src/queries/assets.ts"
+import { fetch } from '#mfe/fetch'
+```
+
+Every container has this module, whether or not it declares configuration.
+
+</Step>
+
+<Step>
+
+### 2. Send the request
+
+```ts title="examples/operations/src/queries/assets.ts"
+const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+
+if (!response.ok) {
+  throw new Error(`Loading assets for site ${siteId} failed with ${response.status}.`)
+}
+
+return z.array(assetSchema).parse(await response.json())
+```
+
+The signature is `fetch`'s own, so pass a `signal`, a method and a body as you always would.
+
+</Step>
+
+<Step>
+
+### 3. Take the token for anything that is not HTTP
+
+```ts
+import { getAccessToken } from '#mfe/fetch'
+
+const token = await getAccessToken()
+```
+
+Await it, call it once per connection, and never store what it returns.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev`, which also starts a stand-in API on port 3010 that the examples point at. Open
+`/lab/config` in the shell and send the probe request. The response reports what arrived: your
+relative path resolved against the configured base, and an `Authorization` header you did not
+write. A 401 is handled once, and a 403 passes through untouched.
+
+## Errors
+
+<Callout type="error" title="config/missing">
+
+```text
+operations failed to resolve the request URL: expected an absolute URL, or an apiBaseUrl to
+resolve a relative one against, received the relative URL "assets?site=north" and no configured
+apiBaseUrl.
+```
+
+**Fix.** Declare a value with `{ api: true }`, or pass an absolute URL. A relative URL is never
+resolved against the shell document.
+
+</Callout>
+
+<Callout type="error" title="auth/undeclared-origin">
+
+```text
+operations failed to attach the access token for https://reports.example.test: expected a request
+to an origin the author declared as an API with { api: true }, received a request to
+https://reports.example.test, which is not declared.
+```
+
+**Fix.** Declare the origin if it is yours. The request was sent without a token, so a 401 from it
+is this missing declaration.
+
+</Callout>
+
+<Callout type="error" title="config/invalid">
+
+```text
+operations failed to retry POST https://api.example.test after 401: expected a request the
+framework can send a second time, received a ReadableStream body, which is consumed as it is sent
+and cannot be read a second time.
+```
+
+**Fix.** Buffer the body first, as a string, `Blob`, `ArrayBuffer`, `FormData` or
+`URLSearchParams`. The original 401 is returned unchanged and the token is refreshed for the next
+request.
+
+</Callout>
+
+## Related
+
+- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — which origins get the token.
+- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — caching and loaders.
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — the signal to pass.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — intercept these
+  requests.

@@ -1,16 +1,16 @@
 /**
- * A descriptor is emitted by a build the host does not control, so `inputs` is only known to be
+ * An entry is emitted by a build the host does not control, so `inputs` is only known to be
  * *some* JSON value: the cases below are the shapes that validate as an entry and still cannot be
  * read as a schema.
  */
 
 import { describe, expect, it } from 'vitest'
 
-import type { NeutralRegistryEntry } from '@company/mfe-react'
+import type { RegistryEntry } from '@company/mfe-react'
 import { factsOf } from './entry-facts.ts'
 
 /** The four fields every entry has; each case adds only what it is about. */
-function entry(rest: Partial<NeutralRegistryEntry> = {}): NeutralRegistryEntry {
+function entry(rest: Partial<RegistryEntry> = {}): RegistryEntry {
   return {
     id: 'alert-panel',
     definitionKind: 'widget',

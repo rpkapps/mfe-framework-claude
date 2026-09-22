@@ -63,7 +63,7 @@ export function lazyWidget(
 
 /**
  * A Widget whose id is a value rather than a name in the source, for a host composing what the
- * registry advertises; the contract-free mode by construction (§15). Keying the element by the
+ * registry names; the contract-free mode by construction (§15). Keying the element by the
  * id replaces the mount instead of feeding another Widget's inputs into the one already there.
  */
 export interface DynamicWidgetProps extends LazyWidgetProps<undefined> {

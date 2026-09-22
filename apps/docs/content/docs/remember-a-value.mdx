@@ -1,0 +1,107 @@
+---
+title: 'Remember a value across reloads'
+description: 'Store a value under your own definition id with useStoredState, validated by a schema.'
+---
+
+`useStoredState` hands you a stored value and a setter. The value survives a reload, and its key
+carries your definition id. Apps and Widgets.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Declare the schema at module scope
+
+```ts title="examples/operations/src/routes/index.tsx"
+import { z } from 'zod'
+
+// Module scope: a schema rebuilt on every render rebinds the key on every render.
+const densitySchema = z.enum(['comfortable', 'compact'])
+```
+
+The framework compares schemas by reference. Export one schema object per key from one module.
+
+</Step>
+<Step>
+### 2. Bind the key
+
+```tsx title="examples/operations/src/routes/index.tsx"
+import { useStoredState } from '@company/mfe-react'
+
+const [density, setDensity] = useStoredState('table-density', densitySchema, {
+  defaultValue: 'comfortable',
+})
+```
+
+Call the hook inside a component. The stored key is `operations:table-density`, and you read
+`defaultValue` while the key is absent.
+
+</Step>
+<Step>
+### 3. Write a value
+
+```tsx title="examples/operations/src/routes/index.tsx"
+setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
+```
+
+The setter takes a value or an updater function, and validates both against the schema.
+
+</Step>
+<Step>
+### 4. Keep it for this tab alone
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+const [visits, setVisits] = useStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  storage: 'session',
+})
+```
+
+`storage` defaults to `'local'`, which outlives the tab. `'session'` goes when the tab closes. The
+two are separate spaces, so one name in each is two records. `retention` defaults to `'browser'`:
+the record is kept until something removes it, and every user of this browser profile reads it.
+For a value that belongs to the signed-in person, see
+[Clear a value when the user changes](/docs/clear-a-value-on-sign-out).
+
+</Step>
+</Steps>
+
+## Check it works
+
+Reload the page. The value is still on screen. Open the browser developer tools, then Application,
+then Local storage, and look for `operations:table-density`. Two mounts of one definition read that
+one record, so a second copy of your App on the page agrees with the first.
+
+## Errors
+
+<Callout type="error" title="storage/failure, at bind">
+
+```text
+lab failed to bind the local storage key draft: expected the same schema object every active
+consumer already declared, received a different schema object.
+```
+
+**Fix.** Move the `z.object({ … })` out of the component body. Export it from one module, and
+import it wherever the key is read.
+
+</Callout>
+
+<Callout type="error" title="storage/failure, at write">
+
+```text
+lab failed to write the local storage key draft: expected local storage to accept 2097152
+characters, received QuotaExceededError: …
+```
+
+**Fix.** Store an identifier and fetch the body again, or clear this definition's records. The
+stored value is unchanged.
+
+</Callout>
+
+## Related
+
+- [Clear a value when the user changes](/docs/clear-a-value-on-sign-out) — per-user data
+- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions
+- [Read or write storage outside render](/docs/storage-outside-render) — handlers and loaders
+- [Hooks and components](/docs/reference/hooks-and-components) — every option, one row each
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed a record in a test

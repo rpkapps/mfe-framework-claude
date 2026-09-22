@@ -1,0 +1,161 @@
+---
+title: 'Testing API'
+description: 'Every export of @company/mfe-react/testing, with its signature and an example.'
+---
+
+`@company/mfe-react/testing` renders your App or Widget through the same adapter production uses. Nothing here is a second API for your source: your code keeps its production imports, and the test supplies the values. The entry point is never imported by production code.
+
+## Rendering
+
+### renderApp
+
+```ts
+renderApp(definition: AppDefinition, options?: RenderAppOptions): RenderedMfe
+```
+
+Renders a real App over a test-owned memory history. `options` are the environment options below, and `initialEntries` is the one you reach for most.
+
+```tsx title="examples/operations/src/routes/assets.test.tsx"
+const rendered = renderApp(operations, { initialEntries: ['/assets'] })
+mounted = rendered.dispose
+
+await waitFor(() => {
+  expect(screen.getByText('Pump 4')).toBeInTheDocument()
+})
+```
+
+Recipe: [Test an App](/docs/test-an-app).
+
+### renderWidget
+
+```ts
+renderWidget(definition: WidgetDefinition, options?: RenderWidgetOptions): RenderedMfe
+```
+
+Renders a real Widget with the production validation path. `props` carries the inputs and the `onX` handlers, exactly as a consumer would pass them.
+
+```tsx title="examples/alert-panel/src/mfe.test.tsx"
+const onAcknowledged = vi.fn()
+const rendered = renderWidget(alertPanel, {
+  props: { alertId: 'a-42', severity: 'critical', onAcknowledged },
+})
+cleanup = rendered.dispose
+```
+
+Recipe: [Test a Widget](/docs/test-a-widget).
+
+### What both return
+
+`RenderedMfe` is Testing Library's `RenderResult` plus two fields.
+
+| Field         | Type                  | What it is                                     |
+| ------------- | --------------------- | ---------------------------------------------- |
+| `environment` | `MfeTestEnvironment`  | The environment the render built. See below.   |
+| `dispose`     | `() => Promise<void>` | Unmounts and disposes. Call it in `afterEach`. |
+
+### renderSuspending
+
+```ts
+renderSuspending(ui: ReactNode): Promise<RenderResult>
+```
+
+Renders a tree that will suspend, inside an awaited `act` scope. Without it React warns and leaves the tree on its fallback. Use it when the thing under test loads a Widget.
+
+## The environment
+
+### createMfeTestEnvironment
+
+```ts
+createMfeTestEnvironment(options?: MfeTestEnvironmentOptions): MfeTestEnvironment
+```
+
+Builds a runtime and one mount, with no rendering. Reach for it to test a hook, a route loader, or the lifecycle itself. Every environment is independent, so no state leaks between tests.
+
+| Option              | Type                         | Default                                                            |
+| ------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `definitionId`      | `string`                     | `'test-definition'`                                                |
+| `definitionVersion` | `string`                     | none                                                               |
+| `kind`              | `'app'` or `'widget'`        | `'app'`                                                            |
+| `basePath`          | `string`                     | none                                                               |
+| `shellState`        | `{ user?, groups?, theme? }` | `{ id: 'test-user', name: 'Test User' }`, `['testers']`, `'light'` |
+| `definitions`       | `readonly MfeDefinition[]`   | none. What the in-process loader can resolve.                      |
+| `initialEntries`    | `readonly string[]`          | `['/']`                                                            |
+| `sessionGeneration` | `string`                     | `'test-session'`                                                   |
+
+What it returns:
+
+| Field           | What it is                                                                          |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `runtime`       | The runtime, as a shell would build it.                                             |
+| `mount`         | The one mount the environment owns.                                                 |
+| `wrapper`       | A component that wraps a hook or a tree in the real providers.                      |
+| `routerContext` | Typed context for a route test, with the same mount-owned Query client.             |
+| `setShellState` | Applies a patch inside `act`, exercising real session and group behaviour.          |
+| `telemetry`     | The recording telemetry provider.                                                   |
+| `diagnostics`   | Every diagnostic recorded so far.                                                   |
+| `navigation`    | The memory navigation bridge.                                                       |
+| `storageAreas`  | The injected `local` and `session` stores, which count the calls made against them. |
+| `dispose`       | Tears the whole environment down.                                                   |
+
+Recipe: [Test storage and the lifecycle](/docs/test-storage-and-lifecycle).
+
+## Environment values
+
+Your container's vitest config points `#mfe/config` at this fixture, so the source under test keeps its own import.
+
+### setMfeConfig and resetMfeConfig
+
+```ts
+setMfeConfig(values: Readonly<Record<string, unknown>>): void
+resetMfeConfig(): void
+```
+
+Installs the values this container is configured with for one test. Reading a field nobody installed throws and names the field, rather than handing your code `undefined`.
+
+```ts title="examples/operations/src/routes/assets.test.tsx"
+setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+```
+
+Recipe: [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api).
+
+## The request boundary
+
+These point `#mfe/fetch` at your handler. The interceptor itself is the production one, so the base URL, the token and the origin allowlist all behave as they ship.
+
+| Export              | Signature                              | What it does                                                                  |
+| ------------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
+| `setMfeFetch`       | `(handler: MfeFetchHandler) => void`   | Answers every request. Without one, a request throws.                         |
+| `setMfeApiBaseUrl`  | `(base: string) => void`               | The base a relative request resolves against. Its origin joins the allowlist. |
+| `setMfeApiOrigins`  | `(origins: readonly string[]) => void` | Further declared API origins.                                                 |
+| `setMfeAccessToken` | `(token: string \| null) => void`      | The session token. `null` models a signed-out shell.                          |
+| `mfeRequests`       | `() => readonly MfeFetchRecord[]`      | Every request that went out.                                                  |
+| `resetMfeFetch`     | `() => void`                           | Clears the handler, the token, the origins and the records.                   |
+
+An `MfeFetchRecord` is `{ url, method, authorization }`, where `url` is what the interceptor actually sent.
+
+```ts title="examples/operations/src/routes/assets.test.tsx"
+setMfeApiBaseUrl(API)
+setMfeAccessToken('token-7')
+setMfeFetch(() => json([]))
+
+await waitFor(() => {
+  expect(mfeRequests()).toHaveLength(1)
+})
+expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
+```
+
+### resetGeneratedAliases
+
+```ts
+resetGeneratedAliases(): void
+```
+
+Clears both fixtures at once. The shared vitest setup calls it, so one test never inherits another's configuration.
+
+## Related
+
+- [Test an App](/docs/test-an-app) — the recipe for `renderApp`.
+- [Test a Widget](/docs/test-a-widget) — inputs and emitted events.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — the request boundary.
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seeded storage and identity changes.
+- [Hooks and components](/docs/reference/hooks-and-components) — what you are rendering.
