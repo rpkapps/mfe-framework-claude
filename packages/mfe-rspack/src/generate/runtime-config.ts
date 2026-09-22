@@ -3,10 +3,14 @@
  * over them when the image starts. Neither carries a deployment's value.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+
 import type { ConfigField } from '../config/config-source.ts'
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
 import { generatedPath, jsonFile, type GeneratedFile } from './emit.ts'
 import type { GenerateContext } from './modules.ts'
+import type { ContainerPlan } from '../plan.ts'
 
 export const RUNTIME_CONFIG_DEFAULTS_FILE = 'runtime-config.defaults.json'
 export const RUNTIME_CONFIG_SCRIPT_FILE = 'runtime-config.sh'
@@ -30,6 +34,73 @@ export function runtimeConfigDefaultsFile(context: GenerateContext): GeneratedFi
     path: generatedPath(context.options.generatedDir, RUNTIME_CONFIG_DEFAULTS_FILE),
     contents: jsonFile(defaults),
   }
+}
+
+/** The directory the dev server publishes by default, and so where local values live. */
+const LOCAL_PUBLIC_DIR = 'public'
+
+export interface LocalRuntimeConfig {
+  /** Absolute path of the local file. */
+  readonly path: string
+  /** True when this run created or changed the file. */
+  readonly written: boolean
+  /** Required fields the file has no value for, which only the developer can supply. */
+  readonly missing: readonly string[]
+  /** Set when the file exists but could not be read as a JSON object, so it was left alone. */
+  readonly unreadable?: string
+}
+
+/**
+ * Seeds the dev server's copy with the declared defaults. It only ever adds a missing key: a
+ * value already in the file is the developer's, so it is never changed or removed.
+ */
+export function seedLocalRuntimeConfig(plan: ContainerPlan): LocalRuntimeConfig | null {
+  const source = plan.configSource
+  if (source === undefined) return null
+
+  const path = join(
+    plan.options.containerRoot,
+    LOCAL_PUBLIC_DIR,
+    plan.options.runtimeConfigFileName,
+  )
+
+  let current: Record<string, unknown> = {}
+  if (existsSync(path)) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(path, 'utf8'))
+    } catch (cause) {
+      return { path, written: false, missing: [], unreadable: messageOf(cause) }
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { path, written: false, missing: [], unreadable: 'it is not a JSON object' }
+    }
+    current = parsed as Record<string, unknown>
+  }
+
+  const next: Record<string, unknown> = { ...current }
+  const missing: string[] = []
+  let added = false
+  for (const field of source.fields) {
+    if (field.field in next) continue
+    if (field.schema.hasDefault && field.schema.defaultValue !== undefined) {
+      next[field.field] = field.schema.defaultValue
+      added = true
+    } else if (!field.schema.optional) {
+      missing.push(`${field.field} (${field.envVar}: ${summarizeSchema(field.schema)})`)
+    }
+  }
+
+  const written = added || !existsSync(path)
+  if (written) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, jsonFile(next), 'utf8')
+  }
+  return { path, written, missing }
+}
+
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 /** How the script turns one variable's text into a JSON value. */

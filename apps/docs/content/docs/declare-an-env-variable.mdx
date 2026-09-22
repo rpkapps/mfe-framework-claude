@@ -58,6 +58,9 @@ spreads and no shorthand.
 ```
 
 Your dev server publishes `public/` beside your assets, which is where the values are read from.
+`pnpm run generate` creates this file with your `.default(…)` values and adds any default it is
+missing later. It never changes a value you wrote, and it names each required field you still have
+to fill in.
 
 </Step>
 

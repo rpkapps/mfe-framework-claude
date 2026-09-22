@@ -6,13 +6,16 @@ import { parseArgs } from 'node:util'
 
 import { generateContainer } from '../generate/container.ts'
 import { generateRouteTree, ownsRouteTree } from '../generate/route-tree.ts'
+import { seedLocalRuntimeConfig } from '../generate/runtime-config.ts'
 
 const USAGE = `
 mfe-generate [options]
 
 Writes what the build would generate for the container in the current
 directory: the #mfe/* modules, the registry entry, the runtime
-configuration schema and .env.example, and an App's route tree.
+configuration schema and .env.example, and an App's route tree. It also
+adds any declared default missing from public/runtime-config.json, the
+dev server's copy, and never changes a value already there.
 
 Options:
   --root <directory>  the container to generate for (default: the working directory)
@@ -25,6 +28,8 @@ export interface GenerateResult {
   readonly paths: readonly string[]
   /** Findings in the container's own sources, which the build reports too. */
   readonly diagnostics: readonly Error[]
+  /** Things only the developer can do, such as supplying a required local value. */
+  readonly notes: readonly string[]
 }
 
 /** `relative()` answers in the host's separator; every other spelling here is POSIX. */
@@ -41,10 +46,26 @@ export async function generate(root: string): Promise<GenerateResult> {
     paths.push(report(plan.options.containerRoot, await generateRouteTree(plan)))
   }
 
+  const notes: string[] = []
+  const local = seedLocalRuntimeConfig(plan)
+  if (local !== null) {
+    const localPath = report(plan.options.containerRoot, local.path)
+    if (local.written) paths.push(localPath)
+    if (local.unreadable !== undefined) {
+      notes.push(`${localPath} was left as it is: ${local.unreadable}. Fix it to get the defaults.`)
+    }
+    if (local.missing.length > 0) {
+      notes.push(
+        `${localPath} has no value for ${local.missing.join(', ')}. Add one for local development; it has no default.`,
+      )
+    }
+  }
+
   return {
     packageName: plan.options.packageName,
     paths: [...paths].sort(),
     diagnostics: plan.diagnostics,
+    notes,
   }
 }
 
@@ -80,6 +101,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     console.log(result.packageName)
     for (const path of result.paths) console.log(`  ${path}`)
   }
+  for (const note of result.notes) console.log(note)
 
   if (result.diagnostics.length === 0) return 0
 
