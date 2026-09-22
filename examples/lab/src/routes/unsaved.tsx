@@ -10,6 +10,7 @@ import {
 } from '@tecton/react/components/dialog'
 import { Field, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { Input } from '@tecton/react/components/input'
+import { Kbd } from '@tecton/react/components/kbd'
 import { Textarea } from '@tecton/react/components/textarea'
 import { CheckIcon, SaveIcon, TriangleAlertIcon } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
@@ -61,10 +62,9 @@ function Unsaved(): ReactNode {
       tryThis={
         <>
           Type in the form below, then try to leave: pick another page from this App&apos;s own nav,
-          switch application from the finder at the top left, press{' '}
-          <code className="font-mono">⌘K</code> and jump somewhere, or use the browser&apos;s back
-          button. All four are refused by the same hook. Save, and the same navigation goes straight
-          through.
+          switch application from the finder at the top left, press <Kbd>⌘</Kbd> <Kbd>K</Kbd> and
+          jump somewhere, or use the browser&apos;s back button. All four are refused by the same
+          hook. Save, and the same navigation goes straight through.
         </>
       }
     >

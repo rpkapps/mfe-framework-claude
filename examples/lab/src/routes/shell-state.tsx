@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGroups, useTheme, useUser } from '@company/mfe-react'
 import { Avatar, AvatarFallback } from '@tecton/react/components/avatar'
 import { Badge } from '@tecton/react/components/badge'
+import { Kbd } from '@tecton/react/components/kbd'
 import { MoonIcon, SunIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -31,9 +32,9 @@ function ShellState(): ReactNode {
       description="One page, one session, one theme. An MFE subscribes to them; it never owns them, and never stores a second copy that can drift."
       tryThis={
         <>
-          Switch the theme from the shell&apos;s user menu, top right, or press{' '}
-          <code className="font-mono">⌘J</code>. The value below changes in this application without
-          a reload and without a prop being passed across the boundary.
+          Switch the theme from the shell&apos;s user menu, top right, or press <Kbd>⌘</Kbd>{' '}
+          <Kbd>J</Kbd>. The value below changes in this application without a reload and without a
+          prop being passed across the boundary.
         </>
       }
     >
