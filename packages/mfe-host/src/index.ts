@@ -1,7 +1,7 @@
 /**
  * `@company/mfe-host` — neutral loading, mounting and shell-service orchestration. Nothing
- * here imports React, a router, single-spa or Module Federation, because the container
- * loader is injected through the port in `loader/` (§6).
+ * here imports React, a router, single-spa or Module Federation: loading goes through the
+ * port in `loader/`, and the federation loader there is handed its runtime (§6).
  */
 
 export { readRegistry, type ReadRegistryOptions } from './registry/read-registry.ts'
@@ -13,10 +13,56 @@ export {
 } from './loader/container-loader.ts'
 
 export {
+  createFederationContainerLoader,
+  federationTarget,
+  isFederatedEntry,
+  type FederatedRegistryEntry,
+  type FederationLoaderOptions,
+  type FederationRuntime,
+} from './loader/federation-loader.ts'
+
+export {
+  createHostRuntime,
+  type CreateHostRuntimeOptions,
+  type HostRuntimeHandle,
+  type MfeHostRuntime,
+} from './runtime/host-runtime.ts'
+
+export {
   MountController,
   type MountControllerOptions,
   type MountOperations,
 } from './mount/mount-controller.ts'
+
+export {
+  createMountContext,
+  createMountToken,
+  type CreateMountContextOptions,
+  type MountContext,
+  type MountContextHandle,
+} from './mount/mount-context.ts'
+
+/** The neutral self-mounting contract, through which one framework's host mounts another's. */
+export {
+  isMountableDefinition,
+  type AppMountTarget,
+  type MountableAppDefinition,
+  type MountableDefinition,
+  type MountableWidgetDefinition,
+  type MountedApp,
+  type MountedWidget,
+  type WidgetMountTarget,
+} from './mount/mountable-definition.ts'
+
+export {
+  applyScopeAttributes,
+  createOverlayRoot,
+  KIND_ATTRIBUTE,
+  MOUNT_ATTRIBUTE,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+  type ScopeAttributes,
+} from './mount/scope-root.ts'
 
 export {
   requiresSessionRetirement,

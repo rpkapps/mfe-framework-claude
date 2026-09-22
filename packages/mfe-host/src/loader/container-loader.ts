@@ -1,7 +1,7 @@
 /**
  * The container-loading port: an internal seam, not a public loader API. The host
- * orchestrates loading but never performs it, which is what keeps federation in the React
- * adapter rather than this package (§6).
+ * orchestrates loading through it, and a shell chooses what performs it — the federation
+ * loader beside this file, handed its runtime, or an in-process loader in a test (§6).
  */
 
 import {

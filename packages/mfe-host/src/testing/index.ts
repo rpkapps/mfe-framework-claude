@@ -2,6 +2,12 @@
 
 export { createInProcessLoader } from './in-process-loader.ts'
 
+export {
+  createMemoryHostRuntime,
+  type MemoryHostRuntime,
+  type MemoryHostRuntimeOptions,
+} from './memory-host-runtime.ts'
+
 export { createMemoryNavigationBridge } from './memory-navigation-bridge.ts'
 
 export { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'

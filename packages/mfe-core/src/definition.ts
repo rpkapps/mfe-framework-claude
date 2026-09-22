@@ -59,6 +59,8 @@ export interface ContainerDescriptor {
   /** The Module Federation container name; a shell registers the remote under it before fetching. */
   readonly container: string
   readonly contractMajor: number
+  /** The adapter that built it; absent means a React container built before this field existed. */
+  readonly framework?: 'react' | 'angular'
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path. */
   readonly entries: Readonly<Record<string, string>>

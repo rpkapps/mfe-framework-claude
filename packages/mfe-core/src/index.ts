@@ -54,6 +54,13 @@ export {
 } from './definition.ts'
 
 export {
+  DEFINITION_BRAND,
+  isBrandedDefinition,
+  type BrandedDefinition,
+  type DefinitionFramework,
+} from './definition-brand.ts'
+
+export {
   eventNameToHandlerProp,
   isReservedInputName,
   isValidEventName,
