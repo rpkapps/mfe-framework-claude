@@ -91,3 +91,87 @@ describe('mfe-generate', () => {
     expect(result.diagnostics[0]?.message).toContain('import.meta.url')
   })
 })
+
+describe('mfe-generate and the local runtime configuration', () => {
+  const CONFIG = `
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+  telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
+  pageSize: env('PAGE_SIZE', z.number().default(25)),
+  mode: env('MODE', z.enum(['staging', 'production']).optional()),
+}
+`
+  const local = (root: string): unknown =>
+    JSON.parse(readFileSync(join(root, 'public/runtime-config.json'), 'utf8'))
+
+  it('creates the file with the defaults and names the required fields it cannot fill', async () => {
+    const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY, 'src/mfe.config.ts': CONFIG })
+
+    const result = await generate(root)
+
+    expect(local(root)).toEqual({ telemetryEnabled: true, pageSize: 25 })
+    expect(result.paths).toContain('public/runtime-config.json')
+    expect(result.notes).toEqual([
+      'public/runtime-config.json has no value for apiBaseUrl (API_BASE_URL: a string in uri form). Add one for local development; it has no default.',
+    ])
+  })
+
+  it('adds only missing defaults and never changes a value already there', async () => {
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json':
+        '{"apiBaseUrl":"http://localhost:3010/api/","telemetryEnabled":false,"extra":1}',
+    })
+
+    const result = await generate(root)
+
+    expect(local(root)).toEqual({
+      apiBaseUrl: 'http://localhost:3010/api/',
+      telemetryEnabled: false,
+      extra: 1,
+      pageSize: 25,
+    })
+    expect(result.notes).toEqual([])
+  })
+
+  it('leaves a complete file untouched', async () => {
+    const contents =
+      '{ "apiBaseUrl": "http://localhost:3010/api/", "telemetryEnabled": false, "pageSize": 5 }'
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': contents,
+    })
+
+    const result = await generate(root)
+
+    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe(contents)
+    expect(result.paths).not.toContain('public/runtime-config.json')
+  })
+
+  it('leaves a file it cannot read alone and says why', async () => {
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': '{ "apiBaseUrl": ',
+    })
+
+    const result = await generate(root)
+
+    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe('{ "apiBaseUrl": ')
+    expect(result.notes[0]).toContain('public/runtime-config.json was left as it is:')
+  })
+
+  it('writes nothing to public/ for a container with no configuration', async () => {
+    const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
+
+    const result = await generate(root)
+
+    expect(result.paths.some(path => path.startsWith('public/'))).toBe(false)
+    expect(result.notes).toEqual([])
+  })
+})
