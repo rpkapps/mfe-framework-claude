@@ -4,7 +4,7 @@
  * "what is this region" being asked of a page nobody can read the source of.
  *
  * The framework stamps the contract this reads — `data-mfe-scope`, `data-mfe-mount`,
- * `data-mfe-kind` — so the attribute names come from `@company/mfe-react` rather than being
+ * `data-mfe-kind` — so the attribute names come from `@company/mfe-react/host` rather than being
  * retyped here (§17).
  */
 
@@ -14,7 +14,7 @@ import {
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
-} from '@company/mfe-react'
+} from '@company/mfe-react/host'
 
 /**
  * Mount roots, less the body-level overlay roots: those carry the same scope and mount token but

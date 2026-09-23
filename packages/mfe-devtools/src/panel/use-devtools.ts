@@ -4,7 +4,8 @@
  */
 
 import { useMemo } from 'react'
-import { isFederatedEntry, useRegistryEntries } from '@company/mfe-react'
+import { useRegistryEntries } from '@company/mfe-react'
+import { isFederatedEntry } from '@company/mfe-react/host'
 
 /** The framework's own selector, so the panel and its host cannot disagree about what the registry holds. */
 export { useRegistryEntries }

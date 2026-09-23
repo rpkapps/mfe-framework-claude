@@ -120,27 +120,10 @@ export {
   type ShellAuthOptions,
 } from '@company/mfe-runtime'
 
-/** What a shell reads to tell a federated entry's container, or to name a mount's context. */
-export {
-  isFederatedEntry,
-  isMountableDefinition,
-  type FederatedRegistryEntry,
-  type MountableDefinition,
-  type MountContext,
-} from '@company/mfe-runtime'
-
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
 export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
 /** Listed in the shell's `adapters`; `/registry` exports it alone, without React. */
 export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.ts'
-/** The runtime stamps these on every mount's roots, so a tool reading the page finds each mount. */
-export {
-  KIND_ATTRIBUTE,
-  MOUNT_ATTRIBUTE,
-  OVERLAY_ROOT_ATTRIBUTE,
-  SCOPE_ATTRIBUTE,
-  createOverlayRoot,
-} from '@company/mfe-runtime'
 /** Exported because the generated container entry imports it (§17). */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'

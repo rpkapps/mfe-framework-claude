@@ -295,13 +295,14 @@ Recipe: [Show an icon](/docs/show-an-icon).
 
 These place or compose containers. A shell calls them. An App calls `mfeRoute` when it nests a child App at a splat route, and nothing else here.
 
-| Export                                                  | Signature                                  | What it is for                                         |
-| ------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `AppHost`                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.        |
-| `mfeRoute`                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path. |
-| `MfeProvider`                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                            |
-| `createContainerTransport`, `installShellAuth`          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.              |
-| `createOverlayRoot`, `withStyleRoot`, `SCOPE_ATTRIBUTE` | —                                          | Used by generated code and by the shell's own chrome.  |
+| Export                                                                  | Signature                                  | What it is for                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.        |
+| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path. |
+| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                            |
+| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.              |
+| `withStyleRoot`                                                         | —                                          | Used by generated code.                                |
+| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                        |
 
 `AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. `pending` fills the region while the container loads and the definition mounts, and `fallback` replaces it after a failure, with a `retry`. Without a `fallback` the failure is thrown to the nearest error boundary. Nothing suspends.
 
