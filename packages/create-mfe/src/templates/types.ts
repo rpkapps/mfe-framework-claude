@@ -110,7 +110,10 @@ dist/
 
 # Generated build output. Generation runs before typecheck, test and build.
 routeTree.gen.ts
-.mfe/
+.mfe/*
+# Except your local runtime configuration, which the dev server serves and no
+# build ships.
+!.mfe/runtime-config.json
 `,
     },
     {
@@ -281,11 +284,6 @@ export default defineConfig({
     // The shell serves the page from its own origin and reads this container's
     // manifest, remote entry and chunks from here.
     cors: true,
-    // runtime-config.json carries a deployment's values, so it is never built
-    // into the container. In development this server publishes the container's
-    // own local copy next to its assets, which is where the generated loader
-    // resolves it from.
-    publicDir: { name: 'public' },
   },
 
   dev: {
