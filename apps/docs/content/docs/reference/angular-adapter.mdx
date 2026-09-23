@@ -121,6 +121,10 @@ cleans up with the injector that created it.
 | `injectWidgetEmit()`                              | the Widget's validating emit                                       |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
 
+A registration passed to `injectCommand` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
+shell runs the command for it while the page is inside your App, the same way the palette runs it.
+A Widget's shortcut is ignored. [Add a command to the palette](/docs/add-a-command) has the rules.
+
 Inside an App, a route's `canDeactivate` guards also answer a shell navigation that would leave the
 App.
 
