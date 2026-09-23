@@ -80,6 +80,40 @@ by a page lasts as long as that page.
 
 </Step>
 
+<Step>
+
+### 4. Give it a shortcut
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+useCommand({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  shortcut: 'o w',
+  canExecute: () => allow(),
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+A chord joins modifiers and one key with `+`: `mod+s`, `shift+?`, `alt+enter`. A sequence is
+chords separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
+Spell a named key out: `escape`, `enter`, `space`, `plus`, `arrowup`, `f1`.
+
+The shell runs the command when the keys are pressed, the same way the palette runs it, so
+`canExecute` still decides. The palette shows the keys beside the command, and the help sheet
+lists them.
+
+- **When it fires.** An App's shortcut works while the page is inside that App. A Widget's is
+  ignored, because a Widget does not own the page's keys.
+- **Typing.** A key without <Kbd>Ctrl</Kbd>, <Kbd>⌘</Kbd> or <Kbd>Alt</Kbd> typed into a field
+  stays in the field.
+- **Keys you cannot have.** The shell's own keys are reserved: <Kbd>mod+k</Kbd>, <Kbd>?</Kbd>,
+  <Kbd>mod+j</Kbd> and every sequence starting with <Kbd>g</Kbd>. Pick keys that neither equal nor
+  begin nor extend one of those.
+
+</Step>
+
 </Steps>
 
 ## Check it works
@@ -123,6 +157,57 @@ string.
 ```
 
 **Fix.** Give the command the words you want in the palette. It is the only text the reader sees.
+
+</Callout>
+
+<Callout type="error" title="expected a shortcut such as 'mod+s'">
+
+```text
+operations failed to register command 'open-wells': expected a shortcut such as "mod+s" —
+modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated
+by spaces, such as "g r", received "mod+shift": "mod+shift" is only modifiers, with no key to
+press.
+```
+
+**Fix.** Add the key the modifiers are held with, such as `mod+shift+w`. The message names what it
+could not read.
+
+</Callout>
+
+<Callout type="error" title="expected keys the host page does not use">
+
+```text
+operations failed to register the shortcut 'g w' for command 'open-wells': expected keys the host
+page does not use, received the host page’s '@host:dashboard' (g w) uses them.
+```
+
+**Fix.** Choose other keys. The command stays in the palette; only the shortcut is ignored.
+
+</Callout>
+
+<Callout type="error" title="expected keys no other live command can be pressed for at the same time">
+
+```text
+operations failed to register the shortcut 'mod+e' for command 'export': expected keys no other
+live command can be pressed for at the same time, received 'operations:print' (mod+e) already
+claims them.
+```
+
+**Fix.** Give one of the two different keys. Neither runs while both are registered. Two Apps at
+different URLs may use the same keys, because only one of them is live at a time.
+
+</Callout>
+
+<Callout type="error" title="expected a shortcut from an App or the host page">
+
+```text
+alert-panel failed to register the shortcut 'mod+e' for command 'acknowledge-alert': expected a
+shortcut from an App or the host page, received a shortcut from a Widget, which does not own the
+page’s keys.
+```
+
+**Fix.** Drop the shortcut. If the keys matter, emit an event and let the App that places the
+Widget register the shortcut.
 
 </Callout>
 

@@ -205,6 +205,23 @@ initialiser — and clean up with the injector that created them.
 | `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                           | throws            |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)     | runtime only      |
 
+**A command's shortcut.** `injectCommand` passes the registration through as it
+is, so `shortcut` works as in any adapter: a chord such as `'mod+s'` or a
+sequence such as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. The host
+reads every key once and runs the command through the palette's path, so
+`canExecute` still decides. An App's shortcut fires while the page is inside the
+App's boundary; a Widget's is ignored, and so is one the host page already uses,
+each with a diagnostic.
+
+```ts
+injectCommand({
+  name: 'export',
+  label: 'Export the insights',
+  shortcut: 'mod+e',
+  execute: () => this.export(),
+})
+```
+
 **The mount's elements.** `injectMfeMount()` carries the two elements the
 runtime created for the mount: `scopeRoot`, the element with the mount's scope
 attributes that the definition renders inside, and `overlayRoot`, the body-level

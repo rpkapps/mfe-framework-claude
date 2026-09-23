@@ -150,7 +150,7 @@ Recipe: [Log an event](/docs/log-an-event).
 useCommand(registration: CommandRegistration): void
 ```
 
-Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read.
+Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the command for it while the page is inside your App, and ignores one from a Widget.
 
 ```ts title="examples/lab/src/routes/commands.tsx"
 useCommand({
