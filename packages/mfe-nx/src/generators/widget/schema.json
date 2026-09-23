@@ -3,7 +3,7 @@
   "$id": "NxMfeWidget",
   "cli": "nx",
   "title": "Generate an Angular MFE Widget container",
-  "description": "Scaffolds a zoneless Angular 19 Widget container: a non-routable, self-mounting definition built with @company/mfe-angular's createWidget, wired to @company/mfe-rspack/rspack.",
+  "description": "Scaffolds a zoneless Angular 19 Widget container: a non-routable, self-mounting definition built with @company/mfe-angular's createWidget, built by @nx/angular:webpack-browser with @company/mfe-nx/webpack's withMfe() as a Module Federation remote, with PrimeNG.",
   "type": "object",
   "properties": {
     "name": {

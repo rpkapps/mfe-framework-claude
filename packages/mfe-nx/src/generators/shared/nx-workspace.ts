@@ -1,20 +1,38 @@
-/** Reads the consumer workspace's own installed Nx major, tolerating the `^`/`~` a package.json
- * range usually carries. */
+/** What the consumer workspace's own root manifest already says about its toolchain. */
 
-import { readJson, type Tree } from '@nx/devkit'
+import { logger, readJson, updateJson, type Tree } from '@nx/devkit'
 
-const DEFAULT_NX_MAJOR = 22
+import { isAngularCompatibleTypeScript, TYPESCRIPT_VERSION } from './versions.ts'
 
 interface RootPackageJson {
   readonly dependencies?: Readonly<Record<string, string>>
   readonly devDependencies?: Readonly<Record<string, string>>
 }
 
-export function readNxMajor(tree: Tree): number {
+/** The workspace's declared `nx` specifier, or `undefined` when its manifest does not list one. */
+export function readNxVersion(tree: Tree): string | undefined {
   const root = readJson<RootPackageJson>(tree, 'package.json')
-  const raw = root.dependencies?.['nx'] ?? root.devDependencies?.['nx']
-  if (raw === undefined) return DEFAULT_NX_MAJOR
+  return root.devDependencies?.['nx'] ?? root.dependencies?.['nx']
+}
 
-  const match = /^[\^~]?(\d+)\./.exec(raw)
-  return match?.[1] === undefined ? DEFAULT_NX_MAJOR : Number(match[1])
+/**
+ * `addDependenciesToPackageJson` never lowers a version, and a workspace on TypeScript 5.9 or
+ * later cannot compile an Angular 19.2 container at all, so the workspace's own TypeScript is
+ * pinned to the Angular line here, and the change is logged rather than made silently.
+ */
+export function pinWorkspaceTypeScript(tree: Tree): void {
+  const root = readJson<RootPackageJson>(tree, 'package.json')
+  const field = root.devDependencies?.['typescript'] === undefined ? 'dependencies' : 'devDependencies'
+  const current = root[field]?.['typescript']
+  if (current === undefined || isAngularCompatibleTypeScript(current)) return
+
+  logger.warn(
+    `@company/mfe-nx: pinned the workspace's typescript from ${current} to ${TYPESCRIPT_VERSION}. ` +
+      'Angular 19.2 compiles only with TypeScript >=5.5 <5.9, and an Nx workspace has one ' +
+      'TypeScript for every project in it.',
+  )
+  updateJson<RootPackageJson, RootPackageJson>(tree, 'package.json', json => ({
+    ...json,
+    [field]: { ...json[field], typescript: TYPESCRIPT_VERSION },
+  }))
 }

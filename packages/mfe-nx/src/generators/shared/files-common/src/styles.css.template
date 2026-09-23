@@ -1,8 +1,6 @@
 /*
- * Global styles for this container. Angular inlines component styles itself, so only this
- * stylesheet goes through the build's PostCSS pipeline and scoping. `withMfe` appends the
- * `postcss-loader` rule that compiles it; the Tailwind source glob for an Angular container
- * covers every TypeScript and HTML file under src, so classes used in a component's inline
- * template are kept.
+ * Global styles for this container. The build imports this file into the container stylesheet it
+ * generates, so it ships with every exposed entry, after Tailwind's theme and utilities, and every
+ * rule is scoped to this container's mount roots. Component styles belong in the components:
+ * Angular encapsulates those itself. PrimeNG injects its own theme at run time.
  */
-@import 'tailwindcss';

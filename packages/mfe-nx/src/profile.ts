@@ -1,0 +1,39 @@
+/**
+ * What makes a container an Angular one, for the neutral build: where its definitions, route data
+ * and `env` come from, what it shares, and which files Tailwind scans.
+ */
+
+import type { ContainerProfile } from '@company/mfe-build'
+
+import { ANGULAR_ADAPTER } from './adapter.ts'
+import { readRouteDataCapabilities } from './discovery/capabilities.ts'
+import { ANGULAR_SHARING_POLICY } from './federation/sharing.ts'
+import { globalStylesheetImports } from './generate/styles.ts'
+import { CONTAINER_ROOT_OPTION } from './options.ts'
+
+/** The browser-safe subpath a container's `src/mfe.config.ts` imports `env` from. */
+export const ENV_MODULE = '@company/mfe-nx/env'
+
+/**
+ * No `exposeDefinition`: an exposed entry re-exports the author's definition unchanged, because an
+ * Angular mount needs no style root of the container's own around it.
+ */
+export function angularProfile(): ContainerProfile {
+  return {
+    generator: '@company/mfe-nx',
+    framework: 'angular',
+    definitions: {
+      factoryModules: [ANGULAR_ADAPTER],
+      appOptions: 'routes',
+      iconExample: "import { Bell } from 'lucide-angular' then icon: Bell",
+    },
+    envModules: [ENV_MODULE],
+    adapterModule: ANGULAR_ADAPTER,
+    sharing: ANGULAR_SHARING_POLICY,
+    // Templates are inline in `.ts` or beside it in `.html`; Angular inlines component styles and
+    // encapsulates them itself, so they never reach this stylesheet.
+    stylesheet: { sources: '**/*.{ts,html}', imports: globalStylesheetImports },
+    readCapabilities: readRouteDataCapabilities,
+    containerRootOption: CONTAINER_ROOT_OPTION,
+  }
+}

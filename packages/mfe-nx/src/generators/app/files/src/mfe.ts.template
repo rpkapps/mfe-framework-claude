@@ -1,9 +1,14 @@
 import { createApp } from '@company/mfe-angular'
 
-import { routes } from './app.routes.ts'
+import { AppComponent } from './app.component'
+import { routes } from './app.routes'
+import { providePrimeNgForMfe } from './primeng'
 
 export default createApp({
   id: '<%= id %>',
   version: '0.1.0',
   routes,
+  component: AppComponent,
+  // Environment providers for each mount's own application.
+  providers: [providePrimeNgForMfe()],
 })

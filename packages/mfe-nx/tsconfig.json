@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "types": ["node"],
-    "module": "commonjs",
+    "module": "node20",
+    "moduleResolution": "node16",
     "verbatimModuleSyntax": false
   },
   "include": ["src/**/*", "*.config.ts"]

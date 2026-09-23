@@ -1,30 +1,20 @@
 import { mountWidget } from '@company/mfe-angular/testing'
-import { afterEach, expect, it, vi } from 'vitest'
+import { expect, it } from 'vitest'
 
-import { <%= camel %> } from './mfe.ts'
+import { <%= camel %> } from './mfe'
 
-let dispose: (() => Promise<void>) | null = null
+// vitest.setup.ts disposes every mount after each test.
+it('emits a validated event when activated', async () => {
+  const mounted = await mountWidget(<%= camel %>, { inputs: { label: 'Run' } })
 
-afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new handle by the
-  // time this one resolves, and clearing then would drop it.
-  const current = dispose
-  dispose = null
-  await current?.()
+  mounted.element.querySelector<HTMLButtonElement>('p-button button')?.click()
+  await mounted.whenStable()
+
+  expect(mounted.events.map(event => event.name)).toEqual(['activated'])
 })
 
-it('emits a validated event when activated', async () => {
-  const onActivated = vi.fn()
-  const mounted = await mountWidget(<%= camel %>, {
-    inputs: { label: 'Run' },
-    onEvent: (name, payload) => {
-      if (name === 'activated') onActivated(payload)
-    },
-  })
-  dispose = mounted.dispose
+it('renders its label on a PrimeNG button', async () => {
+  const mounted = await mountWidget(<%= camel %>, { inputs: { label: 'Run' } })
 
-  mounted.element.querySelector('button')?.click()
-  await Promise.resolve()
-
-  expect(onActivated).toHaveBeenCalledTimes(1)
+  expect(mounted.element.querySelector('p-button')?.textContent).toContain('Run')
 })

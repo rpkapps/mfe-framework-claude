@@ -1,8 +1,22 @@
 {
   "extends": "<%= offsetFromRoot %>tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    // An Angular container is compiled for the browser by the Angular builder, whatever the
+    // workspace's own base targets, so the settings it depends on are stated here.
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
     "strict": true,
+    "skipLibCheck": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    // The generated .mfe modules import each other with their .ts extension.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     // Angular 19 decorators are the legacy proposal, and Define semantics would shadow the
     // input/output members Angular sets up on a component instance.
     "experimentalDecorators": true,
@@ -11,7 +25,10 @@
       "#mfe/*": ["./.mfe/*.ts"]
     }
   },
-  "files": [],
-  "include": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.spec.json" }]
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "include": ["src/**/*.ts", ".mfe/**/*.ts", "vitest.setup.ts", "vitest.config.mts"]
 }

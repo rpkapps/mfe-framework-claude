@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "Generate an Angular MFE container's build modules",
+  "description": "Writes what the build would generate for the project's container: the .mfe/ modules imported as #mfe/*, the registry entry and the runtime configuration schema, and adds any declared default missing from public/runtime-config.json. The container is the project the target belongs to.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

@@ -1,0 +1,67 @@
+/**
+ * PrimeNG for this container, kept to its own mounts. Each mount is its own Angular application,
+ * so these providers go in the definition's `providers` and every mount gets its own PrimeNG
+ * configuration. Verified with PrimeNG 19.1.4, @primeng/themes 19.1.4 and Angular 19.2, zoneless.
+ *
+ * PrimeNG's theme engine writes page-wide style tags, so every Angular container on a page must use
+ * the same PrimeNG version and the same preset; the build never shares PrimeNG between containers.
+ */
+
+import {
+  ElementRef,
+  effect,
+  inject,
+  makeEnvironmentProviders,
+  provideAppInitializer,
+  type EnvironmentProviders,
+} from '@angular/core'
+import { provideNoopAnimations } from '@angular/platform-browser/animations'
+import { injectMfeMount, injectTheme } from '@company/mfe-angular'
+import Aura from '@primeng/themes/aura'
+import { PrimeNG, providePrimeNG } from 'primeng/config'
+
+/**
+ * The class PrimeNG's dark-mode CSS is scoped under. It has to be a class: PrimeNG compiles an
+ * attribute selector to `:root[…]`, which only ever matches `<html>`, while a class selector
+ * cascades from whichever element carries it — here this mount's own root and overlay root.
+ */
+export const PRIMENG_DARK_CLASS = 'mfe-primeng-dark'
+
+/** The environment providers for `createApp` / `createWidget`'s `providers`. */
+export function providePrimeNgForMfe(): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    // PrimeNG's overlays declare Angular animations, and opening one without any animations
+    // provider throws NG05105. Swap to `provideAnimationsAsync()` for real transitions; both work
+    // zoneless.
+    provideNoopAnimations(),
+    providePrimeNG({
+      theme: { preset: Aura, options: { darkModeSelector: `.${PRIMENG_DARK_CLASS}` } },
+    }),
+    // Select, MultiSelect, AutoComplete and the other overlay components fall back to
+    // `overlayOptions.appendTo`, so this routes all of them into this mount's overlay root.
+    // Dialog, ConfirmDialog and Drawer do not read it: give each an explicit
+    // [appendTo]="mount.overlayRoot" (with `mount = injectMfeMount()` in the component).
+    provideAppInitializer(() => {
+      const mount = injectMfeMount()
+      const config = inject(PrimeNG)
+      config.overlayOptions = { ...config.overlayOptions, appendTo: mount.overlayRoot }
+    }),
+  ])
+}
+
+/**
+ * Keeps PrimeNG's dark mode on the shell's theme, for this mount only. Call it once, from the
+ * constructor of the component the definition mounts: only that component's `ElementRef` reaches
+ * the mount's own root element, which the environment providers above never see.
+ */
+export function bindPrimeNgDarkModeToShell(): void {
+  const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement
+  const mount = injectMfeMount()
+  const theme = injectTheme()
+
+  effect(() => {
+    const dark = theme() === 'dark'
+    host.classList.toggle(PRIMENG_DARK_CLASS, dark)
+    mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
+  })
+}

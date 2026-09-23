@@ -1,7 +1,8 @@
 import { createWidget } from '@company/mfe-angular'
 import { z } from 'zod'
 
-import { <%= pascal %>Component } from './<%= id %>.component.ts'
+import { <%= pascal %>Component } from './<%= id %>.component'
+import { providePrimeNgForMfe } from './primeng'
 
 // The schemas are the source of truth for runtime validation and for the author-facing types, so
 // the component's inputs and outputs need no separate annotations. The build reads them
@@ -20,4 +21,6 @@ export const <%= camel %> = createWidget({
   version: '0.1.0',
   ...<%= camel %>Contract,
   component: <%= pascal %>Component,
+  // Environment providers for each mount's own application.
+  providers: [providePrimeNgForMfe()],
 })

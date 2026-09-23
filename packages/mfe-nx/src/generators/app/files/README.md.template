@@ -1,26 +1,46 @@
 # <%= packageName %>
 
-An MFE App, scaffolded by `@company/mfe-nx`. Its id is `<%= id %>`. `nx run <%= projectName %>:serve`
-starts the Rspack dev server; `build`, `typecheck` and `test` do what they say. Each target runs
-`generate` (`mfe-generate`) first, so `nx run <%= projectName %>:generate` is only ever a recovery
-command.
+An MFE App, scaffolded by `@company/mfe-nx`. Its id is `<%= id %>`. `nx serve <%= projectName %>`
+starts the Angular dev server on port <%= port %>; `nx build <%= projectName %>`,
+`nx typecheck <%= projectName %>` and `nx test <%= projectName %>` do what they say. Each of them
+runs the `generate` target first, which writes the `.mfe/` modules the container imports, so
+`nx run <%= projectName %>:generate` is only ever a recovery command.
+
+The build is Nx's Angular webpack builder with `webpack.config.ts` as its `customWebpackConfig`;
+`withMfe()` there turns it into a Module Federation remote (`remoteEntry.js`, `mf-manifest.json`).
 
 This container is zoneless: it never imports `zone.js`, and every component uses
 `ChangeDetectionStrategy.OnPush` with signals. `src/app.routes.ts` declares its routes, including
-the `settings` capability page the shell opens from its own navigation; `src/main.ts` bootstraps
-nothing on its own, because the shell mounts this App's definition directly.
+the `settings` capability page the shell opens from its own navigation. Nothing bootstraps the App
+on its own: the shell mounts its definition, `src/mfe.ts`, one Angular application per mount.
 
 ## Configuration
 
 `src/mfe.config.ts` holds the schema and the environment mapping — no values and no secrets. The
 values live in `public/runtime-config.json`: the dev server publishes `public/` next to this
 container's assets, which is where the generated loader fetches it from at boot. Put your local
-values there. A deployment publishes its own file beside its assets, so no value is ever built
-into the container.
+values there. A build ships the declared defaults instead, and a deployment writes its own file
+beside its assets, so no local value is ever built into the container.
 
 Read configuration with `import { config } from '#mfe/config'` and make authenticated requests
 with `import { fetch } from '#mfe/fetch'`; the token is attached only to origins declared
 `{ api: true }`, and request code never handles one.
+
+## Styles and PrimeNG
+
+`src/styles.css` is this container's global stylesheet. The build compiles it with Tailwind's
+utilities for the classes under `src/` and scopes every rule to this container's mount roots.
+Component styles stay in the components, where Angular encapsulates them.
+
+PrimeNG is wired in `src/primeng.ts` and given to each mount through `createApp`'s `providers`:
+
+- Select, MultiSelect, AutoComplete and the other overlay components open inside the mount's
+  overlay root on their own. **Dialog, ConfirmDialog and Drawer do not**: give each one
+  `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component.
+- PrimeNG's theme engine is page-wide, so **every Angular container on a page must use the same
+  PrimeNG version and the same preset**. The build never shares PrimeNG between containers.
+- Dark mode follows the shell's theme for this mount only, through `bindPrimeNgDarkModeToShell()`
+  in `src/app.component.ts`.
 
 ## Connecting to the shell
 

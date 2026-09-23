@@ -21,11 +21,11 @@ import {
 
 import { toCamel, toPascal } from './names.ts'
 import { normalizeOptions, type NormalizedSchema } from './normalize.ts'
-import { buildProjectPackageJson } from './project-package-json.ts'
+import { pinWorkspaceTypeScript, readNxVersion } from './nx-workspace.ts'
+import { buildProjectPackageJson, projectDependencies } from './project-package-json.ts'
 import type { MfeGeneratorSchema, MfeTemplate } from './schema.ts'
 import { buildTargets } from './targets.ts'
-import { angularRspackVersionFor } from './versions.ts'
-import { readNxMajor } from './nx-workspace.ts'
+import { nxAngularVersionFor } from './versions.ts'
 
 export interface GenerateProjectOptions {
   readonly tree: Tree
@@ -58,13 +58,14 @@ export async function generateProject({
   commonFilesRoot,
 }: GenerateProjectOptions): Promise<GeneratorCallback> {
   const options = normalizeOptions(schema, template)
-  const angularRspackVersion = angularRspackVersionFor(readNxMajor(tree))
+  // Checked before anything is written, so an unsupported workspace is left as it was.
+  const dependencies = projectDependencies(nxAngularVersionFor(readNxVersion(tree)))
 
   addProjectConfiguration(tree, options.projectName, {
     root: options.projectRoot,
     projectType: template === 'app' ? 'application' : 'library',
     sourceRoot: join(options.projectRoot, 'src'),
-    targets: buildTargets(),
+    targets: buildTargets(options),
     tags: [...options.tags],
   })
 
@@ -72,8 +73,11 @@ export async function generateProject({
   generateFiles(tree, commonFilesRoot, options.projectRoot, substitutions)
   generateFiles(tree, filesRoot, options.projectRoot, substitutions)
 
-  const projectPackageJson = buildProjectPackageJson(options, template, angularRspackVersion)
-  writeJson(tree, join(options.projectRoot, 'package.json'), projectPackageJson)
+  writeJson(
+    tree,
+    join(options.projectRoot, 'package.json'),
+    buildProjectPackageJson(options, template, dependencies),
+  )
 
   if (template === 'app') {
     writeJson(tree, join(options.projectRoot, 'public/runtime-config.json'), {
@@ -85,14 +89,17 @@ export async function generateProject({
   if (!options.skipPackageJson) {
     installDependenciesTask = addDependenciesToPackageJson(
       tree,
-      projectPackageJson.dependencies,
-      projectPackageJson.devDependencies,
+      dependencies.dependencies,
+      dependencies.devDependencies,
     )
+    pinWorkspaceTypeScript(tree)
   }
 
   if (!options.skipFormat) {
     await formatFiles(tree)
   }
 
-  return runTasksInSerial(installDependenciesTask, () => installPackagesTask(tree))
+  return runTasksInSerial(installDependenciesTask, () => {
+    installPackagesTask(tree)
+  })
 }

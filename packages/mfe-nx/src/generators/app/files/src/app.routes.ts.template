@@ -1,8 +1,8 @@
-import { mfeRouteData } from '@company/mfe-angular'
 import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
 
-import { OverviewComponent } from './overview.component.ts'
-import { SettingsComponent } from './settings.component.ts'
+import { OverviewComponent } from './overview.component'
+import { SettingsComponent } from './settings.component'
 
 // Settings, help and release notes are pages, so they are routes. Declaring the capability
 // inline, on the route's own `data`, is all an App does; the build extracts it statically into

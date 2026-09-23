@@ -1,5 +1,2 @@
-node_modules/
-dist/
-
-# Generated build output. `mfe-generate` runs before typecheck, test and build.
+# Generated build modules. The generate target writes them before build, serve, test and typecheck.
 .mfe/

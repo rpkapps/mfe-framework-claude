@@ -84,6 +84,10 @@ catalog:
   caniuse-lite: 1.0.30001810
   cn: 0.2.6
   concurrently: 10.0.5
+  # packages/mfe-nx's webpack integration tests compile with the versions
+  # @angular-devkit/build-angular 19.2 itself pins, so they exercise the webpack an Angular
+  # container is actually built with.
+  css-loader: 7.1.2
   eslint: 10.10.0
   eslint-plugin-react-hooks: 7.1.1
   fumadocs-core: 16.15.9
@@ -92,6 +96,8 @@ catalog:
   jiti: 2.7.0
   jsdom: 30.1.0
   lucide-react: 1.45.0
+  # Same scope and reason as css-loader above.
+  mini-css-extract-plugin: 2.9.2
   next-themes: 0.4.6
   # Same scope as `@nx/devkit` above: packages/mfe-nx's own devDependency for tests.
   nx: 22.7.12
@@ -109,6 +115,8 @@ catalog:
   typescript-eslint: 8.70.0
   vite: 8.3.0
   vitest: 5.0.1
+  # Same scope and reason as css-loader above.
+  webpack: 5.98.0
   zod: 4.6.5
 # The documentation site (`apps/docs`) is a Vite + TanStack Start application, and
 # `@tanstack/react-start` depends on an exact `@tanstack/react-router`. Two copies of the router in

@@ -4,9 +4,9 @@ import angular from '@analogjs/vite-plugin-angular'
 import { defineConfig } from 'vitest/config'
 
 /**
- * JIT, not AOT: Vitest never runs the Rspack/Angular-Rspack build, so the compiler transform has
- * to run in-process for signal `input()`/`output()` — and everything else Angular's decorators
- * declare — to work under Vitest at all.
+ * JIT, not AOT: Vitest never runs the webpack build, so the compiler transform has to run
+ * in-process for signal `input()`/`output()` — and everything else Angular's decorators declare —
+ * to work under Vitest at all.
  */
 export default defineConfig({
   plugins: [angular({ jit: true, tsconfig: './tsconfig.spec.json' })],
@@ -25,6 +25,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    include: ['src/**/*.spec.ts'],
     setupFiles: ['./vitest.setup.ts'],
   },
 })

@@ -1,6 +1,6 @@
 /** Declarations only: values live in the deployed runtime-config.json, so no secret belongs here. */
 
-import { env } from '@company/mfe-rspack'
+import { env } from '@company/mfe-nx/env'
 import { z } from 'zod'
 
 export default {

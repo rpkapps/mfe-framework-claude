@@ -1,32 +1,56 @@
 {
   "name": "@company/mfe-nx",
   "version": "0.1.0",
-  "description": "Nx generators that scaffold an Angular 19 (zoneless) MFE container: nx g @company/mfe-nx:app and :widget.",
+  "description": "The Angular build integration for MFE containers, as an Nx plugin: withMfe() for @nx/angular:webpack-browser's customWebpackConfig (static discovery, generated #mfe/* modules, Module Federation 2 remotes, the container's scoped stylesheet), the generate executor, and the app and widget generators that scaffold a zoneless Angular 19 container.",
   "type": "commonjs",
   "sideEffects": false,
   "main": "./dist/src/index.js",
   "generators": "./generators.json",
+  "executors": "./executors.json",
   "exports": {
     "./package.json": "./package.json",
-    ".": "./dist/src/index.js"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./webpack": {
+      "types": "./dist/src/webpack/index.d.ts",
+      "default": "./dist/src/webpack/index.js"
+    },
+    "./env": {
+      "types": "./dist/src/env.d.ts",
+      "default": "./dist/src/env.js"
+    }
   },
   "files": [
     "dist",
-    "generators.json"
+    "generators.json",
+    "executors.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-templates.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@company/mfe-build": "workspace:*",
+    "@module-federation/enhanced": "catalog:",
+    "postcss": "catalog:",
+    "postcss-loader": "catalog:"
+  },
   "peerDependencies": {
-    "@nx/devkit": ">=20.0.0 <24.0.0"
+    "@nx/devkit": ">=20.0.0 <23.0.0"
   },
   "devDependencies": {
     "@nx/devkit": "catalog:",
     "@types/node": "catalog:",
+    "css-loader": "catalog:",
+    "mini-css-extract-plugin": "catalog:",
     "nx": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "webpack": "catalog:",
+    "zod": "catalog:"
   }
 }

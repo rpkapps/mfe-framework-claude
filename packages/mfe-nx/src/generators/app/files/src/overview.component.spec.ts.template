@@ -1,24 +1,21 @@
 import { mountApp } from '@company/mfe-angular/testing'
-import { afterEach, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 
-import mfe from './mfe.ts'
+import app from './mfe'
 
 // A component test with explicit fixtures: no shell process, no live credentials, no federation.
-let dispose: (() => Promise<void>) | null = null
-
-afterEach(async () => {
-  // Cleared before the await, not after: a second test may have assigned a new handle by the
-  // time this one resolves, and clearing then would drop it.
-  const current = dispose
-  dispose = null
-  await current?.()
-})
-
+// vitest.setup.ts disposes every mount after each test.
 it('reads the signed-in user from shell state', async () => {
-  const mounted = await mountApp(mfe, {
+  const mounted = await mountApp(app, {
     shellState: { user: { id: 'u-1', name: 'Ada Lovelace' } },
   })
-  dispose = mounted.dispose
 
   expect(mounted.element.textContent).toContain('Ada Lovelace')
+})
+
+it('renders its PrimeNG controls inside the mount', async () => {
+  const mounted = await mountApp(app)
+
+  expect(mounted.element.querySelector('p-select')).not.toBeNull()
+  expect(mounted.element.querySelector('p-button button')).not.toBeNull()
 })
