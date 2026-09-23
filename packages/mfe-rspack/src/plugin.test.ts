@@ -2,7 +2,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
+import { buildFederationOptions, withFrameworkMetadata } from '@company/mfe-build'
+
 import { planContainer } from './plan.ts'
 import { pluginMfe } from './rsbuild.ts'
 import { cleanupContainers, createContainer } from './testing/fixtures.ts'
