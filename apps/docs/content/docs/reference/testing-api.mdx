@@ -53,13 +53,45 @@ Recipe: [Test a Widget](/docs/test-a-widget).
 | `environment` | `MfeTestEnvironment`  | The environment the render built. See below.   |
 | `dispose`     | `() => Promise<void>` | Unmounts and disposes. Call it in `afterEach`. |
 
+Both render the definition's tree in the test's own React tree, inside the mount's scope root, so Testing Library's synchronous queries work. The tree is the one a production mount renders in its own root.
+
+### mountApp and mountWidget
+
+```ts
+mountApp(definition, options?: MountAppOptions): Promise<MountedTestDefinition>
+mountWidget(definition, options?: MountWidgetOptions): Promise<MountedTestWidget>
+```
+
+Place a definition the way every host does: through the runtime's `mountDefinition`, into an element attached to `document.body`, with the definition's own `mount`. They resolve once the mount settles and reject with the error it failed with. Reach for them when the test is about the host's side — the scope root, retry, disposal, or the events that reached the host. Any adapter's definition works.
+
+| Option          | Type                      | What it is                                                       |
+| --------------- | ------------------------- | ---------------------------------------------------------------- |
+| `basePath`      | `string`                  | `mountApp` only. The boundary; the history starts there.         |
+| `inputs`        | `Record<string, unknown>` | `mountWidget` only. The first inputs.                            |
+| `onEvent`       | `(name, payload) => void` | `mountWidget` only. Called for each event that reached the host. |
+| `memory`        | `MemoryRuntime`           | A runtime the test owns, which `dispose` leaves alive.           |
+| everything else | `MemoryRuntimeOptions`    | Used to build a runtime when `memory` is absent.                 |
+
+What they return: `element`, the scope root the runtime created; `memory`; `mount`, the runtime's handle with its `state`, `retry()` and `context`; and `dispose()`. `mountWidget` adds `events`, `rejectedInputs` and `update(inputs)`.
+
+```ts
+const mounted = await mountWidget(alertPanel, { inputs: { alertId: 'a-42' } })
+within(mounted.element).getByRole('button').click()
+expect(mounted.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'a-42' } }])
+await mounted.dispose()
+```
+
 ### renderSuspending
 
 ```ts
 renderSuspending(ui: ReactNode): Promise<RenderResult>
 ```
 
-Renders a tree that will suspend, inside an awaited `act` scope. Without it React warns and leaves the tree on its fallback. Use it when the thing under test loads a Widget.
+Renders a tree that may suspend, inside an awaited `act` scope. Without it React warns and leaves the tree on its fallback. A host component no longer suspends, so a test that places an App or a Widget renders with `render` and waits with `findBy…` or `waitFor` instead.
+
+### The runtime's fakes
+
+`@company/mfe-react/testing` re-exports `@company/mfe-runtime/testing`: `createMemoryRuntime`, `createInProcessLoader`, `createMemoryNavigationBridge`, `createMemoryStorageArea` and `createRecordingTelemetryProvider`. A test imports its adapter's entry point and nothing beneath it.
 
 ## The environment
 

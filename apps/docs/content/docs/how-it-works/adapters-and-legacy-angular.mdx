@@ -52,7 +52,7 @@ its own fields.
 `readRegistry` is one pass. Each raw entry is offered to every registered adapter's `detect`, and
 exactly one of them must recognise it. If none does, the entry is set aside as unrecognised. If two
 or more do, it is set aside as ambiguous, and the reason names them. Order therefore means nothing.
-`reactAdapter` is always registered, and `createMfeRuntime({ adapters })` names the rest.
+No adapter is registered implicitly: `createMfeRuntime({ adapters })` names every one the shell serves.
 
 | Adapter                       | Recognises an entry when                                 | Mounts it with           | Removable |
 | ----------------------------- | -------------------------------------------------------- | ------------------------ | --------- |

@@ -44,18 +44,20 @@ never required.
 ## Register the adapter
 
 ```ts title="apps/shell/src/boot.tsx"
+import { angularAdapter } from '@company/mfe-angular/registry'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
-import { createMfeRuntime } from '@company/mfe-react'
+import { createMfeRuntime } from '@company/mfe-react/host'
+import { reactAdapter } from '@company/mfe-react/registry'
 
 const { runtime } = createMfeRuntime({
   registryEntries,
-  adapters: [legacyAngularAdapter],
+  adapters: [reactAdapter, angularAdapter, legacyAngularAdapter],
   // …loader, shellState, telemetryProvider
 })
 ```
 
-Register the adapter by passing `legacyAngularAdapter` in `adapters`. `createMfeRuntime` always
-registers `reactAdapter` itself, and adds the ones you name. Order means nothing: exactly one
+Register the adapter by passing `legacyAngularAdapter` in `adapters`. `createMfeRuntime` registers
+nothing implicitly, so the shell lists every adapter it serves. Order means nothing: exactly one
 adapter has to recognise each entry.
 
 The shell in this repository registers this adapter in `apps/shell/src/boot.tsx`, so a legacy entry
