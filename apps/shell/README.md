@@ -301,9 +301,10 @@ mechanism and its two limits.
 
 The shell is the federation **host**: it consumes remotes and is not itself a
 container, so it does not use `pluginMfe()` from `@company/mfe-rspack`. It
-declares no static remotes — each is registered at runtime by the framework's
-loader, which is handed `registerRemotes` and `loadRemote` in `src/boot.tsx`,
-the one file that knows federation exists.
+declares no static remotes — each is registered at runtime by the runtime's
+`createFederationContainerLoader`, which is handed `registerRemotes` and
+`loadRemote` in `src/boot.tsx`, the one file that knows federation exists,
+which the root lint config exempts from the import boundary by name.
 
 The share scope is the one part of this build every container also has, so
 `rsbuild.config.ts` asks the build package for it (`docs/decisions.md` §27),
@@ -318,18 +319,25 @@ would re-fetch every registered remote's manifest before resolving any share,
 so a single unreachable manifest brought down whatever the shell had not
 loaded yet — the chrome included.
 
-Against this install it resolves `react`, `react-dom`, `sonner`,
-`@company/mfe-core`, `@company/mfe-runtime`, `@company/mfe-react`,
-`@tanstack/react-router` and `@tanstack/react-query` as strict
-singletons, each holding module state a second copy would duplicate, so a
-remote that resolves its own is an error; `@tecton/react/` — a prefix share,
-since the package has no root export, with an explicit `version` because
-Module Federation cannot infer one for a prefix — and
-`react-aria-components` without `singleton`, so a container may run
-its own version. The design system's half of that list comes from
-`@tecton/react/federation/shared`, which the build plugin reads too.
-`@company/mfe-core` and `@company/mfe-runtime` are in it although this shell
-declares neither: it imports only its adapter, which depends on them.
+Every React-bound candidate goes in the share scope named after the React this
+shell installed, `react@19.3.0`, as a strict singleton: `react`, `react-dom`,
+`sonner`, `@company/mfe-react`, `@tanstack/react-router` and
+`@tanstack/react-query`, each holding module state a second copy would
+duplicate. The design system's own entries from `@tecton/react/federation/shared`
+join that scope with the design system's flags: `@tecton/react/` — a prefix
+share, since the package has no root export, with an explicit `version` because
+Module Federation cannot infer one for a prefix — and `react-aria-components`,
+without `singleton`. `recharts` is on that list too, but the shell does not
+install it, and the host shares only what its own `node_modules` hold.
+`@company/mfe-core` and `@company/mfe-runtime` are page singletons in
+`default`, read beside `@company/mfe-react` because this shell declares neither:
+it imports only its adapters.
+
+The loader registers each container with the scopes its registry entry lists
+(`shareScopes`), `default` first. A container on this shell's React version
+takes the shell's copies; one on another React version keeps its own, so its
+toasts go to its own `sonner` and never reach this shell's `Toaster`
+(`docs/decisions.md` §33).
 
 ## Hot updates
 
