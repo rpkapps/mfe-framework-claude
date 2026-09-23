@@ -199,37 +199,36 @@ function ignoresShift(chord: ShortcutChord): boolean {
   return [...chord.key].length === 1 && !/[a-z0-9]/i.test(chord.key)
 }
 
-function resolve(chord: ShortcutChord, apple: boolean): PressedChord {
-  return {
-    key: chord.key,
-    ctrl: chord.ctrl || (chord.mod && !apple),
-    alt: chord.alt,
-    shift: chord.shift,
-    meta: chord.meta || (chord.mod && apple),
-  }
+/**
+ * `mod` read for the platform, as two plain reads rather than a resolved copy of the chord, because
+ * every key press compares every live chord.
+ */
+function holdsCtrl(chord: ShortcutChord, apple: boolean): boolean {
+  return chord.ctrl || (chord.mod && !apple)
+}
+
+function holdsMeta(chord: ShortcutChord, apple: boolean): boolean {
+  return chord.meta || (chord.mod && apple)
 }
 
 function chordMatches(expected: ShortcutChord, pressed: PressedChord, apple: boolean): boolean {
-  const wanted = resolve(expected, apple)
   return (
-    wanted.key === pressed.key &&
-    wanted.ctrl === pressed.ctrl &&
-    wanted.alt === pressed.alt &&
-    wanted.meta === pressed.meta &&
-    (ignoresShift(expected) || wanted.shift === pressed.shift)
+    expected.key === pressed.key &&
+    holdsCtrl(expected, apple) === pressed.ctrl &&
+    expected.alt === pressed.alt &&
+    holdsMeta(expected, apple) === pressed.meta &&
+    (ignoresShift(expected) || expected.shift === pressed.shift)
   )
 }
 
 /** Whether one key press on this platform could be read as both chords. */
 function chordsCollide(a: ShortcutChord, b: ShortcutChord, apple: boolean): boolean {
-  const left = resolve(a, apple)
-  const right = resolve(b, apple)
   return (
-    left.key === right.key &&
-    left.ctrl === right.ctrl &&
-    left.alt === right.alt &&
-    left.meta === right.meta &&
-    (ignoresShift(a) || ignoresShift(b) || left.shift === right.shift)
+    a.key === b.key &&
+    holdsCtrl(a, apple) === holdsCtrl(b, apple) &&
+    a.alt === b.alt &&
+    holdsMeta(a, apple) === holdsMeta(b, apple) &&
+    (ignoresShift(a) || ignoresShift(b) || a.shift === b.shift)
   )
 }
 
