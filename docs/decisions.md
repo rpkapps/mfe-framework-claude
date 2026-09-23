@@ -719,7 +719,7 @@ that is committed needs an exception in both the container's `.gitignore` (`.mfe
 not `.mfe/`) and the generated `.mfe/.gitignore`; a generate command reads no bundler
 configuration, so a renamed file is created by hand and committed once with
 `git add -f`; and a copy left in `public/` is moved once by the next generate run, or
-reported, because it would now ship, when both exist.
+reported, because it can now ship, when both exist.
 
 ---
 

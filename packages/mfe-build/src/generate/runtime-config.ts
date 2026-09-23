@@ -160,7 +160,7 @@ export function summarizeGeneration(
     if (local.leftInPublic !== undefined) {
       const previous = posixRelative(root, local.leftInPublic)
       notes.push(
-        `${previous} is no longer read: the dev server reads ${localPath}. A build copies public/ into its output, so ${previous} would now ship in production. Delete it.`,
+        `${previous} is no longer read: the dev server reads ${localPath}. A build copies public/ into its output, so ${previous} can now ship in production in place of the declared defaults. Delete it.`,
       )
     }
     if (local.unreadable !== undefined) {

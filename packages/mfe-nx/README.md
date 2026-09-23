@@ -132,7 +132,8 @@ yourself and commit it once with `git add -f`, after which git keeps tracking it
 
 A container generated before the file moved kept it in `public/`, which every build copies into its
 output. `generate` moves it to `.mfe/` once, byte for byte, and says so. When both exist it leaves
-both and warns that the `public/` copy is no longer read and would now ship: delete it.
+both and warns that the `public/` copy is no longer read and can now ship: delete it. It does ship
+from an Angular build, which copies assets after webpack has emitted the defaults.
 
 ## `withMfe()`
 

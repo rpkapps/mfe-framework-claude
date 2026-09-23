@@ -231,7 +231,7 @@ export default {
     })
   })
 
-  it('leaves both copies when both exist, and says the one in public/ would ship', async () => {
+  it('leaves both copies when both exist, and says the one in public/ can ship', async () => {
     const kept = '{ "apiBaseUrl": "http://localhost:3020/api/", "pageSize": 10 }'
     const root = createContainer({
       'src/mfe.ts': WIDGET_ENTRY,
@@ -247,7 +247,7 @@ export default {
     expect(result.paths).not.toContain('.mfe/runtime-config.json')
     expect(result.notes).toEqual([
       'public/runtime-config.json is no longer read: the dev server reads .mfe/runtime-config.json. ' +
-        'A build copies public/ into its output, so public/runtime-config.json would now ship in production. Delete it.',
+        'A build copies public/ into its output, so public/runtime-config.json can now ship in production in place of the declared defaults. Delete it.',
     ])
   })
 })
