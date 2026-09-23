@@ -22,20 +22,20 @@ imports `env` from its integration, which re-exports the helper from
 
 What differs between two integrations is stated once, as a `ContainerProfile`:
 
-| Field                 | What it decides                                                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `generator`           | The package every generated banner names.                                                                                                     |
-| `definitions`         | The modules `createApp` and `createWidget` may come from, and the examples a diagnostic suggests in the adapter's words.                      |
-| `envModules`          | The modules `src/mfe.config.ts` may import `env` from; the first also types `#mfe/config`.                                                    |
-| `adapterModule`       | Where the generated `#mfe/fetch` imports `createContainerTransport` from.                                                                     |
-| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`, and the name the framework's share scope starts with.                      |
-| `frameworkAnchor`     | The package whose installed version names the framework's share scope: `react` gives `react@19.3.0`.                                          |
-| `sharing`             | The share-scope candidates and how each is shared; a container shares one only when it depends on it, and an author can only add to the list. |
-| `stylesheet`          | What Tailwind scans under `src/`, and any lines added after its imports.                                                                      |
-| `exposeDefinition`    | Optional: how an exposed entry exports `definition`, in place of re-exporting the author's.                                                   |
-| `generatedFiles`      | Optional: files only this integration generates. They count towards the build hash.                                                           |
-| `readCapabilities`    | Optional: finds the App's capability routes. Without one, a container declares none.                                                          |
-| `containerRootOption` | How an author points the integration at a container, for the repair when that is wrong.                                                       |
+| Field                 | What it decides                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `generator`           | The package every generated banner names.                                                                                                  |
+| `definitions`         | The modules `createApp` and `createWidget` may come from, and the examples a diagnostic suggests in the adapter's words.                   |
+| `envModules`          | The modules `src/mfe.config.ts` may import `env` from; the first also types `#mfe/config`.                                                 |
+| `adapterModule`       | Where the generated `#mfe/fetch` imports `createContainerTransport` from.                                                                  |
+| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`, and the name the framework's share scope starts with.                   |
+| `frameworkAnchor`     | The package whose installed version names the framework's share scope: `react` gives `react@19.3.0`.                                       |
+| `sharing`             | The framework's share-scope candidates and how each is shared; the build adds the page singletons, and an author can only add to the list. |
+| `stylesheet`          | What Tailwind scans under `src/`, any lines added after its imports, and a query the entries import the stylesheet with.                   |
+| `exposeDefinition`    | Optional: how an exposed entry exports `definition`, in place of re-exporting the author's.                                                |
+| `generatedFiles`      | Optional: files only this integration generates. They count towards the build hash.                                                        |
+| `readCapabilities`    | Optional: finds the App's capability routes. Without one, a container declares none.                                                       |
+| `containerRootOption` | How an author points the integration at a container, for the repair when that is wrong.                                                    |
 
 ```ts
 import { planContainer, writeGeneratedFiles } from '@company/mfe-build'
@@ -45,12 +45,26 @@ writeGeneratedFiles(plan.generated.files) // skips every file whose bytes are un
 ```
 
 The plan carries everything the bundler glue needs: `exposes`, `shared`,
-`aliases`, `entryStub`, `scopes`, `generated` (files, build hash, registry
-descriptor and manifest metadata), and `diagnostics` to report as compilation
-errors. Planning is synchronous and writes nothing, so a test needs no compiler.
+`aliases`, `entryStub`, `stylesheet`, `scopes`, `generated` (files, build hash,
+registry descriptor and manifest metadata), and `diagnostics` to report as
+compilation errors. Planning is synchronous and writes nothing, so a test needs
+no compiler.
+
+A watching build keeps one planner: `createContainerPlanner(profile, options)`
+returns a function that plans on every call. It reads the manifest and resolves
+the shares on its first call only, because they cannot change without a
+restart, reads each source once per plan and parses only the files whose text
+changed since the call before.
 
 ## Building blocks
 
+- `applyContainerCompilation(compiler, options)`: what a webpack or Rspack
+  plugin does to each compilation, written against the hooks both share. It
+  writes the configured plan, re-plans before every compile after the first,
+  reports the plan's diagnostics, ships each generated file that names an
+  `asset`, and stamps `metaData.mfe` into the emitted `mf-manifest.json`. The
+  plugin chooses what happens to a runtime configuration already copied from
+  `public/`, the error type and the repair for a missing manifest.
 - `buildFederationOptions(plan)` and `withFrameworkMetadata(manifest, metadata)`,
   which stamps `metaData.mfe` into the emitted `mf-manifest.json`.
 - `containerPostcssPlugins({ scopes, containerRoot, loadScopePlugin, configured })`:
@@ -62,12 +76,17 @@ errors. Planning is synchronous and writes nothing, so a test needs no compiler.
   (a known name, a label, an icon that is a name or `{ src }`, one route per
   capability, Apps only), for a reader that has found the markers in its
   router's own syntax.
-- `seedLocalRuntimeConfig(plan)` and `RUNTIME_CONFIG_DEFAULTS_FILE`, for a
-  standalone generate command and for shipping the declared defaults.
-- The syntax helpers (`parseSourceFile`, `collectImportedBindings`, `walk`, …),
-  the generated-file helpers (`banner`, `joinBlocks`, `quote`,
-  `relativeSpecifier`, `generatedPath`) and `createBuildError`, so an
-  integration's own discovery and generated files read like these.
+- `seedLocalRuntimeConfig(plan)` and `summarizeGeneration(plan, written, local)`,
+  for a standalone generate command and what it reports.
+- The syntax helpers (`parseSourceFile`, `importedLocals`, `callsTo`,
+  `resolveRelativeModule`, `findExportedExpression`, `walk`, …), the
+  generated-file helpers (`banner`, `joinBlocks`, `quote`, `relativeSpecifier`,
+  `generatedPath`, `stylesheetPath`) and `createBuildError`, so an integration's
+  own discovery and generated files read like these. A capability reader is
+  handed the plan's `sources`, which read and parse each file once.
+- `@company/mfe-build/testing`: the container fixture the integrations' tests
+  share, which writes a container into a temporary directory from the manifest
+  and installed packages the integration names.
 
 ## Share scopes
 
@@ -79,9 +98,12 @@ the same version load one copy and a container on another version brings its own
 complete set. A page-wide candidate goes in `default`, which every container on
 the page shares whatever its framework.
 
-A container depends on its adapter, not on the neutral packages the adapter
-imports, so the page-wide candidates the adapter itself depends on are shared at
-the versions installed beside the adapter. A container's own entry for one wins.
+The build adds the page singletons, `@company/mfe-core` and `@company/mfe-runtime`
+(`PAGE_POLICY`), to every profile's candidates itself (`withPagePolicy`), so an
+integration cannot forget them. A container depends on its adapter, not on the
+neutral packages the adapter imports, so the page-wide candidates the adapter
+itself depends on are shared at the versions installed beside the adapter. A
+container's own entry for one wins.
 
 An author's `shared` override adds a candidate to the framework scope as a strict
 singleton, or tightens an existing one to a singleton. It never removes, relaxes or

@@ -1,6 +1,6 @@
 /**
  * The framework supplies the selectors and the integration picks the plugin that scopes with them:
- * a design system's own recipe, or the built-in fallback (§17).
+ * a design system's own recipe, or the built-in fallback.
  */
 
 import { join } from 'node:path'

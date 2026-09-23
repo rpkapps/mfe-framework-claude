@@ -1,6 +1,6 @@
 /**
  * What the design system adds to a React container's generated output: its scoped stylesheet
- * entry, and a root around each mounted tree so its overlays stay inside the container (§17).
+ * entry, and a root around each mounted tree so its overlays stay inside the container.
  */
 
 import {

@@ -30,7 +30,7 @@ export interface HostSharedOptions {
 
 /**
  * The `shared` map for a host's `moduleFederation.options`; a host provides the modules, so it
- * declares the version installed and shares what resolves rather than what it lists (§27). Every
+ * declares the version installed and shares what resolves rather than what it lists. Every
  * React-bound candidate goes in the scope named after the React the host installed, so only
  * containers built on that exact version take the host's copies.
  */
