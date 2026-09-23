@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 import { isMfeError, type MfeError } from '@company/mfe-core'
 
-import { parseFederatedEntry } from './federated-entry.ts'
+import { createFederatedAdapter, parseFederatedEntry } from './federated-entry.ts'
 
 /** Any adapter's name will do; the parser stamps whichever it is given. */
 const ADAPTER = 'test-adapter'
@@ -313,5 +313,49 @@ describe('build provenance', () => {
   it('drops a build it cannot read instead of failing the entry over it', () => {
     expect(parse(entry({ build: 'yesterday' })).build).toBeUndefined()
     expect(parse(entry({ build: { hash: 42 } })).build).toBeUndefined()
+  })
+})
+
+describe('an adapter for one framework’s federation builds', () => {
+  const marked = (mfe: unknown): Record<string, unknown> => entry({ mfe })
+
+  it('claims exactly the entries whose marker names its framework, however broken they are', () => {
+    const adapter = createFederatedAdapter({ kind: 'plain-dom' })
+
+    expect(adapter.detect(marked({ contractMajor: 1, framework: 'plain-dom' }))).toBe(true)
+    expect(adapter.detect(marked({ contractMajor: 'one', framework: 'plain-dom' }))).toBe(true)
+    expect(adapter.detect(marked({ contractMajor: 1, framework: 'react' }))).toBe(false)
+    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(false)
+    expect(adapter.detect(marked('broken'))).toBe(false)
+    expect(adapter.detect(entry({ mfe: undefined }))).toBe(false)
+    expect(adapter.detect('not an entry')).toBe(false)
+  })
+
+  it('also claims an entry that names no framework, when asked to', () => {
+    const adapter = createFederatedAdapter({ kind: 'react', claimsUnmarked: true })
+
+    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(true)
+    expect(adapter.detect(marked('broken'))).toBe(true)
+    expect(adapter.detect(marked({ contractMajor: 1, framework: 'angular' }))).toBe(false)
+    expect(adapter.detect({ id: 'reports' })).toBe(false)
+  })
+
+  it('parses through the shared reading, stamps its kind, and recognises only its own', () => {
+    const adapter = createFederatedAdapter({ kind: 'plain-dom' })
+    const parsed = adapter.parse(marked({ contractMajor: 1, framework: 'plain-dom' }))
+
+    expect(parsed.adapter).toBe('plain-dom')
+    expect(adapter.is(parsed)).toBe(true)
+    expect(adapter.is({ ...parsed, adapter: 'react' })).toBe(false)
+    expect(() => adapter.parse(marked({ contractMajor: 'one', framework: 'plain-dom' }))).toThrow(
+      /reports failed to read registry entry mfe\.contractMajor/,
+    )
+  })
+
+  it('wraps loads only when given a hook', () => {
+    const aroundLoad = <T>(load: () => Promise<T>): Promise<T> => load()
+
+    expect(createFederatedAdapter({ kind: 'plain-dom' }).aroundLoad).toBeUndefined()
+    expect(createFederatedAdapter({ kind: 'plain-dom', aroundLoad }).aroundLoad).toBe(aroundLoad)
   })
 })

@@ -1,12 +1,11 @@
 /**
- * The adapter for entries a React build publishes. `detect` is deliberately loose and `parse`
- * strict, so a typo in a React entry fails here instead of being read as some other kind of
- * container. The entry shape itself is the runtime's `parseFederatedEntry`, shared with every
- * other framework adapter.
+ * The adapter for entries a React build publishes. The entry shape is the runtime's, shared with
+ * every other framework adapter; what is React's is claiming an entry whose marker names no
+ * framework, and hiding the router global while a React container evaluates.
  */
 
-import { isRecord, type MfeAdapter } from '@company/mfe-core'
-import { parseFederatedEntry, type FederatedRegistryEntry } from '@company/mfe-runtime'
+import type { MfeAdapter } from '@company/mfe-core'
+import { createFederatedAdapter, type FederatedRegistryEntry } from '@company/mfe-runtime'
 
 /** What `entry.adapter` says on everything this adapter parses. */
 const REACT_ADAPTER_KIND = 'react'
@@ -18,13 +17,6 @@ const REACT_ADAPTER_KIND = 'react'
  */
 export interface ReactRegistryEntry extends FederatedRegistryEntry {
   readonly adapter: typeof REACT_ADAPTER_KIND
-}
-
-/** An absent framework is a React build from before the field existed. */
-function namesReact(marker: unknown): boolean {
-  if (!isRecord(marker)) return true
-  const framework = marker['framework']
-  return framework === undefined || framework === REACT_ADAPTER_KIND
 }
 
 /**
@@ -47,21 +39,11 @@ async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T>
   }
 }
 
-export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEntry> = {
-  kind: REACT_ADAPTER_KIND,
-
-  // The `mfe` key is the marker, valid or not: a broken framework entry must never fall to
-  // another adapter, because that would change how an application loads unnoticed. Only an
-  // entry that names another framework is someone else's, so one built before the field
-  // existed, or with a marker too broken to name anything, is still read here and fails in
-  // `parse`.
-  detect: raw => isRecord(raw) && 'mfe' in raw && namesReact(raw['mfe']),
-
-  // The shape every framework build publishes is read once, by the runtime.
-  parse: raw => parseFederatedEntry(raw, REACT_ADAPTER_KIND),
-
-  is: (entry): entry is ReactRegistryEntry => entry.adapter === REACT_ADAPTER_KIND,
-
-  // The runtime runs every React container's load inside this, and no other adapter's.
-  aroundLoad: withoutCurrentRouterGlobal,
-}
+export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEntry> =
+  createFederatedAdapter({
+    kind: REACT_ADAPTER_KIND,
+    // An entry from before the framework field existed is a React build.
+    claimsUnmarked: true,
+    // The runtime runs every React container's load inside this, and no other adapter's.
+    aroundLoad: withoutCurrentRouterGlobal,
+  })

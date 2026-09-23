@@ -16,8 +16,10 @@ import {
   type IconData,
   type IconNode,
   type JsonSchemaObject,
+  type MfeAdapter,
   type MfeError,
   type PublishedWidgetContract,
+  type RegistryEntry,
 } from '@company/mfe-core'
 import { z } from 'zod'
 
@@ -266,5 +268,44 @@ export function parseFederatedEntry<K extends string>(
       tags: parsed.tags,
       icon: parsed.icon,
     }),
+  }
+}
+
+export interface FederatedAdapterOptions<K extends string> {
+  /** What `entry.adapter` says on everything the adapter parses, and what `mfe.framework` names. */
+  readonly kind: K
+  /**
+   * Also claims an entry whose `mfe` marker names no framework, or is too broken to name one: a
+   * build from before the field existed. At most one adapter on a page may claim them.
+   */
+  readonly claimsUnmarked?: boolean
+  /** See `MfeAdapter.aroundLoad`. */
+  readonly aroundLoad?: MfeAdapter['aroundLoad']
+}
+
+/**
+ * The adapter for one framework's federation builds. The `mfe` marker is what `detect` reads,
+ * however broken the rest of the entry is, so a broken entry fails in its own adapter's `parse`
+ * rather than being read by another adapter, which would change how an application loads
+ * unnoticed.
+ */
+export function createFederatedAdapter<K extends string>(
+  options: FederatedAdapterOptions<K>,
+): MfeAdapter<K, FederatedRegistryEntry & { readonly adapter: K }> {
+  const { kind, claimsUnmarked = false, aroundLoad } = options
+
+  const namesThisFramework = (marker: unknown): boolean => {
+    if (!isRecord(marker)) return claimsUnmarked
+    const framework = marker['framework']
+    return framework === kind || (claimsUnmarked && framework === undefined)
+  }
+
+  return {
+    kind,
+    detect: raw => isRecord(raw) && 'mfe' in raw && namesThisFramework(raw['mfe']),
+    parse: raw => parseFederatedEntry(raw, kind),
+    is: (entry: RegistryEntry): entry is FederatedRegistryEntry & { readonly adapter: K } =>
+      entry.adapter === kind,
+    ...(aroundLoad === undefined ? {} : { aroundLoad }),
   }
 }
