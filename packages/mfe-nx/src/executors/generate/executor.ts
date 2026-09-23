@@ -21,8 +21,8 @@ import { generateContainer } from '../../generate/container.ts'
 export type GenerateExecutorOptions = Readonly<Record<string, never>>
 
 /**
- * Writes the generated modules, then adds any declared default missing from the dev server's
- * `public/` copy of the runtime configuration; a value already there is never changed.
+ * Writes the generated modules, then adds any declared default missing from the developer's
+ * `.mfe/runtime-config.json`, which the dev server serves; a value already there is never changed.
  */
 export function generate(containerRoot: string): GenerationSummary {
   const { plan, written } = generateContainer({ containerRoot })

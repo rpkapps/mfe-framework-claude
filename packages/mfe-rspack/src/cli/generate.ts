@@ -18,8 +18,8 @@ mfe-generate [options]
 Writes what the build would generate for the container in the current
 directory: the #mfe/* modules, the registry entry, the runtime
 configuration schema and .env.example, and an App's route tree. It also
-adds any declared default missing from public/runtime-config.json, the
-dev server's copy, and never changes a value already there.
+adds any declared default missing from .mfe/runtime-config.json, the
+copy the dev server serves, and never changes a value already there.
 
 Options:
   --root <directory>  the container to generate for (default: the working directory)

@@ -24,7 +24,8 @@ const PLUGIN_NAME = 'MfePlugin'
 export interface MfeWebpackPluginSettings {
   /**
    * Ship the declared defaults as the container's runtime configuration. Off for a dev server,
-   * whose `public/` copy carries the developer's values; defaults to a production-mode compile.
+   * which serves the developer's own copy from `.mfe/` instead; defaults to a production-mode
+   * compile.
    */
   readonly emitRuntimeConfig?: boolean
 }
@@ -57,10 +58,6 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
       plan,
       replan,
       emitRuntimeConfig: this.#settings.emitRuntimeConfig,
-      // Watching, Angular copies `public/` during the compilation, before this runs, so that copy
-      // is replaced; a one-off build copies it after webpack, which the generated production
-      // configuration's asset `ignore` covers.
-      copiedRuntimeConfig: 'replace',
       toError: diagnostic => toCompilationError(compiler, diagnostic),
       federationRepair:
         "Check that the project's customWebpackConfig still returns withMfe() and that nothing removed the ModuleFederationPlugin it adds.",

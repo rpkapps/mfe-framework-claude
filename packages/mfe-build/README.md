@@ -63,8 +63,9 @@ changed since the call before.
   writes the configured plan, re-plans before every compile after the first,
   reports the plan's diagnostics, ships each generated file that names an
   `asset`, and stamps `metaData.mfe` into the emitted `mf-manifest.json`. The
-  plugin chooses what happens to a runtime configuration already copied from
-  `public/`, the error type and the repair for a missing manifest.
+  declared defaults ship as the runtime configuration of a production compile
+  and of no other. The plugin chooses the error type and the repair for a
+  missing manifest.
 - `buildFederationOptions(plan)` and `withFrameworkMetadata(manifest, metadata)`,
   which stamps `metaData.mfe` into the emitted `mf-manifest.json`.
 - `containerPostcssPlugins({ scopes, containerRoot, loadScopePlugin, configured })`:
@@ -77,7 +78,15 @@ changed since the call before.
   capability, Apps only), for a reader that has found the markers in its
   router's own syntax.
 - `seedLocalRuntimeConfig(plan)` and `summarizeGeneration(plan, written, local)`,
-  for a standalone generate command and what it reports.
+  for a standalone generate command and what it reports. The developer's own
+  values live in `.mfe/runtime-config.json` (`localRuntimeConfigPath(options)`),
+  inside the build-managed directory, which no bundler copies into a build's
+  output. Seeding only adds the declared defaults the file lacks, and moves a
+  copy an earlier version left in `public/` there once.
+- `serveLocalRuntimeConfig({ containerRoot, generatedDir, runtimeConfigFileName, servePath })`:
+  a Connect-style middleware for either dev server that answers the runtime
+  configuration's URL with that file, read on every request, so container code
+  fetches the same URL in development and in production.
 - The syntax helpers (`parseSourceFile`, `importedLocals`, `callsTo`,
   `resolveRelativeModule`, `findExportedExpression`, `walk`, …), the
   generated-file helpers (`banner`, `joinBlocks`, `quote`, `relativeSpecifier`,

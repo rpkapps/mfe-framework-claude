@@ -5,9 +5,9 @@
  * which only compile a stylesheet whose request carries `?ngGlobalStyle` or `?ngResource`.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -19,12 +19,16 @@ import webpack, {
   type WebpackPluginInstance,
 } from 'webpack'
 
+import { seedLocalRuntimeConfig } from '@company/mfe-build'
+
 import {
   ANGULAR_CORE_VERSION,
   cleanupContainers,
   createContainer,
   writeFile,
 } from '../testing/containers.ts'
+import type { MfeAngularOptions } from '../options.ts'
+import { planContainer } from '../plan.ts'
 import { MfeWebpackPlugin, type MfeWebpackPluginSettings } from './plugin.ts'
 
 afterEach(cleanupContainers)
@@ -75,30 +79,46 @@ function reportsContainer(extra: Readonly<Record<string, string>> = {}): string 
   )
 }
 
-/** Stands in for Angular's own asset copy while watching: `public/` lands before the plugin runs. */
-class CopiedPublicConfig implements WebpackPluginInstance {
+/** Stands in for Angular's own asset copy: every file in `public/`, beside the compiled output. */
+class CopiedPublicDir implements WebpackPluginInstance {
+  constructor(private readonly root: string) {}
+
   apply(compiler: Compiler): void {
-    compiler.hooks.thisCompilation.tap('CopiedPublicConfig', (compilation: Compilation) => {
+    const publicDir = join(this.root, 'public')
+    compiler.hooks.thisCompilation.tap('CopiedPublicDir', (compilation: Compilation) => {
       compilation.hooks.processAssets.tap(
         {
-          name: 'CopiedPublicConfig',
+          name: 'CopiedPublicDir',
           stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
         },
         () => {
-          compilation.emitAsset(
-            'runtime-config.json',
-            new compiler.webpack.sources.RawSource('{ "reportLimit": 5 }\n'),
-          )
+          if (!existsSync(publicDir)) return
+          for (const name of readdirSync(publicDir, { recursive: true, encoding: 'utf8' })) {
+            const file = join(publicDir, name)
+            if (!statSync(file).isFile()) continue
+            compilation.emitAsset(
+              name.split(sep).join('/'),
+              new compiler.webpack.sources.RawSource(readFileSync(file)),
+            )
+          }
         },
       )
     })
   }
 }
 
+/** Seeds the developer's copy wherever the generate step keeps it, then edits in a laptop's value. */
+function giveLocalValues(root: string, options: MfeAngularOptions): void {
+  const local = seedLocalRuntimeConfig(planContainer({ ...options, containerRoot: root }))
+  if (local === null) throw new Error('The fixture declares no configuration to seed.')
+  writeFileSync(local.path, '{ "reportLimit": 5, "apiBaseUrl": "http://localhost:3010/api/" }\n')
+}
+
 function angularLikeConfig(
   root: string,
   mode: 'production' | 'development',
   settings: MfeWebpackPluginSettings = {},
+  options: MfeAngularOptions = {},
 ): Configuration {
   return {
     mode,
@@ -154,8 +174,8 @@ function angularLikeConfig(
     },
     plugins: [
       new MiniCssExtractPlugin({ filename: '[name].css' }),
-      new CopiedPublicConfig(),
-      new MfeWebpackPlugin({ containerRoot: root }, settings),
+      new CopiedPublicDir(root),
+      new MfeWebpackPlugin({ ...options, containerRoot: root }, settings),
     ],
     infrastructureLogging: { level: 'error' },
   }
@@ -301,7 +321,7 @@ describe('MfeWebpackPlugin on a production compile', () => {
   )
 
   it(
-    'ships the registry entry and the declared defaults, not the copy in public/',
+    'ships the registry entry and the declared defaults as the runtime configuration',
     async () => {
       const root = reportsContainer()
 
@@ -310,6 +330,28 @@ describe('MfeWebpackPlugin on a production compile', () => {
       expect(readJsonDist(root, 'mfe-registry.json')).toMatchObject({ framework: 'angular' })
       expect(existsSync(join(root, 'dist/runtime-config.schema.json'))).toBe(true)
       expect(readJsonDist(root, 'runtime-config.json')).toEqual({ reportLimit: 20 })
+    },
+    COMPILE_TIMEOUT,
+  )
+
+  it.each([
+    { named: 'runtime-config.json', options: {} },
+    { named: 'settings.json', options: { runtimeConfigFileName: 'settings.json' } },
+  ])(
+    "ships the declared defaults as $named, and none of the developer's values",
+    async ({ named, options }) => {
+      const root = reportsContainer({ 'public/robots.txt': 'User-agent: *\n' })
+      giveLocalValues(root, options)
+
+      await build(angularLikeConfig(root, 'production', {}, options))
+
+      expect(readJsonDist(root, named)).toEqual({ reportLimit: 20 })
+      // public/ is still copied; the developer's file is simply not in it.
+      expect(readDist(root, 'robots.txt')).toBe('User-agent: *\n')
+      const shipped = readdirSync(join(root, 'dist'), { recursive: true, encoding: 'utf8' })
+        .filter(name => statSync(join(root, 'dist', name)).isFile())
+        .map(name => readDist(root, name))
+      expect(shipped.filter(contents => contents.includes('localhost:3010'))).toEqual([])
     },
     COMPILE_TIMEOUT,
   )
@@ -388,14 +430,14 @@ describe('MfeWebpackPlugin across compiles', () => {
   )
 
   it(
-    "keeps the developer's public/ copy on a development compile",
+    'leaves the runtime configuration to the dev server on a development compile',
     async () => {
-      const root = reportsContainer()
+      const root = reportsContainer({ '.mfe/runtime-config.json': '{ "reportLimit": 5 }\n' })
 
       const stats = await build(angularLikeConfig(root, 'development'))
 
       expect(errorsOf(stats)).toEqual([])
-      expect(readJsonDist(root, 'runtime-config.json')).toEqual({ reportLimit: 5 })
+      expect(existsSync(join(root, 'dist/runtime-config.json'))).toBe(false)
     },
     COMPILE_TIMEOUT,
   )

@@ -1,8 +1,12 @@
 /** It contributes configuration and never replaces it, so an author's options stay theirs (§13). */
 
-import type { RsbuildConfig, RsbuildPlugin } from '@rsbuild/core'
+import type { RsbuildPlugin } from '@rsbuild/core'
 
-import { buildFederationOptions, containerPostcssPlugins } from '@company/mfe-build'
+import {
+  buildFederationOptions,
+  containerPostcssPlugins,
+  serveLocalRuntimeConfig,
+} from '@company/mfe-build'
 
 import { loadScopePlugin } from './css/scope.ts'
 import type { MfePluginOptions } from './options.ts'
@@ -16,9 +20,9 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
     name: PLUGIN_MFE_NAME,
 
     setup(api) {
-      api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
-        const containerRoot = options.containerRoot ?? api.context.rootPath
+      const containerRoot = options.containerRoot ?? api.context.rootPath
 
+      api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
         // Read once at configuration time, because Rsbuild cannot apply a change to what a
         // container exposes or shares without a restart; the Rspack plugin re-plans the sources
         // before every compile after the first, with the same planner.
@@ -31,7 +35,7 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
 
         const isBuild = api.context.action === 'build'
 
-        const merged = mergeRsbuildConfig(config, {
+        return mergeRsbuildConfig(config, {
           moduleFederation: { options: buildFederationOptions(plan) },
           server: {
             // A remote is read cross-origin by a shell, always.
@@ -73,33 +77,19 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
             },
           },
         })
+      })
 
-        // The build ships the declared defaults instead; a developer's `public/` copy would
-        // otherwise overwrite them with local values, like a localhost API.
-        if (isBuild && plan.configSource !== undefined) {
-          merged.server = {
-            ...merged.server,
-            publicDir: withoutRuntimeConfig(
-              merged.server?.publicDir,
-              plan.options.runtimeConfigFileName,
-            ),
-          }
-        }
-        return merged
+      // The developer's own values, from `.mfe/`, where no build copies them from. Registered
+      // ahead of Rsbuild's own middlewares, so a copy left in `public/` is never the one served.
+      api.onBeforeStartDevServer(({ server }) => {
+        server.middlewares.use(
+          serveLocalRuntimeConfig({
+            ...options,
+            containerRoot,
+            servePath: api.getNormalizedConfig().server.base,
+          }),
+        )
       })
     },
   }
-}
-
-type PublicDir = NonNullable<NonNullable<RsbuildConfig['server']>['publicDir']>
-
-/** Rsbuild reads `ignore` relative to each public directory, and fills in the default name. */
-function withoutRuntimeConfig(publicDir: PublicDir | undefined, fileName: string): PublicDir {
-  if (publicDir === false) return false
-  const ignore = (entry: { readonly ignore?: string[] } | undefined) => ({
-    ...entry,
-    ignore: [...(entry?.ignore ?? []), fileName],
-  })
-  if (Array.isArray(publicDir)) return publicDir.map(entry => ignore(entry))
-  return ignore(publicDir)
 }

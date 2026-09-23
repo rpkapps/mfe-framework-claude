@@ -49,11 +49,10 @@ export interface ContainerCompilationOptions<Plan extends ContainerPlan, Failure
   readonly replan: () => Plan
   /**
    * Ship the declared defaults as the container's runtime configuration. Off for a dev server,
-   * whose `public/` copy carries the developer's values; defaults to a production-mode compile.
+   * which serves the developer's own copy from `.mfe/` instead; defaults to a production-mode
+   * compile.
    */
   readonly emitRuntimeConfig?: boolean | undefined
-  /** What a production compile does with the `public/` copy when the bundler already emitted it. */
-  readonly copiedRuntimeConfig: 'replace' | 'keep'
   /** The finding as the error type the bundler reports. */
   readonly toError: (error: Error) => Failure
   /** Completes the error for a missing federation manifest: what should have added it. */
@@ -95,14 +94,9 @@ export function applyContainerCompilation<Plan extends ContainerPlan, Source, Fa
       () => {
         for (const file of current.generated.files) {
           if (file.asset === undefined) continue
-          const source = new sources.RawSource(file.contents)
-
-          if (file.asset !== current.options.runtimeConfigFileName) {
-            if (compilation.getAsset(file.asset) === undefined) {
-              compilation.emitAsset(file.asset, source)
-            }
-          } else if (emitRuntimeConfig) {
-            shipRuntimeConfig(compilation, file.asset, source, options.copiedRuntimeConfig)
+          if (file.asset === current.options.runtimeConfigFileName && !emitRuntimeConfig) continue
+          if (compilation.getAsset(file.asset) === undefined) {
+            compilation.emitAsset(file.asset, new sources.RawSource(file.contents))
           }
         }
       },
@@ -139,18 +133,4 @@ export function applyContainerCompilation<Plan extends ContainerPlan, Source, Fa
   })
 
   return () => plan
-}
-
-/**
- * The copy in `public/` is the developer's, with values such as a localhost API, so a production
- * compile ships the declared defaults. The start-up script writes the environment over them.
- */
-function shipRuntimeConfig<Source, Failure>(
-  compilation: BundlerCompilation<Source, Failure>,
-  name: string,
-  defaults: Source,
-  copied: 'replace' | 'keep',
-): void {
-  if (compilation.getAsset(name) === undefined) compilation.emitAsset(name, defaults)
-  else if (copied === 'replace') compilation.updateAsset(name, defaults)
 }

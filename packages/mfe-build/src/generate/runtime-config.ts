@@ -3,11 +3,12 @@
  * over them when the image starts. Neither carries a deployment's value.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import type { ConfigField } from '../config/config-source.ts'
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
+import { localRuntimeConfigPath, type ResolvedOptions } from '../options.ts'
 import { generatedPath, jsonFile, posixRelative, type GeneratedFile } from './emit.ts'
 import type { GenerateContext } from './modules.ts'
 import type { ContainerPlan } from '../plan.ts'
@@ -38,8 +39,8 @@ export function runtimeConfigDefaultsFile(context: GenerateContext): GeneratedFi
   }
 }
 
-/** The directory the dev server publishes by default, and so where local values live. */
-const LOCAL_PUBLIC_DIR = 'public'
+/** Where the local copy used to live, and a directory every build copies into its output. */
+const PUBLIC_DIR = 'public'
 
 export interface LocalRuntimeConfig {
   /** Absolute path of the local file. */
@@ -50,35 +51,27 @@ export interface LocalRuntimeConfig {
   readonly missing: readonly string[]
   /** Set when the file exists but could not be read as a JSON object, so it was left alone. */
   readonly unreadable?: string
+  /** Set when this run moved the file here from `public/`, where it used to live. */
+  readonly movedFrom?: string
+  /** Set when a copy is still in `public/` beside this one: nothing reads it, and a build ships it. */
+  readonly leftInPublic?: string
 }
 
 /**
- * Seeds the dev server's copy with the declared defaults. It only ever adds a missing key: a
- * value already in the file is the developer's, so it is never changed or removed.
+ * Seeds the developer's copy, which the dev server serves, with the declared defaults. It only
+ * ever adds a missing key: a value already in the file is the developer's, so it is never changed
+ * or removed.
  */
 export function seedLocalRuntimeConfig(plan: ContainerPlan): LocalRuntimeConfig | null {
   const source = plan.configSource
   if (source === undefined) return null
 
-  const path = join(
-    plan.options.containerRoot,
-    LOCAL_PUBLIC_DIR,
-    plan.options.runtimeConfigFileName,
-  )
+  const path = localRuntimeConfigPath(plan.options)
+  const moved = moveFromPublicDir(plan.options, path)
+  const found = { path, ...moved, written: moved.movedFrom !== undefined }
 
-  let current: Record<string, unknown> = {}
-  if (existsSync(path)) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(readFileSync(path, 'utf8'))
-    } catch (cause) {
-      return { path, written: false, missing: [], unreadable: messageOf(cause) }
-    }
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { path, written: false, missing: [], unreadable: 'it is not a JSON object' }
-    }
-    current = parsed as Record<string, unknown>
-  }
+  const current = existsSync(path) ? readJsonObject(path) : {}
+  if (typeof current === 'string') return { ...found, missing: [], unreadable: current }
 
   const next: Record<string, unknown> = { ...current }
   const missing: string[] = []
@@ -93,12 +86,42 @@ export function seedLocalRuntimeConfig(plan: ContainerPlan): LocalRuntimeConfig 
     }
   }
 
-  const written = added || !existsSync(path)
-  if (written) {
-    mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, jsonFile(next), 'utf8')
+  if (!added && existsSync(path)) return { ...found, missing }
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, jsonFile(next), 'utf8')
+  return { ...found, written: true, missing }
+}
+
+/** The file's object, or why it is not one. */
+function readJsonObject(path: string): Record<string, unknown> | string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (cause) {
+    return messageOf(cause)
   }
-  return { path, written, missing }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return 'it is not a JSON object'
+  }
+  return parsed as Record<string, unknown>
+}
+
+/**
+ * The local copy used to live in `public/`, which every build copies into its output. It moves
+ * once, byte for byte; when both copies exist, neither is touched and the one in `public/` is
+ * reported, because only the developer can say which values to keep.
+ */
+function moveFromPublicDir(
+  options: ResolvedOptions,
+  path: string,
+): Pick<LocalRuntimeConfig, 'movedFrom' | 'leftInPublic'> {
+  const previous = join(options.containerRoot, PUBLIC_DIR, options.runtimeConfigFileName)
+  if (!existsSync(previous)) return {}
+  if (existsSync(path)) return { leftInPublic: previous }
+
+  mkdirSync(dirname(path), { recursive: true })
+  renameSync(previous, path)
+  return { movedFrom: previous }
 }
 
 export interface GenerationSummary {
@@ -127,6 +150,19 @@ export function summarizeGeneration(
   if (local !== null) {
     const localPath = posixRelative(root, local.path)
     if (local.written) paths.push(localPath)
+    if (local.movedFrom !== undefined) {
+      const generated = posixRelative(root, plan.options.generatedDir)
+      notes.push(
+        `Moved ${posixRelative(root, local.movedFrom)} to ${localPath}, where the dev server now reads it and no build copies it from. ` +
+          `Commit the move, and keep the file tracked: in .gitignore, ignore ${generated}/* rather than ${generated}/, and add !${localPath}.`,
+      )
+    }
+    if (local.leftInPublic !== undefined) {
+      const previous = posixRelative(root, local.leftInPublic)
+      notes.push(
+        `${previous} is no longer read: the dev server reads ${localPath}. A build copies public/ into its output, so ${previous} would now ship in production. Delete it.`,
+      )
+    }
     if (local.unreadable !== undefined) {
       notes.push(`${localPath} was left as it is: ${local.unreadable}. Fix it to get the defaults.`)
     }

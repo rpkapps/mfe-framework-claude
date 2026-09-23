@@ -18,8 +18,10 @@ export type {
   ExposedDefinition,
   StylesheetProfile,
 } from './profile.ts'
-export { resolveContainerPath } from './options.ts'
-export type { ContainerOptions, ResolvedOptions } from './options.ts'
+export { localRuntimeConfigPath, resolveContainerPath } from './options.ts'
+export type { ContainerOptions, LocalRuntimeConfigOptions, ResolvedOptions } from './options.ts'
+export { serveLocalRuntimeConfig } from './dev-server.ts'
+export type { DevServerMiddleware, LocalRuntimeConfigServing } from './dev-server.ts'
 
 export { createBuildError, isMfeBuildError, MfeBuildError } from './diagnostics.ts'
 export type { BuildDiagnosticDetails } from './diagnostics.ts'

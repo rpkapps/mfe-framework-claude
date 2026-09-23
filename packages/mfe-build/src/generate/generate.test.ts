@@ -825,4 +825,19 @@ describe('written output', () => {
       "export { operations as definition } from '../../src/mfe.ts'",
     )
   })
+
+  it("ignores everything it writes but the developer's runtime configuration, as it is named", () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY })
+    const ignoredBy = (runtimeConfigFileName?: string): string[] => {
+      const plan = planContainer(TEST_PROFILE, {
+        containerRoot: root,
+        ...(runtimeConfigFileName === undefined ? {} : { runtimeConfigFileName }),
+      })
+      const gitignore = plan.generated.files.find(file => file.path.endsWith('.gitignore'))
+      return (gitignore?.contents ?? '').split('\n').filter(line => !line.startsWith('#'))
+    }
+
+    expect(ignoredBy()).toEqual(['*', '!runtime-config.json', ''])
+    expect(ignoredBy('settings.json')).toEqual(['*', '!settings.json', ''])
+  })
 })

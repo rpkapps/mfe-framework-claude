@@ -3,8 +3,8 @@
  * own suites compile real containers with it.
  */
 
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { join, sep } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -14,6 +14,8 @@ import {
   type BundlerCompiler,
   type ContainerCompilationOptions,
 } from './compilation.ts'
+import { seedLocalRuntimeConfig } from './generate/runtime-config.ts'
+import type { ContainerOptions } from './options.ts'
 import { createContainerPlanner, type ContainerPlan } from './plan.ts'
 import { cleanupContainers, createContainer } from './testing/fixtures.ts'
 import { TEST_PROFILE } from './testing/profile.ts'
@@ -103,9 +105,12 @@ function standInCompiler(mode: 'production' | 'development') {
   return { compiler, compile }
 }
 
-function containerPlanner(files: Readonly<Record<string, string>> = {}) {
+function containerPlanner(
+  files: Readonly<Record<string, string>> = {},
+  options: Pick<ContainerOptions, 'runtimeConfigFileName'> = {},
+) {
   const root = createContainer({ 'src/mfe.ts': ENTRY, 'src/mfe.config.ts': CONFIG, ...files })
-  const planner = createContainerPlanner(TEST_PROFILE, { containerRoot: root })
+  const planner = createContainerPlanner(TEST_PROFILE, { ...options, containerRoot: root })
   let replans = 0
   const replan = (): ContainerPlan => {
     replans += 1
@@ -124,7 +129,6 @@ function applied(
     name: 'AcmePlugin',
     plan: planner.plan,
     replan: planner.replan,
-    copiedRuntimeConfig: 'replace',
     toError: finding => new TaggedError(finding),
     federationRepair: 'Check that acmeMfe() is still applied.',
     ...options,
@@ -133,6 +137,24 @@ function applied(
 }
 
 const MANIFEST = '{ "metaData": { "name": "acme_operations" } }'
+
+/** Seeds the developer's copy wherever the generate step keeps it, then edits in a laptop's value. */
+function giveLocalValues(plan: ContainerPlan): void {
+  const local = seedLocalRuntimeConfig(plan)
+  if (local === null) throw new Error('The fixture declares no configuration to seed.')
+  writeFileSync(local.path, '{ "apiBaseUrl": "http://localhost:3010/api/" }\n')
+}
+
+/** What a bundler copies from `public/` beside the compiled output, as it emits it. */
+function copiedPublicDir(root: string): Record<string, string> {
+  const publicDir = join(root, 'public')
+  if (!existsSync(publicDir)) return {}
+  return Object.fromEntries(
+    readdirSync(publicDir, { recursive: true, encoding: 'utf8' })
+      .filter(name => statSync(join(publicDir, name)).isFile())
+      .map(name => [name.split(sep).join('/'), readFileSync(join(publicDir, name), 'utf8')]),
+  )
+}
 
 describe('applyContainerCompilation', () => {
   it('writes the configured plan, then plans again before every compile but the first', () => {
@@ -180,17 +202,25 @@ describe('applyContainerCompilation', () => {
     expect(JSON.parse(assets['runtime-config.json'] ?? 'null')).toEqual({ pageSize: 25 })
   })
 
-  it("replaces or keeps the developer's copy the bundler already emitted, as the plugin says", () => {
-    const copied = { 'mf-manifest.json': MANIFEST, 'runtime-config.json': '{ "pageSize": 5 }' }
+  it.each([
+    { named: 'runtime-config.json', options: {} },
+    { named: 'settings.json', options: { runtimeConfigFileName: 'settings.json' } },
+  ])(
+    "ships the declared defaults as $named, and none of the developer's values",
+    ({ named, options }) => {
+      const planner = containerPlanner({ 'public/robots.txt': 'User-agent: *\n' }, options)
+      giveLocalValues(planner.plan)
 
-    const replaced = applied('production', containerPlanner()).compile(copied)
-    const kept = applied('production', containerPlanner(), {
-      copiedRuntimeConfig: 'keep',
-    }).compile(copied)
+      const { assets } = applied('production', planner).compile({
+        'mf-manifest.json': MANIFEST,
+        ...copiedPublicDir(planner.root),
+      })
 
-    expect(JSON.parse(replaced.assets['runtime-config.json'] ?? 'null')).toEqual({ pageSize: 25 })
-    expect(kept.assets['runtime-config.json']).toBe(copied['runtime-config.json'])
-  })
+      expect(JSON.parse(assets[named] ?? 'null')).toEqual({ pageSize: 25 })
+      expect(assets['robots.txt']).toBe('User-agent: *\n')
+      expect(Object.values(assets).join('\n')).not.toContain('localhost')
+    },
+  )
 
   it('stamps the framework metadata into the federation manifest, keeping what it held', () => {
     const planner = containerPlanner()

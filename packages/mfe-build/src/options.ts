@@ -64,8 +64,8 @@ export function resolveOptions(
 
   return {
     containerRoot: root,
-    generatedDir: resolveContainerPath(root, options.generatedDir ?? DEFAULT_GENERATED_DIR),
-    runtimeConfigFileName: options.runtimeConfigFileName ?? DEFAULT_RUNTIME_CONFIG_FILE,
+    generatedDir: generatedDirOf(root, options),
+    runtimeConfigFileName: runtimeConfigFileNameOf(options),
     manifestFileName: options.manifestFileName ?? DEFAULT_MANIFEST_FILE,
     registryFileName: options.registryFileName ?? DEFAULT_REGISTRY_FILE,
     federationName: sanitizeFederationName(packageName),
@@ -81,6 +81,35 @@ export function resolveOptions(
 /** A path an author gives relative to the container root, or absolute. */
 export function resolveContainerPath(root: string, path: string): string {
   return isAbsolute(path) ? path : join(root, path)
+}
+
+/** The options that say where a container's local runtime configuration is. */
+export type LocalRuntimeConfigOptions = Pick<
+  ContainerOptions,
+  'generatedDir' | 'runtimeConfigFileName'
+> & { readonly containerRoot: string }
+
+/**
+ * The developer's own runtime configuration, with values such as a localhost API. It lives in the
+ * build-managed directory because no bundler copies that directory into a build's output, so a
+ * local value cannot ship whatever the file is named.
+ */
+export function localRuntimeConfigPath(options: LocalRuntimeConfigOptions): string {
+  return join(
+    generatedDirOf(resolve(options.containerRoot), options),
+    runtimeConfigFileNameOf(options),
+  )
+}
+
+function generatedDirOf(root: string, options: Pick<ContainerOptions, 'generatedDir'>): string {
+  return resolveContainerPath(root, options.generatedDir ?? DEFAULT_GENERATED_DIR)
+}
+
+/** The name the runtime configuration is published under, beside the container's assets. */
+export function runtimeConfigFileNameOf(
+  options: Pick<ContainerOptions, 'runtimeConfigFileName'>,
+): string {
+  return options.runtimeConfigFileName ?? DEFAULT_RUNTIME_CONFIG_FILE
 }
 
 /** It also names the global the remote entry installs itself on, so it must be an identifier. */

@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { logger, type ExecutorContext } from '@nx/devkit'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { cleanupContainers, createContainer } from '../../testing/containers.ts'
+import { cleanupContainers, createContainer, writeFile } from '../../testing/containers.ts'
 import generateExecutor, { generate } from './executor.ts'
 
 afterEach(() => {
@@ -72,18 +72,57 @@ describe('generate', () => {
     expect(generate(root).paths).toEqual([])
   })
 
-  it("adds the declared defaults to the dev server's runtime config and notes what has none", () => {
+  it("adds the declared defaults to the developer's runtime config and notes what has none", () => {
     const root = createContainer({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
     const result = generate(root)
 
-    expect(result.paths).toContain('public/runtime-config.json')
-    expect(JSON.parse(readFileSync(join(root, 'public/runtime-config.json'), 'utf8'))).toEqual({
+    expect(result.paths).toContain('.mfe/runtime-config.json')
+    expect(JSON.parse(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8'))).toEqual({
       reportLimit: 20,
     })
     expect(result.notes).toEqual([
       expect.stringContaining('has no value for apiBaseUrl (API_BASE_URL'),
     ])
+  })
+
+  it('moves a copy left in public/ into .mfe/ and says so, once', () => {
+    const local = '{"apiBaseUrl":"http://localhost:3010/api/","reportLimit":5}'
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': local,
+    })
+
+    const result = generate(root)
+
+    expect(existsSync(join(root, 'public/runtime-config.json'))).toBe(false)
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(local)
+    expect(result.notes).toEqual([
+      expect.stringContaining(
+        'Moved public/runtime-config.json to .mfe/runtime-config.json, where the dev server now reads it',
+      ),
+    ])
+    expect(generate(root).notes).toEqual([])
+  })
+
+  it('never rewrites or removes the developer’s copy when it regenerates .mfe/', () => {
+    const local = '{ "apiBaseUrl": "http://localhost:3010/api/", "reportLimit": 5 }'
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      '.mfe/runtime-config.json': local,
+    })
+
+    generate(root)
+    writeFile(
+      root,
+      'src/mfe.ts',
+      APP_ENTRY.replace("id: 'reports'", "id: 'reports', version: '2.0.0'"),
+    )
+    generate(root)
+
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(local)
   })
 })
 

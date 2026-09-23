@@ -5,7 +5,12 @@ import { join } from 'node:path'
 import { readCachedProjectGraph, workspaceRoot } from '@nx/devkit'
 import type { Configuration } from 'webpack'
 
-import { createBuildError } from '@company/mfe-build'
+import {
+  createBuildError,
+  serveLocalRuntimeConfig,
+  type DevServerMiddleware,
+  type LocalRuntimeConfigOptions,
+} from '@company/mfe-build'
 
 import { CONTAINER_ROOT_OPTION, type MfeAngularOptions } from '../options.ts'
 import { MfeWebpackPlugin } from './plugin.ts'
@@ -17,10 +22,67 @@ export function addContainerPlugin(
   target: BuilderTarget | undefined,
 ): Configuration {
   const containerRoot = options.containerRoot ?? projectRootOf(target)
+  // Only Angular's dev server hands over a `devServer`; a build has none to add to.
+  const { devServer } = config as ServedConfiguration
+
+  const configured: ServedConfiguration = {
+    ...config,
+    ...(devServer === undefined || devServer === false
+      ? {}
+      : { devServer: withLocalRuntimeConfig(devServer, { ...options, containerRoot }) }),
+    plugins: [...(config.plugins ?? []), new MfeWebpackPlugin({ ...options, containerRoot })],
+  }
+  return configured
+}
+
+/** webpack's own types leave `devServer` to webpack-dev-server, which this never imports. */
+type ServedConfiguration = Configuration & { readonly devServer?: AngularDevServer | false }
+
+/** The part of the webpack-dev-server configuration Angular builds that this reads. */
+interface AngularDevServer {
+  readonly devMiddleware?: { readonly publicPath?: string }
+  readonly setupMiddlewares?: SetupMiddlewares
+}
+
+type SetupMiddlewares = (middlewares: MiddlewareEntry[], server: unknown) => MiddlewareEntry[]
+
+/** An entry of webpack-dev-server's middleware list: a named one, or a bare handler. */
+type MiddlewareEntry =
+  { readonly name?: string; readonly middleware: unknown } | DevServerMiddleware
+
+/** webpack-dev-server's name for the middleware that serves the compiled output. */
+const COMPILED_OUTPUT_MIDDLEWARE = 'webpack-dev-middleware'
+
+/**
+ * The developer's own values, from `.mfe/`, where no build copies them from. The server's host
+ * checks and headers run first; the compiled output, where Angular serves its copy of `public/`
+ * from, runs after, so a copy left in `public/` is never the one served. An author's own
+ * `setupMiddlewares` still runs, before this is placed.
+ */
+function withLocalRuntimeConfig(
+  devServer: AngularDevServer,
+  options: LocalRuntimeConfigOptions,
+): AngularDevServer {
+  const middleware = serveLocalRuntimeConfig({
+    ...options,
+    servePath: devServer.devMiddleware?.publicPath,
+  })
+  const configured = devServer.setupMiddlewares
 
   return {
-    ...config,
-    plugins: [...(config.plugins ?? []), new MfeWebpackPlugin({ ...options, containerRoot })],
+    ...devServer,
+    setupMiddlewares: (middlewares, server) => {
+      const all = configured === undefined ? middlewares : configured(middlewares, server)
+      const compiled = all.findIndex(
+        entry => typeof entry !== 'function' && entry.name === COMPILED_OUTPUT_MIDDLEWARE,
+      )
+      const at = compiled === -1 ? 0 : compiled
+      return [
+        ...all.slice(0, at),
+        { name: 'mfe-local-runtime-config', middleware },
+        ...all.slice(at),
+      ]
+    },
   }
 }
 

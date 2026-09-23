@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -105,7 +105,7 @@ export default {
 }
 `
   const local = (root: string): unknown =>
-    JSON.parse(readFileSync(join(root, 'public/runtime-config.json'), 'utf8'))
+    JSON.parse(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8'))
 
   it('creates the file with the defaults and names the required fields it cannot fill', async () => {
     const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY, 'src/mfe.config.ts': CONFIG })
@@ -113,9 +113,9 @@ export default {
     const result = await generate(root)
 
     expect(local(root)).toEqual({ telemetryEnabled: true, pageSize: 25 })
-    expect(result.paths).toContain('public/runtime-config.json')
+    expect(result.paths).toContain('.mfe/runtime-config.json')
     expect(result.notes).toEqual([
-      'public/runtime-config.json has no value for apiBaseUrl (API_BASE_URL: a string in uri form). Add one for local development; it has no default.',
+      '.mfe/runtime-config.json has no value for apiBaseUrl (API_BASE_URL: a string in uri form). Add one for local development; it has no default.',
     ])
   })
 
@@ -123,7 +123,7 @@ export default {
     const root = createContainer({
       'src/mfe.ts': WIDGET_ENTRY,
       'src/mfe.config.ts': CONFIG,
-      'public/runtime-config.json':
+      '.mfe/runtime-config.json':
         '{"apiBaseUrl":"http://localhost:3010/api/","telemetryEnabled":false,"extra":1}',
     })
 
@@ -144,34 +144,110 @@ export default {
     const root = createContainer({
       'src/mfe.ts': WIDGET_ENTRY,
       'src/mfe.config.ts': CONFIG,
-      'public/runtime-config.json': contents,
+      '.mfe/runtime-config.json': contents,
     })
 
     const result = await generate(root)
 
-    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe(contents)
-    expect(result.paths).not.toContain('public/runtime-config.json')
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(contents)
+    expect(result.paths).not.toContain('.mfe/runtime-config.json')
   })
 
   it('leaves a file it cannot read alone and says why', async () => {
     const root = createContainer({
       'src/mfe.ts': WIDGET_ENTRY,
       'src/mfe.config.ts': CONFIG,
-      'public/runtime-config.json': '{ "apiBaseUrl": ',
+      '.mfe/runtime-config.json': '{ "apiBaseUrl": ',
     })
 
     const result = await generate(root)
 
-    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe('{ "apiBaseUrl": ')
-    expect(result.notes[0]).toContain('public/runtime-config.json was left as it is:')
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe('{ "apiBaseUrl": ')
+    expect(result.notes[0]).toContain('.mfe/runtime-config.json was left as it is:')
   })
 
-  it('writes nothing to public/ for a container with no configuration', async () => {
-    const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
+  it('writes no local copy for a container with no configuration, and moves nothing', async () => {
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'public/runtime-config.json': '{ "unrelated": true }',
+    })
 
     const result = await generate(root)
 
-    expect(result.paths.some(path => path.startsWith('public/'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/runtime-config.json'))).toBe(false)
+    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe(
+      '{ "unrelated": true }',
+    )
     expect(result.notes).toEqual([])
+  })
+})
+
+describe('mfe-generate and a local copy left in public/', () => {
+  const CONFIG = `
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+  pageSize: env('PAGE_SIZE', z.number().default(25)),
+}
+`
+  const LOCAL = '{"apiBaseUrl":"http://localhost:3010/api/","pageSize":5}'
+
+  it('moves it to .mfe/ once, byte for byte, and says how to keep it committed', async () => {
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': LOCAL,
+    })
+
+    const result = await generate(root)
+
+    expect(existsSync(join(root, 'public/runtime-config.json'))).toBe(false)
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(LOCAL)
+    expect(result.paths).toContain('.mfe/runtime-config.json')
+    expect(result.notes).toEqual([
+      'Moved public/runtime-config.json to .mfe/runtime-config.json, where the dev server now reads it and no build copies it from. ' +
+        'Commit the move, and keep the file tracked: in .gitignore, ignore .mfe/* rather than .mfe/, and add !.mfe/runtime-config.json.',
+    ])
+
+    const again = await generate(root)
+    expect(again.paths).toEqual([])
+    expect(again.notes).toEqual([])
+  })
+
+  it('then adds the defaults the moved copy lacked', async () => {
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': '{ "apiBaseUrl": "http://localhost:3010/api/" }',
+    })
+
+    await generate(root)
+
+    expect(JSON.parse(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8'))).toEqual({
+      apiBaseUrl: 'http://localhost:3010/api/',
+      pageSize: 25,
+    })
+  })
+
+  it('leaves both copies when both exist, and says the one in public/ would ship', async () => {
+    const kept = '{ "apiBaseUrl": "http://localhost:3020/api/", "pageSize": 10 }'
+    const root = createContainer({
+      'src/mfe.ts': WIDGET_ENTRY,
+      'src/mfe.config.ts': CONFIG,
+      'public/runtime-config.json': LOCAL,
+      '.mfe/runtime-config.json': kept,
+    })
+
+    const result = await generate(root)
+
+    expect(readFileSync(join(root, 'public/runtime-config.json'), 'utf8')).toBe(LOCAL)
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(kept)
+    expect(result.paths).not.toContain('.mfe/runtime-config.json')
+    expect(result.notes).toEqual([
+      'public/runtime-config.json is no longer read: the dev server reads .mfe/runtime-config.json. ' +
+        'A build copies public/ into its output, so public/runtime-config.json would now ship in production. Delete it.',
+    ])
   })
 })

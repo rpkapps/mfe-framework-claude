@@ -21,7 +21,8 @@ const PLUGIN_NAME = 'MfePlugin'
 export interface MfeRspackPluginSettings {
   /**
    * Ship the declared defaults as the container's runtime configuration. Off for a dev server,
-   * whose `public/` copy carries the developer's values; defaults to a production-mode compile.
+   * which serves the developer's own copy from `.mfe/` instead; defaults to a production-mode
+   * compile.
    */
   readonly emitRuntimeConfig?: boolean
 }
@@ -68,8 +69,6 @@ export class MfeRspackPlugin implements RspackPluginInstance {
       plan,
       replan: this.#replan,
       emitRuntimeConfig: this.#settings.emitRuntimeConfig,
-      // A build leaves the developer's copy out of the public directory instead (`pluginMfe`).
-      copiedRuntimeConfig: 'keep',
       toError: error => error,
       federationRepair:
         "Check that the Rsbuild config still applies pluginMfe() and that nothing replaced the container's moduleFederation options.",
