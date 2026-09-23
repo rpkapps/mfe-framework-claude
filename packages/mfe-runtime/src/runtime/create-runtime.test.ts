@@ -361,7 +361,7 @@ describe('disposing the runtime', () => {
     expect(recorded).toEqual([])
   })
 
-  /** A hub the shell lent it keeps the shell's own sinks (§25). */
+  /** A hub the shell lent it keeps the shell's own sinks. */
   it('removes only the sinks it added to a hub it was lent', () => {
     const shellOwned: Diagnostic[] = []
     const diagnostics = new DiagnosticsHub([diagnostic => shellOwned.push(diagnostic)])

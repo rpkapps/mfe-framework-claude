@@ -2,7 +2,7 @@
  * The Module Federation container loader, neutral because nothing in it depends on which adapter
  * built the container: it registers the remote an entry names, evaluates the exposed module and
  * returns the branded definition inside. The federation runtime is handed in rather than
- * imported, so this package never resolves Module Federation itself (§6).
+ * imported, so this package never resolves Module Federation itself.
  */
 
 import {

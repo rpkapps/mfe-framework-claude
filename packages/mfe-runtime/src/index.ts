@@ -1,7 +1,8 @@
 /**
  * `@company/mfe-runtime` — neutral loading, mounting and shell-service orchestration. Nothing
  * here imports React, a router, single-spa or Module Federation: loading goes through the
- * port in `loader/`, and the federation loader there is handed its runtime (§6).
+ * port in `loader/`, and the federation loader there is handed its runtime rather than
+ * importing it.
  */
 
 export { readRegistry, type ReadRegistryOptions } from './registry/read-registry.ts'
@@ -184,7 +185,7 @@ export type {
 
 /**
  * A shell constructs the hub itself, because `installShellAuth` runs before `createMfeRuntime`
- * exists to make one (§25).
+ * exists to make one.
  */
 export { DiagnosticsHub } from './diagnostics.ts'
 
