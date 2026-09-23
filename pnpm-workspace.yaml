@@ -178,6 +178,10 @@ catalogs:
     vite: 7.3.6
     vitest: 4.1.11
 
+# Current pnpm refuses a package published less than a day ago, and verifies the lockfile against
+# that rule, so resolving under it here keeps the lockfile installable whichever pnpm runs.
+minimumReleaseAge: 1440
+
 minimumReleaseAgeExclude:
   - '@rspack/binding-darwin-arm64@2.2.6'
   - '@rspack/binding-darwin-x64@2.2.6'
