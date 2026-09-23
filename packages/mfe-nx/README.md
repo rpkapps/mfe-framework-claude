@@ -122,11 +122,12 @@ that file, read on every request; so the generated `#mfe/config` fetches the sam
 and in production. No build copies `.mfe/`, so a production build ships only the declared defaults,
 whatever the file holds and whatever it is named.
 
-It is the one file in `.mfe/` that is committed: the generated `.gitignore` ignores `.mfe/*` and
-adds `!.mfe/runtime-config.json`. `withMfe({ runtimeConfigFileName })` renames it, to
-`.mfe/<that name>`, which then needs its own `!.mfe/<that name>` line. The `generate` executor does
-not read `webpack.config.ts`, so it seeds only `.mfe/runtime-config.json`; create the renamed file
-yourself.
+It is the one file in `.mfe/` that is committed: the project's `.gitignore` ignores `.mfe/*` and
+adds `!.mfe/runtime-config.json`, and the `.mfe/.gitignore` the build writes, which takes
+precedence inside `.mfe/`, makes the same exception. `withMfe({ runtimeConfigFileName })` renames
+the file to `.mfe/<that name>`. The `generate` executor does not read `webpack.config.ts`, so it
+neither seeds the renamed file nor excepts it in the `.mfe/.gitignore` it writes: create the file
+yourself and commit it once with `git add -f`, after which git keeps tracking it.
 
 A container generated before the file moved kept it in `public/`, which every build copies into its
 output. `generate` moves it to `.mfe/` once, byte for byte, and says so. When both exist it leaves

@@ -25,9 +25,9 @@ defaults as `runtime-config.json`, and a deployment writes its own values over t
 value can reach production.
 
 If `webpack.config.ts` renames the file with `withMfe({ runtimeConfigFileName })`, the dev server
-serves `.mfe/<that name>` instead: create it yourself, since the `generate` target does not read
-`webpack.config.ts` and seeds only `.mfe/runtime-config.json`, and add `!.mfe/<that name>` to
-`.gitignore`.
+serves `.mfe/<that name>` instead. The `generate` target does not read `webpack.config.ts`, so it
+neither seeds that file nor keeps it out of what `.mfe/.gitignore` ignores: create it yourself and
+commit it once with `git add -f`, after which git keeps tracking it.
 
 Read configuration with `import { config } from '#mfe/config'` and make authenticated requests
 with `import { fetch } from '#mfe/fetch'`; the token is attached only to origins declared
