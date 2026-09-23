@@ -5,7 +5,7 @@ import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import { frameworkOfModule } from './definitions.ts'
+import { DEFINITION_MODULES } from './definitions.ts'
 import {
   calleeName,
   collectImportedBindings,
@@ -38,14 +38,14 @@ export function findStrayDefinitions(
 
   for (const file of containerSourceFiles(sourceRoot, ignored)) {
     if (file === options.entryFile) continue
-    if (isTestFile(file)) continue
+    if (TEST_PATTERN.test(file)) continue
 
     const sourceFile = parseSourceFile(file)
     const imports = collectImportedBindings(sourceFile)
 
     const factories = new Set<string>()
     for (const [local, binding] of imports) {
-      if (frameworkOfModule(binding.moduleSpecifier) === undefined) continue
+      if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
       if (FACTORY_NAMES.has(binding.imported)) factories.add(local)
     }
     if (factories.size === 0) continue
@@ -74,11 +74,6 @@ export function findStrayDefinitions(
   }
 
   return errors
-}
-
-/** A test declares fixtures, not the container, so what it contains is never discovered. */
-export function isTestFile(file: string): boolean {
-  return TEST_PATTERN.test(file)
 }
 
 /** Every TypeScript source of a container, in a stable order. */

@@ -8,14 +8,9 @@ import { Generator, getConfig, type Config } from '@tanstack/router-generator'
 import { createBuildError } from '../diagnostics.ts'
 import type { ContainerPlan } from '../plan.ts'
 
-/**
- * A Widget-only container has no URL boundary and therefore no routes, and an Angular App
- * declares its routes as an array it passes to `createApp`, so nothing generates them.
- */
+/** A Widget-only container has no URL boundary and therefore no routes. */
 export function ownsRouteTree(plan: ContainerPlan): boolean {
-  return (
-    plan.framework === 'react' && plan.options.router !== false && plan.discovery.app !== undefined
-  )
+  return plan.options.router !== false && plan.discovery.app !== undefined
 }
 
 /** Build output, imported by the App entry, and never checked in. */

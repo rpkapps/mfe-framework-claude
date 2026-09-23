@@ -13,7 +13,7 @@ mfe-generate [options]
 
 Writes what the build would generate for the container in the current
 directory: the #mfe/* modules, the registry entry, the runtime
-configuration schema and .env.example, and a React App's route tree. It also
+configuration schema and .env.example, and an App's route tree. It also
 adds any declared default missing from public/runtime-config.json, the
 dev server's copy, and never changes a value already there.
 

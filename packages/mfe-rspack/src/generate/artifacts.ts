@@ -1,11 +1,7 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
 import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
-import type {
-  CapabilityDescriptor,
-  DefinitionFramework,
-  ExportedDefinitionDescriptor,
-} from '@company/mfe-core'
+import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
 
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
 import { ALIASES, containerId, exposeName, type GenerateContext } from './modules.ts'
@@ -16,8 +12,6 @@ export interface FrameworkManifestMetadata {
   readonly kind: 'mfe'
   /** The framework contract major this container was built against. */
   readonly major: number
-  /** The adapter that built it, so a shell picks the adapter that mounts it before loading it. */
-  readonly framework: DefinitionFramework
   readonly buildHash: string
   readonly buildTime: string
   readonly registryDescriptor: string
@@ -64,7 +58,6 @@ export function containerDescriptor(
     manifestUrl: context.options.manifestFileName,
     container: context.options.federationName,
     contractMajor: FRAMEWORK_CONTRACT_MAJOR,
-    framework: context.discovery.framework,
     definitions,
     entries,
     build: { hash: buildHash, time: context.options.buildTime },
@@ -80,7 +73,6 @@ export function frameworkMetadata(
   return {
     kind: 'mfe',
     major: descriptor.contractMajor,
-    framework: context.discovery.framework,
     buildHash,
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,

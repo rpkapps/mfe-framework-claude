@@ -4,11 +4,7 @@ import { FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
 
 import type { ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema } from '../config/zod-static.ts'
-import {
-  ADAPTER_MODULES,
-  type DiscoveredDefinition,
-  type DiscoveryResult,
-} from '../discovery/definitions.ts'
+import type { DiscoveredDefinition, DiscoveryResult } from '../discovery/definitions.ts'
 import type { ContractImport, WidgetContractSource } from '../discovery/widget-contract.ts'
 import type { ResolvedOptions } from '../options.ts'
 import {
@@ -242,7 +238,7 @@ const CONFIG_VALIDATE = [
 
 /**
  * The global `fetch` is never replaced, so nothing a container does here changes what the shell
- * observes; the transport comes from the container's own adapter, which is what it depends on.
+ * observes; the import is from `@company/mfe-react` because that is what a container depends on.
  */
 export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
@@ -258,7 +254,7 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
     contents: joinBlocks([
       banner(ALIASES.fetch),
       [
-        `import { createContainerTransport } from ${quote(ADAPTER_MODULES[context.discovery.framework])}`,
+        "import { createContainerTransport } from '@company/mfe-react'",
         ...(apiFields.length === 0 ? [] : ['', "import { config } from './config.ts'"]),
       ].join('\n'),
       [
@@ -376,8 +372,7 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
           ]),
     ].join('\n')
 
-    // Without a design system there is nothing to wrap the rendered tree in, and an Angular
-    // definition renders no React tree to wrap.
+    // Without a design system there is nothing to wrap the rendered tree in.
     const exposed = usesDesignSystem(context)
       ? [
           "import { withStyleRoot } from '@company/mfe-react'",

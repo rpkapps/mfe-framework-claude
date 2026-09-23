@@ -370,7 +370,6 @@ describe('the registry entry the build publishes', () => {
       container: 'acme_operations',
       entries: { operations: './app' },
       contractMajor: 1,
-      framework: 'react',
       definitions: [
         {
           id: 'operations',

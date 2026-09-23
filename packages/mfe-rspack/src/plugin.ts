@@ -1,7 +1,7 @@
 /**
- * The Rspack half of the build integration. CSS scoping and federation belong to the wrapper that
- * owns the configuration: `pluginMfe()`, because declaring `moduleFederation.options` is what makes
- * Rsbuild derive a remote's own paths (§13), or `withMfe()` for a plain Rspack configuration.
+ * The Rspack half of the build integration; CSS scoping and federation stay in `pluginMfe()`,
+ * because declaring `moduleFederation.options` is what makes Rsbuild derive a remote's own
+ * paths (§13).
  */
 
 import { createRequire } from 'node:module'
@@ -102,7 +102,7 @@ export class MfeRspackPlugin implements RspackPluginInstance {
 
 /** Runs `enforce: 'pre'`: the compiler reads source structure those transforms erase. */
 function applyReactCompiler(compiler: Compiler, plan: ContainerPlan): void {
-  if (plan.framework !== 'react' || !plan.options.reactCompiler) return
+  if (!plan.options.reactCompiler) return
 
   const babelLoader = require.resolve('babel-loader')
   const reactCompiler = require.resolve('babel-plugin-react-compiler')
@@ -144,8 +144,8 @@ function addFrameworkMetadata(
       new Error(
         `${PLUGIN_NAME}: no ${name} was emitted, so this container declares no framework ` +
           'contract and a shell cannot tell which major it was built against. Check that the ' +
-          'build config still applies pluginMfe() or withMfe() and that nothing replaced the ' +
-          "container's Module Federation options.",
+          "Rsbuild config still applies pluginMfe() and that nothing replaced the container's " +
+          'moduleFederation options.',
       ),
     )
     return
