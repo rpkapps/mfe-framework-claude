@@ -1,29 +1,35 @@
 ---
 title: 'Legacy Angular applications'
-description: 'The removable adapter that mounts an existing single-spa Angular application beside the Apps and Widgets a shell already loads.'
+description: 'The removable adapter that reads an existing single-spa Angular application into the registry, and the parcel lifecycle it keeps for mounting one.'
 ---
 
-`@company/mfe-legacy-angular` mounts an existing single-spa Angular application into a shell, beside
-the Apps and Widgets that shell already loads. A <Term>parcel</Term> is a piece of an application
-that exposes `bootstrap`, `mount` and `unmount`, for another application to mount into an element.
-This adapter reads a legacy registry entry into the same shape every shell screen reads, and drives
-that parcel.
+`@company/mfe-legacy-angular` reads an existing single-spa Angular application into a shell's
+registry, beside the Apps and Widgets that shell already loads. A <Term>parcel</Term> is a piece of
+an application that exposes `bootstrap`, `mount` and `unmount`, for another application to mount
+into an element. This adapter reads a legacy registry entry into the same shape every shell screen
+reads, and keeps the parcel lifecycle a mount will drive.
 
-A new micro-frontend is declared with `createApp` or `createWidget` from `@company/mfe-react` and
-needs none of this page.
+<Callout type="info" title="No host mounts a legacy application yet">
+  The shell reads legacy entries and lists them. The loader and parcel mount on this page are tested
+  on their own, and nothing on the page calls them yet.
+</Callout>
+
+A new micro-frontend is declared with `createApp` or `createWidget` from `@company/mfe-react` or
+`@company/mfe-angular`, and needs none of this page.
 
 ## What the adapter does
 
 - The adapter recognises registry entries that name no framework version. Every entry that names one
-  belongs to the [React adapter](/docs/how-it-works/design#how-the-adapters-fit-together).
+  belongs to a [framework adapter](/docs/how-it-works/design#how-the-adapters-fit-together), React
+  or Angular.
 - It reads a legacy entry into a `LegacyRegistryEntry`, with the legacy fields typed on it.
-- It loads the container through Module Federation and mounts the module it exposes as a
-  single-spa parcel.
+- Its loader loads the container through Module Federation, and its parcel mount mounts the module
+  it exposes as a single-spa parcel. No host calls either yet.
 
 The package is the only one in the workspace that knows the legacy single-spa contract, the legacy
-registry vocabulary and the `<name>/single-spa-app` expose path. Nothing else imports it. It
-depends on no React, no router and no `@company/mfe-react`, and `pnpm boundaries` fails if that
-changes.
+registry vocabulary and the `<name>/single-spa-app` expose path. Only the shell's composition root
+imports it. It depends on no React, no router and no `@company/mfe-react`, and `pnpm boundaries`
+fails if that changes.
 
 ## What a legacy application must expose
 
@@ -44,18 +50,20 @@ never required.
 ## Register the adapter
 
 ```ts title="apps/shell/src/boot.tsx"
+import { angularAdapter } from '@company/mfe-angular/registry'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
-import { createMfeRuntime } from '@company/mfe-react'
+import { createMfeRuntime } from '@company/mfe-react/host'
+import { reactAdapter } from '@company/mfe-react/registry'
 
 const { runtime } = createMfeRuntime({
   registryEntries,
-  adapters: [legacyAngularAdapter],
+  adapters: [reactAdapter, angularAdapter, legacyAngularAdapter],
   // …loader, shellState, telemetryProvider
 })
 ```
 
-Register the adapter by passing `legacyAngularAdapter` in `adapters`. `createMfeRuntime` always
-registers `reactAdapter` itself, and adds the ones you name. Order means nothing: exactly one
+Register the adapter by passing `legacyAngularAdapter` in `adapters`. `createMfeRuntime` registers
+nothing implicitly, so the shell lists every adapter it serves. Order means nothing: exactly one
 adapter has to recognise each entry.
 
 The shell in this repository registers this adapter in `apps/shell/src/boot.tsx`, so a legacy entry
@@ -69,12 +77,12 @@ in its registry is read rather than set aside.
 - The entry carries a non-empty `name` and a non-empty `mfManifestUrl`.
 
 An entry that names a framework version is never recognised here, however malformed the rest of it
-is. The React adapter sets it aside with a reason instead, and the registry lists it under
+is. The framework adapter it names sets it aside with a reason instead, and the registry lists it under
 `rejected`. Reading it as legacy would let a typo change how an application loads, unseen. An entry
 no adapter recognises is set aside as well, with a message naming the adapters that were
 registered.
 
-## How a legacy application is mounted
+## How a legacy application will be mounted
 
 <Steps>
 

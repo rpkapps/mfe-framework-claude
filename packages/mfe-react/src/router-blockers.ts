@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import type { HistoryLocation } from '@tanstack/react-router'
 import type { BoundaryLocation, NavigationAction } from '@company/mfe-core'
-import type { NavigationBlocker } from '@company/mfe-host'
+import { confirmUnlessDisposed, type NavigationBlocker } from '@company/mfe-runtime'
 
 import type { BoundaryHistory, RouterBlocker } from './boundary-history.ts'
 import type { MfeMount } from './runtime.ts'
@@ -30,26 +30,6 @@ function toHistoryLocation(location: BoundaryLocation, index: number): HistoryLo
 function wantsUnloadPrompt(blocker: RouterBlocker): boolean {
   const enabled = blocker.enableBeforeUnload ?? true
   return typeof enabled === 'function' ? enabled() : enabled
-}
-
-/**
- * A mount torn down mid-negotiation never answers, so the host would wait forever and refuse
- * every later navigation as "already negotiating".
- */
-function whenDisposed(mount: AbortSignal, until: AbortSignal): Promise<'proceed'> {
-  return new Promise(resolve => {
-    if (mount.aborted) {
-      resolve('proceed')
-      return
-    }
-    mount.addEventListener(
-      'abort',
-      () => {
-        resolve('proceed')
-      },
-      { once: true, signal: until },
-    )
-  })
 }
 
 /**
@@ -84,12 +64,7 @@ export function useRouterBlockerBridge(boundary: BoundaryHistory, mount: MfeMoun
           return 'proceed'
         }
 
-        const answered = new AbortController()
-        try {
-          return await Promise.race([askEveryone(), whenDisposed(mount.signal, answered.signal)])
-        } finally {
-          answered.abort()
-        }
+        return await confirmUnlessDisposed(mount.signal, askEveryone)
       },
     }
 

@@ -3,7 +3,7 @@
  * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -18,8 +18,8 @@ import {
   boundaryDefinitionId,
   createNavigationIntent,
   parseBoundaryLocation,
-} from '@company/mfe-host'
-import { devtools, MfeDevtools } from '@company/mfe-devtools'
+} from '@company/mfe-react/host'
+import { MfeDevtools } from '@company/mfe-devtools'
 import {
   Breadcrumb,
   BreadcrumbItem as Crumb,
@@ -57,7 +57,6 @@ import {
   AppShellOverflow,
   AppShellUserMenu,
 } from '@tecton/react/tecton/app-shell'
-import { ShortcutsProvider, useShortcut } from '@tecton/react/tecton/shortcuts'
 import {
   BugIcon,
   CircleHelpIcon,
@@ -72,13 +71,18 @@ import { toast } from 'sonner'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
-import { useActiveApp, useShellSurface } from './hooks.ts'
+import {
+  useActiveApp,
+  useAnnounceShellNavigation,
+  useCommandShortcuts,
+  useShellCommands,
+  useShellSurface,
+} from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
-import { createShellShortcutRegistry } from './shortcuts.ts'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
@@ -120,9 +124,11 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // Shell state is the theme's one source of truth, so a mounted App reads the same value
   // through the same hook.
   const theme = useTheme()
-  // Built once: a fresh registry per render re-subscribes the listener and drops every
-  // registration a mounted App has made against it.
-  const [registry] = useState(createShellShortcutRegistry)
+  useAnnounceShellNavigation()
+  // The shell's own commands and their keys, and the one listener every command's keys go
+  // through — a mounted App's included, which renders in a React root of its own.
+  useShellCommands()
+  useCommandShortcuts()
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.
@@ -157,8 +163,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   })
 
   return (
-    // One registry for the page: a mounted App registers its own shortcuts into the same one (§26).
-    <ShortcutsProvider registry={registry}>
+    <>
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
         {/* A React Aria link with an `href` is a document navigation unless a router is provided, and every breadcrumb click tore the shell down. */}
@@ -180,7 +185,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       <MfeDevtools />
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
-    </ShortcutsProvider>
+    </>
   )
 }
 
@@ -194,76 +199,6 @@ function Header(): ReactNode {
   const user = useUser()
 
   const current = active === null ? DASHBOARD : appFace(active.id, active.entry)
-
-  useShortcut({
-    id: 'shell.palette',
-    keys: 'mod+k',
-    label: 'Search or jump to…',
-    group: 'Shell',
-    onAction: () => {
-      shellUi.toggle('palette')
-    },
-  })
-
-  useShortcut({
-    id: 'shell.help',
-    keys: '?',
-    label: 'Help and keyboard shortcuts',
-    group: 'Shell',
-    onAction: () => {
-      shellUi.toggle('help')
-    },
-  })
-
-  useShortcut({
-    id: 'shell.registry',
-    keys: 'g r',
-    label: 'Open the registry',
-    group: 'Shell',
-    onAction: () => {
-      devtools.open('registry')
-    },
-  })
-
-  useShortcut({
-    id: 'shell.devtools',
-    keys: 'g d',
-    label: 'Open the developer tools',
-    group: 'Shell',
-    onAction: () => {
-      devtools.open('overrides')
-    },
-  })
-
-  useShortcut({
-    id: 'shell.settings',
-    keys: 'g s',
-    label: 'Open settings',
-    group: 'Shell',
-    onAction: () => {
-      shellUi.toggle('settings')
-    },
-  })
-
-  useShortcut({
-    id: 'shell.dashboard',
-    keys: 'g w',
-    label: 'Go to the Widget dashboard',
-    group: 'Shell',
-    onAction: () => {
-      void navigate({ to: '/' })
-    },
-  })
-
-  useShortcut({
-    id: 'shell.theme',
-    keys: 'mod+j',
-    label: 'Switch between light and dark',
-    group: 'Shell',
-    onAction: () => {
-      runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
-    },
-  })
 
   const initials = (user?.name ?? '?')
     .split(/\s+/)

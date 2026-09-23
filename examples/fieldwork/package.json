@@ -1,0 +1,59 @@
+{
+  "name": "@example/fieldwork",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "mfe": {
+    "port": 3007,
+    "definitions": [
+      "fieldwork"
+    ]
+  },
+  "nx": {
+    "includedScripts": []
+  },
+  "scripts": {
+    "dev": "pnpm run build:nx-plugin && nx serve fieldwork",
+    "build": "pnpm run build:nx-plugin && nx build fieldwork --skip-nx-cache",
+    "generate": "pnpm run build:nx-plugin && nx run fieldwork:generate",
+    "typecheck": "pnpm run build:nx-plugin && nx typecheck fieldwork",
+    "test": "pnpm run build:nx-plugin && nx test fieldwork",
+    "build:nx-plugin": "pnpm --filter @company/mfe-nx run build"
+  },
+  "dependencies": {
+    "@angular/animations": "catalog:",
+    "@angular/cdk": "catalog:",
+    "@angular/common": "catalog:",
+    "@angular/core": "catalog:",
+    "@angular/forms": "catalog:",
+    "@angular/platform-browser": "catalog:",
+    "@angular/router": "catalog:",
+    "@company/mfe-angular": "workspace:*",
+    "@primeng/themes": "catalog:",
+    "primeng": "catalog:",
+    "rxjs": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@analogjs/vite-plugin-angular": "catalog:",
+    "@analogjs/vitest-angular": "catalog:",
+    "@angular-devkit/build-angular": "catalog:",
+    "@angular-eslint/eslint-plugin": "catalog:",
+    "@angular-eslint/eslint-plugin-template": "catalog:",
+    "@angular-eslint/template-parser": "catalog:",
+    "@angular/compiler": "catalog:",
+    "@angular/compiler-cli": "catalog:",
+    "@company/eslint-plugin-mfe": "workspace:*",
+    "@company/mfe-nx": "workspace:*",
+    "@nx/angular": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "jiti": "catalog:",
+    "jsdom": "catalog:angular",
+    "nx": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:angular",
+    "vite": "catalog:angular",
+    "vitest": "catalog:angular"
+  }
+}

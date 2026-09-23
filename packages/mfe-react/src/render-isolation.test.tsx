@@ -351,7 +351,9 @@ describe('Widget inputs and handlers', () => {
           definition={probeWidget}
           mount={env.mount}
           inputs={inputs}
-          handlers={handlers}
+          emit={(event, payload) => {
+            handlers[event]?.(payload)
+          }}
         />
       </env.wrapper>
     )

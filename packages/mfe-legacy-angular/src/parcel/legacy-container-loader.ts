@@ -4,7 +4,7 @@
  */
 
 import { createMfeError, toMfeError, type RegistryEntry } from '@company/mfe-core'
-import type { ContainerLoader, LoadedDefinition } from '@company/mfe-host'
+import type { ContainerLoader, LoadedDefinition } from '@company/mfe-runtime'
 
 import {
   legacyAngularAdapter,

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "name": "@company/mfe-nx",
+  "version": "0.1.0",
+  "generators": {
+    "app": {
+      "factory": "./dist/src/generators/app/generator#default",
+      "schema": "./dist/src/generators/app/schema.json",
+      "description": "Scaffold a zoneless Angular 19 MFE App container.",
+      "aliases": ["application"]
+    },
+    "widget": {
+      "factory": "./dist/src/generators/widget/generator#default",
+      "schema": "./dist/src/generators/widget/schema.json",
+      "description": "Scaffold a zoneless Angular 19 MFE Widget container.",
+      "aliases": ["w"]
+    }
+  }
+}

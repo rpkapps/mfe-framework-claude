@@ -6,7 +6,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useState, type ReactNode } from 'react'
-import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
+import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-runtime'
 
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
 import { useNavigationBlock, type ShouldBlockNavigation } from './use-navigation-block.ts'

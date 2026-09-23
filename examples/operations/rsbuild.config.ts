@@ -32,12 +32,7 @@ export default defineConfig({
   // the shell's own resolution of the design system, so the two cannot drift.
   tools: { htmlPlugin: false, rspack: { resolve: tectonResolve(here) } },
 
-  server: {
-    port: manifest.mfe.port,
-    // A deployment's runtime-config.json is never built into the container, so in development this
-    // server publishes the container's own copy where the generated loader resolves it from.
-    publicDir: { name: 'public' },
-  },
+  server: { port: manifest.mfe.port },
 
   dev: {
     // Lazy compilation serves chunks from this server's own origin, so a shell on another origin

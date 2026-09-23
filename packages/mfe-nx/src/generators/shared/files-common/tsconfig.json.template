@@ -1,0 +1,45 @@
+{
+  "extends": "<%= offsetFromRoot %>tsconfig.base.json",
+  "compilerOptions": {
+    // An Angular container is compiled for the browser by the Angular builder, whatever the
+    // workspace's own base targets, so the settings it depends on are stated here.
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    // The generated .mfe modules import each other with their .ts extension.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    // Angular 19 decorators are the legacy proposal, and Define semantics would shadow the
+    // input/output members Angular sets up on a component instance.
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "paths": {
+      "#mfe/*": ["./.mfe/*.ts"]
+    }
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  // The tooling files are here as well as the sources: the lint config checks them with type
+  // information, and ESLint finds a file's program through the nearest tsconfig.json, which is this
+  // one. Nothing compiles or type-checks against this file itself; tsconfig.app.json and
+  // tsconfig.spec.json are the programs the build, the tests and the typecheck target use.
+  "include": [
+    "src/**/*.ts",
+    ".mfe/**/*.ts",
+    "vitest.setup.ts",
+    "vitest.config.mts",
+    "eslint.config.ts",
+    "webpack.config.ts"
+  ]
+}

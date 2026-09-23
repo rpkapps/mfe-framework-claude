@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "cli": { "packageManager": "pnpm" },
+  "useDaemonProcess": false,
+  "neverConnectToCloud": true,
+  "analytics": false,
+  "tui": { "enabled": false }
+}

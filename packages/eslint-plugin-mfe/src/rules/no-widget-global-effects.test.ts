@@ -75,37 +75,61 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       code: "history.pushState(null, '', '/reports')",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'history', data: { access: 'history.pushState' } }],
+      errors: [
+        {
+          messageId: 'history',
+          data: { access: 'history.pushState', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: "window.history.replaceState(null, '', '/reports')",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'history', data: { access: 'window.history.replaceState' } }],
+      errors: [
+        {
+          messageId: 'history',
+          data: { access: 'window.history.replaceState', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: 'history.back()',
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'history', data: { access: 'history.back' } }],
+      errors: [
+        { messageId: 'history', data: { access: 'history.back', emitAccess: 'its render props' } },
+      ],
     },
     {
       code: 'globalThis.history.go(-1)',
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'history', data: { access: 'globalThis.history.go' } }],
+      errors: [
+        {
+          messageId: 'history',
+          data: { access: 'globalThis.history.go', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: "export function Panel() {\n  document.title = 'Reports'\n}",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'title', data: { access: 'document.title' } }],
+      errors: [
+        { messageId: 'title', data: { access: 'document.title', emitAccess: 'its render props' } },
+      ],
     },
     {
       code: "window.document.title = 'Reports'",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'title', data: { access: 'window.document.title' } }],
+      errors: [
+        {
+          messageId: 'title',
+          data: { access: 'window.document.title', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: 'const icon = document.querySelector(\'link[rel="icon"]\')',
@@ -114,7 +138,10 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       errors: [
         {
           messageId: 'headMetadata',
-          data: { access: 'document.querySelector(\'link[rel="icon"]\')' },
+          data: {
+            access: 'document.querySelector(\'link[rel="icon"]\')',
+            emitAccess: 'its render props',
+          },
         },
       ],
     },
@@ -125,7 +152,10 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       errors: [
         {
           messageId: 'headMetadata',
-          data: { access: 'document.querySelector(\'meta[name="description"]\')' },
+          data: {
+            access: 'document.querySelector(\'meta[name="description"]\')',
+            emitAccess: 'its render props',
+          },
         },
       ],
     },
@@ -133,25 +163,42 @@ createRuleTester().run('mfe/no-widget-global-effects', rule, {
       code: 'document.head.appendChild(iconLink)',
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'headMetadata', data: { access: 'document.head.appendChild' } }],
+      errors: [
+        {
+          messageId: 'headMetadata',
+          data: { access: 'document.head.appendChild', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: "document.head.innerHTML = '<title>Reports</title>'",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'headMetadata', data: { access: 'document.head.innerHTML' } }],
+      errors: [
+        {
+          messageId: 'headMetadata',
+          data: { access: 'document.head.innerHTML', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: "(window as Window).history.pushState(null, '', '/reports')",
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'history', data: { access: '(window as Window).history.pushState' } }],
+      errors: [
+        {
+          messageId: 'history',
+          data: { access: '(window as Window).history.pushState', emitAccess: 'its render props' },
+        },
+      ],
     },
     {
       code: "document.title = 'Reports'",
       filename: 'src/widgets/summary/panel.ts',
       options: WIDGET_SCOPES,
-      errors: [{ messageId: 'title', data: { access: 'document.title' } }],
+      errors: [
+        { messageId: 'title', data: { access: 'document.title', emitAccess: 'its render props' } },
+      ],
     },
   ],
 })

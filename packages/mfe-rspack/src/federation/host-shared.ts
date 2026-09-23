@@ -1,16 +1,25 @@
 import { join } from 'node:path'
 
-import { createBuildError } from '../diagnostics.ts'
+import {
+  adapterDependencies,
+  createBuildError,
+  installedVersionFrom,
+  packageOf,
+  resolveFrameworkScope,
+  resolveShared,
+  withPagePolicy,
+  type SharedModuleConfig,
+} from '@company/mfe-build/federation'
 
-import { installedVersionFrom } from './installed-version.ts'
 import {
   DEFAULT_SHARED_CANDIDATES,
-  packageOf,
-  resolveShared,
-  type SharedModuleConfig,
+  REACT_ADAPTER,
+  REACT_ANCHOR,
+  REACT_FRAMEWORK,
+  REACT_SHARING_POLICY,
 } from './sharing.ts'
 
-export type { SharedModuleConfig } from './sharing.ts'
+export type { SharedModuleConfig } from '@company/mfe-build/federation'
 
 export interface HostSharedOptions {
   /** The directory holding the host's package.json; every candidate is resolved from it. */
@@ -21,12 +30,14 @@ export interface HostSharedOptions {
 
 /**
  * The `shared` map for a host's `moduleFederation.options`; a host provides the modules, so it
- * declares the version installed and shares what resolves rather than what it lists (§27).
+ * declares the version installed and shares what resolves rather than what it lists. Every
+ * React-bound candidate goes in the scope named after the React the host installed, so only
+ * containers built on that exact version take the host's copies.
  */
 export function hostShared(
   options: HostSharedOptions,
 ): Readonly<Record<string, SharedModuleConfig>> {
-  const installedVersion = options.installedVersion ?? installedVersionFrom(options.root)
+  const installedVersion = options.installedVersion ?? hostInstalledVersion(options.root)
 
   const installed: Record<string, string> = {}
   for (const candidate of DEFAULT_SHARED_CANDIDATES) {
@@ -48,7 +59,30 @@ export function hostShared(
     })
   }
 
-  return resolveShared({ dependencies: installed, installedVersion })
+  return resolveShared({
+    policy: withPagePolicy(REACT_SHARING_POLICY),
+    dependencies: installed,
+    installedVersion,
+    frameworkScope: resolveFrameworkScope({
+      framework: REACT_FRAMEWORK,
+      anchor: REACT_ANCHOR,
+      root: options.root,
+      installedVersion,
+    }),
+  })
+}
+
+/**
+ * A host depends on the adapter, not on the neutral packages the adapter imports, so those resolve
+ * beside the adapter and not from the host's own root. They are read there on purpose, and only
+ * the ones the adapter declares, rather than through whatever search path the bundler happens to
+ * run with.
+ */
+function hostInstalledVersion(root: string): (name: string) => string | undefined {
+  const fromHost = installedVersionFrom(root)
+  const adapter = adapterDependencies(REACT_ADAPTER, root)
+
+  return name => fromHost(name) ?? adapter?.installedVersion(name)
 }
 
 // `version-first` re-initialises every registered remote before resolving a share, so one

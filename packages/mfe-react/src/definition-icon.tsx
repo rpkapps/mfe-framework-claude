@@ -8,10 +8,10 @@
  */
 
 import { createElement, type ReactElement, type ReactNode, type SVGProps } from 'react'
-import type { IconData, IconNode } from '@company/mfe-core'
+import { ICON_ELEMENT_TAGS, type IconData, type IconNode } from '@company/mfe-core'
 
 /** What an icon may draw with. Anything else is dropped rather than rendered. */
-const TAGS = new Set(['path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g'])
+const TAGS = new Set<string>(ICON_ELEMENT_TAGS)
 
 /** SVG attributes React spells in camel case; everything else passes through unchanged. */
 const REACT_NAMES: Readonly<Record<string, string>> = {

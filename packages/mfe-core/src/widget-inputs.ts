@@ -74,7 +74,7 @@ function unwrapNullable(schema: JsonSchemaObject): Unwrapped {
   return { schema: merged, nullable: true }
 }
 
-const TYPED_KINDS = new Set(['string', 'number', 'integer', 'boolean', 'array', 'object'])
+const TYPED_KINDS: readonly string[] = ['string', 'number', 'integer', 'boolean', 'array', 'object']
 
 function kindOf(schema: JsonSchemaObject): WidgetInputKind {
   // An enum and a literal carry no `type`, so reading `type` first would classify both unknown.
@@ -82,7 +82,9 @@ function kindOf(schema: JsonSchemaObject): WidgetInputKind {
   if (schema['const'] !== undefined) return 'const'
 
   const type = schema['type']
-  return typeof type === 'string' && TYPED_KINDS.has(type) ? (type as WidgetInputKind) : 'unknown'
+  return typeof type === 'string' && TYPED_KINDS.includes(type)
+    ? (type as WidgetInputKind)
+    : 'unknown'
 }
 
 function describeType(raw: JsonSchemaObject): WidgetInputType {

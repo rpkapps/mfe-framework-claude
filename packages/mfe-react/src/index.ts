@@ -6,7 +6,6 @@
 export {
   createApp,
   createWidget,
-  isMfeDefinition,
   type AppDefinition,
   type AppOptions,
   type MfeDefinition,
@@ -43,7 +42,13 @@ export {
 
 export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 
-export { useBasePath, useMfeSignal, useMfeStorage, useTelemetry } from './hooks/services.ts'
+export {
+  useBasePath,
+  useMfeSignal,
+  useMfeStorage,
+  useScopeRoot,
+  useTelemetry,
+} from './hooks/services.ts'
 export { useCommand } from './hooks/use-command.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
@@ -102,16 +107,6 @@ export {
   type RejectedRegistryEntry,
 } from '@company/mfe-core'
 
-/* Shell-facing composition */
-export {
-  createMfeRuntime,
-  createMount,
-  type CreateMountOptions,
-  type CreateRuntimeOptions,
-  type MfeRuntimeHandle,
-  type MountHandleWithCleanup,
-} from './create-runtime.ts'
-
 /** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {
   createContainerTransport,
@@ -123,21 +118,12 @@ export {
   type FetchLike,
   type GetAccessToken,
   type ShellAuthOptions,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
-export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
-export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
-/** Always registered by `createMfeRuntime`; exported so a shell can name it and read its fields. */
+/** Listed in the shell's `adapters`; `/registry` exports it alone, without React. */
 export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.ts'
-export {
-  KIND_ATTRIBUTE,
-  MOUNT_ATTRIBUTE,
-  OVERLAY_ROOT_ATTRIBUTE,
-  SCOPE_ATTRIBUTE,
-  createOverlayRoot,
-} from './scope-root.tsx'
 /** Exported because the generated container entry imports it (§17). */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'

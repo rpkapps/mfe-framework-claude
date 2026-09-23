@@ -4,6 +4,7 @@
  */
 
 import type { BreadcrumbItem } from '@company/mfe-core'
+import { humanizeSegment, withCurrentLast } from '@company/mfe-runtime'
 
 import type { MfeStaticData } from './router-contract.ts'
 
@@ -21,16 +22,6 @@ export interface BreadcrumbMatch {
 
 /** Parameters whose names carry no meaning worth showing to a user. */
 const GENERIC_PARAM_NAMES = new Set(['id', '_splat', '*'])
-
-/** `asset-reports` becomes `Asset reports`; a last resort only. */
-function humanize(segment: string): string {
-  const spaced = segment
-    .replace(/[-_]+/g, ' ')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .trim()
-  if (spaced === '') return segment
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
-}
 
 function isPathlessOrIndex(match: BreadcrumbMatch): boolean {
   const path = match.routePath
@@ -57,10 +48,10 @@ function resolveLabel(match: BreadcrumbMatch): string | null {
     // A generic parameter renders nothing rather than showing a raw id.
     if (name === '' || GENERIC_PARAM_NAMES.has(name)) return null
     const value = match.params?.[name]
-    return value === undefined ? humanize(name) : value
+    return value === undefined ? humanizeSegment(name) : value
   }
 
-  return humanize(segment)
+  return humanizeSegment(segment)
 }
 
 /** Items are frozen so the store can compare by content and keep unchanged records by reference. */
@@ -78,9 +69,5 @@ export function breadcrumbsFromMatches(
     items.push(Object.freeze({ key: match.id, label, href: match.pathname }))
   }
 
-  // The deepest contributing match is the current one.
-  const last = items[items.length - 1]
-  if (last) items[items.length - 1] = Object.freeze({ ...last, current: true })
-
-  return Object.freeze(items)
+  return withCurrentLast(items)
 }

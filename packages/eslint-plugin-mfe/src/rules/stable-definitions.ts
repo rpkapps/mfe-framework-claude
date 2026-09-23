@@ -11,9 +11,14 @@ import { resolveCalleeBinding } from '../util/scope.ts'
 import { optionRecord, stringArrayOption } from '../util/options.ts'
 import { docsUrl } from '../util/docs.ts'
 
-const DEFAULT_MODULES: readonly string[] = [
+/**
+ * Exported so a framework preset can extend the list for a package or scope that also has a
+ * definitions factory of its own (the Angular adapter's `createApp`/`createWidget`) without
+ * duplicating the React, runtime and core entries here.
+ */
+export const DEFAULT_MODULES: readonly string[] = [
   '@company/mfe-react',
-  '@company/mfe-host',
+  '@company/mfe-runtime',
   '@company/mfe-core',
 ]
 

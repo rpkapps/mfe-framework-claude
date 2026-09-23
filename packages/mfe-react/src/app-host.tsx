@@ -1,17 +1,15 @@
 /**
  * Hosting an App: a parent delegates at a splat route, so the boundary is visible in the
- * filename and the child loads through the router's own code splitting and preloading.
+ * filename, and the App mounts itself into an element this renders, whichever framework built it.
  */
 
 import type { MfeError } from '@company/mfe-core'
-import { useParams } from '@tanstack/react-router'
-import { use, useCallback, useState, type ReactNode } from 'react'
+import { useMatch, useParams, useRouter, useRouterState } from '@tanstack/react-router'
+import { useEffect, type ReactNode } from 'react'
 
-import { AppMount } from './app-mount.tsx'
-import { createMount, useOwnedMount } from './create-runtime.ts'
-import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
+import { DefinitionSlot } from './definition-slot.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
-import { useOptionalMfeMount } from './mount-context.tsx'
+import { useDefinitionMount } from './use-definition-mount.ts'
 
 export interface AppFallbackProps {
   readonly error: MfeError
@@ -22,69 +20,54 @@ export interface AppHostProps {
   readonly appId: string
   /** The URL boundary assigned to this child; everything below it is the child's. */
   readonly basePath: string
+  /** Replaces the failed App, with a retry; without it the failure is thrown to the nearest error boundary. */
   readonly fallback?: (props: AppFallbackProps) => ReactNode
+  /** What fills the App's region while its container is fetched and it mounts; the default is nothing. */
+  readonly pending?: ReactNode
 }
 
 /** The imperative escape hatch for shell-owned placement; `mfeRoute` is the author path. */
-export function AppHost({ appId, basePath, fallback }: AppHostProps): ReactNode {
-  const runtime = useMfeRuntime(`the "${appId}" App`)
-  const [attempt, setAttempt] = useState(0)
-  const retry = useCallback(() => {
-    forgetDefinition(runtime, appId)
-    setAttempt(current => current + 1)
-  }, [runtime, appId])
-
-  // The key carries the App and its boundary: without them React reconciles one `AppLoader`
-  // across a change of App, and `useOwnedMount` still holds the old mount for that render (§14).
-  const body = (
-    <AppLoader key={`${String(attempt)}:${appId}:${basePath}`} appId={appId} basePath={basePath} />
-  )
-
-  return fallback ? (
-    <RetryBoundary
+export function AppHost({ appId, basePath, fallback, pending }: AppHostProps): ReactNode {
+  // Keyed, so another App or boundary starts from a fresh pending state rather than showing the
+  // state of the mount it replaces for the render before its effect runs.
+  return (
+    <AppSlot
+      key={`${appId}:${basePath}`}
+      appId={appId}
+      basePath={basePath}
       fallback={fallback}
-      retry={retry}
-      resetKey={attempt}
-      id="<app>"
-      operation="mount App"
-    >
-      {body}
-    </RetryBoundary>
-  ) : (
-    body
+      pending={pending}
+    />
   )
 }
 
-function AppLoader({
+function AppSlot({
   appId,
   basePath,
+  fallback,
+  pending,
 }: {
   readonly appId: string
   readonly basePath: string
+  readonly fallback: AppHostProps['fallback'] | undefined
+  readonly pending: ReactNode
 }): ReactNode {
-  const runtime = useMfeRuntime(`the "${appId}" App`)
-  const parent = useOptionalMfeMount()
-  const definition = use(loadDefinition(runtime, appId, 'app'))
-
-  // Child-owned path and search changes never reach here; they are ordinary route
-  // transitions inside the child's own router.
-  const mount = useOwnedMount(
-    () =>
-      createMount({
-        runtime,
-        definitionId: definition.id,
-        ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-        kind: 'app',
-        basePath,
-        depth: (parent?.depth ?? 0) + 1,
-      }),
-    [runtime, definition, basePath, parent],
+  // Child-owned path and search changes never reach here; they are ordinary route transitions
+  // inside the child's own router.
+  const { element, state, retry } = useDefinitionMount(
+    { kind: 'app', definitionId: appId, basePath },
+    `the "${appId}" App`,
   )
 
-  // The one render before the effect has built the mount.
-  if (mount === null) return null
-
-  return <AppMount definition={definition} mount={mount} bridge={runtime.navigator} />
+  return (
+    <DefinitionSlot
+      element={element}
+      state={state}
+      retry={retry}
+      pending={pending}
+      fallback={fallback}
+    />
+  )
 }
 
 export interface MfeRouteOptions {
@@ -108,13 +91,20 @@ export function mfeRoute(options: MfeRouteOptions): {
  * The boundary a delegated child is mounted at: the current path with the splat remainder
  * removed, because the whole pathname would hand the child its own deep link as a base.
  */
-export function boundaryAboveSplat(pathname: string, splat: string | undefined): string {
+function boundaryAboveSplat(pathname: string, splat: string | undefined): string {
   const trimmed = pathname.replace(/\/+$/, '')
   if (splat === undefined || splat === '') return trimmed === '' ? '/' : trimmed
 
   const remainder = `/${splat.replace(/^\/+/, '')}`
   const boundary = trimmed.endsWith(remainder) ? trimmed.slice(0, -remainder.length) : trimmed
   return boundary === '' ? '/' : boundary
+}
+
+/** The router strips its own basepath from what it matches, so the boundary puts it back. */
+function joinBoundary(routerBase: string | undefined, boundary: string): string {
+  const base = (routerBase ?? '').replace(/\/+$/, '')
+  if (base === '') return boundary
+  return boundary === '/' ? base : `${base}${boundary}`
 }
 
 function MfeRouteBoundary({
@@ -129,7 +119,18 @@ function MfeRouteBoundary({
   // own routes may have no splat at all.
   const params = useParams({ strict: false }) as unknown as Record<string, string | undefined>
   const splat = params['_splat']
-  const resolved = basePath ?? boundaryAboveSplat(runtime.navigator.read().pathname, splat)
+  // The match's own path rather than the page's: while a navigation loads, the page has moved
+  // and the match has not, and a boundary computed from the two would remount the App.
+  const matched = useMatch({ strict: false, select: match => match.pathname })
+  const routerBase = useRouter().options.basepath
+  const resolved = basePath ?? joinBoundary(routerBase, boundaryAboveSplat(matched, splat))
+
+  // The host's router may move the page without going through the navigator, which no mounted
+  // App would otherwise hear of; the navigator tells them only when the page actually moved.
+  const href = useRouterState({ select: state => state.location.href })
+  useEffect(() => {
+    runtime.navigator.announce()
+  }, [runtime, href])
 
   return <AppHost appId={appId} basePath={resolved} />
 }

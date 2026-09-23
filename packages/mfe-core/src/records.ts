@@ -1,6 +1,29 @@
 /** Neutral records the host orchestrates without knowing which adapter produced them. */
 
-import { arrayEqual } from './observable.ts'
+/** An array is a `typeof … === 'object'` too, and never what a record check means by one. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Every key whose value could be `undefined` becomes optional, and `undefined` drops out of it. */
+type Compacted<T> = { [K in keyof T as undefined extends T[K] ? never : K]: T[K] } & {
+  [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>
+}
+
+/**
+ * Drops every key whose value is `undefined`, so a caller can assign an optional field straight
+ * from a `T | undefined` computation instead of spreading `...(x === undefined ? {} : { x })` by
+ * hand for each one. `exactOptionalPropertyTypes` treats "absent" and "present as undefined" as
+ * different shapes, so the returned type carries the field as optional rather than as `X | undefined`.
+ */
+export function withoutUndefined<T extends Record<string, unknown>>(value: T): Compacted<T> {
+  const result: Record<string, unknown> = {}
+  for (const key of Object.keys(value)) {
+    const entry = value[key]
+    if (entry !== undefined) result[key] = entry
+  }
+  return result as Compacted<T>
+}
 
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
@@ -25,6 +48,13 @@ export interface CommandRegistration {
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
   readonly placements?: readonly CommandPlacement[]
+  /**
+   * A key chord such as `'mod+s'`, or a sequence of chords separated by spaces such as `'g r'`.
+   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The command runs through the same path the
+   * palette uses, so `canExecute` still decides. Only an App's commands and the host page's get
+   * one: a Widget's is ignored, as is one the host page already uses.
+   */
+  readonly shortcut?: string
 }
 
 /** `id` is the runtime-qualified `<definitionId>:<name>`; authors provide only the local `name`. */
@@ -35,12 +65,17 @@ export interface CommandEntry {
   readonly label: string
   readonly placements: readonly CommandPlacement[]
   readonly decision: Decision
+  /**
+   * The registration's shortcut in its normalized spelling (`'mod+shift+k'`, `'g r'`), present
+   * only while it can fire: a Widget's, or one the host page reserved, is left off.
+   */
+  readonly shortcut?: string
 }
 
 /** Compares only what the palette displays, so closure identity changes are invisible. */
 export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
   if (a === b) return true
-  if (a.id !== b.id || a.label !== b.label) return false
+  if (a.id !== b.id || a.label !== b.label || a.shortcut !== b.shortcut) return false
   if (a.decision.allowed !== b.decision.allowed) return false
   if (!a.decision.allowed && !b.decision.allowed && a.decision.reason !== b.decision.reason) {
     return false
@@ -107,6 +142,15 @@ export interface BoundaryLocation {
   readonly hash: string
 }
 
+/**
+ * Whether `pathname` is an App's own boundary or a path below it; `basePath` may carry a trailing
+ * slash. The one containment test every navigator, router and boundary-aware command shares.
+ */
+export function isWithinBoundary(basePath: string, pathname: string): boolean {
+  const boundary = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+  return boundary === '' || pathname === boundary || pathname.startsWith(`${boundary}/`)
+}
+
 /** The narrow internal bridge at an App boundary; not author API, never a global History patch. */
 export interface NavigationBridge {
   read(): BoundaryLocation
@@ -133,4 +177,27 @@ export interface NavigationIntent {
   readonly leavesBoundary: boolean
   /** Absent means the host did not say, and a reader should treat it as an ordinary push. */
   readonly action?: NavigationAction
+}
+
+/** Pure equality helpers; every stateful subscription primitive that uses them lives in
+ * `@company/mfe-runtime`. */
+
+export function shallowEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
+
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  const right = b as Record<string, unknown>
+  for (const key of aKeys) {
+    if (!Object.hasOwn(right, key)) return false
+    if (!Object.is((a as Record<string, unknown>)[key], right[key])) return false
+  }
+  return true
+}
+
+export function arrayEqual<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  return a.every((entry, index) => Object.is(entry, b[index]))
 }

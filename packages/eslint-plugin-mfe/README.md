@@ -1,16 +1,37 @@
 # @company/eslint-plugin-mfe
 
 The shared lint contract for this monorepo and for every repository that ships an
-MFE against it: three composable flat-config presets and four MFE-specific rules.
+MFE against it: composable flat-config presets and five MFE-specific rules.
 
 The presets are where the framework's boundaries become something a developer
 meets in the editor, on the line that broke them, with the repair in the message.
-The four rules cover the failures that no general-purpose rule can see, because
+The rules cover the failures that no general-purpose rule can see, because
 they are about what it means to be one fragment of a page you do not own.
 
 This package is development-only. It is never part of the runtime import DAG.
 
 ---
+
+## Three entry points
+
+One package, one plugin object and one `mfe/` rule namespace, in three entries,
+so a workspace imports the one for the code it lints:
+
+| Entry                                | Holds                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `@company/eslint-plugin-mfe`         | the rules, the `framework` and `tooling` presets, and `application()`, the import boundary for a shell |
+| `@company/eslint-plugin-mfe/react`   | `author()`, the preset for a React container                                                           |
+| `@company/eslint-plugin-mfe/angular` | `angular()`, the preset for an Angular 19 zoneless container                                           |
+
+Each framework's lint plugins are **optional peer dependencies**:
+`eslint-plugin-react-hooks`, `@tanstack/eslint-plugin-query` and
+`@tanstack/eslint-plugin-router` for `author()` (and `framework()`, which lints
+React packages), and `@angular-eslint/eslint-plugin`,
+`@angular-eslint/eslint-plugin-template` and `@angular-eslint/template-parser`
+(19 to 22) for `angular()`. A preset loads its own peers when it is called,
+never when its entry is imported, so an Angular workspace never installs React
+tooling and the other way round. A missing peer throws one error that names
+every package to install.
 
 ## Install and use
 
@@ -22,15 +43,27 @@ export default [...mfe.configs.framework]
 ```
 
 ```ts
-// eslint.config.ts, in an MFE repository
+// eslint.config.ts, in a React MFE repository
 import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
 
 export default [
-  ...mfe.author({
+  ...react.author({
     tsconfigRootDir: import.meta.dirname,
     widgetScopes: ['src/widgets/**'],
     storageAllowedScopes: ['src/bootstrap/storage.ts'],
   }),
+  ...mfe.tooling({ tsconfigRootDir: import.meta.dirname }),
+]
+```
+
+```ts
+// eslint.config.ts, in an Angular MFE project (what @company/mfe-nx generates)
+import mfe from '@company/eslint-plugin-mfe'
+import angular from '@company/eslint-plugin-mfe/angular'
+
+export default [
+  ...angular.angular({ tsconfigRootDir: import.meta.dirname, widgetScopes: ['src/**'] }),
   ...mfe.tooling({ tsconfigRootDir: import.meta.dirname }),
 ]
 ```
@@ -49,12 +82,15 @@ palette and therefore fails silently. Tecton has removed that preset, so nothing
 checks a class against the token set any more. `eslint.config.ts` at this
 repository's root is the worked example of composing what remains.
 
-Every preset exists in two spellings that produce the same configuration:
+Every preset but `application()` exists in two spellings that produce the same configuration:
 
-| Spelling                                                                | Shape                           | Use it when                                       |
-| ----------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
-| `mfe.configs.framework`, `mfe.configs.author`, `mfe.configs.tooling`    | `Linter.Config[]`               | the defaults are right, and you want to spread    |
-| `mfe.framework(options)`, `mfe.author(options)`, `mfe.tooling(options)` | `(options?) => Linter.Config[]` | you need to declare scopes or a `tsconfigRootDir` |
+| Spelling                                                                                              | Shape                           | Use it when                                       |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
+| `mfe.configs.framework`, `mfe.configs.tooling`, `react.configs.author`, `angular.configs.angular`     | `Linter.Config[]`               | the defaults are right, and you want to spread    |
+| `mfe.framework(options)`, `mfe.tooling(options)`, `react.author(options)`, `angular.angular(options)` | `(options?) => Linter.Config[]` | you need to declare scopes or a `tsconfigRootDir` |
+
+The `configs` arrays are built when they are read, so reading `mfe.configs.tooling`
+never loads the React peers `framework` needs.
 
 Because a preset is a plain array, anything after it in your config wins. Turn a
 rule down, scope one off for a directory, or drop a config object out of the
@@ -103,9 +139,10 @@ plugin outside that scope.
 
 ## The `framework` preset
 
-For the packages that implement the framework: `@company/mfe-core`,
-`@company/mfe-host`, `@company/mfe-react`, `@company/mfe-legacy-angular`,
-`@company/mfe-rspack`, `@company/mfe-devtools`.
+For the packages that implement the framework, such as `@company/mfe-core`,
+`@company/mfe-runtime`, `@company/mfe-react`, `@company/mfe-angular`,
+`@company/mfe-legacy-angular`, `@company/mfe-build`, `@company/mfe-rspack`,
+`@company/mfe-devtools`.
 
 It layers:
 
@@ -131,13 +168,13 @@ It layers:
 - **The package import DAG**, as `@typescript-eslint/no-restricted-imports`
   zones, one per package, mirroring `tools/boundaries/check-boundaries.mjs`:
 
-  | Zone                          | May not import                                                                                                                                           |
-  | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `@company/mfe-core`           | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-host`, `@company/mfe-react` |
-  | `@company/mfe-host`           | the same, minus itself, plus `@company/mfe-react`                                                                                                        |
-  | `@company/mfe-react`          | `single-spa`                                                                                                                                             |
-  | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                     |
-  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                  |
+  | Zone                          | May not import                                                                                                                                              |
+  | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@company/mfe-core`           | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-runtime`, `@company/mfe-react` |
+  | `@company/mfe-runtime`        | the same, minus itself                                                                                                                                      |
+  | `@company/mfe-react`          | `single-spa`                                                                                                                                                |
+  | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                        |
+  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                     |
 
   Every zone also inherits `STATE_PATHS` and `TELEMETRY_PATTERNS`, so the
   restrictions below apply inside each one on top of the row above.
@@ -149,7 +186,13 @@ It layers:
   and `@grafana/faro-*` are out **including type imports**, because a type import
   still couples the package to a vendor's release cadence and still shows up in
   its published declarations.
-- **The four MFE rules** below.
+- **Contracts only in `@company/mfe-core`**: a zone that rejects, outside its
+  tests, an exported class other than an error, a top-level `let`, `var`, `Map`,
+  `Set` or `WeakMap`, a timer call, and the browser globals (`window`,
+  `document`, storage, `history`, `location`, `fetch`, `navigator`). State
+  belongs in `@company/mfe-runtime`.
+- **The four MFE rules** below, which every package gets; inside
+  `@company/mfe-angular` their messages name the Angular adapter's APIs.
 
 ### Options
 
@@ -158,7 +201,7 @@ mfe.framework({
   tsconfigRootDir: import.meta.dirname,
   files: ['**/*.ts', '**/*.tsx'],
   reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
-  storageAllowedScopes: ['packages/mfe-host/src/storage/**'],
+  storageAllowedScopes: ['packages/mfe-runtime/src/storage/**'],
   widgetScopes: [],
   extraRestrictedPaths: [],
   extraRestrictedPatterns: [],
@@ -167,9 +210,9 @@ mfe.framework({
 
 ---
 
-## The `author` preset
+## The `author` preset, from `/react`
 
-For MFE Apps and Widgets. An author's constraints are the mirror image of the
+For React MFE Apps and Widgets. An author's constraints are the mirror image of the
 framework's: application state is yours, the page is not.
 
 Everything in the `framework` preset's general layers applies, and then:
@@ -180,8 +223,8 @@ Everything in the `framework` preset's general layers applies, and then:
   `**/*.route.{ts,tsx}`, `**/*.routes.{ts,tsx}`, `**/router.{ts,tsx}` and
   `**/routeTree.gen.ts`. Override with `routerFiles`.
 - **Framework internals are off limits**: `@company/mfe-core`,
-  `@company/mfe-host`, `react-dom/client`, and any deep path such as
-  `@company/mfe-react/src/*`, `@company/mfe-core/*` or `@company/mfe-host/*`.
+  `@company/mfe-runtime`, `react-dom/client`, and any deep path such as
+  `@company/mfe-react/src/*`, `@company/mfe-core/*` or `@company/mfe-runtime/*`.
   `@company/mfe-react` is the author-facing entry point and re-exports the types.
 - **zustand is allowed.** An MFE owns its own state. What it may not own is the
   framework's internals, the React root, or a telemetry SDK: `@opentelemetry/*`
@@ -194,17 +237,77 @@ Everything in the `framework` preset's general layers applies, and then:
 ### Options
 
 ```ts
-mfe.author({
+react.author({
   tsconfigRootDir: import.meta.dirname,
   files: ['**/*.ts', '**/*.tsx'],
   reactFiles: ['src/**/*.{ts,tsx}'],
   widgetScopes: ['src/widgets/**'],
   storageAllowedScopes: [],
-  routerFiles: mfe.DEFAULT_ROUTER_FILES, // the default; omit it, or spread it to add to it
+  routerFiles: react.DEFAULT_ROUTER_FILES, // the default; omit it, or spread it to add to it
   extraRestrictedPaths: [],
   extraRestrictedPatterns: [],
 })
 ```
+
+---
+
+## The `angular` preset, from `/angular`
+
+For Angular 19 zoneless MFE Apps and Widgets: the mirror of `author()`, on the
+same general layers, with Angular's own APIs named in every message.
+
+- **angular-eslint's recommended rules**, for TypeScript and for templates,
+  listed explicitly rather than spread from the `angular-eslint` meta package:
+  the meta package peers on `@angular/cli`, and its recommended set spans later
+  Angular versions than the adapter targets. Inline templates are extracted
+  with `@angular-eslint/template/extract-inline-html` and linted as `.html`.
+- **Zoneless, and the host owns the application**: `zone.js` (and its subpaths),
+  `NgZone`, `bootstrapApplication`, `createApplication` and
+  `@angular/platform-browser-dynamic` are errors, each with the repair.
+- **Framework internals are off limits**, as in `author()`, pointing at
+  `@company/mfe-angular`, its `/host` and its `/testing`.
+- **The five MFE rules**, `mfe/no-widget-global-router` included, naming
+  `injectMfeSignal()`, `injectStoredState()`, `injectMfeStorage()` and
+  `injectWidgetEmit()` in their messages.
+
+### Options
+
+```ts
+angular.angular({
+  tsconfigRootDir: import.meta.dirname,
+  files: ['**/*.ts'],
+  templateFiles: angular.DEFAULT_ANGULAR_TEMPLATE_FILES, // ['**/*.html']
+  widgetScopes: ['src/**'],
+  storageAllowedScopes: [],
+  extraRestrictedPaths: [],
+  extraRestrictedPatterns: [],
+})
+```
+
+---
+
+## The `application()` preset
+
+For code that hosts mounted definitions rather than being one: a shell, or a test
+harness that places definitions from several adapters. It rejects
+`@company/mfe-core` and `@company/mfe-runtime` (and their subpaths), any deep
+path into the adapters, and `@module-federation/*`, with messages pointing at the
+adapter's root, `/host` and `/testing`. It needs no optional peer.
+
+```ts
+mfe.application({
+  files: ['apps/shell/src/**/*.{ts,tsx}'],
+  adapterModules: ['@company/mfe-react'], // every adapter a cross-adapter harness hosts
+  extraRestrictedPaths: [],
+  extraRestrictedPatterns: [],
+})
+```
+
+It sets one rule, `@typescript-eslint/no-restricted-imports`, and ESLint keeps the
+last value a file matches, so for the files it covers it _replaces_ what an
+earlier preset restricted rather than adding to it. Restate anything else you
+still want in `extraRestrictedPatterns`, as this repository's root config does
+for the vendor telemetry ban.
 
 ---
 
@@ -242,7 +345,7 @@ mfe.tooling({
 
 ## Scoped exceptions
 
-The `framework` and `author` presets switch five rules off in test files, and only in test files
+The `framework`, `author` and `angular` presets switch five rules off in test files, and only in test files
 (`**/*.test.{ts,tsx,mts,cts}`, `**/*.spec.{ts,tsx,mts,cts}`, `**/__tests__/**`,
 `**/vitest.setup.{ts,tsx}` — never a whole package). Each is a considered
 exception, recorded here so nobody has to guess later whether it was deliberate.
@@ -270,14 +373,16 @@ the code rather than in this list.
 
 ## Rules
 
-All four resolve names through ESLint's scope manager rather than by matching
+All five resolve names through ESLint's scope manager rather than by matching
 identifier text, so an aliased import is caught under its alias and a shadowing
 local binding is not caught at all. They work without type information, so they
 can run in a plain parser setup.
 
 None of them autofixes: no repair here preserves semantics. `mfe/no-raw-storage`
-offers a **suggestion**, which a human accepts; the other three explain the
-repair in the message and leave it to you.
+offers a **suggestion**, which a human accepts; the others explain the
+repair in the message and leave it to you. The messages below are the React
+wording, which is each rule's default; the options that change it are how the
+`angular()` preset names the Angular adapter's APIs instead.
 
 | Rule                                                           | What it reports                                                                                      |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -285,6 +390,7 @@ repair in the message and leave it to you.
 | [`mfe/stable-definitions`](#mfestable-definitions)             | `createApp`, `createWidget` or `lazyWidget` called anywhere but module scope                         |
 | [`mfe/no-raw-storage`](#mfeno-raw-storage)                     | direct `localStorage` / `sessionStorage` access                                                      |
 | [`mfe/no-widget-global-effects`](#mfeno-widget-global-effects) | History navigation and document-head mutation inside declared Widget scopes                          |
+| [`mfe/no-widget-global-router`](#mfeno-widget-global-router)   | a Widget calling Angular's `Router` to navigate, inside declared Widget scopes                       |
 
 ---
 
@@ -350,7 +456,16 @@ host `BoundaryNavigator` in the shell. For listeners: the patch changes event
 dispatch for every MFE and outlives your unmount; register listeners normally and
 pass `{ signal: useMfeSignal() }`, which `@company/mfe-react` aborts on unmount.
 
-**Options:** none.
+**Options.** Only the wording; the defaults are React's.
+
+```ts
+'mfe/no-global-patching': ['error', {
+  signalHook: 'useMfeSignal()',
+  signalModule: '@company/mfe-react',
+  navigationHint: "`navigate` or `Link` from your App's boundary router, …",
+  navigatorModule: '@company/mfe-runtime',
+}]
+```
 
 ---
 
@@ -465,7 +580,7 @@ exported name it resolved to, and the module it came from.
 
 ```ts
 'mfe/stable-definitions': ['error', {
-  modules: ['@company/mfe-react', '@company/mfe-host', '@company/mfe-core'],
+  modules: ['@company/mfe-react', '@company/mfe-runtime', '@company/mfe-core'],
   factories: ['createApp', 'createWidget', 'lazyWidget'],
 }]
 ```
@@ -527,7 +642,7 @@ by explicit scope:
 ```js
 'mfe/no-raw-storage': ['error', {
   allowedScopes: [
-    'packages/mfe-host/src/storage/**',   // the adapter that implements the boundary
+    'packages/mfe-runtime/src/storage/**',   // the adapter that implements the boundary
     'apps/shell/src/bootstrap/storage.ts', // the documented shell override
   ],
 }]
@@ -554,6 +669,9 @@ rewrites the object and nothing else: the file still has to bind
   allowedScopes: [],                            // globs; default: none
   objects: ['localStorage', 'sessionStorage'],
   storageAccessor: 'storage',                   // what the suggestion rewrites to
+  storedStateHook: 'useStoredState()',          // the wording, React's by default
+  storageHook: 'useMfeStorage()',
+  adapterModule: '@company/mfe-react',
 }]
 ```
 
@@ -597,7 +715,7 @@ document.head.innerHTML = '<title>Reports</title>'
 
 ```ts
 // The repair the message asks for: an event this Widget declares, emitted from
-// its render props, which the owning App receives as `onNavigate`.
+// its render props, which a React host hands to the `onNavigate` prop.
 export function Panel({ emit }) {
   return () => emit('navigate', { to: '/reports' })
 }
@@ -626,9 +744,9 @@ reported.
 **What the message says.** For history: a Widget does not drive the URL, because
 the host router, the owning App and every sibling MFE learn about the navigation
 only by accident; declare a navigation event in the Widget's `events` contract
-and call `emit('navigate', { to })` from its render props, and the owning App —
-which receives it as `onNavigate` — navigates with its boundary router, or the
-shell with the host `BoundaryNavigator`. For the title: several Widgets can be
+and call `emit('navigate', { to })` from its render props, and the owning App
+receives the event and navigates with its own boundary router, or the shell with
+the host `BoundaryNavigator`. For the title: several Widgets can be
 mounted at once, so the last to render would win and the tab title would
 flicker; declare a title event and call `emit('title', { text })`, and the
 owning App sets what it owns. For head metadata: the favicon, `<meta>` and
@@ -641,6 +759,59 @@ also the one that reverts it.
 ```ts
 'mfe/no-widget-global-effects': ['error', {
   widgetScopes: [], // globs; default: none, which makes the rule inert
+  emitAccess: 'its render props', // the wording; `injectWidgetEmit()` under angular()
+}]
+```
+
+---
+
+### mfe/no-widget-global-router
+
+The Angular counterpart of `mfe/no-widget-global-effects`. Angular's `Router`
+navigates the whole page, so a Widget that injects it and calls `navigate` or
+`navigateByUrl` moves the host router, the owning App and every sibling MFE
+behind their backs. Only the `angular()` preset turns it on, and like its React
+counterpart it reports only inside the globs listed in `widgetScopes`.
+
+**Invalid** (inside a declared Widget scope)
+
+```ts
+import { Router } from '@angular/router'
+
+export class PanelComponent {
+  private readonly router = inject(Router)
+
+  open(): void {
+    void this.router.navigateByUrl('/reports')
+  }
+}
+```
+
+**Valid**
+
+```ts
+// The repair: an event this Widget declares, emitted through injectWidgetEmit().
+export class PanelComponent {
+  readonly #emit = injectWidgetEmit<typeof panelContract>()
+
+  open(): void {
+    this.#emit('navigate', { to: '/reports' })
+  }
+}
+```
+
+**What the message says.** A Widget does not drive the URL; declare a navigation
+event in the Widget's `events` contract and call `emit('navigate', { to })` from
+`injectWidgetEmit()`, and the owning App navigates with its own `Router`, scoped
+to its `BoundaryLocationStrategy`, or the shell with the host
+`BoundaryNavigator`.
+
+**Options**
+
+```ts
+'mfe/no-widget-global-router': ['error', {
+  widgetScopes: [], // globs; default: none, which makes the rule inert
+  emitAccess: '`injectWidgetEmit()`',
 }]
 ```
 

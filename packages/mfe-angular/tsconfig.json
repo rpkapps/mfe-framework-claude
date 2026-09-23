@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"],
+    // The adapter's own components (mfe-widget, mfe-app-host, mfe-definition-icon and the default
+    // App root) are decorated classes, and Angular's decorators are the legacy proposal.
+    "experimentalDecorators": true,
+    // Define semantics would shadow the input and output members Angular sets up on the instance.
+    "useDefineForClassFields": false
+  },
+  "include": ["src/**/*", "vitest.setup.ts", "*.config.ts", "*.config.mts"]
+}

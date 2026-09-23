@@ -3,7 +3,21 @@ title: 'Lint rules'
 description: 'Every rule in @company/eslint-plugin-mfe, the message it prints and the repair.'
 ---
 
-`@company/eslint-plugin-mfe` ships four rules of its own, a set of restricted imports and one tightened core rule. They cover the failures no general-purpose rule can see, because they are about being one fragment of a page you do not own. Add them with `mfe.author({ … })` in your `eslint.config.ts`. Add `mfe.tooling({ … })` beside it, so the build and test configuration files are linted too.
+`@company/eslint-plugin-mfe` ships five rules of its own, a set of restricted imports and one tightened core rule. They cover the failures no general-purpose rule can see, because they are about being one fragment of a page you do not own.
+
+```ts title="eslint.config.ts"
+import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
+
+export default [
+  ...react.author({ tsconfigRootDir: import.meta.dirname, widgetScopes: ['src/widgets/**'] }),
+  ...mfe.tooling({ tsconfigRootDir: import.meta.dirname }),
+]
+```
+
+The package has three entry points. The root holds the rules, the `tooling` preset for build and test configuration files, and `application()`, the import boundary for a shell. `/react` holds `author()`, the preset for a React container. `/angular` holds `angular()`, the preset for an Angular container.
+
+The React Hooks, TanStack and angular-eslint plugins are optional peers of the package. A preset loads its own when you call it. A missing one throws a message that names every package to install.
 
 All four rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you: `mfe/no-raw-storage` offers a suggestion, and the other three leave the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
 
@@ -20,7 +34,7 @@ Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in 
 **Message, for the History API.**
 
 ```text
-Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
+Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-runtime) in the shell.
 ```
 
 **Message, for listener registration.**
@@ -49,7 +63,7 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 
 ```ts
 'mfe/stable-definitions': ['error', {
-  modules: ['@company/mfe-react', '@company/mfe-host', '@company/mfe-core'],
+  modules: ['@company/mfe-react', '@company/mfe-runtime', '@company/mfe-core'],
   factories: ['createApp', 'createWidget', 'lazyWidget'],
 }]
 ```
@@ -89,7 +103,7 @@ Read and write through the MFE storage boundary: replace `{{access}}` with `{{ac
 **`widgetScopes` decides where it applies.** Ownership is never guessed from a file name. The rule reports only inside the globs you list, and with none configured it does nothing at all. The same code in an App route is not reported.
 
 ```ts title="eslint.config.ts"
-mfe.author({
+react.author({
   widgetScopes: ['src/widgets/**'],
 })
 ```
@@ -97,19 +111,19 @@ mfe.author({
 **Message, for history.**
 
 ```text
-A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the host `BoundaryNavigator`.
+A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the owning App receives the event and navigates with its own boundary router, or the shell with the host `BoundaryNavigator`.
 ```
 
 **Message, for the title.**
 
 ```text
-`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle` and sets what it owns.
+`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from its render props; the owning App receives the event and sets what it owns.
 ```
 
 **Message, for head metadata.**
 
 ```text
-Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from the render props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also what reverts it.
+Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from its render props; the owning App receives the event and applies it to what it owns, which is also what reverts it.
 ```
 
 **Fix.** Declare the event, emit it from your render props, and let the owning App act.
@@ -120,21 +134,41 @@ Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Wi
 'mfe/no-widget-global-effects': ['error', { widgetScopes: [] }]
 ```
 
+## mfe/no-widget-global-router
+
+**Reports.** A Widget injecting Angular's `Router` and calling `navigate` or `navigateByUrl`, inside declared Widget scopes only. It is the Angular counterpart of `mfe/no-widget-global-effects`, and only the `angular()` preset turns it on.
+
+**Message.**
+
+```text
+A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from `injectWidgetEmit()`; the owning App receives the event and navigates with its own `Router`, scoped to its `BoundaryLocationStrategy`, or the shell with the host `BoundaryNavigator`.
+```
+
+**Fix.** Declare a navigation event and emit it. The owning App navigates.
+
+**Options.**
+
+```ts
+'mfe/no-widget-global-router': ['error', { widgetScopes: [] }]
+```
+
 ## Restricted imports
 
-The `author` preset turns three package paths and three path groups into errors. Each one prints the sentence below in place of ESLint's own wording.
+The `author` preset turns three package paths and four path groups into errors. Each one prints the sentence below in place of ESLint's own wording.
 
-| What you imported                                      | The message says                                                                                                                    |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `@company/mfe-core`                                    | It is a framework-internal contract package. Everything an author needs is re-exported from `@company/mfe-react`.                   |
-| `@company/mfe-host`                                    | It is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. |
-| `react-dom/client`                                     | The host owns the React root. Calling `createRoot` yourself detaches you from the mount lifecycle.                                  |
-| A deep path such as `@company/mfe-react/src/*`         | A deep import reaches past the entry point into files that are free to change in a patch release.                                   |
-| `single-spa`, `single-spa-*`                           | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                                                     |
-| `@module-federation/*`                                 | Module Federation is an implementation detail of the build integration and the loader.                                              |
-| `@opentelemetry/*`, `@grafana/faro`, `@grafana/faro-*` | An MFE does not ship its own telemetry SDK. Two in one page mean two trace contexts and twice the bundle.                           |
+| What you imported                                      | The message says                                                                                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@company/mfe-core`                                    | It is a framework-internal contract package. Everything an application needs, types included, is re-exported from `@company/mfe-react`.                                   |
+| `@company/mfe-runtime`                                 | It is the shell's loader and registry. Use the container APIs from `@company/mfe-react`, shell setup from `@company/mfe-react/host` and the test helpers from `/testing`. |
+| `react-dom/client`                                     | The host owns the React root. Calling `createRoot` yourself detaches you from the mount lifecycle.                                                                        |
+| A deep path such as `@company/mfe-react/src/*`         | A deep import reaches past the entry point into files that are free to change in a patch release.                                                                         |
+| `single-spa`, `single-spa-*`                           | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                                                                                           |
+| `@module-federation/*`                                 | Module Federation is an implementation detail of the build integration and the loader.                                                                                    |
+| `@opentelemetry/*`, `@grafana/faro`, `@grafana/faro-*` | An MFE does not ship its own telemetry SDK. Two in one page mean two trace contexts and twice the bundle.                                                                 |
 
 The telemetry group restricts type-only imports too. Use `useTelemetry()`, or `context.mfe.telemetry` in a route callback. For everything else, import from `@company/mfe-react`. If something you need is not exported there, that is a framework bug worth filing.
+
+The `angular()` preset carries the same boundary with Angular names, and adds bans on `zone.js`, `NgZone`, `bootstrapApplication`, `createApplication` and `platformBrowserDynamic`. The `application()` preset carries the core, runtime, deep-path and Module Federation rows, for a shell or a test harness that hosts definitions.
 
 ## no-console
 

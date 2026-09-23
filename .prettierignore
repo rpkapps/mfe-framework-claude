@@ -7,6 +7,9 @@ pnpm-lock.yaml
 AGENTS.md
 **/src/generated/
 **/.mfe/
+# The caches Nx and the Angular builder keep in examples/fieldwork, an Nx workspace of its own.
+**/.nx/
+**/.angular/
 playwright-report/
 test-results/
 .output/

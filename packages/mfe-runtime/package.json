@@ -1,0 +1,46 @@
+{
+  "name": "@company/mfe-runtime",
+  "version": "0.1.0",
+  "description": "Neutral MFE runtime: reading the registry through the adapter interface, loading and mount orchestration, retry, disposal, deadlines, shell state, validated storage, commands, breadcrumbs, navigation bridge, auth token single-flight and telemetry binding. No React, router, single-spa or Module Federation dependency.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    },
+    "./testing/mfe-config": {
+      "types": "./src/testing/generated/config.ts",
+      "default": "./src/testing/generated/config.ts"
+    },
+    "./testing/mfe-fetch": {
+      "types": "./src/testing/generated/fetch.ts",
+      "default": "./src/testing/generated/fetch.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

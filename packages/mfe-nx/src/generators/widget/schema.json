@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "NxMfeWidget",
+  "cli": "nx",
+  "title": "Generate an Angular MFE Widget container",
+  "description": "Scaffolds a zoneless Angular 19 Widget container: a non-routable, self-mounting definition made with @company/mfe-angular's createWidget and PrimeNG, built by @nx/angular:webpack-browser with @company/mfe-nx/webpack's withMfe() into a Module Federation remote.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The Nx project name.",
+      "$default": { "$source": "argv", "index": 0 },
+      "x-prompt": "What name should this Widget project have?"
+    },
+    "id": {
+      "type": "string",
+      "description": "The MFE definition id. Lower-case letters, digits and single hyphens (e.g. \"alert-panel\"); it becomes the federation container name, the storage prefix and the CSS scope value. Defaults to the kebab-cased project name.",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "directory": {
+      "type": "string",
+      "description": "The project root, relative to the workspace root. Defaults to apps/<name>."
+    },
+    "port": {
+      "type": "number",
+      "description": "The dev server port this container's manifest is served from.",
+      "default": 3103
+    },
+    "packageName": {
+      "type": "string",
+      "description": "The generated project's own package.json name. Defaults to @example/<id>."
+    },
+    "tags": {
+      "type": "string",
+      "description": "Comma-separated Nx project tags."
+    },
+    "skipFormat": {
+      "type": "boolean",
+      "description": "Skip formatting the generated files.",
+      "default": false
+    },
+    "skipPackageJson": {
+      "type": "boolean",
+      "description": "Do not add the container's dependencies to the workspace package.json.",
+      "default": false
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

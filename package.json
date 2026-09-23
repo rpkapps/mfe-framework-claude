@@ -17,7 +17,7 @@
     "boundaries": "node tools/boundaries/check-boundaries.mjs",
     "diagrams:render": "node tools/diagrams/render.mjs",
     "diagrams:check": "node tools/diagrams/render.mjs --check",
-    "test": "vitest run",
+    "test": "vitest run && pnpm --filter @example/fieldwork run test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "dev": "node tools/dev/dev.mjs",

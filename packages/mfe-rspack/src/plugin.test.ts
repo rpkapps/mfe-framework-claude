@@ -2,7 +2,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
+import { buildFederationOptions, withFrameworkMetadata } from '@company/mfe-build'
+
 import { planContainer } from './plan.ts'
 import { pluginMfe } from './rsbuild.ts'
 import { cleanupContainers, createContainer } from './testing/fixtures.ts'
@@ -65,7 +66,26 @@ describe('pluginMfe', () => {
     })
 
     expect(Object.keys(plan.shared)).toEqual(['@company/auth-client', 'react', 'react-dom'])
-    expect(plan.shared['react']).toMatchObject({ singleton: true, strictVersion: true })
+    expect(plan.shared['react']).toMatchObject({
+      singleton: true,
+      strictVersion: true,
+      shareScope: 'react@19.3.0',
+    })
+    // An author's addition joins the React scope, so it is shared only with the same React.
+    expect(plan.shared['@company/auth-client']).toMatchObject({
+      singleton: true,
+      shareScope: 'react@19.3.0',
+    })
+  })
+
+  it('shares React in the scope of the React version the container installed', () => {
+    const root = createContainer({ 'src/mfe.ts': ENTRY }, { installed: { react: '19.2.8' } })
+
+    const plan = planContainer({ containerRoot: root })
+
+    expect(plan.shared['react']).toMatchObject({ shareScope: 'react@19.2.8' })
+    expect(plan.shared['react-dom']).toMatchObject({ shareScope: 'react@19.2.8' })
+    expect(plan.generated.descriptor.shareScopes).toEqual(['default', 'react@19.2.8'])
   })
 
   it('reports an asset reference the bundler cannot make container-relative', () => {
@@ -108,6 +128,7 @@ describe('Module Federation options', () => {
     expect(options.filename).toBe('remoteEntry.js')
     expect(Object.keys(options.exposes)).toEqual(['./app', './widgets/order-row'])
     expect(options.manifest.fileName).toBe('mf-manifest.json')
+    expect(options.shared['react']?.shareScope).toBe('react@19.3.0')
   })
 
   it('embeds the framework metadata in the manifest metadata, not a second manifest', () => {
@@ -140,6 +161,7 @@ describe('Module Federation options', () => {
       {
         kind: 'mfe',
         major: 1,
+        framework: 'react',
         buildHash: 'abc',
         buildTime: 't',
         registryDescriptor: 'mfe-registry.json',

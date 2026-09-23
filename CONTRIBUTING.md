@@ -104,7 +104,7 @@ For example, `validateAgainstContract` rejecting `alertId: 7` against
 
 A schema failure folds the expectation into what it observed, because Zod's own
 rendering already names both. Build diagnostics
-(`packages/mfe-rspack/src/diagnostics.ts`) carry one sentence more, naming which
+(`packages/mfe-build/src/diagnostics.ts`) carry one sentence more, naming which
 side declared the expectation; nothing at run time does, because `declaredBy`
 was removed from `MfeErrorDetails`.
 

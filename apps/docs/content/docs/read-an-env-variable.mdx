@@ -56,7 +56,7 @@ function describe(values: MfeConfig): string {
 ## Check it works
 
 Open `/lab/config` in the shell. It prints every field this deployment supplied, with the values
-your local `public/runtime-config.json` holds. The values are frozen: changing one takes a new
+your local `.mfe/runtime-config.json` holds. The values are frozen: changing one takes a new
 deployment and a page reload, and nothing polls. A container with no `src/mfe.config.ts` gets no
 `#mfe/config` and fetches nothing.
 
@@ -72,8 +72,8 @@ operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
 
-**Fix.** Publish the file with the container. In development, add `public/runtime-config.json` and
-restart the dev server.
+**Fix.** Publish the file with the container. In development, run `pnpm run generate`, which creates
+`.mfe/runtime-config.json` for the dev server to answer with, and reload.
 
 </Callout>
 

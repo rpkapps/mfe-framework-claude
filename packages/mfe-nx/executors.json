@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "executors": {
+    "generate": {
+      "implementation": "./dist/src/executors/generate/executor",
+      "schema": "./dist/src/executors/generate/schema.json",
+      "description": "Write the container's generated .mfe/ modules without building it."
+    }
+  }
+}

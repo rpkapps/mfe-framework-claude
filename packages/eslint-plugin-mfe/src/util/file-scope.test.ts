@@ -7,11 +7,11 @@ describe('matchesAnyScope', () => {
   })
 
   it('anchors a bare pattern anywhere in the tree', () => {
-    expect(matchesAnyScope('packages/mfe-host/src/storage/adapter.ts', ['src/storage/**'])).toBe(
+    expect(matchesAnyScope('packages/mfe-runtime/src/storage/adapter.ts', ['src/storage/**'])).toBe(
       true,
     )
     expect(
-      matchesAnyScope('/repo/packages/mfe-host/src/storage/adapter.ts', ['src/storage/**']),
+      matchesAnyScope('/repo/packages/mfe-runtime/src/storage/adapter.ts', ['src/storage/**']),
     ).toBe(true)
     expect(matchesAnyScope('src/storage/adapter.ts', ['src/storage/**'])).toBe(true)
   })
@@ -42,7 +42,7 @@ describe('matchesAnyScope', () => {
   })
 
   it('takes any of several patterns', () => {
-    const scopes = ['packages/mfe-host/src/storage/**', 'apps/shell/src/bootstrap/storage.ts']
+    const scopes = ['packages/mfe-runtime/src/storage/**', 'apps/shell/src/bootstrap/storage.ts']
     expect(matchesAnyScope('apps/shell/src/bootstrap/storage.ts', scopes)).toBe(true)
     expect(matchesAnyScope('apps/shell/src/bootstrap/auth.ts', scopes)).toBe(false)
   })

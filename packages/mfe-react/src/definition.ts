@@ -1,27 +1,34 @@
 /**
  * `createApp` and `createWidget` both return plain, side-effect-free records, so the build
- * plugin can discover them statically without invoking a render function.
+ * plugin can discover them statically without invoking a render function. Each carries the
+ * neutral `mount`, through which every host places it, a React host included: the definition
+ * opens a React root of its own in the element the host provides.
  */
 
 import {
+  assertDefinitionId,
   createMfeError,
-  DEFINITION_ID_RULE,
+  DEFINITION_BRAND,
   eventNameToHandlerProp,
-  isReservedInputName,
-  isValidDefinitionId,
-  isValidEventName,
+  findEventNameProblem,
+  withoutUndefined,
   type ContractEvents,
   type ContractInputs,
   type WidgetContract,
 } from '@company/mfe-core'
+import type {
+  AppMountTarget,
+  MountableAppDefinition,
+  MountableWidgetDefinition,
+  MountedApp,
+  MountedWidget,
+  WidgetMountTarget,
+} from '@company/mfe-runtime'
 import type { AnyRouter } from '@tanstack/react-router'
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { z } from 'zod'
 
 import type { AppRouterOptions } from './router-contract.ts'
-
-/** Brand used to recognise framework definitions at the mount boundary. */
-const DEFINITION_BRAND = Symbol.for('@company/mfe.definition')
 
 /**
  * What a host shows before it has loaded anything. Read statically out of this call at build time
@@ -53,17 +60,13 @@ export interface AppOptions extends PresentationOptions {
   readonly breadcrumbs?: false
 }
 
-export interface AppDefinition {
-  readonly [DEFINITION_BRAND]: true
-  readonly kind: 'app'
-  readonly id: string
-  readonly version?: string
+export interface AppDefinition extends MountableAppDefinition {
+  readonly framework: 'react'
   readonly createRouter: (options: AppRouterOptions) => AnyRouter
-  readonly contributesBreadcrumbs: boolean
 }
 
 export function createApp(options: AppOptions): AppDefinition {
-  assertValidId(options.id, 'createApp')
+  assertDefinitionId(options.id, 'createApp')
 
   if (typeof options.router !== 'function') {
     throw createMfeError({
@@ -79,10 +82,18 @@ export function createApp(options: AppOptions): AppDefinition {
   return {
     [DEFINITION_BRAND]: true,
     kind: 'app',
+    framework: 'react',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     createRouter: options.router,
     contributesBreadcrumbs: options.breadcrumbs !== false,
+    // `this` rather than the record above, because a container's build mounts the copy that
+    // `withStyleRoot` attached its style root to. Imported on first use, so a module that only
+    // declares definitions, such as a container's entry, does not pull the renderer in with it.
+    async mount(target: AppMountTarget): Promise<MountedApp> {
+      const { mountApp } = await import('./react-mount.tsx')
+      return mountApp(this, target)
+    },
   }
 }
 
@@ -110,11 +121,8 @@ export interface WidgetOptions<
 export interface WidgetDefinition<
   Inputs extends z.ZodType = z.ZodType,
   Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
-> {
-  readonly [DEFINITION_BRAND]: true
-  readonly kind: 'widget'
-  readonly id: string
-  readonly version?: string
+> extends MountableWidgetDefinition {
+  readonly framework: 'react'
   readonly contract: WidgetContract<Inputs, Events>
   readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Events>>) => ReactNode
 }
@@ -122,7 +130,7 @@ export interface WidgetDefinition<
 export function createWidget<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>(
   options: WidgetOptions<Inputs, Events>,
 ): WidgetDefinition<Inputs, Events> {
-  assertValidId(options.id, 'createWidget')
+  assertDefinitionId(options.id, 'createWidget')
   assertUsableEventNames(options.id, options.events)
 
   if (typeof options.render !== 'function') {
@@ -139,83 +147,45 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
   return {
     [DEFINITION_BRAND]: true,
     kind: 'widget',
+    framework: 'react',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     contract: { inputs: options.inputs, events: options.events },
     render: options.render,
+    // See `createApp`: `this` is the copy a container's build attached its style root to.
+    async mount(target: WidgetMountTarget): Promise<MountedWidget> {
+      const { mountWidget } = await import('./react-mount.tsx')
+      return mountWidget(this, target)
+    },
   }
 }
 
 export type MfeDefinition = AppDefinition | WidgetDefinition
 
-export function isMfeDefinition(value: unknown): value is MfeDefinition {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    (value as Record<symbol, unknown>)[DEFINITION_BRAND] === true
-  )
-}
-
-function assertValidId(id: unknown, operation: string): asserts id is string {
-  if (isValidDefinitionId(id)) return
-
-  throw createMfeError({
-    code: 'registry/invalid-entry',
-    id: typeof id === 'string' && id !== '' ? id : '<missing>',
-    operation,
-    expected: DEFINITION_ID_RULE,
-    observed:
-      id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
-    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
-  })
-}
-
 /** Two events mapping to one `on`-prefixed prop would make a subscription ambiguous. */
 function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
-  const handlerProps = new Map<string, string>()
+  const problem = findEventNameProblem(Object.keys(events))
+  if (problem === null) return
 
-  for (const name of Object.keys(events)) {
-    const declaration = {
-      code: 'contract/event-mismatch',
-      id,
-      operation: `declare event '${name}'`,
-    } as const
+  const declaration = {
+    code: 'contract/event-mismatch',
+    id,
+    operation: `declare event '${problem.name}'`,
+  } as const
 
-    if (!isValidEventName(name)) {
-      throw createMfeError({
-        ...declaration,
-        expected: 'a lower-camel-case event name, for example "acknowledged"',
-        observed: JSON.stringify(name),
-        repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
-      })
-    }
-
-    const handlerProp = eventNameToHandlerProp(name)
-    const existing = handlerProps.get(handlerProp)
-    if (existing !== undefined) {
-      throw createMfeError({
-        ...declaration,
-        expected: 'event names that map to distinct handler props',
-        observed: `'${existing}' and '${name}' both map to ${handlerProp}`,
-        repair: `Rename one of them, for example '${name}Completed'.`,
-      })
-    }
-    handlerProps.set(handlerProp, name)
-  }
-}
-
-/** Called by the mount boundary, where the parsed input keys are known. */
-export function assertUsableInputNames(id: string, inputNames: readonly string[]): void {
-  for (const name of inputNames) {
-    if (!isReservedInputName(name)) continue
-
+  if (problem.kind === 'invalid') {
     throw createMfeError({
-      code: 'contract/input-mismatch',
-      id,
-      operation: `declare input '${name}'`,
-      expected: 'an input name that is not reserved for host control or event handlers',
-      observed: `'${name}', which is reserved`,
-      repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
+      ...declaration,
+      expected: 'a lower-camel-case event name, for example "acknowledged"',
+      observed: JSON.stringify(problem.name),
+      repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
     })
   }
+
+  throw createMfeError({
+    ...declaration,
+    expected: 'event names that map to distinct handler props',
+    observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
+    repair: `Rename one of them, for example '${problem.name}Completed'.`,
+  })
 }

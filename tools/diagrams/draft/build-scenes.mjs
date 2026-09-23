@@ -297,7 +297,7 @@ async function bootToMount() {
   scene.text({
     x: 470,
     y: 106,
-    text: 'In the framework — @company/mfe-react',
+    text: 'In the framework — the adapter, then the runtime',
     size: 15,
     color: STROKE.muted,
   })
@@ -321,8 +321,8 @@ async function bootToMount() {
 
   const frameworkSteps = [
     ['5. URL picks the boundary', "<AppHost appId='operations' basePath='/operations'>"],
-    ['6. The container loads once', "loadRemote('operations/app')"],
-    ['7. The App renders', 'useOwnedMount, then RouterProvider'],
+    ['6. The container loads once', "mountDefinition, then loadRemote('operations/app')"],
+    ['7. The App mounts itself', 'definition.mount(), in its own React root'],
   ].map(([name, subtitle], position) =>
     tile(scene, {
       x: 470,
@@ -362,8 +362,8 @@ async function bootToMount() {
     dashed: true,
     heading: 'When step 6 fails',
   })
-  ;['load/manifest-failure', 'load/entry-failure', 'registry/invalid-entry'].forEach(
-    (name, position) => code(scene, { x: 1018, y: 186 + position * 44, w: 294, name }),
+  ;['load/manifest-failure', 'load/entry-failure', 'load/timeout'].forEach((name, position) =>
+    code(scene, { x: 1018, y: 186 + position * 44, w: 294, name }),
   )
 
   const routerFailures = panel(scene, {
@@ -373,7 +373,7 @@ async function bootToMount() {
     h: 152,
     dashed: true,
     heading: 'When step 7 fails',
-    caption: 'caught, and drawn with a Retry',
+    caption: 'the mount rejects; drawn with a Retry',
   })
   ;['app/invalid-base-path', 'app/invalid-router'].forEach((name, position) =>
     code(scene, { x: 1018, y: 412 + position * 44, w: 294, name }),
@@ -384,7 +384,7 @@ async function bootToMount() {
     to: { shape: loadFailures, side: 'left', at: 0.5 },
     dashed: true,
     color: STROKE.red,
-    label: 'thrown',
+    label: 'rejects',
     labelOffset: -18,
   })
   scene.arrow({
@@ -392,7 +392,7 @@ async function bootToMount() {
     to: { shape: routerFailures, side: 'left', at: 0.5 },
     dashed: true,
     color: STROKE.red,
-    label: 'thrown',
+    label: 'rejects',
     labelOffset: -18,
   })
 
@@ -408,7 +408,7 @@ async function layers() {
   panel(scene, {
     x: 0,
     y: 110,
-    w: 620,
+    w: 640,
     h: 420,
     dashed: true,
     heading: 'In the browser',
@@ -416,7 +416,7 @@ async function layers() {
   })
 
   const shell = file(scene, {
-    x: 30,
+    x: 40,
     y: 180,
     w: 250,
     h: 44,
@@ -424,39 +424,29 @@ async function layers() {
     fill: FILL.shell,
   })
   const operations = file(scene, {
-    x: 330,
+    x: 350,
     y: 180,
     w: 250,
     h: 44,
     name: 'examples/operations',
     fill: FILL.container,
   })
-  const react = file(scene, {
-    x: 30,
-    y: 280,
-    w: 250,
-    h: 44,
-    name: '@company/mfe-react',
-    fill: FILL.none,
-  })
-  const legacy = file(scene, {
-    x: 330,
-    y: 280,
-    w: 250,
-    h: 44,
-    name: '@company/mfe-legacy-angular',
-    fill: FILL.none,
-  })
+  const adapterRow = [
+    ['@company/mfe-react', 12],
+    ['@company/mfe-angular', 220],
+    ['@company/mfe-legacy-angular', 428],
+  ].map(([name, x]) => file(scene, { x, y: 280, w: 200, h: 44, size: 11.5, name, fill: FILL.none }))
+  const [react, angular, legacy] = adapterRow
   const host = file(scene, {
-    x: 180,
+    x: 195,
     y: 380,
     w: 250,
     h: 44,
-    name: '@company/mfe-host',
+    name: '@company/mfe-runtime',
     fill: FILL.none,
   })
   const core = file(scene, {
-    x: 180,
+    x: 195,
     y: 460,
     w: 250,
     h: 44,
@@ -466,20 +456,26 @@ async function layers() {
 
   authored(scene, operations)
   authored(scene, react)
+  authored(scene, angular)
 
-  scene.arrow({ from: { shape: shell, side: 'bottom' }, to: { shape: react, side: 'top' } })
   scene.arrow({
-    from: { shape: operations, side: 'bottom', at: 0.3 },
-    to: { shape: react, side: 'top', at: 0.75 },
+    from: { shape: shell, side: 'bottom', at: 0.3 },
+    to: { shape: react, side: 'top', at: 0.5 },
   })
   scene.arrow({
-    from: { shape: react, side: 'bottom', at: 0.7 },
-    to: { shape: host, side: 'top', at: 0.25 },
+    from: { shape: operations, side: 'bottom', at: 0.2 },
+    to: { shape: react, side: 'top', at: 0.9 },
   })
-  scene.arrow({
-    from: { shape: legacy, side: 'bottom', at: 0.3 },
-    to: { shape: host, side: 'top', at: 0.75 },
-  })
+  for (const [adapter, at] of [
+    [react, 0.2],
+    [angular, 0.5],
+    [legacy, 0.8],
+  ]) {
+    scene.arrow({
+      from: { shape: adapter, side: 'bottom', at: 0.5 },
+      to: { shape: host, side: 'top', at },
+    })
+  }
   scene.arrow({ from: { shape: host, side: 'bottom' }, to: { shape: core, side: 'top' } })
 
   scene.text({
@@ -498,30 +494,65 @@ async function layers() {
     h: 420,
     dashed: true,
     heading: 'At build time',
-    caption: "one entry in the container's rsbuild.config.ts",
+    caption: 'one integration per framework, one neutral layer',
   })
-  const plugin = file(scene, {
+  const rspack = file(scene, {
     x: 720,
-    y: 270,
-    w: 250,
+    y: 190,
+    w: 260,
     h: 56,
     name: '@company/mfe-rspack',
-    subtitle: 'pluginMfe()',
+    subtitle: 'pluginMfe(), for React',
     subtitleMono: true,
+    fill: FILL.none,
   })
-
-  const generated = ['#mfe/config', '#mfe/fetch', '#mfe/meta', '.mfe/entries/', '.mfe/styles.css']
-  const generatedTiles = generated.map((name, position) =>
-    file(scene, { x: 1060, y: 200 + position * 52, w: 240, h: 40, name }),
-  )
-  authored(scene, generatedTiles[0])
-  authored(scene, generatedTiles[1])
+  const nx = file(scene, {
+    x: 1030,
+    y: 190,
+    w: 260,
+    h: 56,
+    name: '@company/mfe-nx',
+    subtitle: 'withMfe(), for Angular',
+    subtitleMono: true,
+    fill: FILL.none,
+  })
+  const build = file(scene, {
+    x: 875,
+    y: 300,
+    w: 260,
+    h: 56,
+    name: '@company/mfe-build',
+    subtitle: 'planContainer()',
+    subtitleMono: true,
+    fill: FILL.none,
+  })
+  const modules = file(scene, { x: 720, y: 450, w: 260, h: 40, name: '#mfe/config, #mfe/fetch' })
+  const artifacts = file(scene, {
+    x: 1030,
+    y: 450,
+    w: 260,
+    h: 40,
+    name: '.mfe/ entries, styles.css',
+  })
+  authored(scene, modules)
 
   scene.arrow({
-    from: { shape: plugin, side: 'right' },
-    to: { shape: generatedTiles[2], side: 'left' },
+    from: { shape: rspack, side: 'bottom', at: 0.5 },
+    to: { shape: build, side: 'top', at: 0.25 },
+  })
+  scene.arrow({
+    from: { shape: nx, side: 'bottom', at: 0.5 },
+    to: { shape: build, side: 'top', at: 0.75 },
+  })
+  scene.arrow({
+    from: { shape: build, side: 'bottom', at: 0.3 },
+    to: { shape: modules, side: 'top', at: 0.5 },
     label: 'generates',
-    labelOffset: -20,
+    labelDx: -62,
+  })
+  scene.arrow({
+    from: { shape: build, side: 'bottom', at: 0.7 },
+    to: { shape: artifacts, side: 'top', at: 0.5 },
   })
 
   scene.legend({
@@ -572,7 +603,7 @@ async function isolationBoundaries() {
     ['Storage', '<definitionId>:<name>; retention decides who reads', 960, 140],
     ['Network', '#mfe/fetch; the token only to declared origins', 0, 590],
     ['Errors', 'one MfeError code, into the DiagnosticsHub', 480, 590],
-    ['Shared singletons', 'one copy per page; shareStrategy loaded-first', 960, 590],
+    ['Framework share scopes', 'one copy per framework version; loaded-first', 960, 590],
   ].map(([name, subtitle, x, y]) =>
     tile(scene, { x, y, w: 360, h: 72, fill: FILL.page, name, subtitle }),
   )
@@ -820,14 +851,14 @@ async function configAndData() {
 
 async function lifecycle() {
   const scene = createScene('lifecycle')
-  scene.title('lifecycle', 'What a mount does between the first render and the last.')
+  scene.title('lifecycle', 'What a mount does between placement and disposal.')
 
   const stages = [
-    ['the load suspends', 'loadDefinition(runtime, id)', FILL.page],
-    ['the definition is checked', 'isMfeDefinition, then the router', FILL.page],
-    ['the mount is created', 'createMount(...)', FILL.page],
-    ['rendered, taking input', 'AppMount / WidgetMount', FILL.container],
-    ['disposed', 'dispose()', FILL.page],
+    ['the container loads', 'runtime.loader.load(entry)', FILL.page],
+    ['the definition is checked', 'isMountableDefinition, its kind', FILL.page],
+    ['the roots are created', 'scope root, createMountContext', FILL.page],
+    ['mounted, taking input', 'definition.mount(target)', FILL.container],
+    ['disposed', 'dispose(), then the context', FILL.page],
   ].map(([name, subtitle, fill], position) =>
     tile(scene, {
       x: position * 282,
@@ -870,8 +901,8 @@ async function lifecycle() {
   })
   ;[
     'load/manifest-failure',
-    'load/entry-failure',
-    'app/invalid-base-path',
+    'load/timeout',
+    'mount/failure',
     'app/invalid-router',
     'contract/input-mismatch',
     'contract/event-mismatch',
@@ -895,7 +926,7 @@ async function lifecycle() {
     h: 64,
     fill: FILL.page,
     name: 'StrictMode',
-    subtitle: 'create, dispose, create again',
+    subtitle: 'first handle disposed; mount runs once',
   })
 
   // Blue marks the one stage that renders the container; red marks the failure band.
@@ -1266,165 +1297,124 @@ async function devWorkflow() {
 
 async function adapters() {
   const scene = createScene('adapters')
-  scene.title('adapters', 'One neutral host; one adapter per framework.')
+  scene.title('adapters', 'One neutral runtime; the adapters the shell lists.')
 
   const shell = tile(scene, {
-    x: 555,
+    x: 505,
     y: 104,
-    w: 340,
+    w: 440,
     h: 64,
     fill: FILL.shell,
     name: 'The shell',
-    subtitle: 'apps/shell/src/boot.tsx',
+    subtitle: 'adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]',
     subtitleMono: true,
   })
 
-  const neutral = panel(scene, {
+  const runtime = panel(scene, {
     x: 80,
     y: 230,
     w: 1290,
-    h: 300,
-    heading: 'The neutral host',
-    caption: '@company/mfe-host — no React, no router, no federation',
+    h: 150,
+    heading: 'The neutral runtime',
+    caption: '@company/mfe-runtime — no framework, no federation import',
   })
+  const runtimeTiles = [
+    ['Shared services', 'storage, commands, navigation, diagnostics', false],
+    ['Federation loader', 'createFederationContainerLoader', true],
+    ['One mount path', 'mountDefinition', true],
+  ].map(([name, subtitle, subtitleMono], position) =>
+    tile(scene, {
+      x: 104 + position * 418,
+      y: 296,
+      w: 394,
+      h: 60,
+      fill: FILL.page,
+      name,
+      subtitle,
+      subtitleMono,
+    }),
+  )
 
-  tile(scene, {
-    x: 104,
-    y: 288,
-    w: 1242,
-    h: 60,
-    fill: FILL.page,
-    name: 'Shared services',
-    subtitle: 'storage, commands, navigation bridge, diagnostics',
-  })
-
-  panel(scene, {
-    x: 104,
-    y: 368,
-    w: 1242,
-    h: 138,
-    dashed: true,
-    heading: 'Reading the registry',
-    caption: 'one adapter recognises each entry',
-  })
-  const reactEntries = tile(scene, {
-    x: 130,
-    y: 424,
-    w: 520,
-    h: 62,
-    fill: FILL.page,
-    name: 'Entries with mfe',
-    subtitle: 'reactAdapter',
-    subtitleMono: true,
-  })
-  const legacyEntries = tile(scene, {
-    x: 790,
-    y: 424,
-    w: 520,
-    h: 62,
-    fill: FILL.page,
-    name: 'Entries without mfe',
-    subtitle: 'legacyAngularAdapter',
-    subtitleMono: true,
-  })
-
-  const reactAdapter = panel(scene, {
+  const adapterPanel = panel(scene, {
     x: 80,
-    y: 590,
-    w: 620,
-    h: 250,
-    heading: 'The React adapter',
-    caption: '@company/mfe-react',
+    y: 450,
+    w: 1290,
+    h: 150,
+    dashed: true,
+    heading: 'The adapters',
+    caption: 'exactly one recognises each entry; any order',
   })
-  ;[
-    ['Federation loader', 'createMf2ContainerLoader', true],
-    ['App and Widget definitions', 'createApp, createWidget', true],
-    ['Boundary and style roots', 'createBoundaryHistory, StyleRoot', true],
-  ].forEach(([name, subtitle, subtitleMono], position) =>
-    tile(scene, { x: 98, y: 646 + position * 58, w: 584, h: 50, name, subtitle, subtitleMono }),
+  const adapterTiles = [
+    ['The React adapter', "mfe.framework 'react', or none", true],
+    ['The Angular adapter', "mfe.framework 'angular'", true],
+    ['The legacy Angular adapter', 'no mfe key; removable', false],
+  ].map(([name, subtitle, subtitleMono], position) =>
+    tile(scene, {
+      x: 104 + position * 418,
+      y: 516,
+      w: 394,
+      h: 60,
+      name,
+      subtitle,
+      subtitleMono,
+    }),
   )
 
-  const legacyAdapter = panel(scene, {
-    x: 750,
-    y: 590,
-    w: 620,
-    h: 250,
-    heading: 'The legacy Angular adapter',
-    caption: '@company/mfe-legacy-angular — removable',
-  })
-  ;[
-    ['Registry translation', 'legacy AppConfig into typed fields', false],
-    ['Parcel lifecycle', 'mountRootParcel: mount, unmount', true],
-    ['Base href, shell routes', 'resolveLegacyBaseHref, matchLegacyShellRoute', true],
-  ].forEach(([name, subtitle, subtitleMono], position) =>
-    tile(scene, { x: 768, y: 646 + position * 58, w: 584, h: 50, name, subtitle, subtitleMono }),
+  const containers = [
+    ['operations', 'a React App, with its own root'],
+    ['an Nx container', 'an Angular App or Widgets'],
+    ['asset-tracker', 'a legacy application, not mounted yet'],
+  ].map(([name, subtitle], position) =>
+    tile(scene, {
+      x: 104 + position * 418,
+      y: 680,
+      w: 394,
+      h: 64,
+      fill: FILL.container,
+      mono: position !== 1,
+      size: 13,
+      name,
+      subtitle,
+    }),
   )
-
-  const reactContainer = tile(scene, {
-    x: 98,
-    y: 900,
-    w: 584,
-    h: 64,
-    fill: FILL.container,
-    mono: true,
-    size: 13,
-    name: 'operations',
-    subtitle: 'a React App, or Widgets',
-  })
-  const legacyContainer = tile(scene, {
-    x: 768,
-    y: 900,
-    w: 584,
-    h: 64,
-    fill: FILL.container,
-    mono: true,
-    size: 13,
-    name: 'asset-tracker',
-    subtitle: 'a legacy Angular application',
-  })
 
   scene.arrow({
     from: { shape: shell, side: 'bottom' },
-    to: { shape: neutral, side: 'top', at: 0.5 },
+    to: { shape: runtime, side: 'top', at: 0.5 },
     label: 'registry.json',
     labelDx: 92,
   })
   scene.arrow({
-    from: { shape: reactEntries, side: 'bottom' },
-    to: { shape: reactAdapter, side: 'top', at: 0.5 },
-    label: 'read by',
-    labelDx: 58,
-    labelOffset: 14,
-  })
-  scene.arrow({
-    from: { shape: legacyEntries, side: 'bottom' },
-    to: { shape: legacyAdapter, side: 'top', at: 0.5 },
-    label: 'read by',
-    labelDx: 58,
-    labelOffset: 14,
-  })
-  scene.arrow({
-    from: { shape: reactAdapter, side: 'bottom', at: 0.5 },
-    to: { shape: reactContainer, side: 'top', at: 0.5 },
-    label: 'loads, mounts',
+    from: { shape: runtime, side: 'bottom', at: 0.5 },
+    to: { shape: adapterPanel, side: 'top', at: 0.5 },
+    label: 'detect, parse',
     labelDx: 92,
   })
+  for (const position of [0, 1]) {
+    scene.arrow({
+      from: { shape: adapterTiles[position], side: 'bottom', at: 0.5 },
+      to: { shape: containers[position], side: 'top', at: 0.5 },
+      label: 'defines, mounts',
+      labelDx: 92,
+    })
+  }
   scene.arrow({
-    from: { shape: legacyAdapter, side: 'bottom', at: 0.5 },
-    to: { shape: legacyContainer, side: 'top', at: 0.5 },
-    label: 'loads, mounts',
-    labelDx: 92,
+    from: { shape: adapterTiles[2], side: 'bottom', at: 0.5 },
+    to: { shape: containers[2], side: 'top', at: 0.5 },
+    dashed: true,
+    label: 'entries only',
+    labelDx: 88,
   })
 
   scene.legend({
     x: 80,
-    y: 1010,
+    y: 800,
     heading: 'What is neutral, and what is not',
     entries: swatches(
       ['shell'],
-      ['page', 'neutral: no React, no router, no federation'],
+      ['page', 'neutral: no framework, no federation import'],
       ['none', 'an adapter package'],
-      ['container', 'a container the adapter mounts'],
+      ['container', 'a container'],
     ),
   })
 

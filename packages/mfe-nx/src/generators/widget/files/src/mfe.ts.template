@@ -1,0 +1,26 @@
+import { createWidget } from '@company/mfe-angular'
+import { z } from 'zod'
+
+import { <%= pascal %>Component } from './<%= id %>.component'
+import { providePrimeNgForMfe } from './primeng'
+
+// The schemas are the source of truth for runtime validation and for the author-facing types, so
+// the component's inputs and outputs need no separate annotations. The build reads them
+// statically too, and publishes them in the registry, so a host can offer this Widget without
+// loading this container.
+//
+// Exported separately so a consumer can import it: with the contract they get inference and
+// consumer-side event validation, without it they get neither.
+export const <%= camel %>Contract = {
+  inputs: z.object({ label: z.string() }),
+  events: { activated: z.object({ at: z.string() }) },
+}
+
+export const <%= camel %> = createWidget({
+  id: '<%= id %>',
+  version: '0.1.0',
+  ...<%= camel %>Contract,
+  component: <%= pascal %>Component,
+  // Environment providers for each mount's own application.
+  providers: [providePrimeNgForMfe()],
+})

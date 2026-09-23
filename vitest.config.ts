@@ -32,10 +32,19 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'host',
-          root: './packages/mfe-host',
+          name: 'runtime',
+          root: './packages/mfe-runtime',
           environment: 'jsdom',
           include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'angular',
+          root: './packages/mfe-angular',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts'],
+          setupFiles: ['./vitest.setup.ts'],
         },
       },
       {
@@ -64,6 +73,22 @@ export default defineConfig({
         test: {
           name: 'rspack',
           root: './packages/mfe-rspack',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'build',
+          root: './packages/mfe-build',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'mfe-nx',
+          root: './packages/mfe-nx',
           environment: 'node',
           include: ['src/**/*.test.ts'],
         },
@@ -121,6 +146,16 @@ export default defineConfig({
           root: './apps/shell',
           environment: 'node',
           include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'interop',
+          root: './tools/interop',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts'],
+          setupFiles: ['./vitest.setup.ts'],
+          globalSetup: ['./src/__tests__/build-container-b.ts'],
         },
       },
     ],

@@ -3,4 +3,7 @@ dist/
 
 # Generated build output. Generation runs before typecheck, test and build.
 routeTree.gen.ts
-.mfe/
+.mfe/*
+# Except your local runtime configuration, which the dev server serves and no
+# build ships.
+!.mfe/runtime-config.json

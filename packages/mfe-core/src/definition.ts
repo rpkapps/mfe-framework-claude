@@ -1,5 +1,7 @@
 /** Neutral definition records; the host's internal mount and scope tokens never appear here. */
 
+import { createMfeError } from './errors.ts'
+
 export type DefinitionKind = 'app' | 'widget'
 
 /** App-only; a Widget cannot declare a capability. */
@@ -47,6 +49,22 @@ export type IconNode = readonly [
   children?: readonly IconNode[],
 ]
 
+/**
+ * What an icon may draw with. `IconData` arrives over the network from another origin, so every
+ * reader of it — the build that first parses an import, and every host that later renders the
+ * result — drops anything outside this allowlist rather than carrying it into a document.
+ */
+export const ICON_ELEMENT_TAGS = [
+  'path',
+  'circle',
+  'rect',
+  'line',
+  'polyline',
+  'polygon',
+  'ellipse',
+  'g',
+] as const
+
 export interface DefinitionIdentity {
   readonly id: string
   readonly kind: DefinitionKind
@@ -59,6 +77,14 @@ export interface ContainerDescriptor {
   /** The Module Federation container name; a shell registers the remote under it before fetching. */
   readonly container: string
   readonly contractMajor: number
+  /** The adapter that built it; absent means a React container built before this field existed. */
+  readonly framework?: string
+  /**
+   * The Module Federation share scopes a host registers the container with, `default` first and
+   * then its framework's, such as `react@19.3.0`. Absent means a container built before
+   * framework scopes, which shares in `default` alone.
+   */
+  readonly shareScopes?: readonly string[]
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path. */
   readonly entries: Readonly<Record<string, string>>
@@ -103,3 +129,18 @@ export function isValidDefinitionId(value: unknown): value is string {
 
 export const DEFINITION_ID_RULE =
   'lower-case letters, digits and single hyphens (for example "alert-panel")'
+
+/** Every author-facing `createApp`/`createWidget` shares this check; `operation` names the call. */
+export function assertDefinitionId(id: unknown, operation: string): asserts id is string {
+  if (isValidDefinitionId(id)) return
+
+  throw createMfeError({
+    code: 'registry/invalid-entry',
+    id: typeof id === 'string' && id !== '' ? id : '<missing>',
+    operation,
+    expected: DEFINITION_ID_RULE,
+    observed:
+      id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
+    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
+  })
+}

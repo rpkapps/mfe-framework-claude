@@ -24,11 +24,13 @@ chunks are document-level. The override is a URL only, never a token.
 ## Configuration
 
 `src/mfe.config.ts` holds the schema and the environment mapping — no values
-and no secrets. The values live in `public/runtime-config.json`: the dev server
-publishes `public/` next to this container's assets (`server.publicDir` in
-`rsbuild.config.ts`), which is where the generated loader fetches it from. Put
-your local values there. A deployment publishes its own file beside its assets,
-so no value is ever built into the container.
+and no secrets. Your local values live in `.mfe/runtime-config.json`, the one
+file in `.mfe/` that is committed. The dev server answers
+`runtime-config.json` next to this container's assets with it, which is where
+the generated loader fetches it from, and `pnpm run generate` adds any
+declared default it lacks without changing a value you set. No build copies
+`.mfe/`: a build ships the declared defaults, and a deployment publishes its
+own file beside its assets, so no local value is ever built into the container.
 
 Read configuration with `import { config } from '#mfe/config'` and make
 authenticated requests with `import { fetch } from '#mfe/fetch'`; the token is

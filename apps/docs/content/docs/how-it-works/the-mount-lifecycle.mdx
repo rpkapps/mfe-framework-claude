@@ -1,148 +1,168 @@
 ---
 title: 'The mount lifecycle'
-description: 'The five stages of a mount, what each one allocates, the order disposal runs in, and where every failure on that path ends.'
+description: 'The five stages of a mount, what each one creates, the order disposal runs in, and where every failure on that path ends.'
 ---
 
 For framework maintainers and shell builders. If you are writing an App or a Widget, the recipes
 tell you what you need.
 
 A <Term>mount</Term> is one live instance of a definition on the page. It owns a mount token, a base
-path, an abort signal, a Query client, storage handles, telemetry and an overlay root. This page
-follows one mount through five stages. Nothing on that path runs under a deadline, so a load
-suspends until it settles or fails.
+path, an abort signal, storage handles, telemetry, a scope root and an overlay root. Every host
+creates one the same way, through `mountDefinition` in `@company/mfe-runtime`. This page follows one
+mount through its five stages.
 
 <Diagram
   src="/diagrams/lifecycle.svg"
   alt="Five stages left to right, a loop arrow on the fourth, a band of six failure codes below them, and a StrictMode box at the bottom."
-  caption="What a mount does between the first render and the last."
+  caption="What a mount does between placement and disposal."
 >
 Five boxes run left to right, each with an arrow into the next.
 
-- **the load suspends** — `loadDefinition(runtime, id)`.
-- **the definition is checked** — `isMfeDefinition`, then the router.
-- **the mount is created** — `createMount(...)`.
-- **rendered, taking input** — `AppMount / WidgetMount`. This is the blue box, and a loop arrow
+- **the container loads** — `runtime.loader.load(entry)`.
+- **the definition is checked** — `isMountableDefinition`, then its kind.
+- **the roots are created** — the scope root, then `createMountContext`.
+- **mounted, taking input** — `definition.mount(target)`. This is the blue box, and a loop arrow
   returns to it, labelled "input, or event".
-- **disposed** — `dispose()`.
+- **disposed** — `dispose()`, then the context.
 
 A dashed panel below them, **Where a failure goes**, holds six codes: `load/manifest-failure`,
-`load/entry-failure`, `app/invalid-base-path`, `app/invalid-router`, `contract/input-mismatch` and
+`load/timeout`, `mount/failure`, `app/invalid-router`, `contract/input-mismatch` and
 `contract/event-mismatch`. A red dashed arrow drops into that panel from the first box, the second
-and the fourth. A grey box at the bottom, **StrictMode**, reads "create, dispose, create again". A
-legend names the two colours: blue for the box where the container renders, red for the failure
-path.
+and the fourth. A grey box at the bottom, **StrictMode**, reads "first handle disposed; mount runs
+once". A legend names the two colours: blue for the box where the container renders, red for the
+failure path.
 
 </Diagram>
 
-## Stage 1: the container is fetched
+## One path for every host
 
-The load suspends, because the container's code is not in the page's build. `AppHost`, or the
-component `lazyWidget` returned, calls `use(loadDefinition(runtime, id, kind))`. React suspends
-while the federation container is registered and its entry module arrives.
+A host renders an empty element and calls `mountDefinition` with the runtime, that element, the
+definition id and its kind. An App request adds the base path. A Widget request adds the inputs and
+an `onEvent` handler. The call returns a handle with the mount's state, `retry()`, `dispose()` and,
+for a Widget, `update(inputs)`.
 
-The promise is cached per runtime per id, a rejection included. React needs the same settled promise
-to show the failure, and a cache that evicted itself would refetch as fast as the network allows.
-The rejection is reported once, off that cached promise, so one attempt is one diagnostic however
-many consumers were waiting.
+`AppHost`, `DynamicWidget` and the component `lazyWidget` returns all work this way. So do
+`<mfe-app-host>` and `<mfe-widget>` in Angular. No host asks which framework built the definition,
+so a React shell places an Angular Widget exactly as it places a React one. Decision 33 argues the
+one path.
+
+The state is one of four: `pending`, `mounted`, `error` or `disposed`. A React host shows its
+`pending` slot while the state is `pending`, and its `fallback` while it is `error`. Nothing
+suspends.
+
+## Stage 1: the container loads
+
+The runtime looks the id up in the registry first. An id the registry does not hold, or an entry of
+the other kind, fails before anything downloads. The load then goes through the runtime's one loader,
+inside the `aroundLoad` of the adapter that read the entry.
+
+The loader shares a load in flight and keeps a load that resolved, so a container loads once per
+page. It never keeps a rejection, so a retry after a failed load fetches afresh. The load runs under
+the runtime's load deadline, 30 seconds unless the shell tunes it, and an overrun fails as
+`load/timeout`.
 
 ## Stage 2: the definition is checked
 
-Two checks run before anything of the author's renders. First, the module the container exposed has
-to be a framework definition of the kind the registry declared. It fails as `load/entry-failure`.
+The module the container exposed has to be a mountable definition: a branded record with a `mount`
+function, and for a Widget a contract. It also has to be the kind the registry entry named. Either
+failure is `load/entry-failure`.
 
-Then, for an App, the framework compares the router the factory returned against what it supplied.
-Four things are compared: the base path as `basepath`, the history by identity, `context.mfe` by
-identity, and the top-level `queryClient`. The first fails as `app/invalid-base-path` and the other
-three as `app/invalid-router`. The check runs in the memo that built the router, so a violation
-throws during render.
+## Stage 3: the roots are created
 
-## Stage 3: the mount is created
+The runtime creates a scope root, a `display: contents` element carrying `data-mfe-scope`,
+`data-mfe-mount` and `data-mfe-kind`. It puts the definition's element inside it. It then creates
+the mount context: a mount token such as `operations#1`, the depth, the base path, telemetry, the
+definition's two storage areas, an abort signal and an overlay root appended to `document.body`.
+The base path is always an empty string for a Widget, which owns no URL.
 
-`createMount` allocates a mount token such as `operations#1`, an `AbortController`, a `QueryClient`,
-the telemetry services and an overlay root appended to `document.body`. The base path is forced to
-an empty string for a Widget, which owns no URL. Around the author's tree the framework renders
-four wrappers: the mount provider, the Query provider, the scope root carrying `data-mfe-scope` and
-the generated style root. An App gets the `RouterProvider` inside them.
+A definition renders into its element and portals into the overlay root. It never adds a root of
+its own.
 
-The abort signal is the one handle an author is given, through `useMfeSignal()` and
-`context.mfe.signal`. There is no observable mount state object. `MountState` is a type in
-`@company/mfe-core` that the React adapter never produces.
+## Stage 4: the definition mounts itself
 
-## Stage 4: inputs and events are validated
+The runtime calls `definition.mount(target)` after an `await`, never from inside a host's render.
+The mount deadline starts here, measured after the code is ready.
 
-The provider splits a Widget consumer's props into inputs and `on…` handlers. Each render compares
-the incoming inputs to the last set checked, by reference and then shallowly. Replacing a handler
-alone is not an input change.
+A React definition opens a React root of its own on the element. The root renders the mount's
+providers, the mount's own Query client, the style root the build attached, and then the App's
+router or the Widget. `useId` values are prefixed with the mount token, so two roots never hand out
+the same id. In development the root runs in StrictMode.
 
-A genuine change is validated in three steps. Serializability comes first, so the diagnostic names
-the real problem. Then the declared `inputs` schema runs, and then the parsed key names are checked
-against the reserved ones. An accepted update publishes a snapshot to the mount already on screen and remounts nothing.
-A rejected update keeps the last inputs that passed and is reported from an effect, because an
-abandoned render must not reach the sink. The first validation is the exception. There is nothing to
-fall back to, so it throws.
+For an App, the first render checks the router the factory returned against what it was given. The
+base path must arrive as `basepath`, and the history, `context.mfe` and the top-level
+`queryClient` must be the ones supplied. A mismatch fails as `app/invalid-base-path` or
+`app/invalid-router`, and any failure in that first render rejects the mount. A render error after
+the first commit goes to `target.onFailure` instead, which moves the mount to `error`.
+
+A Widget receives its inputs only when they change. The runtime drops a set shallow-equal to the
+last one, and inputs that changed while the Widget was mounting arrive once, afterwards. The Widget
+validates each set in three steps. Serializability comes first, so the diagnostic names the real
+problem. Then the declared `inputs` schema runs, and then the parsed key names are checked against
+the reserved ones. The first set that fails rejects the mount. A later set that fails keeps the last
+valid inputs on screen and is reported.
 
 `emit(name, payload)` checks that the event is declared, that the payload is JSON-serializable, and
-that it matches the declared schema. All three throw at the call site, which keeps the failure in
-the Widget's own stack. A consumer that supplied its own runtime contract validates a second time.
-A failure there is reported and the event is dropped, because a narrower expectation is not the
-Widget's bug.
+that it matches the declared schema. All three throw at the call site, in the Widget's own stack.
+A host that supplied its own contract checks the payload a second time. A payload that fails there is
+reported and not delivered, because a narrower expectation is not the Widget's bug.
 
 ## Stage 5: disposal, in order
 
-Disposal runs from the effect cleanup, on every React unmount, in this order.
+Disposal runs from the host's `dispose()`, or when the parent mount is disposed. The scope root
+leaves the page at once, and teardown follows in this order.
 
-1. Command and navigator registrations are removed, so a disposed mount cannot appear in the palette
+1. The definition's own `dispose` empties its element. A React definition unmounts its root.
+2. Command and navigator registrations are removed, so a disposed mount cannot appear in the palette
    mid-teardown.
-2. The abort signal aborts, which tears down anything wired with `{ signal }`.
-3. Queries are cancelled and the mount's Query cache is cleared. Cancelling signals the requests
-   rather than awaiting them, because teardown must not block on a request.
+3. The abort signal aborts. In React that cancels the mount's queries and clears its cache, without
+   waiting on them.
 4. Telemetry is disposed.
 5. The overlay root is removed from `document.body`.
 
-Registrations a component made clean themselves up in their own effect cleanups, so they go when the
-component goes. Disposal does not touch the container module cache. The loaded module and the cached
-load promise outlive the mount, so mounting the same App again does not refetch it.
+Disposal runs under the dispose deadline, 5 seconds unless the shell tunes it. It does not touch the
+container module cache, so mounting the same App again does not refetch it.
 
 ## Where each failure goes
 
-| Code                                        | Thrown or reported                          | What the consumer sees                                |
-| ------------------------------------------- | ------------------------------------------- | ----------------------------------------------------- |
-| `load/manifest-failure`                     | thrown, caught by `RetryBoundary`           | the failure box, with the message, the code and Retry |
-| `load/entry-failure`                        | thrown, caught by `RetryBoundary`           | the failure box                                       |
-| `app/invalid-base-path`                     | thrown during render                        | the failure box                                       |
-| `app/invalid-router`                        | thrown during render                        | the failure box                                       |
-| `contract/input-mismatch`, first validation | thrown                                      | the failure box                                       |
-| `contract/input-mismatch`, later update     | reported to diagnostics                     | the last inputs that passed, still on screen          |
-| `contract/event-mismatch`                   | thrown at the `emit` call site              | the Widget's own error boundary                       |
-| a render error inside a mounted App         | caught by the App's `defaultErrorComponent` | that error component                                  |
-| a container that never loads                | nothing is thrown                           | the pending slot, until the load settles              |
+| Code                                        | How it ends                                 | What the consumer sees                            |
+| ------------------------------------------- | ------------------------------------------- | ------------------------------------------------- |
+| `registry/invalid-entry`                    | the load rejects                            | the host's `fallback`, with the message and Retry |
+| `load/manifest-failure`                     | the load rejects                            | the host's `fallback`                             |
+| `load/entry-failure`                        | the load or the check rejects               | the host's `fallback`                             |
+| `load/timeout`, `mount/timeout`             | the deadline rejects                        | the host's `fallback`                             |
+| `app/invalid-base-path`                     | the first render rejects the mount          | the host's `fallback`                             |
+| `app/invalid-router`                        | the first render rejects the mount          | the host's `fallback`                             |
+| `contract/input-mismatch`, first validation | the mount rejects                           | the host's `fallback`                             |
+| `contract/input-mismatch`, later update     | reported to diagnostics                     | the last inputs that passed, still on screen      |
+| `contract/event-mismatch`                   | thrown at the `emit` call site              | a throw in the Widget's own code                  |
+| `mount/failure`, after the first commit     | `onFailure` moves the mount to `error`      | the host's `fallback`                             |
+| a render error inside a mounted App         | caught by the App's `defaultErrorComponent` | that error component, inside the App              |
 
-`RetryBoundary` exists only when the consumer supplied a `fallback`. It catches the throw,
-converts anything that is not an `MfeError` to `code: 'mount/failure'`, and calls
-`fallback({ error, retry })`. Retry drops the cached outcome, so the next attempt is a fresh one.
-
-Every failure here also reaches the diagnostics hub the shell installed. A hub with no sinks
-discards everything, which is the first thing to check when a shell reports nothing.
+Without a `fallback`, a React host throws the error to its nearest error boundary. `retry()` acts
+only from `error`. After a failed load it loads afresh, and after a failed mount it reuses the
+loaded definition with a fresh mount token. Each failed attempt is one diagnostic, reported to the
+hub the shell installed. A hub with no sinks discards everything, which is the first thing to check
+when a shell reports nothing.
 
 ## StrictMode mounts everything twice
 
-In development React mounts, unmounts and mounts again without re-rendering: create, dispose,
-create. The framework is shaped around that. For an author it means two things. `src/mfe.ts` stays
-free of side effects, and every effect is idempotent and cleans up after itself.
+In development React mounts, unmounts and mounts again without re-rendering. The effect that calls
+`mountDefinition` is the effect whose cleanup disposes the handle. So the first handle is disposed
+before its load settles, and the definition's `mount` runs once. For an author this means two
+things. `src/mfe.ts` stays free of side effects, and every effect is idempotent and cleans up after
+itself.
 
-## Why the effect that creates a mount also destroys it
+## Why the effect owns the handle
 
-`createMount` appends a node to the document, starts a tracer and allocates a Query client. None of
-that belongs in a render React may discard, so it runs inside the effect of `useOwnedMount`. One
-render therefore passes with no mount and returns `null`.
-
-StrictMode is the other half of the reason. A mount built in `useMemo` is not re-evaluated on the
-second setup. That setup would run against the object the first cleanup had already disposed.
+`mountDefinition` starts a load and appends to the page. None of that belongs in a render React may
+discard, so the host calls it from an effect and publishes the handle it returns. One render
+therefore passes before the mount exists, and the host shows `pending` for it. Decision 14 records
+the StrictMode bug that forced this shape.
 
 ## Related
 
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — what each mount is separated from.
-- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — who loads the container in stage one.
+- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — who reads the entry in stage one.
 - [Architecture](/docs/architecture) — the same path, at consumer level.
 - [Error codes](/docs/reference/error-codes) — every code above, with its message and fix.
-- [Design map](/docs/how-it-works/design) — the decisions behind these rules.
+- [Decision log](/docs/how-it-works/decisions) — decisions 14 and 33 in full.

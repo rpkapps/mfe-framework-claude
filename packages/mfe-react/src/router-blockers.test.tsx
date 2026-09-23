@@ -12,7 +12,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { act, screen, waitFor } from '@testing-library/react'
-import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
+import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-runtime'
 import { useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 

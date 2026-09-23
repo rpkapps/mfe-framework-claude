@@ -22,16 +22,69 @@ allowBuilds:
   # Denied: msw's postinstall writes a service worker into a public directory.
   # We do not use MSW (§15.1 keeps it optional), so its script must not run.
   msw: false
+  # Reviewed: nx's postinstall only asserts platform support and, when an nx.json
+  # is present, checks Nx Cloud usage; both are no-ops here (the repository root is
+  # not an Nx workspace, and examples/fieldwork's own nx.json sets
+  # neverConnectToCloud), and the script exits within 30s either way.
+  nx: true
+  # Denied, all four reached through @angular-devkit/build-angular for examples/fieldwork.
+  # less: its postinstall runs `pnpm exec playwright install` when it believes it is in its own
+  # development checkout, which is never what installing it as a dependency should do.
+  less: false
+  # @parcel/watcher: its install script compiles from source only when
+  # npm_config_build_from_source is set; the prebuilt binary is an optional dependency.
+  '@parcel/watcher': false
+  # lmdb and msgpackr-extract: node-gyp-build-optional-packages loads the prebuilt binding
+  # each ships as an optional dependency, and compiles only when none matches the platform.
+  lmdb: false
+  msgpackr-extract: false
+
+# `@angular/core` 19 declares `zone.js` as a required peer. The Angular adapter runs zoneless
+# only and never imports it, so the peer is deliberately absent rather than installed.
+peerDependencyRules:
+  ignoreMissing:
+    - zone.js
+
+# @nx/angular brings Nx's own Module Federation integration, on @module-federation 2.9.1, which
+# examples/fieldwork never runs: withMfe() builds it with @module-federation/enhanced from the
+# catalog. Left alone, that 2.9.1 would also become @rspack/core's optional peer in every Rsbuild
+# container, moving the React containers' federation runtime off the version the shell shares.
+overrides:
+  '@module-federation/runtime-tools@2.9.1': 2.9.0
 
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.
 catalog:
+  # examples/fieldwork, the Angular container: the versions @company/mfe-nx's generator writes,
+  # pinned exactly where it writes a range. Its TypeScript and test toolchain are in the `angular`
+  # catalog below, because they differ from this one.
+  '@analogjs/vite-plugin-angular': 2.7.2
+  '@analogjs/vitest-angular': 2.7.2
+  '@angular-devkit/build-angular': 19.2.27
+  '@angular-eslint/eslint-plugin': 22.5.0
+  '@angular-eslint/eslint-plugin-template': 22.5.0
+  '@angular-eslint/template-parser': 22.5.0
+  '@angular/animations': 19.2.25
+  '@angular/cdk': 19.2.19
+  '@angular/common': 19.2.25
+  '@angular/compiler': 19.2.25
+  '@angular/compiler-cli': 19.2.25
+  '@angular/core': 19.2.25
+  '@angular/forms': 19.2.25
+  '@angular/platform-browser': 19.2.25
+  '@angular/router': 19.2.25
   '@babel/core': 8.0.5
   '@changesets/cli': 3.0.3
   '@excalidraw/excalidraw': 0.18.1
   '@module-federation/enhanced': 2.9.0
   '@module-federation/runtime': 2.9.0
+  '@nx/angular': 22.7.12
+  # Pinned for packages/mfe-nx's own tests and typecheck only; the Nx plugin declares its actual
+  # `@nx/devkit`/`nx` compatibility as a peerDependency range (see that package's README), since a
+  # consumer's workspace picks its own Nx version.
+  '@nx/devkit': 22.7.12
   '@playwright/test': 1.63.0
+  '@primeng/themes': 19.1.4
   '@rsbuild/core': 2.2.8
   '@rsbuild/plugin-react': 2.1.0
   '@rspack/cli': 2.2.6
@@ -65,6 +118,10 @@ catalog:
   caniuse-lite: 1.0.30001810
   cn: 0.2.6
   concurrently: 10.0.5
+  # packages/mfe-nx's webpack integration tests compile with the versions
+  # @angular-devkit/build-angular 19.2 itself pins, so they exercise the webpack an Angular
+  # container is actually built with.
+  css-loader: 7.1.2
   eslint: 10.10.0
   eslint-plugin-react-hooks: 7.1.1
   fumadocs-core: 16.15.9
@@ -73,20 +130,29 @@ catalog:
   jiti: 2.7.0
   jsdom: 30.1.0
   lucide-react: 1.45.0
+  # Same scope and reason as css-loader above.
+  mini-css-extract-plugin: 2.9.2
   next-themes: 0.4.6
+  # packages/mfe-nx's own devDependency for tests, as `@nx/devkit` above, and the Nx that
+  # examples/fieldwork's own workspace runs.
+  nx: 22.7.12
   picocolors: 1.1.1
   postcss: 8.5.28
   postcss-loader: 8.2.1
   prettier: 3.9.8
+  primeng: 19.1.4
   react: 19.3.0
   'react-aria-components': 1.21.1
   react-dom: 19.3.0
+  rxjs: 7.8.2
   shiki: 4.4.3
   tailwindcss: 4.3.3
   typescript: 6.0.3
   typescript-eslint: 8.70.0
   vite: 8.3.0
   vitest: 5.0.1
+  # Same scope and reason as css-loader above.
+  webpack: 5.98.0
   zod: 4.6.5
 # The documentation site (`apps/docs`) is a Vite + TanStack Start application, and
 # `@tanstack/react-start` depends on an exact `@tanstack/react-router`. Two copies of the router in
@@ -97,6 +163,24 @@ catalog:
 catalogs:
   docs:
     '@tanstack/react-router': 1.170.35
+  # A second React for the interop test that puts two React versions on one page
+  # (`tools/interop-react-b`): a container built against it has its own React share scope, so it
+  # has to render beside, and inside, the containers on the catalog's React above.
+  interop:
+    react: 19.2.8
+    react-dom: 19.2.8
+  # examples/fieldwork: Angular 19.2's compiler accepts TypeScript >=5.5 <5.9, and
+  # @analogjs/vitest-angular, which runs its component tests, peers Vitest 4 and not 5, which brings
+  # the Vite and jsdom lines that Vitest 4 supports.
+  angular:
+    jsdom: 26.1.0
+    typescript: 5.8.3
+    vite: 7.3.6
+    vitest: 4.1.11
+
+# Current pnpm refuses a package published less than a day ago, and verifies the lockfile against
+# that rule, so resolving under it here keeps the lockfile installable whichever pnpm runs.
+minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:
   - '@rspack/binding-darwin-arm64@2.2.6'

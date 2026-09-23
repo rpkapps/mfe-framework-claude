@@ -1,0 +1,20 @@
+// TypeScript, so ESLint loads it — and the plugin's own `.ts` sources behind
+// it — through jiti, on whatever Node an editor happens to bundle.
+import mfe from '@company/eslint-plugin-mfe'
+import angular from '@company/eslint-plugin-mfe/angular'
+
+export default [
+  { ignores: ['dist/**', '.mfe/**'] },
+  ...angular.angular({
+    tsconfigRootDir: import.meta.dirname,
+    files: ['src/**/*.ts'],
+    // Widget ownership is declared, never guessed: this container's whole `src/` is the Widget's
+    // own scope for a Widget template, and nothing is for an App, which owns the boundary router.
+    widgetScopes: [<% if (isWidget) { %>'src/**'<% } %>],
+  }),
+  // This file, and the webpack and vitest config beside it.
+  ...mfe.tooling({
+    tsconfigRootDir: import.meta.dirname,
+    files: [...mfe.DEFAULT_TOOLING_FILES, 'webpack.config.ts'],
+  }),
+]

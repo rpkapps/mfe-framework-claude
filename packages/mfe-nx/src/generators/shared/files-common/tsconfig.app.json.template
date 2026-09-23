@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "<%= offsetFromRoot %>dist/out-tsc/<%= projectRoot %>"
+  },
+  // Entry points only: the Angular builder warns about any file it compiles but never bundles, and
+  // the generated modules an author does not import (#mfe/fetch, #mfe/meta) join the program
+  // through their imports when they are used.
+  "include": ["src/**/*.ts", ".mfe/entries/**/*.ts", ".mfe/css.d.ts"],
+  "exclude": ["src/**/*.spec.ts"]
+}

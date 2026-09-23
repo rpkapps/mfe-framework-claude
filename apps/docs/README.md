@@ -11,7 +11,7 @@ From the repository root:
 
 | Command             | What it does                                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3005 and 3010 are the shell, the example containers and the stand-in API). |
+| `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3007 and 3010 are the shell, the example containers and the stand-in API). |
 | `pnpm docs:build`   | Production build, then prerenders every page into `apps/docs/dist/client`.                                             |
 | `pnpm docs:preview` | Serves the build output, which is what a static host sees.                                                             |
 

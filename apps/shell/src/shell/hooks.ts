@@ -3,14 +3,17 @@
  * Refresh only replaces a module whose every export is a component (§18).
  */
 
-import { useCallback, useSyncExternalStore } from 'react'
-import { useLocation } from '@tanstack/react-router'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import {
   useActiveDefinition,
+  useMfeRuntime,
   useStoredState,
+  useTheme,
   type ActiveDefinition,
   type StoredStateSetter,
 } from '@company/mfe-react'
+import type { CommandRegistrationHandle } from '@company/mfe-react/host'
 
 import {
   DashboardLayoutSchema,
@@ -26,6 +29,7 @@ import {
   SnapToTopSchema,
   type PanelLayout,
 } from './dashboard/panels-store.ts'
+import { shellCommands } from './shell-commands.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
 
 /**
@@ -35,6 +39,81 @@ import { shellUi, type ShellSurface } from './ui-store.ts'
 export function useActiveApp(): ActiveDefinition | null {
   const pathname = useLocation({ select: location => location.pathname })
   return useActiveDefinition(pathname)
+}
+
+/**
+ * Tells mounted Apps where the shell's own router took the page. It pushes to the browser
+ * directly — from the palette, the settings sheet, a breadcrumb — and the browser reports only
+ * `popstate`, so without this an App would stay where it was while the URL moved. Keyed by the
+ * history entry rather than the href, so going to the URL the shell already shows still counts;
+ * the navigator emits only when the page is somewhere its Apps were not told of.
+ */
+export function useAnnounceShellNavigation(): void {
+  const runtime = useMfeRuntime('the shell navigation')
+  const entry = useLocation({ select: location => location.state.__TSR_key ?? location.href })
+
+  useEffect(() => {
+    runtime.navigator.announce()
+  }, [runtime, entry])
+}
+
+/**
+ * The page's one key listener. Every shortcut is a command's, the shell's and a mounted App's
+ * alike, and the runtime decides which of them the key means; an App renders in a React root of
+ * its own, so a listener or a registry provided through the shell's tree would never reach it.
+ */
+export function useCommandShortcuts(): void {
+  const runtime = useMfeRuntime('the shell keyboard')
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      runtime.commands.handleKeyDown(event)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [runtime])
+}
+
+/**
+ * Registers the shell's own commands in the host page's scope for as long as the runtime lives,
+ * then re-applies them after every commit: the registry publishes only what visibly changed, so a
+ * label that follows the theme updates and a new closure alone does not.
+ */
+export function useShellCommands(): void {
+  const runtime = useMfeRuntime('the shell commands')
+  const navigate = useNavigate()
+  const theme = useTheme()
+  const [layout, setLayout] = useDashboardLayout()
+  const registrations = shellCommands({
+    runtime,
+    theme,
+    layout,
+    setLayout,
+    goToDashboard: () => void navigate({ to: '/' }),
+  })
+
+  const latest = useRef(registrations)
+  const handles = useRef<readonly CommandRegistrationHandle[]>([])
+
+  useEffect(() => {
+    const registered = latest.current.map(registration =>
+      runtime.commands.registerHost(registration),
+    )
+    handles.current = registered
+    return () => {
+      handles.current = []
+      for (const handle of registered) handle.remove()
+    }
+  }, [runtime])
+
+  useEffect(() => {
+    latest.current = registrations
+    registrations.forEach((registration, index) => {
+      handles.current[index]?.update(registration)
+    })
+  })
 }
 
 /** A media query rather than a width, so it re-evaluates on resize at the breakpoint the layout uses. */

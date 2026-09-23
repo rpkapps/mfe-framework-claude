@@ -4,10 +4,18 @@ The removable legacy adapter. It is the only package in the framework that knows
 the legacy single-spa contract, the legacy registry vocabulary and the
 `<name>/single-spa-app` expose path.
 
-Nothing else in the workspace imports it. When the last legacy Angular
+Only the shell's composition root imports it. When the last legacy Angular
 application is migrated, this directory is deleted, the shell drops one entry
 from its `adapters` list and one import from its composition root, and
-no other package changes. The package boundary check enforces the other half of
+no other package changes.
+
+**No host mounts a legacy application yet.** The shell reads legacy entries
+through this adapter and lists them. The container loader and the parcel mount
+below are tested on their own, and nothing on the page calls them: every other
+definition is placed through the runtime's `mountDefinition`, and bringing
+legacy applications onto that path, through a neutral `mount()` that drives the
+parcel, is separate work for when the shell has to show one before it is
+migrated. The package boundary check enforces the other half of
 that promise: this package never depends on React, on a router, or on
 `@company/mfe-react`.
 
@@ -39,16 +47,18 @@ mount as assumed; or that the two seam values (`/asset-tracker/` and
 
 ## Registry translation
 
-`legacyAngularAdapter` is an `MfeAdapter`. A shell registers it beside the React
-adapter, which `createMfeRuntime` always registers itself:
+`legacyAngularAdapter` is an `MfeAdapter`. A shell lists it beside every other
+adapter it serves; `createMfeRuntime` registers none implicitly:
 
 ```ts
+import { angularAdapter } from '@company/mfe-angular/registry'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
-import { createMfeRuntime } from '@company/mfe-react'
+import { createMfeRuntime } from '@company/mfe-react/host'
+import { reactAdapter } from '@company/mfe-react/registry'
 
 const { runtime } = createMfeRuntime({
   registryEntries,
-  adapters: [legacyAngularAdapter],
+  adapters: [reactAdapter, angularAdapter, legacyAngularAdapter],
   // …loader, shellState, telemetryProvider
 })
 ```
@@ -95,8 +105,8 @@ and keeps the rest of the registry.
 
 ## Parcel lifecycle
 
-The existing loading shape is preserved exactly, not replaced by the new App
-loader:
+The existing loading shape is preserved exactly, not replaced by the runtime's
+federation loader:
 
 1. `registerRemotes([{ name, entry: mfManifestUrl }])`
 2. `loadRemote('<name>/single-spa-app')`
@@ -104,7 +114,7 @@ loader:
 
 `createLegacyContainerLoader({ runtime })` implements the host's
 `ContainerLoader` port for steps 1 and 2. The federation runtime is injected, in
-the same style as the React adapter's loader, so importing this module starts
+the same style as the runtime's own loader, so importing this module starts
 nothing and tests need no runtime. Containers are registered once each. A
 registration failure is reported against the manifest URL, a load failure against
 the unchanged expose path, and a module without `bootstrap`, `mount` and

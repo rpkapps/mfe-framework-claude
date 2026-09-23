@@ -45,8 +45,38 @@ export function isValidEventName(name: string): boolean {
   return EVENT_NAME_PATTERN.test(name)
 }
 
+/** An invalid name, or two names that would map to the same `on`-prefixed handler prop. */
+export type EventNameProblem =
+  | { readonly kind: 'invalid'; readonly name: string }
+  | {
+      readonly kind: 'collision'
+      readonly name: string
+      readonly existing: string
+      readonly handlerProp: string
+    }
+
+/**
+ * The first problem in declaration order, so every caller reports the same one; each turns it
+ * into its own error, since only the caller knows whether it is reading source or enforcing a
+ * definition at creation time.
+ */
+export function findEventNameProblem(names: readonly string[]): EventNameProblem | null {
+  const handlerProps = new Map<string, string>()
+
+  for (const name of names) {
+    if (!isValidEventName(name)) return { kind: 'invalid', name }
+
+    const handlerProp = eventNameToHandlerProp(name)
+    const existing = handlerProps.get(handlerProp)
+    if (existing !== undefined) return { kind: 'collision', name, existing, handlerProp }
+    handlerProps.set(handlerProp, name)
+  }
+
+  return null
+}
+
 /** Built-ins whose instances cannot survive JSON, by the name they report. */
-const UNSERIALIZABLE_CLASSES = new Set(['Date', 'Map', 'Set', 'RegExp', 'Error'])
+const UNSERIALIZABLE_CLASSES: readonly string[] = ['Date', 'Map', 'Set', 'RegExp', 'Error']
 
 /** Prohibiting what JSON cannot carry keeps iframe or worker isolation available later. */
 export function findNonSerializableValue(
@@ -86,7 +116,7 @@ export function findNonSerializableValue(
   if (seen.has(object)) return { path, description: 'a circular reference' }
 
   const className = object.constructor?.name
-  if (className !== undefined && UNSERIALIZABLE_CLASSES.has(className)) {
+  if (className !== undefined && UNSERIALIZABLE_CLASSES.includes(className)) {
     return { path, description: `a ${className}` }
   }
   if (typeof Node !== 'undefined' && object instanceof Node) {

@@ -6,21 +6,15 @@
 import type { Linter } from 'eslint'
 import {
   TS_FILES,
-  asyncCorrectness,
-  eslintRecommended,
   intersectFiles,
-  languageConfig,
-  maintainability,
   mfePlugin,
-  reactCorrectness,
+  neutralLayers,
   resolveReactFiles,
-  typeCheckedConfigs,
   testScopeOverrides,
-  typeSafety,
   typeScriptPlugins,
-  withFiles,
   type PresetOptions,
 } from './shared.ts'
+import { reactCorrectness } from './react-support.ts'
 import {
   MODULE_FEDERATION_PATTERN,
   STATE_PATHS,
@@ -30,11 +24,65 @@ import {
   type RestrictedPath,
   type RestrictedPattern,
 } from './restricted-imports.ts'
+import { angularMfeRules } from './angular-naming.ts'
 
 export type FrameworkPresetOptions = PresetOptions
 
 const SIBLING =
   'Package boundary: the legacy adapter is a sibling of the React adapter, not a consumer of it. Share code through @company/mfe-core.'
+
+const CORE_STATELESS =
+  '@company/mfe-core holds contracts only — types, constants and pure validation. Stateful code (a class other than an Error subclass, module-scope mutable bindings, a timer, or a browser global) belongs in @company/mfe-runtime.'
+
+/**
+ * Guards the split that keeps the neutral contract package from becoming a second place state can
+ * live. Tests are exempt, because a fixture legitimately builds a `Map` or reads a stubbed global
+ * that production code never would.
+ */
+function coreStatelessZone(files: readonly string[]): Linter.Config {
+  return {
+    name: 'mfe/zone/mfe-core-stateless',
+    files: intersectFiles(files, '**/packages/mfe-core/src/**'),
+    ignores: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', '**/__tests__/**'],
+    plugins: typeScriptPlugins,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':matches(ExportNamedDeclaration, ExportDefaultDeclaration) > ClassDeclaration[superClass.name!=/Error$/]',
+          message: `Exported class: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            ':matches(Program, Program > ExportNamedDeclaration) > VariableDeclaration[kind=/^(let|var)$/]',
+          message: `Top-level mutable binding: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            ':matches(Program, Program > ExportNamedDeclaration) > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(Map|Set|WeakMap)$/]',
+          message: `Top-level mutable collection: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            'CallExpression[callee.name=/^(setTimeout|setInterval|queueMicrotask|requestAnimationFrame)$/]',
+          message: `Timer call: ${CORE_STATELESS}`,
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: CORE_STATELESS },
+        { name: 'document', message: CORE_STATELESS },
+        { name: 'localStorage', message: CORE_STATELESS },
+        { name: 'sessionStorage', message: CORE_STATELESS },
+        { name: 'history', message: CORE_STATELESS },
+        { name: 'location', message: CORE_STATELESS },
+        { name: 'fetch', message: CORE_STATELESS },
+        { name: 'navigator', message: CORE_STATELESS },
+      ],
+    },
+  }
+}
 
 /**
  * Each zone mirrors one rule of `tools/boundaries/check-boundaries.mjs`, so a developer meets in
@@ -70,7 +118,7 @@ function packageZones(
       [
         ...neutralPackagePaths('@company/mfe-core'),
         {
-          name: '@company/mfe-host',
+          name: '@company/mfe-runtime',
           message:
             'Package boundary: the host depends on the core, never the other way round. Move the shared contract into @company/mfe-core and let the host import it.',
         },
@@ -83,9 +131,9 @@ function packageZones(
       [...basePatterns, MODULE_FEDERATION_PATTERN],
     ),
     zone(
-      'mfe-host',
+      'mfe-runtime',
       [
-        ...neutralPackagePaths('@company/mfe-host'),
+        ...neutralPackagePaths('@company/mfe-runtime'),
         {
           name: '@company/mfe-react',
           message:
@@ -146,12 +194,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
   const extraPatterns = options.extraRestrictedPatterns ?? []
 
   return [
-    eslintRecommended(files),
-    languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
-    asyncCorrectness(files),
-    typeSafety(files),
-    maintainability(files),
+    ...neutralLayers(files, options.tsconfigRootDir),
     ...reactCorrectness(reactFiles),
     {
       name: 'mfe/framework/state-and-telemetry',
@@ -165,6 +208,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
       },
     },
     ...packageZones(files, extraPaths, extraPatterns),
+    coreStatelessZone(files),
     {
       name: 'mfe/framework/rules',
       files: [...files],
@@ -175,6 +219,15 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
         'mfe/no-raw-storage': ['error', { allowedScopes: [...storageAllowedScopes] }],
         'mfe/no-widget-global-effects': ['error', { widgetScopes: [...widgetScopes] }],
       },
+    },
+    {
+      // The neutral rules above name React's hooks by default. Inside the Angular adapter's own
+      // package, the same rules apply to the same failures, but the repair is an Angular API —
+      // this later object wins over the generic one above for any file under this scope.
+      name: 'mfe/framework/rules-angular-wording',
+      files: intersectFiles(files, '**/packages/mfe-angular/**'),
+      plugins: { mfe: mfePlugin },
+      rules: angularMfeRules(storageAllowedScopes),
     },
     testScopeOverrides(files, 'mfe/framework/tests'),
   ]

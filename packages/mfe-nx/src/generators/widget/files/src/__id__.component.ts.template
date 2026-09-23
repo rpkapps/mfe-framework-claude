@@ -1,0 +1,18 @@
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core'
+import { Button } from 'primeng/button'
+
+/** Every contract input is an input of the same name, and every event an output. */
+@Component({
+  selector: '<%= id %>',
+  imports: [Button],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<p-button [label]="label()" (onClick)="activate()" />`,
+})
+export class <%= pascal %>Component {
+  readonly label = input.required<string>()
+  readonly activated = output<{ at: string }>()
+
+  protected activate(): void {
+    this.activated.emit({ at: new Date().toISOString() })
+  }
+}

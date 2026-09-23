@@ -1,0 +1,104 @@
+---
+title: '@company/mfe-nx'
+description: 'The Nx generators that scaffold an Angular container, the targets they write, withMfe() on Nx’s Angular webpack builder, and what the container shares.'
+---
+
+`@company/mfe-nx` scaffolds and builds Angular containers in an Nx workspace. It is the Angular
+counterpart of `pluginMfe()`: the same framework-neutral build, `@company/mfe-build`, wired into Nx's
+Angular webpack builder instead of Rsbuild. It runs in a separate Nx workspace, not in this
+repository.
+
+## Generate a container
+
+```sh
+nx g @company/mfe-nx:app my-app --port 3101
+nx g @company/mfe-nx:widget my-widget --port 3103
+```
+
+The workspace must be on Nx 20, 21 or 22. The generator refuses any other version before it writes a
+file, because Nx 23's Angular plugin requires Angular 20.
+
+| Option            | Default                         | What it is                                                     |
+| ----------------- | ------------------------------- | -------------------------------------------------------------- |
+| `name`            | —                               | The Nx project name.                                           |
+| `id`              | the kebab-cased `name`          | The definition id, the federation name and the storage prefix. |
+| `directory`       | `apps/<name>`                   | The project root.                                              |
+| `port`            | `3101` (app) or `3103` (widget) | The dev server port.                                           |
+| `packageName`     | `@example/<id>`                 | The generated project's own package name.                      |
+| `tags`            | none                            | Comma-separated Nx project tags.                               |
+| `skipFormat`      | `false`                         | Skip formatting the generated files.                           |
+| `skipPackageJson` | `false`                         | Leave the workspace `package.json` alone.                      |
+
+An `app` project holds `src/mfe.ts` with `createApp`, a route file with a capability route, a
+configuration schema and `.mfe/runtime-config.json`, your local values. A `widget` project holds
+`createWidget` with its contract exported separately. Both hold `src/primeng.ts`, a
+`webpack.config.ts`, an `eslint.config.ts` against the Angular lint preset, and Vitest
+configuration.
+
+## The targets
+
+| Target      | Runs                          | Does                                                         |
+| ----------- | ----------------------------- | ------------------------------------------------------------ |
+| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/` and seeds `.mfe/runtime-config.json`.         |
+| `build`     | `@nx/angular:webpack-browser` | Builds the remote, with `customWebpackConfig`.               |
+| `serve`     | `@nx/angular:dev-server`      | Serves it on the project's port, open to the shell's origin. |
+| `test`      | `nx:run-commands`             | `vitest run`.                                                |
+| `typecheck` | `nx:run-commands`             | `tsc --noEmit` over the app and spec configurations.         |
+| `lint`      | `nx:run-commands`             | `eslint .`.                                                  |
+
+Every other target depends on `generate`, because the `#mfe/*` modules have to exist before webpack,
+Vitest, `tsc` or ESLint can resolve them.
+
+## `withMfe()`
+
+```ts title="webpack.config.ts"
+import { withMfe } from '@company/mfe-nx/webpack'
+
+export default withMfe()
+```
+
+The builder calls the exported function with the configuration Angular built. `withMfe()` adds one
+plugin and replaces nothing you wrote. It plans the container from its sources before every
+compile, adds the Module Federation 2 plugin, and makes the generated entry the only one. It scopes
+the generated stylesheet with `@scope`, and `src/styles.css` with it. Component styles keep
+Angular's own encapsulation. It also emits the registry entry, with `framework: 'angular'` and the
+container's share scopes. In the dev server it answers `runtime-config.json` with your
+`.mfe/runtime-config.json`, which no build copies, so a production build ships only the declared
+defaults.
+
+`withMfe({ shared })` adds share candidates. `withMfe({ containerRoot })` points it at a container
+other than the project being built.
+
+## What a container shares
+
+| Group     | Scope                               | Packages                                                                     |
+| --------- | ----------------------------------- | ---------------------------------------------------------------------------- |
+| Framework | `angular@<installed @angular/core>` | the `@angular/*` packages, `@angular/cdk`, `rxjs` and `@company/mfe-angular` |
+| Page      | `default`                           | `@company/mfe-core` and `@company/mfe-runtime`                               |
+| Never     | —                                   | `primeng`, `@primeng/themes`, `@primeuix/styled` and `@primeuix/utils`       |
+
+Every shared package is a strict singleton. Containers on the same Angular version download one
+copy, and a container on another version brings its own set. A package you add joins the Angular
+scope. An addition never removes, relaxes or moves a candidate, and `withMfe({ shared })` refuses
+PrimeNG.
+
+## Versions
+
+| Tool       | Version                                                    |
+| ---------- | ---------------------------------------------------------- |
+| Angular    | 19.2, zoneless, with no polyfills                          |
+| TypeScript | 5.8, because Angular 19.2's compiler rejects 5.9 and later |
+| PrimeNG    | 19.1.4, with `@primeng/themes` 19.1.4 and the Aura preset  |
+| Nx         | 20 to 22                                                   |
+| Node       | 20.19 or later, or 22.12 or later                          |
+
+The framework packages ship TypeScript source today. Until they ship compiled output, add their
+sources to the container's `tsconfig.app.json` and `tsconfig.spec.json` `include`, or the build
+succeeds with an adapter that does nothing.
+
+## Related
+
+- [The Angular adapter](/docs/reference/angular-adapter) — what the generated `src/mfe.ts` imports.
+- [Build and publish a container](/docs/build-and-publish) — the React build, for comparison.
+- [Registry entry](/docs/reference/registry-entry) — what the build publishes.
+- [Decision log](/docs/how-it-works/decisions) — decision 31, why webpack and why Nx.

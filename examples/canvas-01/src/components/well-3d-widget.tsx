@@ -132,7 +132,7 @@ export function SubsurfaceWell3dWidget(
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const controlsRef = useRef<RendererControls | null>(null)
   const [webglError, setWebglError] = useState(false)
-  const [resetVersion, setResetVersion] = useState(0)
+  const [resetVersion, _setResetVersion] = useState(0)
   const theme = useTheme()
 
   useEffect(() => {
@@ -200,7 +200,7 @@ export function SubsurfaceWell3dWidget(
           <>
             <CanvasOverlay position="top-left">
               <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-card/90 px-2 py-1 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
-                <div className="whitespace-nowrap">Drag · scroll · R reset</div>                
+                <div className="whitespace-nowrap">Drag · scroll · R reset</div>
               </div>
             </CanvasOverlay>
             <CanvasOverlay position="bottom-right">
@@ -234,22 +234,6 @@ export function SubsurfaceWell3dWidget(
         )}
       </Canvas>
     </section>
-  )
-}
-
-function ColorBar({ label, colors }: { label: string; colors: readonly Color[] }): ReactNode {
-  const gradient = Array.from(colors).reverse().map(colorToCss).join(', ')
-  return (
-    <div className="flex items-center gap-1">
-      <div
-        aria-label={`${label} color scale`}
-        className="h-8 w-1.5 rounded-sm"
-        style={{ background: `linear-gradient(to bottom, ${gradient})` }}
-      />
-      <div className="leading-none">
-        <span>{label}</span>
-      </div>
-    </div>
   )
 }
 

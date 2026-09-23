@@ -1,0 +1,8 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core'
+
+@Component({
+  selector: '<%= id %>-settings',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<h2>Settings</h2>`,
+})
+export class SettingsComponent {}

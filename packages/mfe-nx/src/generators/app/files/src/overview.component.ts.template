@@ -1,0 +1,52 @@
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core'
+import { injectUser } from '@company/mfe-angular'
+import { Button } from 'primeng/button'
+import { Select, type SelectChangeEvent } from 'primeng/select'
+
+interface Region {
+  readonly label: string
+  readonly value: string
+}
+
+@Component({
+  selector: '<%= id %>-overview',
+  imports: [Button, Select],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section class="flex flex-col items-start gap-4 p-4">
+      <h1 class="text-xl font-semibold"><%= id %></h1>
+      <p>Signed in as {{ user()?.name ?? 'nobody' }}.</p>
+      <p-select
+        [options]="regions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Choose a region"
+        (onChange)="selectRegion($event)"
+      />
+      <p-button label="Refresh" [disabled]="region() === null" (onClick)="refresh()" />
+      <p>Refreshed {{ refreshes() }} times.</p>
+    </section>
+  `,
+})
+export class OverviewComponent {
+  // A field initialiser is an injection context, so injectUser() can be called here directly.
+  protected readonly user = injectUser()
+
+  // PrimeNG's `options` input is a mutable array.
+  protected readonly regions: Region[] = [
+    { label: 'North', value: 'north' },
+    { label: 'South', value: 'south' },
+  ]
+
+  // Zoneless: state that renders lives in signals.
+  protected readonly region = signal<string | null>(null)
+  protected readonly refreshes = signal(0)
+
+  protected selectRegion(event: SelectChangeEvent): void {
+    this.region.set(typeof event.value === 'string' ? event.value : null)
+  }
+
+  protected refresh(): void {
+    this.refreshes.update(count => count + 1)
+  }
+}

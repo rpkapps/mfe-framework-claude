@@ -13,6 +13,9 @@
       "title": "Framework lab",
       "icon": "LAB"
     },
+    "fieldwork": {
+      "icon": "FLD"
+    },
     "alert-panel": {
       "title": "Alert panel"
     },

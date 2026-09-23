@@ -35,10 +35,17 @@ function entriesFor(published, presentation, origin) {
     return {
       id: definition.id,
       kind: definition.kind,
-      mfe: { contractMajor: published.contractMajor },
+      // The framework picks the adapter that reads the entry, so it travels in the marker.
+      mfe: {
+        contractMajor: published.contractMajor,
+        ...(published.framework === undefined ? {} : { framework: published.framework }),
+      },
       manifestUrl: new URL(published.manifestUrl, origin).href,
       container: published.container,
       expose,
+      // A host registers the container with exactly these, so it links the framework scope its
+      // shares live in; a container built before framework scopes shares in `default` alone.
+      ...(published.shareScopes === undefined ? {} : { shareScopes: published.shareScopes }),
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
       // The widget catalogue renders a form from this before anything is loaded, so it has to

@@ -1,61 +1,42 @@
 /**
- * Reading the registry from a host component, written once because two surfaces disagreeing
- * about whether a hidden entry is offered is a bug nobody can see in either one alone (§26).
+ * Reading the registry from a host component, through the runtime's listing rules, which every
+ * adapter shares. Each list is the same array for as long as the registry lives, so a component
+ * that reads one re-renders only when something else changed.
  */
 
 import { useMemo } from 'react'
-import type { CapabilityDescriptor, CapabilityName, RegistryEntry } from '@company/mfe-core'
-import { boundaryDefinitionId } from '@company/mfe-host'
+import type { CapabilityName, RegistryEntry } from '@company/mfe-core'
+import {
+  activeDefinition,
+  boundaryDefinitionId,
+  capabilityPages,
+  listApps,
+  listEntries,
+  listWidgets,
+  type ActiveDefinition,
+  type CapabilityPage,
+} from '@company/mfe-runtime'
 
 import { useMfeRuntime } from './runtime-context.tsx'
 
+export type { ActiveDefinition, CapabilityPage } from '@company/mfe-runtime'
+
 /** Every accepted entry, in registry order. */
 export function useRegistryEntries(): readonly RegistryEntry[] {
-  const { entries } = useMfeRuntime('a registry view').registry
-  return useMemo(() => [...entries.values()], [entries])
+  return listEntries(useMfeRuntime('a registry view').registry)
 }
 
-/** `hidden` is a listing rule, not a security boundary: a hidden App reached by URL mounts. */
+/** A hidden App reached by URL still mounts; it is only left out of listings. */
 export function useApps(): readonly RegistryEntry[] {
-  const entries = useRegistryEntries()
-  return useMemo(
-    () => entries.filter(entry => entry.definitionKind === 'app' && entry.hidden !== true),
-    [entries],
-  )
+  return listApps(useMfeRuntime('a registry view').registry)
 }
 
 export function useWidgets(): readonly RegistryEntry[] {
-  const entries = useRegistryEntries()
-  return useMemo(
-    () => entries.filter(entry => entry.definitionKind === 'widget' && entry.hidden !== true),
-    [entries],
-  )
+  return listWidgets(useMfeRuntime('a registry view').registry)
 }
 
-export interface CapabilityPage {
-  readonly app: RegistryEntry
-  readonly capability: CapabilityDescriptor
-}
-
-/** Unfiltered flattening would put every page under whichever heading was written first. */
 export function useCapabilityPages(name?: CapabilityName): readonly CapabilityPage[] {
-  const apps = useApps()
-  return useMemo(
-    () =>
-      apps.flatMap(app =>
-        (app.capabilities ?? [])
-          .filter(capability => name === undefined || capability.name === name)
-          .map(capability => ({ app, capability })),
-      ),
-    [apps, name],
-  )
-}
-
-export interface ActiveDefinition {
-  /** The id in the URL, the one fact that is always true. */
-  readonly id: string
-  /** Undefined when the URL names an App the registry does not know. */
-  readonly entry: RegistryEntry | undefined
+  return capabilityPages(useMfeRuntime('a registry view').registry, name)
 }
 
 /**
@@ -63,14 +44,8 @@ export interface ActiveDefinition {
  * parameter because the host owns its router (§26).
  */
 export function useActiveDefinition(location: string): ActiveDefinition | null {
-  const { entries } = useMfeRuntime('the active definition').registry
+  const { registry } = useMfeRuntime('the active definition')
   const id = boundaryDefinitionId(location)
 
-  return useMemo(() => {
-    if (id === undefined) return null
-
-    // A Widget is never mounted at a boundary, so an id naming one counts as unknown.
-    const entry = entries.get(id)
-    return { id, entry: entry?.definitionKind === 'app' ? entry : undefined }
-  }, [entries, id])
+  return useMemo(() => activeDefinition(registry, id), [registry, id])
 }

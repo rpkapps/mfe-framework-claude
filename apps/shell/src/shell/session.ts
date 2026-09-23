@@ -1,6 +1,6 @@
 /** Owning the session is the shell's job, not the framework's; a real deployment replaces this file (§10). */
 
-import { createSessionTokenService, type AccessTokenSource } from '@company/mfe-host'
+import { createSessionTokenService, type AccessTokenSource } from '@company/mfe-react/host'
 
 /** Self-describing, so a development token that reaches a real resource server is obvious rather than a puzzling 401. */
 function issue(): string {

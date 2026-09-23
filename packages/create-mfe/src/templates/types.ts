@@ -46,11 +46,14 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   '@company/mfe-rspack': 'workspace:*',
   '@rsbuild/core': 'catalog:',
   '@rsbuild/plugin-react': 'catalog:',
+  '@tanstack/eslint-plugin-query': 'catalog:',
+  '@tanstack/eslint-plugin-router': 'catalog:',
   '@testing-library/jest-dom': 'catalog:',
   '@testing-library/react': 'catalog:',
   '@types/react': 'catalog:',
   '@types/react-dom': 'catalog:',
   eslint: 'catalog:',
+  'eslint-plugin-react-hooks': 'catalog:',
   prettier: 'catalog:',
   // The container compiles its own stylesheet: the build generates the entry
   // and adds the PostCSS plugin, and this is the Tailwind that entry imports.
@@ -107,7 +110,10 @@ dist/
 
 # Generated build output. Generation runs before typecheck, test and build.
 routeTree.gen.ts
-.mfe/
+.mfe/*
+# Except your local runtime configuration, which the dev server serves and no
+# build ships.
+!.mfe/runtime-config.json
 `,
     },
     {
@@ -198,10 +204,11 @@ afterEach(() => {
       // it — through jiti, on whatever Node an editor happens to bundle.
       path: 'eslint.config.ts',
       contents: `import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
 
 export default [
   { ignores: ['dist/**', '.mfe/**', '**/routeTree.gen.ts'] },
-  ...mfe.author({
+  ...react.author({
     tsconfigRootDir: import.meta.dirname,
     files: ['src/**/*.{ts,tsx}'],
   }),
@@ -277,11 +284,6 @@ export default defineConfig({
     // The shell serves the page from its own origin and reads this container's
     // manifest, remote entry and chunks from here.
     cors: true,
-    // runtime-config.json carries a deployment's values, so it is never built
-    // into the container. In development this server publishes the container's
-    // own local copy next to its assets, which is where the generated loader
-    // resolves it from.
-    publicDir: { name: 'public' },
   },
 
   dev: {

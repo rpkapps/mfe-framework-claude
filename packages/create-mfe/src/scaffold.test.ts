@@ -73,6 +73,23 @@ describe('the App starter', () => {
     expect(manifest.devDependencies).not.toHaveProperty('@rspack/dev-server')
   })
 
+  it('lints against the React preset and installs its peers', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    const eslintConfig = await readFile(join(directory, 'eslint.config.ts'), 'utf8')
+    expect(eslintConfig).toContain("import react from '@company/eslint-plugin-mfe/react'")
+    expect(eslintConfig).toContain('react.author(')
+    expect(eslintConfig).not.toContain('mfe.author(')
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>
+    }
+    expect(manifest.devDependencies['eslint-plugin-react-hooks']).toBe('catalog:')
+    expect(manifest.devDependencies['@tanstack/eslint-plugin-query']).toBe('catalog:')
+    expect(manifest.devDependencies['@tanstack/eslint-plugin-router']).toBe('catalog:')
+  })
+
   it('installs the Tailwind the generated stylesheet imports', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
@@ -89,7 +106,7 @@ describe('the App starter', () => {
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
 
     const config = JSON.parse(
-      await readFile(join(directory, 'public/runtime-config.json'), 'utf8'),
+      await readFile(join(directory, '.mfe/runtime-config.json'), 'utf8'),
     ) as { apiBaseUrl: string }
 
     // src/mfe.config.ts declares apiBaseUrl as a required URL: without this file
@@ -101,9 +118,12 @@ describe('the App starter', () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
 
-    const ignored = await readFile(join(directory, '.gitignore'), 'utf8')
+    const ignored = (await readFile(join(directory, '.gitignore'), 'utf8')).split('\n')
     expect(ignored).toContain('routeTree.gen.ts')
-    expect(ignored).toContain('.mfe/')
+    // The directory's contents rather than the directory, or the exception could never apply.
+    expect(ignored).toContain('.mfe/*')
+    expect(ignored).not.toContain('.mfe/')
+    expect(ignored).toContain('!.mfe/runtime-config.json')
 
     const files = await readdir(join(directory, 'src'))
     expect(files).not.toContain('routeTree.gen.ts')
@@ -114,7 +134,8 @@ describe('the App starter', () => {
     await scaffold({ directory, id: 'operations', template: 'app', force: true })
 
     // `#mfe/config` fetches runtime-config.json from the container's public path and
-    // nowhere else, so a gitignored `.local.json` or `.env` would only mislead.
+    // nowhere else, and the dev server answers it with `.mfe/runtime-config.json`, so a
+    // gitignored `.local.json` or `.env` would only mislead.
     const ignored = await readFile(join(directory, '.gitignore'), 'utf8')
     expect(ignored).not.toContain('runtime-config.local.json')
     expect(ignored).not.toContain('.env')
@@ -123,7 +144,8 @@ describe('the App starter', () => {
     expect(files.some(file => file.path === 'runtime-config.example.json')).toBe(false)
 
     const readme = await readFile(join(directory, 'README.md'), 'utf8')
-    expect(readme).toContain('public/runtime-config.json')
+    expect(readme).toContain('.mfe/runtime-config.json')
+    expect(readme).not.toContain('public/runtime-config.json')
     expect(readme).not.toContain('runtime-config.example.json')
   })
 

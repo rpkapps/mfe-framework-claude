@@ -4,7 +4,8 @@
  */
 
 import { useMemo } from 'react'
-import { containerNameOf, useRegistryEntries } from '@company/mfe-react'
+import { useRegistryEntries } from '@company/mfe-react'
+import { isFederatedEntry } from '@company/mfe-react/host'
 
 /** The framework's own selector, so the panel and its host cannot disagree about what the registry holds. */
 export { useRegistryEntries }
@@ -29,8 +30,7 @@ export function useContainerLookup(): (id: string) => string | undefined {
   return useMemo(() => {
     const byId = new Map<string, string>()
     for (const entry of entries) {
-      const container = containerNameOf(entry)
-      if (container !== undefined) byId.set(entry.id, container)
+      if (isFederatedEntry(entry)) byId.set(entry.id, entry.container)
     }
     return (id: string) => byId.get(id)
   }, [entries])

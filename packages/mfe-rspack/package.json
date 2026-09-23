@@ -33,17 +33,13 @@
   },
   "dependencies": {
     "@babel/core": "catalog:",
+    "@company/mfe-build": "workspace:*",
     "@company/mfe-core": "workspace:*",
     "@module-federation/enhanced": "catalog:",
-    "@tailwindcss/postcss": "catalog:",
     "@tanstack/router-generator": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "babel-loader": "catalog:",
-    "babel-plugin-react-compiler": "catalog:",
-    "globby": "catalog:",
-    "picocolors": "catalog:",
-    "postcss": "catalog:",
-    "tailwindcss": "catalog:"
+    "babel-plugin-react-compiler": "catalog:"
   },
   "peerDependencies": {
     "@rsbuild/core": "catalog:",
@@ -58,10 +54,13 @@
     }
   },
   "devDependencies": {
+    "@company/mfe-runtime": "workspace:*",
+    "@module-federation/runtime": "catalog:",
     "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
     "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
     "@types/node": "catalog:",
+    "postcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"

@@ -14,6 +14,15 @@ import { docsUrl } from '../util/docs.ts'
 
 const DEFAULT_OBJECTS: readonly string[] = ['localStorage', 'sessionStorage']
 
+/**
+ * The repair names the adapter's own component-state and imperative-storage APIs, so a container
+ * written against a different adapter needs its own names here. These are the React defaults,
+ * unchanged from before this option existed.
+ */
+const DEFAULT_STORED_STATE_HOOK = 'useStoredState()'
+const DEFAULT_STORAGE_HOOK = 'useMfeStorage()'
+const DEFAULT_ADAPTER_MODULE = '@company/mfe-react'
+
 const rule: Rule.RuleModule = {
   meta: {
     type: 'problem',
@@ -44,16 +53,28 @@ const rule: Rule.RuleModule = {
           storageAccessor: {
             type: 'string',
             description:
-              'Identifier the suggestion rewrites to, that is, the name the project binds `useMfeStorage()` to. Defaults to "storage".',
+              'Identifier the suggestion rewrites to, that is, the name the project binds the imperative storage hook to. Defaults to "storage".',
+          },
+          storedStateHook: {
+            type: 'string',
+            description: "The adapter's component-state storage hook, named in the repair.",
+          },
+          storageHook: {
+            type: 'string',
+            description: "The adapter's imperative storage hook, named in the repair.",
+          },
+          adapterModule: {
+            type: 'string',
+            description: '`storedStateHook` and `storageHook` both come from this module.',
           },
         },
       },
     ],
     messages: {
       rawStorage:
-        "`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for imperative access, both from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.",
+        "`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes as an unhandled exception. Use `{{storedStateHook}}` for component state or `{{storageHook}}` for imperative access, both from {{adapterModule}}. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.",
       useBoundary:
-        'Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = useMfeStorage()`.',
+        'Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = {{storageHook}}`.',
     },
   },
 
@@ -62,6 +83,9 @@ const rule: Rule.RuleModule = {
     const allowedScopes = stringArrayOption(options, 'allowedScopes', [])
     const objects = new Set(stringArrayOption(options, 'objects', DEFAULT_OBJECTS))
     const accessor = stringOption(options, 'storageAccessor', 'storage')
+    const storedStateHook = stringOption(options, 'storedStateHook', DEFAULT_STORED_STATE_HOOK)
+    const storageHook = stringOption(options, 'storageHook', DEFAULT_STORAGE_HOOK)
+    const adapterModule = stringOption(options, 'adapterModule', DEFAULT_ADAPTER_MODULE)
 
     if (matchesAnyScope(context.filename, allowedScopes)) return {}
 
@@ -72,12 +96,12 @@ const rule: Rule.RuleModule = {
       context.report({
         node,
         messageId: 'rawStorage',
-        data: { access },
+        data: { access, storedStateHook, storageHook, adapterModule },
         suggest: [
           {
             messageId: 'useBoundary',
-            data: { access, accessor },
-            // A suggestion rather than a fix: it only compiles once the file binds `useMfeStorage()`.
+            data: { access, accessor, storageHook },
+            // A suggestion rather than a fix: it only compiles once the file binds the storage hook.
             fix: fixer => fixer.replaceText(node, accessor),
           },
         ],

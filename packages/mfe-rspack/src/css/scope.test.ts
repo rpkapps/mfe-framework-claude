@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url'
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
 
-import { isMfeBuildError } from '../diagnostics.ts'
-import { containerScopePlugin } from './scope.ts'
+import { containerScopePlugin, isMfeBuildError } from '@company/mfe-build'
+
+import { loadScopePlugin } from './scope.ts'
 
 /** This package declares the design system as an optional peer, so its copy scopes here. */
 const CONTAINER_ROOT = fileURLToPath(new URL('../..', import.meta.url))
@@ -40,9 +41,9 @@ const TAILWIND_OUTPUT = `@layer properties;
 `
 
 function scope(css: string, scopes: readonly string[]): string {
-  return postcss([containerScopePlugin({ scopes, containerRoot: CONTAINER_ROOT })]).process(css, {
-    from: STYLESHEET,
-  }).css
+  return postcss([
+    containerScopePlugin({ scopes, containerRoot: CONTAINER_ROOT, loadScopePlugin }),
+  ]).process(css, { from: STYLESHEET }).css
 }
 
 /** The text between a heading and its closing brace. */
@@ -61,7 +62,7 @@ function block(css: string, opening: string): string {
   throw new Error(`unterminated block: ${opening}`)
 }
 
-describe('containerScopePlugin', () => {
+describe("the design system's scope plugin", () => {
   it('scopes a container to its mount roots, bounded by the next one below', () => {
     const result = scope('.text-sm { font-size: 0.875rem; }', ['operations'])
 

@@ -1,52 +1,37 @@
-/** Discovery and generation work on real files, so the tests give them real files. */
+/** A React container: React as its dependency, and installed, since it names the share scope. */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { createContainerFixture } from '@company/mfe-build/testing'
 
-const created: string[] = []
+export { cleanupContainers } from '@company/mfe-build/testing'
+
+export interface ContainerFixtureOptions {
+  readonly manifest?: Record<string, unknown>
+  /**
+   * Package versions installed into the container's `node_modules`, as manifests only. Defaults
+   * to React, whose version names the container's share scope.
+   */
+  readonly installed?: Readonly<Record<string, string>>
+}
+
+const REACT_INSTALLED: Readonly<Record<string, string>> = { react: '19.3.0' }
 
 /** Writes a container into a temporary directory and returns its root. */
 export function createContainer(
   files: Readonly<Record<string, string>>,
-  options: { readonly manifest?: Record<string, unknown> } = {},
+  options: ContainerFixtureOptions = {},
 ): string {
-  const root = mkdtempSync(join(tmpdir(), 'mfe-container-'))
-  created.push(root)
+  const installed = options.installed ?? REACT_INSTALLED
 
-  const manifest = {
-    name: '@acme/operations',
-    version: '1.0.0',
-    type: 'module',
-    dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
-    ...options.manifest,
-  }
-
-  writeContainerFile(root, 'package.json', `${JSON.stringify(manifest, null, 2)}\n`)
-  for (const [path, contents] of Object.entries(files)) {
-    writeContainerFile(root, path, contents)
-  }
-
-  return root
-}
-
-function writeContainerFile(root: string, path: string, contents: string): string {
-  const file = join(root, path)
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, contents, 'utf8')
-  return file
-}
-
-/** Removes every fixture created so far; call it from `afterEach`. */
-export function cleanupContainers(): void {
-  while (created.length > 0) {
-    const root = created.pop()
-    if (root === undefined) continue
-    rmSync(root, { recursive: true, force: true })
-  }
-}
-
-/** The designated entry of a fixture container. */
-export function entryOf(root: string, name = 'src/mfe.ts'): string {
-  return join(root, name)
+  return createContainerFixture(files, {
+    manifest: {
+      name: '@acme/operations',
+      version: '1.0.0',
+      type: 'module',
+      dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
+      ...options.manifest,
+    },
+    installed: Object.fromEntries(
+      Object.entries(installed).map(([name, version]) => [name, { version }]),
+    ),
+  })
 }

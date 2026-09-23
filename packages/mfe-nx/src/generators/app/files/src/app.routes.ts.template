@@ -1,0 +1,21 @@
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+
+import { OverviewComponent } from './overview.component'
+import { SettingsComponent } from './settings.component'
+
+// Settings, help and release notes are pages, so they are routes. Declaring the capability
+// inline, on the route's own `data`, is all an App does; the build extracts it statically into
+// the manifest and the shell decides where it opens.
+export const routes: Routes = [
+  { path: '', component: OverviewComponent },
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    data: mfeRouteData({
+      capability: 'settings',
+      label: '<%= id %> settings',
+      icon: 'settings',
+    }),
+  },
+]

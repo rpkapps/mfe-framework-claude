@@ -1,11 +1,16 @@
 /** It contributes configuration and never replaces it, so an author's options stay theirs (§13). */
 
-import type { RsbuildConfig, RsbuildPlugin } from '@rsbuild/core'
+import type { RsbuildPlugin } from '@rsbuild/core'
 
-import { containerPostcssPlugins } from './css/postcss-plugins.ts'
-import { buildFederationOptions } from './federation/federation-options.ts'
+import {
+  buildFederationOptions,
+  containerPostcssPlugins,
+  serveLocalRuntimeConfig,
+} from '@company/mfe-build'
+
+import { loadScopePlugin } from './css/scope.ts'
 import type { MfePluginOptions } from './options.ts'
-import { planContainer } from './plan.ts'
+import { createContainerPlanner } from './plan.ts'
 import { MfeRspackPlugin } from './plugin.ts'
 
 export const PLUGIN_MFE_NAME = 'mfe'
@@ -15,12 +20,14 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
     name: PLUGIN_MFE_NAME,
 
     setup(api) {
-      api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
-        const containerRoot = options.containerRoot ?? api.context.rootPath
+      const containerRoot = options.containerRoot ?? api.context.rootPath
 
+      api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
         // Read once at configuration time, because Rsbuild cannot apply a change to what a
-        // container exposes or shares without a restart; the Rspack plugin re-reads per build.
-        const plan = planContainer({ ...options, defaultRoot: containerRoot })
+        // container exposes or shares without a restart; the Rspack plugin re-plans the sources
+        // before every compile after the first, with the same planner.
+        const replan = createContainerPlanner({ ...options, containerRoot })
+        const plan = replan()
 
         // Rsbuild's federation plugin applies its defaults only to a config that declares
         // `moduleFederation.options` before a plugin's arrive, so these three are repeated (§13).
@@ -28,7 +35,7 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
 
         const isBuild = api.context.action === 'build'
 
-        const merged = mergeRsbuildConfig(config, {
+        return mergeRsbuildConfig(config, {
           moduleFederation: { options: buildFederationOptions(plan) },
           server: {
             // A remote is read cross-origin by a shell, always.
@@ -60,40 +67,29 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
                 containerPostcssPlugins({
                   scopes: plan.scopes,
                   containerRoot: plan.options.containerRoot,
+                  loadScopePlugin,
                   configured: postcss.postcssOptions,
                 }),
               )
             },
-            rspack: { plugins: [new MfeRspackPlugin(options, { emitRuntimeConfig: isBuild })] },
+            rspack: {
+              plugins: [new MfeRspackPlugin(plan, replan, { emitRuntimeConfig: isBuild })],
+            },
           },
         })
+      })
 
-        // The build ships the declared defaults instead; a developer's `public/` copy would
-        // otherwise overwrite them with local values, like a localhost API.
-        if (isBuild && plan.configSource !== undefined) {
-          merged.server = {
-            ...merged.server,
-            publicDir: withoutRuntimeConfig(
-              merged.server?.publicDir,
-              plan.options.runtimeConfigFileName,
-            ),
-          }
-        }
-        return merged
+      // The developer's own values, from `.mfe/`, where no build copies them from. Registered
+      // ahead of Rsbuild's own middlewares, so a copy left in `public/` is never the one served.
+      api.onBeforeStartDevServer(({ server }) => {
+        server.middlewares.use(
+          serveLocalRuntimeConfig({
+            ...options,
+            containerRoot,
+            servePath: api.getNormalizedConfig().server.base,
+          }),
+        )
       })
     },
   }
-}
-
-type PublicDir = NonNullable<NonNullable<RsbuildConfig['server']>['publicDir']>
-
-/** Rsbuild reads `ignore` relative to each public directory, and fills in the default name. */
-function withoutRuntimeConfig(publicDir: PublicDir | undefined, fileName: string): PublicDir {
-  if (publicDir === false) return false
-  const ignore = (entry: { readonly ignore?: string[] } | undefined) => ({
-    ...entry,
-    ignore: [...(entry?.ignore ?? []), fileName],
-  })
-  if (Array.isArray(publicDir)) return publicDir.map(entry => ignore(entry))
-  return ignore(publicDir)
 }

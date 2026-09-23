@@ -4,8 +4,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { StorageArea, StorageKeyOptions, StorageRetention } from '@company/mfe-core'
-import type { BoundStorageKey, StorageUpdater } from '@company/mfe-host'
+import {
+  withoutUndefined,
+  type StorageArea,
+  type StorageKeyOptions,
+  type StorageRetention,
+} from '@company/mfe-core'
+import type { BoundStorageKey, StorageUpdater } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
 import { useOptionalMfeMount } from '../mount-context.tsx'
@@ -29,9 +34,11 @@ interface CapturedDeclaration<T> {
 function useDeclaration<T>(options: UseStoredStateOptions<T>): CapturedDeclaration<T> {
   const [declaration] = useState(() => ({
     defaultValue: options.defaultValue,
-    ...(options.retention === undefined ? {} : { retention: options.retention }),
-    ...(options.version === undefined ? {} : { version: options.version }),
-    ...(options.migrate === undefined ? {} : { migrate: options.migrate }),
+    ...withoutUndefined({
+      retention: options.retention,
+      version: options.version,
+      migrate: options.migrate,
+    }),
   }))
   return declaration
 }

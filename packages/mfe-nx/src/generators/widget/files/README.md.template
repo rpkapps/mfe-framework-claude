@@ -1,0 +1,54 @@
+# <%= packageName %>
+
+An MFE Widget, scaffolded by `@company/mfe-nx`. Its id is `<%= id %>`. A Widget is non-routable:
+it owns no URL boundary, never mutates history and never sets the document title. Anything that
+needs a URL is an App. `nx serve <%= projectName %>` starts this container's dev server on port
+<%= port %>, and nothing else: there is no standalone preview. To see the Widget, run the shell,
+then either drag it from the catalogue onto the dashboard, or point the shell at this container
+with the `localStorage` override below. `nx build`, `nx typecheck` and `nx test` run the
+`generate` target first, which writes the `.mfe/` modules the container imports.
+
+This container is zoneless: it never imports `zone.js`. `<%= id %>.component.ts` uses signal
+`input()`/`output()`, which needs AOT (or, under Vitest, the JIT transform `vitest.config.mts`
+already wires in) — the adapter drives both signal-based and decorator-based components the same
+way, through `ComponentRef.setInput` and `reflectComponentType`.
+
+## Styles and PrimeNG
+
+`src/styles.css` is this container's global stylesheet. The build compiles it with Tailwind's
+utilities for the classes under `src/` and scopes every rule to this container's mount roots.
+Component styles stay in the components, where Angular encapsulates them.
+
+PrimeNG is wired in `src/primeng.ts` and given to each mount through `createWidget`'s
+`providers`:
+
+- Select, MultiSelect, AutoComplete and the other overlay components open inside the mount's
+  overlay root on their own. **Dialog, ConfirmDialog and Drawer do not**: give each one
+  `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component.
+- PrimeNG's theme engine is page-wide, so **every Angular container on a page must use the same
+  PrimeNG version and the same preset**. The build never shares PrimeNG between containers.
+- Dark mode follows the shell's theme for this mount only, through an environment initializer
+  inside `providePrimeNgForMfe()` — no wiring needed in the Widget component itself.
+
+## Connecting to the shell
+
+Start the shell, run this in its browser console, and reload.
+
+```js
+const key = 'company:mfe:overrides'
+const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+overrides['<%= id %>'] = 'http://localhost:<%= port %>/mf-manifest.json'
+localStorage.setItem(key, JSON.stringify(overrides))
+location.reload()
+```
+
+Deleting just your id resets it; unrelated overrides are kept. A change needs a reload, not a
+remount: the container's modules are already registered and its chunks are document-level. The
+override is a URL only, never a token.
+
+## Being consumed
+
+The generated `.mfe/widgets/<%= id %>.contract.ts` module (published at
+`<%= packageName %>/contracts`) exports `inputs` and `events` for a consumer that wants prop and
+event inference; without it a consumer gets `Record<string, unknown>` inputs and `unknown`
+payloads.

@@ -95,10 +95,42 @@ the common `RegistryEntry` shape and names no framework; each adapter ships its
 own entry type, with its own fields typed on it and reached through its `is()`
 guard, so the federation container name is `ReactRegistryEntry.container` rather
 than an `unknown` the loader casts back. The React adapter's registry code moved
-out of `@company/mfe-host` into `@company/mfe-react`, where the federation loader
+out of `@company/mfe-runtime` into `@company/mfe-react`, where the federation loader
 already lived. The host now knows only the interface, which is what the port was
 always meant to buy: one payload nobody could type, re-validated at every reader,
 was buying the opposite.
+
+**Second amendment (2026-09-22):** the federation loader moved back into the host,
+because a second adapter made it shared. A React shell loading an Angular container
+needs the same loader as an Angular shell loading a React one, and neither adapter
+can own it. `createFederationContainerLoader` in `@company/mfe-runtime` still imports no
+Module Federation — the runtime is handed to it, as it always was — and reads only
+what every adapter's entries and definitions have in common: the container name on
+`FederatedRegistryEntry` and the brand each adapter stamps, which now also names the
+framework that built the definition. What was React's in the old loader was one
+shim, hiding TanStack Router's development global while a container evaluates, and
+it is now `reactAdapter.aroundLoad`, which the runtime runs around React containers'
+loads and no others (third amendment). The same
+reason gave every definition a neutral `mount`: a host cannot render another
+framework's tree, so a definition mounts itself into an element the host provides,
+given the host's `MountContext`, and hands back what the host needs to update and
+dispose it. React definitions carry it too, so an Angular host can place a React
+Widget or App; a React host still renders its own definitions directly and reaches
+for `mount` only for the others.
+
+**Third amendment (2026-09-23):** no host branches on framework any more, and no
+adapter owns part of a load. The branch the second amendment kept is gone: a React
+host places a React definition through `mountDefinition` as it places an Angular one
+(§33), so `isReactDefinition`, `isAngularDefinition` and `isMfeDefinition` went with
+it, and so did each adapter's own `createMf2ContainerLoader`. The shell hands the
+runtime one `createFederationContainerLoader`, and an adapter that needs page state
+arranged while its containers evaluate declares it on itself, as
+`MfeAdapter.aroundLoad(load, entry)`. The runtime runs it inside the shared loader,
+once per load that actually happens and only for entries that adapter parsed, which
+is why the TanStack shim no longer runs around an Angular container's load. With the
+definition brand an open string and every adapter listed by the shell, an adapter is
+a plugin: a third one adds a package and one entry in the shell's `adapters`, and
+changes nothing in the core, the runtime or the adapters already there.
 
 ---
 
@@ -242,6 +274,17 @@ in React 18 and later. The boundary history was the next instance (§1): a
 subscription made at construction, removed by the first cleanup and never
 re-made.
 
+**Amendment (2026-09-23):** the effect now owns the runtime's handle rather than a
+mount of its own. `useOwnedMount` went with the in-tree mount it built:
+`useDefinitionMount`'s one effect calls `mountDefinition` (§33), publishes the handle
+it returns and disposes it in its cleanup, and a second effect hands each render's
+inputs to `update`, which drops an equal set. The token, the context and both roots
+are the runtime's, made after an `await` rather than inside React's commit, so a
+StrictMode rehearsal disposes the first handle before its load settles and the
+definition's `mount` runs once — pinned by `app-host.test.tsx`. The rule is the same
+one, held by a handle instead of a context: what an effect creates, that effect's
+cleanup ends.
+
 ---
 
 ## 15. A host composing the registry cannot call `lazyWidget`
@@ -289,6 +332,31 @@ attribute. Two limits: `@scope` has the narrowest support of anything the
 framework requires (§5), below which the last stylesheet wins unscoped; and
 `@keyframes` is renamed after the container's ids, because such names are
 page-wide.
+
+**Amendment (2026-09-23):** the runtime owns the scope root, and the overlay root
+with it. For each attempt `mountDefinition` (§33) creates a `display: contents`
+element carrying `data-mfe-scope`, `data-mfe-mount` and `data-mfe-kind`, puts the
+definition's element inside it, and hands it on as `MountContext.scopeRoot`; a
+definition renders into its element and never adds a root of its own. The React
+adapter used to render its own scope root inside the one a host had already made, so
+a React definition placed by another host sat under two; now there is one, whichever
+adapter built the definition. The build-attached `StyleRoot` still renders inside
+it, from the container's own copy of the library, with the context's overlay root as
+its portal target.
+
+PrimeNG, which the Nx generator scaffolds into Angular containers (§31), is where
+this model stops. Its theme engine writes `<style>` tags into the document head
+under fixed names, outside any `@scope`, so two Angular containers on different
+PrimeNG versions or presets restyle each other: every Angular container on a page
+has to use the same version and preset, and nothing but the generator's pin (19.1.4,
+Aura) holds them to it. Its overlays follow `overlayOptions.appendTo`, which the
+generated `providePrimeNgForMfe()` points at the mount's overlay root, but Dialog,
+ConfirmDialog and Drawer do not read it, and each needs `[appendTo]` set to that root
+or it renders on a bare body, outside the container's scope. Its dark mode is a class
+the generated providers toggle on the scope and overlay roots, because PrimeNG
+compiles an attribute selector to `:root[…]`, which only ever matches `<html>`. And
+PrimeNG is never shared through federation, because that engine's style registry is
+module state.
 
 ---
 
@@ -493,6 +561,20 @@ declared, and shares what it can resolve rather than what it lists — which is 
 Resolving none is a build error; individual absences stay legal. It is a subpath,
 so a config that wants the share scope never loads the plugin.
 
+**Amendment (2026-09-23):** what `hostShared` returns is now scoped (§33). Every
+React-bound candidate goes in `react@<the React the host installed>`, and
+`@company/mfe-core` and `@company/mfe-runtime` stay in `default`. Those two are read
+beside `@company/mfe-react`, where the adapter's own imports resolve, and installed
+versions are read by walking `node_modules` rather than through whatever `NODE_PATH`
+the bundler runs with — which is also why `recharts`, held only by the design
+system's own install, is no longer shared by the shell. The policy is still written
+once and applied to both sides. What is new is the other half of the handshake: a
+container's build publishes the scopes its shares live in as `shareScopes`, the
+registry entry carries them, and the federation loader registers the remote with
+exactly those, `default` first. A remote links only the scopes named when it is
+registered, so an entry built before scopes shares in `default` alone and keeps its
+React to itself.
+
 ---
 
 ## 28. Reading a Widget's published inputs is headless, and a test is what keeps it honest
@@ -556,3 +638,259 @@ time, since the runtime stamps it onto every share as the instance initialises.
 **Cost:** `loaded-first` keeps the host's copy of a shared module, which
 `version-first` let a remote's build replace, so a remote shipping a _newer_
 package no longer wins the scope.
+
+**Amendment (2026-09-23):** that cost now applies within a scope. Only a container on
+the host's exact React version joins the host's `react@<version>` scope (§33), and
+there `loaded-first` still keeps the host's copy: a remote shipping a newer
+`@tanstack/react-query` runs on the host's, and one whose declared range the host's
+copy does not satisfy is rejected by `strictVersion` at load rather than handed a
+second copy. A container on any other React version shares nothing with the host
+but `@company/mfe-core` and `@company/mfe-runtime` in `default`, where the same rule
+holds and the host's copy wins. The strategy is still declared at build time, and
+the runtime still stamps it onto every share, in every scope.
+
+---
+
+## 31. Angular containers get an adapter of their own, built by Nx on webpack
+
+**Status:** decided; the build tool at the project owner's direction.
+
+An Angular application cannot render inside a React tree, so a second framework on
+the page needed more than a second registry reader. `@company/mfe-angular` is its
+adapter: `createApp` and `createWidget` return branded records the build reads
+statically, each carrying the neutral `mount` (§6), and each mount is an Angular
+application of its own, created with `createApplication` on the page's one browser
+platform. It depends on the core and the runtime and nothing else. It is zoneless
+and cannot be otherwise: `zone.js` patches timers, promises and event listeners for
+the whole page, which `mfe/no-global-patching` forbids every container to do, and
+one zone would be shared by every Angular mount and by a shell of any framework.
+With `provideExperimentalZonelessChangeDetection()` each mount schedules its own
+change detection, and the Angular lint preset rejects `zone.js`, `NgZone` and a
+container bootstrapping an application or a platform itself (§34).
+
+The build went the other way from the adapter. `@company/mfe-rspack` stays React's:
+it carries the React Compiler, TanStack's route tree and the design system's style
+root, and an Angular container uses none of them. Its framework-neutral half moved
+into `@company/mfe-build`, which `@company/mfe-rspack` now composes, and
+`@company/mfe-nx` composes the same half for Angular: the `app` and `widget`
+generators, and `withMfe()` as the `customWebpackConfig` of Nx's
+`@nx/angular:webpack-browser`, producing a Module Federation 2 remote through
+`@module-federation/enhanced/webpack`. Not Rspack: Angular's esbuild builder has no
+Module Federation 2 support, and the releases of Nx's Angular-on-Rspack integration
+that accept Angular 19 require Rspack 1, which this repository has left for
+Rspack 2. The webpack builder is the one Angular itself ships, so a container's
+ahead-of-time compilation is Angular's own. Nx 23's Angular plugin requires Angular
+20, so the generator accepts Nx 20 to 22 and refuses anything else before writing a
+file.
+
+A component library is a container's decision, so none is in the adapter, and `pnpm
+boundaries` rejects `primeng` there. The generator scaffolds PrimeNG 19.1.4 with the
+Aura preset into the container's own `src/primeng.ts`, built only on seams the
+adapter offers every library: a definition's `providers`, the mount's `scopeRoot`
+and `overlayRoot` from `injectMfeMount()`, and `injectTheme()`. PrimeNG is never
+shared through federation, and `withMfe({ shared })` refuses it: its theme engine
+keeps the page's style registry in module state, so a shared copy would let one
+container's preset restyle another's components.
+
+**Cost:** PrimeNG's global styles are unscoped (§17), so every Angular container on
+a page has to use the same PrimeNG version and preset, which only the generator's
+pin holds. Dialog, ConfirmDialog and Drawer need an explicit `appendTo` pointing at
+the mount's overlay root. Every Angular container downloads its own PrimeNG. The
+zoneless provider is still experimental API in Angular 19, and a plain field mutated
+from a timer does not render. Signal `input()` and `output()` run only in a
+container's ahead-of-time build, because the adapter's own suites compile just in
+time. And the packages ship TypeScript source, which a consuming Nx workspace has to
+add to its container's `tsconfig` until they ship compiled output.
+
+**Amendment (2026-09-23):** the developer's runtime configuration moved out of
+`public/` into `.mfe/runtime-config.json`, `.mfe/<runtimeConfigFileName>` when renamed.
+Three reasons. Developer values, such as a localhost API, no longer sit in a folder a
+build deploys: both bundlers copy `public/` into their output, and `.mfe/` is copied by
+neither. Keeping the old file out of production took a guard in each integration (the
+generator's production-assets `ignore`, the webpack plugin's overwrite of the copied
+asset, the Rsbuild skip), and a guard can miss: `withMfe({ runtimeConfigFileName })`
+renamed the file the build shipped but not the `ignore` the generator had already
+written into `project.json`, so a renamed file's local values reached production. And
+the per-integration code is gone: one middleware in `@company/mfe-build` answers the
+container's usual `runtime-config.json` URL from `.mfe/` in both dev servers, ahead of
+their own serving, so container code is unchanged and a production build ships only the
+declared defaults by construction. The costs: the one file in a build-managed directory
+that is committed needs an exception in both the container's `.gitignore` (`.mfe/*`,
+not `.mfe/`) and the generated `.mfe/.gitignore`; a generate command reads no bundler
+configuration, so a renamed file is created by hand and committed once with
+`git add -f`; and a copy left in `public/` is moved once by the next generate run, or
+reported, because it can now ship, when both exist.
+
+---
+
+## 32. `@company/mfe-host` is `@company/mfe-runtime`, the core holds contracts only, and an application imports only its adapter
+
+**Status:** decided; enforced by lint and by `pnpm boundaries`.
+
+The package was named for its first consumer. Once every definition mounts itself
+through it (§33) and every adapter's `/host` re-exports it, it is what both sides of
+a mount run on, so it is `@company/mfe-runtime`, and its names followed:
+`createMfeRuntime`, `MfeRuntime`, `MfeRuntimeHandle`, `createMemoryRuntime`. The
+core went the other way. `MountLifecycle`, `withDeadline`, `DiagnosticsHub` and the
+listener sets were stateful code in the package the build layer also imports, and a
+second place a page's state could live. They moved into the runtime, their types
+stayed, and a lint zone keeps `@company/mfe-core` to types, constants and pure
+validation: no exported class other than an error, no top-level mutable binding or
+collection, no timer and no browser global outside its tests.
+
+An application — a shell, a container, an example or a generated project — imports
+only its adapter: the root for container code, `/host` for booting a shell,
+`/testing` in tests and `/registry` for the adapter alone. Every `/host` is
+`export * from '@company/mfe-runtime'` plus that framework's provider, `MfeProvider`
+or `provideMfeRuntime`, so a name a shell needs has one import path on either adapter,
+and `tools/interop` asserts the two surfaces match. The re-export names the bare
+specifier, because only that is a federation share key: a subpath would bundle a
+second runtime. `/registry` imports no framework, so a React shell reads Angular
+entries through `@company/mfe-angular/registry` without resolving Angular. Both
+author presets and the neutral `application()` preset reject the core and the
+runtime in application code, with a message naming the adapter entry to use.
+
+**Cost:** everything the runtime exports is public API of both adapters, and a
+runtime change changes both surfaces; the parity test keeps them equal, not small. A
+shell reading Angular entries depends on the Angular adapter's package, if not on
+Angular. The rename broke every import of `@company/mfe-host`, pending changesets
+included. And the shell's boot file still imports the Module Federation runtime
+directly, exempted by name.
+
+---
+
+## 33. Every host mounts every definition through one path, and each framework version shares in a scope of its own
+
+**Status:** decided; `mountDefinition` in `@company/mfe-runtime`, the scopes in
+`@company/mfe-build`, and two React versions on one page proven in `tools/interop`.
+
+§6's second amendment left two ways to place a definition: a React host rendered
+React definitions in its own tree and called `mount` for the rest, and an Angular
+host did the reverse. Each kept its own loading, retry, input equality and scope
+root, and they had drifted: a React definition placed by another host sat under two
+scope roots. There is now one path. A host renders an empty element and calls
+`mountDefinition`, and the runtime does the rest for every adapter. It resolves the
+definition through the loader, which shares a load in flight and never keeps a
+rejection. It creates the scope and overlay roots (§17) and calls `mount` after an
+`await`, never from inside a host's render. It retries only from the error state and
+drops an input set equal to the last. It reports a payload the host's contract
+refuses rather than throwing it, disposes a nested mount with its parent, and tears
+down in order: the definition first, then its context. Load, mount and disposal run
+under `runtime.deadlines`, 30, 30 and 5 seconds by default. A React definition opens
+a React root of its own, with `useId` prefixed by the mount token. A failure before
+its first commit rejects the mount, and one after goes to `target.onFailure`.
+
+One path exposed a bug neither had seen. The browser bridge hears only `popstate`,
+and the shell's router writes the page's history itself, so a navigation from the
+palette, the settings sheet or a breadcrumb moved the URL under a mounted App that
+never heard of it. `BoundaryNavigator.announce()` tells the navigator's subscribers
+where such a navigation left the page, and nothing when they already know. The shell
+calls it after each navigation of its router, as `mfeRoute` and a routed
+`<mfe-app-host>` do for theirs.
+
+Own roots made several React versions on one page possible, and Module Federation's
+one `default` scope could not hold them. A strict singleton throws on the second
+version. Sharing each package at its own version fails quietly instead: a shared
+module's own imports resolve in whichever build provided it, so a host-provided
+adapter binds TanStack Query to the host's copy, and a container whose own copy
+resolved elsewhere finds no `QueryClient`. So each framework shares in a scope named
+after its exact installed version, `react@19.3.0` or `angular@19.2.25`, and inside
+it the old rule stands: one strict singleton per candidate, and every React-bound
+package in the React scope, singleton or not. Containers on one version share one
+copy, and a container on another brings its own complete set. `@company/mfe-core`
+and `@company/mfe-runtime` stay page singletons in `default`, because the
+mount-token sequence is module state, errors and spans are recognised by
+`instanceof`, and neither imports a framework, so pinning them pins no container's
+React.
+
+**Cost:** React context, Suspense and a host's error boundaries no longer reach into
+a container. The adapter provides its own again in each root, `AppHost` shows
+`pending` instead of suspending, and a render error inside a container reaches the
+host as the mount's error state, through `onFailure`, rather than bubbling through
+its tree. A dashboard of Widgets opens one React root per Widget, which has not been
+measured. A React container slower than the load deadline now fails with
+`load/timeout` where it used to wait. A container on another React version brings
+its own `sonner`, so its toasts never reach the shell's `Toaster`. `strictVersion`
+inside a scope still rejects a container whose version of a scoped package the
+loaded copy does not satisfy, a minor apart included. `recharts` is no longer shared
+by the shell. And `shareScopes` couples the registry to the build: an entry without
+it shares in `default` alone and runs on its own React.
+
+---
+
+## 34. The lint plugin has a neutral root and one subpath per framework
+
+**Status:** decided.
+
+One package, one plugin object and one `mfe/` rule namespace, in three entries. The
+root holds the five rules — the four, plus `mfe/no-widget-global-router`, their
+Angular Router counterpart — the package zones, the repository's `framework` and
+`tooling` presets, and `application()`, the import boundary any application gets
+(§32). `./react` holds `author()`, as before. `./angular` holds `angular()`: the
+Angular author preset, with angular-eslint's recommended rules and the zoneless and
+application-ownership bans (§31). Each shared rule takes options naming its
+adapter's APIs, so an Angular author reads `injectMfeSignal()` in a message where a
+React author reads `useMfeSignal()`.
+
+The framework lint plugins — React Hooks, the two TanStack plugins and the three
+angular-eslint packages — are optional peers, loaded when a preset is built, never
+when an entry is imported. So an Angular workspace never installs React tooling, and
+a missing peer throws one error naming every package to install. The Angular preset
+uses the individual angular-eslint packages rather than the meta package, which
+peers on the Angular CLI. It lists the recommended rules of angular-eslint 22.5
+itself rather than spreading them, because that set spans later Angular versions
+than this adapter targets. It accepts angular-eslint 19 to 22, and 22 is the line
+that runs on this repository's ESLint 10.
+
+**Cost:** the hand-listed Angular rules drift from angular-eslint's own until
+someone copies them again. `application()` replaces another preset's
+restricted-import rule for the files it covers rather than adding to it, so a config
+that uses it restates the bans it still wants, as the root config does for vendor
+telemetry. And the `framework` preset still needs the React Hooks plugin, because it
+lints the React packages.
+
+---
+
+## 35. A shortcut is a field on a command, and the runtime reads the keys
+
+**Status:** decided; forced by §33, which gave every mount a React root of its own.
+
+The shell's keys lived in the design system's shortcut registry, handed down through
+a `ShortcutsProvider` so that mounted Apps could register into it. Once every
+definition mounts through `mountDefinition` into its own root, no App can reach that
+context, and the registry was left serving the shell alone. A second registry beside
+the command registry would also have been a second list for the palette and the help
+sheet to merge. So `CommandRegistration` gains an optional `shortcut` — a chord such as
+`'mod+s'` or a sequence such as `'g r'` — and the command registry, which every adapter
+already reaches through the runtime, reads the keys. The host installs one `keydown`
+listener and calls `commands.handleKeyDown(event)`; a match runs through the same path
+as `execute`, so `canExecute` still decides and a denial still reaches the user. The
+parsing and matching carry over the design system's: `mod` is ⌘ on Apple platforms and
+Ctrl elsewhere, a sequence waits one second for its next chord, a symbol matches with
+or without Shift, and an unmodified key typed into a field stays typed — including one
+React Aria re-dispatches from a focused field onto an option, which the shell used to
+guard against itself.
+
+Whose keys are live is derived from what the runtime already knows. The host page's
+shortcuts fire everywhere and are reserved: a container shortcut that equals, begins
+or extends one of them is ignored with a warning, and loses the keys if the host page
+claims them later. An App's fire while the navigator's pathname is inside its boundary.
+Nested Apps are both live, since the page is inside both, rather than only the inner
+one, because the registry sees mounts only through their commands and an inner App
+that registers nothing would otherwise hand its keys back to the outer one. A Widget's
+shortcut is ignored with a warning, as a Widget does not own the URL or the head
+(`no-widget-global-effects`).
+
+Two registrations that could be live for the same key press — two in the host page,
+two in one mount, or two Apps whose boundaries nest — are reported when the second is
+declared, and a press that could mean either runs neither and is not prevented. The
+alternative, first registration wins, would have made the outcome depend on mount
+order, which a reader of the page cannot see. Two Apps at unrelated boundaries may use
+the same keys.
+
+**Cost:** `CommandRegistry.register` now takes the owner — `{ definitionId, mountToken,
+kind, basePath }`, which a `MountContext` already is — instead of the id and token, so
+the registry can tell an App from a Widget and knows the boundary. Shortcut errors and
+warnings reuse `command/duplicate-name`, which already covered an invalid registration,
+rather than widening the closed union (§7). And a key the page is inside two nested
+Apps for is ambiguous where an inner-wins rule would have resolved it.

@@ -1,7 +1,9 @@
 /** The generation step, shared by the build and `mfe-generate` so neither can drift. */
 
-import { planContainer, type ContainerPlan, type PlanContainerOptions } from '../plan.ts'
-import { writeGeneratedFiles, type GeneratedFile } from './emit.ts'
+import { writeGeneratedFiles, type GeneratedFile } from '@company/mfe-build'
+
+import type { MfePluginOptions } from '../options.ts'
+import { planContainer, type ContainerPlan } from '../plan.ts'
 
 export interface ContainerGeneration {
   readonly plan: ContainerPlan
@@ -10,7 +12,7 @@ export interface ContainerGeneration {
 }
 
 /** Re-reads the container's sources and rewrites what changed. */
-export function generateContainer(options: PlanContainerOptions = {}): ContainerGeneration {
+export function generateContainer(options: MfePluginOptions = {}): ContainerGeneration {
   const plan = planContainer(options)
   return { plan, written: writeGeneratedFiles(plan.generated.files) }
 }

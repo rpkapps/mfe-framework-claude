@@ -1,6 +1,13 @@
 import rule from './no-global-patching.ts'
 import { createRuleTester } from '../__tests__/rule-tester.ts'
 
+const SIGNAL_DATA = { signalHook: 'useMfeSignal()', signalModule: '@company/mfe-react' }
+const NAVIGATION_DATA = {
+  navigationHint:
+    "`navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path",
+  navigatorModule: '@company/mfe-runtime',
+}
+
 createRuleTester().run('mfe/no-global-patching', rule, {
   valid: [
     // Reading a global is not patching it.
@@ -23,7 +30,7 @@ createRuleTester().run('mfe/no-global-patching', rule, {
   invalid: [
     {
       code: 'globalThis.fetch = instrumentedFetch',
-      errors: [{ messageId: 'fetch', data: { target: 'globalThis.fetch' } }],
+      errors: [{ messageId: 'fetch', data: { target: 'globalThis.fetch', ...SIGNAL_DATA } }],
     },
     {
       code: 'window.fetch = instrumentedFetch',
@@ -47,7 +54,7 @@ createRuleTester().run('mfe/no-global-patching', rule, {
     },
     {
       code: "Object.defineProperty(globalThis, 'fetch', { value: instrumentedFetch })",
-      errors: [{ messageId: 'fetch', data: { target: 'globalThis.fetch' } }],
+      errors: [{ messageId: 'fetch', data: { target: 'globalThis.fetch', ...SIGNAL_DATA } }],
     },
     {
       code: "Reflect.defineProperty(window, 'fetch', { value: instrumentedFetch })",
@@ -55,7 +62,7 @@ createRuleTester().run('mfe/no-global-patching', rule, {
     },
     {
       code: 'history.pushState = patchedPushState',
-      errors: [{ messageId: 'history', data: { target: 'history.pushState' } }],
+      errors: [{ messageId: 'history', data: { target: 'history.pushState', ...NAVIGATION_DATA } }],
     },
     {
       code: 'window.history.replaceState = patchedReplaceState',
@@ -67,7 +74,9 @@ createRuleTester().run('mfe/no-global-patching', rule, {
     },
     {
       code: 'window.addEventListener = patchedAdd',
-      errors: [{ messageId: 'listeners', data: { target: 'window.addEventListener' } }],
+      errors: [
+        { messageId: 'listeners', data: { target: 'window.addEventListener', ...SIGNAL_DATA } },
+      ],
     },
     {
       code: 'document.removeEventListener = patchedRemove',

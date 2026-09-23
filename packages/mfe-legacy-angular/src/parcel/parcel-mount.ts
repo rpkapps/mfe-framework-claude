@@ -1,12 +1,7 @@
 /** The single-spa parcel lifecycle, driven by the shell; retry and deadlines stay with the host. */
 
-import {
-  createMfeError,
-  SnapshotSource,
-  toMfeError,
-  type MfeError,
-  type Unsubscribe,
-} from '@company/mfe-core'
+import { createMfeError, toMfeError, type MfeError, type Unsubscribe } from '@company/mfe-core'
+import { SnapshotSource } from '@company/mfe-runtime'
 
 import type { LegacyParcel, LegacyParcelConfig, MountRootParcel } from './single-spa-contract.ts'
 

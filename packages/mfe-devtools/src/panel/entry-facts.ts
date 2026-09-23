@@ -29,8 +29,9 @@ export function factsOf(entry: RegistryEntry): readonly EntryFact[] {
   const events = entry.contract?.events ?? []
   if (events.length > 0) facts.push({ label: 'events', values: [...events] })
 
-  // Only when it is not the usual one, which is noise on every row that goes through the same one.
-  if (entry.adapter !== 'react') facts.push({ label: 'adapter', values: [entry.adapter] })
+  // Always, because no adapter is the usual one: a shell lists each of them, and which one read an
+  // entry is what decides how it loads and mounts.
+  facts.push({ label: 'adapter', values: [entry.adapter] })
 
   return facts
 }

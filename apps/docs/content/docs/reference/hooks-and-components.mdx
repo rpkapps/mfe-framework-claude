@@ -100,6 +100,20 @@ window.addEventListener('resize', onResize, { signal })
 
 Recipe: [Cancel a request on unmount](/docs/cancel-a-request-on-unmount).
 
+### useScopeRoot
+
+```ts
+useScopeRoot(): HTMLElement
+```
+
+Returns the element carrying this mount's `data-mfe-scope` attributes, which the container's scoped stylesheet matches. The runtime creates it around the element your definition renders into. Read it to measure the mount's region or to give a library a container inside the scope; never replace or restyle it.
+
+```ts
+const scopeRoot = useScopeRoot()
+const observer = new ResizeObserver(onResize)
+observer.observe(scopeRoot)
+```
+
 ### useMfeStorage
 
 ```ts
@@ -136,7 +150,7 @@ Recipe: [Log an event](/docs/log-an-event).
 useCommand(registration: CommandRegistration): void
 ```
 
-Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read.
+Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the command for it while the page is inside your App, and ignores one from a Widget.
 
 ```ts title="examples/lab/src/routes/commands.tsx"
 useCommand({
@@ -281,21 +295,25 @@ Recipe: [Show an icon](/docs/show-an-icon).
 
 These place or compose containers. A shell calls them. An App calls `mfeRoute` when it nests a child App at a splat route, and nothing else here.
 
-| Export                                                  | Signature                        | What it is for                                         |
-| ------------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
-| `AppHost`                                               | `{ appId, basePath, fallback? }` | Mounts an App at a boundary the caller chooses.        |
-| `mfeRoute`                                              | `({ appId, basePath? })`         | Route options that mount a child App. The author path. |
-| `MfeProvider`                                           | `{ runtime, children }`          | Wraps a shell once at boot.                            |
-| `createMfeRuntime`                                      | `(options) => MfeRuntimeHandle`  | Builds the runtime a shell provides.                   |
-| `createContainerTransport`, `installShellAuth`          | see `@company/mfe-host`          | Bind the shell's session to `#mfe/fetch`.              |
-| `createOverlayRoot`, `withStyleRoot`, `SCOPE_ATTRIBUTE` | —                                | Used by generated code and by the shell's own chrome.  |
+| Export                                                                  | Signature                                  | What it is for                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.        |
+| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path. |
+| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                            |
+| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.              |
+| `withStyleRoot`                                                         | —                                          | Used by generated code.                                |
+| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                        |
+
+`AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. `pending` fills the region while the container loads and the definition mounts, and `fallback` replaces it after a failure, with a `retry`. Without a `fallback` the failure is thrown to the nearest error boundary. Nothing suspends.
+
+A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime surface — `createMfeRuntime`, `createFederationContainerLoader`, `DiagnosticsHub` and the rest — beside `MfeProvider`, so a shell imports its adapter and never `@company/mfe-runtime` itself. `@company/mfe-react/registry` exports `reactAdapter` alone, with no React import, for a shell written in another framework. `createMfeRuntime` registers no adapter implicitly; list every one in `adapters`.
 
 ## Where each hook may be called
 
-| Hook                                                                                 | Inside a mount | On the host page |
-| ------------------------------------------------------------------------------------ | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
+| Hook                                                                                                 | Inside a mount | On the host page |
+| ---------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs`, `useStoredState`                 | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 

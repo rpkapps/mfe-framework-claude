@@ -8,8 +8,19 @@ import type { AnyNode, MemberExpression } from '../util/ast.ts'
 import { asNode, staticPropertyName, unwrapExpression } from '../util/ast.ts'
 import { resolveGlobalObject } from '../util/scope.ts'
 import { matchesAnyScope } from '../util/file-scope.ts'
-import { optionRecord, stringArrayOption } from '../util/options.ts'
+import {
+  optionRecord,
+  stringArrayOption,
+  stringOption,
+  widgetScopeSchema,
+} from '../util/options.ts'
 import { docsUrl } from '../util/docs.ts'
+
+/**
+ * How this Widget's render calls into `emit`, named in every repair. React's Widget receives it
+ * as a prop of its render function; a different adapter names its own access here.
+ */
+const DEFAULT_EMIT_ACCESS = 'its render props'
 
 const HISTORY_METHODS: ReadonlySet<string> = new Set([
   'pushState',
@@ -52,27 +63,16 @@ const rule: Rule.RuleModule = {
       url: docsUrl('no-widget-global-effects'),
     },
     // No fix and no suggestion: the repair changes the Widget's declared contract.
-    schema: [
-      {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          widgetScopes: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              'Globs for Widget-owned source files. The rule is inert until a repository declares them; ownership is never guessed from a file name.',
-          },
-        },
-      },
-    ],
+    schema: widgetScopeSchema(
+      "How this Widget's render reaches `emit`, named in the repair. Defaults to React's render props.",
+    ),
     messages: {
       history:
-        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from its render props; the owning App receives it as `onNavigate` and navigates with its boundary router, or the shell with the host `BoundaryNavigator`.",
+        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the event and navigates with its own boundary router, or the shell with the host `BoundaryNavigator`.",
       title:
-        "`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from its render props; the owning App receives it as `onTitle` and sets what it owns.",
+        "`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from {{emitAccess}}; the owning App receives the event and sets what it owns.",
       headMetadata:
-        "Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from the render props; the owning App receives it as an `onX` prop and applies it to what it owns, which is also what reverts it.",
+        "Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from {{emitAccess}}; the owning App receives the event and applies it to what it owns, which is also what reverts it.",
     },
   },
 
@@ -80,6 +80,7 @@ const rule: Rule.RuleModule = {
     const options = optionRecord(context.options)
     const widgetScopes = stringArrayOption(options, 'widgetScopes', [])
     if (!matchesAnyScope(context.filename, widgetScopes)) return {}
+    const emitAccess = stringOption(options, 'emitAccess', DEFAULT_EMIT_ACCESS)
 
     const { sourceCode } = context
 
@@ -88,7 +89,11 @@ const rule: Rule.RuleModule = {
     }
 
     function report(node: AnyNode, messageId: EffectMessageId): void {
-      context.report({ node, messageId, data: { access: sourceCode.getText(node) } })
+      context.report({
+        node,
+        messageId,
+        data: { access: sourceCode.getText(node), emitAccess },
+      })
     }
 
     /** `document.head`, resolved through scope rather than by name. */

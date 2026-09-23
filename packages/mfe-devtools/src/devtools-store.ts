@@ -4,8 +4,12 @@
  * The draft is kept apart from the boot facts because it is what *will* apply after a reload.
  */
 
-import { SnapshotSource, shallowEqual } from '@company/mfe-core'
-import { writeDevOverrides, type OverrideWritableStorage } from '@company/mfe-host'
+import { shallowEqual } from '@company/mfe-core'
+import {
+  SnapshotSource,
+  writeDevOverrides,
+  type OverrideWritableStorage,
+} from '@company/mfe-runtime'
 
 import {
   DEFAULT_SETTINGS,

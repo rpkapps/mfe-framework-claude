@@ -6,7 +6,7 @@
 
 import { useCallback } from 'react'
 import type { ShellTheme, ShellUser } from '@company/mfe-core'
-import type { ShellStateField } from '@company/mfe-host'
+import type { ShellStateField } from '@company/mfe-runtime'
 
 import { useMfeRuntime } from '../runtime-context.tsx'
 import type { MfeRuntime } from '../runtime.ts'

@@ -33,11 +33,11 @@ The script runs `pnpm run generate && rsbuild build`, and the output lands in `d
 | `runtime-config.schema.json`                | the shape of the deployment's values           | your deployment, before release |
 | one chunk per definition, and one CSS asset | your code, and the styles scoped to your roots | the browser                     |
 
-The build copies every top-level `.json` file out of `.mfe/`, and writes the two configuration files
-only for a container that has `src/mfe.config.ts`. It never copies `public/runtime-config.json`,
-because that file holds your local values. Outside `dist/`, it also writes
-`.mfe/runtime-config.sh`, which your image runs at start to write the environment into
-`runtime-config.json`.
+The build ships the `.json` files it generates into `.mfe/`, and writes the two configuration files
+only for a container that has `src/mfe.config.ts`. It never ships `.mfe/runtime-config.json`, your
+local values, because no build copies anything from `.mfe/` that it did not generate for `dist/`.
+Outside `dist/`, it also writes `.mfe/runtime-config.sh`, which your image runs at start to write
+the environment into `runtime-config.json`.
 
 </Step>
 

@@ -30,6 +30,19 @@ export function isGlobalBinding(sourceCode: SourceCode, node: AnyNode, name: str
   return found.variable.defs.every(def => def.type === 'ImplicitGlobalVariable')
 }
 
+/**
+ * The scope-manager `Variable` a name resolves to from this position, or `null` for a global with
+ * no local declaration. Two identifiers that resolve to the same `Variable` are the same binding,
+ * which is how a rule tracks a value threaded through a local variable rather than matching text.
+ */
+export function findVariable(
+  sourceCode: SourceCode,
+  node: AnyNode,
+  name: string,
+): Scope.Variable | null {
+  return lookup(sourceCode.getScope(node), name)?.variable ?? null
+}
+
 export function isGlobalObjectName(sourceCode: SourceCode, node: AnyNode, name: string): boolean {
   return GLOBAL_OBJECT_NAMES.has(name) && isGlobalBinding(sourceCode, node, name)
 }

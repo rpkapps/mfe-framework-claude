@@ -11,6 +11,31 @@
 import type { Linter } from 'eslint'
 
 import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
+
+import fieldwork from './examples/fieldwork/eslint.config.ts'
+
+/**
+ * The Angular example: its own Nx workspace, linted by the configuration its generator wrote,
+ * which `basePath` rebases onto the example's directory. The React and tooling presets below
+ * stay off it, since that configuration already covers every file of it they would reach.
+ */
+const ANGULAR_EXAMPLE = 'examples/fieldwork'
+
+function outsideAngularExample(configs: Linter.Config[]): Linter.Config[] {
+  return configs.map(object => ({
+    ...object,
+    ignores: [...(object.ignores ?? []), `${ANGULAR_EXAMPLE}/**`],
+  }))
+}
+
+/** The vendor telemetry ban `mfe.framework()` carries; restated where `mfe.application()` runs. */
+const TELEMETRY_BAN = {
+  group: ['@opentelemetry/*', '@grafana/faro', '@grafana/faro-*'],
+  message:
+    'Telemetry boundary: emit through the neutral telemetry contract in @company/mfe-core (`MfeTelemetry`) rather than a vendor SDK directly. Type-only imports are restricted too.',
+  allowTypeImports: false,
+} as const
 
 const config: Linter.Config[] = [
   {
@@ -21,6 +46,9 @@ const config: Linter.Config[] = [
       '**/routeTree.gen.ts',
       '**/src/generated/**',
       '**/.mfe/**',
+      // The caches Nx and the Angular builder keep in the Angular example's Nx workspace.
+      '**/.nx/**',
+      '**/.angular/**',
       '**/playwright-report/**',
       '**/test-results/**',
     ],
@@ -47,8 +75,8 @@ const config: Linter.Config[] = [
     // The storage adapter owns every read and write the framework makes, and the shell's
     // override bootstrap has to read localStorage before a store exists to read it through.
     storageAllowedScopes: [
-      'packages/mfe-host/src/storage/**',
-      'packages/mfe-host/src/overrides/**',
+      'packages/mfe-runtime/src/storage/**',
+      'packages/mfe-runtime/src/overrides/**',
       'apps/shell/src/boot.tsx',
       // The other end of the same bootstrap: the override key and the panel's own flag are
       // the page's, not any definition's, and are read before a store exists to read them.
@@ -60,24 +88,51 @@ const config: Linter.Config[] = [
     ],
   }),
 
-  ...mfe.author({
-    tsconfigRootDir: import.meta.dirname,
-    files: ['examples/*/src/**/*.{ts,tsx}'],
-    // Widget ownership is declared, never guessed from a filename.
-    widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
+  ...outsideAngularExample(
+    react.author({
+      tsconfigRootDir: import.meta.dirname,
+      files: ['examples/*/src/**/*.{ts,tsx}'],
+      // Widget ownership is declared, never guessed from a filename.
+      widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
+    }),
+  ),
+
+  ...fieldwork.map(object => ({ ...object, basePath: ANGULAR_EXAMPLE })),
+
+  /*
+   * `application()` replaces `framework()`'s own `no-restricted-imports` rule for the files it
+   * covers rather than adding to it (ESLint keeps the last config's value for a repeated rule), so
+   * both application configs restate the vendor telemetry ban `framework()` would otherwise carry
+   * for these files: the shell's own Faro adapter is the one place that names `@grafana/faro-*`
+   * (`repo/shell-telemetry-adapter`, below), and a cross-adapter harness has no telemetry vendor
+   * of its own to name either.
+   */
+  ...mfe.application({
+    files: ['apps/shell/src/**/*.{ts,tsx}'],
+    adapterModules: ['@company/mfe-react'],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
   }),
 
-  ...mfe.tooling({
-    tsconfigRootDir: import.meta.dirname,
-    files: [
-      // The defaults, plus the two files this workspace names differently: fumadocs reads
-      // `source.config.ts`, and the `.d.mts` files are the types of the plain-JavaScript
-      // helpers beside them.
-      ...mfe.DEFAULT_TOOLING_FILES,
-      'apps/docs/source.config.ts',
-      'tools/tecton/*.d.mts',
-    ],
+  ...mfe.application({
+    files: ['tools/interop/src/**/*.ts'],
+    // A cross-adapter harness, so it may import both adapters.
+    adapterModules: ['@company/mfe-react', '@company/mfe-angular'],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
   }),
+
+  ...outsideAngularExample(
+    mfe.tooling({
+      tsconfigRootDir: import.meta.dirname,
+      files: [
+        // The defaults, plus the two files this workspace names differently: fumadocs reads
+        // `source.config.ts`, and the `.d.mts` files are the types of the plain-JavaScript
+        // helpers beside them.
+        ...mfe.DEFAULT_TOOLING_FILES,
+        'apps/docs/source.config.ts',
+        'tools/tecton/*.d.mts',
+      ],
+    }),
+  ),
 
   /*
    * The design system's `strict` preset used to run over the shell and the examples. Tecton
@@ -89,6 +144,14 @@ const config: Linter.Config[] = [
     // The one file that adapts the neutral telemetry contract to Faro.
     name: 'repo/shell-telemetry-adapter',
     files: ['apps/shell/src/shell/faro.ts', 'apps/shell/src/shell/faro.test.ts'],
+    rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+  },
+
+  {
+    // Registers remotes at boot: the one file that legitimately imports the Module Federation
+    // runtime directly, as the header comment atop this config says the shell may.
+    name: 'repo/shell-boot-federation',
+    files: ['apps/shell/src/boot.tsx'],
     rules: { '@typescript-eslint/no-restricted-imports': 'off' },
   },
 

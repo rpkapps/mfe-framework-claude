@@ -3,24 +3,23 @@
  * container entry relies on (§17).
  */
 
+import { isMountableDefinition, SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
 import { createRootRoute, createRouter } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import type { ReactNode } from 'react'
 
-import { createApp, createWidget, isMfeDefinition } from './definition.ts'
-import { createMfeTestEnvironment, renderApp, type MfeTestEnvironment } from './testing/index.tsx'
-import { SCOPE_ATTRIBUTE } from './scope-root.tsx'
+import { createApp, createWidget } from './definition.ts'
+import { renderApp, renderWidget, type RenderedMfe } from './testing/index.tsx'
 import { withStyleRoot, type StyleRootProps } from './style-root.ts'
-import { WidgetMount } from './widget-mount.tsx'
 import type { AppRouterOptions } from './router-contract.ts'
 
-let environment: MfeTestEnvironment | null = null
+let rendered: RenderedMfe | null = null
 
 afterEach(async () => {
-  const current = environment
-  environment = null
+  const current = rendered
+  rendered = null
   await current?.dispose()
 })
 
@@ -54,7 +53,7 @@ describe('withStyleRoot', () => {
   it('produces a definition every part of the framework still recognises', () => {
     const wrapped = withStyleRoot(probeWidget, StyleRoot)
 
-    expect(isMfeDefinition(wrapped)).toBe(true)
+    expect(isMountableDefinition(wrapped)).toBe(true)
     expect(wrapped.id).toBe('probe-widget')
     expect(wrapped.kind).toBe('widget')
     expect(wrapped.version).toBe('1.2.0')
@@ -66,18 +65,7 @@ describe('withStyleRoot', () => {
     const wrapped = withStyleRoot(probeWidget, StyleRoot)
 
     expect(wrapped).not.toBe(probeWidget)
-    environment = createMfeTestEnvironment({ definitionId: 'probe-widget', kind: 'widget' })
-
-    render(
-      <environment.wrapper>
-        <WidgetMount
-          definition={probeWidget}
-          mount={environment.mount}
-          inputs={{ value: 'plain' }}
-          handlers={{}}
-        />
-      </environment.wrapper>,
-    )
+    rendered = renderWidget(probeWidget, { props: { value: 'plain' } })
 
     expect(screen.queryByTestId('style-root')).toBeNull()
     expect(screen.getByTestId('widget-value')).toHaveTextContent('plain')
@@ -86,23 +74,11 @@ describe('withStyleRoot', () => {
 
 describe('a mount whose definition carries a style root', () => {
   it('renders it inside the scope root, around the Widget', () => {
-    environment = createMfeTestEnvironment({ definitionId: 'probe-widget', kind: 'widget' })
-    const env = environment
-
-    // The mount's overlay root carries the same attribute, as a sibling under the body.
-    const { container } = render(
-      <env.wrapper>
-        <WidgetMount
-          definition={withStyleRoot(probeWidget, StyleRoot)}
-          mount={env.mount}
-          inputs={{ value: 'styled' }}
-          handlers={{}}
-        />
-      </env.wrapper>,
-    )
+    rendered = renderWidget(withStyleRoot(probeWidget, StyleRoot), { props: { value: 'styled' } })
 
     const styleRoot = screen.getByTestId('style-root')
-    const scopeRoot = container.querySelector(`[${SCOPE_ATTRIBUTE}="probe-widget"]`)
+    // The mount's overlay root carries the same attribute, as a sibling under the body.
+    const scopeRoot = styleRoot.closest(`[${SCOPE_ATTRIBUTE}="probe-widget"]`)
 
     // Inside rather than around, so the scope element stays the framework's own anchor.
     expect(scopeRoot).not.toBeNull()
@@ -111,34 +87,20 @@ describe('a mount whose definition carries a style root', () => {
   })
 
   it('hands it this mount own overlay root, which overlays portal into', () => {
-    environment = createMfeTestEnvironment({ definitionId: 'probe-widget', kind: 'widget' })
-    const env = environment
+    rendered = renderWidget(withStyleRoot(probeWidget, StyleRoot), { props: { value: 'styled' } })
+    const { mount } = rendered.environment
 
-    render(
-      <env.wrapper>
-        <WidgetMount
-          definition={withStyleRoot(probeWidget, StyleRoot)}
-          mount={env.mount}
-          inputs={{ value: 'styled' }}
-          handlers={{}}
-        />
-      </env.wrapper>,
-    )
-
-    expect(env.mount.overlayRoot.getAttribute('data-style-root')).toBe('')
-    expect(env.mount.overlayRoot.getAttribute(SCOPE_ATTRIBUTE)).toBe('probe-widget')
+    expect(mount.overlayRoot.getAttribute('data-style-root')).toBe('')
+    expect(mount.overlayRoot.getAttribute(SCOPE_ATTRIBUTE)).toBe('probe-widget')
   })
 
   it('wraps an App the same way', async () => {
-    const rendered = renderApp(withStyleRoot(probeApp, StyleRoot))
+    const app = renderApp(withStyleRoot(probeApp, StyleRoot))
+    rendered = app
 
-    try {
-      const styleRoot = await rendered.findByTestId('style-root')
+    const styleRoot = await app.findByTestId('style-root')
 
-      expect(styleRoot).toContainElement(await rendered.findByTestId('app-page'))
-      expect(rendered.environment.mount.overlayRoot.getAttribute('data-style-root')).toBe('')
-    } finally {
-      await rendered.dispose()
-    }
+    expect(styleRoot).toContainElement(await app.findByTestId('app-page'))
+    expect(app.environment.mount.overlayRoot.getAttribute('data-style-root')).toBe('')
   })
 })

@@ -1,0 +1,20 @@
+import { mountWidget } from '@company/mfe-angular/testing'
+import { expect, it } from 'vitest'
+
+import { <%= camel %> } from './mfe'
+
+// vitest.setup.ts disposes every mount after each test.
+it('emits a validated event when activated', async () => {
+  const mounted = await mountWidget(<%= camel %>, { inputs: { label: 'Run' } })
+
+  mounted.element.querySelector<HTMLButtonElement>('p-button button')?.click()
+  await mounted.whenStable()
+
+  expect(mounted.events.map(event => event.name)).toEqual(['activated'])
+})
+
+it('renders its label on a PrimeNG button', async () => {
+  const mounted = await mountWidget(<%= camel %>, { inputs: { label: 'Run' } })
+
+  expect(mounted.element.querySelector('p-button')?.textContent).toContain('Run')
+})

@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 /** The same generation the plugin runs, so a fresh clone resolves `#mfe/*` without a build. */
 
-import { relative, sep } from 'node:path'
 import { parseArgs } from 'node:util'
+
+import {
+  seedLocalRuntimeConfig,
+  summarizeGeneration,
+  type GenerationSummary,
+} from '@company/mfe-build'
 
 import { generateContainer } from '../generate/container.ts'
 import { generateRouteTree, ownsRouteTree } from '../generate/route-tree.ts'
-import { seedLocalRuntimeConfig } from '../generate/runtime-config.ts'
 
 const USAGE = `
 mfe-generate [options]
@@ -14,59 +18,21 @@ mfe-generate [options]
 Writes what the build would generate for the container in the current
 directory: the #mfe/* modules, the registry entry, the runtime
 configuration schema and .env.example, and an App's route tree. It also
-adds any declared default missing from public/runtime-config.json, the
-dev server's copy, and never changes a value already there.
+adds any declared default missing from .mfe/runtime-config.json, the
+copy the dev server serves, and never changes a value already there.
 
 Options:
   --root <directory>  the container to generate for (default: the working directory)
   --help              show this message
 `
 
-export interface GenerateResult {
-  readonly packageName: string
-  /** What was written, relative to the container root. */
-  readonly paths: readonly string[]
-  /** Findings in the container's own sources, which the build reports too. */
-  readonly diagnostics: readonly Error[]
-  /** Things only the developer can do, such as supplying a required local value. */
-  readonly notes: readonly string[]
-}
-
-/** `relative()` answers in the host's separator; every other spelling here is POSIX. */
-function report(containerRoot: string, path: string): string {
-  return relative(containerRoot, path).split(sep).join('/')
-}
-
 /** Exported so a test can generate a container without spawning a process. */
-export async function generate(root: string): Promise<GenerateResult> {
+export async function generate(root: string): Promise<GenerationSummary> {
   const { plan, written } = generateContainer({ containerRoot: root })
-  const paths = written.map(file => report(plan.options.containerRoot, file.path))
+  const paths = written.map(file => file.path)
+  if (ownsRouteTree(plan)) paths.push(await generateRouteTree(plan))
 
-  if (ownsRouteTree(plan)) {
-    paths.push(report(plan.options.containerRoot, await generateRouteTree(plan)))
-  }
-
-  const notes: string[] = []
-  const local = seedLocalRuntimeConfig(plan)
-  if (local !== null) {
-    const localPath = report(plan.options.containerRoot, local.path)
-    if (local.written) paths.push(localPath)
-    if (local.unreadable !== undefined) {
-      notes.push(`${localPath} was left as it is: ${local.unreadable}. Fix it to get the defaults.`)
-    }
-    if (local.missing.length > 0) {
-      notes.push(
-        `${localPath} has no value for ${local.missing.join(', ')}. Add one for local development; it has no default.`,
-      )
-    }
-  }
-
-  return {
-    packageName: plan.options.packageName,
-    paths: [...paths].sort(),
-    diagnostics: plan.diagnostics,
-    notes,
-  }
+  return summarizeGeneration(plan, paths, seedLocalRuntimeConfig(plan))
 }
 
 export async function main(argv: readonly string[]): Promise<number> {
@@ -87,7 +53,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     return 0
   }
 
-  let result: GenerateResult
+  let result: GenerationSummary
   try {
     result = await generate(parsed.values.root ?? process.cwd())
   } catch (error) {

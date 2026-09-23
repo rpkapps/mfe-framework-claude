@@ -7,6 +7,14 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./react": {
+      "types": "./src/react.ts",
+      "default": "./src/react.ts"
+    },
+    "./angular": {
+      "types": "./src/angular.ts",
+      "default": "./src/angular.ts"
     }
   },
   "files": [
@@ -19,16 +27,45 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tanstack/eslint-plugin-query": "catalog:",
-    "@tanstack/eslint-plugin-router": "catalog:",
-    "eslint-plugin-react-hooks": "catalog:",
     "typescript-eslint": "catalog:"
   },
   "peerDependencies": {
-    "eslint": "catalog:"
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "@tanstack/eslint-plugin-query": "catalog:",
+    "@tanstack/eslint-plugin-router": "catalog:",
+    "@angular-eslint/eslint-plugin": ">=19 <23",
+    "@angular-eslint/eslint-plugin-template": ">=19 <23",
+    "@angular-eslint/template-parser": ">=19 <23"
+  },
+  "peerDependenciesMeta": {
+    "eslint-plugin-react-hooks": {
+      "optional": true
+    },
+    "@tanstack/eslint-plugin-query": {
+      "optional": true
+    },
+    "@tanstack/eslint-plugin-router": {
+      "optional": true
+    },
+    "@angular-eslint/eslint-plugin": {
+      "optional": true
+    },
+    "@angular-eslint/eslint-plugin-template": {
+      "optional": true
+    },
+    "@angular-eslint/template-parser": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@angular-eslint/eslint-plugin": "catalog:",
+    "@angular-eslint/eslint-plugin-template": "catalog:",
+    "@angular-eslint/template-parser": "catalog:",
+    "@tanstack/eslint-plugin-query": "catalog:",
+    "@tanstack/eslint-plugin-router": "catalog:",
     "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

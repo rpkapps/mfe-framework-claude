@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "<%= offsetFromRoot %>dist/out-tsc/<%= projectRoot %>-spec",
+    "types": ["node"]
+  },
+  // vitest.setup.ts is in the program because it runs before every test file.
+  "include": ["src/**/*.ts", ".mfe/**/*.ts", "vitest.setup.ts", "vitest.config.mts"]
+}

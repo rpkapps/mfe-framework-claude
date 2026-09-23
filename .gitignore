@@ -8,7 +8,10 @@ coverage/
 # Generated output (§5.2.1, §10.3.1) — generated, never checked in.
 routeTree.gen.ts
 src/generated/
-.mfe/
+# Everything in a container's .mfe/ but the developer's own runtime configuration, which the dev
+# server serves and no build ships. The contents rather than the directory, so the exception applies.
+**/.mfe/*
+!**/.mfe/runtime-config.json
 apps/shell/public/registry.json
 
 # Documentation site build output and the caches the TanStack Start / fumadocs pipeline keeps.

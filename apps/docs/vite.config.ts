@@ -132,6 +132,8 @@ const REFERENCE = [
   'cli-and-scripts',
   'testing-api',
   'glossary',
+  'angular-adapter',
+  'mfe-nx',
   'legacy-angular',
 ]
 
