@@ -59,6 +59,38 @@ describe('detect', () => {
     }
   })
 
+  describe('the framework the entry names', () => {
+    it('recognises an entry that names React', () => {
+      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'react' } }))).toBe(
+        true,
+      )
+    })
+
+    /** Every React build before the field existed published exactly this marker. */
+    it('recognises an entry that names no framework at all', () => {
+      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1 } }))).toBe(true)
+    })
+
+    /** That entry belongs to its own adapter; reading it here would make both claim it. */
+    it('does not recognise an entry that names Angular', () => {
+      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'angular' } }))).toBe(
+        false,
+      )
+    })
+
+    it('does not recognise an entry that names a framework it does not know', () => {
+      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'vue' } }))).toBe(
+        false,
+      )
+    })
+
+    it('reads an entry that names React exactly like one that names nothing', () => {
+      const named = parse(entry({ mfe: { contractMajor: 1, framework: 'react' } }))
+
+      expect(named).toEqual(parse(entry()))
+    })
+  })
+
   it('does not recognise an entry without a framework version', () => {
     expect(reactAdapter.detect({ name: 'billing', mfManifestUrl: '/b.json' })).toBe(false)
   })

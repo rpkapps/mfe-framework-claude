@@ -1,7 +1,7 @@
 /**
- * The adapter for entries a framework build publishes. `detect` is deliberately loose and
- * `parse` strict, so a typo in a framework entry fails here instead of being read as some
- * other kind of container.
+ * The adapter for entries a React build publishes. `detect` is deliberately loose and `parse`
+ * strict, so a typo in a React entry fails here instead of being read as some other kind of
+ * container.
  */
 
 import {
@@ -17,22 +17,20 @@ import {
   type MfeAdapter,
   type MfeError,
   type PublishedWidgetContract,
-  type RegistryEntry,
 } from '@company/mfe-core'
+import type { FederatedRegistryEntry } from '@company/mfe-host'
 import { z } from 'zod'
 
 /** What `entry.adapter` says on everything this adapter parses. */
 const REACT_ADAPTER_KIND = 'react'
 
 /**
- * The federation container name and expose path are this adapter's own fields: typed here and
- * reached through `reactAdapter.is(entry)`, never carried as an opaque payload.
+ * The federation container name and expose path are typed on the entry and reached through
+ * `reactAdapter.is(entry)`, never carried as an opaque payload; the federation loader reads the
+ * same fields on every adapter's entries.
  */
-export interface ReactRegistryEntry extends RegistryEntry {
+export interface ReactRegistryEntry extends FederatedRegistryEntry {
   readonly adapter: typeof REACT_ADAPTER_KIND
-  readonly container: string
-  /** Absent when the build left the expose path to the framework convention. */
-  readonly expose?: string
 }
 
 /** Every failure here has the same fix, so the sentence is written once. */
@@ -231,12 +229,22 @@ function gateContractMajor(id: string, raw: unknown): void {
   })
 }
 
+/** An absent framework is a React build from before the field existed. */
+function namesReact(marker: unknown): boolean {
+  if (!isRecord(marker)) return true
+  const framework = marker['framework']
+  return framework === undefined || framework === REACT_ADAPTER_KIND
+}
+
 export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEntry> = {
   kind: REACT_ADAPTER_KIND,
 
   // The `mfe` key is the marker, valid or not: a broken framework entry must never fall to
-  // another adapter, because that would change how an application loads unnoticed.
-  detect: raw => isRecord(raw) && 'mfe' in raw,
+  // another adapter, because that would change how an application loads unnoticed. Only an
+  // entry that names another framework is someone else's, so one built before the field
+  // existed, or with a marker too broken to name anything, is still read here and fails in
+  // `parse`.
+  detect: raw => isRecord(raw) && 'mfe' in raw && namesReact(raw['mfe']),
 
   parse: raw => {
     const id = isRecord(raw) && typeof raw['id'] === 'string' ? raw['id'] : '<unknown>'

@@ -3,13 +3,13 @@
  * one surface, and every other definition still loads (§30).
  */
 
-import { isMfeError } from '@company/mfe-core'
+import { isMfeError, type RegistryEntry } from '@company/mfe-core'
 import type { AnyRouter } from '@tanstack/react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createApp, createWidget, type AppDefinition } from './definition.ts'
-import { createMf2ContainerLoader } from './mf2-loader.ts'
+import { containerNameOf, createMf2ContainerLoader } from './mf2-loader.ts'
 import type { ReactRegistryEntry } from './registry/react-adapter.ts'
 
 /** What the federation runtime throws when it cannot fetch or parse a manifest. */
@@ -159,5 +159,112 @@ describe('createMf2ContainerLoader', () => {
       .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'load/entry-failure', id: 'operations' })
+  })
+})
+
+/** The router plugin's development HMR shim reads this global while a container evaluates. */
+describe('the router global while a container evaluates', () => {
+  const owner = globalThis as { __TSR_ROUTER__?: unknown }
+
+  afterEach(() => {
+    delete owner.__TSR_ROUTER__
+  })
+
+  it('is hidden during the evaluation and restored afterwards', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+    let seenDuringLoad: boolean | undefined
+    const definition = anApp('operations')
+    const { runtime } = createRuntime({
+      example_operations: () => {
+        seenDuringLoad = '__TSR_ROUTER__' in owner
+        return Promise.resolve({ operations: definition })
+      },
+    })
+
+    await createMf2ContainerLoader({ runtime }).load(
+      appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
+      { signal: liveSignal() },
+    )
+
+    expect(seenDuringLoad).toBe(false)
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  it('is restored after an evaluation that failed', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+    const { runtime } = createRuntime({
+      example_operations: () => Promise.reject(new Error('Loading chunk 42 failed')),
+    })
+
+    await expect(
+      createMf2ContainerLoader({ runtime }).load(
+        appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
+        { signal: liveSignal() },
+      ),
+    ).rejects.toThrow()
+
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  /** Restoring the old one would resurrect a router nothing uses any more. */
+  it('keeps a router published during the evaluation rather than restoring the old one', async () => {
+    owner.__TSR_ROUTER__ = { id: 'shell' }
+    const published = { id: 'published during the load' }
+    const { runtime } = createRuntime({
+      example_operations: () => {
+        owner.__TSR_ROUTER__ = published
+        return Promise.resolve({ operations: anApp('operations') })
+      },
+    })
+
+    await createMf2ContainerLoader({ runtime }).load(
+      appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
+      { signal: liveSignal() },
+    )
+
+    expect(owner.__TSR_ROUTER__).toBe(published)
+  })
+
+  it('is not created when the page had none', async () => {
+    const { runtime } = createRuntime({
+      example_operations: () => Promise.resolve({ operations: anApp('operations') }),
+    })
+
+    await createMf2ContainerLoader({ runtime }).load(
+      appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
+      { signal: liveSignal() },
+    )
+
+    expect('__TSR_ROUTER__' in owner).toBe(false)
+  })
+})
+
+describe('containerNameOf', () => {
+  it('names the container of any adapter’s federated entry', () => {
+    const angular: RegistryEntry & { readonly container: string } = {
+      id: 'reports',
+      definitionKind: 'app',
+      adapter: 'angular',
+      manifestUrl: 'http://localhost:4201/mf-manifest.json',
+      container: 'example_reports',
+    }
+
+    expect(
+      containerNameOf(appEntry('operations', 'example_operations', 'http://localhost:3001/m.json')),
+    ).toBe('example_operations')
+    expect(containerNameOf(angular)).toBe('example_reports')
+  })
+
+  it('names nothing for an entry that was not federated by a framework build', () => {
+    expect(
+      containerNameOf({
+        id: 'billing',
+        definitionKind: 'app',
+        adapter: 'legacy-angular',
+        manifestUrl: 'https://cdn.example.test/billing/manifest.json',
+      }),
+    ).toBeUndefined()
   })
 })

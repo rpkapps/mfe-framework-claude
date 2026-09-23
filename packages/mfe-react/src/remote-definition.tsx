@@ -4,30 +4,43 @@
  * evicted itself would suspend forever and refetch as fast as the network allows.
  */
 
-import { toMfeError, type MfeError } from '@company/mfe-core'
+import { isBrandedDefinition, toMfeError, type MfeError } from '@company/mfe-core'
+import {
+  isMountableDefinition,
+  type MountableAppDefinition,
+  type MountableDefinition,
+  type MountableWidgetDefinition,
+} from '@company/mfe-host'
 import { Component, type ReactNode } from 'react'
 
 import {
-  isMfeDefinition,
+  isReactDefinition,
   type AppDefinition,
   type MfeDefinition,
   type WidgetDefinition,
 } from './definition.ts'
 import type { MfeRuntime } from './runtime.ts'
 
-const loadsByRuntime = new WeakMap<MfeRuntime, Map<string, Promise<MfeDefinition>>>()
+/** What a React host can place: a definition it renders, or one that mounts itself. */
+type HostableDefinition = MfeDefinition | MountableDefinition
 
-export function loadDefinition(runtime: MfeRuntime, id: string, kind: 'app'): Promise<AppDefinition>
+const loadsByRuntime = new WeakMap<MfeRuntime, Map<string, Promise<HostableDefinition>>>()
+
+export function loadDefinition(
+  runtime: MfeRuntime,
+  id: string,
+  kind: 'app',
+): Promise<AppDefinition | MountableAppDefinition>
 export function loadDefinition(
   runtime: MfeRuntime,
   id: string,
   kind: 'widget',
-): Promise<WidgetDefinition>
+): Promise<WidgetDefinition | MountableWidgetDefinition>
 export function loadDefinition(
   runtime: MfeRuntime,
   id: string,
   kind: 'app' | 'widget',
-): Promise<MfeDefinition> {
+): Promise<HostableDefinition> {
   let loads = loadsByRuntime.get(runtime)
   if (!loads) {
     loads = new Map()
@@ -40,7 +53,7 @@ export function loadDefinition(
   const label = kind === 'app' ? 'App' : 'Widget'
   const entry = runtime.registry.entries.get(id)
 
-  const pending = (async (): Promise<MfeDefinition> => {
+  const pending = (async (): Promise<HostableDefinition> => {
     if (!entry) {
       throw toMfeError(null, {
         code: 'registry/invalid-entry',
@@ -54,15 +67,16 @@ export function loadDefinition(
 
     const loaded = await runtime.loader.load(entry, { signal: new AbortController().signal })
     const definition = loaded.module
+    const hostable = isReactDefinition(definition) || isMountableDefinition(definition)
 
-    if (!isMfeDefinition(definition) || definition.kind !== kind) {
+    if (!hostable || definition.kind !== kind) {
       throw toMfeError(null, {
         code: 'load/entry-failure',
         id,
         operation: `resolve ${label}`,
         expected: `a definition created with create${label}`,
-        observed: !isMfeDefinition(definition)
-          ? 'a module that is not a framework definition'
+        observed: !hostable
+          ? describeUnhostable(definition)
           : kind === 'app'
             ? 'a Widget definition, which owns no URL boundary'
             : 'an App definition',
@@ -82,6 +96,13 @@ export function loadDefinition(
   })
   loads.set(id, pending)
   return pending
+}
+
+/** A foreign definition is placed only through `mount`, so one without it cannot be hosted. */
+function describeUnhostable(value: unknown): string {
+  return isBrandedDefinition(value)
+    ? `a definition from the ${value.framework} adapter that cannot mount itself`
+    : 'a module that is not a framework definition'
 }
 
 /** Drops a cached outcome so the next load is a genuinely fresh attempt. */

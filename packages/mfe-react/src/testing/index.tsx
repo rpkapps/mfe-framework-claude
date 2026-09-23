@@ -3,22 +3,10 @@
  * production entry and never supplying live credentials.
  */
 
-import { DiagnosticsHub, type Diagnostic, type ShellTheme, type ShellUser } from '@company/mfe-core'
+import type { BrandedDefinition, Diagnostic, ShellTheme, ShellUser } from '@company/mfe-core'
 import {
-  BoundaryNavigator,
-  BreadcrumbStore,
-  CommandRegistry,
-  MfeStorageStore,
-  requiresSessionRetirement,
-  SharedContainerLoader,
-  ShellStateStore,
-  type LoadedDefinition,
-} from '@company/mfe-host'
-import {
-  createInProcessLoader,
-  createMemoryNavigationBridge,
-  createMemoryStorageArea,
-  createRecordingTelemetryProvider,
+  createMemoryHostRuntime,
+  type MemoryHostRuntime,
   type MemoryStorageArea,
   type RecordingTelemetryProvider,
 } from '@company/mfe-host/testing'
@@ -33,7 +21,7 @@ import { createMount } from '../create-runtime.ts'
 import { MfeProvider } from '../runtime-context.tsx'
 import { MfeMountProvider } from '../mount-context.tsx'
 import { WidgetMount, declaredEventNames, partitionWidgetProps } from '../widget-mount.tsx'
-import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
+import type { AppDefinition, WidgetDefinition } from '../definition.ts'
 import type { MfeRouterContext } from '../router-contract.ts'
 import type { MfeMount, MfeRuntime } from '../runtime.ts'
 
@@ -73,8 +61,8 @@ export interface MfeTestEnvironmentOptions {
   readonly kind?: 'app' | 'widget'
   readonly basePath?: string
   readonly shellState?: TestShellState
-  /** Definitions the in-process loader can resolve, by id. */
-  readonly definitions?: readonly MfeDefinition[]
+  /** Definitions the in-process loader can resolve, by id, whichever adapter built them. */
+  readonly definitions?: readonly BrandedDefinition[]
   readonly initialEntries?: readonly string[]
   readonly sessionGeneration?: string
 }
@@ -90,7 +78,7 @@ export interface MfeTestEnvironment {
   setShellState(patch: TestShellState): void
   readonly telemetry: RecordingTelemetryProvider
   readonly diagnostics: readonly Diagnostic[]
-  readonly navigation: ReturnType<typeof createMemoryNavigationBridge>
+  readonly navigation: MemoryHostRuntime['navigation']
   /** The injected browser stores, which count the calls made against them. */
   readonly storageAreas: {
     readonly local: MemoryStorageArea
@@ -99,99 +87,31 @@ export interface MfeTestEnvironment {
   dispose(): Promise<void>
 }
 
-/** Every environment is independent, so no singleton leaks state between tests. */
+/**
+ * The host's memory runtime plus what is React's: a mount with its Query client, the providers,
+ * and the router context. Every environment is independent, so no singleton leaks state between
+ * tests.
+ */
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
 ): MfeTestEnvironment {
-  const definitionId = options.definitionId ?? 'test-definition'
-  const kind = options.kind ?? 'app'
-
-  const diagnostics = new DiagnosticsHub()
-  const recorded: Diagnostic[] = []
-  diagnostics.add(diagnostic => recorded.push(diagnostic))
-
-  const shellState = new ShellStateStore({
-    user: options.shellState?.user ?? { id: 'test-user', name: 'Test User' },
-    groups: options.shellState?.groups ?? ['testers'],
-    theme: options.shellState?.theme ?? 'light',
+  const memory = createMemoryHostRuntime({
+    ...(options.shellState === undefined ? {} : { shellState: options.shellState }),
+    ...(options.definitions === undefined ? {} : { definitions: options.definitions }),
+    ...(options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries }),
+    ...(options.sessionGeneration === undefined
+      ? {}
+      : { sessionGeneration: options.sessionGeneration }),
   })
-
-  const storageAreas = {
-    local: createMemoryStorageArea(),
-    session: createMemoryStorageArea(),
-  }
-  const storage = new MfeStorageStore({
-    areas: storageAreas,
-    diagnostics,
-    eventTarget: null,
-    sessionGeneration: options.sessionGeneration ?? 'test-session',
-  })
-
-  const telemetryProvider = createRecordingTelemetryProvider()
-  const navigation = createMemoryNavigationBridge(options.initialEntries ?? ['/'])
-
-  const loadable = new Map<string, LoadedDefinition>(
-    (options.definitions ?? []).map(definition => [
-      definition.id,
-      {
-        identity: {
-          id: definition.id,
-          kind: definition.kind,
-          ...(definition.version === undefined ? {} : { version: definition.version }),
-        },
-        module: definition,
-      },
-    ]),
-  )
-
-  const runtime: MfeRuntime = {
-    registry: {
-      entries: new Map(
-        [...loadable].map(([id, loaded]) => [
-          id,
-          {
-            id,
-            definitionKind: loaded.identity.kind,
-            adapter: 'react' as const,
-            manifestUrl: `memory://${id}`,
-            container: id.replaceAll('-', '_'),
-          },
-        ]),
-      ),
-      rejected: [],
-    },
-    loader: new SharedContainerLoader(createInProcessLoader(loadable)),
-    shellState,
-    storage,
-    commands: new CommandRegistry({ diagnostics }),
-    breadcrumbs: new BreadcrumbStore({ diagnostics }),
-    navigator: new BoundaryNavigator({ bridge: navigation, diagnostics }),
-    telemetryProvider,
-    diagnostics,
-  }
-
-  // Minted per transition, so a test exercises the real fencing rather than a fixed value.
-  let generation = 0
-  const stopWatchingSession = shellState.observeTransitions(change => {
-    if (!requiresSessionRetirement(change.transitions)) return
-
-    generation += 1
-    const identity = change.transitions.find(transition => transition.kind === 'identity')
-    storage.applySessionTransition(
-      identity
-        ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
-        : { kind: 'groups', groups: change.next.groups },
-      `test-session-${generation}`,
-    )
-  })
+  const { runtime } = memory
 
   const handle = createMount({
     runtime,
-    definitionId,
+    definitionId: options.definitionId ?? 'test-definition',
     ...(options.definitionVersion === undefined
       ? {}
       : { definitionVersion: options.definitionVersion }),
-    kind,
+    kind: options.kind ?? 'app',
     ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
   })
 
@@ -207,21 +127,16 @@ export function createMfeTestEnvironment(
     // Wrapped in `act` so updates land inside the test's normal React boundary.
     setShellState: patch => {
       act(() => {
-        shellState.apply(patch)
+        memory.setShellState(patch)
       })
     },
-    telemetry: telemetryProvider,
-    diagnostics: recorded,
-    navigation,
-    storageAreas,
+    telemetry: memory.telemetry,
+    diagnostics: memory.diagnostics,
+    navigation: memory.navigation,
+    storageAreas: memory.storageAreas,
     dispose: async () => {
-      stopWatchingSession()
       await handle.dispose()
-      runtime.commands.dispose()
-      runtime.breadcrumbs.dispose()
-      storage.dispose()
-      shellState.dispose()
-      diagnostics.clear()
+      memory.dispose()
     },
   }
 }

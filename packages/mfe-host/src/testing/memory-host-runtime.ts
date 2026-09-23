@@ -63,8 +63,10 @@ export function createMemoryHostRuntime(options: MemoryHostRuntimeOptions = {}):
   const recorded: Diagnostic[] = []
   diagnostics.add(diagnostic => recorded.push(diagnostic))
 
+  // `null` is a signed-out page, so only an absent user falls back to the test user.
+  const user = options.shellState?.user
   const shellState = new ShellStateStore({
-    user: options.shellState?.user ?? { id: 'test-user', name: 'Test User' },
+    user: user === undefined ? { id: 'test-user', name: 'Test User' } : user,
     groups: options.shellState?.groups ?? ['testers'],
     theme: options.shellState?.theme ?? 'light',
   })

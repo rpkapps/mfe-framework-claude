@@ -7,6 +7,8 @@ import type { ContractEvents, ContractInputs, MfeError, WidgetContract } from '@
 import { Suspense, use, useCallback, useState, type ReactNode } from 'react'
 
 import { createMount, useOwnedMount } from './create-runtime.ts'
+import { isReactDefinition } from './definition.ts'
+import { ForeignWidgetMount } from './foreign-mount.tsx'
 import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
 import { declaredEventNames, partitionWidgetProps, WidgetMount } from './widget-mount.tsx'
@@ -148,6 +150,19 @@ function WidgetLoader({
 
   // The one render before the effect has built the mount.
   if (mount === null) return null
+
+  // Another framework's Widget cannot join this tree, so it mounts itself inside it instead.
+  if (!isReactDefinition(definition)) {
+    return (
+      <ForeignWidgetMount
+        definition={definition}
+        mount={mount}
+        inputs={inputs}
+        handlers={handlers}
+        consumerEvents={contract?.events}
+      />
+    )
+  }
 
   return (
     <WidgetMount

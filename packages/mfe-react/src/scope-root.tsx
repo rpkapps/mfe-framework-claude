@@ -4,21 +4,19 @@
  * root is `display: contents`, so it anchors a selector without becoming a box in the layout.
  */
 
+import { KIND_ATTRIBUTE, MOUNT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-host'
 import type { ReactNode } from 'react'
 
 import type { MfeStyleRoot } from './style-root.ts'
 
-/** Reserved for App, Widget and framework portal roots. */
-export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
-
-/** Distinguishes two mounts of one definition; the scope value stays the id the CSS matches. */
-export const MOUNT_ATTRIBUTE = 'data-mfe-mount'
-
-/** Which kind of definition a mount root belongs to, for a tool reading the page rather than the registry. */
-export const KIND_ATTRIBUTE = 'data-mfe-kind'
-
-/** Marks the body-level root, which carries the same scope and mount but is not where the definition renders. */
-export const OVERLAY_ROOT_ATTRIBUTE = 'data-mfe-overlay-root'
+/** Defined by the host, so an adapter without React builds the same roots this one renders. */
+export {
+  createOverlayRoot,
+  KIND_ATTRIBUTE,
+  MOUNT_ATTRIBUTE,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+} from '@company/mfe-host'
 
 export interface ScopeRootProps {
   readonly definitionId: string
@@ -58,24 +56,4 @@ export function MfeScopeRoot({
       )}
     </div>
   )
-}
-
-/** The caller owns the disposer, so cleanup runs on the mount's own teardown path. */
-export function createOverlayRoot(
-  definitionId: string,
-  mountToken: string,
-  document: Document,
-): { readonly element: HTMLElement; readonly dispose: () => void } {
-  const element = document.createElement('div')
-  element.setAttribute(SCOPE_ATTRIBUTE, definitionId)
-  element.setAttribute(MOUNT_ATTRIBUTE, mountToken)
-  element.setAttribute(OVERLAY_ROOT_ATTRIBUTE, '')
-  document.body.appendChild(element)
-
-  return {
-    element,
-    dispose: () => {
-      element.remove()
-    },
-  }
 }

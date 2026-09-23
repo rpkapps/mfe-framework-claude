@@ -9,6 +9,8 @@ import { use, useCallback, useState, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
 import { createMount, useOwnedMount } from './create-runtime.ts'
+import { isReactDefinition } from './definition.ts'
+import { ForeignAppMount } from './foreign-mount.tsx'
 import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
 import { useMfeRuntime } from './runtime-context.tsx'
 import { useOptionalMfeMount } from './mount-context.tsx'
@@ -83,6 +85,11 @@ function AppLoader({
 
   // The one render before the effect has built the mount.
   if (mount === null) return null
+
+  // Another framework's App cannot join this tree, so it mounts itself inside it instead.
+  if (!isReactDefinition(definition)) {
+    return <ForeignAppMount definition={definition} mount={mount} />
+  }
 
   return <AppMount definition={definition} mount={mount} bridge={runtime.navigator} />
 }

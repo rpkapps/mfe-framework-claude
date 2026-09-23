@@ -20,7 +20,7 @@ import { styleRootOf } from './style-root.ts'
 import type { MfeMount } from './runtime.ts'
 
 /** Shallow comparison over input names, so a handler change is not an input change. */
-function inputsEqual(
+export function inputsEqual(
   a: Readonly<Record<string, unknown>>,
   b: Readonly<Record<string, unknown>>,
 ): boolean {

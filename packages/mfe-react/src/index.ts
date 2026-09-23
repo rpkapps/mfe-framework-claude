@@ -7,6 +7,7 @@ export {
   createApp,
   createWidget,
   isMfeDefinition,
+  isReactDefinition,
   type AppDefinition,
   type AppOptions,
   type MfeDefinition,
@@ -123,6 +124,15 @@ export {
   type FetchLike,
   type GetAccessToken,
   type ShellAuthOptions,
+} from '@company/mfe-host'
+
+/** What a shell reads to place a definition another adapter built, or to find its container. */
+export {
+  isFederatedEntry,
+  isMountableDefinition,
+  type FederatedRegistryEntry,
+  type MountableDefinition,
+  type MountContext,
 } from '@company/mfe-host'
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'

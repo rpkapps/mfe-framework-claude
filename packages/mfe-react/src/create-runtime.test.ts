@@ -3,12 +3,12 @@
  * `adapters`. Order means nothing — exactly one adapter has to recognise each entry.
  */
 
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createNoopTelemetryProvider } from '@company/mfe-host'
 import { createInProcessLoader } from '@company/mfe-host/testing'
 import type { MfeAdapter, RegistryEntry } from '@company/mfe-core'
 
-import { createMfeRuntime, type MfeRuntimeHandle } from './create-runtime.ts'
+import { createMfeRuntime, createMount, type MfeRuntimeHandle } from './create-runtime.ts'
 
 let handle: MfeRuntimeHandle | null = null
 
@@ -97,4 +97,87 @@ it('keeps the React adapter registered alongside the ones the caller adds', () =
 
   expect(runtime.registry.rejected).toEqual([])
   expect([...runtime.registry.entries.keys()].sort()).toEqual(['billing', 'reports'])
+})
+
+/** Stands in for `angularAdapter`, which lives in a package this one may not import. */
+const angularAdapter: MfeAdapter = {
+  kind: 'angular',
+  detect: raw =>
+    raw !== null &&
+    typeof raw === 'object' &&
+    (raw as { mfe?: { framework?: unknown } }).mfe?.framework === 'angular',
+  parse: (raw): RegistryEntry => ({
+    id: (raw as Record<string, string>)['id'] ?? '',
+    definitionKind: 'widget',
+    adapter: 'angular',
+    manifestUrl: (raw as Record<string, string>)['manifestUrl'] ?? '',
+  }),
+  is: (entry): entry is RegistryEntry => entry.adapter === 'angular',
+}
+
+/** An Angular build's entry differs from a React one only in the framework it names. */
+const ANGULAR_ENTRY = {
+  ...FRAMEWORK_ENTRY,
+  id: 'alert-panel',
+  kind: 'widget',
+  mfe: { contractMajor: 1, framework: 'angular' },
+}
+
+it('leaves an entry another framework built to that framework’s adapter', () => {
+  const { runtime } = wire({ entries: [ANGULAR_ENTRY], adapters: [angularAdapter] })
+
+  expect(runtime.registry.rejected).toEqual([])
+  expect(runtime.registry.entries.get('alert-panel')?.adapter).toBe('angular')
+})
+
+it('rejects an entry another framework built when that adapter is not registered', () => {
+  const { runtime } = wire({ entries: [FRAMEWORK_ENTRY, ANGULAR_ENTRY] })
+
+  expect([...runtime.registry.entries.keys()]).toEqual(['reports'])
+  expect(runtime.registry.rejected.map(entry => entry.id)).toEqual(['alert-panel'])
+})
+
+describe('createMount', () => {
+  it('gives every mount its own Query client', async () => {
+    const { runtime } = wire({ entries: [FRAMEWORK_ENTRY] })
+
+    const first = createMount({ runtime, definitionId: 'reports', kind: 'app' })
+    const second = createMount({ runtime, definitionId: 'reports', kind: 'app' })
+
+    expect(first.mount.queryClient).not.toBe(second.mount.queryClient)
+    await first.dispose()
+    await second.dispose()
+  })
+
+  it('aborts the mount, clears its Query client and removes its overlay root when disposed', async () => {
+    const { runtime } = wire({ entries: [FRAMEWORK_ENTRY] })
+    const mounted = createMount({ runtime, definitionId: 'reports', kind: 'app' })
+    mounted.mount.queryClient.setQueryData(['accounts'], ['a-1'])
+
+    await mounted.dispose()
+
+    expect(mounted.mount.signal.aborted).toBe(true)
+    expect(mounted.mount.queryClient.getQueryData(['accounts'])).toBeUndefined()
+    expect(mounted.mount.overlayRoot.isConnected).toBe(false)
+  })
+
+  /** Anything listening for the abort must find the mount already gone from the palette. */
+  it('removes the mount’s commands before its Query client is cleared', async () => {
+    const { runtime } = wire({ entries: [FRAMEWORK_ENTRY] })
+    const mounted = createMount({ runtime, definitionId: 'reports', kind: 'app' })
+    runtime.commands.register('reports', mounted.mount.mountToken, {
+      name: 'refresh',
+      label: 'Refresh',
+      execute: () => undefined,
+    })
+    let commandsWhenCleared: number | undefined
+    mounted.mount.queryClient.getQueryCache().subscribe(event => {
+      if (event.type === 'removed') commandsWhenCleared = runtime.commands.getSnapshot().length
+    })
+    mounted.mount.queryClient.setQueryData(['accounts'], ['a-1'])
+
+    await mounted.dispose()
+
+    expect(commandsWhenCleared).toBe(0)
+  })
 })

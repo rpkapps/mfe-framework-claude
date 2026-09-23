@@ -28,7 +28,11 @@ export interface WidgetMountTarget {
   readonly inputs: Readonly<Record<string, unknown>>
   /** Called by the provider after validating the payload against its own event schema. */
   readonly emit: (event: string, payload: unknown) => void
-  /** A later input update the provider rejected (the mount keeps its last valid inputs). */
+  /**
+   * A later input update the provider rejected; the mount keeps its last valid inputs. The
+   * provider has already reported it to the runtime's diagnostics, so a host that reports it
+   * again counts one rejection twice.
+   */
   readonly onInputRejected?: (error: MfeError) => void
 }
 

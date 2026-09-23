@@ -1,12 +1,16 @@
 /**
  * `createApp` and `createWidget` both return plain, side-effect-free records, so the build
- * plugin can discover them statically without invoking a render function.
+ * plugin can discover them statically without invoking a render function. Each also carries the
+ * neutral `mount`, so a host built on another framework can place it; a React host renders the
+ * record directly instead.
  */
 
 import {
   createMfeError,
+  DEFINITION_BRAND,
   DEFINITION_ID_RULE,
   eventNameToHandlerProp,
+  isBrandedDefinition,
   isReservedInputName,
   isValidDefinitionId,
   isValidEventName,
@@ -14,14 +18,19 @@ import {
   type ContractInputs,
   type WidgetContract,
 } from '@company/mfe-core'
+import type {
+  AppMountTarget,
+  MountableAppDefinition,
+  MountableWidgetDefinition,
+  MountedApp,
+  MountedWidget,
+  WidgetMountTarget,
+} from '@company/mfe-host'
 import type { AnyRouter } from '@tanstack/react-router'
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { z } from 'zod'
 
 import type { AppRouterOptions } from './router-contract.ts'
-
-/** Brand used to recognise framework definitions at the mount boundary. */
-const DEFINITION_BRAND = Symbol.for('@company/mfe.definition')
 
 /**
  * What a host shows before it has loaded anything. Read statically out of this call at build time
@@ -53,13 +62,9 @@ export interface AppOptions extends PresentationOptions {
   readonly breadcrumbs?: false
 }
 
-export interface AppDefinition {
-  readonly [DEFINITION_BRAND]: true
-  readonly kind: 'app'
-  readonly id: string
-  readonly version?: string
+export interface AppDefinition extends MountableAppDefinition {
+  readonly framework: 'react'
   readonly createRouter: (options: AppRouterOptions) => AnyRouter
-  readonly contributesBreadcrumbs: boolean
 }
 
 export function createApp(options: AppOptions): AppDefinition {
@@ -79,10 +84,18 @@ export function createApp(options: AppOptions): AppDefinition {
   return {
     [DEFINITION_BRAND]: true,
     kind: 'app',
+    framework: 'react',
     id: options.id,
     ...(options.version === undefined ? {} : { version: options.version }),
     createRouter: options.router,
     contributesBreadcrumbs: options.breadcrumbs !== false,
+    // `this` rather than the record above, because a container's build mounts the copy that
+    // `withStyleRoot` attached its style root to. Imported on first use, because the React
+    // mount imports this module and only a host on another framework ever calls it.
+    async mount(target: AppMountTarget): Promise<MountedApp> {
+      const { mountApp } = await import('./react-mount.tsx')
+      return mountApp(this, target)
+    },
   }
 }
 
@@ -110,11 +123,8 @@ export interface WidgetOptions<
 export interface WidgetDefinition<
   Inputs extends z.ZodType = z.ZodType,
   Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
-> {
-  readonly [DEFINITION_BRAND]: true
-  readonly kind: 'widget'
-  readonly id: string
-  readonly version?: string
+> extends MountableWidgetDefinition {
+  readonly framework: 'react'
   readonly contract: WidgetContract<Inputs, Events>
   readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Events>>) => ReactNode
 }
@@ -139,21 +149,33 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
   return {
     [DEFINITION_BRAND]: true,
     kind: 'widget',
+    framework: 'react',
     id: options.id,
     ...(options.version === undefined ? {} : { version: options.version }),
     contract: { inputs: options.inputs, events: options.events },
     render: options.render,
+    // See `createApp`: `this` is the copy a container's build attached its style root to.
+    async mount(target: WidgetMountTarget): Promise<MountedWidget> {
+      const { mountWidget } = await import('./react-mount.tsx')
+      return mountWidget(this, target)
+    },
   }
 }
 
 export type MfeDefinition = AppDefinition | WidgetDefinition
 
+/** Recognises the brand, whichever adapter stamped it; `isReactDefinition` is the one to narrow. */
 export function isMfeDefinition(value: unknown): value is MfeDefinition {
   return (
     value !== null &&
     typeof value === 'object' &&
     (value as Record<symbol, unknown>)[DEFINITION_BRAND] === true
   )
+}
+
+/** A definition this adapter renders in its own tree, rather than one it hosts through `mount`. */
+export function isReactDefinition(value: unknown): value is MfeDefinition {
+  return isBrandedDefinition(value) && value.framework === 'react'
 }
 
 function assertValidId(id: unknown, operation: string): asserts id is string {
