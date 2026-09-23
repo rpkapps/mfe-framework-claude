@@ -32,7 +32,6 @@ export {
 
 export {
   createFederationContainerLoader,
-  federationTarget,
   isFederatedEntry,
   type FederatedRegistryEntry,
   type FederationLoaderOptions,

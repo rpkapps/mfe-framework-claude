@@ -11,6 +11,7 @@ import {
   isBrandedDefinition,
   PAGE_SHARE_SCOPE,
   toMfeError,
+  withoutUndefined,
   type BrandedDefinition,
   type RegistryEntry,
 } from '@company/mfe-core'
@@ -39,7 +40,7 @@ export interface FederatedRegistryEntry extends RegistryEntry {
  * containers on one framework version share a copy, and always with `default`, which holds the
  * page singletons.
  */
-export function shareScopesOf(entry: FederatedRegistryEntry): string[] {
+function shareScopesOf(entry: FederatedRegistryEntry): string[] {
   return [...new Set([PAGE_SHARE_SCOPE, ...(entry.shareScopes ?? [])])]
 }
 
@@ -50,7 +51,7 @@ export function isFederatedEntry(entry: RegistryEntry): entry is FederatedRegist
 }
 
 /** The expose path a build leaves to the framework convention. */
-export function federationTarget(entry: FederatedRegistryEntry): {
+function federationTarget(entry: FederatedRegistryEntry): {
   container: string
   expose: string
 } {
@@ -171,7 +172,7 @@ export function createFederationContainerLoader(
         identity: {
           id: definition.id,
           kind: definition.kind,
-          ...(definition.version === undefined ? {} : { version: definition.version }),
+          ...withoutUndefined({ version: definition.version }),
         },
         module: definition,
       }

@@ -17,7 +17,6 @@ import {
 
 import {
   createFederationContainerLoader,
-  federationTarget,
   isFederatedEntry,
   type FederatedRegistryEntry,
   type FederationRuntime,
@@ -92,19 +91,39 @@ describe('isFederatedEntry', () => {
   })
 })
 
-describe('federationTarget', () => {
-  it('uses the expose path the build published', () => {
-    expect(federationTarget(entry('reports', 'example_reports', { expose: './main' }))).toEqual({
-      container: 'example_reports',
-      expose: './main',
+describe('the module a container is asked for', () => {
+  it('is the expose path the build published', async () => {
+    const reports = definition('reports')
+    const { runtime, loadRemote } = createRuntime({
+      example_reports: () => Promise.resolve({ reports }),
     })
+    const loader = createFederationContainerLoader({ runtime })
+
+    await loader.load(entry('reports', 'example_reports', { expose: './main' }), {
+      signal: liveSignal(),
+    })
+
+    expect(loadRemote).toHaveBeenCalledWith('example_reports/main')
   })
 
-  it('falls back to the framework convention for each kind', () => {
-    expect(federationTarget(entry('reports', 'example_reports')).expose).toBe('./app')
-    expect(
-      federationTarget(entry('alert-panel', 'example_alerts', { definitionKind: 'widget' })).expose,
-    ).toBe('./widgets/alert-panel')
+  it('falls back to the framework convention for each kind', async () => {
+    const reports = definition('reports')
+    const alertPanel = definition('alert-panel', 'widget')
+    const { runtime, loadRemote } = createRuntime({
+      example_reports: () => Promise.resolve({ reports }),
+      example_alerts: () => Promise.resolve({ alertPanel }),
+    })
+    const loader = createFederationContainerLoader({ runtime })
+
+    await loader.load(entry('reports', 'example_reports'), { signal: liveSignal() })
+    await loader.load(entry('alert-panel', 'example_alerts', { definitionKind: 'widget' }), {
+      signal: liveSignal(),
+    })
+
+    expect(loadRemote.mock.calls.map(([id]) => id)).toEqual([
+      'example_reports/app',
+      'example_alerts/widgets/alert-panel',
+    ])
   })
 })
 

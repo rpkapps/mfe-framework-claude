@@ -25,9 +25,6 @@ import { z } from 'zod'
 
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
 
-/** Every failure here has the same fix, so the sentence is written once. */
-const REBUILD = 'Rebuild the container; the registry entry is generated, never hand-written.'
-
 /** A message that reads as the expectation, because that is where the error puts it. */
 function nonEmptyString(expected: string): z.ZodString {
   return z.string({ error: expected }).min(1, { error: expected })
@@ -55,24 +52,18 @@ const iconData = z
     attributes: iconAttributes.optional(),
     node: z.array(iconNode).min(1),
   })
-  .transform((value): IconData => ({
-    viewBox: value.viewBox,
-    ...(value.attributes === undefined ? {} : { attributes: value.attributes }),
-    node: value.node,
-  }))
+  .transform((value): IconData => withoutUndefined(value))
 
 /** A string is a short text mark the host draws itself; an icon a host cannot read is no icon. */
 const icon = z.union([z.string(), iconData, z.unknown().transform(() => undefined)])
 
 /** Tags a host cannot read are no tags: a catalogue filter is not worth rejecting an entry over. */
-const tags = z
-  .unknown()
-  .transform(value =>
-    Array.isArray(value)
-      ? value.filter((tag): tag is string => typeof tag === 'string' && tag !== '')
-      : [],
-  )
-  .transform(list => (list.length === 0 ? undefined : list))
+const tags = z.unknown().transform(value => {
+  const readable = Array.isArray(value)
+    ? value.filter((tag): tag is string => typeof tag === 'string' && tag !== '')
+    : []
+  return readable.length === 0 ? undefined : readable
+})
 
 /**
  * Carried rather than checked, so a container that publishes a malformed `build` still loads.
@@ -200,7 +191,7 @@ function invalidEntry(id: string, error: z.ZodError): MfeError {
     operation: 'read registry entry',
     ...(path.length === 0 ? {} : { path }),
     expected: issue?.message ?? 'a valid registry entry',
-    repair: REBUILD,
+    repair: 'Rebuild the container; the registry entry is generated, never hand-written.',
   })
 }
 
