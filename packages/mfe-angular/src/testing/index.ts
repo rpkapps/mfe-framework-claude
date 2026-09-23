@@ -1,12 +1,17 @@
 /**
  * `@company/mfe-angular/testing` — author testing utilities, never imported by the production
- * entry and never supplying live credentials. The mount helpers call the definition's own
- * `mount`, the path a shell takes, over a runtime with nothing behind it but memory.
+ * entry and never supplying live credentials. The mount helpers place a definition through the
+ * runtime's `mountDefinition` — the path every host takes — over a runtime with nothing behind it
+ * but memory, so what a test mounts is exactly what a shell would.
  */
 
 import type { EnvironmentInjector, EnvironmentProviders } from '@angular/core'
-import type { DefinitionKind, MfeError } from '@company/mfe-core'
-import { applyScopeAttributes, createMountContext, type MountContext } from '@company/mfe-runtime'
+import { createMfeError, type MfeError } from '@company/mfe-core'
+import {
+  mountDefinition,
+  type DefinitionMount,
+  type WidgetDefinitionMount,
+} from '@company/mfe-runtime'
 import {
   createMemoryRuntime,
   type MemoryRuntime,
@@ -15,8 +20,12 @@ import {
 
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
 import { provideMfeRuntime } from '../host/provide-runtime.ts'
+import { mountedApplicationOf, type MountedApplication } from '../mount/mounted-applications.ts'
 import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'
 import { resetMfeFetch as resetMfeFetchState } from './generated/fetch.ts'
+
+/** The runtime's own test surface: the memory runtime, its loader, bridge, storage and telemetry. */
+export * from '@company/mfe-runtime/testing'
 
 /**
  * The generated-alias fixtures, which a container's vitest config points `#mfe/config` and
@@ -57,12 +66,15 @@ export function createMfeTestEnvironment(
 }
 
 interface PlacementOptions extends MfeTestEnvironmentOptions {
-  /** Mounts into an environment the test owns, which the returned `dispose` leaves alive. */
+  /**
+   * Mounts into an environment the test owns, which the returned `dispose` leaves alive. It has
+   * to list the definition among its `definitions`, as a shell's registry lists what it mounts.
+   */
   readonly environment?: MfeTestEnvironment
 }
 
 export interface MountedTestDefinition {
-  /** The scope root the definition rendered into, attached to `document.body`. */
+  /** The scope root the runtime created for the mount, attached to `document.body`. */
   readonly element: HTMLElement
   readonly environment: MfeTestEnvironment
   /** The mount's application injector, where an App's `Router` lives. */
@@ -75,7 +87,6 @@ export interface MountedTestDefinition {
 export interface MountAppOptions extends PlacementOptions {
   /** The boundary the App is mounted at; the memory history starts there unless told otherwise. */
   readonly basePath?: string
-  readonly depth?: number
 }
 
 export interface WidgetEvent {
@@ -106,140 +117,168 @@ export async function cleanup(): Promise<void> {
 }
 
 interface Placement {
-  readonly element: HTMLElement
-  readonly host: HTMLElement
-  readonly context: MountContext
   readonly environment: MfeTestEnvironment
-  readonly teardown: () => Promise<void>
+  /** The element a host renders and hands the runtime, attached to `document.body`. */
+  readonly host: HTMLElement
+  /** Removes the host element, and the environment when the helper created it. */
+  readonly teardown: () => void
 }
 
-/** The element a host renders: a scope root in the document with the definition's element inside. */
-function place(
-  definition: MfeDefinition,
-  kind: DefinitionKind,
-  options: PlacementOptions & { readonly basePath?: string; readonly depth?: number },
-): Placement {
+function place(definition: MfeDefinition, options: PlacementOptions, basePath: string): Placement {
   const ownsEnvironment = options.environment === undefined
   const environment =
     options.environment ??
     createMfeTestEnvironment({
       ...options,
       definitions: [...(options.definitions ?? []), definition],
-      initialEntries: options.initialEntries ?? [options.basePath || '/'],
+      initialEntries: options.initialEntries ?? [basePath || '/'],
     })
 
-  const handle = createMountContext({
-    runtime: environment.runtime,
-    definitionId: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-    kind,
-    ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
-    ...(options.depth === undefined ? {} : { depth: options.depth }),
-  })
+  if (!environment.runtime.registry.entries.has(definition.id)) {
+    throw createMfeError({
+      code: 'registry/invalid-entry',
+      id: definition.id,
+      operation: 'mount into a test environment',
+      expected: `"${definition.id}" among the environment's definitions`,
+      observed: 'an environment whose registry does not list it',
+      repair:
+        'List the definition in createMfeTestEnvironment({ definitions }), or leave out `environment`.',
+    })
+  }
 
-  const element = document.createElement('div')
-  applyScopeAttributes(element, {
-    definitionId: definition.id,
-    mountToken: handle.context.mountToken,
-    kind,
-  })
   const host = document.createElement('div')
-  host.style.display = 'contents'
-  element.appendChild(host)
-  document.body.appendChild(element)
+  document.body.appendChild(host)
 
   return {
-    element,
-    host,
-    context: handle.context,
     environment,
-    teardown: async () => {
-      await handle.dispose()
-      element.remove()
+    host,
+    teardown: () => {
+      host.remove()
       if (ownsEnvironment) environment.dispose()
     },
   }
 }
 
-/** A rejected mount leaves nothing behind: its context, element and environment go with it. */
-async function orTeardown<T>(placement: Placement, mount: () => Promise<T>): Promise<T> {
-  try {
-    return await mount()
-  } catch (error) {
-    await placement.teardown()
-    throw error
+/**
+ * Settles with the mount: its Angular application once it is mounted, its error once it failed. A
+ * failed mount is disposed first, so a rejection leaves nothing of it behind.
+ */
+async function settle(
+  mount: DefinitionMount,
+  placement: Placement,
+): Promise<{ readonly element: HTMLElement; readonly application: MountedApplication }> {
+  const state = await new Promise<ReturnType<DefinitionMount['getState']>>(resolve => {
+    const check = (): boolean => {
+      const current = mount.getState()
+      if (current.status === 'pending') return false
+      resolve(current)
+      return true
+    }
+    if (check()) return
+    const unsubscribe = mount.subscribe(() => {
+      if (check()) unsubscribe()
+    })
+  })
+
+  const context = mount.context
+  const application = context === null ? undefined : mountedApplicationOf(context)
+  if (state.status === 'mounted' && context !== null && application !== undefined) {
+    return { element: context.scopeRoot, application }
   }
+
+  // Its failure is the rejection; a cleanup failure has reached the environment's diagnostics.
+  await mount.dispose().catch(() => undefined)
+  placement.teardown()
+  if (state.status === 'error') throw state.error
+  throw createMfeError({
+    code: 'mount/failure',
+    id: mount.id,
+    operation: 'mount into a test environment',
+    expected: 'a mounted Angular definition',
+    observed:
+      state.status === 'disposed'
+        ? 'a mount disposed before it settled'
+        : 'a mount that created no Angular application',
+    repair: 'Mount only definitions created with createApp or createWidget from this package.',
+  })
 }
 
-/** Mounts a real App through its own `mount`, over a memory history starting at its boundary. */
+function track(mount: DefinitionMount, placement: Placement): () => Promise<void> {
+  const dispose = async (): Promise<void> => {
+    if (!live.delete(dispose)) return
+    await mount.dispose()
+    placement.teardown()
+  }
+  live.add(dispose)
+  return dispose
+}
+
+/** Mounts a real App through the runtime, over a memory history starting at its boundary. */
 export async function mountApp(
   definition: AppDefinition,
   options: MountAppOptions = {},
 ): Promise<MountedTestDefinition> {
-  const placement = place(definition, 'app', options)
-  const mounted = await orTeardown(placement, () =>
-    definition.mount({ element: placement.host, context: placement.context }),
-  )
+  const basePath = options.basePath ?? ''
+  const placement = place(definition, options, basePath)
+  const mount = mountDefinition({
+    runtime: placement.environment.runtime,
+    element: placement.host,
+    definitionId: definition.id,
+    kind: 'app',
+    basePath,
+  })
 
-  const dispose = async (): Promise<void> => {
-    if (!live.delete(dispose)) return
-    await mounted.dispose()
-    await placement.teardown()
-  }
-  live.add(dispose)
+  const { element, application } = await settle(mount, placement)
+  const dispose = track(mount, placement)
 
-  await mounted.whenStable()
+  await application.whenStable()
   return {
-    element: placement.element,
+    element,
     environment: placement.environment,
-    injector: mounted.injector,
-    whenStable: () => mounted.whenStable(),
+    injector: application.injector,
+    whenStable: () => application.whenStable(),
     dispose,
   }
 }
 
-/** Mounts a real Widget through its own `mount`, with the production validation on both sides. */
+/** Mounts a real Widget through the runtime, with the production validation on both sides. */
 export async function mountWidget(
   definition: WidgetDefinition,
   options: MountWidgetOptions = {},
 ): Promise<MountedTestWidget> {
-  const placement = place(definition, 'widget', options)
+  const placement = place(definition, options, '')
   const events: WidgetEvent[] = []
   const rejectedInputs: MfeError[] = []
 
-  const mounted = await orTeardown(placement, () =>
-    definition.mount({
-      element: placement.host,
-      context: placement.context,
-      inputs: options.inputs ?? {},
-      emit: (name, payload) => {
-        events.push({ name, payload })
-        options.onEvent?.(name, payload)
-      },
-      onInputRejected: error => {
-        rejectedInputs.push(error)
-      },
-    }),
-  )
+  const mount: WidgetDefinitionMount = mountDefinition({
+    runtime: placement.environment.runtime,
+    element: placement.host,
+    definitionId: definition.id,
+    kind: 'widget',
+    inputs: options.inputs ?? {},
+    onEvent: (name, payload) => {
+      events.push({ name, payload })
+      options.onEvent?.(name, payload)
+    },
+    onInputRejected: error => {
+      rejectedInputs.push(error)
+    },
+  })
 
-  const dispose = async (): Promise<void> => {
-    if (!live.delete(dispose)) return
-    await mounted.dispose()
-    await placement.teardown()
-  }
-  live.add(dispose)
+  const { element, application } = await settle(mount, placement)
+  const dispose = track(mount, placement)
 
-  await mounted.whenStable()
+  await application.whenStable()
   return {
-    element: placement.element,
+    element,
     environment: placement.environment,
-    injector: mounted.injector,
+    injector: application.injector,
     events,
     rejectedInputs,
-    whenStable: () => mounted.whenStable(),
+    whenStable: () => application.whenStable(),
     update: async inputs => {
-      mounted.update(inputs)
-      await mounted.whenStable()
+      mount.update(inputs)
+      await application.whenStable()
     },
     dispose,
   }

@@ -159,7 +159,10 @@ describe('mounting an App', () => {
   })
 
   it('gives two mounts of one App their own router and base path', async () => {
-    const environment = createMfeTestEnvironment({ initialEntries: ['/left/reports/1'] })
+    const environment = createMfeTestEnvironment({
+      definitions: [reportsApp],
+      initialEntries: ['/left/reports/1'],
+    })
     const left = await mountApp(reportsApp, { environment, basePath: '/left' })
     const right = await mountApp(reportsApp, { environment, basePath: '/right' })
 
@@ -191,7 +194,10 @@ describe('mounting an App', () => {
       }
     }
     const busyApp = createApp({ id: 'busy', routes: [{ path: '', component: BusyComponent }] })
-    const environment = createMfeTestEnvironment({ initialEntries: ['/busy'] })
+    const environment = createMfeTestEnvironment({
+      definitions: [busyApp],
+      initialEntries: ['/busy'],
+    })
     const { runtime } = environment
 
     for (let cycle = 0; cycle < 3; cycle += 1) {

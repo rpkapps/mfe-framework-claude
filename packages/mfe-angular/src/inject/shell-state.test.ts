@@ -25,7 +25,10 @@ const emptyWidget = createWidget({
 
 describe('the shell-state signals', () => {
   it('follow the shell inside a mount, each subscribed to its own field only', async () => {
-    const environment = createMfeTestEnvironment({ shellState: { theme: 'light' } })
+    const environment = createMfeTestEnvironment({
+      definitions: [emptyWidget],
+      shellState: { theme: 'light' },
+    })
     const widget = await mountWidget(emptyWidget, { environment })
     const { shellState } = environment.runtime
 

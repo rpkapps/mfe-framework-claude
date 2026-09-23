@@ -25,9 +25,11 @@ import {
   disposedWhileMounting,
   MountErrorHandler,
   provideMfeMount,
+  reportForeignDestroy,
 } from './mount-providers.ts'
+import { recordMountedApplication } from './mounted-applications.ts'
 
-/** What an Angular App's `mount` resolves to; the extras serve tests and Angular hosts. */
+/** What an Angular App's `mount` resolves to; the extras serve tests. */
 export interface AngularMountedApp extends MountedApp {
   /** The mount's own application injector, where the App's `Router` lives. */
   readonly injector: EnvironmentInjector
@@ -107,14 +109,18 @@ export async function mountApp(
   if (location.ownsCurrentPath()) router.initialNavigation()
   else router.setUpLocationChangeListener()
 
+  const stopWatchingDestroy = reportForeignDestroy(appRef, context, target.onFailure)
+
   let disposal: Promise<void> | null = null
   const dispose = (): Promise<void> => {
     disposal ??= (async () => {
+      stopWatchingDestroy()
       // Registrations first, so a disposed App cannot be asked about a navigation mid-teardown.
       stopBlocking()
       stopBreadcrumbs()
       try {
-        appRef.destroy()
+        // Already destroyed when this follows a failure reported through `onFailure`.
+        if (!appRef.destroyed) appRef.destroy()
       } catch (error) {
         context.runtime.diagnostics.report(
           toMfeError(error, {
@@ -137,5 +143,7 @@ export async function mountApp(
   // still gets the application torn down.
   context.signal.addEventListener('abort', () => void dispose(), { once: true })
 
-  return { injector, whenStable: () => appRef.whenStable(), dispose }
+  const whenStable = (): Promise<void> => appRef.whenStable()
+  recordMountedApplication(context, { injector, whenStable })
+  return { injector, whenStable, dispose }
 }

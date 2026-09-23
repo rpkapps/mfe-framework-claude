@@ -12,7 +12,13 @@ import {
   type Provider,
 } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
-import { isMfeError, toMfeError, type ContractValidation, type MfeError } from '@company/mfe-core'
+import {
+  createMfeError,
+  isMfeError,
+  toMfeError,
+  type ContractValidation,
+  type MfeError,
+} from '@company/mfe-core'
 import type { MountContext } from '@company/mfe-runtime'
 
 import { MFE_MOUNT, MFE_RUNTIME } from '../inject/tokens.ts'
@@ -124,5 +130,35 @@ export function disposedWhileMounting(context: MountContext): MfeError {
     operation: 'mount',
     observed: 'the mount was disposed before it finished mounting',
     repair: 'No action required when this follows a disposal or a retry.',
+  })
+}
+
+/**
+ * An application destroyed by anything but the mount's own `dispose` — code inside it destroying
+ * its `ApplicationRef`, or the platform going down under it — leaves the host an empty element, so
+ * it is the mount's fatal failure, and the host can offer a retry instead. The returned function
+ * stops watching; `dispose` calls it before destroying the application itself.
+ */
+export function reportForeignDestroy(
+  appRef: ApplicationRef,
+  context: MountContext,
+  onFailure: ((error: unknown) => void) | undefined,
+): () => void {
+  if (onFailure === undefined) return () => undefined
+  const { definitionId, definitionVersion, kind } = context
+
+  return appRef.onDestroy(() => {
+    onFailure(
+      createMfeError({
+        code: 'mount/failure',
+        id: definitionId,
+        ...(definitionVersion === undefined ? {} : { definitionVersion }),
+        operation: `keep the ${kind === 'app' ? 'App' : 'Widget'}'s application running`,
+        expected: 'the application to live until the host disposes the mount',
+        observed: 'the application was destroyed while the mount was live',
+        repair:
+          'Find the code that destroys the ApplicationRef or the platform; only the host ends a mount.',
+      }),
+    )
   })
 }

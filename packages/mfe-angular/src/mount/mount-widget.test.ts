@@ -1,4 +1,5 @@
 import {
+  ApplicationRef,
   Component,
   DestroyRef,
   EventEmitter,
@@ -8,8 +9,8 @@ import {
   provideEnvironmentInitializer,
   type OnInit,
 } from '@angular/core'
-import { createMountContext } from '@company/mfe-runtime'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { createMountContext, OVERLAY_ROOT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createWidget } from '../definition.ts'
@@ -209,7 +210,7 @@ describe('mounting a Widget', () => {
   })
 
   it('rejects first inputs its contract refuses and leaves nothing behind', async () => {
-    const environment = createMfeTestEnvironment()
+    const environment = createMfeTestEnvironment({ definitions: [alertWidget] })
 
     await expect(
       mountWidget(alertWidget, { environment, inputs: { alertId: 7 } }),
@@ -265,6 +266,45 @@ describe('mounting a Widget', () => {
     expect(first.events).toEqual([])
     expect(second.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'second' } }])
     environment.dispose()
+  })
+
+  it('adds no scope root or overlay root of its own: both are the runtime’s', async () => {
+    const widget = await mountWidget(alertWidget, { inputs: { alertId: 'a-1' } })
+    // The overlay root carries the scope attributes too, so the scoped stylesheet reaches it.
+    const scopeRoots = document.querySelectorAll(
+      `[${SCOPE_ATTRIBUTE}]:not([${OVERLAY_ROOT_ATTRIBUTE}])`,
+    )
+
+    expect([...scopeRoots]).toEqual([widget.element])
+    expect(document.querySelectorAll(`[${OVERLAY_ROOT_ATTRIBUTE}]`)).toHaveLength(1)
+  })
+
+  it('hands the mount’s scope root to providers and components through injectMfeMount()', async () => {
+    let seenByComponent: HTMLElement | null = null
+
+    @Component({ selector: 'test-scoped', template: '' })
+    class ScopedComponent {
+      constructor() {
+        seenByComponent = injectMfeMount().scopeRoot
+      }
+    }
+    const scoped = createWidget({
+      id: 'scoped',
+      inputs: z.object({}),
+      events: {},
+      component: ScopedComponent,
+      // What a container's theming providers do, with no help from the root component.
+      providers: [
+        provideEnvironmentInitializer(() => {
+          injectMfeMount().scopeRoot.classList.add('container-theme')
+        }),
+      ],
+    })
+
+    const widget = await mountWidget(scoped)
+
+    expect(seenByComponent).toBe(widget.element)
+    expect(widget.element.classList.contains('container-theme')).toBe(true)
   })
 
   describe('checking the component against the contract', () => {
@@ -375,6 +415,49 @@ describe('mounting a Widget', () => {
         id: 'faulty',
       })
       expect(widget.environment.diagnostics[0]?.error.message).toContain('Error: handler failed')
+    })
+
+    it('reports its application destroyed from inside as a fatal failure, and not its disposal', async () => {
+      const captured: { application?: ApplicationRef } = {}
+
+      @Component({ selector: 'test-fragile', template: '<p>fragile</p>' })
+      class FragileComponent {
+        constructor() {
+          captured.application = inject(ApplicationRef)
+        }
+      }
+      const fragile = createWidget({
+        id: 'fragile',
+        inputs: z.object({}),
+        events: {},
+        component: FragileComponent,
+      })
+      const environment = createMfeTestEnvironment()
+      const onFailure = vi.fn()
+      const mount = (): ReturnType<typeof createMountContext> =>
+        createMountContext({
+          runtime: environment.runtime,
+          definitionId: 'fragile',
+          kind: 'widget',
+        })
+      const element = document.createElement('div')
+      const target = { element, inputs: {}, emit: () => undefined, onFailure }
+
+      const destroyedFirst = mount()
+      await fragile.mount({ ...target, context: destroyedFirst.context })
+      captured.application?.destroy()
+
+      expect(onFailure).toHaveBeenCalledOnce()
+      expect(onFailure.mock.calls[0]?.[0]).toMatchObject({ code: 'mount/failure', id: 'fragile' })
+
+      const disposedFirst = mount()
+      const mounted = await fragile.mount({ ...target, context: disposedFirst.context })
+      await mounted.dispose()
+
+      expect(onFailure).toHaveBeenCalledOnce()
+      await destroyedFirst.dispose()
+      await disposedFirst.dispose()
+      environment.dispose()
     })
 
     it('stops when the host disposes the mount before it finished', async () => {

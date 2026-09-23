@@ -26,7 +26,7 @@ function injectDensity() {
 
 describe('injectStoredState', () => {
   it('stores under the definition inside a mount and under the host scope outside one', async () => {
-    const environment = createMfeTestEnvironment()
+    const environment = createMfeTestEnvironment({ definitions: [tableWidget] })
     const widget = await mountWidget(tableWidget, { environment })
     const appRef = await createHostApplication(environment)
 

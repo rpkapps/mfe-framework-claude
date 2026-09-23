@@ -6,7 +6,7 @@
  */
 
 import { createComponent, type ComponentRef, type EnvironmentInjector } from '@angular/core'
-import { shallowEqual, toMfeError } from '@company/mfe-core'
+import { toMfeError } from '@company/mfe-core'
 import type { MountedWidget, WidgetMountTarget } from '@company/mfe-runtime'
 
 import type { WidgetDefinition } from '../definition.ts'
@@ -18,10 +18,12 @@ import {
   disposedWhileMounting,
   MountErrorHandler,
   provideMfeMount,
+  reportForeignDestroy,
 } from './mount-providers.ts'
+import { recordMountedApplication } from './mounted-applications.ts'
 import { createWidgetEmitter, validateInputs } from './widget-channel.ts'
 
-/** What an Angular Widget's `mount` resolves to; the extras serve tests and Angular hosts. */
+/** What an Angular Widget's `mount` resolves to; the extras serve tests. */
 export interface AngularMountedWidget extends MountedWidget {
   /** The mount's own application injector. */
   readonly injector: EnvironmentInjector
@@ -133,15 +135,18 @@ export async function mountWidget(
     }
   }
 
-  let checked = target.inputs
+  const stopWatchingDestroy = reportForeignDestroy(appRef, context, target.onFailure)
+
   let valid = first.value
   let disposal: Promise<void> | null = null
 
   const dispose = (): Promise<void> => {
     disposal ??= (async () => {
+      stopWatchingDestroy()
       for (const subscription of subscriptions) subscription.unsubscribe()
       try {
-        appRef.destroy()
+        // Already destroyed when this follows a failure reported through `onFailure`.
+        if (!appRef.destroyed) appRef.destroy()
       } catch (error) {
         context.runtime.diagnostics.report(
           toMfeError(error, {
@@ -163,14 +168,17 @@ export async function mountWidget(
   // still gets the application torn down.
   context.signal.addEventListener('abort', () => void dispose(), { once: true })
 
+  const whenStable = (): Promise<void> => appRef.whenStable()
+  recordMountedApplication(context, { injector: appRef.injector, whenStable })
+
   return {
     injector: appRef.injector,
-    whenStable: () => appRef.whenStable(),
+    whenStable,
     dispose,
 
+    // The host passes only a set that changed, so every call is validated.
     update: inputs => {
-      if (disposal !== null || shallowEqual(inputs, checked)) return
-      checked = inputs
+      if (disposal !== null) return
 
       const next = validateInputs(definition, component, inputs)
       if (!next.ok) {
