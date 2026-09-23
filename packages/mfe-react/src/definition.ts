@@ -6,13 +6,12 @@
  */
 
 import {
+  assertDefinitionId,
   createMfeError,
   DEFINITION_BRAND,
-  DEFINITION_ID_RULE,
   eventNameToHandlerProp,
+  findEventNameProblem,
   isReservedInputName,
-  isValidDefinitionId,
-  isValidEventName,
   type ContractEvents,
   type ContractInputs,
   type WidgetContract,
@@ -67,7 +66,7 @@ export interface AppDefinition extends MountableAppDefinition {
 }
 
 export function createApp(options: AppOptions): AppDefinition {
-  assertValidId(options.id, 'createApp')
+  assertDefinitionId(options.id, 'createApp')
 
   if (typeof options.router !== 'function') {
     throw createMfeError({
@@ -131,7 +130,7 @@ export interface WidgetDefinition<
 export function createWidget<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>(
   options: WidgetOptions<Inputs, Events>,
 ): WidgetDefinition<Inputs, Events> {
-  assertValidId(options.id, 'createWidget')
+  assertDefinitionId(options.id, 'createWidget')
   assertUsableEventNames(options.id, options.events)
 
   if (typeof options.render !== 'function') {
@@ -163,52 +162,32 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
 
 export type MfeDefinition = AppDefinition | WidgetDefinition
 
-function assertValidId(id: unknown, operation: string): asserts id is string {
-  if (isValidDefinitionId(id)) return
-
-  throw createMfeError({
-    code: 'registry/invalid-entry',
-    id: typeof id === 'string' && id !== '' ? id : '<missing>',
-    operation,
-    expected: DEFINITION_ID_RULE,
-    observed:
-      id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
-    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
-  })
-}
-
 /** Two events mapping to one `on`-prefixed prop would make a subscription ambiguous. */
 function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
-  const handlerProps = new Map<string, string>()
+  const problem = findEventNameProblem(Object.keys(events))
+  if (problem === null) return
 
-  for (const name of Object.keys(events)) {
-    const declaration = {
-      code: 'contract/event-mismatch',
-      id,
-      operation: `declare event '${name}'`,
-    } as const
+  const declaration = {
+    code: 'contract/event-mismatch',
+    id,
+    operation: `declare event '${problem.name}'`,
+  } as const
 
-    if (!isValidEventName(name)) {
-      throw createMfeError({
-        ...declaration,
-        expected: 'a lower-camel-case event name, for example "acknowledged"',
-        observed: JSON.stringify(name),
-        repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
-      })
-    }
-
-    const handlerProp = eventNameToHandlerProp(name)
-    const existing = handlerProps.get(handlerProp)
-    if (existing !== undefined) {
-      throw createMfeError({
-        ...declaration,
-        expected: 'event names that map to distinct handler props',
-        observed: `'${existing}' and '${name}' both map to ${handlerProp}`,
-        repair: `Rename one of them, for example '${name}Completed'.`,
-      })
-    }
-    handlerProps.set(handlerProp, name)
+  if (problem.kind === 'invalid') {
+    throw createMfeError({
+      ...declaration,
+      expected: 'a lower-camel-case event name, for example "acknowledged"',
+      observed: JSON.stringify(problem.name),
+      repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
+    })
   }
+
+  throw createMfeError({
+    ...declaration,
+    expected: 'event names that map to distinct handler props',
+    observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
+    repair: `Rename one of them, for example '${problem.name}Completed'.`,
+  })
 }
 
 /** Called by the mount boundary, where the parsed input keys are known. */

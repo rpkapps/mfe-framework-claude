@@ -20,6 +20,7 @@ export { type Listener, type Subscribable, type Unsubscribe } from './observable
 export { type AttemptToken, type MountHandle, type MountState } from './lifecycle.ts'
 
 export {
+  assertDefinitionId,
   CAPABILITY_NAMES,
   DEFINITION_ID_RULE,
   ICON_ELEMENT_TAGS,
@@ -47,6 +48,7 @@ export {
 
 export {
   eventNameToHandlerProp,
+  findEventNameProblem,
   isReservedInputName,
   isValidEventName,
   RESERVED_INPUT_NAMES,
@@ -56,6 +58,7 @@ export {
   type ContractInputs,
   type ContractValidation,
   type ContractValidationContext,
+  type EventNameProblem,
   type WidgetContract,
 } from './contract.ts'
 

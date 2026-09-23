@@ -3,9 +3,9 @@
 import {
   DEFINITION_ID_RULE,
   eventNameToHandlerProp,
+  findEventNameProblem,
   isReservedInputName,
   isValidDefinitionId,
-  isValidEventName,
   RESERVED_INPUT_NAMES,
   type DefinitionKind,
   type IconData,
@@ -14,6 +14,7 @@ import {
 import type { JsonObject } from '../config/zod-static.ts'
 import { createBuildError, listNames } from '../diagnostics.ts'
 import { readIconData } from './icon.ts'
+import { standaloneSources, type ContainerSources } from './sources.ts'
 import { readWidgetContract, type WidgetContractSource } from './widget-contract.ts'
 import {
   calleeName,
@@ -21,7 +22,6 @@ import {
   collectTopLevelBindings,
   describeNode,
   objectProperty,
-  parseSourceFile,
   positionOf,
   stringLiteralValue,
   ts,
@@ -91,8 +91,12 @@ interface ExportedBinding {
 }
 
 /** Only `entryFile` is parsed; an import is read one level deep to reach a contract's schemas. */
-export function discoverDefinitions(entryFile: string, syntax: DefinitionSyntax): DiscoveryResult {
-  const sourceFile = parseSourceFile(entryFile)
+export function discoverDefinitions(
+  entryFile: string,
+  syntax: DefinitionSyntax,
+  sources: ContainerSources = standaloneSources(),
+): DiscoveryResult {
+  const sourceFile = sources.parse(entryFile)
   const imports = collectImportedBindings(sourceFile)
   const topLevel = collectTopLevelBindings(sourceFile)
 
@@ -111,7 +115,7 @@ export function discoverDefinitions(entryFile: string, syntax: DefinitionSyntax)
     const call = asFactoryCall(binding.expression, factories)
     if (call === null) continue
     definitions.push(
-      readDefinition(sourceFile, entryFile, binding, call, imports, topLevel, syntax),
+      readDefinition(sourceFile, entryFile, binding, call, { imports, topLevel, syntax, sources }),
     )
   }
 
@@ -240,21 +244,27 @@ function assertEveryDefinitionIsExported(
   })
 }
 
+/** What the entry declares around its definitions, read once for all of them. */
+interface EntryScope {
+  readonly imports: ReadonlyMap<string, ImportedBinding>
+  readonly topLevel: ReadonlyMap<string, ts.Expression>
+  readonly syntax: DefinitionSyntax
+  readonly sources: ContainerSources
+}
+
 function readDefinition(
   sourceFile: ts.SourceFile,
   entryFile: string,
   binding: ExportedBinding,
   factory: FactoryCall,
-  imports: ReadonlyMap<string, ImportedBinding>,
-  topLevel: ReadonlyMap<string, ts.Expression>,
-  syntax: DefinitionSyntax,
+  { imports, topLevel, syntax, sources }: EntryScope,
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id)
   const contract =
     factory.kind === 'app'
       ? null
-      : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel)
+      : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel, sources)
   const presentation = readPresentation(sourceFile, entryFile, factory, id, imports, syntax)
 
   return {
@@ -558,38 +568,32 @@ function assertContainerShape(
 }
 
 function assertUsableEventNames(entryFile: string, definition: DiscoveredDefinition): void {
-  const handlerProps = new Map<string, string>()
+  const problem = findEventNameProblem(definition.eventNames)
+  if (problem === null) return
 
-  for (const name of definition.eventNames) {
-    if (!isValidEventName(name)) {
-      throw createBuildError({
-        code: 'contract/event-mismatch',
-        file: entryFile,
-        id: definition.id,
-        operation: `read the Widget event '${name}'`,
-        expected: 'a lower-camel-case event name, for example "acknowledged" or "selectionChanged"',
-        observed: JSON.stringify(name),
-        declaredBy: 'The Widget contract',
-        repair: `Rename the event. Consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}, so the name has to survive that mapping.`,
-      })
-    }
-
-    const handlerProp = eventNameToHandlerProp(name)
-    const existing = handlerProps.get(handlerProp)
-    if (existing !== undefined) {
-      throw createBuildError({
-        code: 'contract/event-mismatch',
-        file: entryFile,
-        id: definition.id,
-        operation: `read the Widget event '${name}'`,
-        expected: 'event names that map to distinct handler props',
-        observed: `'${existing}' and '${name}' both map to ${handlerProp}`,
-        declaredBy: 'The Widget contract',
-        repair: `Rename one of them, for example '${name}Completed'. A consumer that passed ${handlerProp} could not say which event it meant.`,
-      })
-    }
-    handlerProps.set(handlerProp, name)
+  if (problem.kind === 'invalid') {
+    throw createBuildError({
+      code: 'contract/event-mismatch',
+      file: entryFile,
+      id: definition.id,
+      operation: `read the Widget event '${problem.name}'`,
+      expected: 'a lower-camel-case event name, for example "acknowledged" or "selectionChanged"',
+      observed: JSON.stringify(problem.name),
+      declaredBy: 'The Widget contract',
+      repair: `Rename the event. Consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}, so the name has to survive that mapping.`,
+    })
   }
+
+  throw createBuildError({
+    code: 'contract/event-mismatch',
+    file: entryFile,
+    id: definition.id,
+    operation: `read the Widget event '${problem.name}'`,
+    expected: 'event names that map to distinct handler props',
+    observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
+    declaredBy: 'The Widget contract',
+    repair: `Rename one of them, for example '${problem.name}Completed'. A consumer that passed ${problem.handlerProp} could not say which event it meant.`,
+  })
 }
 
 function assertUsableInputNames(entryFile: string, definition: DiscoveredDefinition): void {

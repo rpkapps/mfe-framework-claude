@@ -1,5 +1,7 @@
 /** Neutral definition records; the host's internal mount and scope tokens never appear here. */
 
+import { createMfeError } from './errors.ts'
+
 export type DefinitionKind = 'app' | 'widget'
 
 /** App-only; a Widget cannot declare a capability. */
@@ -127,3 +129,18 @@ export function isValidDefinitionId(value: unknown): value is string {
 
 export const DEFINITION_ID_RULE =
   'lower-case letters, digits and single hyphens (for example "alert-panel")'
+
+/** Every author-facing `createApp`/`createWidget` shares this check; `operation` names the call. */
+export function assertDefinitionId(id: unknown, operation: string): asserts id is string {
+  if (isValidDefinitionId(id)) return
+
+  throw createMfeError({
+    code: 'registry/invalid-entry',
+    id: typeof id === 'string' && id !== '' ? id : '<missing>',
+    operation,
+    expected: DEFINITION_ID_RULE,
+    observed:
+      id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
+    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
+  })
+}
