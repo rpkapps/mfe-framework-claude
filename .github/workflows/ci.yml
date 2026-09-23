@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# This repository is checked out into its own directory, beside rpkapps/tecton-ui-1, because the
+# packages link @tecton/react from ../tecton-ui-1.
+jobs:
+  check:
+    name: pnpm check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mfe-framework-claude
+
+      - uses: ./mfe-framework-claude/.github/actions/setup
+
+      - name: Generate, format, lint, typecheck, boundaries and test
+        working-directory: mfe-framework-claude
+        run: pnpm check
+
+      # Generation must be a pure function of the sources, so a check that regenerated anything
+      # means a generated file was committed stale.
+      - name: No uncommitted generated changes
+        working-directory: mfe-framework-claude
+        run: git diff --exit-code
+
+  verify-page:
+    name: Verify the page in a browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mfe-framework-claude
+
+      - uses: ./mfe-framework-claude/.github/actions/setup
+
+      - name: Install Chromium
+        working-directory: mfe-framework-claude
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Boot the shell and every container, and check each page mounts
+        working-directory: mfe-framework-claude
+        run: pnpm run verify:page

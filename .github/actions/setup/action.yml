@@ -1,0 +1,40 @@
+name: Set up the workspace
+description: >
+  Installs the toolchain, builds @tecton/react from rpkapps/tecton-ui-1 and installs this
+  workspace. The packages link @tecton/react from ../tecton-ui-1, so that repository is checked
+  out beside this one and built before this workspace installs.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: rpkapps/tecton-ui-1
+        path: tecton-ui-1
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.33.4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+        cache-dependency-path: |
+          mfe-framework-claude/pnpm-lock.yaml
+          tecton-ui-1/pnpm-lock.yaml
+
+    # The design system's build scripts run on Bun.
+    - uses: oven-sh/setup-bun@v2
+
+    - name: Build @tecton/react
+      shell: bash
+      working-directory: tecton-ui-1
+      run: |
+        pnpm install --frozen-lockfile --filter @tecton/react...
+        pnpm --filter @tecton/react run build
+
+    - name: Install
+      shell: bash
+      working-directory: mfe-framework-claude
+      run: pnpm install --frozen-lockfile
