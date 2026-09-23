@@ -41,7 +41,7 @@ runs:
         esac
         echo "path=$path" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         repository: ${{ inputs.tecton-repository }}
         ref: ${{ inputs.tecton-ref }}
@@ -51,7 +51,7 @@ runs:
       with:
         version: 10.33.4
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: 22
         cache: pnpm

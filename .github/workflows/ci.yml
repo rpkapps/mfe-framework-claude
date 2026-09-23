@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: mfe-framework-claude
 
@@ -28,6 +28,10 @@ jobs:
 
       - name: Generate, format, lint, typecheck, boundaries and test
         working-directory: mfe-framework-claude
+        # Type-aware ESLint over the whole workspace needs more than the runner's default heap of
+        # about 4 GB, and fails with "JavaScript heap out of memory" under it.
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
         run: pnpm check
 
       # Generation must be a pure function of the sources, so a check that regenerated anything
@@ -41,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: mfe-framework-claude
 
