@@ -77,6 +77,12 @@ describe('scopeFallbackPlugin', () => {
     expect(compact(result)).toBe(`${SCOPE} { :scope { --spacing: 0.25rem; } }`)
   })
 
+  it('maps zero-specificity html token declarations to the scope root', () => {
+    const result = scope(':where(html) { --size: 1rem; }\n')
+
+    expect(compact(result)).toBe(`${SCOPE} { :where(:scope) { --size: 1rem; } }`)
+  })
+
   it('leaves page-wide definitions outside @scope, after the imports and the layer order', () => {
     const result = scope(
       [

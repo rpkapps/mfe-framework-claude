@@ -4,31 +4,33 @@
   "description": "Angular 19 (zoneless) author and host surface for the MFE framework: createApp, createWidget, route data, injectables over the shell's services, a boundary location strategy, the mfe-widget and mfe-app-host components over the runtime's mountDefinition, and self-mounting definitions any host places into an element.",
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./host": {
-      "types": "./src/host/index.ts",
-      "default": "./src/host/index.ts"
+      "types": "./dist/host/index.d.ts",
+      "default": "./dist/host/index.js"
     },
     "./registry": {
-      "types": "./src/registry/index.ts",
-      "default": "./src/registry/index.ts"
+      "types": "./dist/registry/index.d.ts",
+      "default": "./dist/registry/index.js"
     },
     "./testing": {
-      "types": "./src/testing/index.ts",
-      "default": "./src/testing/index.ts"
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     },
     "./testing/mfe-config": {
-      "types": "./src/testing/generated/config.ts",
-      "default": "./src/testing/generated/config.ts"
+      "types": "./dist/testing/generated/config.d.ts",
+      "default": "./dist/testing/generated/config.js"
     },
     "./testing/mfe-fetch": {
-      "types": "./src/testing/generated/fetch.ts",
-      "default": "./src/testing/generated/fetch.ts"
+      "types": "./dist/testing/generated/fetch.d.ts",
+      "default": "./dist/testing/generated/fetch.js"
     }
   },
   "files": [
@@ -36,7 +38,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "ngc -p tsconfig.build.json",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -55,12 +58,13 @@
   "devDependencies": {
     "@angular/common": "catalog:",
     "@angular/compiler": "catalog:",
+    "@angular/compiler-cli": "catalog:",
     "@angular/core": "catalog:",
     "@angular/platform-browser": "catalog:",
     "@angular/router": "catalog:",
     "jsdom": "catalog:",
     "rxjs": "catalog:",
-    "typescript": "catalog:",
+    "typescript": "catalog:angular",
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"

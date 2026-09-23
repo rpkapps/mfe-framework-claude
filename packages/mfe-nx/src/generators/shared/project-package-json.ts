@@ -22,7 +22,6 @@ import {
   PRIMENG_THEMES_VERSION,
   PRIMENG_VERSION,
   RXJS_VERSION,
-  TAILWIND_VERSION,
   TYPESCRIPT_VERSION,
   VITE_VERSION,
   VITEST_VERSION,
@@ -93,8 +92,6 @@ export function projectDependencies(nxAngularVersion: string): ProjectDependenci
       // How ESLint loads the generated eslint.config.ts.
       jiti: JITI_VERSION,
       jsdom: JSDOM_VERSION,
-      // The container stylesheet imports Tailwind's theme and utilities from here.
-      tailwindcss: TAILWIND_VERSION,
       typescript: TYPESCRIPT_VERSION,
       vite: VITE_VERSION,
       vitest: VITEST_VERSION,

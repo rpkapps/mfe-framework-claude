@@ -15,6 +15,8 @@ export interface ContainerPostcssOptions {
   readonly containerRoot: string
   /** Which plugin scopes the stylesheet, such as a design system's own or `scopeFallbackPlugin`. */
   readonly loadScopePlugin: ScopePluginLoader
+  /** Defaults to true for integrations that always generate Tailwind. */
+  readonly tailwind?: boolean
   /** What the container's own PostCSS config already contributes, if anything. */
   readonly configured?: unknown
 }
@@ -23,7 +25,8 @@ export interface ContainerPostcssOptions {
 export function containerPostcssPlugins(options: ContainerPostcssOptions): AcceptedPlugin[] {
   const plugins: AcceptedPlugin[] = []
 
-  if (!declaresTailwind(options.configured)) plugins.push(tailwindPlugin())
+  if (options.tailwind === false) plugins.push(cssImportPlugin())
+  else if (!declaresTailwind(options.configured)) plugins.push(tailwindPlugin())
   plugins.push(
     containerScopePlugin({
       scopes: options.scopes,
@@ -33,6 +36,11 @@ export function containerPostcssPlugins(options: ContainerPostcssOptions): Accep
   )
 
   return plugins
+}
+
+function cssImportPlugin(): AcceptedPlugin {
+  const factory = require('postcss-import') as () => AcceptedPlugin
+  return factory()
 }
 
 /** Loaded through `require` because it is this package's dependency, not the container's. */

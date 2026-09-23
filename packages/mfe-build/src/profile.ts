@@ -64,6 +64,8 @@ export interface ContainerProfile {
 export interface StylesheetProfile {
   /** What Tailwind scans, as a glob under `src/`: the files this container writes classes in. */
   readonly sources: string
+  /** Omit Tailwind when this integration's container does not use it. Defaults to true. */
+  readonly tailwind?: (context: GenerateContext) => boolean
   /** Lines added after the Tailwind imports, such as a UI library's scoped entry. */
   readonly imports?: (context: GenerateContext) => readonly string[]
   /**

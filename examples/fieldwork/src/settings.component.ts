@@ -5,8 +5,8 @@ import { ChangeDetectionStrategy, Component } from '@angular/core'
   selector: 'fieldwork-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="flex flex-col gap-2 p-4">
-      <h2 class="text-lg font-semibold">Fieldwork settings</h2>
+    <section class="fieldwork-page fieldwork-page--compact fieldwork-page--wide">
+      <h2>Fieldwork settings</h2>
       <p>
         The shell lists this page in its own settings, because its route declares the capability.
       </p>

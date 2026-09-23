@@ -1,8 +1,8 @@
 /**
  * The generated stylesheet goes through Angular's own global-style chain — extracted into a CSS
- * chunk that loads with each exposed entry — and through the container's PostCSS plugins first:
- * Tailwind, then the scope that confines every rule to this container's mount roots. Component
- * styles never reach it: Angular inlines them and encapsulates them itself.
+ * chunk that loads with each exposed entry — and through CSS import resolution before the scope
+ * plugin confines every rule to this container's mount roots. Component styles never reach it:
+ * Angular inlines them and encapsulates them itself.
  */
 
 import type { Compiler, RuleSetRule } from 'webpack'
@@ -41,6 +41,7 @@ export function applyContainerStylesheet(
                 scopes: plan.scopes,
                 containerRoot: plan.options.containerRoot,
                 loadScopePlugin: () => scopeFallbackPlugin,
+                tailwind: false,
               }),
             }
           },

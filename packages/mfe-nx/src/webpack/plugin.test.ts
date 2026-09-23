@@ -48,8 +48,7 @@ export const reports = createApp({ id: 'reports', version: '1.2.0', routes: [{ p
 const PANEL_COMPONENT = `
 import styles from './panel.component.css?ngResource'
 
-// Tailwind finds the classes a template uses in the component source.
-export const template = '<section class="p-4">Panel</section>'
+export const template = '<section class="panel-body">Panel</section>'
 
 export class PanelComponent {
   readonly styles = styles
@@ -75,7 +74,7 @@ function reportsContainer(extra: Readonly<Record<string, string>> = {}): string 
       'src/mfe.config.ts': CONFIG,
       ...extra,
     },
-    { link: ['zod', 'tailwindcss'] },
+    { link: ['zod'] },
   )
 }
 
@@ -368,9 +367,8 @@ describe('MfeWebpackPlugin on a production compile', () => {
         .map(name => readDist(root, name))
         .join('\n')
       expect(css).toContain('@scope ([data-mfe-scope="reports"]) to ([data-mfe-scope])')
-      // The global stylesheet and the utilities its templates use, compiled together.
+      // Global styles are scoped; Angular's encapsulated component styles stay separate.
       expect(css).toContain('.panel-title')
-      expect(css).toContain('.p-4')
       expect(css).not.toContain('.panel-body')
 
       const component = readdirSync(join(root, 'dist'))
@@ -379,6 +377,32 @@ describe('MfeWebpackPlugin on a production compile', () => {
         .find(source => source.includes('.panel-body'))
       expect(component).toBeDefined()
       expect(component).not.toContain('@scope')
+    },
+    COMPILE_TIMEOUT,
+  )
+
+  it(
+    'scopes nested global CSS imports',
+    async () => {
+      const root = reportsContainer({
+        'src/styles.css': '@import "./open-props/props.shadows.css";\n',
+        'src/open-props/props.shadows.css':
+          '@import "props.media.css";\n:where(html) { --shadow-size: 1rem; }\n.shadow { box-shadow: none; }\n',
+        'src/open-props/props.media.css': '.media { margin: 0; }\n',
+      })
+
+      const stats = await build(angularLikeConfig(root, 'production'))
+
+      expect(errorsOf(stats)).toEqual([])
+      const css = readdirSync(join(root, 'dist'))
+        .filter(name => name.endsWith('.css'))
+        .map(name => readDist(root, name))
+        .join('\n')
+      expect(css).toContain('@scope ([data-mfe-scope="reports"]) to ([data-mfe-scope])')
+      expect(css).toContain('.shadow')
+      expect(css).toContain('.media')
+      expect(css).toContain(':where(:scope)')
+      expect(css).not.toContain('.p-4')
     },
     COMPILE_TIMEOUT,
   )

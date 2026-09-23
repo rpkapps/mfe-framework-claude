@@ -4,17 +4,5 @@
     "outDir": "./dist/out-tsc/spec",
     "types": ["node"]
   },
-  // vitest.setup.ts is in the program because it runs before every test file. The framework
-  // sources are here for the reason tsconfig.app.json gives, with their testing entries this time.
-  "include": [
-    "src/**/*.ts",
-    ".mfe/**/*.ts",
-    "vitest.setup.ts",
-    "vitest.config.mts",
-    "../../packages/mfe-core/src/**/*.ts",
-    "../../packages/mfe-runtime/src/**/*.ts",
-    "../../packages/mfe-angular/src/**/*.ts",
-    "../../packages/mfe-build/src/config/env.ts"
-  ],
-  "exclude": ["../../packages/*/src/**/*.test.ts", "../../packages/*/src/**/__tests__/**"]
+  "include": ["src/**/*.ts", ".mfe/**/*.ts", "vitest.setup.ts", "vitest.config.mts"]
 }

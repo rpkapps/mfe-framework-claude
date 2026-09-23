@@ -11,10 +11,10 @@ import { InspectionLog, PADS } from './inspections'
   imports: [Button, RouterLink, Select],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="flex max-w-xl flex-col items-start gap-4 p-4">
-      <h1 class="text-xl font-semibold">Field inspections</h1>
+    <section class="fieldwork-page">
+      <h1>Field inspections</h1>
       <p>Signed in as {{ user()?.name ?? 'nobody' }}.</p>
-      <div class="flex items-center gap-2">
+      <div class="fieldwork-row">
         <p-select
           [options]="pads"
           optionLabel="name"
@@ -30,10 +30,10 @@ import { InspectionLog, PADS } from './inspections'
         />
       </div>
       @if (padId() !== null) {
-        <ul class="flex w-full flex-col gap-1">
+        <ul class="fieldwork-list">
           @for (inspection of inspections(); track inspection.id) {
-            <li class="flex justify-between gap-4">
-              <a class="underline" [routerLink]="['inspections', inspection.id]">
+            <li>
+              <a [routerLink]="['inspections', inspection.id]">
                 {{ inspection.title }}
               </a>
               <span>{{ inspection.loggedBy === null ? 'due ' + inspection.due : 'logged' }}</span>

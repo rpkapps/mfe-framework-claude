@@ -9,9 +9,9 @@ import { InspectionLog, PADS } from './inspections'
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="flex max-w-xl flex-col items-start gap-2 p-4">
+    <section class="fieldwork-page fieldwork-page--compact">
       @if (inspection(); as inspection) {
-        <h2 class="text-lg font-semibold">{{ inspection.title }}</h2>
+        <h2>{{ inspection.title }}</h2>
         <p>{{ padName() }}, due {{ inspection.due }}.</p>
         <p>
           {{
@@ -23,7 +23,7 @@ import { InspectionLog, PADS } from './inspections'
       } @else {
         <p>No inspection {{ inspectionId() }} is scheduled.</p>
       }
-      <a class="underline" routerLink="/">Back to the inspections</a>
+      <a routerLink="/">Back to the inspections</a>
     </section>
   `,
 })

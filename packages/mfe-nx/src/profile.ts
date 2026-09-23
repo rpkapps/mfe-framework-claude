@@ -1,6 +1,6 @@
 /**
  * What makes a container an Angular one, for the neutral build: where its definitions, route data
- * and `env` come from, what it shares, and which files Tailwind scans.
+ * and `env` come from, what it shares, and how its global CSS loads.
  */
 
 import type { ContainerProfile } from '@company/mfe-build'
@@ -35,6 +35,7 @@ export function angularProfile(): ContainerProfile {
     // encapsulates them itself, so they never reach this stylesheet.
     stylesheet: {
       sources: '**/*.{ts,html}',
+      tailwind: () => false,
       imports: globalStylesheetImports,
       query: GLOBAL_STYLE_QUERY,
     },

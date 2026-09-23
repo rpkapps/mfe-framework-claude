@@ -33,6 +33,34 @@ describe('findNonContainerAwareAssetReferences', () => {
     ).toHaveLength(0)
   })
 
+  it('accepts Angular component resource URLs resolved by the compiler', () => {
+    expect(
+      scan(`
+import { Component as AngularComponent } from '@angular/core'
+@AngularComponent({
+  templateUrl: './widget.component.html',
+  styleUrl: './widget.component.css',
+  styleUrls: ['./widget-base.css', './widget-theme.css'],
+})
+export class WidgetComponent {}
+`),
+    ).toHaveLength(0)
+  })
+
+  it('does not exempt unrelated resource strings or decorators', () => {
+    expect(
+      scan(`
+import { Component } from '@angular/core'
+const fallback = './fallback.css'
+const metadata = { styleUrl: './unsafe.css' }
+@Other({ styleUrl: './other.css' })
+class OtherComponent {}
+@Component({ styleUrl: './safe.css' })
+class WidgetComponent {}
+`),
+    ).toHaveLength(3)
+  })
+
   it('leaves absolute external URLs alone', () => {
     expect(scan("export const logo = 'https://cdn.example.com/logo.svg'\n")).toHaveLength(0)
     expect(scan("export const logo = '/static/logo.svg'\n")).toHaveLength(0)

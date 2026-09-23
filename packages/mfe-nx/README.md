@@ -161,7 +161,7 @@ plugin and replaces nothing an author wrote. The container is the Nx project bei
 - adds the `#mfe/*` aliases, and maps the `.js` specifiers the tsconfig's
   `rewriteRelativeImportExtensions` produces back to the `.ts` sources;
 - sends the generated stylesheet through Angular's own global-style chain (extracted, loaded with
-  each exposed entry) and through Tailwind and the `@scope` fallback first. Component styles are
+  each exposed entry) and through the `@scope` fallback first. Component styles are
   never touched: Angular encapsulates them. `src/styles.css` is imported into the generated
   stylesheet, so it is scoped too. PrimeNG's run-time styles are outside both, which is why every
   container pins one PrimeNG version and preset;
@@ -238,11 +238,13 @@ the emitted layout keeps the `src/` segment `generators.json` and `executors.jso
   `css-loader` and `mini-css-extract-plugin` in this repository's `pnpm-workspace.yaml` are for this
   package's own tests, which compile a small container with real webpack.
 
-## TypeScript-source dependencies
+## Package output
 
 `@company/mfe-angular`, `@company/mfe-core`, `@company/mfe-runtime` and `@company/mfe-build`
-currently publish TypeScript source. TypeScript never emits a `.ts` file it reached through
-`node_modules` (it is an external library file), so the Angular compiler hands webpack an _empty_
-module for each of them, and the build succeeds with a remote whose adapter does nothing. Until
-they ship compiled output, a workspace consuming them has to add their sources to the container's
-`tsconfig.app.json` and `tsconfig.spec.json` `include`.
+export compiled JavaScript and declarations from `dist/`; the Angular adapter's
+components use Angular partial compilation. Build these packages before consuming
+workspace links from a fresh checkout. Published packages build in `prepack`.
+Do not include their TypeScript sources in a container's `tsconfig`.
+
+The generated stylesheet imports and scopes `src/styles.css` and its CSS imports.
+The Angular integration does not add Tailwind or include it in scaffolded projects.

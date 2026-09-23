@@ -48,7 +48,6 @@
     "css-loader": "catalog:",
     "mini-css-extract-plugin": "catalog:",
     "nx": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "webpack": "catalog:",

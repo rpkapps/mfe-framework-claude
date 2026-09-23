@@ -1,6 +1,6 @@
 /*
  * Global styles for this container. The build imports this file into the container stylesheet it
- * generates, so it ships with every exposed entry, after Tailwind's theme and utilities, and every
- * rule is scoped to this container's mount roots. Component styles belong in the components:
- * Angular encapsulates those itself. PrimeNG injects its own theme at run time.
+ * generates, so it ships with every exposed entry and every rule is scoped to this container's
+ * mount roots. Component styles belong in the components: Angular encapsulates those itself.
+ * PrimeNG injects its own theme at run time.
  */

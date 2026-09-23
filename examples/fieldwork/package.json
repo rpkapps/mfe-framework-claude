@@ -51,7 +51,6 @@
     "jiti": "catalog:",
     "jsdom": "catalog:angular",
     "nx": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:angular",
     "vite": "catalog:angular",
     "vitest": "catalog:angular"
