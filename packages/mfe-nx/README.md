@@ -1,8 +1,16 @@
 # @company/mfe-nx
 
-Nx generators that scaffold a zoneless Angular 19 MFE container — an `app` (routable) or a
-`widget` (non-routable) — built with `@company/mfe-angular` and wired to Rspack through
-`@company/mfe-rspack/rspack`.
+The Angular build integration for MFE containers, as an Nx plugin — the Angular counterpart of
+`@company/mfe-rspack`. It carries:
+
+- `withMfe()` (`@company/mfe-nx/webpack`), the `customWebpackConfig` that turns Nx's Angular webpack
+  build into a Module Federation 2 remote;
+- the `generate` executor (`@company/mfe-nx:generate`), which writes a container's `.mfe/` modules;
+- the `app` and `widget` generators, which scaffold a zoneless Angular 19 container with PrimeNG.
+
+The framework-neutral half of the build — discovery, the generated modules and artifacts, the
+share-scope machinery, the stylesheet's PostCSS chain — is `@company/mfe-build`; this package states
+what makes a container an Angular one (`src/profile.ts`) and wires the result into webpack.
 
 This package is consumed from a **separate Nx workspace**, not from this repository (this
 repository is a plain pnpm workspace and is not, and must not become, an Nx workspace).
@@ -12,6 +20,10 @@ repository is a plain pnpm workspace and is not, and must not become, an Nx work
 ```sh
 npm install --save-dev @company/mfe-nx
 ```
+
+The workspace must be on **Nx 20, 21 or 22**: an Angular 19.2 container builds with the
+`@nx/angular` of the workspace's own Nx version, and `@nx/angular` 23 requires Angular 20. The
+generator refuses any other Nx before writing anything. Verified end to end on Nx 22.7.12.
 
 ## Generating a container
 
@@ -31,107 +43,162 @@ nx g @company/mfe-nx:widget my-widget --port 3103
 | `packageName`     | `@example/<id>`                | The generated project's own `package.json` name.                                                                                  |
 | `tags`            | none                           | Comma-separated Nx project tags.                                                                                                  |
 | `skipFormat`      | `false`                        | Skip running `formatFiles` over the generated files.                                                                              |
-| `skipPackageJson` | `false`                        | Do not add the container's dependencies to the workspace `package.json` (its own manifest still lists them).                      |
+| `skipPackageJson` | `false`                        | Do not touch the workspace `package.json` (the project's own manifest still lists its dependencies).                              |
+
+Unless `skipPackageJson` is set, the generator adds the container's dependencies to the workspace
+`package.json` — `@nx/angular` at the workspace's own Nx version — and pins the workspace's
+TypeScript to 5.8.3 when it is outside the Angular 19.2 compiler's `>=5.5 <5.9`, saying so in the
+log: an Nx workspace has one TypeScript for every project in it.
 
 ## What gets generated
 
 ```
 apps/my-app/
-  project.json            # nx:run-commands targets: generate, build, serve, test, typecheck
-  package.json             # this container's own manifest: mfe.port, mfe.definitions, scripts, deps
-  rspack.config.ts         # createConfig() from @nx/angular-rspack, composed with withMfe()
+  project.json              # generate, build, serve, test, typecheck (see below)
+  package.json              # this container's own manifest: mfe.port, mfe.definitions, dependencies
+  webpack.config.ts         # export default withMfe()
   src/
-    main.ts                 # bootstraps nothing — the shell mounts the definition
-    index.html               # for `rspack serve` only; a remote is fetched, never browsed to
-    styles.css               # @import 'tailwindcss'; global styles only (Angular inlines the rest)
-    mfe.ts                    # createApp({ id, version, routes })
-    mfe.config.ts             # the config schema; values live in public/runtime-config.json
-    app.routes.ts              # '' and 'settings' (a capability route, via mfeRouteData)
-    overview.component.ts       # standalone, OnPush, injectUser()
-    overview.component.spec.ts   # @company/mfe-angular/testing's mountApp
+    index.html              # required by the Angular builder; a remote is never browsed to
+    styles.css              # the container's global stylesheet, compiled and scoped by the build
+    primeng.ts              # providePrimeNgForMfe() and bindPrimeNgDarkModeToShell()
+    mfe.ts                  # createApp({ id, version, routes, component, providers })
+    mfe.config.ts           # the config schema, with env from @company/mfe-nx/env
+    app.component.ts        # the root each mount renders: <router-outlet />, PrimeNG dark mode
+    app.routes.ts           # '' and 'settings' (a capability route, via mfeRouteData)
+    overview.component.ts   # p-select and p-button, injectUser()
+    overview.component.spec.ts
     settings.component.ts
   public/runtime-config.json
   tsconfig.json / tsconfig.app.json / tsconfig.spec.json
-  vitest.config.mts           # @analogjs/vite-plugin-angular, JIT
-  vitest.setup.ts              # import '@angular/compiler' — no zone.js
+  vitest.config.mts         # @analogjs/vite-plugin-angular, JIT
+  vitest.setup.ts           # import '@angular/compiler', matchMedia for PrimeNG — no zone.js
   .gitignore
   README.md
 ```
 
-A `widget` project omits the routing, config and `public/` files and instead has
-`src/mfe.ts` (`createWidget({ id, version, inputs, events, component })`, exporting the contract
-separately) and `src/<id>.component.ts` (signal `input()`/`output()`), with its `package.json`
-publishing `exports['./contracts']`.
+A `widget` project has no routes, configuration or `public/`; its `src/mfe.ts` calls
+`createWidget({ id, version, inputs, events, component, providers })` with the contract exported
+separately, `src/<id>.component.ts` renders a `p-button` with signal `input()`/`output()`, and its
+`package.json` publishes `exports['./contracts']`. Neither project gets an ESLint configuration yet.
 
-Every target runs `mfe-generate` (from `@company/mfe-rspack`) first: the build's `.mfe/*` modules
-have to exist before `rspack`, `vitest` or `tsc` can resolve them.
+The generated project depends on `@company/mfe-angular` and nothing beneath it: the neutral
+`@company/mfe-core` and `@company/mfe-runtime` arrive through the adapter, and the build shares
+them on its behalf (see [Sharing](#sharing)).
 
-## Pointing the shell at it
+## Targets
 
-```js
-const key = 'company:mfe:overrides'
-const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-overrides['<id>'] = 'http://localhost:<port>/mf-manifest.json'
-localStorage.setItem(key, JSON.stringify(overrides))
-location.reload()
+| Target      | Executor                      | Does                                                                                   |
+| ----------- | ----------------------------- | -------------------------------------------------------------------------------------- |
+| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/`, and seeds `public/runtime-config.json` with the declared defaults.     |
+| `build`     | `@nx/angular:webpack-browser` | `customWebpackConfig: webpack.config.ts`, `polyfills: []`, into `dist/<project root>`. |
+| `serve`     | `@nx/angular:dev-server`      | On the project's port, with `Access-Control-Allow-Origin: *` for the shell's origin.   |
+| `test`      | `nx:run-commands`             | `vitest run`.                                                                          |
+| `typecheck` | `nx:run-commands`             | `tsc --noEmit` over `tsconfig.app.json` and `tsconfig.spec.json`.                      |
+
+`build`, `serve`, `test` and `typecheck` depend on `generate`, because the `.mfe/` modules have to
+exist before webpack, Vitest or `tsc` can resolve them. The build's `main` names the generated entry
+stub, and its production configuration leaves `public/runtime-config.json` out of the copied
+assets: the build ships the declared defaults instead, and the builder copies assets only after
+webpack has emitted.
+
+## `withMfe()`
+
+```ts
+// webpack.config.ts
+import { withMfe } from '@company/mfe-nx/webpack'
+
+export default withMfe()
 ```
+
+The builder calls the exported function with the configuration Angular built; `withMfe()` adds one
+plugin and replaces nothing an author wrote. The container is the Nx project being built, or
+`withMfe({ containerRoot })`; `withMfe({ shared })` adds share candidates. The plugin:
+
+- plans the container from its sources and rewrites `.mfe/` before every compile;
+- makes the generated stub the only entry (a polyfills or global-styles bundle is never loaded by a
+  shell), and adds the `ModuleFederationPlugin` with the exposes and shares the plan derives
+  (`remoteEntry.js`, `mf-manifest.json`);
+- adapts what Angular configures for an application: `output.uniqueName` becomes the federation
+  name, an empty `publicPath` becomes `auto`, chunks load as classic scripts rather than module
+  scripts, the runtime stays in the remote entry (`runtimeChunk: false`), and top-level await is on
+  for the generated configuration module;
+- adds the `#mfe/*` aliases, and maps the `.js` specifiers the tsconfig's
+  `rewriteRelativeImportExtensions` produces back to the `.ts` sources;
+- sends the generated stylesheet through Angular's own global-style chain (extracted, loaded with
+  each exposed entry) and through Tailwind and the `@scope` fallback first. Component styles are
+  never touched: Angular encapsulates them. `src/styles.css` is imported into the generated
+  stylesheet, so it is scoped too. PrimeNG's run-time styles are outside both, which is why every
+  container pins one PrimeNG version and preset;
+- reports the plan's diagnostics as compilation errors, emits `mfe-registry.json` and the other
+  flat `.json` artifacts, ships the declared defaults as `runtime-config.json` in production, and
+  stamps `mf-manifest.json` with `metaData.mfe` (`framework: 'angular'`) once federation has
+  written it.
+
+## Sharing
+
+`src/federation/sharing.ts` holds the whole policy, in two groups so that the framework group can
+later move into a share scope keyed by the Angular version:
+
+- **Framework** — singleton and `strictVersion`: `@angular/core`, `@angular/common` (and the
+  `@angular/common/` prefix, for `@angular/common/http`), `@angular/platform-browser`,
+  `@angular/router`, `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix),
+  `rxjs` (and its prefix) and `@company/mfe-angular`.
+- **Page** — singleton and `strictVersion`: `@company/mfe-core` and `@company/mfe-runtime`.
+- **Never shared**: `primeng`, `@primeng/themes`, `@primeuix/styled`, `@primeuix/utils`. Their theme
+  engine keeps page-wide module state; `withMfe({ shared })` refuses them.
+
+A container shares a candidate it depends on. The page group is the exception: a React shell
+provides the neutral packages but never the Angular adapter, so the first Angular container on a
+page provides the adapter itself, and the adapter's own imports resolve in that container's build.
+The build therefore shares the page singletons the installed adapter depends on, at the ranges the
+adapter declares, although the container lists neither — otherwise every Angular mount would run
+against a second copy of the core.
+
+## Module format
+
+Nx `require()`s generators and executors, and `@nx/angular:webpack-browser` / `:dev-server` load
+`customWebpackConfig` with `require()` too, after registering a CommonJS TypeScript transpiler
+(swc-node or ts-node), and await the function it exports. So the whole package builds to
+**CommonJS**, `@company/mfe-nx/webpack` included, and every entry Nx or the builder loads is
+`require()`-able.
+
+`@company/mfe-build` is an ES module; this package reaches it with `require()`, which Node loads
+natively from 20.19 and 22.12 (`require(esm)`, valid because its module graph has no top-level
+await). `withMfe()` defers even that until the builder calls the function it returns: that
+transpiler is still registered while the config file itself is being required, and it rewrites any
+linked package the file loads — including `@company/mfe-build`'s ES modules, which it breaks. By
+the time the function runs, the transpiler is unregistered.
+
+`tsconfig.json` sets `module: "node20"`: each file's format follows its package (`"type":
+"commonjs"` here, so this package compiles to CommonJS), `@company/mfe-build`'s ES modules
+type-check with `import.meta`, `require()` of them is accepted, and a dynamic `import()` stays one.
+`verbatimModuleSyntax` is off so the source keeps plain `import`/`export`, and
+`rewriteRelativeImportExtensions` (from the repository's base config) keeps the repository's
+convention of local imports carrying their extension. `tsconfig.build.json` sets `rootDir: "."` so
+the emitted layout keeps the `src/` segment `generators.json` and `executors.json` point at, and
+`scripts/copy-templates.mjs` copies the template folders and JSON schemas `tsc` does not emit.
 
 ## Version requirements
 
-- **Angular 19.2.x**, zoneless only — the generated container never imports `zone.js` and always
-  provides `provideExperimentalZonelessChangeDetection()`.
-- **TypeScript 5.8.x** — Angular 19's compiler rejects TypeScript 5.9+, so the generated project
-  is pinned there regardless of what this Nx workspace's own root TypeScript is.
-- **Nx 20–22** — `@nx/angular-rspack` ships a line per Nx major that still supports Angular 19
-  (20.6–20.9, 21.x, 22.x; 23.x requires Angular 20+). This generator reads the workspace's
-  installed `nx` version and picks the matching `@nx/angular-rspack` line (20 → `20.9.0`,
-  21 → `21.6.5`, 22 → `22.7.12`); an unrecognized major falls back to the Nx 22 line and logs why.
-- **`@nx/devkit`**: this package's `peerDependencies` declare `>=20.0.0 <24.0.0`, written
-  literally rather than as a repository `catalog:` entry, because `@nx/devkit`'s own supported
-  `nx` range differs by major and a consumer workspace's Nx version is unrelated to this
-  repository's own toolchain. The `catalog:` pin of `@nx/devkit`/`nx` in this repository's
-  `pnpm-workspace.yaml` is only for this package's own tests and typecheck.
+- **Angular 19.2.x**, zoneless only — the generated container never imports `zone.js` and has no
+  polyfills. The builder is `@angular-devkit/build-angular` 19.2.27, the CLI release beside
+  framework 19.2.25.
+- **TypeScript 5.8.x** — Angular 19.2's compiler rejects 5.9 and later.
+- **PrimeNG 19.1.4** with `@primeng/themes` 19.1.4 (its deprecation notice points to
+  `@primeuix/themes`, which only PrimeNG 20 reads). Every Angular container on a page uses the same
+  version and preset.
+- **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**.
+- **`@nx/devkit`**: this package's `peerDependencies` declare `>=20.0.0 <23.0.0`, written literally
+  rather than as a repository `catalog:` entry, because a consumer workspace's Nx version is
+  unrelated to this repository's toolchain. The `catalog:` pins of `@nx/devkit`, `nx`, `webpack`,
+  `css-loader` and `mini-css-extract-plugin` in this repository's `pnpm-workspace.yaml` are for this
+  package's own tests, which compile a small container with real webpack.
 
-## Targets: `nx:run-commands` over the Rspack CLI
+## TypeScript-source dependencies
 
-`build`, `serve`, `test`, `typecheck` and `generate` are plain `nx:run-commands` targets running
-`rspack build` / `rspack serve` / `vitest run` / `tsc --noEmit` / `mfe-generate` directly, rather
-than an `@nx/rspack:rspack` / `@nx/rspack:dev-server` executor. `@nx/angular-rspack`'s
-`createConfig` is a plain configuration function, not an executor, and ships no Nx executor of its
-own; `nx:run-commands` keeps this generator's own version compatibility independent of
-`@nx/rspack`'s. If a workspace prefers the executor-based idiom, `@nx/rspack:rspack` (build) and
-`@nx/rspack:dev-server` (serve) both accept the generated `rspack.config.ts` as their
-`main`/`config` — swap the two `build`/`serve` target definitions in `project.json` after
-generation; `test`, `typecheck` and `generate` stay as `nx:run-commands` either way, since there is
-no dedicated Nx executor for either.
-
-## Lint config
-
-The generated project does not include an `eslint.config.ts`: `@company/eslint-plugin-mfe`'s
-`author()` preset applies `@tanstack/eslint-plugin-query` and `@tanstack/eslint-plugin-router`
-unconditionally (there is no option to omit them today), and neither plugin belongs in an Angular
-container. Generate a workspace-appropriate `eslint.config.mjs` by hand, or wait for `author()` to
-gain a `router: false` / `query: false` option (tracked as follow-up work on
-`@company/eslint-plugin-mfe`).
-
-## CommonJS build
-
-Nx loads generator factories with a synchronous `require()`, so this package builds to CommonJS —
-the one package in this repository that does not build to ESM. Its `tsconfig.json` sets
-`"module": "commonjs"` and `"verbatimModuleSyntax": false`: `verbatimModuleSyntax` requires
-`export =` / `import ... = require()` syntax once a file's effective module kind is CommonJS
-(TypeScript 6.0.3 raises `TS1287` for a top-level `export const` otherwise), which would make this
-package's source look unlike every other package's plain `import`/`export`. `module: "commonjs"`
-is independent of Node's own per-file module-kind detection (unlike `module: "node16"` /
-`"nodenext"`, which reject `TS1287` the same way once a file resolves as CommonJS), so ordinary
-`import`/`export` syntax keeps working and only the _emitted_ format changes.
-`allowImportingTsExtensions` and `rewriteRelativeImportExtensions` (inherited from the repository's
-base config) still rewrite a local `./foo.ts` import to `./foo.js` on emit, so this package's
-source keeps the repository's usual convention of local imports carrying their extension.
-`tsconfig.build.json` sets `rootDir: "."` (rather than the `"src"` every other package in this
-repository uses) so the emitted layout keeps the `src/` segment: `generators.json`'s factories
-point at `./dist/src/generators/app/generator#default` and
-`./dist/src/generators/widget/generator#default`. `scripts/copy-templates.mjs` copies the
-generator template folders and `schema.json` files — neither of which `tsc` emits — into `dist`
-alongside the compiled generators after the build, so `path.join(__dirname, 'files')` resolves
-correctly from both `src` (under Vitest) and `dist` (under Nx).
+`@company/mfe-angular`, `@company/mfe-core`, `@company/mfe-runtime` and `@company/mfe-build`
+currently publish TypeScript source. TypeScript never emits a `.ts` file it reached through
+`node_modules` (it is an external library file), so the Angular compiler hands webpack an _empty_
+module for each of them, and the build succeeds with a remote whose adapter does nothing. Until
+they ship compiled output, a workspace consuming them has to add their sources to the container's
+`tsconfig.app.json` and `tsconfig.spec.json` `include`.

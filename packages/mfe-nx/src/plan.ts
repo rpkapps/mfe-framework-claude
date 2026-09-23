@@ -25,7 +25,10 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
   const plan = planBuildContainer(angularProfile(), { ...options, containerRoot })
 
   // The container's own entries win: one it depends on directly, or one its author added.
-  return { ...plan, shared: sortedByName({ ...adapterCarriedShares(containerRoot), ...plan.shared }) }
+  return {
+    ...plan,
+    shared: sortedByName({ ...adapterCarriedShares(containerRoot), ...plan.shared }),
+  }
 }
 
 /** The same order the neutral build writes, so the federation options are stable between builds. */

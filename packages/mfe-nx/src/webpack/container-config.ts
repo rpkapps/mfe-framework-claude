@@ -20,10 +20,7 @@ export function addContainerPlugin(
 
   return {
     ...config,
-    plugins: [
-      ...(config.plugins ?? []),
-      new MfeWebpackPlugin({ ...options, containerRoot }),
-    ],
+    plugins: [...(config.plugins ?? []), new MfeWebpackPlugin({ ...options, containerRoot })],
   }
 }
 

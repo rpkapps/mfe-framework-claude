@@ -59,12 +59,7 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
 
     applyContainerShape(compiler, plan)
     applyContainerStylesheet(compiler, currentPlan)
-    new ModuleFederationPlugin({
-      ...buildFederationOptions(plan),
-      // Otherwise the federation runtime's entry is written into the working directory's
-      // node_modules as a `.js` file, whose module type that directory's package.json decides.
-      virtualRuntimeEntry: true,
-    }).apply(compiler)
+    new ModuleFederationPlugin(buildFederationOptions(plan)).apply(compiler)
 
     compiler.hooks.beforeCompile.tap(PLUGIN_NAME, () => {
       this.#refresh(containerRoot)

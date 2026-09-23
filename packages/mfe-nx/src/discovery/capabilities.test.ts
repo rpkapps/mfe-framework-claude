@@ -90,7 +90,9 @@ export const reports = createApp({
 `,
     })
 
-    expect(capabilitiesOf(root)).toEqual([{ name: 'settings', label: 'Settings', path: '/settings' }])
+    expect(capabilitiesOf(root)).toEqual([
+      { name: 'settings', label: 'Settings', path: '/settings' },
+    ])
   })
 
   it('reads the factory through an alias or a namespace import of the adapter', () => {
@@ -211,6 +213,8 @@ export const routes = [{ path: 'settings', data: mfeRouteData({ capability: 'set
 `,
     })
 
-    expect(() => capabilitiesOf(root)).toThrowError(/a capability declared by an App.*Widgets only/s)
+    expect(() => capabilitiesOf(root)).toThrowError(
+      /a capability declared by an App.*Widgets only/s,
+    )
   })
 })

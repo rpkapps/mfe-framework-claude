@@ -3,7 +3,7 @@
   "$id": "NxMfeApp",
   "cli": "nx",
   "title": "Generate an Angular MFE App container",
-  "description": "Scaffolds a zoneless Angular 19 App container: a routable, self-mounting definition built with @company/mfe-angular's createApp, built by @nx/angular:webpack-browser with @company/mfe-nx/webpack's withMfe() as a Module Federation remote, with PrimeNG.",
+  "description": "Scaffolds a zoneless Angular 19 App container: a routable, self-mounting definition made with @company/mfe-angular's createApp and PrimeNG, built by @nx/angular:webpack-browser with @company/mfe-nx/webpack's withMfe() into a Module Federation remote.",
   "type": "object",
   "properties": {
     "name": {

@@ -62,7 +62,12 @@ describe('the Angular sharing policy', () => {
   })
 
   it('never offers PrimeNG or its theme engine as a candidate', () => {
-    expect(NEVER_SHARED).toEqual(['primeng', '@primeng/themes', '@primeuix/styled', '@primeuix/utils'])
+    expect(NEVER_SHARED).toEqual([
+      'primeng',
+      '@primeng/themes',
+      '@primeuix/styled',
+      '@primeuix/utils',
+    ])
     for (const name of NEVER_SHARED) {
       expect(Object.keys(ANGULAR_SHARING_POLICY).some(key => key.startsWith(name))).toBe(false)
     }
@@ -100,7 +105,11 @@ describe('the page singletons the adapter carries', () => {
   it("join the plan's shares, where the container's own entry for a package wins", () => {
     const root = createContainer(
       { 'src/mfe.ts': WIDGET_ENTRY },
-      { manifest: { dependencies: { '@company/mfe-angular': '^0.1.0', '@company/mfe-core': '~0.1.3' } } },
+      {
+        manifest: {
+          dependencies: { '@company/mfe-angular': '^0.1.0', '@company/mfe-core': '~0.1.3' },
+        },
+      },
     )
 
     const plan = planContainer({ containerRoot: root })

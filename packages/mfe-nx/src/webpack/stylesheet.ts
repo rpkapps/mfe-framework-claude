@@ -7,13 +7,15 @@
 
 import { resolve } from 'node:path'
 
+import type { Compiler, RuleSetRule } from 'webpack'
+
 import {
   containerPostcssPlugins,
-  generatedPath,
   scopeFallbackPlugin,
   type ContainerPlan,
 } from '@company/mfe-build'
-import type { Compiler, RuleSetRule } from 'webpack'
+
+import { containerStylesheetPath } from '../generate/styles.ts'
 
 const PLUGIN_NAME = 'MfeContainerStylesheet'
 
@@ -28,7 +30,7 @@ export function applyContainerStylesheet(
   compiler: Compiler,
   currentPlan: () => ContainerPlan,
 ): void {
-  const stylesheet = generatedPath(currentPlan().options.generatedDir, 'styles.css')
+  const stylesheet = containerStylesheetPath(currentPlan().options.generatedDir)
 
   compiler.hooks.normalModuleFactory.tap(PLUGIN_NAME, factory => {
     factory.hooks.beforeResolve.tap(PLUGIN_NAME, data => {

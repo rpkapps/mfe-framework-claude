@@ -53,7 +53,13 @@ export function createContainer(
  */
 function installAdapter(root: string): void {
   writePackage(root, '@company/mfe-core', '0.1.3', {}, 'export const HOST_SCOPE = "@host"\n')
-  writePackage(root, '@company/mfe-runtime', '0.1.3', {}, 'export const MOUNT_ATTRIBUTE = "data-mfe-mount"\n')
+  writePackage(
+    root,
+    '@company/mfe-runtime',
+    '0.1.3',
+    {},
+    'export const MOUNT_ATTRIBUTE = "data-mfe-mount"\n',
+  )
   writePackage(
     root,
     '@company/mfe-angular',

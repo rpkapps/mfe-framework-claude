@@ -36,6 +36,9 @@ peerDependencyRules:
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.
 catalog:
+  '@angular-eslint/eslint-plugin': 22.5.0
+  '@angular-eslint/eslint-plugin-template': 22.5.0
+  '@angular-eslint/template-parser': 22.5.0
   '@angular/common': 19.2.25
   '@angular/compiler': 19.2.25
   '@angular/core': 19.2.25

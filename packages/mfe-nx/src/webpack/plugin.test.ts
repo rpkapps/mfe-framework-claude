@@ -118,6 +118,10 @@ function angularLikeConfig(
     },
     module: {
       rules: [
+        // The federation runtime writes its entry under the working directory's node_modules.
+        // Angular's builder runs in the workspace root, which declares no module type; these
+        // tests run in this CommonJS package, whose type would make that ES module unreadable.
+        { test: /[\\/]node_modules[\\/]\.federation[\\/]/, type: 'javascript/auto' },
         { test: /\.ts$/, use: [TYPESCRIPT_LOADER] },
         {
           test: /\.css$/i,
@@ -209,8 +213,9 @@ describe('MfeWebpackPlugin on a production compile', () => {
       expect(existsSync(join(root, 'dist/remoteEntry.js'))).toBe(true)
 
       // The application and polyfills entries are replaced by the generated stub: neither
-      // src/main.ts nor src/polyfills.ts exists, so compiling either would have failed.
-      expect([...stats.compilation.entrypoints.keys()]).toEqual(['main'])
+      // src/main.ts nor src/polyfills.ts exists, so compiling either would have failed. The other
+      // entry point is the federation container, named after the package.
+      expect([...stats.compilation.entrypoints.keys()].sort()).toEqual(['acme_reports', 'main'])
 
       const output = stats.compilation.outputOptions
       expect(output.uniqueName).toBe('acme_reports')
@@ -242,7 +247,7 @@ describe('MfeWebpackPlugin on a production compile', () => {
   )
 
   it(
-    "shares the neutral packages the adapter imports, which the container never lists",
+    'shares the neutral packages the adapter imports, which the container never lists',
     async () => {
       const root = reportsContainer()
 
@@ -252,7 +257,11 @@ describe('MfeWebpackPlugin on a production compile', () => {
         share => share.name,
       )
       expect(shared).toEqual(
-        expect.arrayContaining(['@company/mfe-angular', '@company/mfe-core', '@company/mfe-runtime']),
+        expect.arrayContaining([
+          '@company/mfe-angular',
+          '@company/mfe-core',
+          '@company/mfe-runtime',
+        ]),
       )
     },
     COMPILE_TIMEOUT,

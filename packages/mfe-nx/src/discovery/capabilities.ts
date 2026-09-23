@@ -35,9 +35,9 @@ const ROUTE_DATA_TERMS: MarkerTerms = {
  * Every `mfeRouteData(…)` in the container's sources declaring a capability. The routes array is
  * only followed once a marker needs its path, so a container without one never reads it.
  */
-export const readRouteDataCapabilities: NonNullable<ContainerProfile['readCapabilities']> = (
-  context,
-) => {
+export const readRouteDataCapabilities: NonNullable<
+  ContainerProfile['readCapabilities']
+> = context => {
   const { owner } = context
   let appRoutes: AppRoutes | undefined
   const markers: CapabilityMarker[] = []

@@ -22,7 +22,8 @@ export function readNxVersion(tree: Tree): string | undefined {
  */
 export function pinWorkspaceTypeScript(tree: Tree): void {
   const root = readJson<RootPackageJson>(tree, 'package.json')
-  const field = root.devDependencies?.['typescript'] === undefined ? 'dependencies' : 'devDependencies'
+  const field =
+    root.devDependencies?.['typescript'] === undefined ? 'dependencies' : 'devDependencies'
   const current = root[field]?.['typescript']
   if (current === undefined || isAngularCompatibleTypeScript(current)) return
 
