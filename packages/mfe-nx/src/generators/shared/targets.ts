@@ -9,23 +9,23 @@ import { joinPathFragments, type TargetConfiguration } from '@nx/devkit'
 
 import type { NormalizedSchema } from './normalize.ts'
 
-const RUNTIME_CONFIG_FILE = 'runtime-config.json'
-
 /** The dev server a shell fetches the container from lives on another origin, always. */
 const CROSS_ORIGIN_HEADERS = { 'Access-Control-Allow-Origin': '*' }
 
 export function buildTargets(options: NormalizedSchema): Record<string, TargetConfiguration> {
   const root = options.projectRoot
   const inRoot = (path: string): string => joinPathFragments(root, path)
-  // The dev server publishes public/ beside the container's assets, which is where the generated
-  // #mfe/config fetches runtime-config.json from.
+  // Copied beside the container's assets by every build, and served by the dev server. The
+  // runtime configuration is never in it: withMfe() serves the developer's copy from `.mfe/`, and
+  // a build ships the declared defaults.
   const publicAssets = { glob: '**/*', input: inRoot('public') }
 
   return {
     generate: {
       executor: '@company/mfe-nx:generate',
-      // Cheap, and it seeds `public/runtime-config.json` beside what it generates, so a cached
-      // replay would restore half of what it does.
+      // Cheap, and it seeds `.mfe/runtime-config.json`, the developer's own values, beside what it
+      // generates: a cached replay would restore half of what it does, and restoring `.mfe/` as an
+      // output would put an old copy of those values back.
       cache: false,
     },
     build: {
@@ -51,10 +51,6 @@ export function buildTargets(options: NormalizedSchema): Record<string, TargetCo
       },
       configurations: {
         production: {
-          // A production build ships the declared defaults as runtime-config.json; the
-          // developer's copy in public/ carries local values, and the builder copies assets
-          // after webpack has emitted, so it is left out here rather than overwritten there.
-          assets: [{ ...publicAssets, ignore: [RUNTIME_CONFIG_FILE] }],
           optimization: true,
           outputHashing: 'all',
           sourceMap: false,

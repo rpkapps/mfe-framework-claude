@@ -16,11 +16,18 @@ on its own: the shell mounts its definition, `src/mfe.ts`, one Angular applicati
 
 ## Configuration
 
-`src/mfe.config.ts` holds the schema and the environment mapping — no values and no secrets. The
-values live in `public/runtime-config.json`: the dev server publishes `public/` next to this
-container's assets, which is where the generated loader fetches it from at boot. Put your local
-values there. A build ships the declared defaults instead, and a deployment writes its own file
-beside its assets, so no local value is ever built into the container.
+`src/mfe.config.ts` holds the schema and the environment mapping — no values and no secrets. Your
+local values live in `.mfe/runtime-config.json`, the one file in `.mfe/` that is committed. The dev
+server answers `runtime-config.json` beside this container's assets with it, which is where the
+generated loader fetches it from at boot, and the `generate` target adds any declared default it
+lacks without changing a value you set. No build copies `.mfe/`: a build ships the declared
+defaults as `runtime-config.json`, and a deployment writes its own values over them, so no local
+value can reach production.
+
+If `webpack.config.ts` renames the file with `withMfe({ runtimeConfigFileName })`, the dev server
+serves `.mfe/<that name>` instead: create it yourself, since the `generate` target does not read
+`webpack.config.ts` and seeds only `.mfe/runtime-config.json`, and add `!.mfe/<that name>` to
+`.gitignore`.
 
 Read configuration with `import { config } from '#mfe/config'` and make authenticated requests
 with `import { fetch } from '#mfe/fetch'`; the token is attached only to origins declared

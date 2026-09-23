@@ -45,7 +45,7 @@ describe('the app generator', () => {
     const expected = [
       'project.json',
       'package.json',
-      'public/runtime-config.json',
+      '.mfe/runtime-config.json',
       'webpack.config.ts',
       'eslint.config.ts',
       'src/index.html',
@@ -225,17 +225,16 @@ describe('the app generator', () => {
     expect(build.defaultConfiguration).toBe('production')
   })
 
-  it("keeps the developer's runtime-config.json out of a production build only", async () => {
+  it('copies all of public/ in every configuration, since the runtime config is never in it', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const project = readProjectConfiguration(tree, 'operations')
     expect(optionsOf(project, 'build')['assets']).toEqual([
       { glob: '**/*', input: 'apps/operations/public' },
     ])
-    expect(configurationOf(project, 'build', 'production')['assets']).toEqual([
-      { glob: '**/*', input: 'apps/operations/public', ignore: ['runtime-config.json'] },
-    ])
+    expect(configurationOf(project, 'build', 'production')).not.toHaveProperty('assets')
     expect(configurationOf(project, 'build', 'development')).not.toHaveProperty('assets')
+    expect(tree.exists('apps/operations/public')).toBe(false)
   })
 
   it('serves with the Angular dev server on its port, readable from the shell’s origin', async () => {
@@ -333,14 +332,24 @@ describe('the app generator', () => {
     expect(tree.exists('apps/operations/project.json')).toBe(false)
   })
 
-  it('writes the runtime config its own #mfe/config fetches at boot', async () => {
+  it('writes the runtime config its own #mfe/config fetches at boot, where only the dev server reads it', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const config = readJson<{ apiBaseUrl: string }>(
       tree,
-      'apps/operations/public/runtime-config.json',
+      'apps/operations/.mfe/runtime-config.json',
     )
     expect(config.apiBaseUrl).toMatch(/^https?:\/\//)
+  })
+
+  it('ignores the generated .mfe/ modules but keeps the developer’s runtime config committed', async () => {
+    await appGenerator(tree, { name: 'operations', skipFormat: true })
+
+    const ignored = readTreeFile(tree, 'apps/operations/.gitignore').split('\n')
+    expect(ignored).toContain('.mfe/*')
+    expect(ignored).toContain('!.mfe/runtime-config.json')
+    // A directory pattern would stop git looking inside, so the exception could never apply.
+    expect(ignored).not.toContain('.mfe/')
   })
 
   it('compiles for the browser with Angular decorators, whatever the workspace base targets', async () => {

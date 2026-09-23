@@ -44,7 +44,8 @@ describe('the widget generator', () => {
     await widgetGenerator(tree, { name: 'alert-panel', skipFormat: true })
 
     expect(readTreeFile(tree, 'apps/alert-panel/src/mfe.ts')).not.toContain('routes')
-    expect(tree.exists('apps/alert-panel/public/runtime-config.json')).toBe(false)
+    expect(tree.exists('apps/alert-panel/.mfe/runtime-config.json')).toBe(false)
+    expect(tree.exists('apps/alert-panel/public')).toBe(false)
   })
 
   it('lints against the Angular preset, and declares its own src/ as its Widget scope', async () => {

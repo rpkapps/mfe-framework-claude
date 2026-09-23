@@ -69,11 +69,11 @@ apps/my-app/
     overview.component.ts   # p-select and p-button, injectUser()
     overview.component.spec.ts
     settings.component.ts
-  public/runtime-config.json
+  .mfe/runtime-config.json  # your local values: served by the dev server, never copied into a build
   tsconfig.json / tsconfig.app.json / tsconfig.spec.json
   vitest.config.mts         # @analogjs/vite-plugin-angular, JIT
   vitest.setup.ts           # import '@angular/compiler', matchMedia for PrimeNG — no zone.js
-  .gitignore
+  .gitignore                # .mfe/*, except !.mfe/runtime-config.json
   README.md
 ```
 
@@ -86,7 +86,7 @@ needs `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the c
 writes unscoped global styles, so every Angular container on a page uses the same PrimeNG version
 and preset.
 
-A `widget` project has no routes, configuration or `public/`; its `src/mfe.ts` calls
+A `widget` project has no routes, configuration or local values; its `src/mfe.ts` calls
 `createWidget({ id, version, inputs, events, component, providers })` with the contract exported
 separately, `src/<id>.component.ts` renders a `p-button` with signal `input()`/`output()`, and its
 `package.json` publishes `exports['./contracts']`. Its `eslint.config.ts` declares its whole `src/`
@@ -101,7 +101,7 @@ them on its behalf (see [Sharing](#sharing)).
 
 | Target      | Executor                      | Does                                                                                   |
 | ----------- | ----------------------------- | -------------------------------------------------------------------------------------- |
-| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/`, and seeds `public/runtime-config.json` with the declared defaults.     |
+| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/`, and seeds `.mfe/runtime-config.json` with the declared defaults.       |
 | `build`     | `@nx/angular:webpack-browser` | `customWebpackConfig: webpack.config.ts`, `polyfills: []`, into `dist/<project root>`. |
 | `serve`     | `@nx/angular:dev-server`      | On the project's port, with `Access-Control-Allow-Origin: *` for the shell's origin.   |
 | `test`      | `nx:run-commands`             | `vitest run`.                                                                          |
@@ -110,9 +110,27 @@ them on its behalf (see [Sharing](#sharing)).
 
 `build`, `serve`, `test`, `typecheck` and `lint` depend on `generate`, because the `.mfe/` modules
 have to exist before webpack, Vitest, `tsc` or ESLint's `#mfe/*` imports can resolve them. The
-build's `main` names the generated entry stub, and its production configuration leaves
-`public/runtime-config.json` out of the copied assets: the build ships the declared defaults
-instead, and the builder copies assets only after webpack has emitted.
+build's `main` names the generated entry stub, and every configuration copies all of `public/`.
+
+## Local runtime configuration
+
+The developer's own values, such as a localhost API, live in `.mfe/runtime-config.json`. `generate`
+adds any declared default the file lacks and never changes or removes a value already there, and
+nothing that regenerates `.mfe/` touches it. `withMfe()` adds a middleware to Angular's dev server,
+ahead of the compiled output, that answers `runtime-config.json` beside the container's assets with
+that file, read on every request; so the generated `#mfe/config` fetches the same URL in development
+and in production. No build copies `.mfe/`, so a production build ships only the declared defaults,
+whatever the file holds and whatever it is named.
+
+It is the one file in `.mfe/` that is committed: the generated `.gitignore` ignores `.mfe/*` and
+adds `!.mfe/runtime-config.json`. `withMfe({ runtimeConfigFileName })` renames it, to
+`.mfe/<that name>`, which then needs its own `!.mfe/<that name>` line. The `generate` executor does
+not read `webpack.config.ts`, so it seeds only `.mfe/runtime-config.json`; create the renamed file
+yourself.
+
+A container generated before the file moved kept it in `public/`, which every build copies into its
+output. `generate` moves it to `.mfe/` once, byte for byte, and says so. When both exist it leaves
+both and warns that the `public/` copy is no longer read and would now ship: delete it.
 
 ## `withMfe()`
 
@@ -145,7 +163,9 @@ plugin and replaces nothing an author wrote. The container is the Nx project bei
 - reports the plan's diagnostics as compilation errors, emits `mfe-registry.json` and the other
   flat `.json` artifacts, ships the declared defaults as `runtime-config.json` in production, and
   stamps `mf-manifest.json` with `metaData.mfe` (`framework: 'angular'`) once federation has
-  written it.
+  written it;
+- in the dev server, answers `runtime-config.json` with the developer's `.mfe/runtime-config.json`
+  (see [Local runtime configuration](#local-runtime-configuration)).
 
 ## Sharing
 

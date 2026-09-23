@@ -70,7 +70,9 @@ export async function generateProject(
   )
 
   if (template === 'app') {
-    writeJson(tree, join(options.projectRoot, 'public/runtime-config.json'), {
+    // The developer's own values, which the dev server serves and no build copies: the `generate`
+    // target adds the declared defaults, and this is the one value `src/mfe.config.ts` requires.
+    writeJson(tree, join(options.projectRoot, '.mfe/runtime-config.json'), {
       apiBaseUrl: 'https://api.example.test/v1/',
     })
   }

@@ -1,2 +1,4 @@
 # Generated build modules. The generate target writes them before build, serve, test and typecheck.
-.mfe/
+.mfe/*
+# Except the developer's own runtime configuration, which the dev server serves and no build ships.
+!.mfe/runtime-config.json
