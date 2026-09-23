@@ -39,6 +39,16 @@ export {
 
 export { MountLifecycle, type MountLifecycleOptions } from './mount/mount-lifecycle.ts'
 
+/** How every host mounts every definition, into an element it provides. */
+export {
+  mountDefinition,
+  type AppMountRequest,
+  type DefinitionMount,
+  type MountRequest,
+  type WidgetDefinitionMount,
+  type WidgetMountRequest,
+} from './mount/mount-definition.ts'
+
 export {
   createMountContext,
   createMountToken,

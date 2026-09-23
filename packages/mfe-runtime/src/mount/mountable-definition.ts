@@ -5,6 +5,11 @@
  * component tree, so this is the only way one framework's host places another framework's
  * container.
  *
+ * The runtime owns both roots a mount has. It creates the scope root, which carries the
+ * attributes the container's scoped stylesheet matches, with `target.element` inside it, and the
+ * body-level overlay root on the context. A definition renders into `target.element`, portals
+ * into `context.overlayRoot`, and never adds a root of its own.
+ *
  * Validation is split the way a Widget boundary splits it everywhere. The provider — the
  * definition's `mount` — checks inputs for serializability and against its own schema, and every
  * payload it emits against its own event schema, throwing in its own stack. The host checks only
@@ -34,6 +39,8 @@ export interface WidgetMountTarget {
    * again counts one rejection twice.
    */
   readonly onInputRejected?: (error: MfeError) => void
+  /** A fatal failure after the mount resolved; see `AppMountTarget.onFailure`. */
+  readonly onFailure?: (error: unknown) => void
 }
 
 export interface AppMountTarget {
@@ -41,17 +48,33 @@ export interface AppMountTarget {
   readonly element: HTMLElement
   /** The navigation bridge is `context.runtime.navigator`. */
   readonly context: MountContext
+  /**
+   * A fatal failure after the mount resolved, such as a framework root that unmounted itself.
+   * The mount moves to its error state and is torn down, so the host can offer a retry rather
+   * than a blank area. A failure before the mount resolves rejects the mount instead.
+   * `mountDefinition` always provides it.
+   */
+  readonly onFailure?: (error: unknown) => void
 }
 
 export interface MountedWidget {
-  /** Replace the inputs; invalid inputs are reported through `onInputRejected`, not thrown. */
+  /**
+   * Replace the inputs; invalid inputs are reported through `onInputRejected`, not thrown. Called
+   * only when they changed: the host drops a set shallow-equal to the last one it passed on.
+   */
   update(inputs: Readonly<Record<string, unknown>>): void
-  /** Empties the element it was given; the host disposes the mount context afterwards. */
+  /**
+   * Empties the element it was given. Called once, asynchronously rather than from inside a
+   * host's render, and before the host disposes the mount context.
+   */
   dispose(): Promise<void>
 }
 
 export interface MountedApp {
-  /** Empties the element it was given; the host disposes the mount context afterwards. */
+  /**
+   * Empties the element it was given. Called once, asynchronously rather than from inside a
+   * host's render, and before the host disposes the mount context.
+   */
   dispose(): Promise<void>
 }
 

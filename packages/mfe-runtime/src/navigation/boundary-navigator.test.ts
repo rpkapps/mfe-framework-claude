@@ -18,6 +18,7 @@ import {
   type NavigationBlocker,
 } from './boundary-navigator.ts'
 import { deferred, recordingDiagnostics } from '../__tests__/harness.ts'
+import { createMemoryNavigationBridge } from '../testing/memory-navigation-bridge.ts'
 
 const INTENT: NavigationIntent = {
   from: { pathname: '/reports/42/edit', search: '', hash: '' },
@@ -534,6 +535,99 @@ describe('bridge delegation', () => {
 
     unsubscribe()
     expect(bridge.listeners).toHaveLength(0)
+  })
+})
+
+/** A host's own router moves the page without the bridge hearing it; `announce` tells mounts. */
+describe('announce', () => {
+  const at = (pathname: string): BoundaryLocation => ({ pathname, search: '', hash: '' })
+
+  function announcing(initial = '/reports') {
+    const bridge = createMemoryNavigationBridge([initial])
+    const navigator = new BoundaryNavigator({ bridge })
+    const heard: string[] = []
+    const unsubscribe = navigator.subscribe(location => heard.push(location.pathname))
+    return { bridge, navigator, heard, unsubscribe }
+  }
+
+  it('tells every subscriber where a navigation the host made itself took the page', () => {
+    const { bridge, navigator, heard } = announcing()
+    const second: BoundaryLocation[] = []
+    navigator.subscribe(location => second.push(location))
+
+    bridge.push('/reports/42')
+    navigator.announce()
+
+    expect(heard).toEqual(['/reports/42'])
+    expect(second).toEqual([at('/reports/42')])
+  })
+
+  it('emits nothing when the page is where subscribers were last told it is', () => {
+    const { bridge, navigator, heard } = announcing()
+
+    navigator.announce()
+    bridge.push('/reports/42')
+    navigator.announce()
+    navigator.announce()
+
+    expect(heard).toEqual(['/reports/42'])
+  })
+
+  it('repeats nothing the bridge already delivered', async () => {
+    const { bridge, navigator, heard } = announcing()
+    bridge.push('/reports/42')
+    bridge.back()
+    await Promise.resolve()
+    expect(heard).toEqual(['/reports'])
+
+    navigator.announce()
+
+    expect(heard).toEqual(['/reports'])
+  })
+
+  it('treats a push through the navigator as known, and still announces a return from it', () => {
+    const { bridge, navigator, heard } = announcing()
+
+    // A mounted App navigates inside its boundary; it already knows where it went.
+    navigator.push('/reports/42')
+    navigator.announce()
+    expect(heard).toEqual([])
+
+    // The host then takes the page back to where the App started.
+    bridge.push('/reports')
+    navigator.announce()
+
+    expect(heard).toEqual(['/reports'])
+  })
+
+  it('holds an announcement while a navigation is negotiated, and releases it if it proceeds', async () => {
+    const { bridge, navigator, heard } = announcing()
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+
+    const negotiation = navigator.requestNavigation(INTENT, vi.fn())
+    bridge.push('/billing')
+    navigator.announce()
+    expect(heard).toEqual([])
+
+    answer.resolve('proceed')
+    await negotiation
+
+    expect(heard).toEqual(['/billing'])
+  })
+
+  it('announces nothing to a listener that unsubscribed', () => {
+    const { bridge, navigator, heard, unsubscribe } = announcing()
+
+    unsubscribe()
+    bridge.push('/reports/42')
+    navigator.announce()
+
+    expect(heard).toEqual([])
   })
 })
 

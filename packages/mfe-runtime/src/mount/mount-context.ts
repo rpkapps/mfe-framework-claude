@@ -7,7 +7,7 @@ import type { DefinitionKind, MfeStorage, MfeTelemetry } from '@company/mfe-core
 
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { createMountTelemetry } from '../telemetry/service.ts'
-import { createOverlayRoot } from './scope-root.ts'
+import { applyScopeAttributes, createOverlayRoot } from './scope-root.ts'
 
 /** Everything one mount owns. */
 export interface MountContext {
@@ -28,6 +28,11 @@ export interface MountContext {
   }
   /** Aborts on disposal. */
   readonly signal: AbortSignal
+  /**
+   * The element carrying this mount's scope attributes, which its scoped stylesheet matches. The
+   * runtime creates and places it; the definition renders inside it, never replaces it.
+   */
+  readonly scopeRoot: HTMLElement
   /** Framework-created body-level root for overlays raised by this mount. */
   readonly overlayRoot: HTMLElement
 }
@@ -39,7 +44,14 @@ export interface CreateMountContextOptions {
   readonly kind: DefinitionKind
   /** The assigned URL boundary, always `''` for a Widget. */
   readonly basePath?: string
+  /** The enclosing mount's depth plus one; 1, a top-level mount, when omitted. */
   readonly depth?: number
+  /**
+   * Stamped with this mount's scope attributes, so the token on it is always the context's own.
+   * The caller places and removes it. Omitted, the context carries a detached element instead,
+   * for a host that still renders a scope root of its own.
+   */
+  readonly scopeRoot?: HTMLElement
   readonly document?: Document
 }
 
@@ -71,7 +83,10 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     mountToken,
   })
 
-  const overlay = createOverlayRoot(definitionId, mountToken, options.document ?? document)
+  const ownerDocument = options.document ?? document
+  const scopeRoot = options.scopeRoot ?? ownerDocument.createElement('div')
+  applyScopeAttributes(scopeRoot, { definitionId, mountToken, kind })
+  const overlay = createOverlayRoot(definitionId, mountToken, ownerDocument)
 
   const context: MountContext = {
     runtime,
@@ -87,6 +102,7 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
       session: runtime.storage.storageFor(definitionId, 'session'),
     },
     signal: disposal.signal,
+    scopeRoot,
     overlayRoot: overlay.element,
   }
 

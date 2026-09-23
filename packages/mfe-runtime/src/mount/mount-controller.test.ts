@@ -341,20 +341,31 @@ describe('failing a mounted definition', () => {
     expect(attach).toHaveBeenCalledTimes(2)
   })
 
-  it('is ignored unless the mount is mounted', async () => {
-    const load = deferred<TestModule>()
+  it('fails an attempt still attaching once its attach settles, instead of mounting it', async () => {
+    const attach = deferred<void>()
     const detach = vi.fn()
     const { controller, records } = createController(
-      operations({ load: () => load.promise, detach }),
+      operations({ attach: () => attach.promise, detach }),
     )
+    const started = controller.start()
+    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'pending', attempt: 1 }))
+
+    controller.fail(new Error('root unmounted itself'))
+    controller.fail(new Error('and again'))
+    expect(controller.state).toEqual({ status: 'pending', attempt: 1 })
+    attach.resolve()
+    await started
+
+    expect(errorStateOf(controller.state).message).toContain('root unmounted itself')
+    expect(detach).toHaveBeenCalledTimes(1)
+    expect(records).toHaveLength(1)
+  })
+
+  it('is ignored before any attempt, once failed and once disposed', async () => {
+    const { controller, records } = createController(operations())
 
     controller.fail(new Error('before any attempt'))
-    void controller.start()
-    controller.fail(new Error('while pending'))
-    expect(controller.state).toEqual({ status: 'pending', attempt: 1 })
-
-    load.resolve(MODULE)
-    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
+    await controller.start()
     controller.fail(new Error('first'))
     controller.fail(new Error('second'))
     await controller.dispose()

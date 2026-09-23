@@ -9,7 +9,12 @@ import { z } from 'zod'
 
 import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
 import { createMountContext, createMountToken } from './mount-context.ts'
-import { MOUNT_ATTRIBUTE, OVERLAY_ROOT_ATTRIBUTE, SCOPE_ATTRIBUTE } from './scope-root.ts'
+import {
+  KIND_ATTRIBUTE,
+  MOUNT_ATTRIBUTE,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+} from './scope-root.ts'
 
 let memory: MemoryRuntime | null = null
 
@@ -64,6 +69,34 @@ describe('createMountContext', () => {
 
     expect(context.basePath).toBe('')
     expect(context.depth).toBe(1)
+  })
+
+  it('stamps the scope root it is given with its definition, its own token and its kind', () => {
+    const scopeRoot = document.createElement('div')
+
+    const { context } = createMountContext({
+      runtime: runtime(),
+      definitionId: 'alert-panel',
+      kind: 'widget',
+      scopeRoot,
+    })
+
+    expect(context.scopeRoot).toBe(scopeRoot)
+    expect(scopeRoot.getAttribute(SCOPE_ATTRIBUTE)).toBe('alert-panel')
+    expect(scopeRoot.getAttribute(MOUNT_ATTRIBUTE)).toBe(context.mountToken)
+    expect(scopeRoot.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
+    expect(scopeRoot.style.display).toBe('contents')
+  })
+
+  it('carries a detached scope root when it is given none', () => {
+    const { context } = createMountContext({
+      runtime: runtime(),
+      definitionId: 'reports',
+      kind: 'app',
+    })
+
+    expect(context.scopeRoot.getAttribute(MOUNT_ATTRIBUTE)).toBe(context.mountToken)
+    expect(context.scopeRoot.isConnected).toBe(false)
   })
 
   it('scopes storage to the definition, so two mounts of it share their records', () => {

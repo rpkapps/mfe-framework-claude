@@ -60,6 +60,8 @@ export class MountController<TLoaded> implements MountHandle {
   #loaded: TLoaded | undefined
   /** The latest attempt, which `fail` settles; an older one can no longer be current. */
   #attempt: AttemptToken | null = null
+  /** A failure reported while the latest attempt was still pending, applied once it attaches. */
+  #pendingFailure: MfeError | null = null
 
   constructor(options: MountControllerOptions<TLoaded>) {
     this.id = options.id
@@ -117,23 +119,26 @@ export class MountController<TLoaded> implements MountHandle {
   }
 
   /**
-   * A fatal failure the mounted definition reports after it mounted. The attempt is detached and
-   * cleaned up exactly as a failed attach is, so `retry()` then mounts afresh. Ignored unless the
-   * mount is `mounted`, so a late report from an attempt already torn down changes nothing.
+   * A fatal failure the definition reports once it is running. A mounted attempt is detached and
+   * cleaned up exactly as a failed attach is, so `retry()` then mounts afresh. One still attaching
+   * — a definition can fail between rendering and resolving its mount — fails instead of mounting
+   * once its attach settles. Ignored in any other state, so a late report from an attempt already
+   * torn down changes nothing.
    */
   fail(error: unknown): void {
     const token = this.#attempt
-    if (token === null || this.#lifecycle.getState().status !== 'mounted') return
+    if (token === null || !token.isCurrent()) return
 
-    this.#settleFailure(
-      token,
-      toMfeError(error, {
-        ...this.#identity,
-        code: 'mount/failure',
-        operation: 'keep the mounted definition running',
-        repair: 'Use the explicit retry action once the underlying cause is fixed.',
-      }),
-    )
+    const structured = toMfeError(error, {
+      ...this.#identity,
+      code: 'mount/failure',
+      operation: 'keep the mounted definition running',
+      repair: 'Use the explicit retry action once the underlying cause is fixed.',
+    })
+
+    const { status } = this.#lifecycle.getState()
+    if (status === 'mounted') this.#settleFailure(token, structured)
+    else if (status === 'pending') this.#pendingFailure ??= structured
   }
 
   /**
@@ -154,6 +159,7 @@ export class MountController<TLoaded> implements MountHandle {
       return
     }
     this.#attempt = token
+    this.#pendingFailure = null
 
     try {
       // A retry after a *mount* failure reuses the resolved module: reloading would
@@ -184,6 +190,10 @@ export class MountController<TLoaded> implements MountHandle {
         return
       }
 
+      if (this.#pendingFailure !== null) {
+        this.#settleFailure(token, this.#pendingFailure)
+        return
+      }
       this.#lifecycle.settleMounted(token)
     } catch (error) {
       if (!token.isCurrent()) return
@@ -269,6 +279,7 @@ export class MountController<TLoaded> implements MountHandle {
   #finish(): void {
     this.#loaded = undefined
     this.#attempt = null
+    this.#pendingFailure = null
     this.#options.onDisposed?.()
     this.#lifecycle.dispose()
   }

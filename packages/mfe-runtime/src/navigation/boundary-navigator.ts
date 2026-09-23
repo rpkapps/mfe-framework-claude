@@ -52,11 +52,18 @@ export class BoundaryNavigator {
   // A browser back moves the URL before anyone is asked, so a mount told about it straight
   // away would leave the page the user is still being asked about (§20).
   readonly #deferred = new Set<(location: BoundaryLocation) => void>()
+  readonly #listeners = new Set<(location: BoundaryLocation) => void>()
+  /**
+   * Where subscribers were last told the page is, or where a push through this navigator took
+   * it, which the mount that pushed already knows. `announce` measures a change against it.
+   */
+  #known: BoundaryLocation
   #negotiating = false
 
   constructor(options: BoundaryNavigatorOptions) {
     this.#bridge = options.bridge
     this.#diagnostics = options.diagnostics
+    this.#known = options.bridge.read()
   }
 
   get blockerCount(): number {
@@ -105,20 +112,49 @@ export class BoundaryNavigator {
    */
   subscribe(listener: (location: BoundaryLocation) => void): Unsubscribe {
     let live = true
+    this.#listeners.add(listener)
 
     const unsubscribe = this.#bridge.subscribe(() => {
       queueMicrotask(() => {
         if (!live) return
         if (this.#negotiating) this.#deferred.add(listener)
-        else listener(this.#bridge.read())
+        else this.#emit([listener], this.#bridge.read())
       })
     })
 
     return () => {
       live = false
+      this.#listeners.delete(listener)
       this.#deferred.delete(listener)
       unsubscribe()
     }
+  }
+
+  /**
+   * Tells every subscriber where the page is after a navigation the host performed with its own
+   * router. A bridge reports only navigations nobody on the page initiated — the browser bridge
+   * hears `popstate` alone — so without this a mounted App would stay where it was while the URL
+   * moved. Nothing is emitted when the page is where subscribers already know it to be, so a
+   * host can announce every change of its own router without repeating what the bridge
+   * delivered. Held like a bridge report while a negotiation is under way.
+   */
+  announce(): void {
+    const location = this.#bridge.read()
+    if (sameLocation(location, this.#known)) return
+
+    if (this.#negotiating) {
+      for (const listener of this.#listeners) this.#deferred.add(listener)
+      return
+    }
+    this.#emit([...this.#listeners], location)
+  }
+
+  #emit(
+    listeners: readonly ((location: BoundaryLocation) => void)[],
+    location: BoundaryLocation,
+  ): void {
+    this.#known = location
+    for (const listener of listeners) listener(location)
   }
 
   /**
@@ -170,16 +206,17 @@ export class BoundaryNavigator {
     this.#deferred.clear()
     if (outcome === 'blocked') return
 
-    const location = this.#bridge.read()
-    for (const listener of listeners) listener(location)
+    this.#emit(listeners, this.#bridge.read())
   }
 
   push(to: string, state?: unknown): void {
     this.#bridge.push(to, state)
+    this.#known = this.#bridge.read()
   }
 
   replace(to: string, state?: unknown): void {
     this.#bridge.replace(to, state)
+    this.#known = this.#bridge.read()
   }
 
   back(): void {
@@ -309,6 +346,10 @@ export function createBrowserNavigationBridge(target: Window = window): Navigati
     go: delta => target.history.go(delta),
     reload: () => target.location.reload(),
   }
+}
+
+function sameLocation(a: BoundaryLocation, b: BoundaryLocation): boolean {
+  return a.pathname === b.pathname && a.search === b.search && a.hash === b.hash
 }
 
 export function createNavigationIntent(
