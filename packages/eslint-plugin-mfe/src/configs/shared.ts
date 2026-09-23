@@ -239,6 +239,79 @@ export function resolveReactFiles(
   return reactFiles.flatMap(scope => intersectFiles(files, scope))
 }
 
+/**
+ * The six layers every preset starts from: ESLint's own recommended baseline, the shared language
+ * options, typescript-eslint's type-checked recommended set, and the async-correctness,
+ * type-safety and maintainability layers this package adds on top of it.
+ */
+export function neutralLayers(
+  files: readonly string[],
+  tsconfigRootDir: string | undefined,
+): Linter.Config[] {
+  return [
+    eslintRecommended(files),
+    languageConfig({ tsconfigRootDir, files }),
+    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
+    asyncCorrectness(files),
+    typeSafety(files),
+    maintainability(files),
+  ]
+}
+
+/** Reviewing generated output is the generator's job, not the author's. */
+export function generatedOverrides(
+  name: string,
+  files: readonly (string | string[])[],
+): Linter.Config {
+  return {
+    name,
+    files: [...files],
+    plugins: typeScriptPlugins,
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/consistent-type-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  }
+}
+
+export interface AuthorBase {
+  readonly files: readonly string[]
+  readonly widgetScopes: readonly string[]
+  readonly storageAllowedScopes: readonly string[]
+  readonly extraPaths: readonly RestrictedPath[]
+  readonly extraPatterns: readonly RestrictedPattern[]
+  readonly layers: Linter.Config[]
+  readonly generated: Linter.Config
+}
+
+/**
+ * What the `react` and `angular` author presets build identically before their own
+ * framework-specific rules, boundaries and peers take over: the shared option defaults, the six
+ * neutral layers and the generated-output override. `name` is the preset's own segment
+ * (`'author'`, `'angular'`) that every one of its config object names shares; `extraGeneratedGlobs`
+ * lists any glob beyond the shared `**\/src/generated/**`, in the order it should be checked.
+ */
+export function authorBase(
+  options: PresetOptions,
+  name: string,
+  extraGeneratedGlobs: readonly string[] = [],
+): AuthorBase {
+  const files = options.files ?? TS_FILES
+  return {
+    files,
+    widgetScopes: options.widgetScopes ?? [],
+    storageAllowedScopes: options.storageAllowedScopes ?? [],
+    extraPaths: options.extraRestrictedPaths ?? [],
+    extraPatterns: options.extraRestrictedPatterns ?? [],
+    layers: neutralLayers(files, options.tsconfigRootDir),
+    generated: generatedOverrides(`mfe/${name}/generated`, [
+      ...extraGeneratedGlobs.flatMap(scope => intersectFiles(files, scope)),
+      ...intersectFiles(files, '**/src/generated/**'),
+    ]),
+  }
+}
+
 /** Each entry is off for a reason specific to what a test is, and is scoped to test files. */
 export function testScopeOverrides(files: readonly string[], name: string): Linter.Config {
   return {

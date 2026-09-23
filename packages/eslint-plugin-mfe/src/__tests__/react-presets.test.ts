@@ -1,6 +1,10 @@
-import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
 import plugin, { author, configs, DEFAULT_ROUTER_FILES } from '../react.ts'
+import {
+  configuredRuleIds,
+  expectAcceptedByEslint,
+  expectRulePluginsRegistered,
+} from './preset-assertions.ts'
 
 const RULE_IDS = [
   'mfe/no-global-patching',
@@ -8,14 +12,6 @@ const RULE_IDS = [
   'mfe/no-widget-global-effects',
   'mfe/stable-definitions',
 ]
-
-function configuredRuleIds(config: readonly { rules?: object | undefined }[]): Set<string> {
-  const ids = new Set<string>()
-  for (const entry of config) {
-    for (const id of Object.keys(entry.rules ?? {})) ids.add(id)
-  }
-  return ids
-}
 
 describe('react subpath surface', () => {
   it('offers the author preset both as an array and as a factory', () => {
@@ -55,15 +51,7 @@ describe('author preset', () => {
   })
 
   it('registers a plugin in every config object that turns one of its rules on', () => {
-    for (const entry of preset) {
-      const registered = new Set(Object.keys(entry.plugins ?? {}))
-      for (const ruleId of Object.keys(entry.rules ?? {})) {
-        const separator = ruleId.lastIndexOf('/')
-        if (separator === -1) continue
-        const pluginName = ruleId.slice(0, separator)
-        expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(pluginName)
-      }
-    }
+    expectRulePluginsRegistered(preset)
   })
 
   it('scopes every config object to the files it was asked to cover', () => {
@@ -89,9 +77,7 @@ describe('author preset', () => {
   })
 
   it('is accepted by ESLint, rule options included', async () => {
-    const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: preset })
-    const resolved: unknown = await eslint.calculateConfigForFile('src/widgets/panel.ts')
-    expect(resolved).toBeTypeOf('object')
+    await expectAcceptedByEslint(preset, 'src/widgets/panel.ts')
   })
 
   it('scopes the TanStack Router rules to router files inside the covered files', () => {

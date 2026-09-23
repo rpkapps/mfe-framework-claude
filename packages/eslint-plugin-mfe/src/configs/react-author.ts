@@ -6,18 +6,12 @@
 
 import type { Linter } from 'eslint'
 import {
-  TS_FILES,
   asConfigs,
-  asyncCorrectness,
-  eslintRecommended,
+  authorBase,
   intersectFiles,
-  languageConfig,
-  maintainability,
   mfePlugin,
   resolveReactFiles,
-  typeCheckedConfigs,
   testScopeOverrides,
-  typeSafety,
   typeScriptPlugins,
   withFiles,
   type PresetOptions,
@@ -55,23 +49,15 @@ export interface AuthorPresetOptions extends PresetOptions {
 }
 
 export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
-  const files = options.files ?? TS_FILES
+  const base = authorBase(options, 'author', ['**/routeTree.gen.ts'])
+  const { files, widgetScopes, storageAllowedScopes, extraPaths, extraPatterns } = base
   const reactFiles = resolveReactFiles(files, options.reactFiles)
   const routerFiles = options.routerFiles ?? DEFAULT_ROUTER_FILES
-  const widgetScopes = options.widgetScopes ?? []
-  const storageAllowedScopes = options.storageAllowedScopes ?? []
-  const extraPaths = options.extraRestrictedPaths ?? []
-  const extraPatterns = options.extraRestrictedPatterns ?? []
 
   const { queryPlugin, routerPlugin } = loadTanstackPeers()
 
   return [
-    eslintRecommended(files),
-    languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
-    asyncCorrectness(files),
-    typeSafety(files),
-    maintainability(files),
+    ...base.layers,
     ...reactCorrectness(reactFiles),
     ...withFiles(asConfigs(queryPlugin.configs['flat/recommended']), files, 'mfe/tanstack-query'),
     // Never outside the files the preset covers: that is where the parser is set.
@@ -117,20 +103,7 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
         'mfe/no-widget-global-effects': ['error', { widgetScopes: [...widgetScopes] }],
       },
     },
-    {
-      name: 'mfe/author/generated',
-      files: [
-        ...intersectFiles(files, '**/routeTree.gen.ts'),
-        ...intersectFiles(files, '**/src/generated/**'),
-      ],
-      plugins: typeScriptPlugins,
-      rules: {
-        // Reviewing generated output is the generator's job, not the author's.
-        '@typescript-eslint/no-unused-vars': 'off',
-        '@typescript-eslint/consistent-type-imports': 'off',
-        '@typescript-eslint/no-explicit-any': 'off',
-      },
-    },
+    base.generated,
     testScopeOverrides(files, 'mfe/author/tests'),
   ]
 }

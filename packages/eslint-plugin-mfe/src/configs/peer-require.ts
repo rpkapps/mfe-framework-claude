@@ -51,3 +51,22 @@ export function requirePeers(specifiers: readonly string[], installCommand: stri
 export function loadPeer<T>(specifier: string): T {
   return require(specifier) as T
 }
+
+/**
+ * Wraps a preset's own peer load behind the `cached` guard every loader here needs: resolved once,
+ * on first call, and reused after. `load` runs only once `requirePeers` has confirmed every
+ * specifier is present, so a real load failure is the peer's own, not a resolution failure.
+ */
+export function lazyPeers<T>(
+  specifiers: readonly string[],
+  installCommand: string,
+  load: () => T,
+): () => T {
+  let cached: T | null = null
+  return () => {
+    if (cached !== null) return cached
+    requirePeers(specifiers, installCommand)
+    cached = load()
+    return cached
+  }
+}

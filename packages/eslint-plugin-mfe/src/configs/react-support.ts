@@ -7,7 +7,7 @@
 
 import type { Linter } from 'eslint'
 import { asConfigs, pluginsOf, withFiles } from './shared.ts'
-import { loadPeer, requirePeers } from './peer-require.ts'
+import { lazyPeers, loadPeer } from './peer-require.ts'
 
 const REACT_HOOKS_INSTALL = 'pnpm add -D eslint-plugin-react-hooks'
 
@@ -15,14 +15,9 @@ interface ReactHooksModule {
   readonly configs: { readonly flat: { readonly 'recommended-latest': Linter.Config } }
 }
 
-let cachedReactHooks: ReactHooksModule | null = null
-
-function reactHooks(): ReactHooksModule {
-  if (cachedReactHooks !== null) return cachedReactHooks
-  requirePeers(['eslint-plugin-react-hooks'], REACT_HOOKS_INSTALL)
-  cachedReactHooks = loadPeer<ReactHooksModule>('eslint-plugin-react-hooks')
-  return cachedReactHooks
-}
+const reactHooks = lazyPeers(['eslint-plugin-react-hooks'], REACT_HOOKS_INSTALL, () =>
+  loadPeer<ReactHooksModule>('eslint-plugin-react-hooks'),
+)
 
 /**
  * Each diagnostic reports code the React Compiler would bail out on, and an MFE that bails out

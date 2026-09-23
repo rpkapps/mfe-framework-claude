@@ -1,25 +1,17 @@
 /**
  * The `angular` author preset, for Angular 19 zoneless MFE Apps and Widgets: the mirror of the
- * `react` preset's `author()`, built on the same neutral layers and the same four (now five,
- * counting the Router analogue) MFE rules, with Angular's own APIs named in their messages and
- * Angular's own lifecycle boundaries in place of React's.
+ * `react` preset's `author()`, built on the same neutral layers and the five MFE rules — including
+ * the Router analogue of `no-widget-global-effects` — with Angular's own APIs named in their
+ * messages and Angular's own lifecycle boundaries in place of React's.
  */
 
 import type { Linter } from 'eslint'
 import {
-  TS_FILES,
   asParser,
-  asyncCorrectness,
-  eslintRecommended,
-  intersectFiles,
-  languageConfig,
-  maintainability,
+  authorBase,
   mfePlugin,
   testScopeOverrides,
-  typeCheckedConfigs,
-  typeSafety,
   typeScriptPlugins,
-  withFiles,
   type PresetOptions,
 } from './shared.ts'
 import {
@@ -30,7 +22,6 @@ import {
   restrictedImports,
   singleSpaPattern,
 } from './restricted-imports.ts'
-import { DEFAULT_MODULES as STABLE_DEFINITIONS_DEFAULT_MODULES } from '../rules/stable-definitions.ts'
 import {
   ANGULAR_TEMPLATE_RECOMMENDED_RULES,
   ANGULAR_TS_RECOMMENDED_RULES,
@@ -39,12 +30,8 @@ import {
 import {
   ANGULAR_ADAPTER_MODULE,
   ANGULAR_EMIT_ACCESS,
-  ANGULAR_NAVIGATION_HINT,
-  ANGULAR_NAVIGATOR_MODULE,
-  ANGULAR_SIGNAL_HOOK,
-  ANGULAR_STORAGE_HOOK,
-  ANGULAR_STORED_STATE_HOOK,
   ANGULAR_TELEMETRY_HOOK,
+  angularMfeRules,
 } from './angular-naming.ts'
 
 /** Where the inline-template processor's virtual `.html` fragments, and real template files, land. */
@@ -67,22 +54,14 @@ const PLATFORM_BROWSER_DYNAMIC_MESSAGE =
   'Lifecycle boundary: `platformBrowserDynamic` bootstraps a whole browser platform, which the host already owns for every mount on the page. Export a definition from `createApp` or `createWidget` (@company/mfe-angular) and let the host mount it.'
 
 export function angular(options: AngularPresetOptions = {}): Linter.Config[] {
-  const files = options.files ?? TS_FILES
+  const base = authorBase(options, 'angular')
+  const { files, widgetScopes, storageAllowedScopes, extraPaths, extraPatterns } = base
   const templateFiles = options.templateFiles ?? DEFAULT_ANGULAR_TEMPLATE_FILES
-  const widgetScopes = options.widgetScopes ?? []
-  const storageAllowedScopes = options.storageAllowedScopes ?? []
-  const extraPaths = options.extraRestrictedPaths ?? []
-  const extraPatterns = options.extraRestrictedPatterns ?? []
 
   const peers = loadAngularPeers()
 
   return [
-    eslintRecommended(files),
-    languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
-    asyncCorrectness(files),
-    typeSafety(files),
-    maintainability(files),
+    ...base.layers,
     {
       // The template plugin is registered here too, only so `processor` can reference it by name;
       // its rules apply through the separate `.html`-scoped object below, angular-eslint's own split.
@@ -142,28 +121,7 @@ export function angular(options: AngularPresetOptions = {}): Linter.Config[] {
       files: [...files],
       plugins: { mfe: mfePlugin },
       rules: {
-        'mfe/no-global-patching': [
-          'error',
-          {
-            signalHook: ANGULAR_SIGNAL_HOOK,
-            signalModule: ANGULAR_ADAPTER_MODULE,
-            navigationHint: ANGULAR_NAVIGATION_HINT,
-            navigatorModule: ANGULAR_NAVIGATOR_MODULE,
-          },
-        ],
-        'mfe/stable-definitions': [
-          'error',
-          { modules: [...STABLE_DEFINITIONS_DEFAULT_MODULES, ANGULAR_ADAPTER_MODULE] },
-        ],
-        'mfe/no-raw-storage': [
-          'error',
-          {
-            allowedScopes: [...storageAllowedScopes],
-            storedStateHook: ANGULAR_STORED_STATE_HOOK,
-            storageHook: ANGULAR_STORAGE_HOOK,
-            adapterModule: ANGULAR_ADAPTER_MODULE,
-          },
-        ],
+        ...angularMfeRules(storageAllowedScopes),
         'mfe/no-widget-global-effects': [
           'error',
           { widgetScopes: [...widgetScopes], emitAccess: ANGULAR_EMIT_ACCESS },
@@ -174,17 +132,7 @@ export function angular(options: AngularPresetOptions = {}): Linter.Config[] {
         ],
       },
     },
-    {
-      name: 'mfe/angular/generated',
-      files: [...intersectFiles(files, '**/src/generated/**')],
-      plugins: typeScriptPlugins,
-      rules: {
-        // Reviewing generated output is the generator's job, not the author's.
-        '@typescript-eslint/no-unused-vars': 'off',
-        '@typescript-eslint/consistent-type-imports': 'off',
-        '@typescript-eslint/no-explicit-any': 'off',
-      },
-    },
+    base.generated,
     testScopeOverrides(files, 'mfe/angular/tests'),
   ]
 }

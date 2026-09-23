@@ -10,17 +10,7 @@
  */
 
 import type { Linter } from 'eslint'
-import {
-  asyncCorrectness,
-  eslintRecommended,
-  intersectFiles,
-  languageConfig,
-  maintainability,
-  typeCheckedConfigs,
-  typeSafety,
-  typeScriptPlugins,
-  withFiles,
-} from './shared.ts'
+import { intersectFiles, neutralLayers, typeScriptPlugins } from './shared.ts'
 
 /**
  * Where the preset runs when `files` is not set: the configuration files named after the tool
@@ -47,12 +37,7 @@ export function tooling(options: ToolingPresetOptions = {}): Linter.Config[] {
   const files = options.files ?? DEFAULT_TOOLING_FILES
 
   return [
-    eslintRecommended(files),
-    languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
-    asyncCorrectness(files),
-    typeSafety(files),
-    maintainability(files),
+    ...neutralLayers(files, options.tsconfigRootDir),
     {
       name: 'mfe/tooling/matcher-augmentation',
       files: intersectFiles(files, '**/vitest.setup.{ts,tsx}'),

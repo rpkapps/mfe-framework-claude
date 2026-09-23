@@ -1,6 +1,10 @@
-import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
 import plugin, { application, configs, framework, rules, tooling } from '../index.ts'
+import {
+  configuredRuleIds,
+  expectAcceptedByEslint,
+  expectRulePluginsRegistered,
+} from './preset-assertions.ts'
 
 const RULE_IDS = [
   'mfe/no-global-patching',
@@ -9,14 +13,6 @@ const RULE_IDS = [
   'mfe/no-widget-global-router',
   'mfe/stable-definitions',
 ]
-
-function configuredRuleIds(config: readonly { rules?: object | undefined }[]): Set<string> {
-  const ids = new Set<string>()
-  for (const entry of config) {
-    for (const id of Object.keys(entry.rules ?? {})) ids.add(id)
-  }
-  return ids
-}
 
 describe('plugin surface', () => {
   it('exposes the five MFE rules under the names the presets configure', () => {
@@ -66,16 +62,7 @@ describe('tooling preset', () => {
   })
 
   it('registers a plugin in every config object that turns one of its rules on', () => {
-    for (const entry of preset) {
-      const registered = new Set(Object.keys(entry.plugins ?? {}))
-      for (const ruleId of Object.keys(entry.rules ?? {})) {
-        const separator = ruleId.lastIndexOf('/')
-        if (separator === -1) continue
-        expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(
-          ruleId.slice(0, separator),
-        )
-      }
-    }
+    expectRulePluginsRegistered(preset)
   })
 
   it('keeps the type-aware layers and leaves out the rules about being an MFE', () => {
@@ -146,15 +133,7 @@ describe('framework preset', () => {
   })
 
   it('registers a plugin in every config object that turns one of its rules on', () => {
-    for (const entry of preset) {
-      const registered = new Set(Object.keys(entry.plugins ?? {}))
-      for (const ruleId of Object.keys(entry.rules ?? {})) {
-        const separator = ruleId.lastIndexOf('/')
-        if (separator === -1) continue
-        const pluginName = ruleId.slice(0, separator)
-        expect(registered, `${entry.name ?? '(unnamed)'} -> ${ruleId}`).toContain(pluginName)
-      }
-    }
+    expectRulePluginsRegistered(preset)
   })
 
   it('scopes every config object to the files it was asked to cover', () => {
@@ -254,9 +233,7 @@ describe('framework preset', () => {
   })
 
   it('is accepted by ESLint, rule options included', async () => {
-    const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: preset })
-    const resolved: unknown = await eslint.calculateConfigForFile('packages/mfe-runtime/src/x.ts')
-    expect(resolved).toBeTypeOf('object')
+    await expectAcceptedByEslint(preset, 'packages/mfe-runtime/src/x.ts')
   })
 
   it('restricts the framework packages to their side of the import DAG', () => {

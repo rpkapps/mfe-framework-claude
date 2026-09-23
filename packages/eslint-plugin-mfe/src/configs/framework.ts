@@ -6,18 +6,12 @@
 import type { Linter } from 'eslint'
 import {
   TS_FILES,
-  asyncCorrectness,
-  eslintRecommended,
   intersectFiles,
-  languageConfig,
-  maintainability,
   mfePlugin,
+  neutralLayers,
   resolveReactFiles,
-  typeCheckedConfigs,
   testScopeOverrides,
-  typeSafety,
   typeScriptPlugins,
-  withFiles,
   type PresetOptions,
 } from './shared.ts'
 import { reactCorrectness } from './react-support.ts'
@@ -30,15 +24,7 @@ import {
   type RestrictedPath,
   type RestrictedPattern,
 } from './restricted-imports.ts'
-import { DEFAULT_MODULES as STABLE_DEFINITIONS_DEFAULT_MODULES } from '../rules/stable-definitions.ts'
-import {
-  ANGULAR_ADAPTER_MODULE,
-  ANGULAR_NAVIGATION_HINT,
-  ANGULAR_NAVIGATOR_MODULE,
-  ANGULAR_SIGNAL_HOOK,
-  ANGULAR_STORAGE_HOOK,
-  ANGULAR_STORED_STATE_HOOK,
-} from './angular-naming.ts'
+import { angularMfeRules } from './angular-naming.ts'
 
 export type FrameworkPresetOptions = PresetOptions
 
@@ -49,9 +35,9 @@ const CORE_STATELESS =
   '@company/mfe-core holds contracts only — types, constants and pure validation. Stateful code (a class other than an Error subclass, module-scope mutable bindings, a timer, or a browser global) belongs in @company/mfe-runtime.'
 
 /**
- * Guards the split in `docs/decisions.md` §32: the neutral contract package never becomes a
- * second place state can live. Tests are exempt, because a fixture legitimately builds a `Map`
- * or reads a stubbed global that production code never would.
+ * Guards the split that keeps the neutral contract package from becoming a second place state can
+ * live. Tests are exempt, because a fixture legitimately builds a `Map` or reads a stubbed global
+ * that production code never would.
  */
 function coreStatelessZone(files: readonly string[]): Linter.Config {
   return {
@@ -208,12 +194,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
   const extraPatterns = options.extraRestrictedPatterns ?? []
 
   return [
-    eslintRecommended(files),
-    languageConfig({ tsconfigRootDir: options.tsconfigRootDir, files }),
-    ...withFiles(typeCheckedConfigs, files, 'mfe/typescript-recommended'),
-    asyncCorrectness(files),
-    typeSafety(files),
-    maintainability(files),
+    ...neutralLayers(files, options.tsconfigRootDir),
     ...reactCorrectness(reactFiles),
     {
       name: 'mfe/framework/state-and-telemetry',
@@ -246,30 +227,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
       name: 'mfe/framework/rules-angular-wording',
       files: intersectFiles(files, '**/packages/mfe-angular/**'),
       plugins: { mfe: mfePlugin },
-      rules: {
-        'mfe/no-global-patching': [
-          'error',
-          {
-            signalHook: ANGULAR_SIGNAL_HOOK,
-            signalModule: ANGULAR_ADAPTER_MODULE,
-            navigationHint: ANGULAR_NAVIGATION_HINT,
-            navigatorModule: ANGULAR_NAVIGATOR_MODULE,
-          },
-        ],
-        'mfe/stable-definitions': [
-          'error',
-          { modules: [...STABLE_DEFINITIONS_DEFAULT_MODULES, ANGULAR_ADAPTER_MODULE] },
-        ],
-        'mfe/no-raw-storage': [
-          'error',
-          {
-            allowedScopes: [...storageAllowedScopes],
-            storedStateHook: ANGULAR_STORED_STATE_HOOK,
-            storageHook: ANGULAR_STORAGE_HOOK,
-            adapterModule: ANGULAR_ADAPTER_MODULE,
-          },
-        ],
-      },
+      rules: angularMfeRules(storageAllowedScopes),
     },
     testScopeOverrides(files, 'mfe/framework/tests'),
   ]

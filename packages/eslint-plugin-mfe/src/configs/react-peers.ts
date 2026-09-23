@@ -4,7 +4,7 @@
  * every framework and author React file needs instead).
  */
 
-import { loadPeer, requirePeers } from './peer-require.ts'
+import { lazyPeers, loadPeer } from './peer-require.ts'
 
 const TANSTACK_PACKAGES: readonly string[] = [
   '@tanstack/eslint-plugin-query',
@@ -22,14 +22,7 @@ export interface TanstackPeers {
   readonly routerPlugin: TanstackPluginModule
 }
 
-let cached: TanstackPeers | null = null
-
-export function loadTanstackPeers(): TanstackPeers {
-  if (cached !== null) return cached
-  requirePeers(TANSTACK_PACKAGES, TANSTACK_INSTALL)
-  cached = {
-    queryPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-query'),
-    routerPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-router'),
-  }
-  return cached
-}
+export const loadTanstackPeers = lazyPeers(TANSTACK_PACKAGES, TANSTACK_INSTALL, () => ({
+  queryPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-query'),
+  routerPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-router'),
+}))

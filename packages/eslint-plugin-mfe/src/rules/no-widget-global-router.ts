@@ -12,7 +12,12 @@ import type { AnyNode, MemberExpression } from '../util/ast.ts'
 import { asNode, staticPropertyName } from '../util/ast.ts'
 import { findVariable, resolveImportedBinding } from '../util/scope.ts'
 import { matchesAnyScope } from '../util/file-scope.ts'
-import { optionRecord, stringArrayOption, stringOption } from '../util/options.ts'
+import {
+  optionRecord,
+  stringArrayOption,
+  stringOption,
+  widgetScopeSchema,
+} from '../util/options.ts'
 import { docsUrl } from '../util/docs.ts'
 
 const NAVIGATION_METHODS: ReadonlySet<string> = new Set(['navigate', 'navigateByUrl'])
@@ -29,24 +34,7 @@ const rule: Rule.RuleModule = {
       url: docsUrl('no-widget-global-router'),
     },
     // No fix and no suggestion: the repair changes the Widget's declared contract.
-    schema: [
-      {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          widgetScopes: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              'Globs for Widget-owned source files. The rule is inert until a repository declares them; ownership is never guessed from a file name.',
-          },
-          emitAccess: {
-            type: 'string',
-            description: "How this Widget's render reaches `emit`, named in the repair.",
-          },
-        },
-      },
-    ],
+    schema: widgetScopeSchema("How this Widget's render reaches `emit`, named in the repair."),
     messages: {
       navigate:
         "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the event and navigates with its own `Router`, scoped to its `BoundaryLocationStrategy`, or the shell with the host `BoundaryNavigator`.",
