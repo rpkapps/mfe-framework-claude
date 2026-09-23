@@ -134,7 +134,14 @@ describe('a React Widget placed by an Angular <mfe-widget>', () => {
     ref.instance.inputs.set({ label: 'Clicks', count: 2 })
 
     await within(element).findByRole('button', { name: 'Clicks: 2' })
-    expect(seen.commits).toBe(mounted + 1)
+    // The button's text lands in the same commit that runs the Widget's `useEffect`, but the
+    // effect is passive: it flushes on a later scheduler tick, after the DOM mutation `findByRole`
+    // already resolved on. Reading `seen.commits` right there races that flush, and loses under
+    // load. Waiting for the count itself waits for the tick that actually sets it, and still fails
+    // if a real bug ever settles it at anything other than one more commit.
+    await waitFor(() => {
+      expect(seen.commits).toBe(mounted + 1)
+    })
 
     // A new object with the same values: Angular binds it, and the Widget has nothing to render.
     ref.instance.inputs.set({ label: 'Clicks', count: 2 })
