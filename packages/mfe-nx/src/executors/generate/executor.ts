@@ -4,68 +4,40 @@
  * depends on it.
  */
 
-import { join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 
 import { logger, type ExecutorContext } from '@nx/devkit'
 
-import { createBuildError, seedLocalRuntimeConfig } from '@company/mfe-build'
+import {
+  createBuildError,
+  seedLocalRuntimeConfig,
+  summarizeGeneration,
+  type GenerationSummary,
+} from '@company/mfe-build'
 
 import { generateContainer } from '../../generate/container.ts'
 
 /** The executor takes no options: the container is the project it runs for. */
 export type GenerateExecutorOptions = Readonly<Record<string, never>>
 
-export interface GenerateResult {
-  readonly packageName: string
-  /** What was written, relative to the container root. */
-  readonly paths: readonly string[]
-  /** Findings in the container's own sources, which the build reports too. */
-  readonly diagnostics: readonly Error[]
-  /** Things only the developer can do, such as supplying a required local value. */
-  readonly notes: readonly string[]
-}
-
-/** `relative()` answers in the host's separator; every other spelling here is POSIX. */
-function report(containerRoot: string, path: string): string {
-  return relative(containerRoot, path).split(sep).join('/')
-}
-
 /**
  * Writes the generated modules, then adds any declared default missing from the dev server's
  * `public/` copy of the runtime configuration; a value already there is never changed.
  */
-export function generate(containerRoot: string): GenerateResult {
+export function generate(containerRoot: string): GenerationSummary {
   const { plan, written } = generateContainer({ containerRoot })
-  const paths = written.map(file => report(plan.options.containerRoot, file.path))
-
-  const notes: string[] = []
-  const local = seedLocalRuntimeConfig(plan)
-  if (local !== null) {
-    const localPath = report(plan.options.containerRoot, local.path)
-    if (local.written) paths.push(localPath)
-    if (local.unreadable !== undefined) {
-      notes.push(`${localPath} was left as it is: ${local.unreadable}. Fix it to get the defaults.`)
-    }
-    if (local.missing.length > 0) {
-      notes.push(
-        `${localPath} has no value for ${local.missing.join(', ')}. Add one for local development; it has no default.`,
-      )
-    }
-  }
-
-  return {
-    packageName: plan.options.packageName,
-    paths: [...paths].sort(),
-    diagnostics: plan.diagnostics,
-    notes,
-  }
+  return summarizeGeneration(
+    plan,
+    written.map(file => file.path),
+    seedLocalRuntimeConfig(plan),
+  )
 }
 
 export default function generateExecutor(
   _options: GenerateExecutorOptions,
   context: ExecutorContext,
 ): Promise<{ success: boolean }> {
-  let result: GenerateResult
+  let result: GenerationSummary
   try {
     result = generate(containerRootOf(context))
   } catch (error) {

@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 
 import type { ConfigField } from '../config/config-source.ts'
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
-import { generatedPath, jsonFile, type GeneratedFile } from './emit.ts'
+import { generatedPath, jsonFile, posixRelative, type GeneratedFile } from './emit.ts'
 import type { GenerateContext } from './modules.ts'
 import type { ContainerPlan } from '../plan.ts'
 
@@ -99,6 +99,50 @@ export function seedLocalRuntimeConfig(plan: ContainerPlan): LocalRuntimeConfig 
     writeFileSync(path, jsonFile(next), 'utf8')
   }
   return { path, written, missing }
+}
+
+export interface GenerationSummary {
+  readonly packageName: string
+  /** What was written, relative to the container root. */
+  readonly paths: readonly string[]
+  /** Findings in the container's own sources, which the build reports too. */
+  readonly diagnostics: readonly Error[]
+  /** Things only the developer can do, such as supplying a required local value. */
+  readonly notes: readonly string[]
+}
+
+/**
+ * What a generate command reports: the files it wrote, as absolute paths, and the local copy
+ * `seedLocalRuntimeConfig` seeded, with whatever that left for the developer to supply.
+ */
+export function summarizeGeneration(
+  plan: ContainerPlan,
+  written: readonly string[],
+  local: LocalRuntimeConfig | null,
+): GenerationSummary {
+  const root = plan.options.containerRoot
+  const paths = written.map(path => posixRelative(root, path))
+
+  const notes: string[] = []
+  if (local !== null) {
+    const localPath = posixRelative(root, local.path)
+    if (local.written) paths.push(localPath)
+    if (local.unreadable !== undefined) {
+      notes.push(`${localPath} was left as it is: ${local.unreadable}. Fix it to get the defaults.`)
+    }
+    if (local.missing.length > 0) {
+      notes.push(
+        `${localPath} has no value for ${local.missing.join(', ')}. Add one for local development; it has no default.`,
+      )
+    }
+  }
+
+  return {
+    packageName: plan.options.packageName,
+    paths: [...paths].sort(),
+    diagnostics: plan.diagnostics,
+    notes,
+  }
 }
 
 function messageOf(cause: unknown): string {
