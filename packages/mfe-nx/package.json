@@ -1,7 +1,7 @@
 {
-  "name": "@company/nx-mfe",
+  "name": "@company/mfe-nx",
   "version": "0.1.0",
-  "description": "Nx generators that scaffold an Angular 19 (zoneless) MFE container: nx g @company/nx-mfe:app and :widget.",
+  "description": "Nx generators that scaffold an Angular 19 (zoneless) MFE container: nx g @company/mfe-nx:app and :widget.",
   "type": "commonjs",
   "sideEffects": false,
   "main": "./dist/src/index.js",

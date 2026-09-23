@@ -53,7 +53,7 @@ export function angularRspackVersionFor(nxMajor: number): string {
   if (known !== undefined) return known
 
   logger.warn(
-    `@company/nx-mfe: no @nx/angular-rspack line has been verified against Nx ${nxMajor}; using ` +
+    `@company/mfe-nx: no @nx/angular-rspack line has been verified against Nx ${nxMajor}; using ` +
       `the Nx ${DEFAULT_NX_MAJOR} line (${ANGULAR_RSPACK_VERSION_BY_NX_MAJOR[DEFAULT_NX_MAJOR]}). ` +
       'If this workspace needs a different line, pin @nx/angular-rspack yourself after generation.',
   )

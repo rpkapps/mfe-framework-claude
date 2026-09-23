@@ -1,6 +1,6 @@
 # <%= packageName %>
 
-An MFE Widget, scaffolded by `@company/nx-mfe`. Its id is `<%= id %>`. A Widget is non-routable:
+An MFE Widget, scaffolded by `@company/mfe-nx`. Its id is `<%= id %>`. A Widget is non-routable:
 it owns no URL boundary, never mutates history and never sets the document title. Anything that
 needs a URL is an App. `nx run <%= projectName %>:serve` starts this container's dev server on
 its `mfe.port`, and nothing else: there is no standalone preview. To see the Widget, run the

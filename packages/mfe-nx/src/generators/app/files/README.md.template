@@ -1,6 +1,6 @@
 # <%= packageName %>
 
-An MFE App, scaffolded by `@company/nx-mfe`. Its id is `<%= id %>`. `nx run <%= projectName %>:serve`
+An MFE App, scaffolded by `@company/mfe-nx`. Its id is `<%= id %>`. `nx run <%= projectName %>:serve`
 starts the Rspack dev server; `build`, `typecheck` and `test` do what they say. Each target runs
 `generate` (`mfe-generate`) first, so `nx run <%= projectName %>:generate` is only ever a recovery
 command.

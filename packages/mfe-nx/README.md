@@ -1,4 +1,4 @@
-# @company/nx-mfe
+# @company/mfe-nx
 
 Nx generators that scaffold a zoneless Angular 19 MFE container — an `app` (routable) or a
 `widget` (non-routable) — built with `@company/mfe-angular` and wired to Rspack through
@@ -10,14 +10,14 @@ repository is a plain pnpm workspace and is not, and must not become, an Nx work
 ## Installing in an Nx workspace
 
 ```sh
-npm install --save-dev @company/nx-mfe
+npm install --save-dev @company/mfe-nx
 ```
 
 ## Generating a container
 
 ```sh
-nx g @company/nx-mfe:app my-app --port 3101
-nx g @company/nx-mfe:widget my-widget --port 3103
+nx g @company/mfe-nx:app my-app --port 3101
+nx g @company/mfe-nx:widget my-widget --port 3103
 ```
 
 `app` (alias `application`) and `widget` (alias `w`) share the same options:
