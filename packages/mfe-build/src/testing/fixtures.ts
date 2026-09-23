@@ -18,7 +18,7 @@ export function createContainer(
     name: '@acme/operations',
     version: '1.0.0',
     type: 'module',
-    dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0' },
+    dependencies: { '@acme/mfe-adapter': '^1.0.0' },
     ...options.manifest,
   }
 

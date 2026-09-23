@@ -2,19 +2,29 @@ import { describe, expect, it } from 'vitest'
 
 import {
   containerDependencies,
-  DEFAULT_SHARED_CANDIDATES,
   isUsableVersionRange,
   resolveShared,
+  SINGLETON,
+  type SharingPolicies,
 } from './sharing.ts'
+
+/** An integration's policy: a runtime that must exist once, and libraries that may not. */
+const POLICY: SharingPolicies = {
+  'ui-runtime': SINGLETON,
+  'ui-runtime-dom': SINGLETON,
+  '@acme/ui-kit/': { singleton: false, strictVersion: false },
+  charts: { singleton: false, strictVersion: false, eager: false },
+}
 
 describe('resolveShared', () => {
   it('shares only the candidates the container actually depends on', () => {
     const shared = resolveShared({
-      dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0', lodash: '^4.0.0' },
+      policy: POLICY,
+      dependencies: { 'ui-runtime': '^19.0.0', 'ui-runtime-dom': '^19.0.0', lodash: '^4.0.0' },
     })
 
-    expect(Object.keys(shared)).toEqual(['react', 'react-dom'])
-    expect(shared['react']).toEqual({
+    expect(Object.keys(shared)).toEqual(['ui-runtime', 'ui-runtime-dom'])
+    expect(shared['ui-runtime']).toEqual({
       singleton: true,
       strictVersion: true,
       requiredVersion: '^19.0.0',
@@ -22,69 +32,20 @@ describe('resolveShared', () => {
   })
 
   it('shares nothing when the container depends on none of them', () => {
-    expect(resolveShared({ dependencies: { lodash: '^4.0.0' } })).toEqual({})
+    expect(resolveShared({ policy: POLICY, dependencies: { lodash: '^4.0.0' } })).toEqual({})
   })
 
-  it("lists the framework's own candidates first, then the design system's contract in its order", () => {
-    expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
-      // A second copy of these makes every framework hook fail with "rendered outside any mount".
-      '@company/mfe-core',
-      '@company/mfe-host',
-      '@company/mfe-react',
-      '@tanstack/react-router',
-      '@tanstack/react-query',
-      // Then `@tecton/react/federation/shared`, verbatim and in its own order.
-      'react',
-      'react-dom',
-      'sonner',
-      '@tecton/react/',
-      'react-aria-components',
-      'recharts',
-    ])
-
-    const shared = resolveShared({
-      dependencies: {
-        '@company/mfe-core': 'workspace:*',
-        '@company/mfe-host': 'workspace:*',
-        '@company/mfe-react': 'workspace:*',
-        react: '^19.0.0',
-        'react-dom': '^19.0.0',
-        '@tanstack/react-router': '^1.170.0',
-        '@tanstack/react-query': '^5.103.0',
-        sonner: '^2.0.8',
-      },
-      installedVersion: () => '0.1.0',
-    })
-
-    expect(Object.keys(shared)).toHaveLength(8)
-    for (const entry of Object.values(shared)) {
-      expect(entry.singleton).toBe(true)
-      expect(entry.strictVersion).toBe(true)
-    }
+  it('shares nothing at all under an empty policy, whatever the container depends on', () => {
+    expect(resolveShared({ policy: {}, dependencies: { 'ui-runtime': '^19.0.0' } })).toEqual({})
   })
 
-  it('shares the design system, React Aria and recharts as non-singletons', () => {
+  it("applies each candidate's own policy, eager loading included", () => {
     const shared = resolveShared({
-      dependencies: {
-        '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
-        'react-aria-components': '^1.21.1',
-        recharts: '3.8.0',
-      },
-      installedVersion: () => '0.1.0',
+      policy: POLICY,
+      dependencies: { charts: '3.8.0' },
     })
 
-    expect(shared['@tecton/react/']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '0.1.0',
-      version: '0.1.0',
-    })
-    expect(shared['react-aria-components']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '^1.21.1',
-    })
-    expect(shared['recharts']).toEqual({
+    expect(shared['charts']).toEqual({
       singleton: false,
       strictVersion: false,
       eager: false,
@@ -92,28 +53,55 @@ describe('resolveShared', () => {
     })
   })
 
+  it('shares a candidate outside the policy as a singleton', () => {
+    const shared = resolveShared({
+      policy: POLICY,
+      candidates: ['state-store'],
+      dependencies: { 'state-store': '^2.0.0', 'ui-runtime': '^19.0.0' },
+    })
+
+    expect(Object.keys(shared)).toEqual(['state-store'])
+    expect(shared['state-store']).toMatchObject({ singleton: true, strictVersion: true })
+  })
+
   it('keeps the defaults when an author adds a package', () => {
     const shared = resolveShared({
-      dependencies: { react: '^19.0.0' },
+      policy: POLICY,
+      dependencies: { 'ui-runtime': '^19.0.0' },
       overrides: { '@company/auth-client': '^3.0.0' },
     })
 
-    expect(Object.keys(shared)).toEqual(['@company/auth-client', 'react'])
+    expect(Object.keys(shared)).toEqual(['@company/auth-client', 'ui-runtime'])
     expect(shared['@company/auth-client']).toEqual({
       singleton: true,
       strictVersion: true,
       requiredVersion: '^3.0.0',
     })
-    expect(shared['react']?.requiredVersion).toBe('^19.0.0')
+    expect(shared['ui-runtime']?.requiredVersion).toBe('^19.0.0')
+  })
+
+  it('never relaxes a candidate an author names again', () => {
+    const shared = resolveShared({
+      policy: POLICY,
+      dependencies: { charts: '3.8.0' },
+      overrides: { charts: '^3.0.0' },
+    })
+
+    expect(shared['charts']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '^3.0.0',
+    })
   })
 
   it('requires the version a workspace protocol resolved to', () => {
     const shared = resolveShared({
-      dependencies: { react: 'catalog:' },
+      policy: POLICY,
+      dependencies: { 'ui-runtime': 'catalog:' },
       installedVersion: () => '19.3.0',
     })
 
-    expect(shared['react']).toEqual({
+    expect(shared['ui-runtime']).toEqual({
       singleton: true,
       strictVersion: true,
       requiredVersion: '19.3.0',
@@ -121,9 +109,9 @@ describe('resolveShared', () => {
   })
 
   it('disables the requirement explicitly when nothing is installed to read', () => {
-    const shared = resolveShared({ dependencies: { react: 'workspace:*' } })
+    const shared = resolveShared({ policy: POLICY, dependencies: { 'ui-runtime': 'workspace:*' } })
 
-    expect(shared['react']).toEqual({
+    expect(shared['ui-runtime']).toEqual({
       singleton: true,
       strictVersion: true,
       requiredVersion: false,
@@ -132,55 +120,62 @@ describe('resolveShared', () => {
 
   it('keeps a declared range that a resolver can compare', () => {
     const shared = resolveShared({
-      dependencies: { react: '^19.0.0' },
+      policy: POLICY,
+      dependencies: { 'ui-runtime': '^19.0.0' },
       installedVersion: () => '19.3.0',
     })
 
-    expect(shared['react']?.requiredVersion).toBe('^19.0.0')
+    expect(shared['ui-runtime']?.requiredVersion).toBe('^19.0.0')
   })
 
   it('reads peer dependencies as well as dependencies', () => {
     const dependencies = containerDependencies({
-      dependencies: { react: '^19.0.0' },
-      peerDependencies: { '@tecton/react': '^3.0.0' },
+      dependencies: { 'ui-runtime': '^19.0.0' },
+      peerDependencies: { '@acme/ui-kit': '^3.0.0' },
     })
 
-    expect(Object.keys(resolveShared({ dependencies }))).toEqual(['@tecton/react/', 'react'])
+    expect(Object.keys(resolveShared({ policy: POLICY, dependencies }))).toEqual([
+      '@acme/ui-kit/',
+      'ui-runtime',
+    ])
   })
 
-  it('shares the design system under the prefix its subpath imports use', () => {
+  it('shares a library under the prefix its subpath imports use, stating what is installed', () => {
     const shared = resolveShared({
-      dependencies: { '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react' },
-      installedVersion: () => '0.0.0',
+      policy: POLICY,
+      dependencies: { '@acme/ui-kit': 'link:../ui-kit' },
+      installedVersion: name => (name === '@acme/ui-kit' ? '0.4.0' : undefined),
     })
 
-    expect(Object.keys(shared)).toEqual(['@tecton/react/'])
-    expect(shared['@tecton/react/']).toEqual({
+    expect(Object.keys(shared)).toEqual(['@acme/ui-kit/'])
+    expect(shared['@acme/ui-kit/']).toEqual({
       singleton: false,
       strictVersion: false,
-      requiredVersion: '0.0.0',
-      version: '0.0.0',
+      requiredVersion: '0.4.0',
+      version: '0.4.0',
     })
   })
 
   it('omits the version on a prefix share when nothing is installed to read', () => {
-    const shared = resolveShared({ dependencies: { '@tecton/react': 'workspace:*' } })
+    const shared = resolveShared({ policy: POLICY, dependencies: { '@acme/ui-kit': 'workspace:*' } })
 
-    expect(shared['@tecton/react/']).toEqual({
+    expect(shared['@acme/ui-kit/']).toEqual({
       singleton: false,
       strictVersion: false,
       requiredVersion: false,
     })
-    expect(shared['@tecton/react/']).not.toHaveProperty('version')
+    expect(shared['@acme/ui-kit/']).not.toHaveProperty('version')
   })
 
   it('prefers the dependency range over the peer range for the same package', () => {
     const dependencies = containerDependencies({
-      dependencies: { react: '19.3.0' },
-      peerDependencies: { react: '^19.0.0' },
+      dependencies: { 'ui-runtime': '19.3.0' },
+      peerDependencies: { 'ui-runtime': '^19.0.0' },
     })
 
-    expect(resolveShared({ dependencies })['react']?.requiredVersion).toBe('19.3.0')
+    expect(resolveShared({ policy: POLICY, dependencies })['ui-runtime']?.requiredVersion).toBe(
+      '19.3.0',
+    )
   })
 })
 

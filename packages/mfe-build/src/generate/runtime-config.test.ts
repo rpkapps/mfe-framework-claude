@@ -7,15 +7,16 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { planContainer } from '../plan.ts'
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
+import { TEST_PROFILE } from '../testing/profile.ts'
 import { writeGeneratedFiles } from './emit.ts'
 
 const ENTRY = `
-import { createApp } from '@company/mfe-react'
-export const operations = createApp({ id: 'operations', router: () => null })
+import { createApp } from '@acme/mfe-adapter'
+export const operations = createApp({ id: 'operations', routes: [] })
 `
 
 const CONFIG = `
-import { env } from '@company/mfe-rspack'
+import { env } from '@acme/mfe-plugin'
 import { z } from 'zod'
 
 export default {
@@ -38,7 +39,10 @@ afterEach(() => {
 
 function generate(config = CONFIG) {
   const root = createContainer({ 'src/mfe.ts': ENTRY, 'src/mfe.config.ts': config })
-  const plan = planContainer({ containerRoot: root, buildTime: '2026-01-02T03:04:05.000Z' })
+  const plan = planContainer(TEST_PROFILE, {
+    containerRoot: root,
+    buildTime: '2026-01-02T03:04:05.000Z',
+  })
   writeGeneratedFiles(plan.generated.files)
   return {
     script: join(root, '.mfe/runtime-config.sh'),
@@ -220,7 +224,7 @@ describe('runtime-config start-up script', () => {
 
   it('quotes an enum member carrying a single quote through the shell', () => {
     const { script } = generate(`
-import { env } from '@company/mfe-rspack'
+import { env } from '@acme/mfe-plugin'
 import { z } from 'zod'
 
 export default {
