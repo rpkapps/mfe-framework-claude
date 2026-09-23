@@ -33,7 +33,8 @@ packages it compiles are outside this workspace, so Nx cannot see them change.
 
 `pnpm lint` at the repository root lints this directory with the `eslint.config.ts` here, the
 generator's `@company/eslint-plugin-mfe/angular` preset; `nx lint fieldwork` runs the same
-configuration from here.
+configuration from here. `pnpm test` there runs this example's `test` script after the Vitest
+projects, since its spec needs its own Vitest 4 and Analog's Angular plugin.
 
 ## Versions
 
