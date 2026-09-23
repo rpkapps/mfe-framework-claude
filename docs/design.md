@@ -84,7 +84,7 @@ An arrow in the picture points at what a package depends on. `pnpm boundaries` r
 | `@company/mfe-devtools`       | The developer tools overlay, gated on one key.                                        | core, runtime, the React adapter | single-spa, a vendor SDK, the build plugin           |
 | `@company/create-mfe`         | The React scaffold, `pnpm create @company/mfe <directory>`.                           | nothing                          | —                                                    |
 | `@company/eslint-plugin-mfe`  | The lint presets: a neutral root, `/react` and `/angular`.                            | nothing                          | —                                                    |
-| `apps/shell`                  | The host page: the chrome, the boundary routes, the session.                          | the three adapters               | the core and the runtime, directly                   |
+| `apps/shell`                  | The host page: the chrome, the boundary routes, the session.                          | the three adapters, devtools     | the core and the runtime, directly                   |
 
 The build packages run in the build rather than on the page, so they sit outside that graph. `@company/mfe-build` holds the half every framework shares. It reads the sources without running them, then generates the `#mfe/*` modules, the container and App entries, the registry entry and the scoped stylesheet. A React container adds one `pluginMfe()` line to its `rsbuild.config.ts`. An Angular container, scaffolded by `@company/mfe-nx` in an Nx workspace, exports `withMfe()` from its `webpack.config.ts` ([decision 31](/docs/how-it-works/decisions#31-angular-containers-get-an-adapter-of-their-own-built-by-nx-on-webpack)).
 
