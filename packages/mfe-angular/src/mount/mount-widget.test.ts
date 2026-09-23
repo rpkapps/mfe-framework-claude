@@ -9,7 +9,13 @@ import {
   provideEnvironmentInitializer,
   type OnInit,
 } from '@angular/core'
-import { createMountContext, OVERLAY_ROOT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
+import type { MfeError } from '@company/mfe-core'
+import {
+  createMountContext,
+  mountDefinition,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+} from '@company/mfe-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -351,6 +357,94 @@ describe('mounting a Widget', () => {
       await expect(mountWidget(keyed, { inputs: { key: 'k' } })).rejects.toThrowError(
         /keyed failed to declare input 'key'/,
       )
+    })
+  })
+
+  describe('a contract that produces an input name a host reserves', () => {
+    @Component({ selector: 'test-picker', template: '<p>{{ alertId }}</p>' })
+    class PickerComponent {
+      @Input() alertId = ''
+      @Input() onPick = ''
+    }
+
+    /** Optional, so a first set without it mounts and only a later one produces the name. */
+    const picker = createWidget({
+      id: 'picker',
+      version: '2.0.0',
+      inputs: z.object({ alertId: z.string(), onPick: z.string().optional() }),
+      events: {},
+      component: PickerComponent,
+    })
+
+    /** What the React adapter throws for the same contract, word for word. */
+    const RESERVED_MESSAGE =
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or event handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+
+    function place(inputs: Readonly<Record<string, unknown>>) {
+      const environment = createMfeTestEnvironment({ definitions: [picker] })
+      const element = document.createElement('div')
+      document.body.appendChild(element)
+      const rejectedInputs: MfeError[] = []
+      const mount = mountDefinition({
+        runtime: environment.runtime,
+        element,
+        definitionId: picker.id,
+        kind: 'widget',
+        inputs,
+        onEvent: () => undefined,
+        onInputRejected: error => {
+          rejectedInputs.push(error)
+        },
+      })
+      const teardown = async (): Promise<void> => {
+        await mount.dispose()
+        element.remove()
+        environment.dispose()
+      }
+      return { environment, element, mount, rejectedInputs, teardown }
+    }
+
+    it('fails the first mount with the declaration error, leaving nothing behind', async () => {
+      const { environment, element, mount, rejectedInputs, teardown } = place({
+        alertId: 'a-1',
+        onPick: 'x',
+      })
+
+      await vi.waitFor(() => {
+        expect(mount.getState().status).toBe('error')
+      })
+
+      const state = mount.getState()
+      const error = state.status === 'error' ? state.error : null
+      expect(error).toMatchObject({ code: 'contract/input-mismatch', id: 'picker' })
+      expect(error?.message).toBe(RESERVED_MESSAGE)
+      expect(rejectedInputs).toEqual([])
+      expect(environment.diagnostics.map(diagnostic => diagnostic.error)).toEqual([error])
+      expect(element.childElementCount).toBe(0)
+      await teardown()
+    })
+
+    it('fails a mounted Widget through onFailure rather than rejecting the later set', async () => {
+      const { environment, element, mount, rejectedInputs, teardown } = place({ alertId: 'a-1' })
+      await vi.waitFor(() => {
+        expect(mount.getState().status).toBe('mounted')
+      })
+      expect(element.querySelector('p')?.textContent).toBe('a-1')
+
+      mount.update({ alertId: 'a-2', onPick: 'x' })
+
+      await vi.waitFor(() => {
+        expect(mount.getState().status).toBe('error')
+      })
+      const state = mount.getState()
+      const error = state.status === 'error' ? state.error : null
+      expect(error).toMatchObject({ code: 'contract/input-mismatch', id: 'picker' })
+      expect(error?.message).toBe(RESERVED_MESSAGE)
+      // Not a rejected set: the mount did not keep rendering its last valid inputs.
+      expect(rejectedInputs).toEqual([])
+      expect(environment.diagnostics.map(diagnostic => diagnostic.error)).toEqual([error])
+      expect(element.childElementCount).toBe(0)
+      await teardown()
     })
   })
 

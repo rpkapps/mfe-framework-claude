@@ -207,6 +207,56 @@ describe('<mfe-widget>', () => {
     expect(rendered.element.querySelector('[data-mfe-scope]')).toBeNull()
   })
 
+  describe('a Widget whose contract produces an input name a host reserves', () => {
+    @Component({ selector: 'test-picker', template: '<p>{{ alertId }}</p>' })
+    class PickerComponent {
+      @Input() alertId = ''
+      @Input() onPick = ''
+    }
+
+    const picker = createWidget({
+      id: 'picker',
+      inputs: z.object({ alertId: z.string(), onPick: z.string().optional() }),
+      events: {},
+      component: PickerComponent,
+    })
+
+    it('fails on its first inputs, and says so through failed', async () => {
+      const { rendered } = await renderHost([picker], host => {
+        host.widgetId.set('picker')
+        host.inputs.set({ alertId: 'a-1', onPick: 'x' })
+      })
+      const host = rendered.ref.instance
+
+      await vi.waitFor(() => {
+        expect(host.failures).toHaveLength(1)
+      })
+      expect(host.failures[0]?.message).toContain("picker failed to declare input 'onPick'")
+      expect(host.widget?.status()).toBe('error')
+      expect(rendered.element.querySelector('[data-mfe-scope]')).toBeNull()
+    })
+
+    it('fails once mounted when a later set produces the name, and says so through failed', async () => {
+      const { rendered, appRef } = await renderHost([picker], host => {
+        host.widgetId.set('picker')
+      })
+      const host = rendered.ref.instance
+      await vi.waitFor(() => {
+        expect(host.widget?.status()).toBe('mounted')
+      })
+
+      host.inputs.set({ alertId: 'a-2', onPick: 'x' })
+      await appRef.whenStable()
+
+      await vi.waitFor(() => {
+        expect(host.failures).toHaveLength(1)
+      })
+      expect(host.failures[0]?.message).toContain("picker failed to declare input 'onPick'")
+      expect(host.widget?.status()).toBe('error')
+      expect(rendered.element.querySelector('[data-mfe-scope]')).toBeNull()
+    })
+  })
+
   describe('hosting a definition another adapter built', () => {
     it('hands it an element inside the scope root, its inputs and their updates', async () => {
       const { definition, calls } = foreignWidget('counter')

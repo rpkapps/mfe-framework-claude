@@ -11,7 +11,6 @@ import {
   DEFINITION_BRAND,
   eventNameToHandlerProp,
   findEventNameProblem,
-  isReservedInputName,
   withoutUndefined,
   type ContractEvents,
   type ContractInputs,
@@ -189,20 +188,4 @@ function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): 
     observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
     repair: `Rename one of them, for example '${problem.name}Completed'.`,
   })
-}
-
-/** Called by the mount boundary, where the parsed input keys are known. */
-export function assertUsableInputNames(id: string, inputNames: readonly string[]): void {
-  for (const name of inputNames) {
-    if (!isReservedInputName(name)) continue
-
-    throw createMfeError({
-      code: 'contract/input-mismatch',
-      id,
-      operation: `declare input '${name}'`,
-      expected: 'an input name that is not reserved for host control or event handlers',
-      observed: `'${name}', which is reserved`,
-      repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
-    })
-  }
 }

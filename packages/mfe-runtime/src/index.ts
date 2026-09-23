@@ -69,6 +69,14 @@ export {
   type WidgetMountTarget,
 } from './mount/mountable-definition.ts'
 
+/** The provider's half of the Widget boundary, which every adapter's `mount` applies. */
+export {
+  createProviderEmit,
+  validateProviderInputs,
+  type ProviderDefinition,
+  type ProviderInputs,
+} from './mount/provider-boundary.ts'
+
 export {
   applyScopeAttributes,
   createOverlayRoot,

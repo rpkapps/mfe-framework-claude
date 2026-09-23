@@ -11,8 +11,9 @@
  *
  * Validation is split the way a Widget boundary splits it everywhere. The provider — the
  * definition's `mount` — checks inputs for serializability and against its own schema, and every
- * payload it emits against its own event schema, throwing in its own stack. The host checks only
- * what the consumer declared, and routes events to its handlers.
+ * payload it emits against its own event schema, throwing in its own stack. Those checks are
+ * `validateProviderInputs` and `createProviderEmit`. The host checks only what the consumer
+ * declared, and routes events to its handlers.
  */
 
 import {

@@ -1,51 +1,37 @@
 /**
- * The provider's half of the Widget boundary: validating the inputs a host passes and the payloads
- * the Widget emits, against the Widget's own contract. The host checks only what it declared
- * itself, so a failure here is always the provider's to fix.
+ * The provider's half of the Widget boundary as an Angular Widget applies it: the runtime's shared
+ * checks, then the two only a component needs — named inputs, each of them one the component
+ * declares, because `setInput` would otherwise fail far from here.
  */
 
-import {
-  createMfeError,
-  isReservedInputName,
-  validateAgainstContract,
-  validateSerializable,
-  type ContractValidation,
-} from '@company/mfe-core'
+import { createMfeError, isRecord, withoutUndefined } from '@company/mfe-core'
+import { validateProviderInputs, type ProviderInputs } from '@company/mfe-runtime'
 
 import type { WidgetDefinition } from '../definition.ts'
 import { undeclaredInput, type ComponentContract } from './component-contract.ts'
 
-function versionOf(definition: WidgetDefinition): { readonly definitionVersion?: string } {
-  return definition.version === undefined ? {} : { definitionVersion: definition.version }
-}
+/** Accepted inputs are always named, so each one can be set on the component. */
+export type WidgetInputs =
+  | { readonly status: 'accepted'; readonly value: Readonly<Record<string, unknown>> }
+  | Exclude<ProviderInputs, { readonly status: 'accepted' }>
 
 /** Pure, so an update can validate without touching the mounted component. */
 export function validateInputs(
   definition: WidgetDefinition,
   component: ComponentContract,
   inputs: Readonly<Record<string, unknown>>,
-): ContractValidation<Readonly<Record<string, unknown>>> {
-  const context = {
-    id: definition.id,
-    ...versionOf(definition),
-    direction: 'input' as const,
-    side: 'provider' as const,
-  }
+): WidgetInputs {
+  const checked = validateProviderInputs(definition, inputs)
+  if (checked.status !== 'accepted') return checked
 
-  const nonSerializable = validateSerializable(inputs, context)
-  if (nonSerializable) return { ok: false, error: nonSerializable }
-
-  const result = validateAgainstContract(definition.contract.inputs, inputs, context)
-  if (!result.ok) return result
-
-  const value: unknown = result.value
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+  const { value } = checked
+  if (!isRecord(value)) {
     return {
-      ok: false,
+      status: 'rejected',
       error: createMfeError({
         code: 'contract/input-mismatch',
         id: definition.id,
-        ...versionOf(definition),
+        ...withoutUndefined({ definitionVersion: definition.version }),
         operation: 'accept input',
         direction: 'input',
         expected: 'an inputs schema that produces an object of named inputs',
@@ -55,69 +41,10 @@ export function validateInputs(
     }
   }
 
-  const record = value as Readonly<Record<string, unknown>>
-  for (const name of Object.keys(record)) {
-    if (isReservedInputName(name)) {
-      return {
-        ok: false,
-        error: createMfeError({
-          code: 'contract/input-mismatch',
-          id: definition.id,
-          ...versionOf(definition),
-          operation: `declare input '${name}'`,
-          expected: 'an input name that is not reserved for host control or event handlers',
-          observed: `'${name}', which is reserved`,
-          repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
-        }),
-      }
-    }
-    if (!component.inputs.has(name)) {
-      return { ok: false, error: undeclaredInput(definition, component, name) }
-    }
+  const undeclared = Object.keys(value).find(name => !component.inputs.has(name))
+  if (undeclared !== undefined) {
+    return { status: 'rejected', error: undeclaredInput(definition, component, undeclared) }
   }
 
-  return { ok: true, value: record }
-}
-
-/**
- * The one emit every path goes through. It throws at the call site, which for `injectWidgetEmit`
- * is the provider's own code; the host's `deliver` receives only a validated payload.
- */
-export function createWidgetEmitter(
-  definition: WidgetDefinition,
-  deliver: (event: string, payload: unknown) => void,
-): (event: string, payload: unknown) => void {
-  const declared = definition.contract.events
-
-  return (event, payload) => {
-    const schema = declared[event]
-    if (!schema) {
-      throw createMfeError({
-        code: 'contract/event-mismatch',
-        id: definition.id,
-        ...versionOf(definition),
-        operation: `emit event '${event}'`,
-        direction: 'event',
-        expected: `one of the declared events (${Object.keys(declared).join(', ') || 'none'})`,
-        observed: `'${event}', which this Widget does not declare`,
-        repair: `Add '${event}' to the events schema, or emit a declared event.`,
-      })
-    }
-
-    const context = {
-      id: definition.id,
-      ...versionOf(definition),
-      direction: 'event' as const,
-      side: 'provider' as const,
-      eventName: event,
-    }
-
-    const nonSerializable = validateSerializable(payload, context)
-    if (nonSerializable) throw nonSerializable
-
-    const validated = validateAgainstContract(schema, payload, context)
-    if (!validated.ok) throw validated.error
-
-    deliver(event, validated.value)
-  }
+  return { status: 'accepted', value }
 }

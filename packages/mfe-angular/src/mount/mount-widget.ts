@@ -7,7 +7,11 @@
 
 import { createComponent, type ComponentRef, type EnvironmentInjector } from '@angular/core'
 import { toMfeError } from '@company/mfe-core'
-import type { MountedWidget, WidgetMountTarget } from '@company/mfe-runtime'
+import {
+  createProviderEmit,
+  type MountedWidget,
+  type WidgetMountTarget,
+} from '@company/mfe-runtime'
 
 import type { WidgetDefinition } from '../definition.ts'
 import { WIDGET_EMIT } from '../inject/tokens.ts'
@@ -21,7 +25,7 @@ import {
   reportForeignDestroy,
 } from './mount-providers.ts'
 import { recordMountedApplication } from './mounted-applications.ts'
-import { createWidgetEmitter, validateInputs } from './widget-channel.ts'
+import { validateInputs } from './widget-channel.ts'
 
 /** What an Angular Widget's `mount` resolves to; the extras serve tests. */
 export interface AngularMountedWidget extends MountedWidget {
@@ -80,10 +84,10 @@ export async function mountWidget(
   const component = readComponentContract(definition)
   const first = validateInputs(definition, component, target.inputs)
   // Nothing to fall back to on the first mount, so the validation error itself is the rejection.
-  if (!first.ok) throw first.error
+  if (first.status !== 'accepted') throw first.error
 
   const errors = new MountErrorHandler(context)
-  const emit = createWidgetEmitter(definition, target.emit)
+  const emit = createProviderEmit(definition, target.emit)
 
   // The author's providers come first, so none of them can replace what the mount owns.
   const appRef = await createMountApplication(
@@ -181,7 +185,13 @@ export async function mountWidget(
       if (disposal !== null) return
 
       const next = validateInputs(definition, component, inputs)
-      if (!next.ok) {
+      // No later set can repair a reserved input name, so the mount fails rather than keeping
+      // its last valid inputs; the runtime reports the failure and tears the mount down.
+      if (next.status === 'misdeclared') {
+        target.onFailure(next.error)
+        return
+      }
+      if (next.status === 'rejected') {
         // The mount keeps rendering its last valid inputs; the host hears about the rejection.
         context.runtime.diagnostics.report(next.error, { context: { widget: definition.id } })
         target.onInputRejected?.(next.error)

@@ -352,6 +352,71 @@ describe('a React Widget mounting itself', () => {
     expect(memory?.diagnostics).toEqual([])
   })
 
+  describe('a contract that produces an input name a host reserves', () => {
+    /** Optional, so a first set without it mounts and only a later one produces the name. */
+    const picker = createWidget({
+      id: 'picker',
+      version: '2.0.0',
+      inputs: z.object({ label: z.string(), onPick: z.string().optional() }),
+      events: {},
+      render: ({ inputs }): ReactNode => <p>{inputs.label}</p>,
+    })
+
+    /** The Angular adapter fails with this same message, word for word. */
+    const RESERVED_MESSAGE =
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or event handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+
+    /** Outside `act`, because inside it React rethrows the failure to the test instead. */
+    it('rejects the first mount with the declaration error', async () => {
+      const { context } = hostFor('widget', 'picker')
+      const onInputRejected = vi.fn()
+
+      const thrown = await picker
+        .mount({
+          element,
+          context,
+          inputs: { label: 'Pick', onPick: 'x' },
+          emit: () => undefined,
+          onFailure: noopFailure,
+          onInputRejected,
+        })
+        .catch((error: unknown) => error)
+
+      expect(thrown).toMatchObject({ code: 'contract/input-mismatch', id: 'picker' })
+      expect((thrown as Error).message).toBe(RESERVED_MESSAGE)
+      expect(onInputRejected).not.toHaveBeenCalled()
+      expect(element.childElementCount).toBe(0)
+    })
+
+    it('hands a later set that produces the name to onFailure, not onInputRejected', async () => {
+      const { context } = hostFor('widget', 'picker')
+      const onFailure = vi.fn()
+      const onInputRejected = vi.fn()
+      let mounted: MountedWidget | undefined
+      await act(async () => {
+        mounted = await picker.mount({
+          element,
+          context,
+          inputs: { label: 'Pick' },
+          emit: () => undefined,
+          onFailure,
+          onInputRejected,
+        })
+      })
+
+      mounted?.update({ label: 'Pick', onPick: 'x' })
+
+      await vi.waitFor(() => {
+        expect(onFailure).toHaveBeenCalledTimes(1)
+      })
+      expect(onFailure.mock.calls[0]?.[0]).toMatchObject({
+        code: 'contract/input-mismatch',
+        message: RESERVED_MESSAGE,
+      })
+      expect(onInputRejected).not.toHaveBeenCalled()
+    })
+  })
+
   it('empties the element when disposed', async () => {
     const mounted = await mountCounter({ label: 'Clicks' })
 

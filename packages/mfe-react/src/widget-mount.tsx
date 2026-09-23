@@ -4,30 +4,12 @@
  * re-renders because its host handed over a new one.
  */
 
-import {
-  createMfeError,
-  validateAgainstContract,
-  validateSerializable,
-  type MfeError,
-} from '@company/mfe-core'
+import { createMfeError, shallowEqual, type MfeError } from '@company/mfe-core'
+import { createProviderEmit, validateProviderInputs } from '@company/mfe-runtime'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { assertUsableInputNames, type WidgetDefinition } from './definition.ts'
+import type { WidgetDefinition } from './definition.ts'
 import type { MfeMount } from './runtime.ts'
-
-/** Shallow comparison over input names, so a handler change is not an input change. */
-function inputsEqual(
-  a: Readonly<Record<string, unknown>>,
-  b: Readonly<Record<string, unknown>>,
-): boolean {
-  const aKeys = Object.keys(a)
-  if (aKeys.length !== Object.keys(b).length) return false
-  for (const key of aKeys) {
-    if (!Object.hasOwn(b, key)) return false
-    if (!Object.is(a[key], b[key])) return false
-  }
-  return true
-}
 
 export interface WidgetMountProps {
   readonly definition: WidgetDefinition
@@ -46,30 +28,22 @@ interface ValidationState {
   readonly error: MfeError | null
 }
 
-/** Pure, so it is safe to call during render. */
+/**
+ * Pure, so it is safe to call during render. A reserved input name is thrown rather than kept:
+ * no later set can repair the contract, so failing the render fails the mount, or reaches the
+ * host through `onFailure` once it is mounted.
+ */
 function validateInto(
   definition: WidgetDefinition,
   inputs: Readonly<Record<string, unknown>>,
   previousValid: Record<string, unknown> | null,
 ): ValidationState {
-  const context = {
-    id: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-    direction: 'input' as const,
-    side: 'provider' as const,
+  const result = validateProviderInputs(definition, inputs)
+  if (result.status === 'misdeclared') throw result.error
+  if (result.status === 'rejected') {
+    return { checked: inputs, valid: previousValid, error: result.error }
   }
-
-  const nonSerializable = validateSerializable(inputs, context)
-  if (nonSerializable) return { checked: inputs, valid: previousValid, error: nonSerializable }
-
-  const result = validateAgainstContract(definition.contract.inputs, inputs, {
-    ...context,
-  })
-  if (!result.ok) return { checked: inputs, valid: previousValid, error: result.error }
-
-  const value = result.value as Record<string, unknown>
-  assertUsableInputNames(definition.id, Object.keys(value))
-  return { checked: inputs, valid: value, error: null }
+  return { checked: inputs, valid: result.value as Record<string, unknown>, error: null }
 }
 
 /** Memoized on the validated inputs, so a channel-only change re-renders nothing remote. */
@@ -109,7 +83,8 @@ export function WidgetMount({
   // describe inputs that were never committed.
   const [validation, setValidation] = useState(() => validateInto(definition, inputs, null))
 
-  if (!Object.is(validation.checked, inputs) && !inputsEqual(validation.checked, inputs)) {
+  // Shallow over input names, so a handler change is not an input change.
+  if (!shallowEqual(validation.checked, inputs)) {
     setValidation(current => validateInto(definition, inputs, current.valid))
   }
 
@@ -124,45 +99,14 @@ export function WidgetMount({
     onInputRejected?.(error)
   }, [validation, diagnostics, definition.id, onInputRejected])
 
-  const emit = useMemo(() => {
-    const declared = definition.contract.events
-    const version =
-      definition.version === undefined ? {} : { definitionVersion: definition.version }
-
-    return (event: string, payload: unknown): void => {
-      const schema = declared[event]
-      if (!schema) {
-        // Throwing at the call site keeps the failure in the provider's own stack.
-        throw createMfeError({
-          code: 'contract/event-mismatch',
-          id: definition.id,
-          ...version,
-          operation: `emit event '${event}'`,
-          direction: 'event',
-          expected: `one of the declared events (${Object.keys(declared).join(', ') || 'none'})`,
-          observed: `'${event}', which this Widget does not declare`,
-          repair: `Add '${event}' to the events schema, or emit a declared event.`,
-        })
-      }
-
-      const providerContext = {
-        id: definition.id,
-        ...version,
-        direction: 'event' as const,
-        side: 'provider' as const,
-        eventName: event,
-      }
-
-      const nonSerializable = validateSerializable(payload, providerContext)
-      if (nonSerializable) throw nonSerializable
-
-      const validated = validateAgainstContract(schema, payload, providerContext)
-      if (!validated.ok) throw validated.error
-
-      // Whatever the consumer declared is the host's to check, on its side of the channel.
-      committedEmit.current(event, validated.value)
-    }
-  }, [definition])
+  const emit = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- `createProviderEmit` only keeps the callback, which reads the ref when the Widget emits and never while this renders
+      createProviderEmit(definition, (event, payload) => {
+        committedEmit.current(event, payload)
+      }),
+    [definition],
+  )
 
   const validInputs = validation.valid
   if (validInputs === null) {
