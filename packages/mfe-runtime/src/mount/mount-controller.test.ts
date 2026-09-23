@@ -8,7 +8,14 @@ import {
 } from '@company/mfe-core'
 
 import { MountController, type MountOperations } from './mount-controller.ts'
-import { deferred, flush, recordingDiagnostics, type Deferred } from '../__tests__/harness.ts'
+import {
+  at,
+  codesOf,
+  deferred,
+  flush,
+  recordingDiagnostics,
+  type Deferred,
+} from '../__tests__/harness.ts'
 
 interface TestModule {
   readonly name: string
@@ -189,60 +196,173 @@ describe('failure and retry', () => {
   })
 })
 
-describe('attempt fencing', () => {
-  it('does not let a superseded attempt settle over the newer one', async () => {
-    // the first load is still in flight when a retry starts.
-    const pending: Deferred<TestModule>[] = []
-    const load = vi.fn(() => {
-      const next = deferred<TestModule>()
-      pending.push(next)
-      return next.promise
-    })
-    const attached: TestModule[] = []
-    const attach = vi.fn(async (loaded: TestModule) => {
-      attached.push(loaded)
-    })
-    const { controller } = createController(operations({ load, attach }))
+describe('retry', () => {
+  it('ignores a retry while the first attempt is still in flight', async () => {
+    const load = deferred<TestModule>()
+    const loadCalls = vi.fn(() => load.promise)
+    const { controller } = createController(operations({ load: loadCalls }))
 
     void controller.start()
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1))
     controller.retry()
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2))
-
-    // the newer attempt wins, and only then does the stale one resolve.
-    pending[1]?.resolve(SECOND_MODULE)
+    load.resolve(MODULE)
     await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
-    pending[0]?.resolve(MODULE)
-    await flush()
 
-    expect(attached).toEqual([SECOND_MODULE])
-    expect(controller.state).toEqual({ status: 'mounted' })
+    expect(loadCalls).toHaveBeenCalledTimes(1)
   })
 
-  it('detaches whatever a superseded attempt had already attached', async () => {
-    const attaches: Deferred<void>[] = []
-    const attach = vi.fn(() => {
-      const next = deferred<void>()
-      attaches.push(next)
-      return next.promise
-    })
-    const detach = vi.fn()
-    const { controller } = createController(operations({ attach, detach }))
+  it('ignores a retry once mounted, so a second UI is never attached beside the first', async () => {
+    const attach = vi.fn(async () => undefined)
+    const { controller } = createController(operations({ attach }))
+    await controller.start()
 
-    void controller.start()
-    await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(1))
     controller.retry()
-    await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(2))
-    attaches[1]?.resolve()
-    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
-    detach.mockClear()
-
-    // the stale attempt finishes attaching after losing the race.
-    attaches[0]?.resolve()
     await flush()
 
-    expect(detach).toHaveBeenCalledTimes(1)
+    expect(attach).toHaveBeenCalledTimes(1)
     expect(controller.state).toEqual({ status: 'mounted' })
+  })
+})
+
+describe('releasing a failed attempt', () => {
+  it('cleans up a failed attach as well as detaching it', async () => {
+    const detach = vi.fn()
+    const cleanup = vi.fn(async () => undefined)
+    const { controller, records } = createController(
+      operations({
+        attach: async () => {
+          throw new Error('render threw')
+        },
+        detach,
+        cleanup,
+      }),
+    )
+
+    await controller.start()
+
+    expect(controller.state.status).toBe('error')
+    expect(detach).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1))
+    expect(records).toHaveLength(1)
+  })
+
+  it('reports a failed attempt before its cleanup has finished', async () => {
+    const cleanup = deferred<void>()
+    const { controller, records } = createController(
+      operations({
+        attach: async () => {
+          throw new Error('render threw')
+        },
+        cleanup: () => cleanup.promise,
+      }),
+    )
+
+    await controller.start()
+
+    expect(controller.state.status).toBe('error')
+    expect(records).toHaveLength(1)
+    cleanup.resolve()
+  })
+
+  it('reports a cleanup that failed after a failed attempt, once', async () => {
+    const { controller, records } = createController(
+      operations({
+        attach: async () => {
+          throw new Error('render threw')
+        },
+        cleanup: async () => {
+          throw new Error('root would not unmount')
+        },
+      }),
+    )
+
+    await controller.start()
+    await flush()
+
+    expect(codesOf(records)).toEqual(['mount/failure', 'dispose/failure'])
+    expect(at(records, 1).error.message).toContain('root would not unmount')
+  })
+
+  it('detaches and cleans up what an attach disposed mid-way had attached once it settles', async () => {
+    const attach = deferred<void>()
+    const detach = vi.fn()
+    const cleanup = vi.fn(async () => undefined)
+    const { controller } = createController(
+      operations({ attach: () => attach.promise, detach, cleanup }),
+    )
+    const started = controller.start()
+    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'pending', attempt: 1 }))
+    await flush()
+
+    await controller.dispose()
+    expect(detach).toHaveBeenCalledTimes(1)
+    expect(cleanup).toHaveBeenCalledTimes(1)
+
+    // The attach finishes after losing the race, having rendered something.
+    attach.resolve()
+    await started
+    await flush()
+
+    expect(detach).toHaveBeenCalledTimes(2)
+    expect(cleanup).toHaveBeenCalledTimes(2)
+    expect(controller.state).toEqual({ status: 'disposed' })
+  })
+})
+
+describe('failing a mounted definition', () => {
+  it('moves a mounted mount to error, releasing what it attached, and reports it once', async () => {
+    const detach = vi.fn()
+    const cleanup = vi.fn(async () => undefined)
+    const { controller, records } = createController(operations({ detach, cleanup }))
+    await controller.start()
+
+    controller.fail(new Error('root unmounted itself'))
+
+    const failure = errorStateOf(controller.state)
+    expect(failure.code).toBe('mount/failure')
+    expect(failure.message).toContain('reports@2.1.0 failed to keep the mounted definition running')
+    expect(failure.message).toContain('root unmounted itself')
+    expect(detach).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledTimes(1))
+    expect(records).toHaveLength(1)
+  })
+
+  it('mounts again on retry without reloading the code', async () => {
+    const load = vi.fn(async () => MODULE)
+    const attach = vi.fn(async () => undefined)
+    const { controller } = createController(operations({ load, attach }))
+    await controller.start()
+    controller.fail(new Error('root unmounted itself'))
+
+    controller.retry()
+
+    expect(controller.state).toEqual({ status: 'pending', attempt: 2 })
+    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(attach).toHaveBeenCalledTimes(2)
+  })
+
+  it('is ignored unless the mount is mounted', async () => {
+    const load = deferred<TestModule>()
+    const detach = vi.fn()
+    const { controller, records } = createController(
+      operations({ load: () => load.promise, detach }),
+    )
+
+    controller.fail(new Error('before any attempt'))
+    void controller.start()
+    controller.fail(new Error('while pending'))
+    expect(controller.state).toEqual({ status: 'pending', attempt: 1 })
+
+    load.resolve(MODULE)
+    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
+    controller.fail(new Error('first'))
+    controller.fail(new Error('second'))
+    await controller.dispose()
+    controller.fail(new Error('after disposal'))
+
+    expect(codesOf(records)).toEqual(['mount/failure'])
+    expect(at(records).error.message).toContain('first')
+    expect(controller.state).toEqual({ status: 'disposed' })
   })
 })
 
@@ -304,6 +424,34 @@ describe('deadlines', () => {
     expect(attachSignal?.aborted).toBe(true)
     expect(detach).toHaveBeenCalledTimes(1)
     expect(records[0]?.error.code).toBe('mount/timeout')
+  })
+
+  it('never lets an attempt that timed out settle over the retry that followed it', async () => {
+    const loads: Deferred<TestModule>[] = []
+    const load = vi.fn(() => {
+      const next = deferred<TestModule>()
+      loads.push(next)
+      return next.promise
+    })
+    const attached: TestModule[] = []
+    const attach = vi.fn(async (loaded: TestModule) => {
+      attached.push(loaded)
+    })
+    const { controller } = createController(operations({ load, attach }))
+
+    const started = controller.start()
+    await vi.advanceTimersByTimeAsync(30_000)
+    await started
+    expect(controller.state.status).toBe('error')
+
+    controller.retry()
+    at(loads, 1).resolve(SECOND_MODULE)
+    await vi.waitFor(() => expect(controller.state).toEqual({ status: 'mounted' }))
+    at(loads, 0).resolve(MODULE)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(attached).toEqual([SECOND_MODULE])
+    expect(controller.state).toEqual({ status: 'mounted' })
   })
 
   it('measures the mount deadline after the code is ready rather than sharing one clock', async () => {

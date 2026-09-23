@@ -26,11 +26,15 @@ export interface MountOperations<TLoaded> {
   /** Runs under the mount deadline, measured after the code is ready. */
   attach(loaded: TLoaded, signal: AbortSignal): Promise<void>
   /**
-   * Synchronous, and called before any asynchronous cleanup so the failed or disposed surface
-   * disappears immediately.
+   * Synchronous, and called before any asynchronous cleanup so the failed, superseded or disposed
+   * surface disappears immediately. An attempt disposed while it attached is detached again once
+   * the attach settles, so a second call must be harmless.
    */
   detach(): void
-  /** Asynchronous cleanup: subscriptions, registrations, child mounts, roots. */
+  /**
+   * Asynchronous cleanup: subscriptions, registrations, child mounts, roots. It follows every
+   * detach, not only disposal, and may start while an earlier call is still running.
+   */
   cleanup(): Promise<void>
 }
 
@@ -38,6 +42,7 @@ export interface MountControllerOptions<TLoaded> {
   readonly id: string
   readonly definitionVersion?: string
   readonly operations: MountOperations<TLoaded>
+  /** The runtime's, so a shell tunes every mount in one place. */
   readonly deadlines: DeadlineConfig
   readonly diagnostics?: DiagnosticsHub
   /** Called once the mount reaches a terminal disposed state. */
@@ -53,6 +58,8 @@ export class MountController<TLoaded> implements MountHandle {
   readonly #identity: { readonly id: string; readonly definitionVersion?: string }
   /** The most recent loaded module, so a retry after a mount failure can skip reloading. */
   #loaded: TLoaded | undefined
+  /** The latest attempt, which `fail` settles; an older one can no longer be current. */
+  #attempt: AttemptToken | null = null
 
   constructor(options: MountControllerOptions<TLoaded>) {
     this.id = options.id
@@ -99,10 +106,34 @@ export class MountController<TLoaded> implements MountHandle {
     return this.#runAttempt()
   }
 
-  /** Updating props during an initial mount error never retries silently; only this does. */
+  /**
+   * Acts only on a failed mount: from `pending` it would race the attempt in flight, and from
+   * `mounted` it would attach a second UI beside the first. Updating props during an initial
+   * mount error never retries silently; only this does.
+   */
   retry(): void {
-    if (this.#lifecycle.isDisposed) return
+    if (this.#lifecycle.getState().status !== 'error') return
     void this.#runAttempt()
+  }
+
+  /**
+   * A fatal failure the mounted definition reports after it mounted. The attempt is detached and
+   * cleaned up exactly as a failed attach is, so `retry()` then mounts afresh. Ignored unless the
+   * mount is `mounted`, so a late report from an attempt already torn down changes nothing.
+   */
+  fail(error: unknown): void {
+    const token = this.#attempt
+    if (token === null || this.#lifecycle.getState().status !== 'mounted') return
+
+    this.#settleFailure(
+      token,
+      toMfeError(error, {
+        ...this.#identity,
+        code: 'mount/failure',
+        operation: 'keep the mounted definition running',
+        repair: 'Use the explicit retry action once the underlying cause is fixed.',
+      }),
+    )
   }
 
   /**
@@ -122,6 +153,7 @@ export class MountController<TLoaded> implements MountHandle {
       this.#report(error)
       return
     }
+    this.#attempt = token
 
     try {
       // A retry after a *mount* failure reuses the resolved module: reloading would
@@ -148,7 +180,7 @@ export class MountController<TLoaded> implements MountHandle {
       if (!token.isCurrent()) {
         // A superseded attempt may have attached UI before losing the race, which would
         // otherwise leave a tree behind.
-        this.#safeDetach()
+        this.#release()
         return
       }
 
@@ -156,18 +188,33 @@ export class MountController<TLoaded> implements MountHandle {
     } catch (error) {
       if (!token.isCurrent()) return
 
-      const structured = toMfeError(error, {
-        ...this.#identity,
-        code: 'mount/failure',
-        operation: 'mount definition',
-        repair: 'Use the explicit retry action once the underlying cause is fixed.',
-      })
-
-      // Detach whatever a failed attach may have attached, then settle.
-      this.#safeDetach()
-      this.#lifecycle.settleError(token, structured)
-      this.#report(structured)
+      this.#settleFailure(
+        token,
+        toMfeError(error, {
+          ...this.#identity,
+          code: 'mount/failure',
+          operation: 'mount definition',
+          repair: 'Use the explicit retry action once the underlying cause is fixed.',
+        }),
+      )
     }
+  }
+
+  /** Whatever the failed attempt attached is released before the state says it failed. */
+  #settleFailure(token: AttemptToken, error: MfeError): void {
+    this.#release()
+    this.#lifecycle.settleError(token, error)
+    this.#report(error)
+  }
+
+  /**
+   * Detaches now and cleans up without holding the state change back: a cleanup that never
+   * settles would otherwise keep a failed mount from ever showing its failure. The cleanup
+   * still runs under the dispose deadline, and whatever goes wrong in it is reported.
+   */
+  #release(): void {
+    this.#safeDetach()
+    void this.#cleanUp('clean up a failed or superseded attempt').catch(() => undefined)
   }
 
   async #dispose(): Promise<void> {
@@ -185,33 +232,43 @@ export class MountController<TLoaded> implements MountHandle {
     this.#lifecycle.markDisposed(reason)
 
     try {
-      await withDeadline(
-        async () => {
-          await this.#options.operations.cleanup()
-        },
-        this.#options.deadlines.dispose,
-        { ...this.#identity, operation: 'complete asynchronous cleanup', phase: 'dispose' },
-      )
+      await this.#cleanUp('complete asynchronous cleanup')
     } catch (error) {
       // The mount stays disposed and late callbacks stay fenced; the promise rejects so
       // the caller learns cleanup did not finish.
-      const structured = toMfeError(error, {
-        ...this.#identity,
-        code: 'dispose/failure',
-        operation: 'complete asynchronous cleanup',
-        repair:
-          'Check the diagnostics for the cleanup step that failed. Other mounts and shell navigation are unaffected.',
-      })
-      this.#report(structured)
       this.#finish()
-      throw structured
+      throw error
     }
 
     this.#finish()
   }
 
+  /** Runs the operations' cleanup under the dispose deadline, reporting a failure once. */
+  async #cleanUp(operation: string): Promise<void> {
+    try {
+      await withDeadline(
+        async () => {
+          await this.#options.operations.cleanup()
+        },
+        this.#options.deadlines.dispose,
+        { ...this.#identity, operation, phase: 'dispose' },
+      )
+    } catch (error) {
+      const structured = toMfeError(error, {
+        ...this.#identity,
+        code: 'dispose/failure',
+        operation,
+        repair:
+          'Check the diagnostics for the cleanup step that failed. Other mounts and shell navigation are unaffected.',
+      })
+      this.#report(structured)
+      throw structured
+    }
+  }
+
   #finish(): void {
     this.#loaded = undefined
+    this.#attempt = null
     this.#options.onDisposed?.()
     this.#lifecycle.dispose()
   }
