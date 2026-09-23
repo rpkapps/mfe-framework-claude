@@ -5,7 +5,7 @@
  * one reading of the shape every framework build publishes.
  */
 
-import type { MfeAdapter } from '@company/mfe-core'
+import { isRecord, type MfeAdapter } from '@company/mfe-core'
 import { parseFederatedEntry, type FederatedRegistryEntry } from '@company/mfe-runtime'
 
 /** What `entry.adapter` says on everything this adapter parses, and what `mfe.framework` names. */
@@ -14,10 +14,6 @@ const ANGULAR_ADAPTER_KIND = 'angular'
 /** Reached through `angularAdapter.is(entry)`, never carried as an opaque payload. */
 export interface AngularRegistryEntry extends FederatedRegistryEntry {
   readonly adapter: typeof ANGULAR_ADAPTER_KIND
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 export const angularAdapter: MfeAdapter<typeof ANGULAR_ADAPTER_KIND, AngularRegistryEntry> = {

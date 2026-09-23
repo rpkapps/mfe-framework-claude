@@ -8,6 +8,7 @@ import {
   CAPABILITY_NAMES,
   createMfeError,
   FRAMEWORK_CONTRACT_MAJOR,
+  isRecord,
   isSupportedContractMajor,
   type BuildProvenance,
   type CapabilityDescriptor,
@@ -23,10 +24,6 @@ import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
 
 /** Every failure here has the same fix, so the sentence is written once. */
 const REBUILD = 'Rebuild the container; the registry entry is generated, never hand-written.'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
 
 /** A message that reads as the expectation, because that is where the error puts it. */
 function nonEmptyString(expected: string): z.ZodString {

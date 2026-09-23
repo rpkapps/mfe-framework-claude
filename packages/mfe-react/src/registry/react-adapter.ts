@@ -5,7 +5,7 @@
  * other framework adapter.
  */
 
-import type { MfeAdapter } from '@company/mfe-core'
+import { isRecord, type MfeAdapter } from '@company/mfe-core'
 import { parseFederatedEntry, type FederatedRegistryEntry } from '@company/mfe-runtime'
 
 /** What `entry.adapter` says on everything this adapter parses. */
@@ -18,10 +18,6 @@ const REACT_ADAPTER_KIND = 'react'
  */
 export interface ReactRegistryEntry extends FederatedRegistryEntry {
   readonly adapter: typeof REACT_ADAPTER_KIND
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 /** An absent framework is a React build from before the field existed. */

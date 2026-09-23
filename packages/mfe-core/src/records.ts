@@ -1,5 +1,10 @@
 /** Neutral records the host orchestrates without knowing which adapter produced them. */
 
+/** An array is a `typeof … === 'object'` too, and never what a record check means by one. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
 
