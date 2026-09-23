@@ -18,9 +18,10 @@ function definition(overrides: Record<PropertyKey, unknown> = {}): Record<Proper
 }
 
 describe('isBrandedDefinition', () => {
-  it('recognises a definition from either adapter', () => {
+  it('recognises a definition from any adapter, including one nobody here has heard of', () => {
     expect(isBrandedDefinition(definition({ framework: 'react' }))).toBe(true)
     expect(isBrandedDefinition(definition({ framework: 'angular', kind: 'app' }))).toBe(true)
+    expect(isBrandedDefinition(definition({ framework: 'plain-dom' }))).toBe(true)
   })
 
   /** A container can evaluate its own copy of an adapter, and its definitions still count. */
@@ -43,9 +44,10 @@ describe('isBrandedDefinition', () => {
     expect(isBrandedDefinition(definition({ [DEFINITION_BRAND]: 'yes' }))).toBe(false)
   })
 
-  it('refuses a branded record that names no adapter it knows', () => {
+  it('refuses a branded record that names no adapter at all', () => {
     expect(isBrandedDefinition(definition({ framework: undefined }))).toBe(false)
-    expect(isBrandedDefinition(definition({ framework: 'vue' }))).toBe(false)
+    expect(isBrandedDefinition(definition({ framework: '' }))).toBe(false)
+    expect(isBrandedDefinition(definition({ framework: 7 }))).toBe(false)
   })
 
   it('refuses a branded record with no usable identity or kind', () => {

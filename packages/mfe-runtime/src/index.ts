@@ -6,6 +6,9 @@
 
 export { readRegistry, type ReadRegistryOptions } from './registry/read-registry.ts'
 
+/** The entry shape every framework build publishes, read once for every adapter's `parse`. */
+export { parseFederatedEntry } from './registry/federated-entry.ts'
+
 export {
   SharedContainerLoader,
   type ContainerLoader,

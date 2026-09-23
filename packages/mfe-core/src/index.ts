@@ -38,12 +38,7 @@ export {
   type PublishedWidgetContract,
 } from './definition.ts'
 
-export {
-  DEFINITION_BRAND,
-  isBrandedDefinition,
-  type BrandedDefinition,
-  type DefinitionFramework,
-} from './definition-brand.ts'
+export { DEFINITION_BRAND, isBrandedDefinition, type BrandedDefinition } from './definition-brand.ts'
 
 export {
   eventNameToHandlerProp,

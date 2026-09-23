@@ -1,7 +1,6 @@
 /**
  * The Angular adapter against the entries an Angular container's build publishes: it recognises
- * exactly the entries naming Angular, however broken the rest is, and `parse` is as strict as the
- * React adapter's.
+ * exactly the entries naming Angular, however broken the rest is, and `parse` is strict.
  */
 
 import { isMfeError, type MfeError, type RegistryEntry } from '@company/mfe-core'

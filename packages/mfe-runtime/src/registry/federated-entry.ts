@@ -1,8 +1,7 @@
 /**
- * The registry entry schema a framework build publishes, and the contract-major gate in front of
- * it. Copied from the React adapter's `registry/react-adapter.ts` rather than shared, because
- * neither adapter may import the other and moving it into the neutral host is a separate change;
- * the two copies are meant to be consolidated there, and must not drift before they are.
+ * Reading an entry a federation build published. Every framework build publishes the same shape,
+ * so it is checked once, here, and each adapter keeps only what differs between them: which
+ * entries are its own, which its `detect` decides, and the `adapter` it stamps on what it parses.
  */
 
 import {
@@ -20,10 +19,12 @@ import {
 } from '@company/mfe-core'
 import { z } from 'zod'
 
+import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
+
 /** Every failure here has the same fix, so the sentence is written once. */
 const REBUILD = 'Rebuild the container; the registry entry is generated, never hand-written.'
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
@@ -135,13 +136,16 @@ const publishedContract = z
     ...(value.inputs === undefined ? {} : { inputs: value.inputs }),
   }))
 
-/** The framework version the container was built for; `framework` beside it is read by `detect`. */
+/**
+ * The framework version the container was built for. Which adapter the entry is for sits beside
+ * it, and is each adapter's `detect` to read, not this schema's.
+ */
 const contractMarker = z.object(
   { contractMajor: z.number({ error: 'an integer' }).int({ error: 'an integer' }) },
   { error: 'an object such as { "contractMajor": 1 }' },
 )
 
-export const entrySchema = z
+const entrySchema = z
   .object({
     id: nonEmptyString('a non-empty definition id'),
     kind: z.union([z.literal('app'), z.literal('widget')], { error: '"app" or "widget"' }),
@@ -174,7 +178,7 @@ export const entrySchema = z
   })
 
 /** The first issue is the one a reader acts on, so it is the one the error names. */
-export function invalidEntry(id: string, error: z.ZodError): MfeError {
+function invalidEntry(id: string, error: z.ZodError): MfeError {
   const issue = error.issues[0]
   const path = (issue?.path ?? []).filter(
     (segment): segment is string | number =>
@@ -195,7 +199,7 @@ export function invalidEntry(id: string, error: z.ZodError): MfeError {
  * Gated before the shape, so an entry from a framework major the shell cannot load says exactly
  * that, rather than failing on whichever field that major renamed.
  */
-export function gateContractMajor(id: string, raw: unknown): void {
+function gateContractMajor(id: string, raw: unknown): void {
   if (!isRecord(raw)) return
   const marker = raw['mfe']
   if (!isRecord(marker)) return
@@ -214,4 +218,41 @@ export function gateContractMajor(id: string, raw: unknown): void {
         ? 'Upgrade the shell, or redeploy the container against the shell’s major.'
         : 'Rebuild and redeploy the container against the current framework major.',
   })
+}
+
+/**
+ * Strict: throws an `MfeError` coded `registry/invalid-entry` naming the field that broke, or
+ * `contract/unsupported-major` for an entry built against a framework major this runtime cannot
+ * load. What it returns carries `adapter`, so the caller's `is()` guard recognises it.
+ */
+export function parseFederatedEntry<K extends string>(
+  raw: unknown,
+  adapter: K,
+): FederatedRegistryEntry & { readonly adapter: K } {
+  const id = isRecord(raw) && typeof raw['id'] === 'string' ? raw['id'] : '<unknown>'
+
+  gateContractMajor(id, raw)
+
+  const result = entrySchema.safeParse(raw)
+  if (!result.success) throw invalidEntry(id, result.error)
+
+  const parsed = result.data
+
+  return {
+    id: parsed.id,
+    definitionKind: parsed.kind,
+    adapter,
+    manifestUrl: parsed.manifestUrl,
+    container: parsed.container,
+    ...(parsed.expose === undefined ? {} : { expose: parsed.expose }),
+    ...(parsed.version === undefined ? {} : { version: parsed.version }),
+    ...(parsed.capabilities === undefined ? {} : { capabilities: parsed.capabilities }),
+    ...(parsed.contract === undefined ? {} : { contract: parsed.contract }),
+    ...(parsed.build === undefined ? {} : { build: parsed.build }),
+    ...(parsed.hidden === true ? { hidden: true } : {}),
+    ...(parsed.title === undefined ? {} : { title: parsed.title }),
+    ...(parsed.description === undefined ? {} : { description: parsed.description }),
+    ...(parsed.tags === undefined ? {} : { tags: parsed.tags }),
+    ...(parsed.icon === undefined ? {} : { icon: parsed.icon }),
+  }
 }

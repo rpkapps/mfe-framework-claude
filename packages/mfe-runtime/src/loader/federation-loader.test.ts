@@ -11,7 +11,6 @@ import {
   DEFINITION_BRAND,
   isMfeError,
   type BrandedDefinition,
-  type DefinitionFramework,
   type DefinitionKind,
   type RegistryEntry,
 } from '@company/mfe-core'
@@ -36,7 +35,7 @@ function manifestError(manifestUrl: string): Error {
 function definition(
   id: string,
   kind: DefinitionKind = 'app',
-  framework: DefinitionFramework = 'angular',
+  framework = 'angular',
 ): BrandedDefinition {
   return { [DEFINITION_BRAND]: true, kind, id, framework }
 }

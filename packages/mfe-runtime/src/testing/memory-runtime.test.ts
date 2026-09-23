@@ -11,7 +11,6 @@ import {
   createMfeError,
   DEFINITION_BRAND,
   type BrandedDefinition,
-  type DefinitionFramework,
   type DefinitionKind,
   type MfeAdapter,
   type RegistryEntry,
@@ -34,7 +33,7 @@ function memoryRuntime(options: Parameters<typeof createMemoryRuntime>[0] = {}):
 function definition(
   id: string,
   kind: DefinitionKind,
-  framework: DefinitionFramework,
+  framework: string,
   version?: string,
 ): BrandedDefinition {
   return {

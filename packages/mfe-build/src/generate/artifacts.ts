@@ -1,11 +1,7 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
 import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
-import type {
-  CapabilityDescriptor,
-  DefinitionFramework,
-  ExportedDefinitionDescriptor,
-} from '@company/mfe-core'
+import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
 
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
 import { ALIASES, containerId, exposeName, type GenerateContext } from './modules.ts'
@@ -17,7 +13,7 @@ export interface FrameworkManifestMetadata {
   /** The framework contract major this container was built against. */
   readonly major: number
   /** The adapter that built it, when the integration names one; absent reads as React. */
-  readonly framework?: DefinitionFramework
+  readonly framework?: string
   readonly buildHash: string
   readonly buildTime: string
   readonly registryDescriptor: string

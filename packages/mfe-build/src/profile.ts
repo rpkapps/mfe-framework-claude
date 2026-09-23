@@ -3,7 +3,7 @@
  * build is the same whichever framework its definitions render with.
  */
 
-import type { CapabilityDescriptor, DefinitionFramework } from '@company/mfe-core'
+import type { CapabilityDescriptor } from '@company/mfe-core'
 
 import type { CapabilityOwner } from './discovery/capabilities.ts'
 import type {
@@ -31,7 +31,7 @@ export interface ContainerProfile {
    * Recorded in the registry entry and the federation manifest. Left out, neither carries one,
    * which a host reads as a React container.
    */
-  readonly framework?: DefinitionFramework
+  readonly framework?: string
   /** The candidates this kind of container shares, each only when it depends on it. */
   readonly sharing: SharingPolicies
   readonly stylesheet: StylesheetProfile
