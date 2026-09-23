@@ -9,5 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
     setupFiles: ['./vitest.setup.ts'],
+    // Bundles the fixture container on a second React for the two-React-versions test.
+    globalSetup: ['./src/__tests__/build-container-b.ts'],
   },
 })

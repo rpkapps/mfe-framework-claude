@@ -130,6 +130,12 @@ catalog:
 catalogs:
   docs:
     '@tanstack/react-router': 1.170.35
+  # A second React for the interop test that puts two React versions on one page
+  # (`tools/interop-react-b`): a container built against it has its own React share scope, so it
+  # has to render beside, and inside, the containers on the catalog's React above.
+  interop:
+    react: 19.2.8
+    react-dom: 19.2.8
 
 minimumReleaseAgeExclude:
   - '@rspack/binding-darwin-arm64@2.2.6'

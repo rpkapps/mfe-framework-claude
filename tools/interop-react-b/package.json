@@ -1,0 +1,14 @@
+{
+  "name": "@company/interop-react-b",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A second React and React DOM, on another minor than the catalog's, for tools/interop's two-React-versions test. It holds nothing else: the test's Vite build aliases a fixture container's react and react-dom to the copies installed here.",
+  "type": "module",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "react": "catalog:interop",
+    "react-dom": "catalog:interop"
+  }
+}
