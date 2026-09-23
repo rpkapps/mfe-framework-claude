@@ -4,7 +4,7 @@
  * every definition mounts itself into the element this returns a ref to.
  */
 
-import type { MountState, WidgetContract } from '@company/mfe-core'
+import { shallowEqual, type MountState, type WidgetContract } from '@company/mfe-core'
 import {
   mountDefinition,
   type DefinitionMount,
@@ -56,6 +56,21 @@ const NOT_STARTED: MountState = { status: 'pending', attempt: 0 }
 
 function isWidgetMount(mount: DefinitionMount): mount is WidgetDefinitionMount {
   return typeof (mount as Partial<WidgetDefinitionMount>).update === 'function'
+}
+
+/**
+ * The inputs object of the last render whose set differed. A host builds a new one from its props
+ * on every render, so without this each parent render re-ran the update effect only for the mount
+ * to find the set unchanged. Held in state, adjusted during render, because a ref written there
+ * could describe a render React abandons.
+ */
+function useStableInputs(inputs: Inputs | null): Inputs | null {
+  const [stable, setStable] = useState(inputs)
+  if (inputs === stable) return stable
+  if (inputs !== null && stable !== null && shallowEqual(stable, inputs)) return stable
+
+  setStable(inputs)
+  return inputs
 }
 
 /** The placement is read through the ref, so what the effect passes on is this commit's. */
@@ -125,7 +140,7 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
     // them is a different mount.
   }, [runtime, parent, kind, definitionId, basePath, consumerEvents])
 
-  const inputs = placement.kind === 'widget' ? placement.inputs : null
+  const inputs = useStableInputs(placement.kind === 'widget' ? placement.inputs : null)
   useEffect(() => {
     if (inputs !== null && mount !== null && isWidgetMount(mount)) mount.update(inputs)
   }, [mount, inputs])
