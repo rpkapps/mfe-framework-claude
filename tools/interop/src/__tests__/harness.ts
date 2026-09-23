@@ -70,10 +70,14 @@ export interface AngularHostView<T> {
   readonly element: HTMLElement
 }
 
-/** Renders `component` as a root view of the host application and waits for it to settle. */
+/**
+ * Renders `component` as a root view of the host application and waits for it to settle; `setup`
+ * runs before the first change detection, so it decides what the first render binds.
+ */
 export async function renderInAngularHost<T>(
   appRef: ApplicationRef,
   component: Type<T>,
+  setup: (instance: T) => void = () => undefined,
 ): Promise<AngularHostView<T>> {
   const element = document.createElement('div')
   document.body.appendChild(element)
@@ -85,6 +89,7 @@ export async function renderInAngularHost<T>(
     environmentInjector: appRef.injector,
     hostElement: element,
   })
+  setup(ref.instance)
   appRef.attachView(ref.hostView)
   await appRef.whenStable()
   return { ref, element }

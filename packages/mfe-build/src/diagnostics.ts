@@ -36,8 +36,8 @@ function lowerFirst(subject: string): string {
   return subject.charAt(0).toLowerCase() + subject.slice(1)
 }
 
-/** Rspack accepts `Error` instances in `compilation.errors`, so this is thrown and reported. */
-class MfeBuildError extends Error {
+/** Bundlers accept `Error` instances as compilation errors, so this is thrown and reported. */
+export class MfeBuildError extends Error {
   readonly code: MfeErrorCode | undefined
   readonly file: string
   readonly line: number | undefined

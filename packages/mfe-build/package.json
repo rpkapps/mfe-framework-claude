@@ -1,0 +1,47 @@
+{
+  "name": "@company/mfe-build",
+  "version": "0.1.0",
+  "description": "The framework-neutral half of an MFE container build: static discovery of definitions, contracts, icons and configuration, the generated #mfe/* modules and deployment artifacts, the share-scope policy machinery, the container stylesheet's PostCSS chain and the federation options, for a build integration to compose with its own framework profile.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./env": {
+      "types": "./src/config/env.ts",
+      "default": "./src/config/env.ts"
+    },
+    "./federation": {
+      "types": "./src/federation/index.ts",
+      "default": "./src/federation/index.ts"
+    }
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@company/mfe-core": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

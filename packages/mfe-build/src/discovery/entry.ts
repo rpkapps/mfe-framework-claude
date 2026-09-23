@@ -4,10 +4,14 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
+import type { DefinitionSyntax } from './definitions.ts'
 
 const ENTRY_MODULE_NAMES = ['src/mfe.ts', 'src/mfe.tsx'] as const
 
-export function resolveEntryModule(containerRoot: string): string {
+export function resolveEntryModule(
+  containerRoot: string,
+  syntax: Pick<DefinitionSyntax, 'appOptions'>,
+): string {
   const present = ENTRY_MODULE_NAMES.map(name => join(containerRoot, name)).filter(file =>
     existsSync(file),
   )
@@ -21,8 +25,7 @@ export function resolveEntryModule(containerRoot: string): string {
       expected: 'src/mfe.ts, or src/mfe.tsx when the entry contains JSX',
       observed: 'neither file',
       declaredBy: 'Static discovery',
-      repair:
-        'Create src/mfe.ts and export the definitions this container provides, for example `export const orders = createApp({ id: "orders", router: makeRouter })`.',
+      repair: `Create src/mfe.ts and export the definitions this container provides, for example \`export const orders = createApp({ id: "orders", ${syntax.appOptions} })\`.`,
     })
   }
 

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module'
 
 import type { AcceptedPlugin } from 'postcss'
 
-import { containerScopePlugin } from './scope.ts'
+import { containerScopePlugin, type ScopePluginLoader } from './scope.ts'
 
 const require = createRequire(import.meta.url)
 
@@ -13,6 +13,8 @@ export interface ContainerPostcssOptions {
   readonly scopes: readonly string[]
   /** Where the scope plugin is resolved from, so the container's copy wins. */
   readonly containerRoot: string
+  /** Which plugin scopes the stylesheet, such as a design system's own or `scopeFallbackPlugin`. */
+  readonly loadScopePlugin: ScopePluginLoader
   /** What the container's own PostCSS config already contributes, if anything. */
   readonly configured?: unknown
 }
@@ -23,13 +25,17 @@ export function containerPostcssPlugins(options: ContainerPostcssOptions): Accep
 
   if (!declaresTailwind(options.configured)) plugins.push(tailwindPlugin())
   plugins.push(
-    containerScopePlugin({ scopes: options.scopes, containerRoot: options.containerRoot }),
+    containerScopePlugin({
+      scopes: options.scopes,
+      containerRoot: options.containerRoot,
+      loadScopePlugin: options.loadScopePlugin,
+    }),
   )
 
   return plugins
 }
 
-/** Loaded through `require` because it is the build plugin's dependency, not the container's. */
+/** Loaded through `require` because it is this package's dependency, not the container's. */
 function tailwindPlugin(): AcceptedPlugin {
   const exported: unknown = require('@tailwindcss/postcss')
   const factory = (

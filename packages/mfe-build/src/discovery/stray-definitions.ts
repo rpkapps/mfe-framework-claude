@@ -5,7 +5,6 @@ import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import { DEFINITION_MODULES } from './definitions.ts'
 import {
   calleeName,
   collectImportedBindings,
@@ -24,6 +23,8 @@ const TEST_PATTERN = /\.(?:test|spec)\.[cm]?[jt]sx?$/
 export interface StrayDefinitionOptions {
   /** The designated entry, which is the one file allowed to declare them. */
   readonly entryFile: string
+  /** The modules `createApp` and `createWidget` may be imported from. */
+  readonly factoryModules: readonly string[]
   /** Directories skipped entirely, such as the build-managed output. */
   readonly ignoredDirectories?: readonly string[]
 }
@@ -38,14 +39,14 @@ export function findStrayDefinitions(
 
   for (const file of containerSourceFiles(sourceRoot, ignored)) {
     if (file === options.entryFile) continue
-    if (TEST_PATTERN.test(file)) continue
+    if (isTestFile(file)) continue
 
     const sourceFile = parseSourceFile(file)
     const imports = collectImportedBindings(sourceFile)
 
     const factories = new Set<string>()
     for (const [local, binding] of imports) {
-      if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
+      if (!options.factoryModules.includes(binding.moduleSpecifier)) continue
       if (FACTORY_NAMES.has(binding.imported)) factories.add(local)
     }
     if (factories.size === 0) continue
@@ -74,6 +75,11 @@ export function findStrayDefinitions(
   }
 
   return errors
+}
+
+/** A test declares fixtures, not the container, so what it contains is never discovered. */
+export function isTestFile(file: string): boolean {
+  return TEST_PATTERN.test(file)
 }
 
 /** Every TypeScript source of a container, in a stable order. */

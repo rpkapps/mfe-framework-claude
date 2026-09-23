@@ -19,7 +19,6 @@ import { ENV_NAME_RULE } from './env.ts'
 import { readStaticSchema, type StaticSchema } from './zod-static.ts'
 
 const CONFIG_MODULE_NAME = 'src/mfe.config.ts'
-const ENV_MODULES = ['@company/mfe-rspack', '@company/mfe-rspack/env']
 
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/
 const FIELD_NAME_PATTERN = /^[a-z][A-Za-z0-9]*$/
@@ -39,8 +38,15 @@ export interface ConfigSource {
   readonly fields: readonly ConfigField[]
 }
 
-/** `undefined` for a container that declares none, which is normal and gets no `#mfe/config`. */
-export function readConfigSource(containerRoot: string): ConfigSource | undefined {
+/**
+ * `undefined` for a container that declares none, which is normal and gets no `#mfe/config`.
+ * `envModules` are the modules the integration publishes `env` from; an `env` imported from
+ * anywhere else is not the declaration this reads.
+ */
+export function readConfigSource(
+  containerRoot: string,
+  envModules: readonly string[],
+): ConfigSource | undefined {
   const file = join(containerRoot, CONFIG_MODULE_NAME)
   if (!existsSync(file)) return undefined
 
@@ -49,7 +55,7 @@ export function readConfigSource(containerRoot: string): ConfigSource | undefine
 
   const envLocals = new Set<string>()
   for (const [local, binding] of imports) {
-    if (binding.imported === 'env' && ENV_MODULES.includes(binding.moduleSpecifier)) {
+    if (binding.imported === 'env' && envModules.includes(binding.moduleSpecifier)) {
       envLocals.add(local)
     }
   }

@@ -30,8 +30,18 @@ import {
   type ImportedBinding,
 } from './ts-ast.ts'
 
-/** The modules `createApp` and `createWidget` may be imported from. */
-export const DEFINITION_MODULES: readonly string[] = ['@company/mfe-react']
+/**
+ * How one adapter's definitions read in source: where its factories are imported from, and the
+ * examples a diagnostic suggests, in that adapter's own vocabulary.
+ */
+export interface DefinitionSyntax {
+  /** The modules `createApp` and `createWidget` may be imported from. */
+  readonly factoryModules: readonly string[]
+  /** What follows the id in an example `createApp` call, for example `router: makeRouter`. */
+  readonly appOptions: string
+  /** An icon import and its use, for example `import { BellIcon } from '…' then icon: BellIcon`. */
+  readonly iconExample: string
+}
 
 const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
   ['createApp', 'app'],
@@ -81,7 +91,7 @@ interface ExportedBinding {
 }
 
 /** Only `entryFile` is parsed; an import is read one level deep to reach a contract's schemas. */
-export function discoverDefinitions(entryFile: string): DiscoveryResult {
+export function discoverDefinitions(entryFile: string, syntax: DefinitionSyntax): DiscoveryResult {
   const sourceFile = parseSourceFile(entryFile)
   const imports = collectImportedBindings(sourceFile)
   const topLevel = collectTopLevelBindings(sourceFile)
@@ -89,7 +99,7 @@ export function discoverDefinitions(entryFile: string): DiscoveryResult {
   // Resolved through the import bindings, so `createWidget as make` is recognised by alias.
   const factories = new Map<string, DefinitionKind>()
   for (const [local, binding] of imports) {
-    if (!DEFINITION_MODULES.includes(binding.moduleSpecifier)) continue
+    if (!syntax.factoryModules.includes(binding.moduleSpecifier)) continue
     const kind = FACTORY_KINDS.get(binding.imported)
     if (kind !== undefined) factories.set(local, kind)
   }
@@ -100,10 +110,12 @@ export function discoverDefinitions(entryFile: string): DiscoveryResult {
   for (const binding of collectExportedBindings(sourceFile, topLevel)) {
     const call = asFactoryCall(binding.expression, factories)
     if (call === null) continue
-    definitions.push(readDefinition(sourceFile, entryFile, binding, call, imports, topLevel))
+    definitions.push(
+      readDefinition(sourceFile, entryFile, binding, call, imports, topLevel, syntax),
+    )
   }
 
-  assertContainerShape(entryFile, definitions)
+  assertContainerShape(entryFile, definitions, syntax)
 
   return {
     definitions,
@@ -235,6 +247,7 @@ function readDefinition(
   factory: FactoryCall,
   imports: ReadonlyMap<string, ImportedBinding>,
   topLevel: ReadonlyMap<string, ts.Expression>,
+  syntax: DefinitionSyntax,
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id)
@@ -242,7 +255,7 @@ function readDefinition(
     factory.kind === 'app'
       ? null
       : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel)
-  const presentation = readPresentation(sourceFile, entryFile, factory, id, imports)
+  const presentation = readPresentation(sourceFile, entryFile, factory, id, imports, syntax)
 
   return {
     id,
@@ -269,11 +282,12 @@ function readPresentation(
   factory: FactoryCall,
   id: string,
   imports: ReadonlyMap<string, ImportedBinding>,
+  syntax: DefinitionSyntax,
 ): Presentation {
   const title = readPresentationString(sourceFile, factory, id, 'title')
   const description = readPresentationString(sourceFile, factory, id, 'description')
   const tags = readTags(sourceFile, factory, id)
-  const icon = readIcon(sourceFile, entryFile, factory, id, imports)
+  const icon = readIcon(sourceFile, entryFile, factory, id, imports, syntax)
 
   return {
     ...(title === undefined ? {} : { title }),
@@ -360,6 +374,7 @@ function readIcon(
   factory: FactoryCall,
   id: string,
   imports: ReadonlyMap<string, ImportedBinding>,
+  syntax: DefinitionSyntax,
 ): IconData | undefined {
   const property = objectProperty(factory.options, 'icon')
   if (property === undefined) return undefined
@@ -380,8 +395,7 @@ function readIcon(
       expected: 'an imported identifier the build can resolve to a drawable icon',
       observed: describeNode(sourceFile, property.initializer),
       declaredBy: 'Static discovery',
-      repair:
-        "Import the icon and pass the identifier, for example import { BellIcon } from 'lucide-react' then icon: BellIcon. The registry carries shapes rather than a component, so the build reads the icon from the module the import names; importing the .svg directly works for any icon.",
+      repair: `Import the icon and pass the identifier, for example ${syntax.iconExample}. The registry carries shapes rather than a component, so the build reads the icon from the module the import names; importing the .svg directly works for any icon.`,
     })
   }
 
@@ -473,6 +487,7 @@ function readVersion(
 function assertContainerShape(
   entryFile: string,
   definitions: readonly DiscoveredDefinition[],
+  syntax: DefinitionSyntax,
 ): void {
   if (definitions.length === 0) {
     throw createBuildError({
@@ -482,8 +497,7 @@ function assertContainerShape(
       expected: 'at least one exported App or Widget',
       observed: 'no definition',
       declaredBy: 'Static discovery',
-      repair:
-        "Export a definition from this module, for example `export const orders = createApp({ id: 'orders', router: makeRouter })`. Definitions declared anywhere else are not discovered.",
+      repair: `Export a definition from this module, for example \`export const orders = createApp({ id: 'orders', ${syntax.appOptions} })\`. Definitions declared anywhere else are not discovered.`,
     })
   }
 
