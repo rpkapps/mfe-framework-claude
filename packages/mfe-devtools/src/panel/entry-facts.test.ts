@@ -20,9 +20,12 @@ function entry(rest: Partial<RegistryEntry> = {}): RegistryEntry {
   }
 }
 
+/** Every entry says which adapter read it, last, so each case ends with this one. */
+const readByReact = { label: 'adapter', values: ['react'] }
+
 describe('the facts an entry states about itself', () => {
-  it('has nothing to say about an app that exposes nothing', () => {
-    expect(factsOf(entry({ definitionKind: 'app' }))).toEqual([])
+  it('names only its adapter for an app that exposes nothing', () => {
+    expect(factsOf(entry({ definitionKind: 'app' }))).toEqual([readByReact])
   })
 
   it('names a capability with the route it opens', () => {
@@ -33,7 +36,7 @@ describe('the facts an entry states about itself', () => {
       }),
     )
 
-    expect(facts).toEqual([{ label: 'opens', values: ['settings → /settings'] }])
+    expect(facts).toEqual([{ label: 'opens', values: ['settings → /settings'] }, readByReact])
   })
 
   it('marks an optional input, and leaves a required one bare', () => {
@@ -50,30 +53,36 @@ describe('the facts an entry states about itself', () => {
       }),
     )
 
-    expect(facts).toEqual([{ label: 'inputs', values: ['alertId', 'severity?'] }])
+    expect(facts).toEqual([{ label: 'inputs', values: ['alertId', 'severity?'] }, readByReact])
   })
 
   it('keeps events in the order they were declared', () => {
     const facts = factsOf(entry({ contract: { events: ['acknowledged', 'dismissed'] } }))
 
-    expect(facts).toEqual([{ label: 'events', values: ['acknowledged', 'dismissed'] }])
+    expect(facts).toEqual([{ label: 'events', values: ['acknowledged', 'dismissed'] }, readByReact])
   })
 
-  it('says which loader an entry goes through only when it is the unusual one', () => {
-    expect(factsOf(entry({ adapter: 'react' }))).toEqual([])
+  /** No adapter is the usual one: the shell lists each, and none is assumed. */
+  it('says which adapter read the entry, whichever it is', () => {
+    expect(factsOf(entry({ adapter: 'react' }))).toEqual([readByReact])
+    expect(factsOf(entry({ adapter: 'angular' }))).toEqual([
+      { label: 'adapter', values: ['angular'] },
+    ])
     expect(factsOf(entry({ adapter: 'legacy-angular' }))).toEqual([
       { label: 'adapter', values: ['legacy-angular'] },
     ])
   })
 
   it('reads a schema with no properties as no inputs, rather than as a blank row', () => {
-    expect(factsOf(entry({ contract: { events: [], inputs: { type: 'object' } } }))).toEqual([])
+    expect(factsOf(entry({ contract: { events: [], inputs: { type: 'object' } } }))).toEqual([
+      readByReact,
+    ])
   })
 
   it('survives a `properties` that is not an object', () => {
     expect(
       factsOf(entry({ contract: { events: [], inputs: { properties: ['alertId'] } } })),
-    ).toEqual([])
+    ).toEqual([readByReact])
   })
 
   it('survives a `required` that is not a list of names', () => {
@@ -83,6 +92,6 @@ describe('the facts an entry states about itself', () => {
       }),
     )
 
-    expect(facts).toEqual([{ label: 'inputs', values: ['alertId?'] }])
+    expect(facts).toEqual([{ label: 'inputs', values: ['alertId?'] }, readByReact])
   })
 })
