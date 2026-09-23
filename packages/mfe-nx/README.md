@@ -242,9 +242,10 @@ the emitted layout keeps the `src/` segment `generators.json` and `executors.jso
 
 `@company/mfe-angular`, `@company/mfe-core`, `@company/mfe-runtime` and `@company/mfe-build`
 export compiled JavaScript and declarations from `dist/`; the Angular adapter's
-components use Angular partial compilation. Build these packages before consuming
-workspace links from a fresh checkout. Published packages build in `prepack`.
-Do not include their TypeScript sources in a container's `tsconfig`.
+components use Angular partial compilation. A consumer in this repository builds
+them first, as `examples/fieldwork` does with `pnpm run build:framework`; packing
+refuses a missing or stale `dist/`. Do not include their TypeScript sources in a
+container's `tsconfig`.
 
 The generated stylesheet imports and scopes `src/styles.css` and its CSS imports.
 The Angular integration does not add Tailwind or include it in scaffolded projects.

@@ -106,6 +106,6 @@ describe('containerPostcssPlugins', () => {
       tailwind: false,
     })
 
-    expect(names(plugins)).toEqual(['postcss-import', 'mfe-scope-fallback'])
+    expect(names(plugins)).toEqual(['postcss-import', 'postcss-url', 'mfe-scope-fallback'])
   })
 })

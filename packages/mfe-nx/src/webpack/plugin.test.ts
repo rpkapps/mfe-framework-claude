@@ -137,6 +137,9 @@ function angularLikeConfig(
     experiments: { topLevelAwait: false },
     resolve: {
       extensions: ['.ts', '.mjs', '.js'],
+      // The framework packages' TypeScript source, as everywhere in this repository
+      // (tools/workspace/conditions.mjs).
+      conditionNames: ['...', 'mfe-source'],
       // The container's `env` import, from this package's own source.
       alias: { '@company/mfe-nx/env': join(__dirname, '../env.ts') },
     },
@@ -403,6 +406,41 @@ describe('MfeWebpackPlugin on a production compile', () => {
       expect(css).toContain('.media')
       expect(css).toContain(':where(:scope)')
       expect(css).not.toContain('.p-4')
+    },
+    COMPILE_TIMEOUT,
+  )
+
+  it(
+    'keeps the url() references, layers and supports conditions of an inlined import',
+    async () => {
+      const root = reportsContainer({
+        'src/styles.css': [
+          '@import "./theme/fonts.css";',
+          '@import "./theme/base.css" layer(base);',
+          '@import "./theme/grid.css" supports(display: grid);',
+          '',
+        ].join('\n'),
+        'src/theme/fonts.css':
+          '@font-face { font-family: Brand; src: url(./brand.woff2) format("woff2"); }\n',
+        'src/theme/brand.woff2': 'font',
+        'src/theme/base.css': '.base-card { color: red; }\n',
+        'src/theme/grid.css': '.grid-card { display: grid; }\n',
+      })
+
+      const stats = await build(angularLikeConfig(root, 'production'))
+
+      // Left relative to src/theme/, the font would resolve from the generated stylesheet's
+      // directory and fail the build.
+      expect(errorsOf(stats)).toEqual([])
+      const css = readdirSync(join(root, 'dist'))
+        .filter(name => name.endsWith('.css'))
+        .map(name => readDist(root, name))
+        .join('\n')
+      expect(css).toMatch(/src: url\([^)]+\.woff2\)/)
+      expect(css).toMatch(/@layer base\s*\{[^}]*\.base-card/)
+      expect(css).toMatch(/@supports \(display: grid\)\s*\{[^}]*\.grid-card/)
+      expect(css).not.toContain('@media layer(')
+      expect(css).not.toContain('@media supports(')
     },
     COMPILE_TIMEOUT,
   )

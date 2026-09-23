@@ -1,8 +1,9 @@
 import { resolve } from 'node:path'
 
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type TestProjectInlineConfiguration } from 'vitest/config'
 
 import { tectonResolveForTests, tectonServerForTests } from './tools/tecton/vitest.mjs'
+import { sourceResolveForTests, sourceSsrForTests } from './tools/workspace/conditions.mjs'
 
 /**
  * `#mfe/meta` is generated per container, so it resolves to the real generated module of
@@ -17,6 +18,20 @@ const mfeMeta = {
     const match = /^(.*[/\\]examples[/\\][^/\\]+)[/\\]/.exec(importer)
     return match?.[1] === undefined ? null : resolve(match[1], '.mfe/meta.ts')
   },
+}
+
+/**
+ * Every project resolves the framework packages to their TypeScript source rather than their
+ * dist/, so the suites run against the code as it is now without a build (tools/workspace).
+ */
+function withWorkspaceSource(
+  project: TestProjectInlineConfiguration,
+): TestProjectInlineConfiguration {
+  return {
+    ...project,
+    resolve: { ...sourceResolveForTests, ...project.resolve },
+    ssr: sourceSsrForTests,
+  }
 }
 
 export default defineConfig({
@@ -158,6 +173,6 @@ export default defineConfig({
           globalSetup: ['./src/__tests__/build-container-b.ts'],
         },
       },
-    ],
+    ].map(withWorkspaceSource),
   },
 })

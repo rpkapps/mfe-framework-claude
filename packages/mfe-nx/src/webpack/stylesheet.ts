@@ -41,7 +41,7 @@ export function applyContainerStylesheet(
                 scopes: plan.scopes,
                 containerRoot: plan.options.containerRoot,
                 loadScopePlugin: () => scopeFallbackPlugin,
-                tailwind: false,
+                tailwind: plan.tailwind,
               }),
             }
           },

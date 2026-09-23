@@ -1,4 +1,7 @@
-/** Tailwind before the scope plugin: scoping before the utilities exist would scope nothing. */
+/**
+ * Tailwind, or the plain CSS imports inlined, before the scope plugin: scoping before the rules
+ * exist would scope nothing.
+ */
 
 import { createRequire } from 'node:module'
 
@@ -15,7 +18,7 @@ export interface ContainerPostcssOptions {
   readonly containerRoot: string
   /** Which plugin scopes the stylesheet, such as a design system's own or `scopeFallbackPlugin`. */
   readonly loadScopePlugin: ScopePluginLoader
-  /** Defaults to true for integrations that always generate Tailwind. */
+  /** The plan's `tailwind`: false inlines the stylesheet's CSS imports instead. Default true. */
   readonly tailwind?: boolean
   /** What the container's own PostCSS config already contributes, if anything. */
   readonly configured?: unknown
@@ -25,7 +28,7 @@ export interface ContainerPostcssOptions {
 export function containerPostcssPlugins(options: ContainerPostcssOptions): AcceptedPlugin[] {
   const plugins: AcceptedPlugin[] = []
 
-  if (options.tailwind === false) plugins.push(cssImportPlugin())
+  if (options.tailwind === false) plugins.push(...cssImportPlugins())
   else if (!declaresTailwind(options.configured)) plugins.push(tailwindPlugin())
   plugins.push(
     containerScopePlugin({
@@ -38,9 +41,15 @@ export function containerPostcssPlugins(options: ContainerPostcssOptions): Accep
   return plugins
 }
 
-function cssImportPlugin(): AcceptedPlugin {
-  const factory = require('postcss-import') as () => AcceptedPlugin
-  return factory()
+/**
+ * Without Tailwind, nothing else inlines the stylesheet's imports, and the scope plugin has to see
+ * every rule. An inlined file's relative `url()` still names a path from its own directory, which
+ * the bundler would resolve from the generated stylesheet's instead, so each is rebased onto it.
+ */
+function cssImportPlugins(): AcceptedPlugin[] {
+  const inline = require('postcss-import') as () => AcceptedPlugin
+  const url = require('postcss-url') as (options: { url: 'rebase' }) => AcceptedPlugin
+  return [inline(), url({ url: 'rebase' })]
 }
 
 /** Loaded through `require` because it is this package's dependency, not the container's. */

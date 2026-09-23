@@ -29,7 +29,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node scripts/copy-templates.mjs",
-    "prepack": "pnpm run build",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

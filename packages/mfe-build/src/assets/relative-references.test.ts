@@ -5,6 +5,9 @@ import { findNonContainerAwareAssetReferences } from './relative-references.ts'
 
 afterEach(cleanupContainers)
 
+/** Interpolated, so the boundary check does not take the fixture for this package's import. */
+const ANGULAR_CORE = '@angular/core'
+
 function scan(source: string): readonly Error[] {
   const root = createContainer({ 'src/logo.ts': source })
   return findNonContainerAwareAssetReferences(entryOf(root, 'src/logo.ts'))
@@ -36,7 +39,7 @@ describe('findNonContainerAwareAssetReferences', () => {
   it('accepts Angular component resource URLs resolved by the compiler', () => {
     expect(
       scan(`
-import { Component as AngularComponent } from '@angular/core'
+import { Component as AngularComponent } from '${ANGULAR_CORE}'
 @AngularComponent({
   templateUrl: './widget.component.html',
   styleUrl: './widget.component.css',
@@ -50,7 +53,7 @@ export class WidgetComponent {}
   it('does not exempt unrelated resource strings or decorators', () => {
     expect(
       scan(`
-import { Component } from '@angular/core'
+import { Component } from '${ANGULAR_CORE}'
 const fallback = './fallback.css'
 const metadata = { styleUrl: './unsafe.css' }
 @Other({ styleUrl: './other.css' })

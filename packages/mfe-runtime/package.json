@@ -7,18 +7,22 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
+      "mfe-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./testing": {
+      "mfe-source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
     "./testing/mfe-config": {
+      "mfe-source": "./src/testing/generated/config.ts",
       "types": "./dist/testing/generated/config.d.ts",
       "default": "./dist/testing/generated/config.js"
     },
     "./testing/mfe-fetch": {
+      "mfe-source": "./src/testing/generated/fetch.ts",
       "types": "./dist/testing/generated/fetch.d.ts",
       "default": "./dist/testing/generated/fetch.js"
     }
@@ -29,7 +33,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepack": "pnpm run build",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

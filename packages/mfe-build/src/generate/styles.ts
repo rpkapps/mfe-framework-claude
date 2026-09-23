@@ -22,13 +22,12 @@ export function stylesheetFile(context: GenerateContext): GeneratedFile {
   const file = stylesheetPath(context)
   const { stylesheet } = context.profile
   const imports = stylesheet.imports?.(context) ?? []
-  const tailwind = stylesheet.tailwind?.(context) ?? true
 
   return {
     path: file,
     contents: joinBlocks([
       banner(context.profile.generator),
-      ...(tailwind
+      ...(stylesheet.tailwind !== false
         ? [
             [
               '/*',

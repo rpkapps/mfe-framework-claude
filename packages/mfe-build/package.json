@@ -7,18 +7,22 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
+      "mfe-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./env": {
+      "mfe-source": "./src/config/env.ts",
       "types": "./dist/config/env.d.ts",
       "default": "./dist/config/env.js"
     },
     "./federation": {
+      "mfe-source": "./src/federation/index.ts",
       "types": "./dist/federation/index.d.ts",
       "default": "./dist/federation/index.js"
     },
     "./testing": {
+      "mfe-source": "./src/testing/index.ts",
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     }
@@ -29,7 +33,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepack": "pnpm run build",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -37,7 +42,8 @@
     "@company/mfe-core": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
     "postcss": "catalog:",
-    "postcss-import": "14.1.0",
+    "postcss-import": "catalog:",
+    "postcss-url": "catalog:",
     "tailwindcss": "catalog:"
   },
   "peerDependencies": {

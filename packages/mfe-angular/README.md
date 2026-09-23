@@ -153,10 +153,14 @@ const providers = [
 ```
 
 Declare API URLs with `env(…, { api: true })` so `apiOrigins` names the trusted
-origins. Pass `apiBaseUrl` to restrict credentials to URLs under that API path.
-The interceptor only handles absolute HTTP(S) requests, leaves caller-supplied
-authorization alone, and refreshes once on a 401. The shell must install its
-session before mounting the container.
+origins. As with `#mfe/fetch`, a request gets the token when it goes to one of
+them. Pass `apiBaseUrl` to hold requests to that URL's origin to its path; other
+declared origins are unaffected. A relative URL is matched against the document,
+where `HttpClient` sends it, and is never redirected to the API, so a service that
+calls a relative path is authenticated only when the page's own origin is
+declared. The interceptor leaves caller-supplied authorization alone and
+refreshes once on a 401. The shell must install its session before mounting the
+container.
 
 ## A Widget
 
@@ -396,10 +400,15 @@ the adapter drives both styles through `setInput` and `reflectComponentType`,
 but `input()`/`output()` are exercised in a container's own AOT build and tests.
 `pnpm run build` uses `ngc` to emit partially compiled Angular components and
 declarations under `dist/`; the consuming Angular build links them. The neutral
-packages also export built JavaScript and declarations. Build the packages before
-running a workspace consumer from a fresh checkout; `pnpm check`, `pnpm dev`
-and `pnpm verify:page` do that automatically. A published package builds itself
-in `prepack`.
+packages also export built JavaScript and declarations. Inside this repository
+the bundlers, the tests and the type checker resolve them to their TypeScript
+source instead, through the `mfe-source` export condition, so a change reaches
+them without a build. Two things read `dist/`: the build tooling Node loads, which
+the root scripts build first, and `examples/fieldwork`, which is built like a
+consumer. Its scripts build the packages it depends on where their `dist/` is out
+of date, and its `dev` script rebuilds this package and the runtime as they
+change. Packing refuses a missing or stale `dist/`; `pnpm release` builds every
+package before it publishes.
 
 ```sh
 pnpm --filter @company/mfe-angular test
