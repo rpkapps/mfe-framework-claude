@@ -7,7 +7,6 @@
 export {
   createApp,
   createWidget,
-  isAngularDefinition,
   type AppDefinition,
   type AppOptions,
   type MfeDefinition,
@@ -93,17 +92,11 @@ export {
   type RejectedRegistryEntry,
 } from '@company/mfe-core'
 
-/* Host-facing composition */
-export {
-  createMfeRuntime,
-  provideMfeRuntime,
-  type CreateRuntimeOptions,
-} from './host/provide-runtime.ts'
-export { createMf2ContainerLoader, type Mf2LoaderOptions } from './host/federation-loader.ts'
-/** Always registered by `createMfeRuntime`; also on `/registry`, for a shell that is not Angular. */
-export { angularAdapter, type AngularRegistryEntry } from './registry/angular-adapter.ts'
+/* Placing definitions from an Angular shell or App; a shell composes the page from `/host`. */
+export { provideMfeRuntime } from './host/provide-runtime.ts'
 export { MfeWidgetComponent, type MfeWidgetEvent } from './host/widget.component.ts'
 export { MfeAppHostComponent } from './host/app-host.component.ts'
+export type { MountStatus } from './host/hosted-mount.ts'
 export { MfeDefinitionIconComponent } from './host/definition-icon.component.ts'
 export {
   injectActiveDefinition,
@@ -115,20 +108,8 @@ export {
   type CapabilityPage,
 } from './host/registry-selectors.ts'
 
-/** The neutral names a host mounting definitions of more than one framework reads. */
-export {
-  isFederatedEntry,
-  isMountableDefinition,
-  KIND_ATTRIBUTE,
-  MOUNT_ATTRIBUTE,
-  OVERLAY_ROOT_ATTRIBUTE,
-  SCOPE_ATTRIBUTE,
-  type FederatedRegistryEntry,
-  type MfeRuntimeHandle,
-  type MfeRuntime,
-  type MountableDefinition,
-  type MountContext,
-} from '@company/mfe-runtime'
+/** What `injectMfeRuntime()` and `injectMfeMount()` return. */
+export type { MfeRuntime, MountContext } from '@company/mfe-runtime'
 
 /** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {

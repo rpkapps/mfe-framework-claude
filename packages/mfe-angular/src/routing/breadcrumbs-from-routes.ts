@@ -1,7 +1,6 @@
 /**
  * Derives an App's breadcrumb contribution from its activated routes; label resolution is a fixed
- * order rather than an inference over whatever a resolver happens to return, and it is the order
- * the React adapter applies to its router's matches.
+ * order rather than an inference over whatever a resolver happens to return.
  */
 
 import { NavigationEnd, type ActivatedRouteSnapshot, type Router } from '@angular/router'

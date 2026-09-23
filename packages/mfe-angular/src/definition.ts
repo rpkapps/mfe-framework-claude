@@ -1,7 +1,7 @@
 /**
  * `createApp` and `createWidget` return plain records the build plugin discovers statically, plus
- * the `mount` every host calls: an Angular definition mounts itself into an element, which is how
- * a React shell places an Angular container it could never render.
+ * the `mount` every host reaches through the runtime: an Angular definition mounts itself into an
+ * element, so a host written in any framework places it exactly as it places any other.
  */
 
 import type { EnvironmentProviders, Provider, Type } from '@angular/core'
@@ -15,12 +15,11 @@ import {
   isValidEventName,
   type WidgetContract,
 } from '@company/mfe-core'
-import {
-  isMountableDefinition,
-  type AppMountTarget,
-  type MountableAppDefinition,
-  type MountableWidgetDefinition,
-  type WidgetMountTarget,
+import type {
+  AppMountTarget,
+  MountableAppDefinition,
+  MountableWidgetDefinition,
+  WidgetMountTarget,
 } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
@@ -155,15 +154,6 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
     mount: target => mountWidget(definition, target),
   }
   return definition
-}
-
-/** The Angular definitions among the neutral ones, for a host that treats its own kind specially. */
-export function isAngularDefinition(value: unknown): value is MfeDefinition {
-  return (
-    isMountableDefinition(value) &&
-    value.framework === 'angular' &&
-    typeof (value as { readonly component?: unknown }).component === 'function'
-  )
 }
 
 function describeOption(value: unknown): string {

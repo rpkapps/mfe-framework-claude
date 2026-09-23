@@ -1,8 +1,8 @@
 /**
  * What `#mfe/config` resolves to in a test. Pointing the alias here leaves the source under
  * test exactly as it ships — it still writes `import { config } from '#mfe/config'` — and the
- * test supplies the values. The same module as the React adapter's, because the generated alias
- * is the same whichever adapter a container uses.
+ * test supplies the values. Every adapter ships this same module, because the generated alias is
+ * the same whichever adapter a container uses.
  */
 
 import { createMfeError } from '@company/mfe-core'

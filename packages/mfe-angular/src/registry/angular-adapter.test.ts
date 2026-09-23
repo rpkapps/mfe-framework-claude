@@ -36,8 +36,8 @@ describe('detect', () => {
     expect(angularAdapter.detect(entry({ container: 7, mfe: { framework: 'angular' } }))).toBe(true)
   })
 
-  it('leaves an entry naming React, or no framework at all, to the React adapter', () => {
-    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'react' } }))).toBe(
+  it('leaves an entry naming another framework, or no framework at all, to another adapter', () => {
+    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'other' } }))).toBe(
       false,
     )
     expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1 } }))).toBe(false)
@@ -123,7 +123,7 @@ describe('parse', () => {
 describe('is', () => {
   it('narrows only the entries this adapter parsed', () => {
     const parsed: RegistryEntry = angularAdapter.parse(entry())
-    const other: RegistryEntry = { ...parsed, adapter: 'react' }
+    const other: RegistryEntry = { ...parsed, adapter: 'other' }
 
     expect(angularAdapter.is(parsed)).toBe(true)
     expect(angularAdapter.is(other)).toBe(false)

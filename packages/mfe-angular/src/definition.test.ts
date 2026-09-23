@@ -5,7 +5,7 @@ import { isMountableDefinition } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createApp, createWidget, isAngularDefinition } from './definition.ts'
+import { createApp, createWidget } from './definition.ts'
 import { MfeAppRootComponent } from './routing/app-root.component.ts'
 
 @Component({ selector: 'test-badge', template: '{{ label }}' })
@@ -34,7 +34,6 @@ describe('createApp', () => {
     expect(app.contributesBreadcrumbs).toBe(true)
     expect(isBrandedDefinition(app)).toBe(true)
     expect(isMountableDefinition(app)).toBe(true)
-    expect(isAngularDefinition(app)).toBe(true)
   })
 
   it('renders the routes in a router outlet unless the App names its own root', () => {
@@ -86,7 +85,6 @@ describe('createWidget', () => {
     expect(widget.component).toBe(BadgeComponent)
     expect(widget.providers).toEqual([])
     expect(isMountableDefinition(widget)).toBe(true)
-    expect(isAngularDefinition(widget)).toBe(true)
   })
 
   it('rejects an event name that is not lower camel case', () => {
@@ -121,21 +119,5 @@ describe('createWidget', () => {
         providers: {} as unknown as [],
       }),
     ).toThrowError(/expected an array of providers, received an object/)
-  })
-})
-
-describe('isAngularDefinition', () => {
-  it('does not claim a mountable definition another adapter built', () => {
-    const foreign = {
-      [DEFINITION_BRAND]: true,
-      kind: 'widget',
-      framework: 'react',
-      id: 'badge',
-      contract: { inputs: z.object({}), events: {} },
-      mount: () => Promise.reject(new Error('not mounted in this test')),
-    }
-
-    expect(isMountableDefinition(foreign)).toBe(true)
-    expect(isAngularDefinition(foreign)).toBe(false)
   })
 })

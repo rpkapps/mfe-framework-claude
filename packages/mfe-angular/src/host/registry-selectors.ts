@@ -1,5 +1,5 @@
 /**
- * Reading the registry from a host component, with the same rules the React host applies:
+ * Reading the registry from a host component, with the rules every host applies:
  * `hidden` is a listing rule, not a security boundary, and a Widget is never a boundary. The
  * registry does not change after boot, so each view is computed once and stays referentially
  * stable for its consumers.

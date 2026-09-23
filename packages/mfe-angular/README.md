@@ -3,8 +3,13 @@
 The Angular 19 adapter. An Angular container uses it to declare its App or
 Widget, to read the shell's services from inside a mount, and to host other
 definitions; a shell of any framework uses it to recognise Angular containers
-in the registry. It is the sibling of `@company/mfe-react`, not a consumer of
-it, and depends only on the neutral `@company/mfe-core` and `@company/mfe-runtime`.
+in the registry. It depends only on the neutral `@company/mfe-core` and
+`@company/mfe-runtime`, never on another adapter, and names no UI library: a
+component library enters a container through what the container itself
+provides.
+
+An application imports this package alone — its root, `/host`, `/registry` or
+`/testing` — and never the core or the runtime directly.
 
 ## Zoneless, and nothing else
 
@@ -13,8 +18,8 @@ and `provideExperimentalZonelessChangeDetection()`, on the page's shared
 browser platform. There is no `zone.js` anywhere: not in this package, not in a
 container's polyfills. Zone patches timers, promises and event listeners for
 the whole page, which the framework forbids everywhere else, and one scheduler
-per mount is what lets several Angular containers and a React shell share a
-page without noticing each other.
+per mount is what lets several Angular containers and a shell of any framework
+share a page without noticing each other.
 
 What that means for an author is ordinary zoneless Angular: state that renders
 lives in signals (or is marked with `markForCheck()`), and components are
@@ -28,33 +33,41 @@ publishes the registry entry with `mfe.framework: 'angular'`, and generates the
 container's `#mfe/config` and `#mfe/fetch` modules; the generated fetch imports
 `createContainerTransport` from this package, which is why it is exported here.
 
-## How a shell mounts an Angular container
+## How a host mounts an Angular container
 
-A React shell cannot render an Angular component tree, so the framework's
-definitions mount themselves. `createApp` and `createWidget` return plain,
-branded records the build discovers statically, each carrying a `mount` the
-host calls with an element and a mount context. The host renders the scope root
-(`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`) and hands over an element
-inside it; the definition creates one application for that mount, renders into a
-child element of its own — Angular removes the element a component was created
-on when it is destroyed, and the host's element is the host's — and tears the
-whole application down on `dispose()`, or when the mount's signal aborts.
+Every host places every definition the same way, through the runtime's
+`mountDefinition`, whichever framework the host and the definition are written
+in. `createApp` and `createWidget` return plain, branded records the build
+discovers statically, each carrying the `mount` the runtime calls. The runtime
+creates the scope root (`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`) and
+the body-level overlay root, and hands the definition an element inside the
+scope root; the definition creates one application for that mount, renders into
+a child element of its own — Angular removes the element a component was
+created on when it is destroyed, and the runtime's element is the runtime's —
+and tears the whole application down on `dispose()`, or when the mount's signal
+aborts. It never adds a root of its own.
 
-The shell registers the adapter beside its own:
+An application destroyed by anything but that `dispose()` — code inside it
+destroying its `ApplicationRef`, or the platform going down — would leave the
+host an empty element, so the definition reports it through the target's
+`onFailure`: the mount moves to its error state and the host can offer a retry.
+
+A shell lists every adapter it reads the registry through; none is registered
+implicitly:
 
 ```ts
 import { angularAdapter } from '@company/mfe-angular/registry'
-import { createMfeRuntime } from '@company/mfe-react'
+import { createMfeRuntime } from '@company/mfe-angular/host'
 
-const { runtime } = createMfeRuntime({ registryEntries, adapters: [angularAdapter] /* … */ })
+const { runtime } = createMfeRuntime({ registryEntries, adapters: [angularAdapter /* , … */] })
 ```
 
 `@company/mfe-angular/registry` exports the adapter alone and imports no
 Angular, so a shell that is not Angular never resolves Angular to read its
 registry. `detect` claims exactly the entries whose `mfe.framework` is
-`'angular'`, however broken the rest of the entry is; `parse` is as strict as the
-React adapter's, with the same messages. The React adapter reads every other
-framework entry, so the two never both claim one.
+`'angular'`, however broken the rest of the entry is, so no other adapter ever
+reads one; `parse` is the runtime's `parseFederatedEntry`, the one reading of
+the entry shape every framework build publishes.
 
 ## An App
 
@@ -192,6 +205,31 @@ initialiser — and clean up with the injector that created them.
 | `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                           | throws            |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)     | runtime only      |
 
+**The mount's elements.** `injectMfeMount()` carries the two elements the
+runtime created for the mount: `scopeRoot`, the element with the mount's scope
+attributes that the definition renders inside, and `overlayRoot`, the body-level
+element its overlays portal into. Both are reachable from anywhere in the
+mount's injector, including the environment providers a definition passes as
+`providers`, so a container's theming code can mark them — toggle a dark-mode
+class on both when `injectTheme()` changes, say — from a
+`provideEnvironmentInitializer` with no help from its root component:
+
+```ts
+export function provideDarkModeClass(className: string): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    provideEnvironmentInitializer(() => {
+      const { scopeRoot, overlayRoot } = injectMfeMount()
+      const theme = injectTheme()
+      effect(() => {
+        for (const root of [scopeRoot, overlayRoot]) {
+          root.classList.toggle(className, theme() === 'dark')
+        }
+      })
+    }),
+  ])
+}
+```
+
 "Host scope" is the reserved `@host` scope shell chrome uses, reached through
 `provideMfeRuntime(runtime)`. Each shell-state signal subscribes to its own field
 only, so a theme change never notifies a consumer of the user.
@@ -210,12 +248,15 @@ negotiation always answers, so the host is never stranded.
 
 ## Hosting definitions from Angular
 
-An Angular host — a shell, or an App placing others — provides the runtime once
-and places definitions by id. Both components mount through the neutral
-`definition.mount`, so they host Angular definitions and definitions any other
-adapter built.
+An Angular host — a shell, or an App placing others — places definitions by id
+with two components. Both mount through the runtime's `mountDefinition` and
+never ask which framework built what they place, so they host Angular
+definitions and definitions any other adapter built alike. A shell provides the
+runtime once; inside a mount, the mount's own runtime is used.
 
 ```ts
+import { createMfeRuntime, provideMfeRuntime } from '@company/mfe-angular/host'
+
 bootstrapApplication(ShellComponent, {
   providers: [provideExperimentalZonelessChangeDetection(), provideMfeRuntime(runtime)],
 })
@@ -233,18 +274,42 @@ bootstrapApplication(ShellComponent, {
 <mfe-app-host appId="reports" basePath="/reports" />
 ```
 
+Both components keep what the runtime decides out of the host's hands:
+
+- **`status`** is a signal over the mount's state — `pending`, `mounted`,
+  `error` or `disposed` — and the `pending` template shows while it is
+  `pending`.
+- **`(failed)`** emits each time the mount enters its error state: a failed load,
+  a failed mount, or a definition that failed once mounted.
+- **`retry()`** acts only after a failure. A failed load is loaded afresh; a
+  failed mount reuses the loaded definition.
+- **`[inputs]`** reaches the Widget only when it changed: the runtime drops an
+  input set shallow-equal to the last one, and one set while the Widget was
+  mounting arrives once, when it has mounted.
+- **Nesting.** Inside a mount, a placed definition is one level deeper than the
+  mount it sits in and is disposed with it.
+
 `<mfe-widget>` validates events against a `contract` it is given and reports,
-rather than delivers, one that fails; `retry()` forgets a failed load and
-mounts afresh. Inside an App, `mfeAppRoute({ appId, path: 'reports' })` delegates
-everything below a prefix to another App: the boundary is the parent's boundary
-joined with the matched prefix, and the nested App is one level deeper. Registry
-views are signals: `injectRegistryEntries()`, `injectApps()`, `injectWidgets()`,
-`injectCapabilityPages(name?)` and `injectActiveDefinition(location)`, with the
-React host's rules — `hidden` is a listing rule, and a Widget is never a
-boundary. `<mfe-definition-icon [icon]="iconData" label="Reports" />` draws a parsed registry icon
-through the same allowlist as the React one, and drops attributes that would run
-or fetch anything. `createMfeRuntime` registers the Angular adapter;
-`createMf2ContainerLoader({ runtime })` is the federation loader.
+rather than delivers, one that fails. Inside an App,
+`mfeAppRoute({ appId, path: 'reports' })` delegates everything below a prefix to
+another App: the boundary is the parent's boundary joined with the matched
+prefix, and the nested App is one level deeper. A routed `<mfe-app-host>` tells
+the runtime's navigator after every navigation of the router it sits under
+(`announce()`), so an App placed below a shell router that writes the page's
+history directly still follows the shell. Registry views are signals:
+`injectRegistryEntries()`, `injectApps()`, `injectWidgets()`,
+`injectCapabilityPages(name?)` and `injectActiveDefinition(location)` — `hidden`
+is a listing rule, and a Widget is never a boundary.
+`<mfe-definition-icon [icon]="iconData" label="Reports" />` draws a parsed
+registry icon through an allowlist, and drops attributes that would run or fetch
+anything.
+
+`@company/mfe-angular/host` is the runtime's whole host surface —
+`createMfeRuntime`, the federation loader, `mountDefinition`, the stores, the
+navigator — re-exported from the bare `@company/mfe-runtime` specifier, plus
+`provideMfeRuntime`. Every adapter's `/host` is that same surface plus its own
+framework's provider, so the shell's composition reads the same whichever
+framework it is written in.
 
 ## Testing
 
@@ -256,14 +321,20 @@ widget.element.querySelector('button')?.click()
 expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
 ```
 
-`mountWidget` and `mountApp` call the definition's own `mount` — the path a shell
-takes — inside a scope root in `document.body`, over `createMfeTestEnvironment()`,
-a runtime with nothing behind it but memory. They resolve once the first render
-has settled and return the element, the environment, the mount's injector,
-`whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered
-`events` and the `rejectedInputs`. `@company/mfe-angular/testing/mfe-config` and
-`/testing/mfe-fetch` stand in for the generated `#mfe/config` and `#mfe/fetch`
-exactly as the React adapter's do. A setup file calls `cleanup()` and
+`mountWidget` and `mountApp` place the definition through the runtime's
+`mountDefinition` — the path every host takes — into an element in
+`document.body`, over `createMfeTestEnvironment()`, a runtime with nothing behind
+it but memory. They resolve once the first render has settled and return the
+scope root the runtime created (`element`), the environment, the mount's
+injector, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the
+delivered `events` and the `rejectedInputs`; a mount that fails rejects with its
+error and leaves nothing behind. Given an `environment` of your own, list the
+definition in its `definitions`, as a shell's registry lists what it mounts.
+`/testing` also re-exports the runtime's own test surface (`createMemoryRuntime`,
+the in-process loader, the memory navigation bridge and storage, the recording
+telemetry provider). `@company/mfe-angular/testing/mfe-config` and
+`/testing/mfe-fetch` stand in for the generated `#mfe/config` and `#mfe/fetch`,
+the same modules every adapter ships. A setup file calls `cleanup()` and
 `resetGeneratedAliases()` after each test, so no mount and no configuration
 leaks into the next.
 

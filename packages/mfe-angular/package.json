@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-angular",
   "version": "0.1.0",
-  "description": "Angular 19 (zoneless) author and host surface for the MFE framework: createApp, createWidget, route data, injectables over the shell's services, a boundary location strategy, the mfe-widget and mfe-app-host components, and self-mounting definitions a React shell mounts into an element.",
+  "description": "Angular 19 (zoneless) author and host surface for the MFE framework: createApp, createWidget, route data, injectables over the shell's services, a boundary location strategy, the mfe-widget and mfe-app-host components over the runtime's mountDefinition, and self-mounting definitions any host places into an element.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -9,6 +9,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./host": {
+      "types": "./src/host/index.ts",
+      "default": "./src/host/index.ts"
     },
     "./registry": {
       "types": "./src/registry/index.ts",

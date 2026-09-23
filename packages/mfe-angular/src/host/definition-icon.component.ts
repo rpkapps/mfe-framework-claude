@@ -27,12 +27,12 @@ import type { IconData, IconNode } from '@company/mfe-core'
 const TAGS = new Set(['path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g'])
 
 /**
- * Attributes that run or fetch something. React ignores a string event handler by itself; the DOM
- * runs one, so they are dropped here, with links, which none of the allowed shapes needs.
+ * Attributes that run or fetch something. The DOM runs a string event handler, so they are
+ * dropped here, with links, which none of the allowed shapes needs.
  */
 const UNSAFE_ATTRIBUTE = /^(?:on|href$|xlink:href$)/i
 
-/** A name the DOM would refuse with an exception, dropped like React drops one. */
+/** A name the DOM would refuse with an exception, dropped rather than thrown on. */
 const ATTRIBUTE_NAME = /^[a-zA-Z_:][\w:.-]*$/
 
 /** Renderer2's name for the SVG namespace. */
