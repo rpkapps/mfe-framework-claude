@@ -70,6 +70,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'build',
+          root: './packages/mfe-build',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
           name: 'legacy-angular',
           root: './packages/mfe-legacy-angular',
           environment: 'jsdom',
