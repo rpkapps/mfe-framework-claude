@@ -7,6 +7,7 @@ import type { Rule, SourceCode } from 'eslint'
 import type { AnyNode, MemberExpression } from '../util/ast.ts'
 import { asNode, staticPropertyName } from '../util/ast.ts'
 import { isGlobalBinding, resolveGlobalObject } from '../util/scope.ts'
+import { optionRecord, stringOption } from '../util/options.ts'
 import { docsUrl } from '../util/docs.ts'
 
 type PatchKind = 'fetch' | 'history' | 'listeners'
@@ -16,6 +17,17 @@ const LISTENER_METHODS: ReadonlySet<string> = new Set(['addEventListener', 'remo
 
 /** Non-global-object names this rule has to recognise as their own owner. */
 const KNOWN_GLOBALS: ReadonlySet<string> = new Set(['document', 'history'])
+
+/**
+ * The repair each message points to names an adapter API, so a container written against a
+ * different adapter would be pointed at the wrong hooks. The author preset for that adapter
+ * supplies its own values; these are the React defaults, unchanged from before this option existed.
+ */
+const DEFAULT_SIGNAL_HOOK = 'useMfeSignal()'
+const DEFAULT_SIGNAL_MODULE = '@company/mfe-react'
+const DEFAULT_NAVIGATION_HINT =
+  "`navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path"
+const DEFAULT_NAVIGATOR_MODULE = '@company/mfe-runtime'
 
 function classify(
   sourceCode: SourceCode,
@@ -47,22 +59,56 @@ const rule: Rule.RuleModule = {
       url: docsUrl('no-global-patching'),
     },
     // No fix and no suggestion: the repair changes which object every call site talks to.
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          signalHook: {
+            type: 'string',
+            description:
+              "The adapter's abort-signal hook, called out in the fetch and listener repairs.",
+          },
+          signalModule: {
+            type: 'string',
+            description: 'The adapter module `signalHook` comes from.',
+          },
+          navigationHint: {
+            type: 'string',
+            description: "How to navigate through this adapter's App boundary router.",
+          },
+          navigatorModule: {
+            type: 'string',
+            description: 'The module the host `BoundaryNavigator` comes from.',
+          },
+        },
+      },
+    ],
     messages: {
       fetch:
-        "Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in this page, and the last bundle to evaluate wins. Wrap your own requests instead: call `fetch` through a module-local client in this MFE and pass `useMfeSignal()` (@company/mfe-react) as the request signal so the call is cancelled on unmount. Page-wide instrumentation is the shell's to install, once.",
+        "Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in this page, and the last bundle to evaluate wins. Wrap your own requests instead: call `fetch` through a module-local client in this MFE and pass `{{signalHook}}` ({{signalModule}}) as the request signal so the call is cancelled on unmount. Page-wide instrumentation is the shell's to install, once.",
       history:
-        "Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-runtime) in the shell.",
+        'Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: {{navigationHint}}, or the host `BoundaryNavigator` ({{navigatorModule}}) in the shell.',
       listeners:
-        'Patching `{{target}}` changes event dispatch for every MFE and outlives your own unmount. Register listeners normally and let the framework tear them down: `target.addEventListener(type, handler, { signal: useMfeSignal() })`, since @company/mfe-react aborts that signal on unmount.',
+        'Patching `{{target}}` changes event dispatch for every MFE and outlives your own unmount. Register listeners normally and let the framework tear them down: `target.addEventListener(type, handler, { signal: {{signalHook}} })`, since {{signalModule}} aborts that signal on unmount.',
     },
   },
 
   create(context) {
     const { sourceCode } = context
+    const options = optionRecord(context.options)
+    const signalHook = stringOption(options, 'signalHook', DEFAULT_SIGNAL_HOOK)
+    const signalModule = stringOption(options, 'signalModule', DEFAULT_SIGNAL_MODULE)
+    const navigationHint = stringOption(options, 'navigationHint', DEFAULT_NAVIGATION_HINT)
+    const navigatorModule = stringOption(options, 'navigatorModule', DEFAULT_NAVIGATOR_MODULE)
+
+    function dataFor(kind: PatchKind, target: string): Record<string, string> {
+      if (kind === 'history') return { target, navigationHint, navigatorModule }
+      return { target, signalHook, signalModule }
+    }
 
     function report(node: AnyNode, kind: PatchKind): void {
-      context.report({ node, messageId: kind, data: { target: sourceCode.getText(node) } })
+      context.report({ node, messageId: kind, data: dataFor(kind, sourceCode.getText(node)) })
     }
 
     function checkWriteTarget(target: AnyNode): void {
@@ -108,7 +154,7 @@ const rule: Rule.RuleModule = {
         context.report({
           node,
           messageId: kind,
-          data: { target: `${sourceCode.getText(asNode(targetArg))}.${nameArg.value}` },
+          data: dataFor(kind, `${sourceCode.getText(asNode(targetArg))}.${nameArg.value}`),
         })
       },
     }

@@ -3,7 +3,6 @@
 import type { ESLint, Linter } from 'eslint'
 import { builtinRules } from 'eslint/use-at-your-own-risk'
 import tseslint from 'typescript-eslint'
-import reactHooks from 'eslint-plugin-react-hooks'
 import { rules as mfeRules } from '../rules/index.ts'
 import type { RestrictedPath, RestrictedPattern } from './restricted-imports.ts'
 
@@ -39,7 +38,7 @@ export function asParser(value: unknown): Linter.Parser {
  * Flat config resolves a rule's plugin from the objects matching the file, and copying the
  * reference rather than importing it again keeps the identity ESLint merges on.
  */
-function pluginsOf(configs: readonly Linter.Config[]): Record<string, ESLint.Plugin> {
+export function pluginsOf(configs: readonly Linter.Config[]): Record<string, ESLint.Plugin> {
   const plugins: Record<string, ESLint.Plugin> = {}
   for (const config of configs) Object.assign(plugins, config.plugins ?? {})
   return plugins
@@ -263,32 +262,4 @@ export function testScopeOverrides(files: readonly string[], name: string): Lint
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
   }
-}
-
-/**
- * Each diagnostic reports code the React Compiler would bail out on, and an MFE that bails out
- * silently loses the memoisation the host sized its budget around.
- */
-export function reactCorrectness(files: readonly (string | string[])[]): Linter.Config[] {
-  const recommended = asConfigs([reactHooks.configs.flat['recommended-latest']])
-  return [
-    ...withFiles(recommended, files, 'mfe/react-hooks-recommended'),
-    {
-      name: 'mfe/react-compiler',
-      files: files.map(pattern => (Array.isArray(pattern) ? [...pattern] : pattern)),
-      plugins: pluginsOf(recommended),
-      rules: {
-        'react-hooks/capitalized-calls': 'error',
-        'react-hooks/exhaustive-effect-dependencies': 'warn',
-        'react-hooks/memo-dependencies': 'error',
-        'react-hooks/memoized-effect-dependencies': 'warn',
-        'react-hooks/no-deriving-state-in-effects': 'error',
-        'react-hooks/void-use-memo': 'error',
-        'react-hooks/rule-suppression': 'warn',
-        // Raised from the warning `recommended-latest` sets.
-        'react-hooks/exhaustive-deps': 'error',
-        'react-hooks/incompatible-library': 'error',
-      },
-    },
-  ]
 }

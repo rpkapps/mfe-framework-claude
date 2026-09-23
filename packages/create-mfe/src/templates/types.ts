@@ -46,11 +46,14 @@ const DEV_DEPENDENCIES: Record<string, string> = {
   '@company/mfe-rspack': 'workspace:*',
   '@rsbuild/core': 'catalog:',
   '@rsbuild/plugin-react': 'catalog:',
+  '@tanstack/eslint-plugin-query': 'catalog:',
+  '@tanstack/eslint-plugin-router': 'catalog:',
   '@testing-library/jest-dom': 'catalog:',
   '@testing-library/react': 'catalog:',
   '@types/react': 'catalog:',
   '@types/react-dom': 'catalog:',
   eslint: 'catalog:',
+  'eslint-plugin-react-hooks': 'catalog:',
   prettier: 'catalog:',
   // The container compiles its own stylesheet: the build generates the entry
   // and adds the PostCSS plugin, and this is the Tailwind that entry imports.
@@ -198,10 +201,11 @@ afterEach(() => {
       // it — through jiti, on whatever Node an editor happens to bundle.
       path: 'eslint.config.ts',
       contents: `import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
 
 export default [
   { ignores: ['dist/**', '.mfe/**', '**/routeTree.gen.ts'] },
-  ...mfe.author({
+  ...react.author({
     tsconfigRootDir: import.meta.dirname,
     files: ['src/**/*.{ts,tsx}'],
   }),

@@ -12,7 +12,6 @@ import {
   languageConfig,
   maintainability,
   mfePlugin,
-  reactCorrectness,
   resolveReactFiles,
   typeCheckedConfigs,
   testScopeOverrides,
@@ -21,6 +20,7 @@ import {
   withFiles,
   type PresetOptions,
 } from './shared.ts'
+import { reactCorrectness } from './react-support.ts'
 import {
   MODULE_FEDERATION_PATTERN,
   STATE_PATHS,
@@ -30,6 +30,15 @@ import {
   type RestrictedPath,
   type RestrictedPattern,
 } from './restricted-imports.ts'
+import { DEFAULT_MODULES as STABLE_DEFINITIONS_DEFAULT_MODULES } from '../rules/stable-definitions.ts'
+import {
+  ANGULAR_ADAPTER_MODULE,
+  ANGULAR_NAVIGATION_HINT,
+  ANGULAR_NAVIGATOR_MODULE,
+  ANGULAR_SIGNAL_HOOK,
+  ANGULAR_STORAGE_HOOK,
+  ANGULAR_STORED_STATE_HOOK,
+} from './angular-naming.ts'
 
 export type FrameworkPresetOptions = PresetOptions
 
@@ -228,6 +237,38 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
         'mfe/stable-definitions': 'error',
         'mfe/no-raw-storage': ['error', { allowedScopes: [...storageAllowedScopes] }],
         'mfe/no-widget-global-effects': ['error', { widgetScopes: [...widgetScopes] }],
+      },
+    },
+    {
+      // The neutral rules above name React's hooks by default. Inside the Angular adapter's own
+      // package, the same rules apply to the same failures, but the repair is an Angular API —
+      // this later object wins over the generic one above for any file under this scope.
+      name: 'mfe/framework/rules-angular-wording',
+      files: intersectFiles(files, '**/packages/mfe-angular/**'),
+      plugins: { mfe: mfePlugin },
+      rules: {
+        'mfe/no-global-patching': [
+          'error',
+          {
+            signalHook: ANGULAR_SIGNAL_HOOK,
+            signalModule: ANGULAR_ADAPTER_MODULE,
+            navigationHint: ANGULAR_NAVIGATION_HINT,
+            navigatorModule: ANGULAR_NAVIGATOR_MODULE,
+          },
+        ],
+        'mfe/stable-definitions': [
+          'error',
+          { modules: [...STABLE_DEFINITIONS_DEFAULT_MODULES, ANGULAR_ADAPTER_MODULE] },
+        ],
+        'mfe/no-raw-storage': [
+          'error',
+          {
+            allowedScopes: [...storageAllowedScopes],
+            storedStateHook: ANGULAR_STORED_STATE_HOOK,
+            storageHook: ANGULAR_STORAGE_HOOK,
+            adapterModule: ANGULAR_ADAPTER_MODULE,
+          },
+        ],
       },
     },
     testScopeOverrides(files, 'mfe/framework/tests'),

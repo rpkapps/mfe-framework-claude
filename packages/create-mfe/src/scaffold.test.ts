@@ -73,6 +73,23 @@ describe('the App starter', () => {
     expect(manifest.devDependencies).not.toHaveProperty('@rspack/dev-server')
   })
 
+  it('lints against the React preset and installs its peers', async () => {
+    const directory = await target()
+    await scaffold({ directory, id: 'operations', template: 'app', force: true })
+
+    const eslintConfig = await readFile(join(directory, 'eslint.config.ts'), 'utf8')
+    expect(eslintConfig).toContain("import react from '@company/eslint-plugin-mfe/react'")
+    expect(eslintConfig).toContain('react.author(')
+    expect(eslintConfig).not.toContain('mfe.author(')
+
+    const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>
+    }
+    expect(manifest.devDependencies['eslint-plugin-react-hooks']).toBe('catalog:')
+    expect(manifest.devDependencies['@tanstack/eslint-plugin-query']).toBe('catalog:')
+    expect(manifest.devDependencies['@tanstack/eslint-plugin-router']).toBe('catalog:')
+  })
+
   it('installs the Tailwind the generated stylesheet imports', async () => {
     const directory = await target()
     await scaffold({ directory, id: 'operations', template: 'app', force: true })

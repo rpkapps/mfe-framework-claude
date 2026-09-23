@@ -11,6 +11,7 @@
 import type { Linter } from 'eslint'
 
 import mfe from '@company/eslint-plugin-mfe'
+import react from '@company/eslint-plugin-mfe/react'
 
 const config: Linter.Config[] = [
   {
@@ -60,12 +61,18 @@ const config: Linter.Config[] = [
     ],
   }),
 
-  ...mfe.author({
+  ...react.author({
     tsconfigRootDir: import.meta.dirname,
     files: ['examples/*/src/**/*.{ts,tsx}'],
     // Widget ownership is declared, never guessed from a filename.
     widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
   }),
+
+  /*
+   * `tools/interop` still imports `@company/mfe-runtime` and its `/testing` subpath directly (7
+   * sites), exactly like `apps/shell` — a later chunk moves both to the adapters' `/host` and
+   * `/testing` subpaths and turns the mfe-core/mfe-runtime application boundary on for both then.
+   */
 
   ...mfe.tooling({
     tsconfigRootDir: import.meta.dirname,

@@ -46,11 +46,16 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'localStorage' },
+          data: {
+            access: 'localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'localStorage', accessor: 'storage' },
+              data: { access: 'localStorage', accessor: 'storage', storageHook: 'useMfeStorage()' },
               output: "export const value = storage.getItem('prefs')",
             },
           ],
@@ -62,11 +67,20 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'sessionStorage' },
+          data: {
+            access: 'sessionStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'sessionStorage', accessor: 'storage' },
+              data: {
+                access: 'sessionStorage',
+                accessor: 'storage',
+                storageHook: 'useMfeStorage()',
+              },
               output: "storage.setItem('draft', body)",
             },
           ],
@@ -78,11 +92,20 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'window.localStorage' },
+          data: {
+            access: 'window.localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'window.localStorage', accessor: 'storage' },
+              data: {
+                access: 'window.localStorage',
+                accessor: 'storage',
+                storageHook: 'useMfeStorage()',
+              },
               output: "storage.setItem('prefs', body)",
             },
           ],
@@ -94,11 +117,20 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'globalThis.sessionStorage' },
+          data: {
+            access: 'globalThis.sessionStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'globalThis.sessionStorage', accessor: 'storage' },
+              data: {
+                access: 'globalThis.sessionStorage',
+                accessor: 'storage',
+                storageHook: 'useMfeStorage()',
+              },
               output: 'export const backing = storage',
             },
           ],
@@ -110,11 +142,20 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: '(window as Window).localStorage' },
+          data: {
+            access: '(window as Window).localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: '(window as Window).localStorage', accessor: 'storage' },
+              data: {
+                access: '(window as Window).localStorage',
+                accessor: 'storage',
+                storageHook: 'useMfeStorage()',
+              },
               output: "export const value = storage.getItem('k')",
             },
           ],
@@ -126,11 +167,16 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'localStorage' },
+          data: {
+            access: 'localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'localStorage', accessor: 'storage' },
+              data: { access: 'localStorage', accessor: 'storage', storageHook: 'useMfeStorage()' },
               output: 'const raw = storage\nexport const value = raw',
             },
           ],
@@ -142,11 +188,16 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'localStorage' },
+          data: {
+            access: 'localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'localStorage', accessor: 'storage' },
+              data: { access: 'localStorage', accessor: 'storage', storageHook: 'useMfeStorage()' },
               output:
                 "export function Panel() {\n  const prefs = storage.getItem('prefs')\n  return prefs\n}",
             },
@@ -161,11 +212,16 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'localStorage' },
+          data: {
+            access: 'localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'localStorage', accessor: 'storage' },
+              data: { access: 'localStorage', accessor: 'storage', storageHook: 'useMfeStorage()' },
               output: "export const value = storage.getItem('k')",
             },
           ],
@@ -178,11 +234,20 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
       errors: [
         {
           messageId: 'rawStorage',
-          data: { access: 'localStorage' },
+          data: {
+            access: 'localStorage',
+            storedStateHook: 'useStoredState()',
+            storageHook: 'useMfeStorage()',
+            adapterModule: '@company/mfe-react',
+          },
           suggestions: [
             {
               messageId: 'useBoundary',
-              data: { access: 'localStorage', accessor: 'mfeStorage' },
+              data: {
+                access: 'localStorage',
+                accessor: 'mfeStorage',
+                storageHook: 'useMfeStorage()',
+              },
               output: "export const value = mfeStorage.getItem('k')",
             },
           ],

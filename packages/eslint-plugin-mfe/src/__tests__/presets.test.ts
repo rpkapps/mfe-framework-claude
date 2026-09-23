@@ -1,11 +1,12 @@
 import { ESLint } from 'eslint'
 import { describe, expect, it } from 'vitest'
-import plugin, { author, configs, framework, rules, tooling } from '../index.ts'
+import plugin, { application, configs, framework, rules, tooling } from '../index.ts'
 
 const RULE_IDS = [
   'mfe/no-global-patching',
   'mfe/no-raw-storage',
   'mfe/no-widget-global-effects',
+  'mfe/no-widget-global-router',
   'mfe/stable-definitions',
 ]
 
@@ -18,11 +19,12 @@ function configuredRuleIds(config: readonly { rules?: object | undefined }[]): S
 }
 
 describe('plugin surface', () => {
-  it('exposes the four MFE rules under the names the presets configure', () => {
+  it('exposes the five MFE rules under the names the presets configure', () => {
     expect(Object.keys(rules).sort()).toEqual([
       'no-global-patching',
       'no-raw-storage',
       'no-widget-global-effects',
+      'no-widget-global-router',
       'stable-definitions',
     ])
   })
@@ -41,13 +43,17 @@ describe('plugin surface', () => {
     }
   })
 
-  it('offers the presets both as arrays and as factories', () => {
+  it('offers the neutral presets both as arrays and as factories', () => {
     expect(Array.isArray(configs.framework)).toBe(true)
-    expect(Array.isArray(configs.author)).toBe(true)
     expect(Array.isArray(configs.tooling)).toBe(true)
     expect(plugin.framework).toBe(framework)
-    expect(plugin.author).toBe(author)
     expect(plugin.tooling).toBe(tooling)
+    expect(plugin.application).toBe(application)
+  })
+
+  it('does not export a React or Angular author preset from the neutral entry', () => {
+    expect(Reflect.has(plugin, 'author')).toBe(false)
+    expect(Reflect.has(plugin, 'angular')).toBe(false)
   })
 })
 
@@ -104,10 +110,9 @@ describe('tooling preset', () => {
   })
 })
 
-describe.each([
-  ['framework', framework()],
-  ['author', author()],
-])('%s preset', (name, preset) => {
+describe('framework preset', () => {
+  const preset = framework()
+
   it('is a non-empty flat-config array with a name on every entry', () => {
     expect(preset.length).toBeGreaterThan(0)
     for (const entry of preset) expect(entry.name, JSON.stringify(entry.files)).toBeTypeOf('string')
@@ -115,7 +120,11 @@ describe.each([
 
   it('turns on the MFE rules, the type-aware TypeScript rules and React Hooks', () => {
     const ids = configuredRuleIds(preset)
-    for (const id of RULE_IDS) expect(ids, name).toContain(id)
+    for (const id of RULE_IDS) {
+      // `no-widget-global-router` is Angular-only and not part of the framework preset.
+      if (id === 'mfe/no-widget-global-router') continue
+      expect(ids, id).toContain(id)
+    }
     expect(ids).toContain('@typescript-eslint/no-floating-promises')
     expect(ids).toContain('@typescript-eslint/no-misused-promises')
     expect(ids).toContain('@typescript-eslint/no-unsafe-assignment')
@@ -160,7 +169,7 @@ describe.each([
 
   it('relaxes exactly the five justified rules in test scope, and nothing else', () => {
     const tests = preset.find(entry => entry.name?.endsWith('/tests'))
-    expect(tests, name).toBeDefined()
+    expect(tests).toBeDefined()
     expect(Object.entries(tests?.rules ?? {})).toEqual([
       ['mfe/no-global-patching', 'off'],
       ['mfe/no-raw-storage', 'off'],
@@ -246,47 +255,11 @@ describe.each([
 
   it('is accepted by ESLint, rule options included', async () => {
     const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: preset })
-    const resolved: unknown = await eslint.calculateConfigForFile('src/widgets/panel.ts')
+    const resolved: unknown = await eslint.calculateConfigForFile('packages/mfe-runtime/src/x.ts')
     expect(resolved).toBeTypeOf('object')
-  })
-})
-
-describe('preset options', () => {
-  it('scopes the TanStack Router rules to router files inside the covered files', () => {
-    const preset = author({ files: ['src/**/*.ts'], routerFiles: ['src/routes/**/*.tsx'] })
-    const routerConfigs = preset.filter(entry => entry.name?.startsWith('mfe/tanstack-router'))
-    expect(routerConfigs.length).toBeGreaterThan(0)
-    for (const entry of routerConfigs) {
-      // A nested `files` entry is an AND, and the outer pattern is where the parser is set.
-      expect(entry.files).toEqual([['src/**/*.ts', 'src/routes/**/*.tsx']])
-    }
-    const ids = configuredRuleIds(routerConfigs)
-    expect(ids).toContain('@tanstack/router/create-route-property-order')
-  })
-
-  it('turns on the TanStack Query rules in the author preset only', () => {
-    expect(configuredRuleIds(author())).toContain('@tanstack/query/exhaustive-deps')
-    expect(configuredRuleIds(framework())).not.toContain('@tanstack/query/exhaustive-deps')
-  })
-
-  it('passes Widget and storage scopes through to the rules', () => {
-    const preset = author({
-      widgetScopes: ['src/widgets/**'],
-      storageAllowedScopes: ['src/bootstrap/storage.ts'],
-    })
-    const entry = preset.find(config => config.name === 'mfe/author/rules')
-    expect(entry?.rules?.['mfe/no-widget-global-effects']).toEqual([
-      'error',
-      { widgetScopes: ['src/widgets/**'] },
-    ])
-    expect(entry?.rules?.['mfe/no-raw-storage']).toEqual([
-      'error',
-      { allowedScopes: ['src/bootstrap/storage.ts'] },
-    ])
   })
 
   it('restricts the framework packages to their side of the import DAG', () => {
-    const preset = framework()
     const core = preset.find(config => config.name === 'mfe/zone/mfe-core')
     const entry = core?.rules?.['@typescript-eslint/no-restricted-imports']
     expect(Array.isArray(entry)).toBe(true)
@@ -317,27 +290,75 @@ describe('preset options', () => {
     expect(groups).toContain('@grafana/faro-*')
   })
 
-  it('lets an MFE author keep zustand but not the framework internals or a telemetry SDK', () => {
-    const entry = author().find(config => config.name === 'mfe/author/boundaries')?.rules?.[
-      '@typescript-eslint/no-restricted-imports'
-    ]
-    const [, options] = entry as [
-      string,
-      { paths: { name: string }[]; patterns: { group: string[] }[] },
-    ]
-    const names = options.paths.map(path => path.name)
-    expect(names).not.toContain('zustand')
-    expect(names).toContain('@company/mfe-core')
-    expect(names).toContain('@company/mfe-runtime')
-    const groups = options.patterns.flatMap(pattern => pattern.group)
-    expect(groups).toContain('@company/mfe-react/src/*')
-    expect(groups).toContain('@opentelemetry/*')
-    expect(groups).toContain('@grafana/faro-*')
-    const telemetry = options.patterns.filter(pattern =>
-      pattern.group.some(group => group.startsWith('@opentelemetry')),
+  it('names the Angular adapter, not the React hooks, inside packages/mfe-angular', () => {
+    const angularBlock = preset.find(
+      config => config.name === 'mfe/framework/rules-angular-wording',
     )
-    for (const pattern of telemetry) {
-      expect((pattern as { allowTypeImports?: boolean }).allowTypeImports).toBe(false)
-    }
+    expect(angularBlock).toBeDefined()
+    const patching = angularBlock?.rules?.['mfe/no-global-patching']
+    expect(patching).toEqual([
+      'error',
+      {
+        signalHook: 'injectMfeSignal()',
+        signalModule: '@company/mfe-angular',
+        navigationHint: "the Angular `Router`, scoped to your App's own `BoundaryLocationStrategy`",
+        navigatorModule: '@company/mfe-runtime',
+      },
+    ])
+    const storage = angularBlock?.rules?.['mfe/no-raw-storage']
+    expect(storage).toEqual([
+      'error',
+      {
+        allowedScopes: [],
+        storedStateHook: 'injectStoredState()',
+        storageHook: 'injectMfeStorage()',
+        adapterModule: '@company/mfe-angular',
+      },
+    ])
+    const stableDefinitions = angularBlock?.rules?.['mfe/stable-definitions']
+    expect(stableDefinitions).toEqual([
+      'error',
+      {
+        modules: [
+          '@company/mfe-react',
+          '@company/mfe-runtime',
+          '@company/mfe-core',
+          '@company/mfe-angular',
+        ],
+      },
+    ])
+    // The generic block still names React's hooks for every other framework package.
+    const generic = preset.find(config => config.name === 'mfe/framework/rules')
+    expect(generic?.rules?.['mfe/no-global-patching']).toBe('error')
+  })
+})
+
+describe('application preset', () => {
+  it('forbids mfe-core and mfe-runtime, naming the given adapter', () => {
+    const preset = application({ adapterModules: ['@company/mfe-react'] })
+    const entry = preset.find(config => config.name === 'mfe/application/boundaries')
+    const rule = entry?.rules?.['@typescript-eslint/no-restricted-imports']
+    const [, options] = rule as [string, { paths: { name: string; message: string }[] }]
+    const core = options.paths.find(path => path.name === '@company/mfe-core')
+    const runtime = options.paths.find(path => path.name === '@company/mfe-runtime')
+    expect(core?.message).toContain('@company/mfe-react')
+    expect(runtime?.message).toContain('@company/mfe-react/host')
+    expect(runtime?.message).toContain('@company/mfe-react/testing')
+  })
+
+  it('names every adapter it is given, for a cross-adapter host', () => {
+    const preset = application({ adapterModules: ['@company/mfe-react', '@company/mfe-angular'] })
+    const entry = preset.find(config => config.name === 'mfe/application/boundaries')
+    const rule = entry?.rules?.['@typescript-eslint/no-restricted-imports']
+    const [, options] = rule as [string, { paths: { name: string; message: string }[] }]
+    const runtime = options.paths.find(path => path.name === '@company/mfe-runtime')
+    expect(runtime?.message).toContain('@company/mfe-react')
+    expect(runtime?.message).toContain('@company/mfe-angular')
+  })
+
+  it('is a single, minimal config object: no parser, no other plugin', () => {
+    const preset = application({ adapterModules: ['@company/mfe-react'] })
+    expect(preset).toHaveLength(1)
+    expect(preset[0]?.languageOptions).toBeUndefined()
   })
 })

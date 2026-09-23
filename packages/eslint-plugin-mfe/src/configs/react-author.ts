@@ -1,11 +1,10 @@
 /**
- * The `author` preset, for MFE Apps and Widgets: application state libraries are expected, while
- * framework internals, the React root and a telemetry SDK are not an author's to own.
+ * The `react` author preset, for MFE Apps and Widgets built on `@company/mfe-react`: application
+ * state libraries are expected, while framework internals, the React root and a telemetry SDK are
+ * not an author's to own.
  */
 
 import type { Linter } from 'eslint'
-import queryPlugin from '@tanstack/eslint-plugin-query'
-import routerPlugin from '@tanstack/eslint-plugin-router'
 import {
   TS_FILES,
   asConfigs,
@@ -15,7 +14,6 @@ import {
   languageConfig,
   maintainability,
   mfePlugin,
-  reactCorrectness,
   resolveReactFiles,
   typeCheckedConfigs,
   testScopeOverrides,
@@ -24,11 +22,15 @@ import {
   withFiles,
   type PresetOptions,
 } from './shared.ts'
+import { reactCorrectness } from './react-support.ts'
+import { loadTanstackPeers } from './react-peers.ts'
 import {
-  AUTHOR_FRAMEWORK_PATHS,
-  AUTHOR_FRAMEWORK_PATTERNS,
-  AUTHOR_TELEMETRY_PATTERNS,
+  applicationBoundaryPaths,
+  authorTelemetryPatterns,
+  deepImportPattern,
+  MODULE_FEDERATION_PATTERN,
   restrictedImports,
+  singleSpaPattern,
 } from './restricted-imports.ts'
 
 /**
@@ -43,6 +45,11 @@ export const DEFAULT_ROUTER_FILES: readonly string[] = [
   '**/routeTree.gen.ts',
 ]
 
+const ADAPTER_MODULE = '@company/mfe-react'
+
+const REACT_ROOT_MESSAGE =
+  'Lifecycle boundary: the host owns the React root. An MFE that calls `createRoot` itself detaches from the mount lifecycle, so unmount, error boundaries and hydration stop working. Export a definition from `createApp` or `createWidget` and let the host mount it.'
+
 export interface AuthorPresetOptions extends PresetOptions {
   readonly routerFiles?: readonly string[] | undefined
 }
@@ -55,6 +62,8 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
   const storageAllowedScopes = options.storageAllowedScopes ?? []
   const extraPaths = options.extraRestrictedPaths ?? []
   const extraPatterns = options.extraRestrictedPatterns ?? []
+
+  const { queryPlugin, routerPlugin } = loadTanstackPeers()
 
   return [
     eslintRecommended(files),
@@ -78,8 +87,22 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
       rules: {
         // The application state libraries are deliberately absent: an MFE owns its own state.
         '@typescript-eslint/no-restricted-imports': restrictedImports(
-          [...AUTHOR_FRAMEWORK_PATHS, ...extraPaths],
-          [...AUTHOR_FRAMEWORK_PATTERNS, ...AUTHOR_TELEMETRY_PATTERNS, ...extraPatterns],
+          [
+            ...applicationBoundaryPaths([ADAPTER_MODULE]),
+            { name: 'react-dom/client', message: REACT_ROOT_MESSAGE },
+            ...extraPaths,
+          ],
+          [
+            deepImportPattern([ADAPTER_MODULE]),
+            singleSpaPattern([ADAPTER_MODULE]),
+            MODULE_FEDERATION_PATTERN,
+            ...authorTelemetryPatterns(
+              ADAPTER_MODULE,
+              'useTelemetry()',
+              'or `context.mfe.telemetry` in a route callback',
+            ),
+            ...extraPatterns,
+          ],
         ),
       },
     },

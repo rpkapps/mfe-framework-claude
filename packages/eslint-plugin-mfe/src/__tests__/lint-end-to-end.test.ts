@@ -9,7 +9,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { author, framework, tooling } from '../index.ts'
+import { framework, tooling } from '../index.ts'
+import { author } from '../react.ts'
+import { angular } from '../angular.ts'
 
 const TSCONFIG = JSON.stringify({
   compilerOptions: {
@@ -379,5 +381,167 @@ export const ready = true
     const { results } = await lint(root, preset)
     const linted = results.map(result => result.filePath.split(sep).join('/'))
     expect(linted.some(path => path.endsWith('src/mfe.config.ts'))).toBe(false)
+  })
+})
+
+const ANGULAR_TSCONFIG = JSON.stringify({
+  compilerOptions: {
+    target: 'ES2023',
+    lib: ['ES2023', 'DOM', 'DOM.Iterable'],
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    moduleDetection: 'force',
+    strict: true,
+    noUncheckedIndexedAccess: true,
+    experimentalDecorators: true,
+    useDefineForClassFields: false,
+    noEmit: true,
+    skipLibCheck: true,
+    types: [],
+  },
+  include: ['**/*.ts'],
+})
+
+/**
+ * Faithful, minimal stand-ins for the slice of `@angular/core`/`@angular/router` the fixtures use.
+ * The fixture project lives outside the workspace, so the real packages are not resolvable there;
+ * an ambient `any` would defeat the point (every use would then itself be flagged `no-unsafe-*`),
+ * so these keep real, narrow types instead.
+ */
+const ANGULAR_AMBIENT = `type Constructor<T> = new (...args: never[]) => T
+declare module '@angular/core' {
+  export function Component(metadata: {
+    selector?: string
+    template?: string
+    templateUrl?: string
+    changeDetection?: unknown
+    imports?: readonly unknown[]
+  }): ClassDecorator
+  export class NgZone {}
+  export function inject<T>(token: Constructor<T>): T
+  export enum ChangeDetectionStrategy {
+    OnPush = 0,
+    Default = 1,
+  }
+}
+declare module '@angular/router' {
+  export class Router {
+    navigate(commands: readonly unknown[]): Promise<boolean>
+  }
+}
+declare module 'zone.js' {}
+`
+
+describe('angular preset, linting real files', () => {
+  const root = makeProject({
+    'src/ambient.d.ts': ANGULAR_AMBIENT,
+    // A Widget: the adapter is zoneless, and the rule set should catch every one of these at once.
+    'src/widgets/summary.component.ts': `import 'zone.js'
+import { Component, NgZone, inject } from '@angular/core'
+import { Router } from '@angular/router'
+
+@Component({
+  selector: 'summary-widget',
+  template: \`<h1>{{ title }}</h1><input ([ngModel])="title" /> \`,
+})
+export class SummaryWidgetComponent {
+  private readonly router = inject(Router)
+  private readonly zone = inject(NgZone)
+
+  open(): void {
+    this.router.navigate(['/reports'])
+    document.title = 'Reports'
+    const prefs = localStorage.getItem('prefs')
+    console.log(this.zone, prefs)
+  }
+}
+`,
+    // An App root: the same Router navigation is fine outside a declared Widget scope.
+    'src/app/app-root.component.ts': `import { Component, inject } from '@angular/core'
+import { Router } from '@angular/router'
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app-root.html',
+})
+export class AppRootComponent {
+  private readonly router = inject(Router)
+
+  open(): void {
+    this.router.navigate(['/reports'])
+  }
+}
+`,
+    // A real (non-inline) template file, with its own violation for the template parser to catch.
+    'src/app/app-root.html': `<button type="button" (click)="open()">
+  {{ 1 == 2 }}
+</button>
+`,
+    'src/clean.component.ts': `import { ChangeDetectionStrategy, Component } from '@angular/core'
+
+@Component({
+  selector: 'clean-widget',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '<p>{{ total }}</p>',
+})
+export class CleanWidgetComponent {
+  readonly total = 0
+}
+`,
+  })
+  writeFileSync(join(root, 'tsconfig.json'), ANGULAR_TSCONFIG)
+
+  const preset = angular({
+    tsconfigRootDir: root,
+    files: ['src/**/*.ts'],
+    widgetScopes: ['src/widgets/**'],
+  })
+
+  it('runs without a configuration error and parses every file it claims, templates included', async () => {
+    const summary = await lint(root, preset)
+    expect(summary.fatal).toEqual([])
+    expect(summary.unattributed).toEqual([])
+    expect(summary.results.length).toBeGreaterThan(0)
+  })
+
+  it('bans zone.js, NgZone and lets the Router-in-a-Widget rule fire, only inside the Widget scope', async () => {
+    const { results } = await lint(root, preset)
+    const widget = resultFor(results, 'src/widgets/summary.component.ts')
+    const ruleIds = (widget?.messages ?? []).map(message => message.ruleId)
+    expect(ruleIds).toContain('@typescript-eslint/no-restricted-imports')
+    expect(ruleIds).toContain('mfe/no-widget-global-router')
+    expect(ruleIds).toContain('mfe/no-widget-global-effects')
+    expect(ruleIds).toContain('mfe/no-raw-storage')
+
+    const restrictedImportCount = ruleIds.filter(
+      ruleId => ruleId === '@typescript-eslint/no-restricted-imports',
+    ).length
+    // `zone.js`, and the named `NgZone` import off `@angular/core`.
+    expect(restrictedImportCount).toBeGreaterThanOrEqual(2)
+
+    const app = resultFor(results, 'src/app/app-root.component.ts')
+    const appRuleIds = (app?.messages ?? []).map(message => message.ruleId)
+    // The same Router navigation, outside the declared Widget scope, is not this rule's concern.
+    expect(appRuleIds).not.toContain('mfe/no-widget-global-router')
+  })
+
+  it('extracts and lints the Widget’s inline template, catching the reversed banana in a box', async () => {
+    const { results } = await lint(root, preset)
+    const widget = resultFor(results, 'src/widgets/summary.component.ts')
+    const ruleIds = (widget?.messages ?? []).map(message => message.ruleId)
+    expect(ruleIds).toContain('@angular-eslint/template/banana-in-box')
+  })
+
+  it('lints a real (non-inline) template file with the angular-eslint template rules', async () => {
+    const { results } = await lint(root, preset)
+    const template = resultFor(results, 'src/app/app-root.html')
+    const ruleIds = (template?.messages ?? []).map(message => message.ruleId)
+    expect(ruleIds).toContain('@angular-eslint/template/eqeqeq')
+  })
+
+  it('reports nothing in a file that respects every boundary', async () => {
+    const { results } = await lint(root, preset)
+    const clean = resultFor(results, 'src/clean.component.ts')
+    expect(clean?.messages).toEqual([])
   })
 })
