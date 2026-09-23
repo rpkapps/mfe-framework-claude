@@ -12,8 +12,8 @@ concurrency:
 permissions:
   contents: read
 
-# This repository is checked out into its own directory, beside rpkapps/tecton-ui-1, because the
-# packages link @tecton/react from ../tecton-ui-1.
+# This repository is checked out into its own directory, so the design system can be cloned to
+# wherever the @tecton/react override in pnpm-workspace.yaml points (see .github/actions/setup).
 jobs:
   check:
     name: pnpm check

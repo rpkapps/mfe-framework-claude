@@ -7,6 +7,8 @@ import { existsSync } from 'node:fs'
 import { delimiter, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { tectonCheckoutDirectory, tectonLinkPath } from './location.mjs'
+
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 /** Resolving the manifest, not the directory: a dangling link has neither. */
@@ -22,18 +24,17 @@ function tectonIsBuilt(packageRoot) {
 export function requireTecton(packageRoot, consumer = 'This package') {
   if (!tectonIsPresent(packageRoot)) {
     throw new Error(
-      `${consumer} needs the Tecton design system, checked out beside this repository:\n\n` +
-        '  <parent>/\n' +
-        '    mfe-framework-claude/   this repository\n' +
-        '    tecton-ui-1/            git clone of the design system\n\n' +
-        'Clone it there and run `pnpm install` again. pnpm links it without checking\n' +
-        'that the target exists, which is why install reported success.',
+      `${consumer} needs the Tecton design system at ${tectonLinkPath()}, relative to this\n` +
+        'repository, which is where the `@tecton/react` override in pnpm-workspace.yaml points.\n\n' +
+        'Clone it there and run `pnpm install` again, or change that override to where your\n' +
+        'checkout is. pnpm links it without checking that the target exists, which is why\n' +
+        'install reported success.',
     )
   }
 
   if (!tectonIsBuilt(packageRoot)) {
     throw new Error(
-      `${consumer} needs a built @tecton/react: run \`pnpm install && pnpm --filter @tecton/react build\` inside tecton-ui-1.`,
+      `${consumer} needs a built @tecton/react: run \`pnpm install && pnpm --filter @tecton/react build\` inside ${tectonCheckoutDirectory()}.`,
     )
   }
 }

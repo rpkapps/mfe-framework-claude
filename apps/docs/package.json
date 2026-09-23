@@ -16,7 +16,7 @@
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-router": "catalog:docs",
     "@tanstack/react-start": "catalog:",
-    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "@tecton/react": "*",
     "cn": "catalog:",
     "fumadocs-core": "catalog:",
     "fumadocs-mdx": "catalog:",

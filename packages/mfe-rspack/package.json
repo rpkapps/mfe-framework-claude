@@ -58,7 +58,7 @@
     "@module-federation/runtime": "catalog:",
     "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
-    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "@tecton/react": "*",
     "@types/node": "catalog:",
     "postcss": "catalog:",
     "typescript": "catalog:",

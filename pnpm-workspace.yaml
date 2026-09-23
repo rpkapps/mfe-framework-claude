@@ -51,6 +51,11 @@ peerDependencyRules:
 # container, moving the React containers' federation runtime off the version the shell shares.
 overrides:
   '@module-federation/runtime-tools@2.9.1': 2.9.0
+  # Where the Tecton design system is checked out. It is not published, so every package declares
+  # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
+  # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
+  # read it from here, and CI's repository is set in .github/actions/setup/action.yml.
+  '@tecton/react': link:../tecton-ui-1/packages/tecton-react
 
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.

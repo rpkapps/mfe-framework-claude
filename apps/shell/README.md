@@ -251,8 +251,10 @@ private, and ships built output: unbundled ESM under `dist/` with a `.d.ts`
 beside every module, behind an enumerated `exports` map. Three things make the
 link work:
 
-1. **`package.json`** depends on it as `link:../../../tecton-ui-1/packages/tecton-react`,
-   and declares its peers (`react-aria-components`, `cn`,
+1. **`package.json`** depends on it as `"*"`, which the `@tecton/react`
+   override in `pnpm-workspace.yaml` turns into a `link:` to the checkout
+   (`../tecton-ui-1/packages/tecton-react` by default; that one line is the
+   only place the location is written). It also declares its peers (`react-aria-components`, `cn`,
    `class-variance-authority`, `lucide-react`, `next-themes`, `sonner`,
    `react-resizable-panels`, `react-aria`) plus what its stylesheet imports
    (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`). pnpm does not
@@ -263,15 +265,15 @@ link work:
    `NODE_PATH` for Tailwind, which resolves `@import`s from the stylesheet's
    own directory; the shell and every container import the same helper, so the
    two cannot drift. `requireTecton` fails the config when the checkout is
-   missing or unbuilt, naming
-   `pnpm install && pnpm --filter @tecton/react build` inside `tecton-ui-1`.
+   missing or unbuilt, naming the location the override points at and
+   `pnpm install && pnpm --filter @tecton/react build` inside that checkout.
 3. **`tsconfig.json`** maps the same specifiers back at this workspace, which
    is the type-level counterpart of the above, and
    `tools/tecton/vitest.mjs` does it again for the test runner — which has no
    Module Federation to collapse the duplicates at runtime.
 
-**Caveat.** All of that only works because the checkout sits at a known
-relative path. A real deployment publishes `@tecton/react` as a versioned
+**Caveat.** All of that only works because the checkout sits at the relative
+path the override names. A real deployment publishes `@tecton/react` as a versioned
 private package, at which point the `link:` becomes an ordinary version range
 and the resolution workarounds disappear. Nothing else changes.
 

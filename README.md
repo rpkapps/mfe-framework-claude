@@ -197,8 +197,9 @@ The containers, all mounted by one shell, each on its own dev server:
 - **pnpm 10 or newer.** The repository is a pnpm workspace and uses `catalog:`
   versions. No `packageManager` field pins it, deliberately (`docs/decisions.md`
   8).
-- **The Tecton design system, checked out beside this repository and built.**
-  The shell depends on it through a link:
+- **The Tecton design system, checked out and built.** Every package links
+  it through one override in `pnpm-workspace.yaml`, which by default expects
+  it beside this repository:
 
   ```
   <parent>/
@@ -215,6 +216,11 @@ The containers, all mounted by one shell, each on its own dev server:
   ```sh
   cd ../tecton-ui-1 && pnpm install && pnpm --filter @tecton/react build
   ```
+
+  To keep it somewhere else, change the `'@tecton/react': link:…` override in
+  `pnpm-workspace.yaml` and run `pnpm install`. The tooling, the Vitest config
+  and CI all read the location from that line; CI clones the repository named
+  in `.github/actions/setup/action.yml`.
 
   pnpm creates the link without checking that its target exists, so
   `pnpm install` here reports success either way, and `requireTecton` is what

@@ -24,7 +24,7 @@
     "@company/mfe-react": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
-    "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
+    "@tecton/react": "*",
     "cn": "^0.2.6",
     "lucide-react": "^1.45.0",
     "react": "catalog:",
