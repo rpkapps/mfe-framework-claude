@@ -3,10 +3,11 @@
  * Refresh only replaces a module whose every export is a component (§18).
  */
 
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import {
   useActiveDefinition,
+  useMfeRuntime,
   useStoredState,
   type ActiveDefinition,
   type StoredStateSetter,
@@ -35,6 +36,22 @@ import { shellUi, type ShellSurface } from './ui-store.ts'
 export function useActiveApp(): ActiveDefinition | null {
   const pathname = useLocation({ select: location => location.pathname })
   return useActiveDefinition(pathname)
+}
+
+/**
+ * Tells mounted Apps where the shell's own router took the page. It pushes to the browser
+ * directly — from the palette, the settings sheet, a breadcrumb — and the browser reports only
+ * `popstate`, so without this an App would stay where it was while the URL moved. Keyed by the
+ * history entry rather than the href, so going to the URL the shell already shows still counts;
+ * the navigator emits only when the page is somewhere its Apps were not told of.
+ */
+export function useAnnounceShellNavigation(): void {
+  const runtime = useMfeRuntime('the shell navigation')
+  const entry = useLocation({ select: location => location.state.__TSR_key ?? location.href })
+
+  useEffect(() => {
+    runtime.navigator.announce()
+  }, [runtime, entry])
 }
 
 /** A media query rather than a width, so it re-evaluates on resize at the breakpoint the layout uses. */

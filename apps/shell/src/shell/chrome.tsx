@@ -72,7 +72,7 @@ import { toast } from 'sonner'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
-import { useActiveApp, useShellSurface } from './hooks.ts'
+import { useActiveApp, useAnnounceShellNavigation, useShellSurface } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
@@ -121,8 +121,9 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // through the same hook.
   const theme = useTheme()
   // Built once: a fresh registry per render re-subscribes the listener and drops every
-  // registration a mounted App has made against it.
+  // registration made against it.
   const [registry] = useState(createShellShortcutRegistry)
+  useAnnounceShellNavigation()
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.
@@ -157,7 +158,8 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   })
 
   return (
-    // One registry for the page: a mounted App registers its own shortcuts into the same one (§26).
+    // The shell's own shortcuts. A mounted App renders in a React root of its own, outside this
+    // provider, so it cannot register into it.
     <ShortcutsProvider registry={registry}>
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
