@@ -5,9 +5,11 @@ import { createFileRoute } from '@tanstack/react-router'
 // decides where it opens.
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: 'canvas-01 settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: 'canvas-01 settings',
+      icon: 'settings',
+    },
   },
   component: () => <h2>Settings</h2>,
 })

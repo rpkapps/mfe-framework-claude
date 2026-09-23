@@ -26,6 +26,7 @@ export {
   ICON_ELEMENT_TAGS,
   isCapabilityName,
   isValidDefinitionId,
+  type CapabilityDeclaration,
   type CapabilityDescriptor,
   type CapabilityIconRef,
   type CapabilityName,

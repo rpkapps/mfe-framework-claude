@@ -147,9 +147,11 @@ import { SettingsPage } from '../components/settings-01/page.tsx'
 
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: 'Operations settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: 'Operations settings',
+      icon: 'settings',
+    },
     breadcrumb: 'Settings',
   },
   component: SettingsPage,
@@ -158,7 +160,7 @@ export const Route = createFileRoute('/settings')({
 
 A capability page is an ordinary route with a marker on it. The build extracts the marker into your
 registry entry, and the shell decides where the page opens. The path comes from `createFileRoute`,
-and `label` is the text the shell puts in its menu.
+and the `capability` object says which page it is and what the shell calls it.
 
 </Step>
 
@@ -171,14 +173,16 @@ import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/release-notes')({
   staticData: {
-    capability: 'releaseNotes',
-    label: 'Operations release notes',
+    capability: {
+      name: 'releaseNotes',
+      label: 'Operations release notes',
+    },
   },
   component: () => <h2>What changed in 2.1.0</h2>,
 })
 ```
 
-There are three capability names: `settings`, `help` and `releaseNotes`. One route may claim each,
+The capability names are `settings`, `help` and `releaseNotes`. One route may claim each,
 and only an App may claim any. The page is yours to write, and the shell opens it at
 `/operations/release-notes`.
 
@@ -295,7 +299,7 @@ failed to extract the capability route '/release-notes': expected a non-empty `l
 literal, found no label.
 ```
 
-**Fix.** Add `label` beside the capability, as an inline string. The build reads it without running
+**Fix.** Add `label` inside the `capability` object, as an inline string. The build reads it without running
 your code, so it cannot be computed.
 
 </Callout>

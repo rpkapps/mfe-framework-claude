@@ -40,9 +40,11 @@ way: `import wellHead from './well-head.svg'`, then `icon: wellHead`.
 ```tsx title="examples/operations/src/routes/settings.tsx"
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: 'Operations settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: 'Operations settings',
+      icon: 'settings',
+    },
   },
   component: Settings,
 })
@@ -99,7 +101,7 @@ imported identifier the build can resolve to a drawable icon, found 'bell'.
 <Callout type="error" title="expected an icon name from the shell set, or { src }">
 
 ```text
-/home/you/operations/src/routes/settings.tsx:11:5: 'operations' failed to extract the icon for the
+/home/you/operations/src/routes/settings.tsx:12:7: 'operations' failed to extract the icon for the
 'settings' capability: expected an icon name from the shell set, or { src: '<url>' }, found markup.
 ```
 
@@ -111,7 +113,7 @@ data URL.
 <Callout type="error" title="extra properties">
 
 ```text
-/home/you/operations/src/routes/settings.tsx:11:5: 'operations' failed to extract the icon for the
+/home/you/operations/src/routes/settings.tsx:12:7: 'operations' failed to extract the icon for the
 'settings' capability: expected an icon name from the shell set, or { src: '<url>' }, found extra
 properties 'width' and 'height'.
 ```

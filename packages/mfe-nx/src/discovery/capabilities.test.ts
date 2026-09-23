@@ -39,7 +39,7 @@ export const routes: Routes = [
   {
     path: 'settings',
     component: Page,
-    data: mfeRouteData({ capability: 'settings', label: 'Report settings', icon: 'gear' }),
+    data: mfeRouteData({ capability: { name: 'settings', label: 'Report settings', icon: 'gear' } }),
   },
 ]`)
 
@@ -55,7 +55,7 @@ export const routes: Routes = [
     path: 'admin',
     children: [
       { path: '', component: Page },
-      { path: 'help', component: Page, data: mfeRouteData({ capability: 'help', label: 'Help' }) },
+      { path: 'help', component: Page, data: mfeRouteData({ capability: { name: 'help', label: 'Help' } }) },
     ],
   },
 ]`)
@@ -66,8 +66,8 @@ export const routes: Routes = [
   it('sorts several capabilities by the contract order, so the descriptor is stable', () => {
     const root = appWithRoutes(`
 export const routes: Routes = [
-  { path: 'notes', component: Page, data: mfeRouteData({ capability: 'releaseNotes', label: 'Notes' }) },
-  { path: 'settings', component: Page, data: mfeRouteData({ capability: 'settings', label: 'Settings' }) },
+  { path: 'notes', component: Page, data: mfeRouteData({ capability: { name: 'releaseNotes', label: 'Notes' } }) },
+  { path: 'settings', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'Settings' } }) },
 ]`)
 
     expect(capabilitiesOf(root).map(capability => capability.name)).toEqual([
@@ -85,7 +85,7 @@ class Page {}
 
 export const reports = createApp({
   id: 'reports',
-  routes: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: 'settings', label: 'Settings' }) }],
+  routes: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'Settings' } }) }],
 })
 `,
     })
@@ -102,8 +102,8 @@ import * as mfe from '@company/mfe-angular'
 import { mfeRouteData as routeData } from '@company/mfe-angular'
 
 export const routes: Routes = [
-  { path: 'settings', component: Page, data: routeData({ capability: 'settings', label: 'Settings' }) },
-  { path: 'help', component: Page, data: mfe.mfeRouteData({ capability: 'help', label: 'Help' }) },
+  { path: 'settings', component: Page, data: routeData({ capability: { name: 'settings', label: 'Settings' } }) },
+  { path: 'help', component: Page, data: mfe.mfeRouteData({ capability: { name: 'help', label: 'Help' } }) },
 ]`,
     )
 
@@ -123,7 +123,7 @@ export const routes: Routes = [
     const root = appWithRoutes('export const routes: Routes = []', {
       'src/app.routes.spec.ts': `
 import { mfeRouteData } from '@company/mfe-angular'
-export const fixture = [{ path: 'x', data: mfeRouteData({ capability: 'settings', label: 'X' }) }]
+export const fixture = [{ path: 'x', data: mfeRouteData({ capability: { name: 'settings', label: 'X' } }) }]
 `,
     })
 
@@ -141,7 +141,7 @@ class Page {}
 
 export const reports = createApp({
   id: 'reports',
-  routes: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: 'settings', label: 'Settings' }) }],
+  routes: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'Settings' } }) }],
 })
 `,
     })
@@ -153,7 +153,7 @@ export const reports = createApp({
 describe('a capability route the build cannot trace', () => {
   it('is refused when its route data is built elsewhere', () => {
     const root = appWithRoutes(`
-const settings = { capability: 'settings', label: 'Settings' } as const
+const settings = { capability: { name: 'settings', label: 'Settings' } } as const
 export const routes: Routes = [{ path: 'settings', component: Page, data: mfeRouteData(settings) }]`)
 
     expect(() => capabilitiesOf(root)).toThrowError(
@@ -165,7 +165,7 @@ export const routes: Routes = [{ path: 'settings', component: Page, data: mfeRou
     const root = appWithRoutes(`
 const base = 'admin'
 export const routes: Routes = [
-  { path: base, children: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: 'settings', label: 'Settings' }) }] },
+  { path: base, children: [{ path: 'settings', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'Settings' } }) }] },
 ]`)
 
     expect(() => capabilitiesOf(root)).toThrowError(
@@ -176,7 +176,7 @@ export const routes: Routes = [
   it('is refused when the route sits in an array createApp never receives', () => {
     const root = appWithRoutes(`
 const adminRoutes: Routes = [
-  { path: 'settings', component: Page, data: mfeRouteData({ capability: 'settings', label: 'Settings' }) },
+  { path: 'settings', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'Settings' } }) },
 ]
 export const routes: Routes = [{ path: 'admin', children: adminRoutes }]`)
 
@@ -188,8 +188,8 @@ export const routes: Routes = [{ path: 'admin', children: adminRoutes }]`)
   it('is refused when two routes declare the same capability', () => {
     const root = appWithRoutes(`
 export const routes: Routes = [
-  { path: 'a', component: Page, data: mfeRouteData({ capability: 'settings', label: 'A' }) },
-  { path: 'b', component: Page, data: mfeRouteData({ capability: 'settings', label: 'B' }) },
+  { path: 'a', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'A' } }) },
+  { path: 'b', component: Page, data: mfeRouteData({ capability: { name: 'settings', label: 'B' } }) },
 ]`)
 
     expect(() => capabilitiesOf(root)).toThrowError(
@@ -209,7 +209,7 @@ export const panel = createWidget({ id: 'panel', inputs: z.object({}), events: {
 `,
       'src/panel.routes.ts': `
 import { mfeRouteData } from '@company/mfe-angular'
-export const routes = [{ path: 'settings', data: mfeRouteData({ capability: 'settings', label: 'S' }) }]
+export const routes = [{ path: 'settings', data: mfeRouteData({ capability: { name: 'settings', label: 'S' } }) }]
 `,
     })
 

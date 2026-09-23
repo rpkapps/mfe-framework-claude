@@ -141,7 +141,7 @@ export function routeDataObject(
     expected: `${ROUTE_DATA_FACTORY}({ … }) with an inline object literal`,
     observed: describeNode(sourceFile, call),
     declaredBy: 'The capability contract',
-    repair: `Write the route data inline, for example data: ${ROUTE_DATA_FACTORY}({ capability: 'settings', label: 'Order settings' }). The build reads it without running your code, so data built elsewhere cannot be read.`,
+    repair: `Write the route data inline, for example data: ${ROUTE_DATA_FACTORY}({ capability: { name: 'settings', label: 'Order settings' } }). The build reads it without running your code, so data built elsewhere cannot be read.`,
   })
 }
 
@@ -185,7 +185,7 @@ export function routeDataPath(
       call,
       `data: ${ROUTE_DATA_FACTORY}({ … }) on a route object`,
       `${ROUTE_DATA_FACTORY}(…) inside ${describeNode(sourceFile, property)}`,
-      `Declare the route inline with the call as its data, for example { path: 'settings', loadComponent: () => import('./settings.component'), data: ${ROUTE_DATA_FACTORY}({ capability: 'settings', label: 'Order settings' }) }.`,
+      `Declare the route inline with the call as its data, for example { path: 'settings', loadComponent: () => import('./settings.component'), data: ${ROUTE_DATA_FACTORY}({ capability: { name: 'settings', label: 'Order settings' } }) }.`,
     )
   }
 

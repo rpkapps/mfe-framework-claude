@@ -80,6 +80,7 @@ export {
   allow,
   deny,
   type BreadcrumbItem,
+  type CapabilityDeclaration,
   type CapabilityDescriptor,
   type CommandPlacement,
   type CommandRegistration,

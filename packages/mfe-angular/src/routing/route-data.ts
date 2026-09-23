@@ -4,17 +4,14 @@
  * capability route must write `data: mfeRouteData({ … })` inline, beside a literal `path`.
  */
 
-import type { CapabilityIconRef, CapabilityName } from '@company/mfe-core'
+import type { CapabilityDeclaration } from '@company/mfe-core'
 
 /** The key the framework's data lives under, so it never collides with an App's own keys. */
 export const MFE_ROUTE_DATA = 'mfe' as const
 
 export interface MfeRouteData {
   /** Publishes this route as one of the App's capability pages, such as its settings. */
-  readonly capability?: CapabilityName
-  /** Required with `capability`: what the shell calls the page. */
-  readonly label?: string
-  readonly icon?: CapabilityIconRef
+  readonly capability?: CapabilityDeclaration
   /** A fixed breadcrumb label, or `false` to leave the route out of the trail. */
   readonly breadcrumb?: string | false
 }

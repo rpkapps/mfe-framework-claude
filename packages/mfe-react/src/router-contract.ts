@@ -2,7 +2,13 @@
 
 import type { RouterHistory } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
-import type { MfeStorage, MfeTelemetry, ShellTheme, ShellUser } from '@company/mfe-core'
+import type {
+  CapabilityDeclaration,
+  MfeStorage,
+  MfeTelemetry,
+  ShellTheme,
+  ShellUser,
+} from '@company/mfe-core'
 
 /** `user`, `groups` and `theme` are snapshots and do not become live across an `await`. */
 export interface MfeContext {
@@ -41,10 +47,8 @@ export type ReservedContextKey = (typeof RESERVED_CONTEXT_KEYS)[number]
  * type-checked against the same shape the build extracts.
  */
 export interface MfeStaticData {
-  readonly capability?: 'settings' | 'help' | 'releaseNotes'
-  readonly label?: string
-  /** An icon name from the shell icon set, or an asset URL. */
-  readonly icon?: string | { readonly src: string }
+  /** Publishes this route as one of the App's capability pages, such as its settings. */
+  readonly capability?: CapabilityDeclaration
   /** An explicit breadcrumb label, or `false` to hide this segment. */
   readonly breadcrumb?: string | false
 }

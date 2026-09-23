@@ -15,10 +15,18 @@ export function isCapabilityName(value: unknown): value is CapabilityName {
 /** An icon name, never markup; `{ src }` renders in an `<img>` and never enters the shell DOM. */
 export type CapabilityIconRef = string | { readonly src: string }
 
-export interface CapabilityDescriptor {
+/**
+ * What a route writes to publish itself as one of the App's capability pages. The build reads it
+ * statically and adds the route's own path, so every field has to be written as a literal.
+ */
+export interface CapabilityDeclaration {
   readonly name: CapabilityName
+  /** What the shell calls the page. */
   readonly label: string
   readonly icon?: CapabilityIconRef
+}
+
+export interface CapabilityDescriptor extends CapabilityDeclaration {
   /** The App-relative route path the shell navigates to when opening it. */
   readonly path: string
 }

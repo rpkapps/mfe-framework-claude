@@ -92,7 +92,7 @@ The build reads your entry module without running it, so anything published in t
 | `id`, `version`, `title`, `description`                 | `createApp`, `createWidget` |
 | `tags`, as an array of non-empty string literals        | `createApp`, `createWidget` |
 | `icon`, as an imported identifier or an imported `.svg` | `createApp`, `createWidget` |
-| `capability`, `label`, `icon`                           | a route's `staticData`      |
+| `capability`, as `{ name, label, icon? }`               | a route's `staticData`      |
 | `inputs` and `events`, as top-level declarations        | `createWidget`              |
 
 A computed value fails the build with the file, the line and the column. A schema imported from another package fails too, because the generated contract module copies the declaration and can only copy one it can see.

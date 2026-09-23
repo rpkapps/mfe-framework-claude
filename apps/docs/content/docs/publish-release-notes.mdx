@@ -20,9 +20,11 @@ import type { ReactNode } from 'react'
 
 export const Route = createFileRoute('/release-notes')({
   staticData: {
-    capability: 'releaseNotes',
-    label: "What's new in Operations",
-    icon: 'sparkles',
+    capability: {
+      name: 'releaseNotes',
+      label: "What's new in Operations",
+      icon: 'sparkles',
+    },
     breadcrumb: 'Release notes',
   },
   component: ReleaseNotes,
@@ -33,7 +35,7 @@ function ReleaseNotes(): ReactNode {
 }
 ```
 
-The name is `releaseNotes`, in camel case. `label` is required, and both fields are plain strings.
+The name is `releaseNotes`, in camel case. `label` is required, and both are plain strings.
 
 </Step>
 
@@ -88,7 +90,7 @@ That path stays open for every entry that declares no capability, and
 <Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
 
 ```text
-/home/you/operations/src/routes/release-notes.tsx:5:5: 'operations' failed to extract a capability
+/home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
 route: expected one of 'settings', 'help' and 'releaseNotes', found "release-notes".
 ```
 
@@ -99,7 +101,7 @@ route: expected one of 'settings', 'help' and 'releaseNotes', found "release-not
 <Callout type="error" title="expected a non-empty `label` string literal">
 
 ```text
-/home/you/operations/src/routes/release-notes.tsx:4:5: 'operations' failed to extract the
+/home/you/operations/src/routes/release-notes.tsx:6:17: 'operations' failed to extract the
 capability route '/release-notes': expected a non-empty `label` string literal, found no label.
 ```
 
@@ -107,14 +109,14 @@ capability route '/release-notes': expected a non-empty `label` string literal, 
 
 </Callout>
 
-<Callout type="error" title="expected a plain string literal">
+<Callout type="error" title="expected a `name` string literal">
 
 ```text
-/home/you/operations/src/routes/release-notes.tsx:5:5: 'operations' failed to extract a capability
-route: expected a plain string literal, found RELEASE_NOTES.
+/home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
+route: expected a `name` string literal, found RELEASE_NOTES.
 ```
 
-**Fix.** Write the name inline, as `capability: 'releaseNotes'`. The build reads the file without
+**Fix.** Write the name inline, as `name: 'releaseNotes'`. The build reads the file without
 running it, so a constant or a variable cannot be resolved.
 
 </Callout>

@@ -37,8 +37,7 @@ export interface CapabilityOwner {
 export interface CapabilityMarker {
   readonly file: string
   readonly sourceFile: ts.SourceFile
-  /** The object literal holding `capability`, `label` and `icon`. */
-  readonly data: ts.ObjectLiteralExpression
+  /** The `capability` property, whose value should be `{ name, label, icon? }`. */
   readonly capability: ts.PropertyAssignment
   /** Read only once the marker is known to be a valid capability of an App. */
   readonly path: () => string
@@ -95,9 +94,12 @@ function readCapability(
   terms: MarkerTerms,
 ): CapabilityDescriptor {
   const { file, sourceFile, capability } = marker
+  const data = readCapabilityObject(marker, owner)
 
-  const { line, column } = positionOf(sourceFile, capability)
-  const name = stringLiteralValue(capability.initializer)
+  const nameProperty = objectProperty(data, 'name')
+  const anchor = nameProperty ?? data
+  const { line, column } = positionOf(sourceFile, anchor)
+  const name = nameProperty === undefined ? null : stringLiteralValue(nameProperty.initializer)
 
   if (name === null) {
     throw createBuildError({
@@ -107,10 +109,11 @@ function readCapability(
       column,
       ...(owner.appId === undefined ? {} : { id: owner.appId }),
       operation: 'extract a capability route',
-      expected: 'a plain string literal',
-      observed: describeNode(sourceFile, capability.initializer),
+      expected: 'a `name` string literal',
+      observed:
+        nameProperty === undefined ? 'no name' : describeNode(sourceFile, nameProperty.initializer),
       declaredBy: 'The capability contract',
-      repair: `Write the capability inline, for example capability: 'settings'. The shell reads it from the build output, before the App is loaded.`,
+      repair: `Write the name inline, for example capability: { name: 'settings', label: 'Order settings' }. The shell reads it from the build output, before the App is loaded.`,
     })
   }
 
@@ -125,16 +128,17 @@ function readCapability(
       expected: `one of ${listNames([...CAPABILITY_NAMES])}`,
       observed: JSON.stringify(name),
       declaredBy: 'The capability contract',
-      repair: `Use one of the three capability names, or ${terms.drop} and let the route be an ordinary one. The shell only has surfaces for those three.`,
+      repair: `Use one of the capability names, or ${terms.drop} and let the route be an ordinary one. The shell only has surfaces for those.`,
     })
   }
 
   if (!owner.hasApp) {
+    const position = positionOf(sourceFile, capability)
     throw createBuildError({
       code: 'registry/invalid-entry',
       file,
-      line,
-      column,
+      line: position.line,
+      column: position.column,
       operation: `extract the '${name}' capability route`,
       expected: 'a capability declared by an App',
       observed: 'a container that exports Widgets only',
@@ -145,8 +149,8 @@ function readCapability(
   }
 
   const path = marker.path()
-  const label = readLabel(marker, owner, path)
-  const icon = readIcon(marker, owner, name)
+  const label = readLabel(marker, data, owner, path)
+  const icon = readIcon(marker, data, owner, name)
 
   return {
     name,
@@ -156,13 +160,46 @@ function readCapability(
   }
 }
 
-function readLabel(marker: CapabilityMarker, owner: CapabilityOwner, path: string): string {
+/** The capability is one object, so everything the shell reads about the page sits together. */
+function readCapabilityObject(
+  marker: CapabilityMarker,
+  owner: CapabilityOwner,
+): ts.ObjectLiteralExpression {
+  const { file, sourceFile, capability } = marker
+  const initializer = unwrapExpression(capability.initializer)
+  if (ts.isObjectLiteralExpression(initializer)) return initializer
+
+  const { line, column } = positionOf(sourceFile, capability)
+  const written = stringLiteralValue(initializer)
+  throw createBuildError({
+    code: 'registry/invalid-entry',
+    file,
+    line,
+    column,
+    ...(owner.appId === undefined ? {} : { id: owner.appId }),
+    operation: 'extract a capability route',
+    expected: 'an inline object literal { name, label, icon? }',
+    observed: describeNode(sourceFile, initializer),
+    declaredBy: 'The capability contract',
+    repair:
+      written === null
+        ? "Write the capability inline, for example capability: { name: 'settings', label: 'Order settings' }. The build reads it without running your code, so an object built elsewhere cannot be read."
+        : `Move the name, label and icon into one object, for example capability: { name: '${written}', label: 'Order settings' }.`,
+  })
+}
+
+function readLabel(
+  marker: CapabilityMarker,
+  data: ts.ObjectLiteralExpression,
+  owner: CapabilityOwner,
+  path: string,
+): string {
   const { file, sourceFile } = marker
-  const label = objectProperty(marker.data, 'label')
+  const label = objectProperty(data, 'label')
   const value = label === undefined ? null : stringLiteralValue(label.initializer)
 
   if (value === null || value.trim() === '') {
-    const anchor = label ?? marker.data
+    const anchor = label ?? data
     const { line, column } = positionOf(sourceFile, anchor)
     throw createBuildError({
       code: 'registry/invalid-entry',
@@ -184,11 +221,12 @@ function readLabel(marker: CapabilityMarker, owner: CapabilityOwner, path: strin
 
 function readIcon(
   marker: CapabilityMarker,
+  data: ts.ObjectLiteralExpression,
   owner: CapabilityOwner,
   name: string,
 ): CapabilityIconRef | undefined {
   const { file, sourceFile } = marker
-  const icon = objectProperty(marker.data, 'icon')
+  const icon = objectProperty(data, 'icon')
   if (icon === undefined) return undefined
 
   const initializer = unwrapExpression(icon.initializer)

@@ -9,6 +9,8 @@ import {
   isTestFile,
   objectProperty,
   stringLiteralValue,
+  ts,
+  unwrapExpression,
   type CapabilityMarker,
   type ContainerProfile,
   type MarkerTerms,
@@ -53,12 +55,11 @@ export const readRouteDataCapabilities: NonNullable<
       markers.push({
         file,
         sourceFile,
-        data,
         capability,
         path: () => {
           appRoutes ??= resolveAppRoutes(context.entryFile, sources)
           return routeDataPath(sourceFile, call, appRoutes, {
-            name: stringLiteralValue(capability.initializer) ?? 'capability',
+            name: capabilityName(capability) ?? 'capability',
             ...(owner.appId === undefined ? {} : { appId: owner.appId }),
           })
         },
@@ -67,4 +68,11 @@ export const readRouteDataCapabilities: NonNullable<
   }
 
   return collectCapabilities(markers, owner, ROUTE_DATA_TERMS)
+}
+
+/** Only for naming the route in a path diagnostic; the neutral build validates the name itself. */
+function capabilityName(capability: ts.PropertyAssignment): string | null {
+  const value = unwrapExpression(capability.initializer)
+  if (!ts.isObjectLiteralExpression(value)) return null
+  return stringLiteralValue(objectProperty(value, 'name')?.initializer)
 }
