@@ -1,9 +1,8 @@
 /**
- * The contract that lets a host mount a definition some other framework built: the definition
- * mounts itself into an element the host provides, given the host's mount context, and hands
- * back what the host needs to update and dispose it. A React shell cannot render an Angular
- * component tree, so this is the only way one framework's host places another framework's
- * container.
+ * The contract every host places every definition through: the definition mounts itself into an
+ * element the host provides, given its mount context, and hands back what the host needs to
+ * update and dispose it. No host renders a definition's tree itself, not even one its own
+ * framework built, so placing a definition needs nothing from the adapter that built it.
  *
  * The runtime owns both roots a mount has. It creates the scope root, which carries the
  * attributes the container's scoped stylesheet matches, with `target.element` inside it, and the

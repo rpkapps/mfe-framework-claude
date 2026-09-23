@@ -1,7 +1,7 @@
 /**
  * Every mount renders inside a `data-mfe-scope` element the container's stylesheet is scoped to,
- * with a second root carrying the same attribute for body-level overlays (§17). Plain DOM, so an
- * adapter with no React builds exactly the element the React adapter renders.
+ * with a second root carrying the same attribute for body-level overlays. Both are plain DOM the
+ * runtime creates for each mount, so no adapter builds a root of its own.
  */
 
 import type { DefinitionKind } from '@company/mfe-core'

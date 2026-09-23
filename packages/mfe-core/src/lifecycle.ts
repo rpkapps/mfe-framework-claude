@@ -28,12 +28,14 @@ export interface MountHandle {
   readonly state: MountState
   getState(): MountState
   subscribe(listener: () => void): Unsubscribe
-  /** Starts a fresh attempt using the latest committed inputs. */
+  /**
+   * Starts a fresh attempt using the latest committed inputs. Only a failed mount retries: from
+   * any other state this does nothing, so it can never attach a second UI beside a live one.
+   */
   retry(): void
   /**
-   * Idempotent; resolves when cleanup finishes. `MountController` is the implementation
-   * that rejects with `dispose/timeout`, because it is the one that runs disposal under a
-   * deadline. The React adapter's own handle never rejects and imposes no deadline.
+   * Idempotent; resolves when cleanup finishes, and rejects with `dispose/timeout` when cleanup
+   * outlives its deadline. The mount is disposed either way.
    */
   dispose(): Promise<void>
 }
