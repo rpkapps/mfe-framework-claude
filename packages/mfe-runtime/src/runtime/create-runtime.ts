@@ -148,17 +148,20 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     })
   }
 
+  const navigator = new BoundaryNavigator({
+    bridge: options.navigationBridge ?? createBrowserNavigationBridge(),
+    diagnostics,
+  })
   const commands = new CommandRegistry({
     diagnostics,
+    // An App's shortcuts fire while the page is inside its boundary, read where it is read for
+    // navigation.
+    readPathname: () => navigator.read().pathname,
     ...(options.notifyCommandDenial === undefined
       ? {}
       : { notifyDenial: options.notifyCommandDenial }),
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
-  const navigator = new BoundaryNavigator({
-    bridge: options.navigationBridge ?? createBrowserNavigationBridge(),
-    diagnostics,
-  })
 
   // The new generation fences records written under the old one, so it is minted, not reused.
   const stopWatchingSession = shellState.observeTransitions(change => {

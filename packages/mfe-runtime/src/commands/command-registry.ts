@@ -3,6 +3,11 @@
  * one list instead of merging a snapshot with a hard-coded one (§26). The performance
  * contract is the interesting part: replacing `execute`/`canExecute` closure identity must
  * not change the public snapshot, and updating one command must not re-evaluate any other.
+ *
+ * A command's keyboard shortcut lives here too rather than in a registry of its own, because
+ * a mounted App renders in its own root and cannot reach a registry the host provides through
+ * its framework's context; the host listens for keys once and hands each one to
+ * `handleKeyDown`, which runs the command through the same path the palette does.
  */
 
 import {
@@ -15,6 +20,7 @@ import {
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
+  type DefinitionKind,
   type MfeError,
   type MfeErrorDetails,
   type Unsubscribe,
@@ -22,6 +28,19 @@ import {
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { SnapshotSource } from '../observable.ts'
+import {
+  chordFromEvent,
+  firesInsideFields,
+  isApplePlatform,
+  isEditableElement,
+  matchSequence,
+  parseShortcut,
+  SEQUENCE_TIMEOUT_MS,
+  shortcutsOverlap,
+  type ParsedShortcut,
+  type PressedChord,
+  type ShortcutCandidate,
+} from './shortcut.ts'
 
 const DEFAULT_PLACEMENTS: readonly CommandPlacement[] = Object.freeze(['command-palette'])
 const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)
@@ -38,6 +57,15 @@ function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id' | 'declar
   })
 }
 
+/** Who registered a command; a mount's context already carries every field. */
+export interface CommandOwner {
+  readonly definitionId: string
+  readonly mountToken: string
+  readonly kind: DefinitionKind
+  /** The App's URL boundary, which decides when its shortcuts fire; a Widget's is never read. */
+  readonly basePath: string
+}
+
 export interface CommandRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
   update(registration: CommandRegistration): void
@@ -51,6 +79,19 @@ export type CommandExecutionResult =
   | { readonly status: 'unavailable'; readonly error: MfeError }
   | { readonly status: 'failed'; readonly error: MfeError }
 
+/** What a key press did. Only `pending` and `matched` prevent the event's default. */
+export type ShortcutDispatchResult =
+  | { readonly status: 'unmatched' }
+  /** The keys so far begin a sequence; the next one decides. */
+  | { readonly status: 'pending' }
+  /** More than one live registration claims these keys, so none of them ran. */
+  | { readonly status: 'ambiguous'; readonly commandIds: readonly string[] }
+  | {
+      readonly status: 'matched'
+      readonly commandId: string
+      readonly execution: Promise<CommandExecutionResult>
+    }
+
 /** How a denial reaches the user: the shell's normal notification surface. */
 export type CommandDenialNotifier = (notice: {
   readonly commandId: string
@@ -63,15 +104,30 @@ interface RegisteredCommand {
   readonly definitionId: string
   /** The mount token that owns it, or the reserved host scope. */
   readonly scopeToken: string
+  /** `host` for the host page's own scope. */
+  readonly kind: DefinitionKind | 'host'
+  readonly basePath: string
   registration: CommandRegistration
+  /** The registration's validated shortcut, whether or not it may fire. */
+  declared: ParsedShortcut | undefined
   /** The last published entry; reused when nothing visible changed. */
   entry: CommandEntry
 }
 
+/** A command before its first entry is built from it. */
+type CommandShape = Omit<RegisteredCommand, 'entry'>
+
 export interface CommandRegistryOptions {
   readonly diagnostics?: DiagnosticsHub
   readonly notifyDenial?: CommandDenialNotifier
+  /**
+   * Where the page is, which decides whose shortcuts fire: an App's only while this pathname is
+   * inside its boundary. Omitted, only the host page's shortcuts fire.
+   */
+  readonly readPathname?: () => string
 }
+
+const UNMATCHED: ShortcutDispatchResult = Object.freeze({ status: 'unmatched' })
 
 /**
  * Commands are stored per scope, so a name may repeat across mounts but never inside one
@@ -81,6 +137,9 @@ export class CommandRegistry {
   readonly #byScope = new Map<string, Map<string, RegisteredCommand>>()
   readonly #snapshot = new SnapshotSource<readonly CommandEntry[]>(Object.freeze([]))
   readonly #options: CommandRegistryOptions
+  /** The chords of a sequence typed so far, dropped when the next one is too late. */
+  #pressed: readonly PressedChord[] = []
+  #pressedAt = 0
 
   constructor(options: CommandRegistryOptions = {}) {
     this.#options = options
@@ -100,11 +159,8 @@ export class CommandRegistry {
    * Duplicate local names within a mount are rejected rather than overwritten; the same name in
    * another mount is fine because the runtime qualifies it.
    */
-  register(
-    definitionId: string,
-    mountToken: string,
-    registration: CommandRegistration,
-  ): CommandRegistrationHandle {
+  register(owner: CommandOwner, registration: CommandRegistration): CommandRegistrationHandle {
+    const { definitionId, mountToken } = owner
     if (definitionId === HOST_SCOPE || mountToken === HOST_SCOPE) {
       throw fail(definitionId, {
         operation: `register command '${registration.name}'`,
@@ -115,7 +171,10 @@ export class CommandRegistry {
       })
     }
 
-    return this.#add(definitionId, mountToken, registration)
+    return this.#add(
+      { definitionId, scopeToken: mountToken, kind: owner.kind, basePath: owner.basePath },
+      registration,
+    )
   }
 
   /**
@@ -124,9 +183,13 @@ export class CommandRegistry {
    * `removeMount` (§26).
    */
   registerHost(registration: CommandRegistration): CommandRegistrationHandle {
-    return this.#add(HOST_SCOPE, HOST_SCOPE, registration)
+    return this.#add(
+      { definitionId: HOST_SCOPE, scopeToken: HOST_SCOPE, kind: 'host', basePath: '' },
+      registration,
+    )
   }
 
+  /** A mount's commands, and so its shortcuts, go with it. */
   removeMount(mountToken: string): void {
     if (!this.#byScope.delete(mountToken)) return
     this.#publish()
@@ -139,7 +202,7 @@ export class CommandRegistry {
   evaluateAll(): void {
     let changed = false
     for (const command of this.#allCommands()) {
-      const next = this.#buildEntry(command.qualifiedId, command.definitionId, command.registration)
+      const next = this.#buildEntry(command)
       if (commandEntryEqual(command.entry, next)) continue
       command.entry = next
       changed = true
@@ -165,10 +228,73 @@ export class CommandRegistry {
       return { status: 'unavailable', error }
     }
 
+    return await this.#run(command)
+  }
+
+  /**
+   * Reads one `keydown` for the host's single document listener. A match runs through the path
+   * `execute` takes, so `canExecute` still decides and a denial still reaches the user.
+   *
+   * Whose shortcuts are live: the host page's always, and an App's while the page is inside its
+   * boundary — nested Apps both, since the page is inside both. A key that more than one of
+   * those claims runs none of them; registration already reported the collision.
+   */
+  handleKeyDown(event: KeyboardEvent): ShortcutDispatchResult {
+    if (event.defaultPrevented) return UNMATCHED
+    const pressed = chordFromEvent(event)
+    if (pressed === null) return UNMATCHED
+
+    // React Aria's Autocomplete re-dispatches a field's keydown onto the option it has virtually
+    // focused, so `event.target` is not a field although DOM focus never left one; the focused
+    // element is the honest answer. A letter typed there stays typed, and is not remembered as
+    // the start of a sequence either.
+    const inField = isEditableElement(event.target) || isEditableElement(activeElementOf(event))
+    if (inField && !pressed.ctrl && !pressed.alt && !pressed.meta) {
+      this.#pressed = []
+      return UNMATCHED
+    }
+
+    const now = Date.now()
+    const earlier = now - this.#pressedAt > SEQUENCE_TIMEOUT_MS ? [] : this.#pressed
+    this.#pressedAt = now
+
+    const candidates = this.#liveShortcuts(inField)
+    const apple = isApplePlatform()
+    let sequence = [...earlier, pressed]
+    let match = matchSequence(sequence, candidates, apple)
+    // A key that continues nothing may still begin something: `g g r` is `g r` after a stray `g`.
+    if (match.kind === 'none' && sequence.length > 1) {
+      sequence = [pressed]
+      match = matchSequence(sequence, candidates, apple)
+    }
+
+    this.#pressed = match.kind === 'pending' ? sequence : []
+    switch (match.kind) {
+      case 'none':
+        return UNMATCHED
+      case 'pending':
+        event.preventDefault()
+        return { status: 'pending' }
+      case 'ambiguous':
+        return {
+          status: 'ambiguous',
+          commandIds: match.targets.map(command => command.qualifiedId),
+        }
+      case 'complete':
+        event.preventDefault()
+        return {
+          status: 'matched',
+          commandId: match.target.qualifiedId,
+          execution: this.#run(match.target),
+        }
+    }
+  }
+
+  async #run(command: RegisteredCommand): Promise<CommandExecutionResult> {
     const decision = this.#decide(command.definitionId, command.registration)
     if (!decision.allowed) {
       // Refresh this entry so the palette shows the current denial state.
-      const next = this.#buildEntry(command.qualifiedId, command.definitionId, command.registration)
+      const next = this.#buildEntry(command)
       if (!commandEntryEqual(command.entry, next)) {
         command.entry = next
         this.#publish()
@@ -199,15 +325,16 @@ export class CommandRegistry {
 
   dispose(): void {
     this.#byScope.clear()
+    this.#pressed = []
     this.#snapshot.dispose()
   }
 
   #add(
-    definitionId: string,
-    scopeToken: string,
+    owner: Pick<RegisteredCommand, 'definitionId' | 'scopeToken' | 'kind' | 'basePath'>,
     registration: CommandRegistration,
   ): CommandRegistrationHandle {
-    this.#assertValid(definitionId, registration)
+    const { definitionId, scopeToken } = owner
+    const declared = this.#assertValid(definitionId, registration)
 
     const commands = this.#scopeCommands(scopeToken)
     if (commands.has(registration.name)) {
@@ -215,16 +342,12 @@ export class CommandRegistry {
     }
 
     const qualifiedId = `${definitionId}:${registration.name}`
-    const command: RegisteredCommand = {
-      qualifiedId,
-      definitionId,
-      scopeToken,
-      registration,
-      entry: this.#buildEntry(qualifiedId, definitionId, registration),
-    }
+    const unpublished = { ...owner, qualifiedId, registration, declared }
+    const command: RegisteredCommand = { ...unpublished, entry: this.#buildEntry(unpublished) }
 
     commands.set(registration.name, command)
     this.#publish()
+    this.#afterShortcutChange(command)
 
     let active = true
     return {
@@ -241,38 +364,164 @@ export class CommandRegistry {
           if (owned.size === 0) this.#byScope.delete(scopeToken)
         }
         this.#publish()
+        // A host shortcut going away frees the keys for a container that was refused them.
+        if (command.kind === 'host' && command.declared) this.#refreshContainerShortcuts()
       },
     }
   }
 
   #update(command: RegisteredCommand, next: CommandRegistration): void {
     const commands = this.#scopeCommands(command.scopeToken)
+    const shortcutChanged = next.shortcut !== command.registration.shortcut
 
     // Changing `name` replaces the local registration, with the same duplicate validation
     // as a fresh register.
     if (next.name !== command.registration.name) {
-      this.#assertValid(command.definitionId, next)
+      const declared = this.#assertValid(command.definitionId, next)
       if (commands.has(next.name)) {
         throw this.#duplicateNameError(command.definitionId, next.name)
       }
       commands.delete(command.registration.name)
       command.registration = next
+      command.declared = declared
       command.qualifiedId = `${command.definitionId}:${next.name}`
-      command.entry = this.#buildEntry(command.qualifiedId, command.definitionId, next)
+      command.entry = this.#buildEntry(command)
       commands.set(next.name, command)
       this.#publish()
+      if (shortcutChanged) this.#afterShortcutChange(command)
       return
     }
 
+    // Parsed only when it changed: this runs after every commit of the component that
+    // registered it.
+    if (shortcutChanged) command.declared = this.#parseDeclared(command.definitionId, next)
     command.registration = next
 
     // An identical visible result keeps the existing entry reference, so the palette's
     // snapshot does not change and no subscriber re-renders.
-    const candidate = this.#buildEntry(command.qualifiedId, command.definitionId, next)
-    if (commandEntryEqual(command.entry, candidate)) return
+    const candidate = this.#buildEntry(command)
+    if (!commandEntryEqual(command.entry, candidate)) {
+      command.entry = candidate
+      this.#publish()
+    }
+    if (shortcutChanged) this.#afterShortcutChange(command)
+  }
 
-    command.entry = candidate
-    this.#publish()
+  /**
+   * Reported once, when a shortcut is declared or changes, rather than on every key press: a
+   * Widget's is refused, a container's that the host page uses is refused, and one that another
+   * live registration could be pressed for at the same time collides with it.
+   */
+  #afterShortcutChange(command: RegisteredCommand): void {
+    if (command.declared) {
+      const refusal = this.#shortcutRefusal(command)
+      if (refusal === undefined) this.#reportCollisions(command, command.declared)
+      else this.#reportRefusal(command, command.declared, refusal)
+    }
+    if (command.kind === 'host') this.#refreshContainerShortcuts()
+  }
+
+  /** The host page's shortcuts changed, so a container's may have been claimed or freed. */
+  #refreshContainerShortcuts(): void {
+    let changed = false
+    for (const command of this.#allCommands()) {
+      if (command.kind === 'host' || !command.declared) continue
+      const next = this.#buildEntry(command)
+      if (commandEntryEqual(command.entry, next)) continue
+      const lost = command.entry.shortcut !== undefined && next.shortcut === undefined
+      command.entry = next
+      changed = true
+      const refusal = this.#shortcutRefusal(command)
+      if (lost && refusal !== undefined) this.#reportRefusal(command, command.declared, refusal)
+    }
+    if (changed) this.#publish()
+  }
+
+  /**
+   * Why a declared shortcut may not fire. A Widget is an embedded fragment and does not own the
+   * page's keys, as it does not own its URL; the host page's keys are the one set every page
+   * has, so a container cannot take them, nor begin or extend one of them.
+   */
+  #shortcutRefusal(command: CommandShape): ShortcutRefusal | undefined {
+    const { declared } = command
+    if (!declared || command.kind === 'host') return undefined
+    if (command.kind === 'widget') return { reason: 'widget' }
+
+    const apple = isApplePlatform()
+    for (const other of this.#allCommands()) {
+      if (other.kind !== 'host' || !other.declared) continue
+      if (shortcutsOverlap(declared, other.declared, apple)) {
+        return { reason: 'reserved', by: other }
+      }
+    }
+    return undefined
+  }
+
+  #effectiveShortcut(command: CommandShape): ParsedShortcut | undefined {
+    return this.#shortcutRefusal(command) === undefined ? command.declared : undefined
+  }
+
+  /** Commands whose shortcut can fire right now, from the host page and from every active App. */
+  #liveShortcuts(inField: boolean): ShortcutCandidate<RegisteredCommand>[] {
+    const pathname = this.#options.readPathname?.()
+    const live: ShortcutCandidate<RegisteredCommand>[] = []
+
+    for (const command of this.#allCommands()) {
+      const shortcut = this.#effectiveShortcut(command)
+      if (!shortcut) continue
+      if (command.kind === 'app' && !boundaryContains(command.basePath, pathname)) continue
+      // A chord typed into a field is text, unless every step of it holds a modifier.
+      if (inField && !firesInsideFields(shortcut)) continue
+      live.push({ shortcut, target: command })
+    }
+    return live
+  }
+
+  #reportCollisions(command: RegisteredCommand, declared: ParsedShortcut): void {
+    const apple = isApplePlatform()
+    const rivals: RegisteredCommand[] = []
+    for (const other of this.#allCommands()) {
+      if (other === command || !canFireTogether(command, other)) continue
+      const theirs = this.#effectiveShortcut(other)
+      if (theirs && shortcutsOverlap(declared, theirs, apple)) rivals.push(other)
+    }
+    if (rivals.length === 0) return
+
+    this.#options.diagnostics?.report(
+      fail(command.definitionId, {
+        operation: `register the shortcut '${declared.source}' for command '${command.registration.name}'`,
+        expected: 'keys no other live command can be pressed for at the same time',
+        observed: `${rivals.map(rival => `'${rival.qualifiedId}' (${rival.registration.shortcut ?? ''})`).join(', ')} already claims them`,
+        repair:
+          'Give one of them different keys. Neither runs while both are registered, because letting whichever registered first win would depend on mount order.',
+      }),
+      { severity: 'warning' },
+    )
+  }
+
+  #reportRefusal(
+    command: RegisteredCommand,
+    declared: ParsedShortcut,
+    refusal: ShortcutRefusal,
+  ): void {
+    const operation = `register the shortcut '${declared.source}' for command '${command.registration.name}'`
+    const error =
+      refusal.reason === 'widget'
+        ? fail(command.definitionId, {
+            operation,
+            expected: 'a shortcut from an App or the host page',
+            observed: 'a shortcut from a Widget, which does not own the page’s keys',
+            repair:
+              'Drop the shortcut; the command stays in the palette without it. If the keys matter, emit an event and let the App that places the Widget register the shortcut.',
+          })
+        : fail(command.definitionId, {
+            operation,
+            expected: 'keys the host page does not use',
+            observed: `the host page’s '${refusal.by.qualifiedId}' (${refusal.by.declared?.source ?? ''}) uses them`,
+            repair:
+              'Choose other keys. The command stays in the palette, but its shortcut is ignored while the host page reserves these.',
+          })
+    this.#options.diagnostics?.report(error, { severity: 'warning' })
   }
 
   #scopeCommands(scopeToken: string): Map<string, RegisteredCommand> {
@@ -320,18 +569,17 @@ export class CommandRegistry {
     }
   }
 
-  #buildEntry(
-    qualifiedId: string,
-    definitionId: string,
-    registration: CommandRegistration,
-  ): CommandEntry {
+  #buildEntry(command: CommandShape): CommandEntry {
+    const { definitionId, registration } = command
+    const shortcut = this.#effectiveShortcut(command)
     return Object.freeze({
-      id: qualifiedId,
+      id: command.qualifiedId,
       definitionId,
       name: registration.name,
       label: registration.label,
       placements: registration.placements ?? DEFAULT_PLACEMENTS,
       decision: this.#decide(definitionId, registration),
+      ...(shortcut === undefined ? {} : { shortcut: shortcut.source }),
     })
   }
 
@@ -349,7 +597,11 @@ export class CommandRegistry {
     })
   }
 
-  #assertValid(definitionId: string, registration: CommandRegistration): void {
+  /** Returns the parsed shortcut, so a valid registration is parsed exactly once. */
+  #assertValid(
+    definitionId: string,
+    registration: CommandRegistration,
+  ): ParsedShortcut | undefined {
     const { name, label } = registration
     if (!COMMAND_NAME_PATTERN.test(name)) {
       throw fail(definitionId, {
@@ -381,5 +633,60 @@ export class CommandRegistry {
           'Only command-palette is standardized. Future placements add placement records to this model.',
       })
     }
+
+    return this.#parseDeclared(definitionId, registration)
   }
+
+  #parseDeclared(
+    definitionId: string,
+    registration: CommandRegistration,
+  ): ParsedShortcut | undefined {
+    if (registration.shortcut === undefined) return undefined
+    const parsed = parseShortcut(registration.shortcut)
+    if (parsed.ok) return parsed.shortcut
+
+    throw fail(definitionId, {
+      operation: `register command '${registration.name}'`,
+      expected:
+        'a shortcut such as "mod+s" — modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated by spaces, such as "g r"',
+      observed: `${JSON.stringify(registration.shortcut)}: ${parsed.problem}`,
+      repair: 'Fix the shortcut, or remove it; the command works from the palette without one.',
+    })
+  }
+}
+
+type ShortcutRefusal =
+  { readonly reason: 'widget' } | { readonly reason: 'reserved'; readonly by: RegisteredCommand }
+
+function trimBoundary(basePath: string): string {
+  return basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+}
+
+/** The same test `createNavigationIntent` applies: the boundary itself, or a path below it. */
+function boundaryContains(basePath: string, pathname: string | undefined): boolean {
+  if (pathname === undefined) return false
+  const boundary = trimBoundary(basePath)
+  return boundary === '' || pathname === boundary || pathname.startsWith(`${boundary}/`)
+}
+
+/**
+ * Whether one key press could find both commands live: two in the host page, two in one mount,
+ * or two Apps whose boundaries nest, so that the page can be inside both at once.
+ */
+function canFireTogether(a: RegisteredCommand, b: RegisteredCommand): boolean {
+  if (a.scopeToken === b.scopeToken) return true
+  if (a.kind !== 'app' || b.kind !== 'app') return false
+  const left = trimBoundary(a.basePath)
+  const right = trimBoundary(b.basePath)
+  return (
+    boundaryContains(left, right === '' ? '/' : right) ||
+    boundaryContains(right, left === '' ? '/' : left)
+  )
+}
+
+function activeElementOf(event: KeyboardEvent): Element | null {
+  const { target } = event
+  const owner = typeof Node !== 'undefined' && target instanceof Node ? target.ownerDocument : null
+  const view = owner ?? (typeof document === 'undefined' ? null : document)
+  return view?.activeElement ?? null
 }

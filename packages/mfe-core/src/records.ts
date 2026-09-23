@@ -23,6 +23,13 @@ export interface CommandRegistration {
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
   readonly placements?: readonly CommandPlacement[]
+  /**
+   * A key chord such as `'mod+s'`, or a sequence of chords separated by spaces such as `'g r'`.
+   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The command runs through the same path the
+   * palette uses, so `canExecute` still decides. Only an App's commands and the host page's get
+   * one: a Widget's is ignored, as is one the host page already uses.
+   */
+  readonly shortcut?: string
 }
 
 /** `id` is the runtime-qualified `<definitionId>:<name>`; authors provide only the local `name`. */
@@ -33,12 +40,17 @@ export interface CommandEntry {
   readonly label: string
   readonly placements: readonly CommandPlacement[]
   readonly decision: Decision
+  /**
+   * The registration's shortcut in its normalized spelling (`'mod+shift+k'`, `'g r'`), present
+   * only while it can fire: a Widget's, or one the host page reserved, is left off.
+   */
+  readonly shortcut?: string
 }
 
 /** Compares only what the palette displays, so closure identity changes are invisible. */
 export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
   if (a === b) return true
-  if (a.id !== b.id || a.label !== b.label) return false
+  if (a.id !== b.id || a.label !== b.label || a.shortcut !== b.shortcut) return false
   if (a.decision.allowed !== b.decision.allowed) return false
   if (!a.decision.allowed && !b.decision.allowed && a.decision.reason !== b.decision.reason) {
     return false

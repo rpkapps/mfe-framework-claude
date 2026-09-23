@@ -160,7 +160,7 @@ describe('disposing a mount context', () => {
     const host = runtime()
     const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const { mountToken } = handle.context
-    host.commands.register('reports', mountToken, {
+    host.commands.register(handle.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,
@@ -186,7 +186,7 @@ describe('disposing a mount context', () => {
     const host = runtime()
     const first = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const second = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
-    host.commands.register('reports', second.context.mountToken, {
+    host.commands.register(second.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,

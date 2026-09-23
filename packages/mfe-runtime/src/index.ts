@@ -93,9 +93,19 @@ export {
   CommandRegistry,
   type CommandDenialNotifier,
   type CommandExecutionResult,
+  type CommandOwner,
   type CommandRegistrationHandle,
   type CommandRegistryOptions,
+  type ShortcutDispatchResult,
 } from './commands/command-registry.ts'
+
+/** The one reading of a command's `shortcut`, for a host that draws or checks one. */
+export {
+  parseShortcut,
+  type ParsedShortcut,
+  type ShortcutChord,
+  type ShortcutParseResult,
+} from './commands/shortcut.ts'
 
 export {
   BreadcrumbStore,

@@ -142,7 +142,11 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     }
   }
 
-  const commands = new CommandRegistry({ diagnostics })
+  const navigator = new BoundaryNavigator({ bridge: navigation, diagnostics })
+  const commands = new CommandRegistry({
+    diagnostics,
+    readPathname: () => navigator.read().pathname,
+  })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
 
   const runtime: MfeRuntime = {
@@ -154,7 +158,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     storage,
     commands,
     breadcrumbs,
-    navigator: new BoundaryNavigator({ bridge: navigation, diagnostics }),
+    navigator,
     telemetryProvider: telemetry,
     diagnostics,
     deadlines: Object.freeze({ ...DEFAULT_DEADLINES, ...options.deadlines }),

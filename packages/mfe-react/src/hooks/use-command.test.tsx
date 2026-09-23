@@ -15,6 +15,7 @@ import { useCommand } from './use-command.ts'
 let environment: MfeTestEnvironment | null = null
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   const current = environment
   environment = null
   await current?.dispose()
@@ -159,5 +160,77 @@ describe('useCommand outside a mount', () => {
     expect(created.runtime.commands.getSnapshot()).toMatchObject([
       { id: 'reports:refresh', definitionId: 'reports' },
     ])
+  })
+})
+
+describe('useCommand with a shortcut', () => {
+  function press(init: KeyboardEventInit & { key: string }, created: MfeTestEnvironment) {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    return created.runtime.commands.handleKeyDown(event)
+  }
+
+  it('passes the shortcut through, and the host’s key press runs the App’s command', () => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32')
+    environment = createMfeTestEnvironment({
+      definitionId: 'reports',
+      basePath: '/reports',
+      initialEntries: ['/reports'],
+    })
+    const created = environment
+    const Mounted = created.wrapper
+    const execute = vi.fn()
+
+    render(
+      <Mounted>
+        <Chrome registration={{ name: 'export', label: 'Export', shortcut: 'Mod+E', execute }} />
+      </Mounted>,
+    )
+
+    expect(created.runtime.commands.getSnapshot()).toMatchObject([
+      { id: 'reports:export', shortcut: 'mod+e' },
+    ])
+    expect(press({ key: 'e', ctrlKey: true }, created).status).toBe('matched')
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows a re-render that changes the shortcut', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+
+    const view = render(
+      hostOnly(
+        created,
+        <Chrome registration={{ name: 'help', label: 'Help', shortcut: '?', execute: () => {} }} />,
+      ),
+    )
+    view.rerender(
+      hostOnly(
+        created,
+        <Chrome
+          registration={{ name: 'help', label: 'Help', shortcut: 'f1', execute: () => {} }}
+        />,
+      ),
+    )
+
+    expect(created.runtime.commands.getSnapshot()[0]?.shortcut).toBe('f1')
+  })
+
+  it('keeps a Widget’s command but not its shortcut', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+
+    render(
+      <Mounted>
+        <Chrome
+          registration={{ name: 'export', label: 'Export', shortcut: 'mod+e', execute: () => {} }}
+        />
+      </Mounted>,
+    )
+
+    expect(created.runtime.commands.getSnapshot()[0]).not.toHaveProperty('shortcut')
+    expect(created.diagnostics.map(record => record.error.message).join('\n')).toContain(
+      'a shortcut from a Widget',
+    )
   })
 })

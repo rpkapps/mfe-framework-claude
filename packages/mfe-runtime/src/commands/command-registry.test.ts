@@ -9,7 +9,11 @@ import {
   type CommandRegistration,
 } from '@company/mfe-core'
 
-import { CommandRegistry, type CommandRegistryOptions } from './command-registry.ts'
+import {
+  CommandRegistry,
+  type CommandOwner,
+  type CommandRegistryOptions,
+} from './command-registry.ts'
 import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
 function registration(overrides: Partial<CommandRegistration> = {}): CommandRegistration {
@@ -21,6 +25,15 @@ function registration(overrides: Partial<CommandRegistration> = {}): CommandRegi
   }
 }
 
+/** A mount as the registry sees it: an App at `/<definitionId>` unless the test says otherwise. */
+function owner(
+  definitionId: string,
+  mountToken: string,
+  overrides: Partial<CommandOwner> = {},
+): CommandOwner {
+  return { definitionId, mountToken, kind: 'app', basePath: `/${definitionId}`, ...overrides }
+}
+
 /** A registry plus the diagnostics it reported, and a shorthand register. */
 function setup(options: CommandRegistryOptions = {}) {
   const { hub, records } = recordingDiagnostics()
@@ -29,7 +42,7 @@ function setup(options: CommandRegistryOptions = {}) {
     registry,
     records,
     register: (overrides?: Partial<CommandRegistration>, mountToken = 'mount-1') =>
-      registry.register('reports', mountToken, registration(overrides)),
+      registry.register(owner('reports', mountToken), registration(overrides)),
   }
 }
 
@@ -92,7 +105,7 @@ describe('registration', () => {
     const { register, registry } = setup()
     register({ name: 'refresh' })
     register({ name: 'export' })
-    registry.register('billing', 'mount-2', registration({ name: 'refresh' }))
+    registry.register(owner('billing', 'mount-2'), registration({ name: 'refresh' }))
 
     registry.removeMount('mount-1')
 
@@ -144,7 +157,7 @@ describe('duplicate names', () => {
   it('accepts the same local name in a different mount and qualifies both distinctly', () => {
     const { register, registry } = setup()
     register({ name: 'refresh' })
-    registry.register('billing', 'mount-2', registration({ name: 'refresh' }))
+    registry.register(owner('billing', 'mount-2'), registration({ name: 'refresh' }))
 
     expect(registry.size).toBe(2)
     expect(registry.getSnapshot().map(entry => entry.id)).toEqual([
@@ -331,8 +344,7 @@ describe('registration validation', () => {
 
     expect(() =>
       registry.register(
-        'reports',
-        'mount-1',
+        owner('reports', 'mount-1'),
         registration({ placements: ['toolbar' as CommandPlacement] }),
       ),
     ).toThrow(/standardized placement \(command-palette\)/)
@@ -588,8 +600,12 @@ describe('the host scope', () => {
   it('refuses the reserved scope from the mount path, and names the way in', () => {
     const { registry } = setup()
 
-    expect(() => registry.register(HOST_SCOPE, 'mount-1', registration())).toThrow(/registerHost/)
-    expect(() => registry.register('reports', HOST_SCOPE, registration())).toThrow(/registerHost/)
+    expect(() => registry.register(owner(HOST_SCOPE, 'mount-1'), registration())).toThrow(
+      /registerHost/,
+    )
+    expect(() => registry.register(owner('reports', HOST_SCOPE), registration())).toThrow(
+      /registerHost/,
+    )
     expect(registry.size).toBe(0)
   })
 
