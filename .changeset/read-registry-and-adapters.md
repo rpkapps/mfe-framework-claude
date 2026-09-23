@@ -27,7 +27,7 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 **`@company/mfe-react`**
 
 - `reactAdapter` is new, an `MfeAdapter<'react', ReactRegistryEntry>`. `ReactRegistryEntry` carries `container` and `expose` as typed fields. Its `parse` validates with zod and still reports `contract/unsupported-major` for a framework major the shell cannot load.
-- `createMfeRuntime({ adapters })` replaces `createMfeRuntime({ rules })`. `reactAdapter` is always registered, and `adapters` names the extras.
+- `createMfeRuntime({ adapters })` replaces `createMfeRuntime({ rules })`. `reactAdapter` is always registered, and `adapters` names the extras. Later in this release `createMfeRuntime` moved to `@company/mfe-react/host` and registers no adapter implicitly, so `adapters` names every one, `reactAdapter` included.
 - `MfeAdapter`, `Registry`, `RegistryEntry` and `RejectedRegistryEntry` are re-exported for a shell author; `AdapterSelectionRule` is not.
 
 **`@company/mfe-legacy-angular`**
