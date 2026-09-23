@@ -9,6 +9,17 @@ export { readRegistry, type ReadRegistryOptions } from './registry/read-registry
 /** The entry shape every framework build publishes, read once for every adapter's `parse`. */
 export { parseFederatedEntry } from './registry/federated-entry.ts'
 
+/** The listing rules every host applies, which each adapter wraps in its own reactive primitive. */
+export {
+  activeDefinition,
+  capabilityPages,
+  listApps,
+  listEntries,
+  listWidgets,
+  type ActiveDefinition,
+  type CapabilityPage,
+} from './registry/registry-views.ts'
+
 export {
   SharedContainerLoader,
   type ContainerLoader,
