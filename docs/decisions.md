@@ -829,3 +829,49 @@ restricted-import rule for the files it covers rather than adding to it, so a co
 that uses it restates the bans it still wants, as the root config does for vendor
 telemetry. And the `framework` preset still needs the React Hooks plugin, because it
 lints the React packages.
+
+---
+
+## 35. A shortcut is a field on a command, and the runtime reads the keys
+
+**Status:** decided; forced by §33, which gave every mount a React root of its own.
+
+The shell's keys lived in the design system's shortcut registry, handed down through
+a `ShortcutsProvider` so that mounted Apps could register into it. Once every
+definition mounts through `mountDefinition` into its own root, no App can reach that
+context, and the registry was left serving the shell alone. A second registry beside
+the command registry would also have been a second list for the palette and the help
+sheet to merge. So `CommandRegistration` gains an optional `shortcut` — a chord such as
+`'mod+s'` or a sequence such as `'g r'` — and the command registry, which every adapter
+already reaches through the runtime, reads the keys. The host installs one `keydown`
+listener and calls `commands.handleKeyDown(event)`; a match runs through the same path
+as `execute`, so `canExecute` still decides and a denial still reaches the user. The
+parsing and matching carry over the design system's: `mod` is ⌘ on Apple platforms and
+Ctrl elsewhere, a sequence waits one second for its next chord, a symbol matches with
+or without Shift, and an unmodified key typed into a field stays typed — including one
+React Aria re-dispatches from a focused field onto an option, which the shell used to
+guard against itself.
+
+Whose keys are live is derived from what the runtime already knows. The host page's
+shortcuts fire everywhere and are reserved: a container shortcut that equals, begins
+or extends one of them is ignored with a warning, and loses the keys if the host page
+claims them later. An App's fire while the navigator's pathname is inside its boundary.
+Nested Apps are both live, since the page is inside both, rather than only the inner
+one, because the registry sees mounts only through their commands and an inner App
+that registers nothing would otherwise hand its keys back to the outer one. A Widget's
+shortcut is ignored with a warning, as a Widget does not own the URL or the head
+(`no-widget-global-effects`).
+
+Two registrations that could be live for the same key press — two in the host page,
+two in one mount, or two Apps whose boundaries nest — are reported when the second is
+declared, and a press that could mean either runs neither and is not prevented. The
+alternative, first registration wins, would have made the outcome depend on mount
+order, which a reader of the page cannot see. Two Apps at unrelated boundaries may use
+the same keys.
+
+**Cost:** `CommandRegistry.register` now takes the owner — `{ definitionId, mountToken,
+kind, basePath }`, which a `MountContext` already is — instead of the id and token, so
+the registry can tell an App from a Widget and knows the boundary. Shortcut errors and
+warnings reuse `command/duplicate-name`, which already covered an invalid registration,
+rather than widening the closed union (§7). And a key the page is inside two nested
+Apps for is ambiguous where an inner-wins rule would have resolved it.
