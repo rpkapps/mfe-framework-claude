@@ -14,6 +14,8 @@ what makes a container an Angular one (`src/profile.ts`) and wires the result in
 
 This package is consumed from a **separate Nx workspace**, not from this repository (this
 repository is a plain pnpm workspace and is not, and must not become, an Nx workspace).
+`examples/fieldwork` is such a workspace nested in it: an App this package generated, which the
+repository's `pnpm dev` runs beside the React examples.
 
 ## Installing in an Nx workspace
 

@@ -537,7 +537,7 @@ a panel **One dev server each** ("the port is part of the address") holding one 
 component modules") holds a red `src/mfe.ts` ("a definition — the page reloads") and a green
 `src/alert-panel.tsx` ("only components — hot-updates in place"). A legend names the six colours.
 
-Not on the figure. `pnpm dev` checks that 3000–3005 and 3010 are free before it starts anything,
+Not on the figure. `pnpm dev` checks that 3000–3007 and 3010 are free before it starts anything,
 because a container's port is part of its address and cannot be moved without the shell losing
 it; each container's port comes from its own `package.json` `"mfe"` block, so adding an example
 is a one-file change in it. `pnpm dev` runs `pnpm run generate` itself, and the shell learns that

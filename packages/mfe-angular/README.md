@@ -368,8 +368,10 @@ the adapter drives both styles through `setInput` and `reflectComponentType`,
 but `input()`/`output()` are exercised only in a container's own AOT build and
 its tests. This package ships TypeScript source with decorated components, which
 a container compiles ahead of time with its application; a published build would
-need Angular's partial compilation. No real container has been built against it
-in this repository, which is not an Nx workspace.
+need Angular's partial compilation. The container built against it in this
+repository is `examples/fieldwork`, an App in an Nx workspace of its own, which
+lists this package's sources in its tsconfig until the package ships compiled
+output.
 
 ```sh
 pnpm --filter @company/mfe-angular test

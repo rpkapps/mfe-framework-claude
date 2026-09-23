@@ -97,6 +97,32 @@ const PAGES = [
     },
   },
   {
+    // An Angular App built by Nx's Angular webpack builder, placed by the React shell like any
+    // other: PrimeNG's select and button render zoneless in its own scope root.
+    url: '/fieldwork',
+    mounts: ['fieldwork'],
+    nested: [],
+    contains: 'Field inspections',
+    present: [
+      '[data-mfe-scope="fieldwork"] p-select .p-select',
+      '[data-mfe-scope="fieldwork"] p-button button.p-button',
+    ],
+  },
+  {
+    // The shell opens the App's settings capability from its own settings sheet, and the App's
+    // Angular router follows the page into it inside the same mount.
+    url: '/fieldwork',
+    async prepare(page) {
+      await page.keyboard.press('g')
+      await page.keyboard.press('s')
+      await page.getByText('Fieldwork settings', { exact: true }).click()
+    },
+    mounts: ['fieldwork'],
+    nested: [],
+    pathname: '/fieldwork/settings',
+    contains: 'Fieldwork settings',
+  },
+  {
     // An unloadable manifest must cost that App alone: the shell's own page is not downstream
     // of any container.
     url: '/',
@@ -578,6 +604,15 @@ async function main() {
         `the page rendered ${JSON.stringify(expected.contains)}`,
         mounted.some(scope => scope.text.includes(expected.contains)),
         `no mount contains it`,
+      )
+    }
+
+    if (expected.pathname !== undefined) {
+      const pathname = await page.evaluate(() => location.pathname)
+      check(
+        `the page is at ${expected.pathname}`,
+        pathname === expected.pathname,
+        `it is at ${pathname}`,
       )
     }
 
