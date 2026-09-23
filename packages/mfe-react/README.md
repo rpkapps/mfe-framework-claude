@@ -124,6 +124,22 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 Shell-state, storage, command and breadcrumb hooks also work outside a mount,
 in the reserved `@host` scope, given an `MfeProvider` above them.
 
+A command can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such
+as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. `useCommand` passes it
+through unchanged; the host reads every key once and runs the command through
+the palette's path, so `canExecute` still decides. An App's shortcut fires while
+the page is inside the App's boundary. A Widget's is ignored, and so is one the
+host page already uses, each with a diagnostic.
+
+```tsx
+useCommand({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  shortcut: 'o w',
+  execute: () => void navigate({ to: '/wells' }),
+})
+```
+
 ## Building a container
 
 A React container builds with `pluginMfe()` from `@company/mfe-rspack`, which

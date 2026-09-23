@@ -95,11 +95,19 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `loader`      | the shared loader, with each adapter's `aroundLoad` applied                |
 | `shellState`  | user, groups and theme, with the session transitions that retire user data |
 | `storage`     | validated storage, scoped by definition id, with `@host` for the page      |
-| `commands`    | the command registry the palette reads                                     |
+| `commands`    | the command registry the palette and the key listener read                 |
 | `breadcrumbs` | the breadcrumb store the header reads                                      |
 | `navigator`   | the `BoundaryNavigator` over the navigation bridge                         |
 | `diagnostics` | the hub every framework failure reaches                                    |
 | `deadlines`   | the budget every mount runs under                                          |
+
+A host listens for `keydown` once and calls `commands.handleKeyDown(event)`,
+which runs the command whose `shortcut` the keys complete. The host page's
+shortcuts fire everywhere and are reserved; an App's fire while the navigator's
+pathname is inside its boundary; a Widget's are ignored. A key two live
+registrations claim runs neither, and the collision was already reported when
+the second was declared. `parseShortcut` is the same reading, for a host that
+draws or checks one.
 
 The browser bridge hears only `popstate`. A host whose own router writes the
 page's history calls `navigator.announce()` after each navigation, and mounted
