@@ -55,6 +55,9 @@ function OperationsLayout(): ReactNode {
   useCommand({
     name: 'open-wells',
     label: 'Operations: open the wells inventory',
+    // Fires while the page is inside this App; the shell's own keys are reserved, so an App's
+    // sequences start with a letter the shell leaves free.
+    shortcut: 'o w',
     canExecute: () => allow(),
     execute: () => {
       void navigate({ to: '/wells' })
@@ -64,6 +67,7 @@ function OperationsLayout(): ReactNode {
   useCommand({
     name: 'open-assets',
     label: 'Operations: open the asset list',
+    shortcut: 'o a',
     canExecute: () => allow(),
     execute: () => {
       void navigate({ to: '/assets' })
