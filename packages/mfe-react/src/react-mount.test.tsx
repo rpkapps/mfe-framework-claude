@@ -20,7 +20,7 @@ import {
 } from '@tanstack/react-router'
 import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { act, within } from '@testing-library/react'
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -415,6 +415,43 @@ describe('a React Widget mounting itself', () => {
       })
       expect(onInputRejected).not.toHaveBeenCalled()
     })
+  })
+
+  /** Outside `act`, so the update is scheduled the way a host's would be. */
+  it('resolves whenStable once an update has committed and its effects have run', async () => {
+    const committed: string[] = []
+    const echo = createWidget({
+      id: 'echo',
+      inputs: z.object({ label: z.string() }),
+      events: {},
+      render: function Echo({ inputs }): ReactNode {
+        useEffect(() => {
+          committed.push(inputs.label)
+        }, [inputs.label])
+        return <p>{inputs.label}</p>
+      },
+    })
+    const { context } = hostFor('widget', 'echo')
+    let mounted: MountedWidget | undefined
+    await act(async () => {
+      mounted = await echo.mount({
+        element,
+        context,
+        inputs: { label: 'first' },
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
+    })
+    await mounted?.whenStable?.()
+    expect(committed.at(-1)).toBe('first')
+
+    mounted?.update({ label: 'second' })
+    mounted?.update({ label: 'third' })
+    expect(committed.at(-1)).toBe('first')
+    await mounted?.whenStable?.()
+
+    expect(committed.at(-1)).toBe('third')
+    expect(element.textContent).toBe('third')
   })
 
   it('empties the element when disposed', async () => {

@@ -5,7 +5,7 @@
  * on the live component rather than remounting it.
  */
 
-import { createComponent, type ComponentRef, type EnvironmentInjector } from '@angular/core'
+import { createComponent, type ComponentRef } from '@angular/core'
 import { toMfeError } from '@company/mfe-core'
 import {
   createProviderEmit,
@@ -24,16 +24,7 @@ import {
   provideMfeMount,
   reportForeignDestroy,
 } from './mount-providers.ts'
-import { recordMountedApplication } from './mounted-applications.ts'
 import { validateInputs } from './widget-channel.ts'
-
-/** What an Angular Widget's `mount` resolves to; the extras serve tests. */
-export interface AngularMountedWidget extends MountedWidget {
-  /** The mount's own application injector. */
-  readonly injector: EnvironmentInjector
-  /** Resolves once zoneless change detection has nothing left to do. */
-  whenStable(): Promise<void>
-}
 
 interface Subscribable {
   subscribe(next: (payload: unknown) => void): { unsubscribe(): void }
@@ -77,7 +68,7 @@ function subscribeToEvents(
 export async function mountWidget(
   definition: WidgetDefinition,
   target: WidgetMountTarget,
-): Promise<AngularMountedWidget> {
+): Promise<MountedWidget> {
   const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
@@ -172,13 +163,10 @@ export async function mountWidget(
   // still gets the application torn down.
   context.signal.addEventListener('abort', () => void dispose(), { once: true })
 
-  const whenStable = (): Promise<void> => appRef.whenStable()
-  recordMountedApplication(context, { injector: appRef.injector, whenStable })
-
   return {
-    injector: appRef.injector,
-    whenStable,
     dispose,
+    // Once zoneless change detection has nothing left to do.
+    whenStable: () => appRef.whenStable(),
 
     // The host passes only a set that changed, so every call is validated.
     update: inputs => {

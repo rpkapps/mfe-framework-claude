@@ -12,7 +12,7 @@ import type {
   MountedWidget,
   WidgetMountTarget,
 } from '@company/mfe-runtime'
-import { StrictMode, type ReactNode } from 'react'
+import { StrictMode, useEffect, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 
@@ -26,6 +26,25 @@ interface OwnedRoot {
   readonly render: (ui: ReactNode) => void
   /** Empties the element; the Query client goes when the context aborts, after this. */
   readonly dispose: () => Promise<void>
+  /** Resolves once the latest render has committed and its effects have run. */
+  readonly whenStable: () => Promise<void>
+}
+
+/**
+ * Rendered after the whole tree, so its passive effect runs after every effect of the render that
+ * carried `render`: React runs them child first and sibling by sibling.
+ */
+function CommitMarker({
+  render,
+  onCommit,
+}: {
+  readonly render: number
+  readonly onCommit: (render: number) => void
+}): null {
+  useEffect(() => {
+    onCommit(render)
+  }, [render, onCommit])
+  return null
 }
 
 /**
@@ -74,12 +93,35 @@ function openRoot(
     failure: null,
   }
 
+  // Each render is numbered, and `whenStable` waits for the marker to report the latest one.
+  let requested = 0
+  let committed = 0
+  let waiting: (() => void)[] = []
+  const settle = (render: number): void => {
+    committed = render
+    if (committed !== requested) return
+    const settled = waiting
+    waiting = []
+    for (const resolve of settled) resolve()
+  }
+  const marked = (ui: ReactNode): ReactNode => {
+    requested += 1
+    return inDevelopmentStrictMode(
+      <>
+        {ui}
+        <CommitMarker render={requested} onCommit={settle} />
+      </>,
+    )
+  }
+
   const root = createRoot(element, {
     identifierPrefix: identifierPrefixOf(mount.mountToken),
     onUncaughtError: error => {
       const failure = renderFailure(mount, operation, error)
       if (!first.committed) first.failure = failure
       else onFailure(failure)
+      // React unmounted the tree, so nothing is left to render and nobody should keep waiting.
+      settle(requested)
     },
     // React recovered on its own, so this is worth knowing about rather than acting on.
     onRecoverableError: error => {
@@ -89,13 +131,14 @@ function openRoot(
 
   const dispose = async (): Promise<void> => {
     root.unmount()
+    settle(requested)
     await Promise.resolve()
   }
 
   return {
     renderFirst: ui => {
       flushSync(() => {
-        root.render(inDevelopmentStrictMode(ui))
+        root.render(marked(ui))
       })
       first.committed = true
 
@@ -105,9 +148,15 @@ function openRoot(
       }
     },
     render: ui => {
-      root.render(inDevelopmentStrictMode(ui))
+      root.render(marked(ui))
     },
     dispose,
+    whenStable: () =>
+      committed === requested
+        ? Promise.resolve()
+        : new Promise(resolve => {
+            waiting.push(resolve)
+          }),
   }
 }
 
@@ -145,6 +194,7 @@ export function mountWidget(
       root.render(render(inputs))
     },
     dispose: root.dispose,
+    whenStable: root.whenStable,
   }
 }
 
@@ -154,5 +204,5 @@ export function mountApp(definition: AppDefinition, target: AppMountTarget): Mou
   const root = openRoot(target.element, mount, 'mount App', target.onFailure)
   root.renderFirst(<MountTree definition={definition} mount={mount} />)
 
-  return { dispose: root.dispose }
+  return { dispose: root.dispose, whenStable: root.whenStable }
 }

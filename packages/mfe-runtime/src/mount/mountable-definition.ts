@@ -68,6 +68,8 @@ export interface MountedWidget {
    * host's render, and before the host disposes the mount context.
    */
   dispose(): Promise<void>
+  /** See `MountedApp.whenStable`. */
+  whenStable?(): Promise<void>
 }
 
 export interface MountedApp {
@@ -76,6 +78,12 @@ export interface MountedApp {
    * host's render, and before the host disposes the mount context.
    */
   dispose(): Promise<void>
+  /**
+   * Resolves once the definition's framework has rendered what it was last given, so a test can
+   * wait on the mount rather than guess at its scheduler. Without it, a definition is taken to
+   * render synchronously.
+   */
+  whenStable?(): Promise<void>
 }
 
 export interface MountableWidgetDefinition extends BrandedDefinition {

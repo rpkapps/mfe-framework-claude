@@ -14,9 +14,6 @@ export {
   type WidgetOptions,
 } from './definition.ts'
 
-export type { AngularMountedApp } from './mount/mount-app.ts'
-export type { AngularMountedWidget } from './mount/mount-widget.ts'
-
 export { MFE_ROUTE_DATA, mfeRouteData, type MfeRouteData } from './routing/route-data.ts'
 export { mfeAppRoute, type MfeAppRouteOptions } from './routing/app-route.ts'
 export { BoundaryLocationStrategy } from './routing/boundary-location-strategy.ts'

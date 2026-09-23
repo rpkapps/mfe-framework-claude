@@ -6,7 +6,7 @@
  */
 
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
-import { createComponent, type EnvironmentInjector } from '@angular/core'
+import { createComponent } from '@angular/core'
 import { provideRouter, Router, withDisabledInitialNavigation } from '@angular/router'
 import { toMfeError } from '@company/mfe-core'
 import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runtime'
@@ -27,15 +27,6 @@ import {
   provideMfeMount,
   reportForeignDestroy,
 } from './mount-providers.ts'
-import { recordMountedApplication } from './mounted-applications.ts'
-
-/** What an Angular App's `mount` resolves to; the extras serve tests. */
-export interface AngularMountedApp extends MountedApp {
-  /** The mount's own application injector, where the App's `Router` lives. */
-  readonly injector: EnvironmentInjector
-  /** Resolves once zoneless change detection and pending navigations have nothing left to do. */
-  whenStable(): Promise<void>
-}
 
 /** `Location` strips this prefix from every path the strategy reads, as it would a real base href. */
 function baseHrefOf(context: MountContext): string {
@@ -45,7 +36,7 @@ function baseHrefOf(context: MountContext): string {
 export async function mountApp(
   definition: AppDefinition,
   target: AppMountTarget,
-): Promise<AngularMountedApp> {
+): Promise<MountedApp> {
   const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
@@ -143,7 +134,6 @@ export async function mountApp(
   // still gets the application torn down.
   context.signal.addEventListener('abort', () => void dispose(), { once: true })
 
-  const whenStable = (): Promise<void> => appRef.whenStable()
-  recordMountedApplication(context, { injector, whenStable })
-  return { injector, whenStable, dispose }
+  // Once zoneless change detection and pending navigations have nothing left to do.
+  return { dispose, whenStable: () => appRef.whenStable() }
 }

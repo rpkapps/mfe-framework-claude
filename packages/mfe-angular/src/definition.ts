@@ -14,16 +14,11 @@ import {
   withoutUndefined,
   type WidgetContract,
 } from '@company/mfe-core'
-import type {
-  AppMountTarget,
-  MountableAppDefinition,
-  MountableWidgetDefinition,
-  WidgetMountTarget,
-} from '@company/mfe-runtime'
+import type { MountableAppDefinition, MountableWidgetDefinition } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
-import { mountApp, type AngularMountedApp } from './mount/mount-app.ts'
-import { mountWidget, type AngularMountedWidget } from './mount/mount-widget.ts'
+import { mountApp } from './mount/mount-app.ts'
+import { mountWidget } from './mount/mount-widget.ts'
 import { MfeAppRootComponent } from './routing/app-root.component.ts'
 
 type AngularProviders = readonly (Provider | EnvironmentProviders)[]
@@ -73,7 +68,6 @@ export interface AppDefinition extends MountableAppDefinition {
   readonly routerFeatures: readonly RouterFeatures[]
   readonly providers: AngularProviders
   readonly component: Type<unknown>
-  mount(target: AppMountTarget): Promise<AngularMountedApp>
 }
 
 export interface WidgetOptions<
@@ -98,7 +92,6 @@ export interface WidgetDefinition<
   readonly contract: WidgetContract<Inputs, Events>
   readonly component: Type<unknown>
   readonly providers: AngularProviders
-  mount(target: WidgetMountTarget): Promise<AngularMountedWidget>
 }
 
 export type MfeDefinition = AppDefinition | WidgetDefinition

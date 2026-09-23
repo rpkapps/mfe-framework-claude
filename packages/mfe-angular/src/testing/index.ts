@@ -5,7 +5,7 @@
  * but memory, so what a test mounts is exactly what a shell would.
  */
 
-import type { EnvironmentInjector, EnvironmentProviders } from '@angular/core'
+import { EnvironmentInjector, getDebugNode, type EnvironmentProviders } from '@angular/core'
 import { createMfeError, type MfeError } from '@company/mfe-core'
 import {
   mountDefinition,
@@ -20,7 +20,6 @@ import {
 
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
 import { provideMfeRuntime } from '../host/provide-runtime.ts'
-import { mountedApplicationOf, type MountedApplication } from '../mount/mounted-applications.ts'
 
 /**
  * The runtime's own test surface: the memory runtime, its loader, bridge, storage and telemetry,
@@ -138,13 +137,29 @@ function place(definition: MfeDefinition, options: PlacementOptions, basePath: s
 }
 
 /**
+ * The mount's application injector, read from the root component the mount created inside the
+ * runtime's target element: a component's injector reaches the environment injector its
+ * application created it in. Read from the page because a host holds only the runtime's neutral
+ * handle, which never exposes what a definition's `mount` resolved to.
+ */
+function applicationInjectorOf(scopeRoot: HTMLElement): EnvironmentInjector | undefined {
+  const componentHost = scopeRoot.firstElementChild?.firstElementChild
+  if (componentHost === null || componentHost === undefined) return undefined
+  return (
+    getDebugNode(componentHost)?.injector.get(EnvironmentInjector, undefined, {
+      optional: true,
+    }) ?? undefined
+  )
+}
+
+/**
  * Settles with the mount: its Angular application once it is mounted, its error once it failed. A
  * failed mount is disposed first, so a rejection leaves nothing of it behind.
  */
 async function settle(
   mount: DefinitionMount,
   placement: Placement,
-): Promise<{ readonly element: HTMLElement; readonly application: MountedApplication }> {
+): Promise<{ readonly element: HTMLElement; readonly injector: EnvironmentInjector }> {
   const state = await new Promise<ReturnType<DefinitionMount['getState']>>(resolve => {
     const check = (): boolean => {
       const current = mount.getState()
@@ -159,9 +174,9 @@ async function settle(
   })
 
   const context = mount.context
-  const application = context === null ? undefined : mountedApplicationOf(context)
-  if (state.status === 'mounted' && context !== null && application !== undefined) {
-    return { element: context.scopeRoot, application }
+  const injector = context === null ? undefined : applicationInjectorOf(context.scopeRoot)
+  if (state.status === 'mounted' && context !== null && injector !== undefined) {
+    return { element: context.scopeRoot, injector }
   }
 
   // Its failure is the rejection; a cleanup failure has reached the environment's diagnostics.
@@ -206,15 +221,15 @@ export async function mountApp(
     basePath,
   })
 
-  const { element, application } = await settle(mount, placement)
+  const { element, injector } = await settle(mount, placement)
   const dispose = track(mount, placement)
 
-  await application.whenStable()
+  await mount.whenStable()
   return {
     element,
     environment: placement.environment,
-    injector: application.injector,
-    whenStable: () => application.whenStable(),
+    injector,
+    whenStable: () => mount.whenStable(),
     dispose,
   }
 }
@@ -243,20 +258,20 @@ export async function mountWidget(
     },
   })
 
-  const { element, application } = await settle(mount, placement)
+  const { element, injector } = await settle(mount, placement)
   const dispose = track(mount, placement)
 
-  await application.whenStable()
+  await mount.whenStable()
   return {
     element,
     environment: placement.environment,
-    injector: application.injector,
+    injector,
     events,
     rejectedInputs,
-    whenStable: () => application.whenStable(),
+    whenStable: () => mount.whenStable(),
     update: async inputs => {
       mount.update(inputs)
-      await application.whenStable()
+      await mount.whenStable()
     },
     dispose,
   }

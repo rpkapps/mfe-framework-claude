@@ -59,6 +59,11 @@ export type MountRequest = AppMountRequest | WidgetMountRequest
 export interface DefinitionMount extends MountHandle {
   /** The context of the attempt currently attached; `null` before the first and between two. */
   readonly context: MountContext | null
+  /**
+   * Resolves once the mounted definition has rendered what it was last given, through its own
+   * `whenStable`; at once while nothing is mounted, or for a definition that offers none.
+   */
+  whenStable(): Promise<void>
 }
 
 export interface WidgetDefinitionMount extends DefinitionMount {
@@ -108,6 +113,7 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
     get context() {
       return operations.context
     },
+    whenStable: () => operations.whenStable(),
   }
 
   if (request.kind === 'app') return handle
@@ -182,6 +188,10 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 
   get context(): MountContext | null {
     return this.#attempt?.context.context ?? null
+  }
+
+  whenStable(): Promise<void> {
+    return this.#attempt?.mounted?.whenStable?.() ?? Promise.resolve()
   }
 
   load(signal: AbortSignal): Promise<MountableDefinition> {

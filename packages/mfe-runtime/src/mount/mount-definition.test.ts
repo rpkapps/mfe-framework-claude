@@ -308,6 +308,42 @@ describe('mounting', () => {
   })
 })
 
+/** What a test waits on instead of guessing at a framework's scheduler. */
+describe('waiting until the mounted definition is stable', () => {
+  it('waits on the mounted definition’s own whenStable', async () => {
+    const rendering = deferred<undefined>()
+    const whenStable = vi.fn(() => rendering.promise)
+    const app = plainApp('reports', async (_target, render) => ({ ...render(), whenStable }))
+    const { runtime } = memoryRuntime([app.definition])
+    const mount = mountApp(runtime)
+    await settled(mount, 'mounted')
+
+    let stable = false
+    const waiting = mount.whenStable().then(() => {
+      stable = true
+    })
+    await flush()
+    expect(whenStable).toHaveBeenCalledOnce()
+    expect(stable).toBe(false)
+
+    rendering.resolve(undefined)
+    await waiting
+    expect(stable).toBe(true)
+  })
+
+  it('resolves at once while nothing is mounted, or for a definition that offers none', async () => {
+    const app = plainApp()
+    const { runtime } = memoryRuntime([app.definition])
+    const mount = mountApp(runtime)
+
+    await expect(mount.whenStable()).resolves.toBeUndefined()
+    await settled(mount, 'mounted')
+    await expect(mount.whenStable()).resolves.toBeUndefined()
+    await mount.dispose()
+    await expect(mount.whenStable()).resolves.toBeUndefined()
+  })
+})
+
 describe('resolving what to mount', () => {
   it('reports an id the registry does not list, without loading anything', async () => {
     const memory = memoryRuntime([])
