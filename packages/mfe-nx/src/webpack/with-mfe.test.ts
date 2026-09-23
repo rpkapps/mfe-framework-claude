@@ -121,6 +121,16 @@ describe('withMfe', () => {
     expect(await (await request('/ops/runtime-config.json')).text()).toBe(LOCAL)
   })
 
+  it('leaves a production-mode dev server serving the declared defaults the compile ships', async () => {
+    const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
+    const devServer = { devMiddleware: { publicPath: '/' } }
+    const config: ServedConfiguration = { mode: 'production', plugins: [], devServer }
+
+    const result = (await withMfe({ containerRoot: root })(config)) as ServedConfiguration
+
+    expect(result.devServer).toBe(devServer)
+  })
+
   it('names the option to set when there is neither a container root nor an Nx target', async () => {
     await expect(withMfe()({ plugins: [] })).rejects.toThrowError(
       /find the container this webpack configuration builds.*no target.*withMfe\(\{ containerRoot \}\)/s,

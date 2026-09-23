@@ -22,14 +22,18 @@ export function addContainerPlugin(
   target: BuilderTarget | undefined,
 ): Configuration {
   const containerRoot = options.containerRoot ?? projectRootOf(target)
-  // Only Angular's dev server hands over a `devServer`; a build has none to add to.
+  // Only Angular's dev server hands over a `devServer`; a build has none to add to. A
+  // production-mode compile ships the declared defaults, which that server then serves like any
+  // other asset, exactly as a deployment would before it writes its own values.
   const { devServer } = config as ServedConfiguration
+  const servesLocalValues =
+    devServer !== undefined && devServer !== false && config.mode !== 'production'
 
   const configured: ServedConfiguration = {
     ...config,
-    ...(devServer === undefined || devServer === false
-      ? {}
-      : { devServer: withLocalRuntimeConfig(devServer, { ...options, containerRoot }) }),
+    ...(servesLocalValues
+      ? { devServer: withLocalRuntimeConfig(devServer, { ...options, containerRoot }) }
+      : {}),
     plugins: [...(config.plugins ?? []), new MfeWebpackPlugin({ ...options, containerRoot })],
   }
   return configured
