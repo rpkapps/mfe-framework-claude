@@ -28,6 +28,7 @@ const RULES = [
       '@company/mfe-host',
       '@company/mfe-react',
       '@company/mfe-devtools',
+      '@company/mfe-build',
       '@opentelemetry/',
       '@grafana/faro',
       'zustand',
@@ -51,6 +52,7 @@ const RULES = [
       '@module-federation/runtime',
       '@company/mfe-react',
       '@company/mfe-devtools',
+      '@company/mfe-build',
       '@opentelemetry/',
       '@grafana/faro',
       'zustand',
@@ -61,6 +63,27 @@ const RULES = [
     ],
     reason:
       'The neutral host cannot import React, TanStack Router, single-spa or Module Federation, carries no OTel or Faro dependency, and uses no general state-management library.',
+  },
+  {
+    package: '@company/mfe-build',
+    forbidden: [
+      'react',
+      'react-dom',
+      '@tanstack/',
+      '@rsbuild/',
+      '@rspack/',
+      'webpack',
+      '@company/mfe-react',
+      '@company/mfe-angular',
+      '@angular/',
+      '@company/mfe-rspack',
+      '@company/mfe-nx',
+      '@company/mfe-devtools',
+      '@company/mfe-host',
+      '@tecton/react',
+    ],
+    reason:
+      'The neutral build layer is shared by every build integration, so it imports no UI framework, router, bundler, design system or integration: what differs between them reaches it through the profile each integration passes in.',
   },
   {
     package: '@company/mfe-react',
