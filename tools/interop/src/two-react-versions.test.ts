@@ -124,6 +124,14 @@ const outerApp = createApp({
     }),
 })
 
+/**
+ * How long a wait on the 19.2 tree may take. That React renders on its own scheduler, outside the
+ * `act` the test's React is flushed by, and its first render is the first time the bundle's React,
+ * router and adapter run in the worker; with the rest of the suite running beside it, that can
+ * take longer than Testing Library's default second.
+ */
+const SECOND_REACT = { timeout: 10_000 }
+
 /** The in-flow roots the runtime appends per mount; an overlay root carries the scope too. */
 function scopeRootCount(): number {
   return document.querySelectorAll(`[${SCOPE_ATTRIBUTE}]:not([${OVERLAY_ROOT_ATTRIBUTE}])`).length
@@ -138,7 +146,7 @@ async function renderThreeLevels() {
   const view = await renderSuspending(
     reactHostPage(memory.runtime, h(AppHost, { appId: 'outer', basePath: '/outer' })),
   )
-  await screen.findByRole('button', { name: 'Counter: 1' })
+  await screen.findByRole('button', { name: 'Counter: 1' }, SECOND_REACT)
 
   return {
     memory,
@@ -185,10 +193,12 @@ describe('two React versions on one page', () => {
     // Each React schedules its own work, and the test's `act` flushes only the test's React, so
     // the 19.2 App's update is awaited rather than read back synchronously.
     fireEvent.click(within(inner).getByRole('button', { name: 'Inner clicks: 0' }))
-    fireEvent.click(await within(inner).findByRole('button', { name: 'Inner clicks: 1' }))
+    fireEvent.click(
+      await within(inner).findByRole('button', { name: 'Inner clicks: 1' }, SECOND_REACT),
+    )
 
     await within(outer).findByRole('button', { name: 'Outer clicks: 1' })
-    await within(inner).findByRole('button', { name: 'Inner clicks: 2' })
+    await within(inner).findByRole('button', { name: 'Inner clicks: 2' }, SECOND_REACT)
   })
 
   it('delivers the 19.3 Widget’s event to the 19.2 App, and the App’s answer back down', async () => {
@@ -196,14 +206,14 @@ describe('two React versions on one page', () => {
 
     fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 1' }))
 
-    await within(inner).findByText('Inner received: bumped to 2')
-    await within(widget).findByRole('button', { name: 'Counter: 2' })
+    await within(inner).findByText('Inner received: bumped to 2', undefined, SECOND_REACT)
+    await within(widget).findByRole('button', { name: 'Counter: 2' }, SECOND_REACT)
     expect(within(widget).getByText('Widget presses: 1')).toBeInTheDocument()
 
     fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 2' }))
 
-    await within(inner).findByText('Inner received: bumped to 3')
-    await within(widget).findByRole('button', { name: 'Counter: 3' })
+    await within(inner).findByText('Inner received: bumped to 3', undefined, SECOND_REACT)
+    await within(widget).findByRole('button', { name: 'Counter: 3' }, SECOND_REACT)
   })
 
   it('leaves no scope root and no overlay root of any level once the host is disposed', async () => {
@@ -217,10 +227,10 @@ describe('two React versions on one page', () => {
 
     await waitFor(() => {
       expect(scopeRootCount()).toBe(0)
-    })
+    }, SECOND_REACT)
     await waitFor(() => {
       expect(overlayRootCount()).toBe(0)
-    })
+    }, SECOND_REACT)
     expect(live).toEqual({ outer: 0, widgets: 0 })
     expect(containerB.innerLive.count).toBe(0)
     expect(document.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
