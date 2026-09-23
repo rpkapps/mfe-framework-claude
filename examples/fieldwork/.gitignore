@@ -1,0 +1,7 @@
+# Generated build modules. The generate target writes them before build, serve, test and typecheck.
+.mfe/*
+# Except the developer's own runtime configuration, which the dev server serves and no build ships.
+!.mfe/runtime-config.json
+# This directory is an Nx workspace of its own, so Nx's and the Angular builder's caches land here.
+.nx/
+.angular/

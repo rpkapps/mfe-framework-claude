@@ -1,0 +1,18 @@
+{
+  // The base of this example's own Nx workspace, which the generated tsconfig.json extends. It does
+  // not extend the repository's tsconfig.base.json: that one is written for TypeScript 6 and never
+  // emits, while this container compiles with TypeScript 5.8 through Angular's compiler. The checks
+  // below are the repository's own.
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
