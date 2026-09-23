@@ -58,13 +58,13 @@ function inDevelopmentStrictMode(ui: ReactNode): ReactNode {
  * The first render is synchronous so the host's promise settles on its outcome: a failure there
  * rejects the mount. A later failure has no promise left to reject, so it goes to `onFailure`,
  * which moves the mount to its error state where the host offers a retry rather than leaving a
- * blank area. A host that gives no `onFailure` still has it reported.
+ * blank area. `mountDefinition` always provides it.
  */
 function openRoot(
   element: HTMLElement,
   mount: MfeMount,
   operation: string,
-  onFailure: ((error: unknown) => void) | undefined,
+  onFailure: (error: unknown) => void,
 ): OwnedRoot {
   const { diagnostics } = mount.runtime
 
@@ -79,8 +79,7 @@ function openRoot(
     onUncaughtError: error => {
       const failure = renderFailure(mount, operation, error)
       if (!first.committed) first.failure = failure
-      else if (onFailure !== undefined) onFailure(failure)
-      else diagnostics.report(failure)
+      else onFailure(failure)
     },
     // React recovered on its own, so this is worth knowing about rather than acting on.
     onRecoverableError: error => {

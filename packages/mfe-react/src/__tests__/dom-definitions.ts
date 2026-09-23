@@ -173,7 +173,7 @@ export function domApp(id = 'reports'): DomApp {
       const target = targets.at(-1)
       if (!target) throw new Error('the App was never mounted')
       act(() => {
-        target.onFailure?.(error)
+        target.onFailure(error)
       })
     },
   }

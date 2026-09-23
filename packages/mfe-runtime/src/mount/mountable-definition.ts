@@ -38,8 +38,8 @@ export interface WidgetMountTarget {
    * again counts one rejection twice.
    */
   readonly onInputRejected?: (error: MfeError) => void
-  /** A fatal failure after the mount resolved; see `AppMountTarget.onFailure`. */
-  readonly onFailure?: (error: unknown) => void
+  /** A fatal failure after the mount resolved; see `AppMountTarget.onFailure`. `mountDefinition` always provides it. */
+  readonly onFailure: (error: unknown) => void
 }
 
 export interface AppMountTarget {
@@ -53,7 +53,7 @@ export interface AppMountTarget {
    * than a blank area. A failure before the mount resolves rejects the mount instead.
    * `mountDefinition` always provides it.
    */
-  readonly onFailure?: (error: unknown) => void
+  readonly onFailure: (error: unknown) => void
 }
 
 export interface MountedWidget {

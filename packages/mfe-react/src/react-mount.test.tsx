@@ -72,6 +72,9 @@ function hostFor(
 /** The emit a render last received, so a test can call it the way the Widget's own code does. */
 let latestEmit: ((event: string, payload: unknown) => void) | null = null
 
+/** What a host without a failure handler of its own passes; `mountDefinition` always supplies one. */
+const noopFailure = (): void => undefined
+
 const counter = createWidget({
   id: 'counter-widget',
   version: '1.0.0',
@@ -108,6 +111,7 @@ async function mountCounter(
       context,
       inputs,
       emit: callbacks.emit ?? (() => undefined),
+      onFailure: noopFailure,
       ...(callbacks.onInputRejected === undefined
         ? {}
         : { onInputRejected: callbacks.onInputRejected }),
@@ -146,7 +150,13 @@ describe('a React Widget mounting itself', () => {
     })
 
     await act(async () => {
-      await probe.mount({ element, context, inputs: {}, emit: () => undefined })
+      await probe.mount({
+        element,
+        context,
+        inputs: {},
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
     })
 
     expect(seen).toBeInstanceOf(QueryClient)
@@ -176,8 +186,15 @@ describe('a React Widget mounting itself', () => {
         context: first,
         inputs: {},
         emit: () => undefined,
+        onFailure: noopFailure,
       })
-      await probe.mount({ element, context: second, inputs: {}, emit: () => undefined })
+      await probe.mount({
+        element,
+        context: second,
+        inputs: {},
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
     })
 
     expect(new Set(ids).size).toBe(2)
@@ -208,7 +225,13 @@ describe('a React Widget mounting itself', () => {
     document.body.append(scopeRoot)
 
     await act(async () => {
-      await probe.mount({ element, context: handle.context, inputs: {}, emit: () => undefined })
+      await probe.mount({
+        element,
+        context: handle.context,
+        inputs: {},
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
     })
 
     expect(seen).toBe(scopeRoot)
@@ -251,7 +274,13 @@ describe('a React Widget mounting itself', () => {
     const { context } = hostFor('widget', 'counter-widget')
 
     const thrown = await counter
-      .mount({ element, context, inputs: { label: 7 }, emit: () => undefined })
+      .mount({
+        element,
+        context,
+        inputs: { label: 7 },
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
       .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'contract/input-mismatch', id: 'counter-widget' })
@@ -264,7 +293,13 @@ describe('a React Widget mounting itself', () => {
     const { context } = hostFor('widget', 'counter-widget')
 
     const thrown = await counter
-      .mount({ element, context, inputs: { label: 'boom' }, emit: () => undefined })
+      .mount({
+        element,
+        context,
+        inputs: { label: 'boom' },
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
       .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'mount/failure', id: 'counter-widget' })
@@ -290,26 +325,11 @@ describe('a React Widget mounting itself', () => {
   })
 
   /**
-   * Nothing is left to reject once the mount has resolved, so the runtime hears of it. Outside
-   * `act`, because inside it React rethrows the failure to the test instead of reporting it.
+   * Nothing is left to reject once the mount has resolved, so the host's `onFailure` hears of it
+   * instead — every host provides one. Outside `act`, because inside it React rethrows the
+   * failure to the test instead of reporting it.
    */
-  it('reports a render failure after the first to the runtime', async () => {
-    const mounted = await mountCounter({ label: 'Clicks' })
-
-    mounted.update({ label: 'boom' })
-
-    await vi.waitFor(() => {
-      expect(memory?.diagnostics).toHaveLength(1)
-    })
-    expect(memory?.diagnostics[0]?.error).toMatchObject({
-      code: 'mount/failure',
-      id: 'counter-widget',
-    })
-    expect((memory?.diagnostics[0]?.error as Error).message).toContain('boom')
-  })
-
-  /** Outside `act`, for the same reason as above. */
-  it('hands a render failure after the first to the host’s onFailure instead', async () => {
+  it('hands a render failure after the first to the host’s onFailure', async () => {
     const { context } = hostFor('widget', 'counter-widget')
     const onFailure = vi.fn()
     let mounted: MountedWidget | undefined
@@ -354,7 +374,13 @@ describe('a React Widget mounting itself', () => {
     const { context } = hostFor('widget', 'counter-widget')
 
     await act(async () => {
-      await styled.mount({ element, context, inputs: { label: 'Clicks' }, emit: () => undefined })
+      await styled.mount({
+        element,
+        context,
+        inputs: { label: 'Clicks' },
+        emit: () => undefined,
+        onFailure: noopFailure,
+      })
     })
 
     expect(within(element).getByTestId('style-root')).toContainElement(
@@ -404,7 +430,7 @@ describe('a React App mounting itself', () => {
     })
 
     await act(async () => {
-      await reports.mount({ element, context })
+      await reports.mount({ element, context, onFailure: noopFailure })
     })
 
     await vi.waitFor(() => {
@@ -420,7 +446,7 @@ describe('a React App mounting itself', () => {
     })
 
     await act(async () => {
-      await reports.mount({ element, context })
+      await reports.mount({ element, context, onFailure: noopFailure })
     })
 
     await vi.waitFor(() => {
@@ -436,7 +462,7 @@ describe('a React App mounting itself', () => {
     })
     let mounted: MountedApp | undefined
     await act(async () => {
-      mounted = await reports.mount({ element, context })
+      mounted = await reports.mount({ element, context, onFailure: noopFailure })
     })
     await vi.waitFor(() => {
       expect(within(element).getByTestId('account')).toBeInTheDocument()
@@ -462,7 +488,9 @@ describe('a React App mounting itself', () => {
     })
     const { context } = hostFor('app', 'reports', { basePath: '/reports' })
 
-    const thrown = await detached.mount({ element, context }).catch((error: unknown) => error)
+    const thrown = await detached
+      .mount({ element, context, onFailure: noopFailure })
+      .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'app/invalid-base-path', id: 'reports' })
     expect(element.childElementCount).toBe(0)

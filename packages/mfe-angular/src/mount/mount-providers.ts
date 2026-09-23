@@ -142,9 +142,8 @@ export function disposedWhileMounting(context: MountContext): MfeError {
 export function reportForeignDestroy(
   appRef: ApplicationRef,
   context: MountContext,
-  onFailure: ((error: unknown) => void) | undefined,
+  onFailure: (error: unknown) => void,
 ): () => void {
-  if (onFailure === undefined) return () => undefined
   const { definitionId, definitionVersion, kind } = context
 
   return appRef.onDestroy(() => {

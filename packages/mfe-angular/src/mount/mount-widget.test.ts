@@ -475,6 +475,7 @@ describe('mounting a Widget', () => {
         context: handle.context,
         inputs: { alertId: 'a-1' },
         emit: () => undefined,
+        onFailure: () => undefined,
       })
       await handle.dispose()
 
@@ -500,6 +501,7 @@ describe('mounting a Widget', () => {
         context: handle.context,
         inputs: { alertId: 'a-1' },
         emit: () => undefined,
+        onFailure: () => undefined,
       })
 
       await handle.dispose()
