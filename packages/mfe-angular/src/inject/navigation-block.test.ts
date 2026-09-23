@@ -3,7 +3,7 @@ import {
   createNavigationIntent,
   parseBoundaryLocation,
   type BoundaryNavigator,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 

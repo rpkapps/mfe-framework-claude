@@ -10,7 +10,7 @@ import {
   type MountableAppDefinition,
   type MountableDefinition,
   type MountableWidgetDefinition,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { Component, type ReactNode } from 'react'
 
 import {

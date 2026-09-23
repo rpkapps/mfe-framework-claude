@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { StorageArea, StorageKeyOptions, StorageRetention } from '@company/mfe-core'
-import type { BoundStorageKey, StorageUpdater } from '@company/mfe-host'
+import type { BoundStorageKey, StorageUpdater } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
 import { useOptionalMfeMount } from '../mount-context.tsx'

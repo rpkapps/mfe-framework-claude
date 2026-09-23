@@ -4,8 +4,8 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { createNoopTelemetryProvider } from '@company/mfe-host'
-import { createInProcessLoader } from '@company/mfe-host/testing'
+import { createNoopTelemetryProvider } from '@company/mfe-runtime'
+import { createInProcessLoader } from '@company/mfe-runtime/testing'
 import type { MfeAdapter, RegistryEntry } from '@company/mfe-core'
 
 import { createMfeRuntime, createMount, type MfeRuntimeHandle } from './create-runtime.ts'

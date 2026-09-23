@@ -8,7 +8,7 @@ import {
   provideEnvironmentInitializer,
   type OnInit,
 } from '@angular/core'
-import { createMountContext } from '@company/mfe-host'
+import { createMountContext } from '@company/mfe-runtime'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 

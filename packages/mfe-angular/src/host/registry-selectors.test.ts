@@ -1,6 +1,6 @@
 import { runInInjectionContext, signal } from '@angular/core'
 import type { RegistryEntry } from '@company/mfe-core'
-import type { MfeHostRuntime } from '@company/mfe-host'
+import type { MfeHostRuntime } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
 
 import { createHostApplication } from '../__tests__/harness.ts'

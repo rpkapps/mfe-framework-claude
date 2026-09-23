@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import type { HistoryLocation } from '@tanstack/react-router'
 import type { BoundaryLocation, NavigationAction } from '@company/mfe-core'
-import type { NavigationBlocker } from '@company/mfe-host'
+import type { NavigationBlocker } from '@company/mfe-runtime'
 
 import type { BoundaryHistory, RouterBlocker } from './boundary-history.ts'
 import type { MfeMount } from './runtime.ts'

@@ -17,7 +17,7 @@ import {
   installShellAuth,
   telemetryDiagnosticsSink,
   type TelemetryProvider,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 

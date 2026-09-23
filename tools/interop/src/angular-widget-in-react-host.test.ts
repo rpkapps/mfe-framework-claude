@@ -22,7 +22,7 @@ import {
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { DynamicWidget, lazyWidget, type WidgetFallbackProps } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'

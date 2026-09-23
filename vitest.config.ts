@@ -32,8 +32,8 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'host',
-          root: './packages/mfe-host',
+          name: 'runtime',
+          root: './packages/mfe-runtime',
           environment: 'jsdom',
           include: ['src/**/*.test.ts'],
         },

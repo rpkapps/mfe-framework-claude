@@ -1,6 +1,6 @@
 ---
 '@company/mfe-core': minor
-'@company/mfe-host': minor
+'@company/mfe-runtime': minor
 '@company/mfe-react': minor
 '@company/mfe-rspack': minor
 ---

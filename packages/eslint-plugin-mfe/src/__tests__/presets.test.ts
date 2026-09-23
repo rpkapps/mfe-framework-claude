@@ -306,7 +306,7 @@ describe('preset options', () => {
       'mobx',
       'jotai',
       '@tanstack/store',
-      '@company/mfe-host',
+      '@company/mfe-runtime',
       '@company/mfe-react',
     ]) {
       expect(names, forbidden).toContain(forbidden)
@@ -328,7 +328,7 @@ describe('preset options', () => {
     const names = options.paths.map(path => path.name)
     expect(names).not.toContain('zustand')
     expect(names).toContain('@company/mfe-core')
-    expect(names).toContain('@company/mfe-host')
+    expect(names).toContain('@company/mfe-runtime')
     const groups = options.patterns.flatMap(pattern => pattern.group)
     expect(groups).toContain('@company/mfe-react/src/*')
     expect(groups).toContain('@opentelemetry/*')

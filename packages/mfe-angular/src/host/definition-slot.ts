@@ -16,7 +16,7 @@ import {
   type MountableDefinition,
   type MountContext,
   type MountContextHandle,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 export type SlotStatus = 'loading' | 'mounted' | 'failed'
 

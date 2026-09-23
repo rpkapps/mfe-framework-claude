@@ -95,7 +95,7 @@ the common `RegistryEntry` shape and names no framework; each adapter ships its
 own entry type, with its own fields typed on it and reached through its `is()`
 guard, so the federation container name is `ReactRegistryEntry.container` rather
 than an `unknown` the loader casts back. The React adapter's registry code moved
-out of `@company/mfe-host` into `@company/mfe-react`, where the federation loader
+out of `@company/mfe-runtime` into `@company/mfe-react`, where the federation loader
 already lived. The host now knows only the interface, which is what the port was
 always meant to buy: one payload nobody could type, re-validated at every reader,
 was buying the opposite.
@@ -103,7 +103,7 @@ was buying the opposite.
 **Second amendment (2026-09-22):** the federation loader moved back into the host,
 because a second adapter made it shared. A React shell loading an Angular container
 needs the same loader as an Angular shell loading a React one, and neither adapter
-can own it. `createFederationContainerLoader` in `@company/mfe-host` still imports no
+can own it. `createFederationContainerLoader` in `@company/mfe-runtime` still imports no
 Module Federation — the runtime is handed to it, as it always was — and reads only
 what every adapter's entries and definitions have in common: the container name on
 `FederatedRegistryEntry` and the brand each adapter stamps, which now also names the

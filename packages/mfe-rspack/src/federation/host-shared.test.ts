@@ -18,7 +18,7 @@ afterEach(() => {
 
 /** A host root with real packages under it, for the one test that reads one. */
 function createHost(installed: Readonly<Record<string, string>>): string {
-  const root = mkdtempSync(join(tmpdir(), 'mfe-host-'))
+  const root = mkdtempSync(join(tmpdir(), 'mfe-runtime-'))
   created.push(root)
 
   writeJson(join(root, 'package.json'), { name: '@acme/shell', version: '1.0.0', private: true })
@@ -48,8 +48,8 @@ describe('hostShared', () => {
 
     expect(Object.keys(shared)).toEqual([
       '@company/mfe-core',
-      '@company/mfe-host',
       '@company/mfe-react',
+      '@company/mfe-runtime',
     ])
     expect(shared['@company/mfe-core']).toEqual({
       singleton: true,

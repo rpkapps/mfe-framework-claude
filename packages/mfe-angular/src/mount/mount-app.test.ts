@@ -9,7 +9,7 @@ import {
   type Routes,
   withComponentInputBinding,
 } from '@angular/router'
-import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
+import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 

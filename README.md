@@ -302,7 +302,7 @@ Everything above works on Windows. Two things to know:
 | Package                       | Responsibility                                                                                                                                                                                                                                                                                              |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@company/mfe-core`           | Neutral contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or federation dependency.                                                                                                                         |
-| `@company/mfe-host`           | Neutral orchestration: reading the registry through the adapter interface, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. `MountController`, the neutral mount controller no shipped adapter uses, is here too. No React, router, single-spa or federation dependency. |
+| `@company/mfe-runtime`        | Neutral orchestration: reading the registry through the adapter interface, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. `MountController`, the neutral mount controller no shipped adapter uses, is here too. No React, router, single-spa or federation dependency. |
 | `@company/mfe-react`          | The author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                                                                                        |
 | `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                                                                                        |
 | `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                                                                                 |
@@ -318,7 +318,7 @@ by editing a manifest alone.
               mfe-core
               ^      ^
               |      |
-     mfe-rspack     mfe-host
+     mfe-rspack     mfe-runtime
                     ^      ^
                     |      |
               mfe-react   mfe-legacy-angular
@@ -329,7 +329,7 @@ by editing a manifest alone.
 
 Each arrow is a manifest dependency. `mfe-react`, `mfe-legacy-angular` and
 `mfe-devtools` also name `@company/mfe-core` directly, and `mfe-devtools` also
-names `@company/mfe-host`; only the longest edge is drawn. `@company/create-mfe`
+names `@company/mfe-runtime`; only the longest edge is drawn. `@company/create-mfe`
 appears in neither direction: it writes files and depends on no framework
 package, and `@company/eslint-plugin-mfe` is development-only.
 

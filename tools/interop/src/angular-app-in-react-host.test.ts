@@ -15,7 +15,7 @@ import {
   parseBoundaryLocation,
   SCOPE_ATTRIBUTE,
   type NavigationOutcome,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { AppHost } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor } from '@testing-library/react'

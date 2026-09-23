@@ -4,7 +4,7 @@
  */
 
 import { createMfeError, type MfeError, type RegistryEntry } from '@company/mfe-core'
-import { capabilityRoute } from '@company/mfe-host'
+import { capabilityRoute } from '@company/mfe-runtime'
 
 /** Evaluation order is part of the contract: the catch-all is last so it cannot swallow a route. */
 export const LEGACY_SHELL_ROUTE_PATTERNS = [

@@ -189,7 +189,7 @@ no framework internal reaches your code and pins you to a patch release.
 | Blocked import                                  | Why                                                                                                  |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `@company/mfe-core`                             | It is a framework-internal contract package whose shape changes with the framework.                  |
-| `@company/mfe-host`                             | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
+| `@company/mfe-runtime`                          | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
 | `react-dom/client`                              | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
 | a deep path, such as `@company/mfe-react/src/*` | A deep import reaches past the entry point into files that change in a patch release.                |
 | `single-spa`, `single-spa-*`                    | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |

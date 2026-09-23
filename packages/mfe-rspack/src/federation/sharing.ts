@@ -12,7 +12,7 @@ import { SINGLETON, type SharingPolicies, type SharingPolicy } from '@company/mf
 // "rendered outside any mount" while both copies look perfectly correct on their own.
 const FRAMEWORK_POLICY: SharingPolicies = {
   '@company/mfe-core': SINGLETON,
-  '@company/mfe-host': SINGLETON,
+  '@company/mfe-runtime': SINGLETON,
   '@company/mfe-react': SINGLETON,
   '@tanstack/react-router': SINGLETON,
   '@tanstack/react-query': SINGLETON,

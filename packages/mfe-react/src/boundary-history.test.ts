@@ -3,8 +3,8 @@
  * broken in ways nothing else could see (§1).
  */
 
-import { BoundaryNavigator } from '@company/mfe-host'
-import { createMemoryNavigationBridge } from '@company/mfe-host/testing'
+import { BoundaryNavigator } from '@company/mfe-runtime'
+import { createMemoryNavigationBridge } from '@company/mfe-runtime/testing'
 import { describe, expect, it } from 'vitest'
 
 import { createBoundaryHistory } from './boundary-history.ts'

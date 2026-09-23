@@ -1,5 +1,5 @@
 /**
- * `@company/mfe-host` — neutral loading, mounting and shell-service orchestration. Nothing
+ * `@company/mfe-runtime` — neutral loading, mounting and shell-service orchestration. Nothing
  * here imports React, a router, single-spa or Module Federation: loading goes through the
  * port in `loader/`, and the federation loader there is handed its runtime (§6).
  */

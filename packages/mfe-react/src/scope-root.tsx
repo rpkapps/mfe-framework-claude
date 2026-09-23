@@ -4,7 +4,7 @@
  * root is `display: contents`, so it anchors a selector without becoming a box in the layout.
  */
 
-import { KIND_ATTRIBUTE, MOUNT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-host'
+import { KIND_ATTRIBUTE, MOUNT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
 import type { ReactNode } from 'react'
 
 import type { MfeStyleRoot } from './style-root.ts'
@@ -16,7 +16,7 @@ export {
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 export interface ScopeRootProps {
   readonly definitionId: string

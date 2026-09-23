@@ -16,7 +16,7 @@
     "@angular/router": "catalog:",
     "@company/mfe-angular": "workspace:*",
     "@company/mfe-core": "workspace:*",
-    "@company/mfe-host": "workspace:*",
+    "@company/mfe-runtime": "workspace:*",
     "@company/mfe-react": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

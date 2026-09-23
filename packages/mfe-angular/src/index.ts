@@ -128,7 +128,7 @@ export {
   type MfeHostRuntime,
   type MountableDefinition,
   type MountContext,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 /** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {
@@ -141,7 +141,7 @@ export {
   type FetchLike,
   type GetAccessToken,
   type ShellAuthOptions,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 /** The one walk over a Widget's published inputs, for a host composing the registry. */
 export {

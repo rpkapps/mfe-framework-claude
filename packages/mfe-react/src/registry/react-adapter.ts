@@ -18,7 +18,7 @@ import {
   type MfeError,
   type PublishedWidgetContract,
 } from '@company/mfe-core'
-import type { FederatedRegistryEntry } from '@company/mfe-host'
+import type { FederatedRegistryEntry } from '@company/mfe-runtime'
 import { z } from 'zod'
 
 /** What `entry.adapter` says on everything this adapter parses. */

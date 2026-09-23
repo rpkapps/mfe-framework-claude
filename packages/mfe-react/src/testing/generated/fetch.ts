@@ -4,7 +4,7 @@
  * is the production one; only the session and the network at the far end are replaced.
  */
 
-import { createAuthenticatedFetch, type FetchLike } from '@company/mfe-host'
+import { createAuthenticatedFetch, type FetchLike } from '@company/mfe-runtime'
 import { createMfeError } from '@company/mfe-core'
 
 export type MfeFetchHandler = (

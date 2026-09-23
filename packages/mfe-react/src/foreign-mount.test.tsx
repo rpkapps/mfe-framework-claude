@@ -13,7 +13,7 @@ import type {
   MountedApp,
   MountedWidget,
   WidgetMountTarget,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode, Suspense, useState, type ReactNode } from 'react'

@@ -9,7 +9,7 @@ import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
 import { createComponent, type EnvironmentInjector } from '@angular/core'
 import { provideRouter, Router, withDisabledInitialNavigation } from '@angular/router'
 import { toMfeError } from '@company/mfe-core'
-import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-host'
+import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runtime'
 
 import type { AppDefinition } from '../definition.ts'
 import { BoundaryLocationStrategy } from '../routing/boundary-location-strategy.ts'

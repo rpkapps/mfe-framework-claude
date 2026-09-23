@@ -1,7 +1,10 @@
 import rule from './no-raw-storage.ts'
 import { createRuleTester } from '../__tests__/rule-tester.ts'
 
-const ADAPTER_SCOPES = ['packages/mfe-host/src/storage/**', 'apps/shell/src/bootstrap/storage.ts']
+const ADAPTER_SCOPES = [
+  'packages/mfe-runtime/src/storage/**',
+  'apps/shell/src/bootstrap/storage.ts',
+]
 
 createRuleTester().run('mfe/no-raw-storage', rule, {
   valid: [
@@ -17,7 +20,7 @@ createRuleTester().run('mfe/no-raw-storage', rule, {
     'declare const localStorage: Storage',
     {
       code: "export const raw = localStorage.getItem('k')",
-      filename: 'packages/mfe-host/src/storage/web-storage-adapter.ts',
+      filename: 'packages/mfe-runtime/src/storage/web-storage-adapter.ts',
       options: [{ allowedScopes: ADAPTER_SCOPES }],
     },
     {

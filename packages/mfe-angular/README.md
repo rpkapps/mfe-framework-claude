@@ -4,7 +4,7 @@ The Angular 19 adapter. An Angular container uses it to declare its App or
 Widget, to read the shell's services from inside a mount, and to host other
 definitions; a shell of any framework uses it to recognise Angular containers
 in the registry. It is the sibling of `@company/mfe-react`, not a consumer of
-it, and depends only on the neutral `@company/mfe-core` and `@company/mfe-host`.
+it, and depends only on the neutral `@company/mfe-core` and `@company/mfe-runtime`.
 
 ## Zoneless, and nothing else
 

@@ -252,10 +252,10 @@ stays, every other App stays reachable, and one boundary is the whole cost of th
 Subtitle: "The packages, which way the imports point, and who sees them." Twelve boxes in two
 dashed regions. The left one, **In the browser** ("an arrow points at what a package depends
 on"), holds the dependency graph: `apps/shell` (yellow) and `examples/operations` (blue) on the
-top row, `@company/mfe-react` and `@company/mfe-legacy-angular` below them, `@company/mfe-host`
+top row, `@company/mfe-react` and `@company/mfe-legacy-angular` below them, `@company/mfe-runtime`
 under those two, and `@company/mfe-core` at the bottom. Arrows run shell → mfe-react,
-operations → mfe-react, mfe-react → mfe-host, mfe-legacy-angular → mfe-host and
-mfe-host → mfe-core. The right region, **At build time** ("one entry in the container's
+operations → mfe-react, mfe-react → mfe-runtime, mfe-legacy-angular → mfe-runtime and
+mfe-runtime → mfe-core. The right region, **At build time** ("one entry in the container's
 rsbuild.config.ts"), holds a violet `@company/mfe-rspack` (`pluginMfe()`) and, reached by one
 arrow labelled **generates**, a column of five violet tiles: `#mfe/config`, `#mfe/fetch`,
 `#mfe/meta`, `.mfe/entries/` and `.mfe/styles.css`. A green dot marks each thing an author writes
@@ -265,7 +265,7 @@ under the graph names the packages that sit beside the DAG rather than in it:
 the four colours and the dot.
 
 Not on the figure: `pnpm boundaries` reads the imports and the manifests, so no arrow can be
-reversed by editing a `package.json`; neither `mfe-core` nor `mfe-host` may import React, a
+reversed by editing a `package.json`; neither `mfe-core` nor `mfe-runtime` may import React, a
 router or Module Federation. `pluginMfe()` is the container's whole build integration —
 discovery, the generated modules, the federation options, the asset URLs and the container's own
 scoped stylesheet — and it also writes the container's registry entry, `.mfe/mfe-registry.json`,
@@ -277,7 +277,7 @@ framework presets, and `@company/mfe-devtools` ships in every build behind one r
 
 Subtitle: "One neutral host; one adapter per framework." Twelve boxes, read top to bottom. At
 the top, a yellow **The shell** (`apps/shell/src/boot.tsx`), with an arrow labelled
-**registry.json** into a panel **The neutral host** ("@company/mfe-host — no React, no router, no
+**registry.json** into a panel **The neutral host** ("@company/mfe-runtime — no React, no router, no
 federation"). That panel holds a grey **Shared services** ("storage, commands, navigation bridge,
 diagnostics") and, under it, a dashed inner panel **Reading the registry** ("one adapter
 recognises each entry") holding two grey boxes side by side: **Entries with mfe**
@@ -295,7 +295,7 @@ colour is which: yellow the shell, grey neutral ("no React, no router, no federa
 transparent an adapter package, blue a container the adapter mounts.
 
 Not on the figure. The host is framework-agnostic by construction: `@company/mfe-core` and
-`@company/mfe-host` define the contracts and orchestrate loading, and both are forbidden — by the
+`@company/mfe-runtime` define the contracts and orchestrate loading, and both are forbidden — by the
 lint presets and by `pnpm boundaries` — from importing React, a router, single-spa or Module
 Federation (§6). Loading therefore happens through a port: the host declares `ContainerLoader`
 and each adapter implements it. Adding a framework is one more adapter. `readRegistry` walks the

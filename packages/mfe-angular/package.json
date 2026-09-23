@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@company/mfe-core": "workspace:*",
-    "@company/mfe-host": "workspace:*"
+    "@company/mfe-runtime": "workspace:*"
   },
   "peerDependencies": {
     "@angular/common": "catalog:",

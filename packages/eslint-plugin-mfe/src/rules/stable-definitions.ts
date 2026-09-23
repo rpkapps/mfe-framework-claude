@@ -13,7 +13,7 @@ import { docsUrl } from '../util/docs.ts'
 
 const DEFAULT_MODULES: readonly string[] = [
   '@company/mfe-react',
-  '@company/mfe-host',
+  '@company/mfe-runtime',
   '@company/mfe-core',
 ]
 

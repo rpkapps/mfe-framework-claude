@@ -1,4 +1,4 @@
-import { createMemoryNavigationBridge } from '@company/mfe-host/testing'
+import { createMemoryNavigationBridge } from '@company/mfe-runtime/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 import { BoundaryLocationStrategy } from './boundary-location-strategy.ts'

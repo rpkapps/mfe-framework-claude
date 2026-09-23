@@ -26,7 +26,7 @@ import {
 } from '@angular/core'
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router'
 import { createMfeError, type MfeError } from '@company/mfe-core'
-import type { MountedApp } from '@company/mfe-host'
+import type { MountedApp } from '@company/mfe-runtime'
 import { filter, type Subscription } from 'rxjs'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'

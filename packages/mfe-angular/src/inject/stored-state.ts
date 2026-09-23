@@ -13,7 +13,7 @@ import {
   type Signal,
 } from '@angular/core'
 import type { StorageArea, StorageKeyOptions } from '@company/mfe-core'
-import type { StorageUpdater } from '@company/mfe-host'
+import type { StorageUpdater } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'

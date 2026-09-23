@@ -16,7 +16,7 @@ import type {
   MountableWidgetDefinition,
   MountContext,
   MountedWidget,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import { MfeScopeRoot } from './scope-root.tsx'

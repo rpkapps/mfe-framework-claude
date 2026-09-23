@@ -7,7 +7,7 @@
 
 import { createComponent, type ComponentRef, type EnvironmentInjector } from '@angular/core'
 import { shallowEqual, toMfeError } from '@company/mfe-core'
-import type { MountedWidget, WidgetMountTarget } from '@company/mfe-host'
+import type { MountedWidget, WidgetMountTarget } from '@company/mfe-runtime'
 
 import type { WidgetDefinition } from '../definition.ts'
 import { WIDGET_EMIT } from '../inject/tokens.ts'

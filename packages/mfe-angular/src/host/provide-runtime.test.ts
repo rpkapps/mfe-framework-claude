@@ -1,6 +1,9 @@
 import { runInInjectionContext } from '@angular/core'
 import type { MfeAdapter } from '@company/mfe-core'
-import { createInProcessLoader, createRecordingTelemetryProvider } from '@company/mfe-host/testing'
+import {
+  createInProcessLoader,
+  createRecordingTelemetryProvider,
+} from '@company/mfe-runtime/testing'
 import { describe, expect, it } from 'vitest'
 
 import { createHostApplication } from '../__tests__/harness.ts'

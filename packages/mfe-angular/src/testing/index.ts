@@ -6,12 +6,12 @@
 
 import type { EnvironmentInjector, EnvironmentProviders } from '@angular/core'
 import type { DefinitionKind, MfeError } from '@company/mfe-core'
-import { applyScopeAttributes, createMountContext, type MountContext } from '@company/mfe-host'
+import { applyScopeAttributes, createMountContext, type MountContext } from '@company/mfe-runtime'
 import {
   createMemoryHostRuntime,
   type MemoryHostRuntime,
   type MemoryHostRuntimeOptions,
-} from '@company/mfe-host/testing'
+} from '@company/mfe-runtime/testing'
 
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
 import { provideMfeRuntime } from '../host/provide-runtime.ts'

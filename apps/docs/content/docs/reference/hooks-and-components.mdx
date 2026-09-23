@@ -287,7 +287,7 @@ These place or compose containers. A shell calls them. An App calls `mfeRoute` w
 | `mfeRoute`                                              | `({ appId, basePath? })`         | Route options that mount a child App. The author path. |
 | `MfeProvider`                                           | `{ runtime, children }`          | Wraps a shell once at boot.                            |
 | `createMfeRuntime`                                      | `(options) => MfeRuntimeHandle`  | Builds the runtime a shell provides.                   |
-| `createContainerTransport`, `installShellAuth`          | see `@company/mfe-host`          | Bind the shell's session to `#mfe/fetch`.              |
+| `createContainerTransport`, `installShellAuth`          | see `@company/mfe-runtime`       | Bind the shell's session to `#mfe/fetch`.              |
 | `createOverlayRoot`, `withStyleRoot`, `SCOPE_ATTRIBUTE` | —                                | Used by generated code and by the shell's own chrome.  |
 
 ## Where each hook may be called

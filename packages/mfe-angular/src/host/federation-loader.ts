@@ -9,7 +9,7 @@ import {
   createFederationContainerLoader,
   type ContainerLoader,
   type FederationRuntime,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 export interface Mf2LoaderOptions {
   /** Injected so this module has no import-time side effects and tests need no real runtime. */

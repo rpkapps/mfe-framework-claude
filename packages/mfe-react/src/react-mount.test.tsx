@@ -10,8 +10,8 @@ import {
   type MountContextHandle,
   type MountedApp,
   type MountedWidget,
-} from '@company/mfe-host'
-import { createMemoryHostRuntime, type MemoryHostRuntime } from '@company/mfe-host/testing'
+} from '@company/mfe-runtime'
+import { createMemoryHostRuntime, type MemoryHostRuntime } from '@company/mfe-runtime/testing'
 import {
   createRootRouteWithContext,
   createRoute,

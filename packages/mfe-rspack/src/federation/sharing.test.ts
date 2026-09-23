@@ -31,7 +31,7 @@ describe('the React sharing policy', () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
       // A second copy of these makes every framework hook fail with "rendered outside any mount".
       '@company/mfe-core',
-      '@company/mfe-host',
+      '@company/mfe-runtime',
       '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
@@ -47,7 +47,7 @@ describe('the React sharing policy', () => {
     const shared = resolveReactShared({
       dependencies: {
         '@company/mfe-core': 'workspace:*',
-        '@company/mfe-host': 'workspace:*',
+        '@company/mfe-runtime': 'workspace:*',
         '@company/mfe-react': 'workspace:*',
         react: '^19.0.0',
         'react-dom': '^19.0.0',

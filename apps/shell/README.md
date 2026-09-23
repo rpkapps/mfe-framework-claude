@@ -290,7 +290,7 @@ so a single unreachable manifest brought down whatever the shell had not
 loaded yet — the chrome included.
 
 Against this install it resolves `react`, `react-dom`, `sonner`,
-`@company/mfe-core`, `@company/mfe-host`, `@company/mfe-react`,
+`@company/mfe-core`, `@company/mfe-runtime`, `@company/mfe-react`,
 `@tanstack/react-router` and `@tanstack/react-query` as strict
 singletons, each holding module state a second copy would duplicate, so a
 remote that resolves its own is an error; `@tecton/react/` — a prefix share,

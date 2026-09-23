@@ -6,7 +6,7 @@
 
 import { NavigationEnd, type ActivatedRouteSnapshot, type Router } from '@angular/router'
 import type { BreadcrumbItem, Unsubscribe } from '@company/mfe-core'
-import type { MountContext } from '@company/mfe-host'
+import type { MountContext } from '@company/mfe-runtime'
 import { filter } from 'rxjs'
 
 import { MFE_ROUTE_DATA, type MfeRouteData } from './route-data.ts'

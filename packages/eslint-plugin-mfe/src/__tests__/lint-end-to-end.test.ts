@@ -106,7 +106,7 @@ describe('framework preset, linting real files', () => {
     'packages/mfe-core/src/leak.ts': `import { useState } from 'react'
 export const hook = useState
 `,
-    'packages/mfe-host/src/boot.ts': `export async function load(): Promise<void> {
+    'packages/mfe-runtime/src/boot.ts': `export async function load(): Promise<void> {
   await Promise.resolve()
 }
 export function boot(): void {
@@ -126,8 +126,8 @@ export function useThing(flag: boolean): unknown {
 }
 `,
     // The same source twice: only the test copy gets the scoped exceptions.
-    'packages/mfe-host/src/service.ts': SERVICE_SOURCE,
-    'packages/mfe-host/src/service.test.ts': SERVICE_SOURCE,
+    'packages/mfe-runtime/src/service.ts': SERVICE_SOURCE,
+    'packages/mfe-runtime/src/service.test.ts': SERVICE_SOURCE,
     // No React here, but the bundler helper named `use` reads as React's `use()` hook.
     'packages/mfe-rspack/src/plugin.ts': `interface ModuleRule {
   test: RegExp
@@ -140,7 +140,7 @@ export function applyReactCompiler(rules: ModuleRule[]): void {
   rules.push({ test: /\\.ts$/, use: use(false) })
 }
 `,
-    'packages/mfe-host/src/clean.ts': `export function add(left: number, right: number): number {
+    'packages/mfe-runtime/src/clean.ts': `export function add(left: number, right: number): number {
   return left + right
 }
 `,
@@ -218,7 +218,7 @@ export default config
     expect((react?.messages ?? []).map(message => message.ruleId)).toContain(
       'react-hooks/rules-of-hooks',
     )
-    const host = resultFor(results, 'mfe-host/src/boot.ts')
+    const host = resultFor(results, 'mfe-runtime/src/boot.ts')
     expect((host?.messages ?? []).map(message => message.ruleId)).toContain(
       '@typescript-eslint/no-floating-promises',
     )
@@ -244,7 +244,7 @@ export const useStore = create
 `,
     'src/boundaries.ts': `import type { MfeError } from '@company/mfe-core'
 import { trace } from '@opentelemetry/api'
-import { mountApp } from '@company/mfe-host/dist/mount.js'
+import { mountApp } from '@company/mfe-runtime/dist/mount.js'
 export type Thing = MfeError
 export const tracer = trace
 export const mount = mountApp
@@ -292,7 +292,7 @@ export const Route = createFileRoute('/')({
     const restricted = (boundaries?.messages ?? []).filter(
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
-    // @company/mfe-core type-only, @opentelemetry/api, and the deep @company/mfe-host path.
+    // @company/mfe-core type-only, @opentelemetry/api, and the deep @company/mfe-runtime path.
     expect(restricted.length).toBe(3)
 
     const store = resultFor(results, 'store.ts')

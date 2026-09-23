@@ -4,7 +4,7 @@
  */
 
 import { InjectionToken } from '@angular/core'
-import type { MfeHostRuntime, MountContext } from '@company/mfe-host'
+import type { MfeHostRuntime, MountContext } from '@company/mfe-runtime'
 
 /** The shell's runtime, provided once per host application and by every mount. */
 export const MFE_RUNTIME = new InjectionToken<MfeHostRuntime>('MFE_RUNTIME')

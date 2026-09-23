@@ -92,7 +92,7 @@ export const AUTHOR_TELEMETRY_PATTERNS: readonly RestrictedPattern[] = [
 export const MODULE_FEDERATION_PATTERN: RestrictedPattern = {
   group: ['@module-federation/*'],
   message:
-    'Package boundary: Module Federation is an implementation detail of @company/mfe-rspack and of the loader inside @company/mfe-host. Import the loader contract from @company/mfe-core instead of the MF runtime.',
+    'Package boundary: Module Federation is an implementation detail of @company/mfe-rspack and of the loader inside @company/mfe-runtime. Import the loader contract from @company/mfe-core instead of the MF runtime.',
 }
 
 export const AUTHOR_FRAMEWORK_PATHS: readonly RestrictedPath[] = [
@@ -102,9 +102,9 @@ export const AUTHOR_FRAMEWORK_PATHS: readonly RestrictedPath[] = [
       'Public API boundary: @company/mfe-core is a framework-internal contract package whose shape changes with the framework, not with its public API. Everything an MFE author needs, types included, is re-exported from @company/mfe-react.',
   },
   {
-    name: '@company/mfe-host',
+    name: '@company/mfe-runtime',
     message:
-      "Public API boundary: @company/mfe-host is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. Use the App and Widget APIs from @company/mfe-react.",
+      "Public API boundary: @company/mfe-runtime is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. Use the App and Widget APIs from @company/mfe-react.",
   },
   {
     name: 'react-dom/client',
@@ -119,7 +119,7 @@ export const AUTHOR_FRAMEWORK_PATTERNS: readonly RestrictedPattern[] = [
       '@company/mfe-react/src/*',
       '@company/mfe-react/dist/*',
       '@company/mfe-core/*',
-      '@company/mfe-host/*',
+      '@company/mfe-runtime/*',
       '@company/mfe-rspack/*',
     ],
     message:

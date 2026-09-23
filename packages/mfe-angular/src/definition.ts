@@ -21,7 +21,7 @@ import {
   type MountableAppDefinition,
   type MountableWidgetDefinition,
   type WidgetMountTarget,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import type { z } from 'zod'
 
 import { mountApp, type AngularMountedApp } from './mount/mount-app.ts'

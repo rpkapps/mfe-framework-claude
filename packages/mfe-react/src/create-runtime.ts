@@ -10,7 +10,7 @@ import {
   type CreateHostRuntimeOptions,
   type CreateMountContextOptions,
   type HostRuntimeHandle,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { QueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 

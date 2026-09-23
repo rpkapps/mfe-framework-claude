@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { isMfeError, type MfeAdapter, type MfeError, type RegistryEntry } from '@company/mfe-core'
-import { readRegistry } from '@company/mfe-host'
+import { readRegistry } from '@company/mfe-runtime'
 
 import {
   deriveLegacyDefinitionId,

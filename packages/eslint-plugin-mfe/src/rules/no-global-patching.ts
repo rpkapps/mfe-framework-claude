@@ -52,7 +52,7 @@ const rule: Rule.RuleModule = {
       fetch:
         "Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in this page, and the last bundle to evaluate wins. Wrap your own requests instead: call `fetch` through a module-local client in this MFE and pass `useMfeSignal()` (@company/mfe-react) as the request signal so the call is cancelled on unmount. Page-wide instrumentation is the shell's to install, once.",
       history:
-        "Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.",
+        "Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-runtime) in the shell.",
       listeners:
         'Patching `{{target}}` changes event dispatch for every MFE and outlives your own unmount. Register listeners normally and let the framework tear them down: `target.addEventListener(type, handler, { signal: useMfeSignal() })`, since @company/mfe-react aborts that signal on unmount.',
     },

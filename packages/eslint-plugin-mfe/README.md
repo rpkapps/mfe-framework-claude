@@ -104,7 +104,7 @@ plugin outside that scope.
 ## The `framework` preset
 
 For the packages that implement the framework: `@company/mfe-core`,
-`@company/mfe-host`, `@company/mfe-react`, `@company/mfe-legacy-angular`,
+`@company/mfe-runtime`, `@company/mfe-react`, `@company/mfe-legacy-angular`,
 `@company/mfe-rspack`, `@company/mfe-devtools`.
 
 It layers:
@@ -131,13 +131,13 @@ It layers:
 - **The package import DAG**, as `@typescript-eslint/no-restricted-imports`
   zones, one per package, mirroring `tools/boundaries/check-boundaries.mjs`:
 
-  | Zone                          | May not import                                                                                                                                           |
-  | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `@company/mfe-core`           | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-host`, `@company/mfe-react` |
-  | `@company/mfe-host`           | the same, minus itself, plus `@company/mfe-react`                                                                                                        |
-  | `@company/mfe-react`          | `single-spa`                                                                                                                                             |
-  | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                     |
-  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                  |
+  | Zone                          | May not import                                                                                                                                              |
+  | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@company/mfe-core`           | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-runtime`, `@company/mfe-react` |
+  | `@company/mfe-runtime`        | the same, minus itself, plus `@company/mfe-react`                                                                                                           |
+  | `@company/mfe-react`          | `single-spa`                                                                                                                                                |
+  | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                        |
+  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                     |
 
   Every zone also inherits `STATE_PATHS` and `TELEMETRY_PATTERNS`, so the
   restrictions below apply inside each one on top of the row above.
@@ -158,7 +158,7 @@ mfe.framework({
   tsconfigRootDir: import.meta.dirname,
   files: ['**/*.ts', '**/*.tsx'],
   reactFiles: ['packages/mfe-react/src/**/*.{ts,tsx}', 'apps/shell/src/**/*.{ts,tsx}'],
-  storageAllowedScopes: ['packages/mfe-host/src/storage/**'],
+  storageAllowedScopes: ['packages/mfe-runtime/src/storage/**'],
   widgetScopes: [],
   extraRestrictedPaths: [],
   extraRestrictedPatterns: [],
@@ -180,8 +180,8 @@ Everything in the `framework` preset's general layers applies, and then:
   `**/*.route.{ts,tsx}`, `**/*.routes.{ts,tsx}`, `**/router.{ts,tsx}` and
   `**/routeTree.gen.ts`. Override with `routerFiles`.
 - **Framework internals are off limits**: `@company/mfe-core`,
-  `@company/mfe-host`, `react-dom/client`, and any deep path such as
-  `@company/mfe-react/src/*`, `@company/mfe-core/*` or `@company/mfe-host/*`.
+  `@company/mfe-runtime`, `react-dom/client`, and any deep path such as
+  `@company/mfe-react/src/*`, `@company/mfe-core/*` or `@company/mfe-runtime/*`.
   `@company/mfe-react` is the author-facing entry point and re-exports the types.
 - **zustand is allowed.** An MFE owns its own state. What it may not own is the
   framework's internals, the React root, or a telemetry SDK: `@opentelemetry/*`
@@ -465,7 +465,7 @@ exported name it resolved to, and the module it came from.
 
 ```ts
 'mfe/stable-definitions': ['error', {
-  modules: ['@company/mfe-react', '@company/mfe-host', '@company/mfe-core'],
+  modules: ['@company/mfe-react', '@company/mfe-runtime', '@company/mfe-core'],
   factories: ['createApp', 'createWidget', 'lazyWidget'],
 }]
 ```
@@ -527,7 +527,7 @@ by explicit scope:
 ```js
 'mfe/no-raw-storage': ['error', {
   allowedScopes: [
-    'packages/mfe-host/src/storage/**',   // the adapter that implements the boundary
+    'packages/mfe-runtime/src/storage/**',   // the adapter that implements the boundary
     'apps/shell/src/bootstrap/storage.ts', // the documented shell override
   ],
 }]

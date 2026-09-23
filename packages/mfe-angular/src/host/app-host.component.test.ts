@@ -1,7 +1,7 @@
 import { Component, signal, ViewChild } from '@angular/core'
 import { Router } from '@angular/router'
 import { DEFINITION_BRAND, type MfeError } from '@company/mfe-core'
-import type { AppMountTarget, MountableAppDefinition } from '@company/mfe-host'
+import type { AppMountTarget, MountableAppDefinition } from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 

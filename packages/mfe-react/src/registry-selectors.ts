@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react'
 import type { CapabilityDescriptor, CapabilityName, RegistryEntry } from '@company/mfe-core'
-import { boundaryDefinitionId } from '@company/mfe-host'
+import { boundaryDefinitionId } from '@company/mfe-runtime'
 
 import { useMfeRuntime } from './runtime-context.tsx'
 

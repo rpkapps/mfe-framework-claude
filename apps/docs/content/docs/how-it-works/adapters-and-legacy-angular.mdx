@@ -18,7 +18,7 @@ The reference page holds the fields and the migration edit.
 Twelve boxes, read top to bottom.
 
 - **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into
-  **The neutral host**, `@company/mfe-host`, which holds no React, no router and no federation.
+  **The neutral host**, `@company/mfe-runtime`, which holds no React, no router and no federation.
 - The host holds **Shared services** (storage, commands, navigation bridge, diagnostics) and
   **Reading the registry**, where one adapter recognises each entry.
 - Inside that: **Entries with mfe** (`reactAdapter`) and **Entries without mfe**
@@ -35,7 +35,7 @@ Twelve boxes, read top to bottom.
 
 ## What stays neutral
 
-`@company/mfe-core` and `@company/mfe-host` import no React, no router and no Module Federation.
+`@company/mfe-core` and `@company/mfe-runtime` import no React, no router and no Module Federation.
 The core holds the `MfeAdapter` interface and the common `RegistryEntry` shape, and names no
 framework. The host defines a `ContainerLoader` port and orchestrates loading through it. An
 adapter supplies the implementation.

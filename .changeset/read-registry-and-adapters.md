@@ -1,6 +1,6 @@
 ---
 '@company/mfe-core': minor
-'@company/mfe-host': minor
+'@company/mfe-runtime': minor
 '@company/mfe-react': minor
 '@company/mfe-legacy-angular': minor
 '@company/mfe-devtools': minor
@@ -19,7 +19,7 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 - **Breaking:** `AdapterKind` is gone. `entry.adapter` is a `string` that each adapter declares, and the core no longer names any adapter.
 - **Breaking:** the error code `registry/invalid-descriptor` is now `registry/invalid-entry`.
 
-**`@company/mfe-host`**
+**`@company/mfe-runtime`**
 
 - `readRegistry(raw, { adapters, overrides })` replaces `normalizeRegistry(sources, { rules, overrides })`. `NormalizeRegistryOptions` is now `ReadRegistryOptions`, and `rules` is now `adapters`.
 - **Breaking:** `createMfeContractRule` is gone. The React adapter moved to `@company/mfe-react`, so this package knows the adapter interface and no adapter.

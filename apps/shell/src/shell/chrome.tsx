@@ -18,7 +18,7 @@ import {
   boundaryDefinitionId,
   createNavigationIntent,
   parseBoundaryLocation,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { devtools, MfeDevtools } from '@company/mfe-devtools'
 import {
   Breadcrumb,

@@ -28,7 +28,7 @@ import {
   type MfeError,
   type WidgetContract,
 } from '@company/mfe-core'
-import type { MountedWidget } from '@company/mfe-host'
+import type { MountedWidget } from '@company/mfe-runtime'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { DefinitionSlot } from './definition-slot.ts'

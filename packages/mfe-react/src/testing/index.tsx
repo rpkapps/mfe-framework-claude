@@ -9,7 +9,7 @@ import {
   type MemoryHostRuntime,
   type MemoryStorageArea,
   type RecordingTelemetryProvider,
-} from '@company/mfe-host/testing'
+} from '@company/mfe-runtime/testing'
 import { act, render, type RenderResult } from '@testing-library/react'
 
 import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'

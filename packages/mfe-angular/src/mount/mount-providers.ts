@@ -13,7 +13,7 @@ import {
 } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
 import { isMfeError, toMfeError, type ContractValidation, type MfeError } from '@company/mfe-core'
-import type { MountContext } from '@company/mfe-host'
+import type { MountContext } from '@company/mfe-runtime'
 
 import { MFE_MOUNT, MFE_RUNTIME } from '../inject/tokens.ts'
 

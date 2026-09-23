@@ -8,7 +8,7 @@ import {
   type ApplicationRef,
 } from '@angular/core'
 import { DEFINITION_BRAND, type MfeError, type WidgetContract } from '@company/mfe-core'
-import type { MountableWidgetDefinition, WidgetMountTarget } from '@company/mfe-host'
+import type { MountableWidgetDefinition, WidgetMountTarget } from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 

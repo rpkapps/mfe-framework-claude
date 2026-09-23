@@ -11,7 +11,7 @@ import type {
   MountedApp,
   MountedWidget,
   WidgetMountTarget,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { QueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { flushSync } from 'react-dom'

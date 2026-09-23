@@ -22,7 +22,7 @@ import {
   type RouterStateSnapshot,
 } from '@angular/router'
 import type { BoundaryLocation, NavigationIntent, Unsubscribe } from '@company/mfe-core'
-import type { MountContext, NavigationBlocker } from '@company/mfe-host'
+import type { MountContext, NavigationBlocker } from '@company/mfe-runtime'
 import { firstValueFrom, isObservable } from 'rxjs'
 
 /** What `injectNavigationBlock` registers; the host's own blocker minus the depth it lacks. */

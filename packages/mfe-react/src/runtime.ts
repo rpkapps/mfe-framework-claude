@@ -4,7 +4,7 @@
  * host's neutral shapes; a React mount adds only the Query client its tree is rendered with.
  */
 
-import type { MfeHostRuntime, MountContext } from '@company/mfe-host'
+import type { MfeHostRuntime, MountContext } from '@company/mfe-runtime'
 import type { QueryClient } from '@tanstack/react-query'
 
 /** Shared, shell-owned services, one instance per document. */
@@ -16,4 +16,4 @@ export interface MfeMount extends MountContext {
   readonly queryClient: QueryClient
 }
 
-export { createMountToken } from '@company/mfe-host'
+export { createMountToken } from '@company/mfe-runtime'

@@ -70,7 +70,7 @@ function packageZones(
       [
         ...neutralPackagePaths('@company/mfe-core'),
         {
-          name: '@company/mfe-host',
+          name: '@company/mfe-runtime',
           message:
             'Package boundary: the host depends on the core, never the other way round. Move the shared contract into @company/mfe-core and let the host import it.',
         },
@@ -83,9 +83,9 @@ function packageZones(
       [...basePatterns, MODULE_FEDERATION_PATTERN],
     ),
     zone(
-      'mfe-host',
+      'mfe-runtime',
       [
-        ...neutralPackagePaths('@company/mfe-host'),
+        ...neutralPackagePaths('@company/mfe-runtime'),
         {
           name: '@company/mfe-react',
           message:

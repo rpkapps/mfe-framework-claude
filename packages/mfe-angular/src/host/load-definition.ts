@@ -11,7 +11,7 @@ import {
   type MountableAppDefinition,
   type MountableDefinition,
   type MountableWidgetDefinition,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 const loadsByRuntime = new WeakMap<MfeHostRuntime, Map<string, Promise<MountableDefinition>>>()
 

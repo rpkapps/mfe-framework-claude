@@ -5,7 +5,7 @@
  */
 
 import { SnapshotSource, shallowEqual } from '@company/mfe-core'
-import { writeDevOverrides, type OverrideWritableStorage } from '@company/mfe-host'
+import { writeDevOverrides, type OverrideWritableStorage } from '@company/mfe-runtime'
 
 import {
   DEFAULT_SETTINGS,

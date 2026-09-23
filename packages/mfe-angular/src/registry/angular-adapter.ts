@@ -5,7 +5,7 @@
  */
 
 import type { MfeAdapter } from '@company/mfe-core'
-import type { FederatedRegistryEntry } from '@company/mfe-host'
+import type { FederatedRegistryEntry } from '@company/mfe-runtime'
 
 import { entrySchema, gateContractMajor, invalidEntry, isRecord } from './entry-schema.ts'
 

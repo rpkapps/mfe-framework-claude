@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core'
 import type { Routes } from '@angular/router'
 import { DEFINITION_BRAND, isBrandedDefinition } from '@company/mfe-core'
-import { isMountableDefinition } from '@company/mfe-host'
+import { isMountableDefinition } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 

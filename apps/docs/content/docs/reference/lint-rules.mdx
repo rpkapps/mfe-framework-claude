@@ -20,7 +20,7 @@ Patching `{{target}}` replaces `fetch` for the shell and for every other MFE in 
 **Message, for the History API.**
 
 ```text
-Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-host) in the shell.
+Patching `{{target}}` hijacks navigation for the whole page, so the host router and the other MFEs learn about a navigation only by accident. Navigate through the framework instead: `navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path, or the host `BoundaryNavigator` (@company/mfe-runtime) in the shell.
 ```
 
 **Message, for listener registration.**
@@ -49,7 +49,7 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 
 ```ts
 'mfe/stable-definitions': ['error', {
-  modules: ['@company/mfe-react', '@company/mfe-host', '@company/mfe-core'],
+  modules: ['@company/mfe-react', '@company/mfe-runtime', '@company/mfe-core'],
   factories: ['createApp', 'createWidget', 'lazyWidget'],
 }]
 ```
@@ -127,7 +127,7 @@ The `author` preset turns three package paths and three path groups into errors.
 | What you imported                                      | The message says                                                                                                                    |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `@company/mfe-core`                                    | It is a framework-internal contract package. Everything an author needs is re-exported from `@company/mfe-react`.                   |
-| `@company/mfe-host`                                    | It is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. |
+| `@company/mfe-runtime`                                 | It is the shell's loader and registry. An MFE that imports it can mount itself outside the host lifecycle and will leak on unmount. |
 | `react-dom/client`                                     | The host owns the React root. Calling `createRoot` yourself detaches you from the mount lifecycle.                                  |
 | A deep path such as `@company/mfe-react/src/*`         | A deep import reaches past the entry point into files that are free to change in a patch release.                                   |
 | `single-spa`, `single-spa-*`                           | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                                                     |

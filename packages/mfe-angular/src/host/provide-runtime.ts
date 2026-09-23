@@ -10,7 +10,7 @@ import {
   type CreateHostRuntimeOptions,
   type HostRuntimeHandle,
   type MfeHostRuntime,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 import { MFE_RUNTIME } from '../inject/tokens.ts'
 import { angularAdapter } from '../registry/angular-adapter.ts'

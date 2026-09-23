@@ -80,7 +80,7 @@ Twelve boxes in two regions.
 
 - **In the browser**, where an arrow points at what a package depends on. `apps/shell` and
   `examples/operations` both point at `@company/mfe-react`. `@company/mfe-react` and
-  `@company/mfe-legacy-angular` both point at `@company/mfe-host`, which points at
+  `@company/mfe-legacy-angular` both point at `@company/mfe-runtime`, which points at
   `@company/mfe-core`.
 - A line under that graph names what sits beside it: `@company/create-mfe`,
   `@company/eslint-plugin-mfe` and `@company/mfe-devtools`.
@@ -93,7 +93,7 @@ Twelve boxes in two regions.
 </Diagram>
 
 You import from `@company/mfe-react` and from nothing else in the framework. Everything an author
-needs is re-exported there, types included, and lint blocks the rest. `@company/mfe-host` and
+needs is re-exported there, types included, and lint blocks the rest. `@company/mfe-runtime` and
 `@company/mfe-core` sit under it and hold no React. Your build adds one line, `pluginMfe()` in
 `rsbuild.config.ts`. That line generates `#mfe/config`, `#mfe/fetch`, `#mfe/meta`, your container
 entries and your scoped stylesheet. You write `src/mfe.ts`, the routes under `src/routes/`,
@@ -110,7 +110,7 @@ overwrites it.
 Twelve boxes, read top to bottom.
 
 - **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into
-  **The neutral host**, `@company/mfe-host`, which holds no React, no router and no federation.
+  **The neutral host**, `@company/mfe-runtime`, which holds no React, no router and no federation.
 - The host holds **Shared services** (storage, commands, navigation bridge, diagnostics) and
   **Reading the registry**, where one adapter recognises each entry.
 - Inside that: **Entries with mfe** (`reactAdapter`) and **Entries without mfe**

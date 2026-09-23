@@ -452,7 +452,7 @@ async function layers() {
     y: 380,
     w: 250,
     h: 44,
-    name: '@company/mfe-host',
+    name: '@company/mfe-runtime',
     fill: FILL.none,
   })
   const core = file(scene, {
@@ -1285,7 +1285,7 @@ async function adapters() {
     w: 1290,
     h: 300,
     heading: 'The neutral host',
-    caption: '@company/mfe-host — no React, no router, no federation',
+    caption: '@company/mfe-runtime — no React, no router, no federation',
   })
 
   tile(scene, {

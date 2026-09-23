@@ -64,7 +64,7 @@ The **definition** is a side-effect-free record. The adapter therefore checks wh
 
 **In words.** Titled `layers`, under "The packages, which way the imports point, and who sees them." Twelve boxes in two regions.
 
-- **In the browser** ("an arrow points at what a package depends on"): `apps/shell` and `examples/operations` both point at `@company/mfe-react`. `@company/mfe-react` and `@company/mfe-legacy-angular` both point at `@company/mfe-host`, which points at `@company/mfe-core`.
+- **In the browser** ("an arrow points at what a package depends on"): `apps/shell` and `examples/operations` both point at `@company/mfe-react`. `@company/mfe-react` and `@company/mfe-legacy-angular` both point at `@company/mfe-runtime`, which points at `@company/mfe-core`.
 - A line under the graph names what sits beside it: `@company/create-mfe`, `@company/eslint-plugin-mfe`, `@company/mfe-devtools`.
 - **At build time** ("one entry in the container's `rsbuild.config.ts`"): `@company/mfe-rspack` (`pluginMfe()`), with one arrow **generates** into `#mfe/config`, `#mfe/fetch`, `#mfe/meta`, `.mfe/entries/` and `.mfe/styles.css`.
 - A green dot marks `examples/operations`, `@company/mfe-react`, `#mfe/config` and `#mfe/fetch`. The legend names the four colours and the dot.
@@ -74,7 +74,7 @@ An arrow in the picture points at what a package depends on. `pnpm boundaries` r
 | Package                       | What it owns                                                  | Depends on            | Never imports                                 |
 | ----------------------------- | ------------------------------------------------------------- | --------------------- | --------------------------------------------- |
 | `@company/mfe-core`           | Identity, errors, Widget contracts, telemetry types, records. | nothing               | React, a router, single-spa, federation       |
-| `@company/mfe-host`           | Registry, adapter selection, shell state, storage, commands.  | core                  | React, a router, single-spa, federation       |
+| `@company/mfe-runtime`        | Registry, adapter selection, shell state, storage, commands.  | core                  | React, a router, single-spa, federation       |
 | `@company/mfe-react`          | The author API, the router adapter, the loader.               | core, host            | single-spa, a vendor SDK, the developer tools |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                 | core, host            | React, a router, the React adapter            |
 | `@company/mfe-rspack`         | `pluginMfe()`: the generated modules, entries, stylesheet.    | core                  | —                                             |
@@ -95,13 +95,13 @@ The design rule is one sentence: every micro-frontend concern uses a mechanism T
 
 **In words.** Titled `adapters`, under "One neutral host; one adapter per framework." Twelve boxes, read top to bottom.
 
-- **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into **The neutral host** ("@company/mfe-host — no React, no router, no federation").
+- **The shell** (`apps/shell/src/boot.tsx`) sits at the top, with an arrow **registry.json** into **The neutral host** ("@company/mfe-runtime — no React, no router, no federation").
 - The host holds **Shared services** ("storage, commands, navigation bridge, diagnostics") and, under it, **Reading the registry** ("one adapter recognises each entry").
 - Inside that, **Entries with mfe** (`reactAdapter`) and **Entries without mfe** (`legacyAngularAdapter`).
 - An arrow **read by** drops from each of them to its adapter. **The React adapter** holds **Federation loader** (`createMf2ContainerLoader`), **App and Widget definitions** (`createApp, createWidget`) and **Boundary and style roots** (`createBoundaryHistory, StyleRoot`). **The legacy Angular adapter** ("removable") holds **Registry translation**, **Parcel lifecycle** (`mountRootParcel`) and **Base href, shell routes** (`resolveLegacyBaseHref, matchLegacyShellRoute`).
 - An arrow **loads, mounts** drops from each adapter to its blue container, `operations` and `asset-tracker`. The legend names the shell, a neutral package, an adapter package and a container.
 
-The host is neutral: `@company/mfe-core` and `@company/mfe-host` import no React, no router and no Module Federation. `@company/mfe-core` holds the `MfeAdapter` interface and the common `RegistryEntry` shape, and names no adapter. The host defines a `ContainerLoader` port and orchestrates loading through it, and an adapter supplies the implementation.
+The host is neutral: `@company/mfe-core` and `@company/mfe-runtime` import no React, no router and no Module Federation. `@company/mfe-core` holds the `MfeAdapter` interface and the common `RegistryEntry` shape, and names no adapter. The host defines a `ContainerLoader` port and orchestrates loading through it, and an adapter supplies the implementation.
 
 `readRegistry` is one pass, and each raw entry is offered to every registered adapter's `detect`. Exactly one adapter must recognise it. None and the entry is rejected as unrecognised, more than one and it is rejected as ambiguous with both adapters named. Order therefore means nothing: `reactAdapter` is always registered, and `createMfeRuntime({ adapters })` names the rest.
 

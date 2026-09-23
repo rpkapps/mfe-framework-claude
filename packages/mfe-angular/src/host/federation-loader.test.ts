@@ -1,5 +1,5 @@
 import { Component } from '@angular/core'
-import type { FederationRuntime } from '@company/mfe-host'
+import type { FederationRuntime } from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 

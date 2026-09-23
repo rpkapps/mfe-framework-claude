@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { CommandRegistration } from '@company/mfe-core'
-import type { CommandRegistrationHandle } from '@company/mfe-host'
+import type { CommandRegistrationHandle } from '@company/mfe-runtime'
 
 import { useOptionalMfeMount } from '../mount-context.tsx'
 import { useMfeRuntime } from '../runtime-context.tsx'

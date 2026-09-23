@@ -124,7 +124,7 @@ export {
   type FetchLike,
   type GetAccessToken,
   type ShellAuthOptions,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 /** What a shell reads to place a definition another adapter built, or to find its container. */
 export {
@@ -133,7 +133,7 @@ export {
   type FederatedRegistryEntry,
   type MountableDefinition,
   type MountContext,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
 export { AppMount, type AppMountProps } from './app-mount.tsx'

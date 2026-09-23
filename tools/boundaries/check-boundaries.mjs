@@ -25,7 +25,7 @@ const RULES = [
       'single-spa',
       '@module-federation/enhanced',
       '@module-federation/runtime',
-      '@company/mfe-host',
+      '@company/mfe-runtime',
       '@company/mfe-react',
       '@company/mfe-devtools',
       '@company/mfe-build',
@@ -41,7 +41,7 @@ const RULES = [
       'The neutral core cannot import a framework or router, carries no OTel or Faro dependency, and uses no general state-management library.',
   },
   {
-    package: '@company/mfe-host',
+    package: '@company/mfe-runtime',
     forbidden: [
       'react',
       'react-dom',
@@ -79,7 +79,7 @@ const RULES = [
       '@company/mfe-rspack',
       '@company/mfe-nx',
       '@company/mfe-devtools',
-      '@company/mfe-host',
+      '@company/mfe-runtime',
       '@tecton/react',
     ],
     reason:

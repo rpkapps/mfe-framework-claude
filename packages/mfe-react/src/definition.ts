@@ -25,7 +25,7 @@ import type {
   MountedApp,
   MountedWidget,
   WidgetMountTarget,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import type { AnyRouter } from '@tanstack/react-router'
 import type { ComponentType, ReactNode, SVGProps } from 'react'
 import type { z } from 'zod'

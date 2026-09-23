@@ -346,15 +346,15 @@ importers:
       '@company/mfe-devtools':
         specifier: workspace:*
         version: link:../../packages/mfe-devtools
-      '@company/mfe-host':
-        specifier: workspace:*
-        version: link:../../packages/mfe-host
       '@company/mfe-legacy-angular':
         specifier: workspace:*
         version: link:../../packages/mfe-legacy-angular
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mfe-runtime
       '@fontsource/figtree':
         specifier: ^5.2.8
         version: 5.3.0
@@ -994,9 +994,9 @@ importers:
       '@company/mfe-core':
         specifier: workspace:*
         version: link:../mfe-core
-      '@company/mfe-host':
+      '@company/mfe-runtime':
         specifier: workspace:*
-        version: link:../mfe-host
+        version: link:../mfe-runtime
     devDependencies:
       '@angular/common':
         specifier: 'catalog:'
@@ -1077,12 +1077,12 @@ importers:
       '@company/mfe-core':
         specifier: workspace:*
         version: link:../mfe-core
-      '@company/mfe-host':
-        specifier: workspace:*
-        version: link:../mfe-host
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../mfe-react
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../mfe-runtime
     devDependencies:
       '@tecton/react':
         specifier: link:../../../tecton-ui-1/packages/tecton-react
@@ -1130,30 +1130,14 @@ importers:
         specifier: 'catalog:'
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.19.2)(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
-  packages/mfe-host:
-    dependencies:
-      '@company/mfe-core':
-        specifier: workspace:*
-        version: link:../mfe-core
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.19.2)(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.5
-
   packages/mfe-legacy-angular:
     dependencies:
       '@company/mfe-core':
         specifier: workspace:*
         version: link:../mfe-core
-      '@company/mfe-host':
+      '@company/mfe-runtime':
         specifier: workspace:*
-        version: link:../mfe-host
+        version: link:../mfe-runtime
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -1188,9 +1172,9 @@ importers:
       '@company/mfe-core':
         specifier: workspace:*
         version: link:../mfe-core
-      '@company/mfe-host':
+      '@company/mfe-runtime':
         specifier: workspace:*
-        version: link:../mfe-host
+        version: link:../mfe-runtime
     devDependencies:
       '@module-federation/runtime':
         specifier: 'catalog:'
@@ -1287,6 +1271,22 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
 
+  packages/mfe-runtime:
+    dependencies:
+      '@company/mfe-core':
+        specifier: workspace:*
+        version: link:../mfe-core
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.19.2)(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0)(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+
   tools/interop:
     dependencies:
       '@angular/common':
@@ -1310,12 +1310,12 @@ importers:
       '@company/mfe-core':
         specifier: workspace:*
         version: link:../../packages/mfe-core
-      '@company/mfe-host':
-        specifier: workspace:*
-        version: link:../../packages/mfe-host
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mfe-runtime
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.103.1(react@19.3.0)

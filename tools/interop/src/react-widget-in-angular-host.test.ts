@@ -11,7 +11,7 @@ import {
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
-} from '@company/mfe-host'
+} from '@company/mfe-runtime'
 import { createWidget } from '@company/mfe-react'
 import { fireEvent, waitFor, within } from '@testing-library/react'
 import { createElement as h, useEffect, type ReactNode } from 'react'

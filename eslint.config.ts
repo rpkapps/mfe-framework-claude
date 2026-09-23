@@ -47,8 +47,8 @@ const config: Linter.Config[] = [
     // The storage adapter owns every read and write the framework makes, and the shell's
     // override bootstrap has to read localStorage before a store exists to read it through.
     storageAllowedScopes: [
-      'packages/mfe-host/src/storage/**',
-      'packages/mfe-host/src/overrides/**',
+      'packages/mfe-runtime/src/storage/**',
+      'packages/mfe-runtime/src/overrides/**',
       'apps/shell/src/boot.tsx',
       // The other end of the same bootstrap: the override key and the panel's own flag are
       // the page's, not any definition's, and are read before a store exists to read them.
