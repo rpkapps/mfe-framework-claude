@@ -57,6 +57,12 @@ export const FRAMEWORK_PACKAGE_VERSION = '^0.1.0'
 export const ANGULAR_ESLINT_VERSION = '22.5.0'
 /** Matches this repository's own `catalog:` pin, which `@angular-eslint/*` above accepts (`^9 || ^10`). */
 export const ESLINT_VERSION = '10.10.0'
+/**
+ * ESLint reads a TypeScript config — and `@company/eslint-plugin-mfe`'s TypeScript sources behind
+ * it — only through jiti, which it declares as an optional peer and never installs itself. Matches
+ * this repository's own `catalog:` pin; ESLint 10 needs 2.2 or later.
+ */
+export const JITI_VERSION = '2.7.0'
 
 /**
  * The Nx majors whose `@nx/angular` still builds Angular 19.2: 20.x peers the Angular builder

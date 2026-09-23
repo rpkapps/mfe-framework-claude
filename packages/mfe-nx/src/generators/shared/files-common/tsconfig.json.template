@@ -30,5 +30,16 @@
     "strictInputAccessModifiers": true,
     "strictTemplates": true
   },
-  "include": ["src/**/*.ts", ".mfe/**/*.ts", "vitest.setup.ts", "vitest.config.mts"]
+  // The tooling files are here as well as the sources: the lint config checks them with type
+  // information, and ESLint finds a file's program through the nearest tsconfig.json, which is this
+  // one. Nothing compiles or type-checks against this file itself; tsconfig.app.json and
+  // tsconfig.spec.json are the programs the build, the tests and the typecheck target use.
+  "include": [
+    "src/**/*.ts",
+    ".mfe/**/*.ts",
+    "vitest.setup.ts",
+    "vitest.config.mts",
+    "eslint.config.ts",
+    "webpack.config.ts"
+  ]
 }

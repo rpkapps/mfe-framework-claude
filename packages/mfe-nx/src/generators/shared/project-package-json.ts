@@ -17,6 +17,7 @@ import {
   ANGULAR_VERSION,
   ESLINT_VERSION,
   FRAMEWORK_PACKAGE_VERSION,
+  JITI_VERSION,
   JSDOM_VERSION,
   PRIMENG_THEMES_VERSION,
   PRIMENG_VERSION,
@@ -89,6 +90,8 @@ export function projectDependencies(nxAngularVersion: string): ProjectDependenci
       '@company/eslint-plugin-mfe': FRAMEWORK_PACKAGE_VERSION,
       '@nx/angular': nxAngularVersion,
       eslint: ESLINT_VERSION,
+      // How ESLint loads the generated eslint.config.ts.
+      jiti: JITI_VERSION,
       jsdom: JSDOM_VERSION,
       // The container stylesheet imports Tailwind's theme and utilities from here.
       tailwindcss: TAILWIND_VERSION,

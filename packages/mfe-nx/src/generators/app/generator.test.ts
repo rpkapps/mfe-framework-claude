@@ -93,6 +93,8 @@ describe('the app generator', () => {
     const pkg = readJson<ProjectManifest>(tree, 'apps/operations/package.json')
     expect(pkg.devDependencies['@company/eslint-plugin-mfe']).toBeDefined()
     expect(pkg.devDependencies['eslint']).toBeDefined()
+    // ESLint loads a TypeScript config only through jiti, an optional peer it never installs.
+    expect(pkg.devDependencies['jiti']).toBeDefined()
     expect(pkg.devDependencies['@angular-eslint/eslint-plugin']).toBeDefined()
     expect(pkg.devDependencies['@angular-eslint/eslint-plugin-template']).toBeDefined()
     expect(pkg.devDependencies['@angular-eslint/template-parser']).toBeDefined()
@@ -100,6 +102,28 @@ describe('the app generator', () => {
     const project = readProjectConfiguration(tree, 'operations')
     expect(commandOf(project, 'lint')).toBe('eslint .')
     expect(targetOf(project, 'lint').dependsOn).toContain('generate')
+  })
+
+  it('puts every file its lint config type-checks in the program ESLint finds for it', async () => {
+    await appGenerator(tree, { name: 'operations', skipFormat: true })
+
+    // ESLint's project service reads the nearest tsconfig.json; a file it does not include is a
+    // parsing error, not a lint result.
+    const { include } = readJson<{ include: readonly string[] }>(
+      tree,
+      'apps/operations/tsconfig.json',
+    )
+    expect(include).toEqual(
+      expect.arrayContaining([
+        'src/**/*.ts',
+        'eslint.config.ts',
+        'webpack.config.ts',
+        'vitest.config.mts',
+        'vitest.setup.ts',
+      ]),
+    )
+    const config = readTreeFile(tree, 'apps/operations/eslint.config.ts')
+    expect(config).toContain("files: [...mfe.DEFAULT_TOOLING_FILES, 'webpack.config.ts']")
   })
 
   it("creates a definition whose id, routes, root component and PrimeNG providers are the project's own", async () => {
