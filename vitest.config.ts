@@ -40,6 +40,15 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'angular',
+          root: './packages/mfe-angular',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts'],
+          setupFiles: ['./vitest.setup.ts'],
+        },
+      },
+      {
+        test: {
           name: 'react',
           root: './packages/mfe-react',
           environment: 'jsdom',
@@ -72,6 +81,14 @@ export default defineConfig({
         test: {
           name: 'build',
           root: './packages/mfe-build',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'mfe-nx',
+          root: './packages/mfe-nx',
           environment: 'node',
           include: ['src/**/*.test.ts'],
         },
