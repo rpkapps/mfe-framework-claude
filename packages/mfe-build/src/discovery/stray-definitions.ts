@@ -2,9 +2,10 @@
 
 import { readdirSync } from 'node:fs'
 import type { Dirent } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
+import { posixRelative } from '../generate/emit.ts'
 import { standaloneSources, type ContainerSources } from './sources.ts'
 import { callsTo, importedLocals, positionOf } from './ts-ast.ts'
 
@@ -52,7 +53,7 @@ export function findStrayDefinitions(
           line,
           column,
           operation: 'collect the definitions this container exports',
-          expected: `every definition to be declared in ${relative(sourceRoot, options.entryFile).split(sep).join('/')}`,
+          expected: `every definition to be declared in ${posixRelative(sourceRoot, options.entryFile)}`,
           observed: `${callee}(…) in another module`,
           declaredBy: 'Static discovery',
           repair:

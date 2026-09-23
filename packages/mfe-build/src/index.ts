@@ -21,7 +21,7 @@ export type {
 export { resolveContainerPath } from './options.ts'
 export type { ContainerOptions, ResolvedOptions } from './options.ts'
 
-export { createBuildError, isMfeBuildError, listNames, MfeBuildError } from './diagnostics.ts'
+export { createBuildError, isMfeBuildError, MfeBuildError } from './diagnostics.ts'
 export type { BuildDiagnosticDetails } from './diagnostics.ts'
 
 export { env } from './config/env.ts'
@@ -60,7 +60,6 @@ export {
   banner,
   generatedPath,
   joinBlocks,
-  jsonFile,
   quote,
   relativeSpecifier,
   writeGeneratedFiles,
@@ -78,7 +77,6 @@ export { buildFederationOptions, withFrameworkMetadata } from './federation/fede
 export type { FederationOptions } from './federation/federation-options.ts'
 export { installedVersionFrom } from './federation/installed-version.ts'
 export {
-  frameworkShareScope,
   PAGE_POLICY,
   PAGE_SHARE_SCOPE,
   PAGE_SINGLETON,
