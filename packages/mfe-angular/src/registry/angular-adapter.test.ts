@@ -112,7 +112,9 @@ describe('parse', () => {
   })
 
   it('gates a contract major the shell cannot load before reading the shape', () => {
-    const error = rejection(entry({ mfe: { contractMajor: 2, framework: 'angular' }, container: 1 }))
+    const error = rejection(
+      entry({ mfe: { contractMajor: 2, framework: 'angular' }, container: 1 }),
+    )
 
     expect(error.code).toBe('contract/unsupported-major')
     expect(error.message).toContain('Upgrade the shell')

@@ -119,7 +119,13 @@ function containerConfiguration(
     plugins: [
       ...(config.plugins ?? []),
       new MfeRspackPlugin(options),
-      new ModuleFederationPlugin(buildFederationOptions(plan)),
+      new ModuleFederationPlugin({
+        ...buildFederationOptions(plan),
+        // An ES-module build, which is what `@nx/angular-rspack` produces, puts `import.meta` in
+        // remoteEntry.js; that parses only as a module, so the entry is published as one and the
+        // manifest tells the shell's federation runtime to import() it.
+        ...(emitsModules(config) ? { library: { type: 'module' } } : {}),
+      }),
       new ContainerStylesheetPlugin(plan),
     ],
   }
@@ -216,6 +222,10 @@ class ContainerStylesheetPlugin implements RspackPluginInstance {
       ],
     })
   }
+}
+
+function emitsModules(config: Configuration): boolean {
+  return config.output?.module === true || config.experiments?.outputModule === true
 }
 
 function isPromiseLike<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {

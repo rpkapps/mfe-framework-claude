@@ -50,6 +50,7 @@ export class DefinitionSlot<M extends Disposable> {
   readonly #container: HTMLElement
   readonly #onFailed: (error: MfeError) => void
   readonly #status = signal<SlotStatus>('loading')
+  readonly status: Signal<SlotStatus> = this.#status.asReadonly()
   #generation = 0
   #current: Attempt<M> | null = null
 
@@ -61,10 +62,6 @@ export class DefinitionSlot<M extends Disposable> {
     this.#runtime = runtime
     this.#container = container
     this.#onFailed = onFailed
-  }
-
-  get status(): Signal<SlotStatus> {
-    return this.#status.asReadonly()
   }
 
   /** The live mount, once there is one. */

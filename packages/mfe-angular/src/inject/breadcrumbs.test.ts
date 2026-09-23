@@ -25,10 +25,10 @@ function labels(items: readonly BreadcrumbItem[]): readonly string[] {
   return items.map(item => item.label)
 }
 
-async function contribute(
+function contribute(
   parent: EnvironmentInjector,
   items: () => readonly BreadcrumbItem[],
-): Promise<EnvironmentInjector> {
+): EnvironmentInjector {
   const scope = createEnvironmentInjector([], parent)
   runInInjectionContext(scope, () => {
     injectBreadcrumbs(items)
@@ -38,11 +38,14 @@ async function contribute(
 
 describe('injectBreadcrumbs', () => {
   it('overrides only the App’s own crumbs inside a mount, and an empty list means no override', async () => {
-    const app = await mountApp(ordersApp, { basePath: '/orders', initialEntries: ['/orders/history'] })
+    const app = await mountApp(ordersApp, {
+      basePath: '/orders',
+      initialEntries: ['/orders/history'],
+    })
     const { breadcrumbs } = app.environment.runtime
     const steps = signal<readonly BreadcrumbItem[]>([])
 
-    const flow = await contribute(app.injector, steps)
+    const flow = contribute(app.injector, steps)
     await app.whenStable()
     expect(labels(breadcrumbs.getSnapshot())).toEqual(['History'])
 
@@ -69,7 +72,7 @@ describe('injectBreadcrumbs', () => {
     const app = await mountApp(ordersApp, { environment, basePath: '/orders' })
     const trail = signal<readonly BreadcrumbItem[]>([{ key: 'home', label: 'Home' }])
 
-    const chrome = await contribute(appRef.injector, trail)
+    const chrome = contribute(appRef.injector, trail)
     await appRef.whenStable()
     const { breadcrumbs } = environment.runtime
     expect(labels(breadcrumbs.getSnapshot())).toEqual(['Home', 'History'])

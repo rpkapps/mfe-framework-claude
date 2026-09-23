@@ -30,7 +30,7 @@ function humanize(segment: string): string {
  */
 function routeDataOf(route: ActivatedRouteSnapshot): MfeRouteData | undefined {
   const data: unknown = route.routeConfig?.data?.[MFE_ROUTE_DATA]
-  return data !== null && typeof data === 'object' ? (data as MfeRouteData) : undefined
+  return data !== null && typeof data === 'object' ? data : undefined
 }
 
 function resolveLabel(route: ActivatedRouteSnapshot, path: string): string | null {
@@ -113,7 +113,9 @@ export function contributeBreadcrumbs(
       const path = event.urlAfterRedirects.split(/[?#]/, 1)[0] ?? ''
       if (lastPath !== null && lastPath !== path) breadcrumbs.notifyNavigation(context.mountToken)
       lastPath = path
-      contribution.update(breadcrumbsFromSnapshot(router.routerState.snapshot.root, context.basePath))
+      contribution.update(
+        breadcrumbsFromSnapshot(router.routerState.snapshot.root, context.basePath),
+      )
     })
 
   return () => {

@@ -60,7 +60,12 @@ describe('the registry selectors', () => {
       widgets: injectWidgets(),
     }))
 
-    expect(views.all().map(item => item.id)).toEqual(['reports', 'admin', 'alert-panel', 'secret-widget'])
+    expect(views.all().map(item => item.id)).toEqual([
+      'reports',
+      'admin',
+      'alert-panel',
+      'secret-widget',
+    ])
     expect(views.apps().map(item => item.id)).toEqual(['reports'])
     expect(views.widgets().map(item => item.id)).toEqual(['alert-panel'])
     expect(views.apps()).toBe(views.apps())

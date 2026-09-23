@@ -10,11 +10,19 @@ import {
 } from '@angular/router'
 import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
 import { createApp } from '../definition.ts'
+import { injectCommand } from '../inject/command.ts'
 import { injectNavigationBlock, type NavigationBlock } from '../inject/navigation-block.ts'
+import { injectTheme } from '../inject/shell-state.ts'
+import { injectStoredState } from '../inject/stored-state.ts'
 import { mfeRouteData } from '../routing/route-data.ts'
-import { mountApp, type MountedTestDefinition } from '../testing/index.ts'
+import {
+  createMfeTestEnvironment,
+  mountApp,
+  type MountedTestDefinition,
+} from '../testing/index.ts'
 
 @Component({ selector: 'test-overview', template: '<h1>overview</h1>' })
 class OverviewComponent {}
@@ -122,6 +130,56 @@ describe('mounting an App', () => {
     expect(runtime.navigator.blockerCount).toBe(0)
     expect(runtime.breadcrumbs.contributionCount).toBe(0)
   })
+
+  it('gives two mounts of one App their own router, base path and history position', async () => {
+    const environment = createMfeTestEnvironment({ initialEntries: ['/left/reports/1'] })
+    const left = await mountApp(reportsApp, { environment, basePath: '/left' })
+    const right = await mountApp(reportsApp, { environment, basePath: '/right' })
+
+    expect(left.injector.get(Router)).not.toBe(right.injector.get(Router))
+    expect(heading(left)).toBe('report 1')
+    expect(right.injector.get(Location).path()).toBe('/left/reports/1')
+
+    await left.dispose()
+    await right.injector.get(Router).navigateByUrl('/reports/2')
+    await right.whenStable()
+
+    expect(heading(right)).toBe('report 2')
+    expect(environment.navigation.entries.at(-1)).toBe('/right/reports/2')
+    await right.dispose()
+    environment.dispose()
+  })
+
+  it('leaves nothing behind after mounting and disposing, whatever the App registered', async () => {
+    @Component({ selector: 'test-busy', template: '<h1>{{ theme() }}</h1>' })
+    class BusyComponent {
+      readonly theme = injectTheme()
+      constructor() {
+        injectCommand({ name: 'refresh', label: 'Refresh', execute: () => undefined })
+        injectNavigationBlock(false)
+        injectStoredState('density', z.enum(['compact', 'comfortable']), {
+          defaultValue: 'compact',
+        })
+      }
+    }
+    const busyApp = createApp({ id: 'busy', routes: [{ path: '', component: BusyComponent }] })
+    const environment = createMfeTestEnvironment()
+    const { runtime } = environment
+
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      const app = await mountApp(busyApp, { environment, basePath: '/busy' })
+      expect(heading(app)).toBe('light')
+      await app.dispose()
+    }
+
+    expect(runtime.commands.size).toBe(0)
+    expect(runtime.navigator.blockerCount).toBe(0)
+    expect(runtime.breadcrumbs.contributionCount).toBe(0)
+    expect(runtime.shellState.fieldListenerCount('theme')).toBe(0)
+    expect(document.querySelectorAll('[data-mfe-overlay-root]')).toHaveLength(0)
+    expect(document.body.childElementCount).toBe(0)
+    environment.dispose()
+  })
 })
 
 describe('an App’s breadcrumbs', () => {
@@ -146,20 +204,33 @@ describe('an App’s breadcrumbs', () => {
   const crumbsApp = createApp({ id: 'crumbs', routes: crumbRoutes })
 
   async function trailAt(path: string): Promise<readonly unknown[]> {
-    const app = await mountApp(crumbsApp, { basePath: '/crumbs', initialEntries: [`/crumbs${path}`] })
+    const app = await mountApp(crumbsApp, {
+      basePath: '/crumbs',
+      initialEntries: [`/crumbs${path}`],
+    })
     return app.environment.runtime.breadcrumbs.getSnapshot()
   }
 
   it('names each level from its route data, its title or its path, deepest current', async () => {
     expect(await trailAt('/asset-reports/42')).toEqual([
       { key: '/crumbs/asset-reports', label: 'Asset reports', href: '/crumbs/asset-reports' },
-      { key: '/crumbs/asset-reports/42', label: '42', href: '/crumbs/asset-reports/42', current: true },
+      {
+        key: '/crumbs/asset-reports/42',
+        label: '42',
+        href: '/crumbs/asset-reports/42',
+        current: true,
+      },
     ])
     expect(await trailAt('/titled')).toEqual([
       { key: '/crumbs/titled', label: 'A titled page', href: '/crumbs/titled', current: true },
     ])
     expect(await trailAt('/daily-summary')).toEqual([
-      { key: '/crumbs/daily-summary', label: 'Daily summary', href: '/crumbs/daily-summary', current: true },
+      {
+        key: '/crumbs/daily-summary',
+        label: 'Daily summary',
+        href: '/crumbs/daily-summary',
+        current: true,
+      },
     ])
   })
 
@@ -170,7 +241,10 @@ describe('an App’s breadcrumbs', () => {
   })
 
   it('clears an override a flow installed once the App navigates to another path', async () => {
-    const app = await mountApp(crumbsApp, { basePath: '/crumbs', initialEntries: ['/crumbs/titled'] })
+    const app = await mountApp(crumbsApp, {
+      basePath: '/crumbs',
+      initialEntries: ['/crumbs/titled'],
+    })
     const { breadcrumbs } = app.environment.runtime
     const [mountToken] = [...document.querySelectorAll('[data-mfe-mount]')].map(element =>
       element.getAttribute('data-mfe-mount'),
@@ -197,7 +271,12 @@ describe('an App’s guards and the host’s navigations', () => {
   let answer: ((allowed: boolean | ReturnType<Router['parseUrl']>) => void) | null = null
   const asked: { component: unknown; nextUrl: string }[] = []
 
-  const confirmLeave: CanDeactivateFn<EditorComponent> = (component, _route, _current, next: RouterStateSnapshot) => {
+  const confirmLeave: CanDeactivateFn<EditorComponent> = (
+    component,
+    _route,
+    _current,
+    next: RouterStateSnapshot,
+  ) => {
     asked.push({ component, nextUrl: next.url })
     return new Promise(resolve => {
       answer = resolve
@@ -305,12 +384,12 @@ describe('an App’s guards and the host’s navigations', () => {
   })
 
   it('asks the App’s injectNavigationBlock blockers through the one delegate, after its guards', async () => {
-    let block: NavigationBlock | null = null
+    const captured: { block: NavigationBlock | null } = { block: null }
 
     @Component({ selector: 'test-draft', template: '<h1>draft</h1>' })
     class DraftComponent {
       constructor() {
-        block = injectNavigationBlock(intent => intent.leavesBoundary)
+        captured.block = injectNavigationBlock(intent => intent.leavesBoundary)
       }
     }
     const draftApp = createApp({ id: 'drafts', routes: [{ path: '', component: DraftComponent }] })
@@ -318,13 +397,16 @@ describe('an App’s guards and the host’s navigations', () => {
     const { navigator } = app.environment.runtime
     expect(navigator.blockerCount).toBe(1)
 
-    const outcome = navigator.requestNavigation(intentTo(app, '/elsewhere', '/drafts'), () => undefined)
+    const outcome = navigator.requestNavigation(
+      intentTo(app, '/elsewhere', '/drafts'),
+      () => undefined,
+    )
     await new Promise(resolve => setTimeout(resolve, 0))
-    expect(block?.pending()?.to.pathname).toBe('/elsewhere')
+    expect(captured.block?.pending()?.to.pathname).toBe('/elsewhere')
 
-    block?.stay()
+    captured.block?.stay()
 
     await expect(outcome).resolves.toBe('blocked')
-    expect(block?.pending()).toBeNull()
+    expect(captured.block?.pending()).toBeNull()
   })
 })

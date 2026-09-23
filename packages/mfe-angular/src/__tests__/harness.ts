@@ -55,7 +55,10 @@ export async function renderInHost<T>(
     element.remove()
   })
 
-  const ref = createComponent(component, { environmentInjector: appRef.injector, hostElement: element })
+  const ref = createComponent(component, {
+    environmentInjector: appRef.injector,
+    hostElement: element,
+  })
   setup(ref.instance)
   appRef.attachView(ref.hostView)
   await appRef.whenStable()

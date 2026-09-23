@@ -69,7 +69,11 @@ describe('injectStoredState', () => {
     const environment = createMfeTestEnvironment()
     const appRef = await createHostApplication(environment)
     const { storage } = environment.runtime
-    const held = storage.bindHost({ name: 'density', schema: densitySchema, defaultValue: 'compact' as const })
+    const held = storage.bindHost({
+      name: 'density',
+      schema: densitySchema,
+      defaultValue: 'compact' as const,
+    })
     const chrome = createEnvironmentInjector([], appRef.injector)
     runInInjectionContext(chrome, () =>
       injectStoredState('density', densitySchema, { defaultValue: 'compact' }),
@@ -81,7 +85,9 @@ describe('injectStoredState', () => {
     held.release()
 
     expect(() =>
-      storage.bindHost({ name: 'density', schema: densitySchema, defaultValue: 'comfortable' as const }).release(),
+      storage
+        .bindHost({ name: 'density', schema: densitySchema, defaultValue: 'comfortable' as const })
+        .release(),
     ).not.toThrow()
     environment.dispose()
   })

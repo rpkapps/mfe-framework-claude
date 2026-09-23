@@ -19,9 +19,10 @@ const alertWidget = createWidget({
 
 describe('createMf2ContainerLoader', () => {
   it('loads an Angular definition from the expose path its entry names, registering once', async () => {
+    const loadRemote = vi.fn((_id: string): Promise<unknown> => Promise.resolve({ alertWidget }))
     const federation: FederationRuntime = {
       registerRemotes: vi.fn(),
-      loadRemote: vi.fn(<T,>() => Promise.resolve({ alertWidget } as T)),
+      loadRemote: <T>(id: string) => loadRemote(id) as Promise<T | null>,
     }
     const loader = createMf2ContainerLoader({ runtime: federation })
     const entry = angularAdapter.parse({
@@ -38,7 +39,7 @@ describe('createMf2ContainerLoader', () => {
 
     expect(first.module).toBe(alertWidget)
     expect(first.identity).toEqual({ id: 'alert-panel', kind: 'widget' })
-    expect(federation.loadRemote).toHaveBeenCalledWith('example_alerts/widgets/alert-panel')
+    expect(loadRemote).toHaveBeenCalledWith('example_alerts/widgets/alert-panel')
     expect(federation.registerRemotes).toHaveBeenCalledOnce()
   })
 })

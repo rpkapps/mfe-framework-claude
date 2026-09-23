@@ -72,8 +72,10 @@ export interface AppDefinition extends MountableAppDefinition {
   mount(target: AppMountTarget): Promise<AngularMountedApp>
 }
 
-export interface WidgetOptions<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>
-  extends PresentationOptions {
+export interface WidgetOptions<
+  Inputs extends z.ZodType,
+  Events extends Record<string, z.ZodType>,
+> extends PresentationOptions {
   readonly id: string
   readonly version?: string
   readonly inputs: Inputs
@@ -160,7 +162,8 @@ export function isAngularDefinition(value: unknown): value is MfeDefinition {
 function describeOption(value: unknown): string {
   if (value === undefined) return 'nothing'
   if (value === null) return 'null'
-  return `a ${typeof value}`
+  if (Array.isArray(value)) return 'an array'
+  return typeof value === 'object' ? 'an object' : `a ${typeof value}`
 }
 
 function assertValidId(id: unknown, operation: string): asserts id is string {
@@ -190,7 +193,8 @@ function assertComponent(id: string, component: unknown, kind: 'App' | 'Widget')
 
 function providersOf(id: string, providers: AngularProviders | undefined): AngularProviders {
   if (providers === undefined) return []
-  if (Array.isArray(providers)) return providers
+  const declared: unknown = providers
+  if (Array.isArray(declared)) return providers
   throw createMfeError({
     code: 'mount/failure',
     id,

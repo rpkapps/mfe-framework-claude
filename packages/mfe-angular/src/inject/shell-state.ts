@@ -13,7 +13,10 @@ import { injectMfeRuntime } from './runtime.ts'
 export function injectUser(): Signal<ShellUser | null> {
   assertInInjectionContext(injectUser)
   const { shellState } = injectMfeRuntime('injectUser()')
-  return signalFromStore(listener => shellState.subscribeToField('user', listener), shellState.getUser)
+  return signalFromStore(
+    listener => shellState.subscribeToField('user', listener),
+    shellState.getUser,
+  )
 }
 
 export function injectGroups(): Signal<readonly string[]> {

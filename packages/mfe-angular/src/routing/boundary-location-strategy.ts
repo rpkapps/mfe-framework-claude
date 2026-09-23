@@ -34,7 +34,8 @@ export class BoundaryLocationStrategy extends LocationStrategy {
   /** The App's root is the boundary itself, so `/` maps to `/reports`, never `/reports/`. */
   override prepareExternalUrl(internal: string): string {
     const base = Location.stripTrailingSlash(this.#baseHref)
-    if (base !== '' && /^\/?(?:[?#]|$)/.test(internal)) return `${base}${internal.replace(/^\//, '')}`
+    if (base !== '' && /^\/?(?:[?#]|$)/.test(internal))
+      return `${base}${internal.replace(/^\//, '')}`
     return Location.joinWithSlash(base === '' ? '/' : base, internal)
   }
 

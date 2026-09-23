@@ -24,7 +24,12 @@ describe('createApp', () => {
     const app = createApp({ id: 'reports', version: '1.2.0', routes })
 
     expect(app[DEFINITION_BRAND]).toBe(true)
-    expect(app).toMatchObject({ kind: 'app', framework: 'angular', id: 'reports', version: '1.2.0' })
+    expect(app).toMatchObject({
+      kind: 'app',
+      framework: 'angular',
+      id: 'reports',
+      version: '1.2.0',
+    })
     expect(app.routes).toBe(routes)
     expect(app.contributesBreadcrumbs).toBe(true)
     expect(isBrandedDefinition(app)).toBe(true)
@@ -54,9 +59,9 @@ describe('createApp', () => {
   })
 
   it('rejects routes that are not an array, naming what arrived', () => {
-    expect(() =>
-      createApp({ id: 'reports', routes: undefined as unknown as Routes }),
-    ).toThrowError(/expected an array of Angular routes, received nothing/)
+    expect(() => createApp({ id: 'reports', routes: undefined as unknown as Routes })).toThrowError(
+      /expected an array of Angular routes, received nothing/,
+    )
   })
 
   it('rejects a root component that is not a class', () => {
@@ -102,7 +107,9 @@ describe('createWidget', () => {
         ...contract,
         component: undefined as unknown as typeof BadgeComponent,
       }),
-    ).toThrowError(/badge failed to create Widget definition: expected a standalone component class, received nothing/)
+    ).toThrowError(
+      /badge failed to create Widget definition: expected a standalone component class, received nothing/,
+    )
   })
 
   it('rejects providers that are not an array', () => {
@@ -113,7 +120,7 @@ describe('createWidget', () => {
         component: BadgeComponent,
         providers: {} as unknown as [],
       }),
-    ).toThrowError(/expected an array of providers, received a object/)
+    ).toThrowError(/expected an array of providers, received an object/)
   })
 })
 

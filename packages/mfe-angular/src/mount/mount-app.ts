@@ -6,12 +6,7 @@
  */
 
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
-import {
-  createComponent,
-  DestroyRef,
-  inject,
-  type EnvironmentInjector,
-} from '@angular/core'
+import { createComponent, DestroyRef, inject, type EnvironmentInjector } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
 import { provideRouter, Router, withDisabledInitialNavigation } from '@angular/router'
 import { toMfeError } from '@company/mfe-core'
@@ -83,7 +78,10 @@ export async function mountApp(
   const { injector } = appRef
   const hostElement = createHostElement(target.element)
   const rendered = errors.capture(() => {
-    const ref = createComponent(definition.component, { environmentInjector: injector, hostElement })
+    const ref = createComponent(definition.component, {
+      environmentInjector: injector,
+      hostElement,
+    })
     appRef.attachView(ref.hostView)
     appRef.tick()
   })

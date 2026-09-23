@@ -84,12 +84,16 @@ describe('injectNavigationBlock in a Widget', () => {
 
   it('is asked per navigation by a predicate, and follows a signal’s current value', async () => {
     const leaving = await blockingWidget(intent => intent.to.pathname.startsWith('/admin'))
-    await expect(request(leaving.navigator, '/orders/2', () => undefined)).resolves.toBe('proceeded')
+    await expect(request(leaving.navigator, '/orders/2', () => undefined)).resolves.toBe(
+      'proceeded',
+    )
     await leaving.widget.dispose()
 
     const dirty = signal(false)
     const tracked = await blockingWidget(dirty)
-    await expect(request(tracked.navigator, '/elsewhere', () => undefined)).resolves.toBe('proceeded')
+    await expect(request(tracked.navigator, '/elsewhere', () => undefined)).resolves.toBe(
+      'proceeded',
+    )
     dirty.set(true)
     const outcome = request(tracked.navigator, '/elsewhere', () => undefined)
     await Promise.resolve()
@@ -129,7 +133,9 @@ describe('injectNavigationBlock in a Widget', () => {
 
     expect(() =>
       runInInjectionContext(appRef.injector, () => injectNavigationBlock(true)),
-    ).toThrowError(/failed to call injectNavigationBlock\(\): expected a component or service created inside an App or Widget mount/)
+    ).toThrowError(
+      /failed to call injectNavigationBlock\(\): expected a component or service created inside an App or Widget mount/,
+    )
     environment.dispose()
   })
 })

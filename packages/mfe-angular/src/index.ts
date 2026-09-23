@@ -156,9 +156,4 @@ export {
 } from '@company/mfe-core'
 
 /** Re-exported from the core because a host depends on this package, not on the core. */
-export {
-  HOST_SCOPE,
-  type CapabilityName,
-  type IconData,
-  type IconNode,
-} from '@company/mfe-core'
+export { HOST_SCOPE, type CapabilityName, type IconData, type IconNode } from '@company/mfe-core'

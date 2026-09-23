@@ -1,9 +1,4 @@
-import {
-  Component,
-  createEnvironmentInjector,
-  runInInjectionContext,
-  signal,
-} from '@angular/core'
+import { Component, createEnvironmentInjector, runInInjectionContext, signal } from '@angular/core'
 import { allow, deny } from '@company/mfe-core'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -69,7 +64,10 @@ describe('injectCommand', () => {
     })
     await appRef.whenStable()
     const { commands } = environment.runtime
-    expect(commands.getSnapshot()[0]?.decision).toEqual({ allowed: false, reason: 'Nothing selected' })
+    expect(commands.getSnapshot()[0]?.decision).toEqual({
+      allowed: false,
+      reason: 'Nothing selected',
+    })
 
     canExport.set(true)
     await appRef.whenStable()

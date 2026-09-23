@@ -67,9 +67,13 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   /** The inputs the mounted Widget was last given. */
   #delivered: Readonly<Record<string, unknown>> = {}
 
-  protected readonly slot = new DefinitionSlot<MountedWidget>(this.#runtime, this.#element, error => {
-    this.failed.emit(error)
-  })
+  protected readonly slot = new DefinitionSlot<MountedWidget>(
+    this.#runtime,
+    this.#element,
+    error => {
+      this.failed.emit(error)
+    },
+  )
 
   ngOnChanges(changes: SimpleChanges): void {
     // A different Widget replaces the mount rather than feeding it another Widget's inputs.

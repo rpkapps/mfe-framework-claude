@@ -160,7 +160,7 @@ describe('mounting a Widget', () => {
     @Component({ selector: 'test-nested-emitter', template: '' })
     class NestedEmitterComponent {
       constructor() {
-        emitFromChild = injectWidgetEmit() as (event: string, payload: unknown) => void
+        emitFromChild = injectWidgetEmit()
       }
     }
 
@@ -239,7 +239,12 @@ describe('mounting a Widget', () => {
         seen = { id: injectMfeMount().definitionId, basePath: injectBasePath() }
       }
     }
-    const probe = createWidget({ id: 'probe', inputs: z.object({}), events: {}, component: ProbeComponent })
+    const probe = createWidget({
+      id: 'probe',
+      inputs: z.object({}),
+      events: {},
+      component: ProbeComponent,
+    })
 
     await mountWidget(probe)
 
@@ -336,7 +341,12 @@ describe('mounting a Widget', () => {
           throw new Error('handler failed')
         }
       }
-      const faulty = createWidget({ id: 'faulty', inputs: z.object({}), events: {}, component: FaultyComponent })
+      const faulty = createWidget({
+        id: 'faulty',
+        inputs: z.object({}),
+        events: {},
+        component: FaultyComponent,
+      })
       const widget = await mountWidget(faulty)
 
       button(widget.element).click()
@@ -367,7 +377,9 @@ describe('mounting a Widget', () => {
       })
       await handle.dispose()
 
-      await expect(mounting).rejects.toThrowError(/the mount was disposed before it finished mounting/)
+      await expect(mounting).rejects.toThrowError(
+        /the mount was disposed before it finished mounting/,
+      )
       expect(element.childElementCount).toBe(0)
       element.remove()
       environment.dispose()

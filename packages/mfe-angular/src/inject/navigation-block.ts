@@ -23,9 +23,7 @@ import { injectMfeMount } from './runtime.ts'
 
 /** Decides, per navigation, whether this mount wants to be asked; read at negotiation time. */
 export type ShouldBlockNavigation =
-  | boolean
-  | Signal<boolean>
-  | ((intent: NavigationIntent) => boolean)
+  boolean | Signal<boolean> | ((intent: NavigationIntent) => boolean)
 
 export interface NavigationBlockOptions {
   /**

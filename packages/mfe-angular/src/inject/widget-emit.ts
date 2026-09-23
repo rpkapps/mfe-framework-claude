@@ -5,11 +5,7 @@
  */
 
 import { assertInInjectionContext, inject } from '@angular/core'
-import {
-  createMfeError,
-  type ContractEvents,
-  type WidgetContract,
-} from '@company/mfe-core'
+import { createMfeError, type ContractEvents, type WidgetContract } from '@company/mfe-core'
 
 import { WIDGET_EMIT } from './tokens.ts'
 

@@ -1,4 +1,9 @@
-import { Component, computed, createEnvironmentInjector, runInInjectionContext } from '@angular/core'
+import {
+  Component,
+  computed,
+  createEnvironmentInjector,
+  runInInjectionContext,
+} from '@angular/core'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 

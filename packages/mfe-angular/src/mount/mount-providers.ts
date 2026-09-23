@@ -34,9 +34,12 @@ export class MountErrorHandler implements ErrorHandler {
       return
     }
 
-    this.#context.runtime.diagnostics.report(this.toMountError(error, 'run the mounted application'), {
-      context: { mount: this.#context.definitionId },
-    })
+    this.#context.runtime.diagnostics.report(
+      this.toMountError(error, 'run the mounted application'),
+      {
+        context: { mount: this.#context.definitionId },
+      },
+    )
   }
 
   /**

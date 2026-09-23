@@ -57,7 +57,7 @@ export function provideMfeNavigationBlockers(): Provider {
  * A mount torn down mid-negotiation never answers, so the host would wait forever and refuse
  * every later navigation as "already negotiating".
  */
-export function whenDisposed(mount: AbortSignal, until: AbortSignal): Promise<'proceed'> {
+function whenDisposed(mount: AbortSignal, until: AbortSignal): Promise<'proceed'> {
   return new Promise(resolve => {
     if (mount.aborted) {
       resolve('proceed')
@@ -238,13 +238,15 @@ export function registerAppNavigationBlocker({
       blockers.list().some(blocker => blocker.shouldBlock(intent)),
 
     // A guard cannot answer synchronously, so only blockers that asked for the prompt get it.
-    shouldBlockUnload: () =>
-      blockers.list().some(blocker => blocker.shouldBlockUnload?.() ?? true),
+    shouldBlockUnload: () => blockers.list().some(blocker => blocker.shouldBlockUnload?.() ?? true),
 
     confirm: async intent => {
       const answered = new AbortController()
       try {
-        return await Promise.race([askEveryone(intent), whenDisposed(context.signal, answered.signal)])
+        return await Promise.race([
+          askEveryone(intent),
+          whenDisposed(context.signal, answered.signal),
+        ])
       } finally {
         answered.abort()
       }

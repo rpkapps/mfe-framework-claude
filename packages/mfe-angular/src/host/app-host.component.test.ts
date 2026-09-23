@@ -40,7 +40,12 @@ const parentApp = createApp({
 @Component({ selector: 'test-noop', template: '' })
 class NoopComponent {}
 
-const notAnApp = createWidget({ id: 'not-an-app', inputs: z.object({}), events: {}, component: NoopComponent })
+const notAnApp = createWidget({
+  id: 'not-an-app',
+  inputs: z.object({}),
+  events: {},
+  component: NoopComponent,
+})
 
 function foreignApp(id: string) {
   const calls = { targets: [] as AppMountTarget[], disposals: 0 }

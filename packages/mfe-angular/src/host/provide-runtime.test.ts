@@ -43,7 +43,8 @@ describe('createMfeRuntime', () => {
   it('reads another framework’s entries through an adapter the host adds', () => {
     const otherFramework: MfeAdapter = {
       kind: 'react',
-      detect: raw => typeof raw === 'object' && raw !== null && (raw as { id?: unknown }).id === 'orders',
+      detect: raw =>
+        typeof raw === 'object' && raw !== null && (raw as { id?: unknown }).id === 'orders',
       parse: () => ({
         id: 'orders',
         definitionKind: 'app',

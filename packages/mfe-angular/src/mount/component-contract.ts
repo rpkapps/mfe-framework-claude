@@ -42,7 +42,8 @@ export function readComponentContract(definition: WidgetDefinition): ComponentCo
     throw fail({
       expected: 'a standalone component class',
       observed: `${componentName}, which Angular does not recognise as a component`,
-      repair: 'Pass the class decorated with @Component as `component`, not an instance or a module.',
+      repair:
+        'Pass the class decorated with @Component as `component`, not an instance or a module.',
     })
   }
 

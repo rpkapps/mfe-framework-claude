@@ -64,7 +64,14 @@ describe('<mfe-definition-icon>', () => {
       viewBox: '0 0 16 16',
       node: [
         ['script', { src: 'https://evil.example/x.js' }],
-        ['g', {}, [['foreignObject', {}], ['circle', { r: '2' }]]],
+        [
+          'g',
+          {},
+          [
+            ['foreignObject', {}],
+            ['circle', { r: '2' }],
+          ],
+        ],
       ],
     })
 
@@ -76,7 +83,9 @@ describe('<mfe-definition-icon>', () => {
   it('drops attributes that would run or fetch something, and names the DOM would refuse', async () => {
     const svg = await draw({
       viewBox: '0 0 16 16',
-      node: [['path', { d: 'M0 0', onload: 'alert(1)', href: 'javascript:alert(1)', 'bad name': 'x' }]],
+      node: [
+        ['path', { d: 'M0 0', onload: 'alert(1)', href: 'javascript:alert(1)', 'bad name': 'x' }],
+      ],
     })
 
     const path = svg.querySelector('path')
