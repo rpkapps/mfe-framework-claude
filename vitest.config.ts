@@ -123,6 +123,15 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
         },
       },
+      {
+        test: {
+          name: 'interop',
+          root: './tools/interop',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts'],
+          setupFiles: ['./vitest.setup.ts'],
+        },
+      },
     ],
   },
 })
