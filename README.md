@@ -303,8 +303,11 @@ Everything above works on Windows. Two things to know:
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@company/mfe-core`           | Neutral contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or federation dependency.                                                                                                                         |
 | `@company/mfe-runtime`        | Neutral orchestration: reading the registry through the adapter interface, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. `MountController`, the neutral mount controller no shipped adapter uses, is here too. No React, router, single-spa or federation dependency. |
-| `@company/mfe-react`          | The author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                                                                                        |
-| `@company/mfe-rspack`         | `pluginMfe()`: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                                                                                        |
+| `@company/mfe-react`          | The React adapter: the author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                                                                     |
+| `@company/mfe-angular`        | The Angular adapter: the author and host surface, zoneless, UI-library agnostic.                                                                                                                                                                                                                            |
+| `@company/mfe-build`          | The neutral build layer shared by every build integration: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                                            |
+| `@company/mfe-rspack`         | `pluginMfe()`: the Rspack integration built on `@company/mfe-build`.                                                                                                                                                                                                                                        |
+| `@company/mfe-nx`             | Nx generators that scaffold an Angular container, built on `@company/mfe-build`.                                                                                                                                                                                                                            |
 | `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                                                                                 |
 | `@company/mfe-legacy-angular` | The removable legacy adapter.                                                                                                                                                                                                                                                                               |
 | `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules. Development-only.                                                                                                                                                                                                                                               |
@@ -315,23 +318,24 @@ source imports and package manifests, so a forbidden dependency cannot be added
 by editing a manifest alone.
 
 ```
-              mfe-core
-              ^      ^
-              |      |
-     mfe-rspack     mfe-runtime
-                    ^      ^
-                    |      |
-              mfe-react   mfe-legacy-angular
-                    ^
-                    |
-              mfe-devtools
+                        mfe-core
+                        ^      ^
+                        |      |
+              mfe-build        mfe-runtime
+              ^      ^          ^    ^    ^
+              |      |          |    |    |
+    mfe-rspack    mfe-nx   mfe-react  mfe-angular  mfe-legacy-angular
+                                ^
+                                |
+                          mfe-devtools
 ```
 
-Each arrow is a manifest dependency. `mfe-react`, `mfe-legacy-angular` and
-`mfe-devtools` also name `@company/mfe-core` directly, and `mfe-devtools` also
-names `@company/mfe-runtime`; only the longest edge is drawn. `@company/create-mfe`
-appears in neither direction: it writes files and depends on no framework
-package, and `@company/eslint-plugin-mfe` is development-only.
+Each arrow is a manifest dependency. `mfe-react`, `mfe-angular`,
+`mfe-legacy-angular` and `mfe-rspack` also name `@company/mfe-core` directly,
+and `mfe-devtools` also names `@company/mfe-runtime`; only the longest edge is
+drawn. `@company/create-mfe` appears in neither direction: it writes files and
+depends on no framework package, and `@company/eslint-plugin-mfe` is
+development-only.
 
 ---
 

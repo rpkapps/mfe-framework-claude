@@ -27,6 +27,7 @@ const RULES = [
       '@module-federation/runtime',
       '@company/mfe-runtime',
       '@company/mfe-react',
+      '@company/mfe-angular',
       '@company/mfe-devtools',
       '@company/mfe-build',
       '@opentelemetry/',
@@ -38,7 +39,7 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The neutral core cannot import a framework or router, carries no OTel or Faro dependency, and uses no general state-management library.',
+      'The neutral core cannot import a framework, an adapter or a router, carries no OTel or Faro dependency, and uses no general state-management library.',
   },
   {
     package: '@company/mfe-runtime',
@@ -51,6 +52,7 @@ const RULES = [
       '@module-federation/enhanced',
       '@module-federation/runtime',
       '@company/mfe-react',
+      '@company/mfe-angular',
       '@company/mfe-devtools',
       '@company/mfe-build',
       '@opentelemetry/',
@@ -62,7 +64,28 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The neutral host cannot import React, TanStack Router, single-spa or Module Federation, carries no OTel or Faro dependency, and uses no general state-management library.',
+      'The neutral runtime cannot import React, Angular, a router, single-spa or Module Federation, carries no OTel or Faro dependency, and uses no general state-management library.',
+  },
+  {
+    package: '@company/mfe-angular',
+    forbidden: [
+      'react',
+      'react-dom',
+      '@tanstack/',
+      '@company/mfe-react',
+      '@company/mfe-devtools',
+      '@company/mfe-rspack',
+      'single-spa',
+      '@opentelemetry/',
+      '@grafana/faro',
+      'zone.js',
+      '@module-federation/',
+      'primeng',
+      '@primeng/',
+      '@primeuix/',
+    ],
+    reason:
+      'The Angular adapter stays UI-library agnostic and framework-pluggable: no React, no TanStack, no sibling adapter or its build integration, no zone.js, no Module Federation, no vendor telemetry, and no UI component library of its own — PrimeNG included.',
   },
   {
     package: '@company/mfe-build',
