@@ -8,9 +8,8 @@ import {
 import type { BreadcrumbItem } from '@company/mfe-core'
 import { describe, expect, it } from 'vitest'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createApp } from '../definition.ts'
-import { createMfeTestEnvironment, mountApp } from '../testing/index.ts'
+import { createHostApplication, createMfeTestEnvironment, mountApp } from '../testing/index.ts'
 import { injectBreadcrumbs } from './breadcrumbs.ts'
 
 @Component({ selector: 'test-page', template: '' })

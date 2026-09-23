@@ -3,9 +3,8 @@ import { HOST_SCOPE } from '@company/mfe-core'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createWidget } from '../definition.ts'
-import { createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
+import { createHostApplication, createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
 import { injectStoredState } from './stored-state.ts'
 
 const densitySchema = z.enum(['comfortable', 'compact'])

@@ -4,10 +4,6 @@
  * derives the boundary from where the route matched, remounting if that ever moves. The runtime's
  * `mountDefinition` does the placing, as it does for every host, so the App may be one any adapter
  * built.
- *
- * Decorated rather than built from signals, like every component this package ships: the JIT
- * pipeline the package's own tests run under has no transform for signal inputs, and a container
- * compiles this source ahead of time with the rest of its application.
  */
 
 import { Location, NgTemplateOutlet } from '@angular/common'

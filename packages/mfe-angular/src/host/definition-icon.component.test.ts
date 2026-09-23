@@ -2,7 +2,7 @@ import { Component } from '@angular/core'
 import type { IconData } from '@company/mfe-core'
 import { describe, expect, it } from 'vitest'
 
-import { createHostApplication, renderInHost } from '../__tests__/harness.ts'
+import { createHostApplication, renderInHost } from '../testing/index.ts'
 import { MfeDefinitionIconComponent } from './definition-icon.component.ts'
 
 const chart: IconData = {

@@ -1,9 +1,8 @@
 import { Component, runInInjectionContext } from '@angular/core'
 import { describe, expect, it } from 'vitest'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createApp } from '../definition.ts'
-import { createMfeTestEnvironment, mountApp } from '../testing/index.ts'
+import { createHostApplication, createMfeTestEnvironment, mountApp } from '../testing/index.ts'
 import { injectMfeMount, injectOptionalMfeMount } from './runtime.ts'
 import { injectBasePath, injectMfeSignal, injectMfeStorage, injectTelemetry } from './services.ts'
 import { injectWidgetEmit } from './widget-emit.ts'

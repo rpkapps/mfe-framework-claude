@@ -8,9 +8,24 @@
  */
 
 import { assertInInjectionContext, DestroyRef, effect, inject, untracked } from '@angular/core'
-import type { CommandRegistration } from '@company/mfe-core'
+import type { CommandRegistration, Decision } from '@company/mfe-core'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
+
+/**
+ * `canExecute`, answering its first call with a decision already taken. The registry evaluates a
+ * registration as it updates the entry, outside the effect's reactive context, so the effect takes
+ * the decision itself, tracked, and hands it over for that one evaluation rather than asking twice
+ * per change. Every later call, such as the one `execute` makes, asks afresh.
+ */
+function answeredOnce(decision: Decision, canExecute: () => Decision): () => Decision {
+  let answered = false
+  return () => {
+    if (answered) return canExecute()
+    answered = true
+    return decision
+  }
+}
 
 export function injectCommand(
   registration: CommandRegistration | (() => CommandRegistration),
@@ -32,10 +47,13 @@ export function injectCommand(
   const factory = registration
   effect(() => {
     const next = factory()
-    // Called once here only to track the signals the decision reads; the registry evaluates it.
-    next.canExecute?.()
+    const { canExecute } = next
+    const decided =
+      canExecute === undefined
+        ? next
+        : { ...next, canExecute: answeredOnce(canExecute(), canExecute) }
     untracked(() => {
-      handle.update(next)
+      handle.update(decided)
     })
   })
 }

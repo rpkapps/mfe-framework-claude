@@ -6,7 +6,6 @@
  */
 
 import { createComponent, type ComponentRef } from '@angular/core'
-import { toMfeError } from '@company/mfe-core'
 import {
   createProviderEmit,
   type MountedWidget,
@@ -16,14 +15,7 @@ import {
 import type { WidgetDefinition } from '../definition.ts'
 import { WIDGET_EMIT } from '../inject/tokens.ts'
 import { readComponentContract, type ComponentContract } from './component-contract.ts'
-import {
-  createHostElement,
-  createMountApplication,
-  disposedWhileMounting,
-  MountErrorHandler,
-  provideMfeMount,
-  reportForeignDestroy,
-} from './mount-providers.ts'
+import { disposedWhileMounting, MountErrorHandler, runMountApplication } from './mount-providers.ts'
 import { validateInputs } from './widget-channel.ts'
 
 interface Subscribable {
@@ -69,52 +61,43 @@ export async function mountWidget(
   definition: WidgetDefinition,
   target: WidgetMountTarget,
 ): Promise<MountedWidget> {
-  const { context } = target
+  // Only what outlives mounting is kept, so the long-lived closures below never hold the first
+  // input set or the rest of the target.
+  const { context, onFailure, onInputRejected } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
   const component = readComponentContract(definition)
   const first = validateInputs(definition, component, target.inputs)
   // Nothing to fall back to on the first mount, so the validation error itself is the rejection.
   if (first.status !== 'accepted') throw first.error
+  let valid = first.value
 
   const errors = new MountErrorHandler(context)
   const emit = createProviderEmit(definition, target.emit)
 
-  // The author's providers come first, so none of them can replace what the mount owns.
-  const appRef = await createMountApplication(
-    [
-      ...definition.providers,
-      ...provideMfeMount(context, errors),
-      { provide: WIDGET_EMIT, useValue: emit },
-    ],
+  const mounted = await runMountApplication({
+    definition,
+    target,
     errors,
-  )
-
-  if (context.signal.aborted) {
-    appRef.destroy()
-    throw disposedWhileMounting(context)
-  }
-
-  const hostElement = createHostElement(target.element)
-  const rendered = errors.capture(() => {
-    const ref = createComponent(definition.component, {
-      environmentInjector: appRef.injector,
-      hostElement,
-    })
-    for (const [name, value] of Object.entries(first.value)) ref.setInput(name, value)
-    const subscriptions = subscribeToEvents(ref, component, emit, errors)
-    appRef.attachView(ref.hostView)
-    appRef.tick()
-    return { ref, subscriptions }
+    providers: [{ provide: WIDGET_EMIT, useValue: emit }],
+    render: (application, hostElement) => {
+      const ref = createComponent(definition.component, {
+        environmentInjector: application.injector,
+        hostElement,
+      })
+      for (const [name, value] of Object.entries(valid)) ref.setInput(name, value)
+      const subscriptions = subscribeToEvents(ref, component, emit, errors)
+      application.attachView(ref.hostView)
+      application.tick()
+      return { ref, subscriptions }
+    },
+    start: ({ subscriptions }) => {
+      return () => {
+        for (const subscription of subscriptions) subscription.unsubscribe()
+      }
+    },
   })
-
-  if (!rendered.ok) {
-    appRef.destroy()
-    hostElement.remove()
-    throw rendered.error
-  }
-
-  const { ref, subscriptions } = rendered.value
+  const { ref } = mounted.rendered
 
   /**
    * An Angular host updates from inside its own change detection, where Angular's refreshing flag
@@ -130,59 +113,25 @@ export async function mountWidget(
     }
   }
 
-  const stopWatchingDestroy = reportForeignDestroy(appRef, context, target.onFailure)
-
-  let valid = first.value
-  let disposal: Promise<void> | null = null
-
-  const dispose = (): Promise<void> => {
-    disposal ??= (async () => {
-      stopWatchingDestroy()
-      for (const subscription of subscriptions) subscription.unsubscribe()
-      try {
-        // Already destroyed when this follows a failure reported through `onFailure`.
-        if (!appRef.destroyed) appRef.destroy()
-      } catch (error) {
-        context.runtime.diagnostics.report(
-          toMfeError(error, {
-            code: 'dispose/failure',
-            id: definition.id,
-            ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-            operation: 'dispose Widget',
-            repair: 'Check the ngOnDestroy hooks and DestroyRef callbacks inside the Widget.',
-          }),
-        )
-      }
-      hostElement.remove()
-      await Promise.resolve()
-    })()
-    return disposal
-  }
-
-  // The host disposes this handle before the context; a host that only disposes the context
-  // still gets the application torn down.
-  context.signal.addEventListener('abort', () => void dispose(), { once: true })
-
   return {
-    dispose,
-    // Once zoneless change detection has nothing left to do.
-    whenStable: () => appRef.whenStable(),
+    dispose: mounted.dispose,
+    whenStable: mounted.whenStable,
 
     // The host passes only a set that changed, so every call is validated.
     update: inputs => {
-      if (disposal !== null) return
+      if (mounted.isDisposed()) return
 
       const next = validateInputs(definition, component, inputs)
       // No later set can repair a reserved input name, so the mount fails rather than keeping
       // its last valid inputs; the runtime reports the failure and tears the mount down.
       if (next.status === 'misdeclared') {
-        target.onFailure(next.error)
+        onFailure(next.error)
         return
       }
       if (next.status === 'rejected') {
         // The mount keeps rendering its last valid inputs; the host hears about the rejection.
         context.runtime.diagnostics.report(next.error, { context: { widget: definition.id } })
-        target.onInputRejected?.(next.error)
+        onInputRejected?.(next.error)
         return
       }
 

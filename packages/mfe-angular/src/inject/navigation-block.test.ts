@@ -7,9 +7,13 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createWidget } from '../definition.ts'
-import { createMfeTestEnvironment, mountWidget, type MountedTestWidget } from '../testing/index.ts'
+import {
+  createHostApplication,
+  createMfeTestEnvironment,
+  mountWidget,
+  type MountedTestWidget,
+} from '../testing/index.ts'
 import {
   injectNavigationBlock,
   type NavigationBlock,

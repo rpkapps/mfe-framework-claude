@@ -3,8 +3,11 @@ import type { RegistryEntry } from '@company/mfe-core'
 import type { MfeRuntime } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
 
-import { createHostApplication } from '../__tests__/harness.ts'
-import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.ts'
+import {
+  createHostApplication,
+  createMfeTestEnvironment,
+  type MfeTestEnvironment,
+} from '../testing/index.ts'
 import { provideMfeRuntime } from './provide-runtime.ts'
 import {
   injectActiveDefinition,

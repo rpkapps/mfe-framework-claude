@@ -6,13 +6,17 @@ import type { AppMountTarget, MountableAppDefinition } from '@company/mfe-runtim
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication, renderInHost } from '../__tests__/harness.ts'
 import { createApp, createWidget } from '../definition.ts'
 import { injectMfeMount } from '../inject/runtime.ts'
 import { injectBasePath } from '../inject/services.ts'
 import { mfeAppRoute } from '../routing/app-route.ts'
 import { BoundaryLocationStrategy } from '../routing/boundary-location-strategy.ts'
-import { createMfeTestEnvironment, mountApp } from '../testing/index.ts'
+import {
+  createHostApplication,
+  createMfeTestEnvironment,
+  mountApp,
+  renderInHost,
+} from '../testing/index.ts'
 import { MfeAppHostComponent } from './app-host.component.ts'
 
 @Component({ selector: 'test-where', template: '<p class="where">{{ where }}</p>' })

@@ -7,9 +7,9 @@ import {
 } from '@company/mfe-runtime/testing'
 import { describe, expect, it } from 'vitest'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { injectMfeRuntime } from '../inject/runtime.ts'
 import { angularAdapter } from '../registry/angular-adapter.ts'
+import { createHostApplication } from '../testing/index.ts'
 import * as hostSurface from './index.ts'
 
 const angularEntry = {

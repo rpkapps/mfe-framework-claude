@@ -347,13 +347,17 @@ injector, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the
 delivered `events` and the `rejectedInputs`; a mount that fails rejects with its
 error and leaves nothing behind. Given an `environment` of your own, list the
 definition in its `definitions`, as a shell's registry lists what it mounts.
+For a host component, `createHostApplication(environment)` boots a zoneless
+application with the environment's runtime provided and no mount around it, as
+a shell boots one, and `renderInHost(appRef, component, setup)` renders a
+component there and waits for it to settle.
 `/testing` also re-exports the runtime's own test surface (`createMemoryRuntime`,
 the in-process loader, the memory navigation bridge and storage, the recording
 telemetry provider). `@company/mfe-angular/testing/mfe-config` and
 `/testing/mfe-fetch` stand in for the generated `#mfe/config` and `#mfe/fetch`,
 the same modules every adapter ships. A setup file calls `cleanup()` and
-`resetGeneratedAliases()` after each test, so no mount and no configuration
-leaks into the next.
+`resetGeneratedAliases()` after each test, so no mount, no host application
+and no configuration leaks into the next.
 
 ## What is proven here, and what is not
 

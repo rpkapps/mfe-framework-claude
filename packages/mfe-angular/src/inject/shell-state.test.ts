@@ -7,9 +7,8 @@ import {
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createWidget } from '../definition.ts'
-import { createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
+import { createHostApplication, createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
 import { injectMfeRuntime } from './runtime.ts'
 import { injectGroups, injectTheme, injectUser } from './shell-state.ts'
 

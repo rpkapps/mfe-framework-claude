@@ -28,7 +28,23 @@ function list(names: Iterable<string>): string {
   return all.length === 0 ? 'none' : all.join(', ')
 }
 
+/**
+ * Reflection gives the same answer for a definition every time, so twenty mounts of one Widget read
+ * it once. Weak, so a definition nothing holds takes its entry with it; one that fails is not
+ * kept, and fails the same way on its next mount.
+ */
+const contracts = new WeakMap<WidgetDefinition, ComponentContract>()
+
 export function readComponentContract(definition: WidgetDefinition): ComponentContract {
+  const cached = contracts.get(definition)
+  if (cached !== undefined) return cached
+
+  const contract = reflectComponentContract(definition)
+  contracts.set(definition, contract)
+  return contract
+}
+
+function reflectComponentContract(definition: WidgetDefinition): ComponentContract {
   const fail = createMfeErrorFactory({
     code: 'mount/failure',
     id: definition.id,

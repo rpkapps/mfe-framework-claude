@@ -2,10 +2,6 @@
  * `<mfe-widget>` — an Angular host placing a Widget by id. The runtime's `mountDefinition` does the
  * placing, as it does for every host, so the Widget may be one any adapter built; the Widget
  * validates its own inputs, and a contract the host declares here checks the events.
- *
- * Decorated rather than built from signals, like every component this package ships: the JIT
- * pipeline the package's own tests run under has no transform for signal inputs, and a container
- * compiles this source ahead of time with the rest of its application.
  */
 
 import { NgTemplateOutlet } from '@angular/common'

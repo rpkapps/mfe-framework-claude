@@ -6,10 +6,6 @@
  * `IconData` arrives over the network from another origin, so the tag of every shape is checked
  * here as well as at the registry boundary: the boundary decides the record is well formed, this
  * decides what is allowed to reach the document. Attribute names reach the DOM as written.
- *
- * Decorated rather than built from signals, like every component this package ships: the JIT
- * pipeline the package's own tests run under has no transform for signal inputs, and a container
- * compiles this source ahead of time with the rest of its application.
  */
 
 import {

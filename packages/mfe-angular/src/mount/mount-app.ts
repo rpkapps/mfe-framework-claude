@@ -8,7 +8,6 @@
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
 import { createComponent } from '@angular/core'
 import { provideRouter, Router, withDisabledInitialNavigation } from '@angular/router'
-import { toMfeError } from '@company/mfe-core'
 import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runtime'
 
 import type { AppDefinition } from '../definition.ts'
@@ -19,14 +18,7 @@ import {
   provideMfeNavigationBlockers,
   registerAppNavigationBlocker,
 } from '../routing/navigation-blockers.ts'
-import {
-  createHostElement,
-  createMountApplication,
-  disposedWhileMounting,
-  MountErrorHandler,
-  provideMfeMount,
-  reportForeignDestroy,
-} from './mount-providers.ts'
+import { disposedWhileMounting, MountErrorHandler, runMountApplication } from './mount-providers.ts'
 
 /** `Location` strips this prefix from every path the strategy reads, as it would a real base href. */
 function baseHrefOf(context: MountContext): string {
@@ -40,15 +32,14 @@ export async function mountApp(
   const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
-  const errors = new MountErrorHandler(context)
   const location = new BoundaryLocationStrategy(context.runtime.navigator, baseHrefOf(context))
 
-  // The author's providers come first, so none of them can replace what the mount owns: change
-  // detection, error reporting, the mount tokens, and a router that writes only to the bridge.
-  const appRef = await createMountApplication(
-    [
-      ...definition.providers,
-      ...provideMfeMount(context, errors),
+  const { dispose, whenStable } = await runMountApplication({
+    definition,
+    target,
+    errors: new MountErrorHandler(context),
+    // A router that writes only to the bridge, which the author's providers cannot replace.
+    providers: [
       provideRouter(
         definition.routes,
         ...definition.routerFeatures,
@@ -58,82 +49,40 @@ export async function mountApp(
       { provide: LocationStrategy, useValue: location },
       provideMfeNavigationBlockers(),
     ],
-    errors,
-  )
+    render: (application, hostElement) => {
+      const ref = createComponent(definition.component, {
+        environmentInjector: application.injector,
+        hostElement,
+      })
+      application.attachView(ref.hostView)
+      application.tick()
+    },
+    start: (_rendered, { injector }) => {
+      const router = injector.get(Router)
+      const stopBlocking = registerAppNavigationBlocker({
+        context,
+        injector,
+        blockers: injector.get(APP_NAVIGATION_BLOCKERS),
+      })
+      const stopBreadcrumbs = definition.contributesBreadcrumbs
+        ? contributeBreadcrumbs(router, context, definition.id)
+        : () => undefined
 
-  if (context.signal.aborted) {
-    appRef.destroy()
-    location.dispose()
-    throw disposedWhileMounting(context)
-  }
+      // Mounted while the page is elsewhere, the App waits for the page to reach its boundary
+      // rather than routing a path it does not own.
+      if (location.ownsCurrentPath()) router.initialNavigation()
+      else router.setUpLocationChangeListener()
 
-  const { injector } = appRef
-  const hostElement = createHostElement(target.element)
-  const rendered = errors.capture(() => {
-    const ref = createComponent(definition.component, {
-      environmentInjector: injector,
-      hostElement,
-    })
-    appRef.attachView(ref.hostView)
-    appRef.tick()
-  })
-
-  if (!rendered.ok) {
-    appRef.destroy()
-    location.dispose()
-    hostElement.remove()
-    throw rendered.error
-  }
-
-  const router = injector.get(Router)
-  const stopBlocking = registerAppNavigationBlocker({
-    context,
-    injector,
-    blockers: injector.get(APP_NAVIGATION_BLOCKERS),
-  })
-  const stopBreadcrumbs = definition.contributesBreadcrumbs
-    ? contributeBreadcrumbs(router, context, definition.id)
-    : () => undefined
-
-  // Mounted while the page is elsewhere, the App waits for the page to reach its boundary rather
-  // than routing a path it does not own.
-  if (location.ownsCurrentPath()) router.initialNavigation()
-  else router.setUpLocationChangeListener()
-
-  const stopWatchingDestroy = reportForeignDestroy(appRef, context, target.onFailure)
-
-  let disposal: Promise<void> | null = null
-  const dispose = (): Promise<void> => {
-    disposal ??= (async () => {
-      stopWatchingDestroy()
       // Registrations first, so a disposed App cannot be asked about a navigation mid-teardown.
-      stopBlocking()
-      stopBreadcrumbs()
-      try {
-        // Already destroyed when this follows a failure reported through `onFailure`.
-        if (!appRef.destroyed) appRef.destroy()
-      } catch (error) {
-        context.runtime.diagnostics.report(
-          toMfeError(error, {
-            code: 'dispose/failure',
-            id: definition.id,
-            ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-            operation: 'dispose App',
-            repair: 'Check the ngOnDestroy hooks and DestroyRef callbacks inside the App.',
-          }),
-        )
+      return () => {
+        stopBlocking()
+        stopBreadcrumbs()
       }
+    },
+    release: () => {
       location.dispose()
-      hostElement.remove()
-      await Promise.resolve()
-    })()
-    return disposal
-  }
+    },
+  })
 
-  // The host disposes this handle before the context; a host that only disposes the context
-  // still gets the application torn down.
-  context.signal.addEventListener('abort', () => void dispose(), { once: true })
-
-  // Once zoneless change detection and pending navigations have nothing left to do.
-  return { dispose, whenStable: () => appRef.whenStable() }
+  return { dispose, whenStable }
 }

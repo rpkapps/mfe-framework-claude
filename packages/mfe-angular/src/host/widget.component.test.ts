@@ -17,10 +17,16 @@ import type {
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication, renderInHost, type RenderedHost } from '../__tests__/harness.ts'
 import { createApp, createWidget } from '../definition.ts'
 import { injectMfeMount } from '../inject/runtime.ts'
-import { createMfeTestEnvironment, mountApp, type MfeTestEnvironment } from '../testing/index.ts'
+import {
+  createHostApplication,
+  createMfeTestEnvironment,
+  mountApp,
+  renderInHost,
+  type MfeTestEnvironment,
+  type RenderedHost,
+} from '../testing/index.ts'
 import { MfeWidgetComponent, type MfeWidgetEvent } from './widget.component.ts'
 
 /** The mount each Alert component was created in, as `injectMfeMount()` gave it. */

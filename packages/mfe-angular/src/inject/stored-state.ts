@@ -4,18 +4,12 @@
  * the default, so the failure reaches the `ErrorHandler` instead of looking like missing data.
  */
 
-import {
-  assertInInjectionContext,
-  computed,
-  DestroyRef,
-  inject,
-  signal,
-  type Signal,
-} from '@angular/core'
-import type { StorageArea, StorageKeyOptions } from '@company/mfe-core'
+import { assertInInjectionContext, computed, DestroyRef, inject, type Signal } from '@angular/core'
+import { withoutUndefined, type StorageArea, type StorageKeyOptions } from '@company/mfe-core'
 import type { StorageUpdater } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
+import { signalFromStore } from '../signals.ts'
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
 
 export interface StoredStateOptions<T> extends StorageKeyOptions<T> {
@@ -45,9 +39,11 @@ export function injectStoredState<T>(
     schema,
     storage: options.storage ?? 'local',
     defaultValue: options.defaultValue,
-    ...(options.retention === undefined ? {} : { retention: options.retention }),
-    ...(options.version === undefined ? {} : { version: options.version }),
-    ...(options.migrate === undefined ? {} : { migrate: options.migrate }),
+    ...withoutUndefined({
+      retention: options.retention,
+      version: options.version,
+      migrate: options.migrate,
+    }),
   }
 
   const binding =
@@ -55,12 +51,12 @@ export function injectStoredState<T>(
       ? storage.bindHost<T>(declaration)
       : storage.bind<T>(mount.definitionId, declaration)
 
-  const snapshot = signal(binding.getSnapshot())
-  const unsubscribe = binding.subscribe(() => {
-    snapshot.set(binding.getSnapshot())
-  })
+  // Registered first, so its unsubscribe runs before the binding is released.
+  const snapshot = signalFromStore(
+    listener => binding.subscribe(listener),
+    () => binding.getSnapshot(),
+  )
   inject(DestroyRef).onDestroy(() => {
-    unsubscribe()
     binding.release()
   })
 

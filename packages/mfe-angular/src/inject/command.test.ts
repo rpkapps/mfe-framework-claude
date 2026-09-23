@@ -3,9 +3,9 @@ import { allow, deny } from '@company/mfe-core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { createHostApplication } from '../__tests__/harness.ts'
 import { createApp, createWidget } from '../definition.ts'
 import {
+  createHostApplication,
   createMfeTestEnvironment,
   mountApp,
   mountWidget,
@@ -83,6 +83,43 @@ describe('injectCommand', () => {
     await appRef.whenStable()
 
     expect(commands.getSnapshot()[0]?.decision).toEqual({ allowed: true })
+    environment.dispose()
+  })
+
+  /** The registry runs after every change; asking twice per change doubles the work for nothing. */
+  it('runs the factory and canExecute once for each change of what they read', async () => {
+    const environment = createMfeTestEnvironment()
+    const appRef = await createHostApplication(environment)
+    const canExport = signal(false)
+    const calls = { factory: 0, canExecute: 0 }
+
+    runInInjectionContext(appRef.injector, () => {
+      injectCommand(() => {
+        calls.factory += 1
+        return {
+          name: 'export',
+          label: 'Export',
+          execute: () => undefined,
+          canExecute: () => {
+            calls.canExecute += 1
+            return canExport() ? allow() : deny('Nothing selected')
+          },
+        }
+      })
+    })
+    await appRef.whenStable()
+    const settled = { ...calls }
+
+    canExport.set(true)
+    await appRef.whenStable()
+
+    expect(calls).toEqual({ factory: settled.factory + 1, canExecute: settled.canExecute + 1 })
+    expect(environment.runtime.commands.getSnapshot()[0]?.decision).toEqual({ allowed: true })
+
+    // What `execute` asks is still asked afresh, never answered from an earlier change.
+    canExport.set(false)
+    const result = await environment.runtime.commands.execute('@host:export')
+    expect(result).toMatchObject({ status: 'denied' })
     environment.dispose()
   })
 

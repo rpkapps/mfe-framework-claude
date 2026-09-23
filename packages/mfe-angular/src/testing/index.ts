@@ -5,7 +5,18 @@
  * but memory, so what a test mounts is exactly what a shell would.
  */
 
-import { EnvironmentInjector, getDebugNode, type EnvironmentProviders } from '@angular/core'
+import {
+  createComponent,
+  EnvironmentInjector,
+  getDebugNode,
+  provideExperimentalZonelessChangeDetection,
+  type ApplicationRef,
+  type ComponentRef,
+  type EnvironmentProviders,
+  type Provider,
+  type Type,
+} from '@angular/core'
+import { createApplication } from '@angular/platform-browser'
 import { createMfeError, type MfeError } from '@company/mfe-core'
 import {
   mountDefinition,
@@ -88,9 +99,76 @@ export interface MountedTestWidget extends MountedTestDefinition {
 /** What a test forgot to dispose, disposed by `cleanup()` so nothing leaks into the next test. */
 const live = new Set<() => Promise<void>>()
 
-/** Disposes every mount these helpers created that is still mounted; the vitest setup calls it. */
+/**
+ * Disposes every mount, host application and host element these helpers created that is still
+ * there; the vitest setup calls it.
+ */
 export async function cleanup(): Promise<void> {
   for (const dispose of [...live]) await dispose()
+}
+
+/** Runs `release` once: when the returned function is called, or on `cleanup()` if it never is. */
+function untilCleanup(release: () => void | Promise<void>): () => Promise<void> {
+  const dispose = async (): Promise<void> => {
+    if (!live.delete(dispose)) return
+    await release()
+  }
+  live.add(dispose)
+  return dispose
+}
+
+/**
+ * An Angular application with no mount around it, which is where shell chrome and host components
+ * live: zoneless, with the environment's runtime provided, as a shell boots one. `null` provides
+ * no runtime. `cleanup()` destroys it.
+ */
+export async function createHostApplication(
+  environment: MfeTestEnvironment | null,
+  providers: readonly (Provider | EnvironmentProviders)[] = [],
+): Promise<ApplicationRef> {
+  const appRef = await createApplication({
+    providers: [
+      provideExperimentalZonelessChangeDetection(),
+      ...(environment === null ? [] : [environment.providers]),
+      ...providers,
+    ],
+  })
+  untilCleanup(() => {
+    if (!appRef.destroyed) appRef.destroy()
+  })
+  return appRef
+}
+
+export interface RenderedHost<T> {
+  readonly ref: ComponentRef<T>
+  /** The host component's element, attached to `document.body`. */
+  readonly element: HTMLElement
+}
+
+/**
+ * Renders `component` as a root view of the host application and waits for it to settle; `setup`
+ * runs before the first change detection, so it decides what the first render binds. `cleanup()`
+ * removes the element.
+ */
+export async function renderInHost<T>(
+  appRef: ApplicationRef,
+  component: Type<T>,
+  setup: (instance: T) => void = () => undefined,
+): Promise<RenderedHost<T>> {
+  const element = document.createElement('div')
+  document.body.appendChild(element)
+  untilCleanup(() => {
+    element.remove()
+  })
+
+  const ref = createComponent(component, {
+    environmentInjector: appRef.injector,
+    hostElement: element,
+  })
+  setup(ref.instance)
+  appRef.attachView(ref.hostView)
+  await appRef.whenStable()
+  return { ref, element }
 }
 
 interface Placement {
@@ -197,13 +275,10 @@ async function settle(
 }
 
 function track(mount: DefinitionMount, placement: Placement): () => Promise<void> {
-  const dispose = async (): Promise<void> => {
-    if (!live.delete(dispose)) return
+  return untilCleanup(async () => {
     await mount.dispose()
     placement.teardown()
-  }
-  live.add(dispose)
-  return dispose
+  })
 }
 
 /** Mounts a real App through the runtime, over a memory history starting at its boundary. */
