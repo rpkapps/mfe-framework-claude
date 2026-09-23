@@ -84,7 +84,7 @@ function placedAsTheWrongKind(entry: RegistryEntry, kind: DefinitionKind): MfeEr
     id: entry.id,
     ...(entry.version === undefined ? {} : { definitionVersion: entry.version }),
     operation: `resolve ${LABELS[kind]}`,
-    expected: `an entry for a ${LABELS[kind]}`,
+    expected: kind === 'app' ? 'an entry for an App' : 'an entry for a Widget',
     observed:
       entry.definitionKind === 'widget'
         ? 'an entry for a Widget, which owns no URL boundary'

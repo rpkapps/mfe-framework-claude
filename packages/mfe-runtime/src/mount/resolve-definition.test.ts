@@ -5,6 +5,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
 import {
   DEFINITION_BRAND,
@@ -20,7 +21,7 @@ import {
 } from '../loader/container-loader.ts'
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
-import type { MountableAppDefinition } from './mountable-definition.ts'
+import type { MountableAppDefinition, MountableWidgetDefinition } from './mountable-definition.ts'
 import { resolveDefinition } from './resolve-definition.ts'
 
 const REPORTS: MountableAppDefinition = {
@@ -30,6 +31,15 @@ const REPORTS: MountableAppDefinition = {
   framework: 'plain-dom',
   contributesBreadcrumbs: false,
   mount: async () => ({ dispose: async () => undefined }),
+}
+
+const ALERT_PANEL: MountableWidgetDefinition = {
+  [DEFINITION_BRAND]: true,
+  kind: 'widget',
+  id: 'alert-panel',
+  framework: 'plain-dom',
+  contract: { inputs: z.object({}), events: {} },
+  mount: async () => ({ update: () => undefined, dispose: async () => undefined }),
 }
 
 let memories: MemoryRuntime[] = []
@@ -92,6 +102,19 @@ describe('resolveDefinition', () => {
 
     expect(error.code).toBe('registry/invalid-entry')
     expect(error.message).toContain('expected an entry for a Widget, received an entry for an App')
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Widget placed as an App before loading it', async () => {
+    const load = vi.fn()
+    const runtime = runtimeWith([ALERT_PANEL], { load })
+
+    const error = await rejection(resolveDefinition(runtime, 'alert-panel', 'app', liveSignal()))
+
+    expect(error.code).toBe('registry/invalid-entry')
+    expect(error.message).toContain(
+      'expected an entry for an App, received an entry for a Widget, which owns no URL boundary',
+    )
     expect(load).not.toHaveBeenCalled()
   })
 
