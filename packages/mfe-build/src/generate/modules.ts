@@ -1,6 +1,6 @@
 /** Three of these are aliases an author imports; the rest are build artifacts. */
 
-import { FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
+import { defaultExposePath, FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
 
 import type { ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema } from '../config/zod-static.ts'
@@ -318,7 +318,7 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
 
 /** Generated, and not public API. */
 export function exposeName(definition: DiscoveredDefinition): string {
-  return definition.kind === 'app' ? './app' : `./widgets/${definition.id}`
+  return defaultExposePath(definition.kind, definition.id)
 }
 
 export function entryModulePath(

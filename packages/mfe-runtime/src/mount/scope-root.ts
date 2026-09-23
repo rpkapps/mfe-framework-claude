@@ -4,10 +4,9 @@
  * runtime creates for each mount, so no adapter builds a root of its own.
  */
 
-import type { DefinitionKind } from '@company/mfe-core'
+import { SCOPE_ATTRIBUTE, type DefinitionKind } from '@company/mfe-core'
 
-/** Reserved for App, Widget and framework portal roots. */
-export const SCOPE_ATTRIBUTE = 'data-mfe-scope'
+export { SCOPE_ATTRIBUTE }
 
 /** Distinguishes two mounts of one definition; the scope value stays the id the CSS matches. */
 export const MOUNT_ATTRIBUTE = 'data-mfe-mount'

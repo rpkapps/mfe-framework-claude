@@ -7,7 +7,9 @@
 
 import {
   createMfeError,
+  defaultExposePath,
   isBrandedDefinition,
+  PAGE_SHARE_SCOPE,
   toMfeError,
   type BrandedDefinition,
   type RegistryEntry,
@@ -30,9 +32,6 @@ export interface FederatedRegistryEntry extends RegistryEntry {
    */
   readonly shareScopes?: readonly string[]
 }
-
-/** Module Federation's own scope, where the page-wide singletons every container shares live. */
-const PAGE_SHARE_SCOPE = 'default'
 
 /**
  * A remote links only the share scopes named when it is registered, and every other scope stays
@@ -57,7 +56,7 @@ export function federationTarget(entry: FederatedRegistryEntry): {
 } {
   return {
     container: entry.container,
-    expose: entry.expose ?? (entry.definitionKind === 'app' ? './app' : `./widgets/${entry.id}`),
+    expose: entry.expose ?? defaultExposePath(entry.definitionKind, entry.id),
   }
 }
 

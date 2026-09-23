@@ -22,6 +22,7 @@ export { type AttemptToken, type MountHandle, type MountState } from './lifecycl
 export {
   CAPABILITY_NAMES,
   DEFINITION_ID_RULE,
+  ICON_ELEMENT_TAGS,
   isCapabilityName,
   isValidDefinitionId,
   type CapabilityDescriptor,
@@ -110,6 +111,8 @@ export {
 } from './registry.ts'
 
 export { type DeadlineConfig } from './deadline.ts'
+
+export { defaultExposePath, PAGE_SHARE_SCOPE, SCOPE_ATTRIBUTE } from './container-contract.ts'
 
 export {
   allow,

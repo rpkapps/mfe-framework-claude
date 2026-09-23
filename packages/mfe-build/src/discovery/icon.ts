@@ -8,7 +8,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
-import type { IconData, IconNode } from '@company/mfe-core'
+import { ICON_ELEMENT_TAGS, type IconData, type IconNode } from '@company/mfe-core'
 
 import {
   collectTopLevelBindings,
@@ -23,16 +23,7 @@ import {
 const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.mjs', '.js', '.jsx'] as const
 
 /** What an icon may draw with; anything else is dropped rather than carried into a host's DOM. */
-const ELEMENT_TAGS = new Set([
-  'path',
-  'circle',
-  'rect',
-  'line',
-  'polyline',
-  'polygon',
-  'ellipse',
-  'g',
-])
+const ELEMENT_TAGS = new Set<string>(ICON_ELEMENT_TAGS)
 
 /** Geometry and paint only: no ids, no classes, no styles, no event handlers. */
 const ELEMENT_ATTRIBUTES = new Set([

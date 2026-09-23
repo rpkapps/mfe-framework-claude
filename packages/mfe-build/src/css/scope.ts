@@ -5,6 +5,7 @@
 
 import { join } from 'node:path'
 
+import { SCOPE_ATTRIBUTE } from '@company/mfe-core'
 import type { Plugin } from 'postcss'
 
 import { createBuildError } from '../diagnostics.ts'
@@ -27,9 +28,6 @@ export type ScopePluginFactory = (options: ScopeOptions) => Plugin
  * something to scope, so a loader that fails reports after the more basic mistake.
  */
 export type ScopePluginLoader = (containerRoot: string) => ScopePluginFactory
-
-/** The attribute a mount root carries, and the scope its CSS belongs to. */
-const SCOPE_ATTRIBUTE = 'data-mfe-scope'
 
 export interface ContainerScopeOptions {
   /** The definition ids this container's CSS is scoped to. */

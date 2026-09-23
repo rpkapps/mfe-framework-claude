@@ -21,10 +21,10 @@ import {
   Renderer2,
   type OnChanges,
 } from '@angular/core'
-import type { IconData, IconNode } from '@company/mfe-core'
+import { ICON_ELEMENT_TAGS, type IconData, type IconNode } from '@company/mfe-core'
 
 /** What an icon may draw with. Anything else is dropped rather than rendered. */
-const TAGS = new Set(['path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse', 'g'])
+const TAGS = new Set<string>(ICON_ELEMENT_TAGS)
 
 /**
  * Attributes that run or fetch something. The DOM runs a string event handler, so they are

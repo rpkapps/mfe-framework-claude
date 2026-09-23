@@ -47,6 +47,22 @@ export type IconNode = readonly [
   children?: readonly IconNode[],
 ]
 
+/**
+ * What an icon may draw with. `IconData` arrives over the network from another origin, so every
+ * reader of it — the build that first parses an import, and every host that later renders the
+ * result — drops anything outside this allowlist rather than carrying it into a document.
+ */
+export const ICON_ELEMENT_TAGS = [
+  'path',
+  'circle',
+  'rect',
+  'line',
+  'polyline',
+  'polygon',
+  'ellipse',
+  'g',
+] as const
+
 export interface DefinitionIdentity {
   readonly id: string
   readonly kind: DefinitionKind

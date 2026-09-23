@@ -9,8 +9,9 @@
  * state in the first would reach it.
  */
 
-/** The share scope a candidate goes in when it binds no framework: Module Federation's own. */
-export const PAGE_SHARE_SCOPE = 'default'
+import { PAGE_SHARE_SCOPE } from '@company/mfe-core'
+
+export { PAGE_SHARE_SCOPE }
 
 /** What a candidate needs independent of any container; `resolveShared` fills in the versions. */
 export interface SharingPolicy {
