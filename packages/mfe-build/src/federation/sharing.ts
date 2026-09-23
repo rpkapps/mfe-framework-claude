@@ -11,7 +11,7 @@ export interface SharingPolicy {
   readonly eager?: false
 }
 
-/** Each candidate an integration shares, with how; a container shares one only if it depends on it. */
+/** Each candidate an integration shares, and how; a container shares one it depends on. */
 export type SharingPolicies = Readonly<Record<string, SharingPolicy>>
 
 export const SINGLETON: SharingPolicy = { singleton: true, strictVersion: true }

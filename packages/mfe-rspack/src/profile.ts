@@ -14,7 +14,7 @@ import {
 } from './generate/styles.ts'
 import type { ReactOptions } from './options.ts'
 
-/** No `framework`: a React container's registry entry and manifest carry none, as they always have. */
+/** No `framework`: a React container's registry entry and manifest carry none, as always. */
 export function reactProfile(options: ReactOptions): ContainerProfile {
   return {
     generator: '@company/mfe-rspack',

@@ -40,7 +40,7 @@ const ROOT_PSEUDO = /:(?:root|host)(?![\w(-])/g
 export function scopeFallbackPlugin(options: ScopeOptions): Plugin {
   return {
     postcssPlugin: PLUGIN_NAME,
-    Once(root, { AtRule }) {
+    Once(root, helpers) {
       renameKeyframes(root, options.keyframes.suffix)
       root.walkRules(rule => {
         rewriteSelectors(rule)
@@ -49,7 +49,7 @@ export function scopeFallbackPlugin(options: ScopeOptions): Plugin {
       const params = `(${options.scope}) to (${options.boundary})`
       scopeContainer(
         root,
-        () => new AtRule({ name: 'scope', params, raws: { afterName: ' ', between: ' ' } }),
+        () => new helpers.AtRule({ name: 'scope', params, raws: { afterName: ' ', between: ' ' } }),
       )
     },
   }

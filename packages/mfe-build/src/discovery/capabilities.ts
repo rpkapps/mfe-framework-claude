@@ -33,7 +33,7 @@ export interface CapabilityOwner {
   readonly hasApp: boolean
 }
 
-/** One route that declares a capability, found by the integration's reader and not yet validated. */
+/** One route that declares a capability, as an integration's reader found it: not yet validated. */
 export interface CapabilityMarker {
   readonly file: string
   readonly sourceFile: ts.SourceFile

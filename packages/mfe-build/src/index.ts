@@ -67,11 +67,7 @@ export { buildFederationOptions, withFrameworkMetadata } from './federation/fede
 export type { FederationOptions } from './federation/federation-options.ts'
 export { installedVersionFrom } from './federation/installed-version.ts'
 export { packageOf, resolveShared, SINGLETON } from './federation/sharing.ts'
-export type {
-  SharedModuleConfig,
-  SharingPolicies,
-  SharingPolicy,
-} from './federation/sharing.ts'
+export type { SharedModuleConfig, SharingPolicies, SharingPolicy } from './federation/sharing.ts'
 
 export { containerPostcssPlugins } from './css/postcss-plugins.ts'
 export type { ContainerPostcssOptions } from './css/postcss-plugins.ts'

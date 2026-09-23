@@ -6,7 +6,11 @@
 import type { CapabilityDescriptor, DefinitionFramework } from '@company/mfe-core'
 
 import type { CapabilityOwner } from './discovery/capabilities.ts'
-import type { DefinitionSyntax, DiscoveredDefinition, DiscoveryResult } from './discovery/definitions.ts'
+import type {
+  DefinitionSyntax,
+  DiscoveredDefinition,
+  DiscoveryResult,
+} from './discovery/definitions.ts'
 import type { SharingPolicies } from './federation/sharing.ts'
 import type { GeneratedFile } from './generate/emit.ts'
 import type { GenerateContext } from './generate/modules.ts'
@@ -43,7 +47,7 @@ export interface ContainerProfile {
   readonly generatedFiles?: (context: GenerateContext) => readonly GeneratedFile[]
   /** Finds the App's capability routes; without one, a container declares none. */
   readonly readCapabilities?: (context: CapabilityContext) => readonly CapabilityDescriptor[]
-  /** How an author points the integration at a container, for example `pluginMfe({ containerRoot })`. */
+  /** How an author points the integration at a container: `pluginMfe({ containerRoot })`. */
   readonly containerRootOption: string
 }
 

@@ -29,7 +29,10 @@ export interface ResolvedOptions extends ContainerResolvedOptions, ReactOptions 
 const DEFAULT_ROUTES_DIRECTORY = 'src/routes'
 
 /** `containerRoot` is the resolved one, which the routes directory is relative to. */
-export function resolveReactOptions(options: MfePluginOptions, containerRoot: string): ReactOptions {
+export function resolveReactOptions(
+  options: MfePluginOptions,
+  containerRoot: string,
+): ReactOptions {
   return {
     routesDirectory: resolveContainerPath(
       containerRoot,

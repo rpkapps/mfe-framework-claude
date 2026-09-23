@@ -19,7 +19,7 @@ export interface ScopeOptions {
   readonly keyframes: { readonly suffix: string }
 }
 
-/** Spelled against this package's PostCSS, so a plugin found at run time needs no types of its own. */
+/** Typed with this package's PostCSS, so a plugin found at run time needs no types of its own. */
 export type ScopePluginFactory = (options: ScopeOptions) => Plugin
 
 /**

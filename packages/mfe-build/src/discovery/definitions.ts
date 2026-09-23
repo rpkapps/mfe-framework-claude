@@ -39,7 +39,7 @@ export interface DefinitionSyntax {
   readonly factoryModules: readonly string[]
   /** What follows the id in an example `createApp` call, for example `router: makeRouter`. */
   readonly appOptions: string
-  /** An icon import and its use, for example `import { BellIcon } from '…' then icon: BellIcon`. */
+  /** An icon import and its use, such as `import { BellIcon } from '…' then icon: BellIcon`. */
   readonly iconExample: string
 }
 
