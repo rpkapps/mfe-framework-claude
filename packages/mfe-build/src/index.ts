@@ -75,5 +75,11 @@ export type {
 
 export { containerPostcssPlugins } from './css/postcss-plugins.ts'
 export type { ContainerPostcssOptions } from './css/postcss-plugins.ts'
-export type { ScopeOptions, ScopePluginFactory, ScopePluginLoader } from './css/scope.ts'
+export { containerScopePlugin } from './css/scope.ts'
+export type {
+  ContainerScopeOptions,
+  ScopeOptions,
+  ScopePluginFactory,
+  ScopePluginLoader,
+} from './css/scope.ts'
 export { scopeFallbackPlugin } from './css/scope-fallback.ts'

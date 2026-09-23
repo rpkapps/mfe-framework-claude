@@ -157,7 +157,10 @@ describe('resolveShared', () => {
   })
 
   it('omits the version on a prefix share when nothing is installed to read', () => {
-    const shared = resolveShared({ policy: POLICY, dependencies: { '@acme/ui-kit': 'workspace:*' } })
+    const shared = resolveShared({
+      policy: POLICY,
+      dependencies: { '@acme/ui-kit': 'workspace:*' },
+    })
 
     expect(shared['@acme/ui-kit/']).toEqual({
       singleton: false,
