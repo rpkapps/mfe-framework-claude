@@ -92,6 +92,26 @@ describe('parse', () => {
   })
 })
 
+describe('share scopes', () => {
+  it('carries the share scopes the build published through to the entry', () => {
+    expect(parse(entry({ shareScopes: ['default', 'react@19.3.0'] })).shareScopes).toEqual([
+      'default',
+      'react@19.3.0',
+    ])
+  })
+
+  it('leaves them absent for an entry built before framework scopes', () => {
+    expect('shareScopes' in parse(entry())).toBe(false)
+  })
+
+  it('rejects share scopes that are not a list of names', () => {
+    expect(rejection(entry({ shareScopes: 'react@19.3.0' })).message).toContain(
+      'an array of share scope names',
+    )
+    expect(rejection(entry({ shareScopes: ['default', ''] })).path).toEqual(['shareScopes', 1])
+  })
+})
+
 describe('the framework version the container was built for', () => {
   it('reports an unsupported major rather than quietly skipping the entry', () => {
     const error = rejection(entry({ mfe: { contractMajor: 2 } }))

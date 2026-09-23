@@ -119,11 +119,51 @@ describe('createFederationContainerLoader', () => {
     const loaded = await loader.load(entry('reports', 'example_reports'), { signal: liveSignal() })
 
     expect(registerRemotes).toHaveBeenCalledWith([
-      { name: 'example_reports', entry: 'http://localhost:3001/reports/mf-manifest.json' },
+      {
+        name: 'example_reports',
+        entry: 'http://localhost:3001/reports/mf-manifest.json',
+        shareScope: ['default'],
+      },
     ])
     expect(loadRemote).toHaveBeenCalledWith('example_reports/app')
     expect(loaded.module).toBe(reports)
     expect(loaded.identity).toEqual({ id: 'reports', kind: 'app' })
+  })
+
+  it('registers a container with the share scopes its build published, the page scope first', async () => {
+    const reports = definition('reports', 'app', 'react')
+    const { runtime, registerRemotes } = createRuntime({
+      example_reports: () => Promise.resolve({ reports }),
+    })
+    const loader = createFederationContainerLoader({ runtime })
+
+    await loader.load(
+      entry('reports', 'example_reports', {
+        adapter: 'react',
+        shareScopes: ['default', 'react@19.2.8'],
+      }),
+      { signal: liveSignal() },
+    )
+
+    expect(registerRemotes).toHaveBeenCalledWith([
+      expect.objectContaining({ name: 'example_reports', shareScope: ['default', 'react@19.2.8'] }),
+    ])
+  })
+
+  it('always links the page scope, where the singletons every container shares live', async () => {
+    const reports = definition('reports')
+    const { runtime, registerRemotes } = createRuntime({
+      example_reports: () => Promise.resolve({ reports }),
+    })
+    const loader = createFederationContainerLoader({ runtime })
+
+    await loader.load(entry('reports', 'example_reports', { shareScopes: ['angular@19.2.25'] }), {
+      signal: liveSignal(),
+    })
+
+    expect(registerRemotes).toHaveBeenCalledWith([
+      expect.objectContaining({ shareScope: ['default', 'angular@19.2.25'] }),
+    ])
   })
 
   it('reports the version the definition carries in its identity', async () => {

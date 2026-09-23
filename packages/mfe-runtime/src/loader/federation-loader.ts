@@ -23,6 +23,25 @@ export interface FederatedRegistryEntry extends RegistryEntry {
   readonly container: string
   /** Absent when the build left the expose path to the framework convention. */
   readonly expose?: string
+  /**
+   * The share scopes the container's shares live in: `default`, then its framework's, such as
+   * `react@19.3.0`. Absent for a container built before framework scopes, which shares in
+   * `default` alone.
+   */
+  readonly shareScopes?: readonly string[]
+}
+
+/** Module Federation's own scope, where the page-wide singletons every container shares live. */
+const PAGE_SHARE_SCOPE = 'default'
+
+/**
+ * A remote links only the share scopes named when it is registered, and every other scope stays
+ * private to it; so a container is registered with its framework's scope, which is what lets two
+ * containers on one framework version share a copy, and always with `default`, which holds the
+ * page singletons.
+ */
+export function shareScopesOf(entry: FederatedRegistryEntry): string[] {
+  return [...new Set([PAGE_SHARE_SCOPE, ...(entry.shareScopes ?? [])])]
 }
 
 /** Structural, so every adapter's federated entries qualify without registering anywhere. */
@@ -45,7 +64,7 @@ export function federationTarget(entry: FederatedRegistryEntry): {
 /** The subset of the federation runtime this loader uses. */
 export interface FederationRuntime {
   registerRemotes(
-    remotes: readonly { name: string; entry: string }[],
+    remotes: readonly { name: string; entry: string; shareScope: string[] }[],
     options?: { force?: boolean },
   ): void
   loadRemote<T>(id: string): Promise<T | null>
@@ -95,7 +114,9 @@ export function createFederationContainerLoader(
 
       if (!registered.has(containerName)) {
         try {
-          options.runtime.registerRemotes([{ name: containerName, entry: entry.manifestUrl }])
+          options.runtime.registerRemotes([
+            { name: containerName, entry: entry.manifestUrl, shareScope: shareScopesOf(entry) },
+          ])
           registered.add(containerName)
         } catch (error) {
           throw toMfeError(error, {

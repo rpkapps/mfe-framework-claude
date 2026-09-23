@@ -153,6 +153,11 @@ const entrySchema = z
     manifestUrl: nonEmptyString('a non-empty URL string'),
     container: nonEmptyString('a non-empty federation container name'),
     expose: nonEmptyString('a non-empty expose path').optional(),
+    shareScopes: z
+      .array(nonEmptyString('a non-empty share scope name'), {
+        error: 'an array of share scope names, such as ["default", "react@19.3.0"]',
+      })
+      .optional(),
     version: z.string({ error: 'a version string' }).optional(),
     capabilities: z.array(capability, { error: 'an array of capability objects' }).optional(),
     contract: publishedContract.optional(),
@@ -245,6 +250,7 @@ export function parseFederatedEntry<K extends string>(
     manifestUrl: parsed.manifestUrl,
     container: parsed.container,
     ...(parsed.expose === undefined ? {} : { expose: parsed.expose }),
+    ...(parsed.shareScopes === undefined ? {} : { shareScopes: parsed.shareScopes }),
     ...(parsed.version === undefined ? {} : { version: parsed.version }),
     ...(parsed.capabilities === undefined ? {} : { capabilities: parsed.capabilities }),
     ...(parsed.contract === undefined ? {} : { contract: parsed.contract }),
