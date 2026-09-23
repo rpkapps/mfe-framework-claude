@@ -28,7 +28,8 @@ What differs between two integrations is stated once, as a `ContainerProfile`:
 | `definitions`         | The modules `createApp` and `createWidget` may come from, and the examples a diagnostic suggests in the adapter's words.                      |
 | `envModules`          | The modules `src/mfe.config.ts` may import `env` from; the first also types `#mfe/config`.                                                    |
 | `adapterModule`       | Where the generated `#mfe/fetch` imports `createContainerTransport` from.                                                                     |
-| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`. Left out, neither carries one, which a host reads as React.                |
+| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`, and the name the framework's share scope starts with.                      |
+| `frameworkAnchor`     | The package whose installed version names the framework's share scope: `react` gives `react@19.3.0`.                                          |
 | `sharing`             | The share-scope candidates and how each is shared; a container shares one only when it depends on it, and an author can only add to the list. |
 | `stylesheet`          | What Tailwind scans under `src/`, and any lines added after its imports.                                                                      |
 | `exposeDefinition`    | Optional: how an exposed entry exports `definition`, in place of re-exporting the author's.                                                   |
@@ -67,6 +68,29 @@ errors. Planning is synchronous and writes nothing, so a test needs no compiler.
   the generated-file helpers (`banner`, `joinBlocks`, `quote`,
   `relativeSpecifier`, `generatedPath`) and `createBuildError`, so an
   integration's own discovery and generated files read like these.
+
+## Share scopes
+
+Every candidate is either framework-scoped (`SINGLETON`, or a policy with
+`frameworkScoped: true`) or page-wide (`PAGE_SINGLETON`). A framework-scoped
+candidate goes in the share scope named after the exact framework version the
+container installed, such as `react@19.3.0` or `angular@19.2.25`, so containers on
+the same version load one copy and a container on another version brings its own
+complete set. A page-wide candidate goes in `default`, which every container on
+the page shares whatever its framework.
+
+A container depends on its adapter, not on the neutral packages the adapter
+imports, so the page-wide candidates the adapter itself depends on are shared at
+the versions installed beside the adapter. A container's own entry for one wins.
+
+An author's `shared` override adds a candidate to the framework scope as a strict
+singleton, or tightens an existing one to a singleton. It never removes, relaxes or
+moves a candidate to another scope. The registry descriptor lists the scopes as
+`shareScopes`, `default` first, and a host registers the container with them.
+
+Installed versions are read by walking the `node_modules` directories above a
+root, never through `require`, so a package that only `NODE_PATH` holds is never
+shared.
 
 `@company/mfe-build/federation` exports the share-scope machinery,
 `installedVersionFrom`, the federation options and `createBuildError` without

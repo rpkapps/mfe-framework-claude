@@ -12,8 +12,8 @@ export interface FrameworkManifestMetadata {
   readonly kind: 'mfe'
   /** The framework contract major this container was built against. */
   readonly major: number
-  /** The adapter that built it, when the integration names one; absent reads as React. */
-  readonly framework?: string
+  /** The adapter that built it. */
+  readonly framework: string
   readonly buildHash: string
   readonly buildTime: string
   readonly registryDescriptor: string
@@ -56,13 +56,12 @@ export function containerDescriptor(
     entries[definition.id] = exposeName(definition)
   }
 
-  const { framework } = context.profile
   return {
     manifestUrl: context.options.manifestFileName,
     container: context.options.federationName,
     contractMajor: FRAMEWORK_CONTRACT_MAJOR,
-    // Written only when named, so a React container's entry is what it was before the field.
-    ...(framework === undefined ? {} : { framework }),
+    framework: context.profile.framework,
+    shareScopes: context.shareScopes,
     definitions,
     entries,
     build: { hash: buildHash, time: context.options.buildTime },
@@ -78,7 +77,7 @@ export function frameworkMetadata(
   return {
     kind: 'mfe',
     major: descriptor.contractMajor,
-    ...(descriptor.framework === undefined ? {} : { framework: descriptor.framework }),
+    framework: context.profile.framework,
     buildHash,
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,

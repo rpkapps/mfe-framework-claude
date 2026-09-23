@@ -103,6 +103,13 @@ describe('installedVersionFrom', () => {
     expect(installedVersionFrom(root)('@acme/never-installed')).toBeUndefined()
   })
 
+  it('reads nothing a search path outside the root holds, however the build was launched', () => {
+    // A package-manager shim puts the whole store on NODE_PATH, where this package is installed.
+    const root = install({})
+
+    expect(installedVersionFrom(root)('@company/mfe-core')).toBeUndefined()
+  })
+
   it('answers undefined for a manifest that is not readable JSON', () => {
     const root = install({})
     writeFile(join(root, 'node_modules/broken/package.json'), '{ not json')

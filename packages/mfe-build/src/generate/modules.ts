@@ -24,6 +24,8 @@ export interface GenerateContext {
   readonly discovery: DiscoveryResult
   readonly configSource: ConfigSource | undefined
   readonly profile: ContainerProfile
+  /** The share scopes a host registers this container with, `default` first. */
+  readonly shareScopes: readonly string[]
 }
 
 export const ALIASES = {

@@ -266,6 +266,8 @@ describe('the registry entry the build publishes', () => {
       container: 'acme_operations',
       entries: { operations: './app' },
       contractMajor: 1,
+      framework: 'react',
+      shareScopes: ['default', 'react@19.3.0'],
       definitions: [
         {
           id: 'operations',
@@ -304,10 +306,14 @@ export const orderRow = createWidget({
     expect(descriptor.definitions[1]).not.toHaveProperty('capabilities')
   })
 
-  it('names no framework, which a host reads as a React container', () => {
+  it('names React as its framework and the React it was built on as its share scope', () => {
     const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
 
-    expect(JSON.parse(fileFor('mfe-registry.json'))).not.toHaveProperty('framework')
-    expect(plan.generated.frameworkMetadata).not.toHaveProperty('framework')
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toMatchObject({
+      framework: 'react',
+      shareScopes: ['default', 'react@19.3.0'],
+    })
+    expect(plan.generated.frameworkMetadata.framework).toBe('react')
+    expect(plan.shared['react']?.shareScope).toBe('react@19.3.0')
   })
 })

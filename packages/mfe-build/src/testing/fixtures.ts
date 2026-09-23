@@ -4,12 +4,32 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { TEST_FRAMEWORK_ANCHOR } from './profile.ts'
+
 const created: string[] = []
+
+export interface InstalledFixturePackage {
+  readonly version: string
+  readonly dependencies?: Readonly<Record<string, string>>
+}
+
+export interface ContainerFixtureOptions {
+  readonly manifest?: Record<string, unknown>
+  /**
+   * Packages installed into the container's `node_modules`, as manifests only. Defaults to the
+   * made-up framework's anchor, so the container has a framework share scope.
+   */
+  readonly installed?: Readonly<Record<string, InstalledFixturePackage>>
+}
+
+const FRAMEWORK_INSTALLED: Readonly<Record<string, InstalledFixturePackage>> = {
+  [TEST_FRAMEWORK_ANCHOR]: { version: '19.3.0' },
+}
 
 /** Writes a container into a temporary directory and returns its root. */
 export function createContainer(
   files: Readonly<Record<string, string>>,
-  options: { readonly manifest?: Record<string, unknown> } = {},
+  options: ContainerFixtureOptions = {},
 ): string {
   const root = mkdtempSync(join(tmpdir(), 'mfe-container-'))
   created.push(root)
@@ -25,6 +45,14 @@ export function createContainer(
   writeContainerFile(root, 'package.json', `${JSON.stringify(manifest, null, 2)}\n`)
   for (const [path, contents] of Object.entries(files)) {
     writeContainerFile(root, path, contents)
+  }
+  for (const [name, installed] of Object.entries(options.installed ?? FRAMEWORK_INSTALLED)) {
+    const manifestJson = { name, version: installed.version, dependencies: installed.dependencies }
+    writeContainerFile(
+      root,
+      `node_modules/${name}/package.json`,
+      `${JSON.stringify(manifestJson, null, 2)}\n`,
+    )
   }
 
   return root

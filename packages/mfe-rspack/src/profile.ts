@@ -6,7 +6,12 @@
 import type { ContainerProfile } from '@company/mfe-build'
 
 import { extractCapabilities } from './discovery/capabilities.ts'
-import { REACT_SHARING_POLICY } from './federation/sharing.ts'
+import {
+  REACT_ADAPTER,
+  REACT_ANCHOR,
+  REACT_FRAMEWORK,
+  REACT_SHARING_POLICY,
+} from './federation/sharing.ts'
 import {
   designSystemStylesheetImports,
   exposeWithStyleRoot,
@@ -14,17 +19,20 @@ import {
 } from './generate/styles.ts'
 import type { ReactOptions } from './options.ts'
 
-/** No `framework`: a React container's registry entry and manifest carry none, as always. */
 export function reactProfile(options: ReactOptions): ContainerProfile {
   return {
     generator: '@company/mfe-rspack',
+    // Written although a host reads an entry that names no framework as React, so no adapter
+    // has to guess.
+    framework: REACT_FRAMEWORK,
+    frameworkAnchor: REACT_ANCHOR,
     definitions: {
-      factoryModules: ['@company/mfe-react'],
+      factoryModules: [REACT_ADAPTER],
       appOptions: 'router: makeRouter',
       iconExample: "import { BellIcon } from 'lucide-react' then icon: BellIcon",
     },
     envModules: ['@company/mfe-rspack', '@company/mfe-rspack/env'],
-    adapterModule: '@company/mfe-react',
+    adapterModule: REACT_ADAPTER,
     sharing: REACT_SHARING_POLICY,
     stylesheet: { sources: '**/*.{ts,tsx}', imports: designSystemStylesheetImports },
     exposeDefinition: exposeWithStyleRoot,

@@ -8,13 +8,25 @@ export type { BuildDiagnosticDetails } from '../diagnostics.ts'
 
 export { buildFederationOptions, withFrameworkMetadata } from './federation-options.ts'
 export type { FederationOptions } from './federation-options.ts'
+export {
+  adapterCarriedShares,
+  adapterDependencies,
+  pagePolicy,
+  resolveFrameworkScope,
+} from './framework-scope.ts'
+export type { AdapterDependencies, FrameworkScopeOptions } from './framework-scope.ts'
 export { installedVersionFrom } from './installed-version.ts'
 export {
   containerDependencies,
+  frameworkShareScope,
   isUsableVersionRange,
+  PAGE_SHARE_SCOPE,
+  PAGE_SINGLETON,
   packageOf,
   resolveShared,
+  shareScopesOf,
   SINGLETON,
+  sortedByName,
 } from './sharing.ts'
 export type {
   ResolveSharedOptions,

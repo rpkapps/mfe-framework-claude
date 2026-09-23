@@ -1,52 +1,38 @@
-/** What a dependency range actually resolved to; a `catalog:` range names no version at all. */
+/**
+ * What a dependency range actually resolved to; a `catalog:` range names no version at all.
+ *
+ * Read by walking the `node_modules` directories above a root, the way a bundler resolves a bare
+ * import, and never through `require`: Node's `require` also searches `NODE_PATH`, which pnpm's
+ * binary shims point at the whole store, so a package the root never depends on would resolve
+ * whenever the build happened to be launched through one. What is shared must not depend on how
+ * the command was started.
+ */
 
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { readFileSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 interface PackageManifest {
-  readonly name?: unknown
   readonly version?: unknown
 }
 
-/**
- * Three lookups, because an `exports` map need not publish the manifest, a package with no root
- * entry has none beside it, and pnpm links only a direct dependency into this root.
- */
 export function installedVersionFrom(root: string): (name: string) => string | undefined {
-  const require = createRequire(join(root, 'package.json'))
-
-  return name =>
-    versionOf(published(require, name)) ??
-    versionOf(besideTheEntry(require, name)) ??
-    versionOf(readManifest(join(root, 'node_modules', name, 'package.json')))
-}
-
-function versionOf(manifest: PackageManifest | undefined): string | undefined {
-  return typeof manifest?.version === 'string' ? manifest.version : undefined
-}
-
-function published(require: NodeJS.Require, name: string): PackageManifest | undefined {
-  try {
-    return require(`${name}/package.json`) as PackageManifest
-  } catch {
-    // Either not installed, or installed behind an `exports` map that hides the manifest.
-    return undefined
+  return name => {
+    const packageRoot = installedPackageRoot(name, root)
+    if (packageRoot === undefined) return undefined
+    const version = readManifest(join(packageRoot, 'package.json'))?.version
+    return typeof version === 'string' ? version : undefined
   }
 }
 
-/** The walk stops at the first manifest naming the package, so a nested one is not mistaken. */
-function besideTheEntry(require: NodeJS.Require, name: string): PackageManifest | undefined {
-  let directory: string
-  try {
-    directory = dirname(require.resolve(name))
-  } catch {
-    return undefined
-  }
-
+/**
+ * The directory a bare import of `name` from `root` lands in, with symbolic links resolved, so a
+ * package's own dependencies are then found beside it the way pnpm links them.
+ */
+export function installedPackageRoot(name: string, root: string): string | undefined {
+  let directory = root
   for (;;) {
-    const manifest = readManifest(join(directory, 'package.json'))
-    if (manifest?.name === name) return manifest
+    const candidate = join(directory, 'node_modules', name)
+    if (readManifest(join(candidate, 'package.json')) !== undefined) return realpathSync(candidate)
 
     const parent = dirname(directory)
     if (parent === directory) return undefined

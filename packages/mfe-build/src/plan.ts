@@ -10,10 +10,13 @@ import type { CapabilityOwner } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
+import { adapterCarriedShares, resolveFrameworkScope } from './federation/framework-scope.ts'
 import { installedVersionFrom } from './federation/installed-version.ts'
 import {
   containerDependencies,
   resolveShared,
+  shareScopesOf,
+  sortedByName,
   type SharedModuleConfig,
 } from './federation/sharing.ts'
 import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
@@ -85,12 +88,15 @@ export function planContainer(
       sourceFiles,
     }) ?? []
 
+  const shared = planShared(profile, resolved)
+
   const context: GenerateContext = {
     options: resolved,
     entryFile,
     discovery,
     configSource,
     profile,
+    shareScopes: shareScopesOf(shared),
   }
 
   const generated = generateContainerFiles(context, capabilities)
@@ -115,12 +121,7 @@ export function planContainer(
     discovery,
     capabilities,
     configSource,
-    shared: resolveShared({
-      policy: profile.sharing,
-      dependencies: containerDependencies(resolved),
-      overrides: resolved.sharedOverrides,
-      installedVersion: installedVersionFrom(resolved.containerRoot),
-    }),
+    shared,
     exposes,
     entryStub: containerEntryPath(context),
     aliases,
@@ -135,4 +136,36 @@ export function planContainer(
       ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file)),
     ],
   }
+}
+
+/**
+ * The container's own candidates, plus the page singletons its adapter carries in. The
+ * container's own entry wins: one it depends on directly, or one its author added.
+ */
+function planShared(
+  profile: ContainerProfile,
+  resolved: ResolvedOptions,
+): Readonly<Record<string, SharedModuleConfig>> {
+  const root = resolved.containerRoot
+  const installedVersion = installedVersionFrom(root)
+
+  const own = resolveShared({
+    policy: profile.sharing,
+    dependencies: containerDependencies(resolved),
+    overrides: resolved.sharedOverrides,
+    installedVersion,
+    frameworkScope: resolveFrameworkScope({
+      framework: profile.framework,
+      anchor: profile.frameworkAnchor,
+      root,
+      installedVersion,
+    }),
+  })
+  const carried = adapterCarriedShares({
+    adapter: profile.adapterModule,
+    containerRoot: root,
+    policy: profile.sharing,
+  })
+
+  return sortedByName({ ...carried, ...own })
 }

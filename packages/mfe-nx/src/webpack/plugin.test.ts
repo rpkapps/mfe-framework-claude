@@ -19,7 +19,12 @@ import webpack, {
   type WebpackPluginInstance,
 } from 'webpack'
 
-import { cleanupContainers, createContainer, writeFile } from '../testing/containers.ts'
+import {
+  ANGULAR_CORE_VERSION,
+  cleanupContainers,
+  createContainer,
+  writeFile,
+} from '../testing/containers.ts'
 import { MfeWebpackPlugin, type MfeWebpackPluginSettings } from './plugin.ts'
 
 afterEach(cleanupContainers)
@@ -196,6 +201,15 @@ function readJsonDist<T>(root: string, name: string): T {
   return JSON.parse(readDist(root, name)) as T
 }
 
+const ANGULAR_SCOPE = `angular@${ANGULAR_CORE_VERSION}`
+
+/** Each share the remote entry registers at start-up, with the one scope it registers it in. */
+function registeredScopes(remoteEntry: string): Record<string, string> {
+  const block = /initOptions\.shared = \{([\s\S]*?)\n[^\n]*\};/.exec(remoteEntry)?.[1] ?? ''
+  const shares = block.matchAll(/"([^"]+)": \[\{[\s\S]*?scope: \["([^"]+)"\]/g)
+  return Object.fromEntries([...shares].map(([, name = '', scope = '']) => [name, scope]))
+}
+
 interface Manifest {
   readonly metaData: Record<string, unknown> & { readonly mfe?: Record<string, unknown> }
   readonly shared: readonly { readonly name: string }[]
@@ -263,6 +277,25 @@ describe('MfeWebpackPlugin on a production compile', () => {
           '@company/mfe-runtime',
         ]),
       )
+    },
+    COMPILE_TIMEOUT,
+  )
+
+  it(
+    'registers the Angular group in the Angular scope and the neutral packages in the page scope',
+    async () => {
+      const root = reportsContainer()
+
+      await build(angularLikeConfig(root, 'production'))
+
+      const registry = readJsonDist<{ shareScopes?: unknown }>(root, 'mfe-registry.json')
+      expect(registry.shareScopes).toEqual(['default', ANGULAR_SCOPE])
+      // The manifest names no scope, so the scope is read where the remote registers its shares.
+      expect(registeredScopes(readDist(root, 'remoteEntry.js'))).toEqual({
+        '@company/mfe-angular': ANGULAR_SCOPE,
+        '@company/mfe-core': 'default',
+        '@company/mfe-runtime': 'default',
+      })
     },
     COMPILE_TIMEOUT,
   )

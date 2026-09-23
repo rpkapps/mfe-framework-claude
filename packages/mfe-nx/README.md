@@ -140,16 +140,22 @@ plugin and replaces nothing an author wrote. The container is the Nx project bei
 
 ## Sharing
 
-`src/federation/sharing.ts` holds the whole policy, in two groups so that the framework group can
-later move into a share scope keyed by the Angular version:
+`src/federation/sharing.ts` holds the whole policy, in two groups that go in two share scopes:
 
-- **Framework** — singleton and `strictVersion`: `@angular/core`, `@angular/common` (and the
-  `@angular/common/` prefix, for `@angular/common/http`), `@angular/platform-browser`,
-  `@angular/router`, `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix),
-  `rxjs` (and its prefix) and `@company/mfe-angular`.
-- **Page** — singleton and `strictVersion`: `@company/mfe-core` and `@company/mfe-runtime`.
+- **Framework**, in the `angular@<installed @angular/core>` scope, such as `angular@19.2.25` —
+  singleton and `strictVersion`: `@angular/core`, `@angular/common` (and the `@angular/common/`
+  prefix, for `@angular/common/http`), `@angular/platform-browser`, `@angular/router`,
+  `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix), `rxjs` (and its prefix)
+  and `@company/mfe-angular`. Containers on the same Angular version share one copy; a container on
+  another version brings its own set, so two Angular versions can share one page.
+- **Page**, in `default` — singleton and `strictVersion`: `@company/mfe-core` and
+  `@company/mfe-runtime`, one copy for the whole page whatever framework a container renders with.
 - **Never shared**: `primeng`, `@primeng/themes`, `@primeuix/styled`, `@primeuix/utils`. Their theme
   engine keeps page-wide module state; `withMfe({ shared })` refuses them.
+
+A package `withMfe({ shared })` adds joins the Angular scope as a singleton; an addition never
+removes, relaxes or re-scopes a candidate. The registry entry lists the scopes as `shareScopes`
+(`["default", "angular@19.2.25"]`), and the shell registers the container with exactly those.
 
 A container shares a candidate it depends on. The page group is the exception: a React shell
 provides the neutral packages but never the Angular adapter, so the first Angular container on a

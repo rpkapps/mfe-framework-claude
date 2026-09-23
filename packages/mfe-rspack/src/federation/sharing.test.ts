@@ -4,9 +4,11 @@ import { resolveShared, type ResolveSharedOptions } from '@company/mfe-build/fed
 
 import { DEFAULT_SHARED_CANDIDATES, REACT_SHARING_POLICY } from './sharing.ts'
 
+const REACT_SCOPE = 'react@19.3.0'
+
 /** The machinery has its own tests in the build package; these are about what React shares. */
-function resolveReactShared(options: Omit<ResolveSharedOptions, 'policy'>) {
-  return resolveShared({ policy: REACT_SHARING_POLICY, ...options })
+function resolveReactShared(options: Omit<ResolveSharedOptions, 'policy' | 'frameworkScope'>) {
+  return resolveShared({ policy: REACT_SHARING_POLICY, frameworkScope: REACT_SCOPE, ...options })
 }
 
 describe('the React sharing policy', () => {
@@ -20,6 +22,7 @@ describe('the React sharing policy', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: '^19.0.0',
+      shareScope: REACT_SCOPE,
     })
   })
 
@@ -29,9 +32,11 @@ describe('the React sharing policy', () => {
 
   it("lists the framework's own candidates first, then the design system's contract in its order", () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
-      // A second copy of these makes every framework hook fail with "rendered outside any mount".
+      // One copy per page, whatever framework renders.
       '@company/mfe-core',
       '@company/mfe-runtime',
+      // A second copy of these in one React version makes every framework hook fail with
+      // "rendered outside any mount".
       '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
@@ -65,6 +70,31 @@ describe('the React sharing policy', () => {
     }
   })
 
+  it('keeps the neutral core and runtime page-wide and puts everything React-bound in the React scope', () => {
+    const shared = resolveReactShared({
+      dependencies: Object.fromEntries(
+        DEFAULT_SHARED_CANDIDATES.map(candidate => [candidate.replace(/\/$/, ''), '1.0.0']),
+      ),
+    })
+
+    const scopes = Object.fromEntries(
+      Object.entries(shared).map(([name, entry]) => [name, entry.shareScope]),
+    )
+    expect(scopes).toEqual({
+      '@company/mfe-core': 'default',
+      '@company/mfe-runtime': 'default',
+      '@company/mfe-react': REACT_SCOPE,
+      '@tanstack/react-query': REACT_SCOPE,
+      '@tanstack/react-router': REACT_SCOPE,
+      '@tecton/react/': REACT_SCOPE,
+      react: REACT_SCOPE,
+      'react-aria-components': REACT_SCOPE,
+      'react-dom': REACT_SCOPE,
+      recharts: REACT_SCOPE,
+      sonner: REACT_SCOPE,
+    })
+  })
+
   it('shares the design system, React Aria and recharts as non-singletons', () => {
     const shared = resolveReactShared({
       dependencies: {
@@ -80,17 +110,20 @@ describe('the React sharing policy', () => {
       strictVersion: false,
       requiredVersion: '0.1.0',
       version: '0.1.0',
+      shareScope: REACT_SCOPE,
     })
     expect(shared['react-aria-components']).toEqual({
       singleton: false,
       strictVersion: false,
       requiredVersion: '^1.21.1',
+      shareScope: REACT_SCOPE,
     })
     expect(shared['recharts']).toEqual({
       singleton: false,
       strictVersion: false,
       eager: false,
       requiredVersion: '3.8.0',
+      shareScope: REACT_SCOPE,
     })
   })
 
@@ -106,6 +139,7 @@ describe('the React sharing policy', () => {
       strictVersion: false,
       requiredVersion: '0.0.0',
       version: '0.0.0',
+      shareScope: REACT_SCOPE,
     })
   })
 
@@ -116,7 +150,22 @@ describe('the React sharing policy', () => {
       singleton: false,
       strictVersion: false,
       requiredVersion: false,
+      shareScope: REACT_SCOPE,
     })
     expect(shared['@tecton/react/']).not.toHaveProperty('version')
+  })
+
+  it('never moves the neutral core into the React scope when an author names it again', () => {
+    const shared = resolveReactShared({
+      dependencies: { '@company/mfe-core': '^0.1.0' },
+      overrides: { '@company/mfe-core': '^0.1.2', '@acme/auth-client': '^3.0.0' },
+    })
+
+    expect(shared['@company/mfe-core']).toMatchObject({
+      singleton: true,
+      requiredVersion: '^0.1.2',
+      shareScope: 'default',
+    })
+    expect(shared['@acme/auth-client']).toMatchObject({ singleton: true, shareScope: REACT_SCOPE })
   })
 })

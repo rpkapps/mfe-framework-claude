@@ -2,18 +2,33 @@ import { describe, expect, it } from 'vitest'
 
 import {
   containerDependencies,
+  frameworkShareScope,
   isUsableVersionRange,
-  resolveShared,
+  PAGE_SINGLETON,
+  resolveShared as resolveSharedIn,
+  shareScopesOf,
   SINGLETON,
+  type ResolveSharedOptions,
   type SharingPolicies,
 } from './sharing.ts'
 
-/** An integration's policy: a runtime that must exist once, and libraries that may not. */
+/**
+ * An integration's policy: a runtime that must exist once per framework version, libraries bound
+ * to it that may exist more than once, and a neutral kernel the whole page shares.
+ */
 const POLICY: SharingPolicies = {
   'ui-runtime': SINGLETON,
   'ui-runtime-dom': SINGLETON,
-  '@acme/ui-kit/': { singleton: false, strictVersion: false },
-  charts: { singleton: false, strictVersion: false, eager: false },
+  '@acme/ui-kit/': { singleton: false, strictVersion: false, frameworkScoped: true },
+  charts: { singleton: false, strictVersion: false, eager: false, frameworkScoped: true },
+  '@acme/kernel': PAGE_SINGLETON,
+}
+
+const FRAMEWORK_SCOPE = 'ui@19.3.0'
+
+/** Every container here renders with the same made-up framework version. */
+function resolveShared(options: Omit<ResolveSharedOptions, 'frameworkScope'>) {
+  return resolveSharedIn({ frameworkScope: FRAMEWORK_SCOPE, ...options })
 }
 
 describe('resolveShared', () => {
@@ -28,6 +43,7 @@ describe('resolveShared', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: '^19.0.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -50,6 +66,7 @@ describe('resolveShared', () => {
       strictVersion: false,
       eager: false,
       requiredVersion: '3.8.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -61,7 +78,11 @@ describe('resolveShared', () => {
     })
 
     expect(Object.keys(shared)).toEqual(['state-store'])
-    expect(shared['state-store']).toMatchObject({ singleton: true, strictVersion: true })
+    expect(shared['state-store']).toMatchObject({
+      singleton: true,
+      strictVersion: true,
+      shareScope: FRAMEWORK_SCOPE,
+    })
   })
 
   it('keeps the defaults when an author adds a package', () => {
@@ -76,6 +97,7 @@ describe('resolveShared', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: '^3.0.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
     expect(shared['ui-runtime']?.requiredVersion).toBe('^19.0.0')
   })
@@ -91,6 +113,7 @@ describe('resolveShared', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: '^3.0.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -105,6 +128,7 @@ describe('resolveShared', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: '19.3.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -115,6 +139,7 @@ describe('resolveShared', () => {
       singleton: true,
       strictVersion: true,
       requiredVersion: false,
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -153,6 +178,7 @@ describe('resolveShared', () => {
       strictVersion: false,
       requiredVersion: '0.4.0',
       version: '0.4.0',
+      shareScope: FRAMEWORK_SCOPE,
     })
   })
 
@@ -166,6 +192,7 @@ describe('resolveShared', () => {
       singleton: false,
       strictVersion: false,
       requiredVersion: false,
+      shareScope: FRAMEWORK_SCOPE,
     })
     expect(shared['@acme/ui-kit/']).not.toHaveProperty('version')
   })
@@ -179,6 +206,99 @@ describe('resolveShared', () => {
     expect(resolveShared({ policy: POLICY, dependencies })['ui-runtime']?.requiredVersion).toBe(
       '19.3.0',
     )
+  })
+})
+
+describe('framework share scopes', () => {
+  it('puts every framework-bound candidate in the scope named after the framework version', () => {
+    const shared = resolveSharedIn({
+      policy: POLICY,
+      dependencies: { 'ui-runtime': '19.3.0', '@acme/ui-kit': '^0.4.0', '@acme/kernel': '^1.0.0' },
+      frameworkScope: frameworkShareScope('ui', '19.3.0'),
+    })
+
+    expect(shared['ui-runtime']?.shareScope).toBe('ui@19.3.0')
+    expect(shared['@acme/ui-kit/']?.shareScope).toBe('ui@19.3.0')
+    expect(shared['@acme/kernel']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '^1.0.0',
+      shareScope: 'default',
+    })
+  })
+
+  it('gives containers on another framework version a scope of their own', () => {
+    const dependencies = { 'ui-runtime': 'catalog:', '@acme/kernel': 'workspace:*' }
+    const at = (version: string) =>
+      resolveSharedIn({
+        policy: POLICY,
+        dependencies,
+        frameworkScope: frameworkShareScope('ui', version),
+        installedVersion: name => (name === 'ui-runtime' ? version : '1.0.0'),
+      })
+
+    const current = at('19.3.0')
+    const previous = at('19.2.8')
+
+    expect(current['ui-runtime']).toMatchObject({
+      shareScope: 'ui@19.3.0',
+      requiredVersion: '19.3.0',
+    })
+    expect(previous['ui-runtime']).toMatchObject({
+      shareScope: 'ui@19.2.8',
+      requiredVersion: '19.2.8',
+    })
+    // The page singletons stay one copy whichever framework version a container is on.
+    expect(previous['@acme/kernel']).toEqual(current['@acme/kernel'])
+    expect(current['@acme/kernel']?.shareScope).toBe('default')
+  })
+
+  it('keeps a page singleton an author names again in the page scope', () => {
+    const shared = resolveShared({
+      policy: POLICY,
+      dependencies: { '@acme/kernel': '^1.0.0' },
+      overrides: { '@acme/kernel': '^1.2.0' },
+    })
+
+    expect(shared['@acme/kernel']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '^1.2.0',
+      shareScope: 'default',
+    })
+  })
+
+  it("adds an author's own package to the framework scope as a singleton", () => {
+    const shared = resolveShared({
+      policy: POLICY,
+      dependencies: {},
+      overrides: { '@acme/feature-flags': '^2.0.0' },
+    })
+
+    expect(shared['@acme/feature-flags']).toEqual({
+      singleton: true,
+      strictVersion: true,
+      requiredVersion: '^2.0.0',
+      shareScope: FRAMEWORK_SCOPE,
+    })
+  })
+})
+
+describe('shareScopesOf', () => {
+  it('lists the page scope first, then each other scope once', () => {
+    const shared = resolveShared({
+      policy: POLICY,
+      dependencies: { 'ui-runtime': '^19.0.0', charts: '3.8.0', '@acme/kernel': '^1.0.0' },
+    })
+
+    expect(shareScopesOf(shared)).toEqual(['default', FRAMEWORK_SCOPE])
+  })
+
+  it('names the page scope even for a container that shares nothing in it', () => {
+    const shared = resolveShared({ policy: POLICY, dependencies: { 'ui-runtime': '^19.0.0' } })
+
+    expect(shareScopesOf(shared)).toEqual(['default', FRAMEWORK_SCOPE])
+    expect(shareScopesOf({})).toEqual(['default'])
   })
 })
 

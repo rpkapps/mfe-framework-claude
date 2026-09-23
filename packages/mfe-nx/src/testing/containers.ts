@@ -10,6 +10,11 @@ import { dirname, join } from 'node:path'
 
 const created: string[] = []
 
+const ANGULAR_CORE = '@angular/core'
+
+/** The Angular version every fixture container is built on, unless a test links a real one. */
+export const ANGULAR_CORE_VERSION = '19.2.25'
+
 /** This package's own `node_modules`, where the real packages a fixture links to are installed. */
 const INSTALLED = join(__dirname, '../../node_modules')
 
@@ -38,6 +43,10 @@ export function createContainer(
   for (const [path, contents] of Object.entries(files)) writeFile(root, path, contents)
 
   installAdapter(root)
+  // Its version names the container's Angular share scope; a test that links the real one uses that.
+  if (!(options.link ?? []).includes(ANGULAR_CORE)) {
+    writePackage(root, ANGULAR_CORE, ANGULAR_CORE_VERSION, {}, 'export const VERSION = {}\n')
+  }
   for (const name of options.link ?? []) {
     const target = join(root, 'node_modules', name)
     mkdirSync(dirname(target), { recursive: true })

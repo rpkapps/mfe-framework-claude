@@ -7,7 +7,7 @@ import type { ContainerProfile } from '@company/mfe-build'
 
 import { ANGULAR_ADAPTER } from './adapter.ts'
 import { readRouteDataCapabilities } from './discovery/capabilities.ts'
-import { ANGULAR_SHARING_POLICY } from './federation/sharing.ts'
+import { ANGULAR_ANCHOR, ANGULAR_FRAMEWORK, ANGULAR_SHARING_POLICY } from './federation/sharing.ts'
 import { globalStylesheetImports } from './generate/styles.ts'
 import { CONTAINER_ROOT_OPTION } from './options.ts'
 
@@ -21,7 +21,8 @@ export const ENV_MODULE = '@company/mfe-nx/env'
 export function angularProfile(): ContainerProfile {
   return {
     generator: '@company/mfe-nx',
-    framework: 'angular',
+    framework: ANGULAR_FRAMEWORK,
+    frameworkAnchor: ANGULAR_ANCHOR,
     definitions: {
       factoryModules: [ANGULAR_ADAPTER],
       appOptions: 'routes',

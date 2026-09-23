@@ -418,6 +418,8 @@ describe('the registry entry the build publishes', () => {
       container: 'acme_operations',
       entries: { operations: './app' },
       contractMajor: 1,
+      framework: 'acme',
+      shareScopes: ['default', 'acme@19.3.0'],
       definitions: [
         {
           id: 'operations',
@@ -482,23 +484,81 @@ export const orderRow = createWidget({
     ])
   })
 
-  it('records the framework only for an integration that names one', () => {
+  it('records the framework that built it, beside the share scopes a host registers', () => {
     const angular: ContainerProfile = { ...TEST_PROFILE, framework: 'angular' }
-    const unnamed = planFixture({ 'src/mfe.ts': APP_ENTRY })
     const named = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile: angular })
 
     const descriptor = JSON.parse(named.fileFor('mfe-registry.json')) as Record<string, unknown>
-    expect(Object.keys(descriptor).slice(0, 4)).toEqual([
+    expect(Object.keys(descriptor).slice(0, 5)).toEqual([
       'manifestUrl',
       'container',
       'contractMajor',
       'framework',
+      'shareScopes',
     ])
     expect(descriptor['framework']).toBe('angular')
+    expect(descriptor['shareScopes']).toEqual(['default', 'angular@19.3.0'])
     expect(named.plan.generated.frameworkMetadata.framework).toBe('angular')
+  })
+})
 
-    expect(JSON.parse(unnamed.fileFor('mfe-registry.json'))).not.toHaveProperty('framework')
-    expect(unnamed.plan.generated.frameworkMetadata).not.toHaveProperty('framework')
+describe('the share scope the build plans', () => {
+  it('shares the adapter in the framework scope and what it carries in the page scope', () => {
+    const root = createContainer(
+      { 'src/mfe.ts': APP_ENTRY },
+      {
+        installed: {
+          '@acme/ui-runtime': { version: '19.2.8' },
+          '@acme/mfe-adapter': { version: '1.0.3', dependencies: { '@acme/mfe-kernel': '^1.0.0' } },
+        },
+      },
+    )
+
+    const plan = planContainer(TEST_PROFILE, { containerRoot: root, buildTime: BUILD_TIME })
+
+    expect(plan.shared).toEqual({
+      '@acme/mfe-adapter': {
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: '^1.0.0',
+        shareScope: 'acme@19.2.8',
+      },
+      '@acme/mfe-kernel': {
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: '^1.0.0',
+        shareScope: 'default',
+      },
+    })
+    expect(plan.generated.descriptor.shareScopes).toEqual(['default', 'acme@19.2.8'])
+  })
+
+  it("prefers the container's own range for a page singleton its adapter also carries", () => {
+    const root = createContainer(
+      { 'src/mfe.ts': APP_ENTRY },
+      {
+        manifest: { dependencies: { '@acme/mfe-adapter': '^1.0.0', '@acme/mfe-kernel': '~1.0.2' } },
+        installed: {
+          '@acme/ui-runtime': { version: '19.3.0' },
+          '@acme/mfe-adapter': { version: '1.0.3', dependencies: { '@acme/mfe-kernel': '^1.0.0' } },
+        },
+      },
+    )
+
+    const plan = planContainer(TEST_PROFILE, { containerRoot: root })
+
+    expect(plan.shared['@acme/mfe-kernel']).toMatchObject({
+      requiredVersion: '~1.0.2',
+      shareScope: 'default',
+    })
+  })
+
+  it('refuses a container whose framework is not installed, naming the anchor', () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY }, { installed: {} })
+
+    expect(() => planContainer(TEST_PROFILE, { containerRoot: root })).toThrowError(
+      /name the acme share scope: expected @acme\/ui-runtime installed/,
+    )
   })
 })
 

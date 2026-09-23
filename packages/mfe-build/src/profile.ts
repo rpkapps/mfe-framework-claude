@@ -28,11 +28,19 @@ export interface ContainerProfile {
   /** The adapter the generated `#mfe/fetch` imports `createContainerTransport` from. */
   readonly adapterModule: string
   /**
-   * Recorded in the registry entry and the federation manifest. Left out, neither carries one,
-   * which a host reads as a React container.
+   * Recorded in the registry entry and the federation manifest, where it tells a host which
+   * adapter reads the entry, and the name the framework's share scope starts with.
    */
-  readonly framework?: string
-  /** The candidates this kind of container shares, each only when it depends on it. */
+  readonly framework: string
+  /**
+   * The package whose installed version names the framework's share scope, `react@19.3.0`: the
+   * one every framework-bound candidate is built against.
+   */
+  readonly frameworkAnchor: string
+  /**
+   * The candidates this kind of container shares, each only when it depends on it. Those not
+   * framework-scoped are also shared when only the adapter depends on them.
+   */
   readonly sharing: SharingPolicies
   readonly stylesheet: StylesheetProfile
   /**

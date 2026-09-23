@@ -1,30 +1,32 @@
 /**
  * What an Angular container shares, and what it never shares, in one place. The framework group
- * is kept apart from the page group so that it can move into a share scope of its own, keyed by
- * the Angular version, without touching the packages every framework on the page agrees on.
+ * goes in a share scope of its own, keyed by the exact `@angular/core` version, apart from the
+ * packages every framework on the page agrees on, which stay in `default`.
  */
 
-import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 
 import {
-  containerDependencies,
   createBuildError,
-  installedVersionFrom,
-  resolveShared,
+  PAGE_SINGLETON,
   SINGLETON,
-  type SharedModuleConfig,
   type SharingPolicies,
 } from '@company/mfe-build/federation'
 
 import { ANGULAR_ADAPTER } from '../adapter.ts'
 import { SHARED_OPTION } from '../options.ts'
 
+/** The name Angular's share scope starts with, and what a registry entry's `framework` says. */
+export const ANGULAR_FRAMEWORK = 'angular'
+
+/** The package whose installed version names the scope: `angular@19.2.25`. */
+export const ANGULAR_ANCHOR = '@angular/core'
+
 /**
  * Angular's injector tokens, platform and scheduler, the router, RxJS's subjects and the adapter
  * built on them are all module state: a second copy renders nothing the first provides, so every
- * Angular container on a page takes one copy, and a version mismatch fails loudly at load.
+ * Angular container on the same Angular version takes one copy, and a version mismatch inside
+ * that scope fails loudly at load. A container on another Angular version brings its own set.
  */
 export const ANGULAR_FRAMEWORK_POLICY: SharingPolicies = {
   '@angular/core': SINGLETON,
@@ -46,11 +48,12 @@ export const ANGULAR_FRAMEWORK_POLICY: SharingPolicies = {
 /**
  * The neutral packages keep page-wide state — the mount-token sequence, and the `instanceof`
  * checks errors and spans are recognised by — so they are the page's singletons whatever
- * framework a container renders with.
+ * framework a container renders with. A container depends on the adapter alone, never on these,
+ * so the build shares them at the versions the adapter it installed declares.
  */
 export const PAGE_POLICY: SharingPolicies = {
-  '@company/mfe-core': SINGLETON,
-  '@company/mfe-runtime': SINGLETON,
+  '@company/mfe-core': PAGE_SINGLETON,
+  '@company/mfe-runtime': PAGE_SINGLETON,
 }
 
 export const ANGULAR_SHARING_POLICY: SharingPolicies = {
@@ -70,27 +73,6 @@ export const NEVER_SHARED: readonly string[] = [
   '@primeuix/styled',
   '@primeuix/utils',
 ]
-
-/**
- * A container depends on the adapter alone, never on the neutral packages. A React shell provides
- * those, but it never provides the Angular adapter, so the first Angular container on a page
- * provides the adapter itself and the adapter's own imports resolve in that container's build.
- * Sharing the page singletons there, at the versions the adapter resolves, is what keeps them one
- * copy per page; without it the adapter would carry a second core into every Angular mount.
- */
-export function adapterCarriedShares(
-  containerRoot: string,
-): Readonly<Record<string, SharedModuleConfig>> {
-  const adapterRoot = installedPackageRoot(ANGULAR_ADAPTER, containerRoot)
-  // Not installed: the container's own import of the adapter fails with the bundler's message.
-  if (adapterRoot === undefined) return {}
-
-  return resolveShared({
-    policy: PAGE_POLICY,
-    dependencies: containerDependencies(readAdapterManifest(adapterRoot)),
-    installedVersion: installedVersionFrom(adapterRoot),
-  })
-}
 
 /** An author may add shares, never one of the packages whose module state must stay private. */
 export function assertShareable(
@@ -116,36 +98,4 @@ export function assertShareable(
 function packageNameOf(specifier: string): string {
   const segments = specifier.split('/')
   return (specifier.startsWith('@') ? segments.slice(0, 2) : segments.slice(0, 1)).join('/')
-}
-
-/** Through the published manifest, so it resolves from the container the way its imports do. */
-function installedPackageRoot(name: string, containerRoot: string): string | undefined {
-  const require = createRequire(join(containerRoot, 'package.json'))
-  try {
-    return dirname(require.resolve(`${name}/package.json`))
-  } catch {
-    return undefined
-  }
-}
-
-interface PackageManifest {
-  readonly dependencies?: Readonly<Record<string, string>>
-  readonly peerDependencies?: Readonly<Record<string, string>>
-}
-
-function readAdapterManifest(adapterRoot: string): PackageManifest {
-  const file = join(adapterRoot, 'package.json')
-  try {
-    return JSON.parse(readFileSync(file, 'utf8')) as PackageManifest
-  } catch (cause) {
-    throw createBuildError({
-      file,
-      operation: `read the dependencies of ${ANGULAR_ADAPTER}`,
-      expected: 'a readable package manifest',
-      observed: cause instanceof Error ? cause.message : 'an unreadable file',
-      declaredBy: 'The Angular sharing policy',
-      repair: `Reinstall ${ANGULAR_ADAPTER}. The page singletons it depends on are shared at the versions its manifest names.`,
-      cause,
-    })
-  }
 }

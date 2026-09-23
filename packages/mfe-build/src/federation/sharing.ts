@@ -1,24 +1,58 @@
 /**
+ * Every framework on a page shares in a scope of its own, named after its exact installed
+ * version, and the packages every framework agrees on share in `default`. Inside a scope the rule
+ * is one strict copy, so containers built on the same framework version download it once, a
+ * container on another version brings its own complete set, and a mismatch fails at load.
+ *
  * An author can only add to the candidate list; a container that opted out of sharing its
- * framework would load a second copy into a page that already has one, and nothing that keeps
+ * framework would load a second copy into a scope that already has one, and nothing that keeps
  * state in the first would reach it.
  */
+
+/** The share scope a candidate goes in when it binds no framework: Module Federation's own. */
+export const PAGE_SHARE_SCOPE = 'default'
 
 /** What a candidate needs independent of any container; `resolveShared` fills in the versions. */
 export interface SharingPolicy {
   readonly singleton: boolean
   readonly strictVersion: boolean
   readonly eager?: false
+  /**
+   * `true` for a candidate that imports the framework, or that something importing it keeps
+   * state in: it is shared only with containers on the same framework version, because a shared
+   * module's own imports resolve in the build that provided it.
+   */
+  readonly frameworkScoped: boolean
 }
 
 /** Each candidate an integration shares, and how; a container shares one it depends on. */
 export type SharingPolicies = Readonly<Record<string, SharingPolicy>>
 
-export const SINGLETON: SharingPolicy = { singleton: true, strictVersion: true }
+/** One copy per framework version, which is what every framework-bound candidate needs. */
+export const SINGLETON: SharingPolicy = {
+  singleton: true,
+  strictVersion: true,
+  frameworkScoped: true,
+}
+
+/**
+ * One copy per page, whatever framework a container renders with, for the neutral packages whose
+ * module state spans the page.
+ */
+export const PAGE_SINGLETON: SharingPolicy = {
+  singleton: true,
+  strictVersion: true,
+  frameworkScoped: false,
+}
 
 /** The dependency a candidate is satisfied by; a prefix names the package. */
 export function packageOf(candidate: string): string {
   return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate
+}
+
+/** `react@19.3.0`: the framework's name and the exact version its anchor package resolved to. */
+export function frameworkShareScope(framework: string, version: string): string {
+  return `${framework}@${version}`
 }
 
 // A workspace protocol means "whatever is installed", not a range any resolver understands.
@@ -35,6 +69,8 @@ export interface SharedModuleConfig {
   readonly requiredVersion: string | false
   /** Stated explicitly for a prefix share, which has no package literally named after it. */
   readonly version?: string
+  /** `default` for a page-wide candidate, the framework's scope for everything bound to it. */
+  readonly shareScope: string
 }
 
 export interface ResolveSharedOptions {
@@ -42,6 +78,8 @@ export interface ResolveSharedOptions {
   readonly policy: SharingPolicies
   /** The container's `dependencies` and `peerDependencies`, merged. */
   readonly dependencies: Readonly<Record<string, string>>
+  /** The scope every framework-bound candidate goes in, from `frameworkShareScope`. */
+  readonly frameworkScope: string
   /** The one supported author override: additive, never subtractive. */
   readonly overrides?: Readonly<Record<string, string>>
   /** Overridable for tests; defaults to the policy's candidates, in its order. */
@@ -58,20 +96,42 @@ export function resolveShared(
   const shared: Record<string, SharedModuleConfig> = {}
 
   const installed = options.installedVersion ?? (() => undefined)
+  const scopeOf = (policy: SharingPolicy): string =>
+    policy.frameworkScoped ? options.frameworkScope : PAGE_SHARE_SCOPE
 
   for (const name of candidates) {
     const range = options.dependencies[packageOf(name)]
     if (range === undefined) continue
-    // A candidate outside the policy — a test's own list — is a singleton.
-    shared[name] = entry(name, range, options.policy[name] ?? SINGLETON, installed)
+    // A candidate outside the policy — a test's own list — is a framework singleton.
+    const policy = options.policy[name] ?? SINGLETON
+    shared[name] = entry(name, range, policy, scopeOf(policy), installed)
   }
 
-  // An override is additive rather than a way to relax a candidate, so it stays a singleton.
+  // An override adds a candidate or tightens one to a singleton, and it stays in the scope the
+  // policy gave it: moving a page singleton into a framework scope would give that framework's
+  // containers a second copy of it.
   for (const [name, range] of Object.entries(options.overrides ?? {})) {
-    shared[name] = entry(name, range, SINGLETON, installed)
+    const existing = options.policy[name]
+    const policy =
+      existing === undefined
+        ? SINGLETON
+        : { ...SINGLETON, frameworkScoped: existing.frameworkScoped }
+    shared[name] = entry(name, range, policy, scopeOf(policy), installed)
   }
 
-  return Object.fromEntries(Object.entries(shared).sort(([left], [right]) => compare(left, right)))
+  return sortedByName(shared)
+}
+
+/**
+ * The scopes a host registers a container with: `default` always, because the page singletons
+ * live there and a remote links only the scopes named when it is registered, then the rest.
+ */
+export function shareScopesOf(
+  shared: Readonly<Record<string, SharedModuleConfig>>,
+): readonly string[] {
+  const scopes = new Set(Object.values(shared).map(config => config.shareScope))
+  scopes.delete(PAGE_SHARE_SCOPE)
+  return [PAGE_SHARE_SCOPE, ...[...scopes].sort(compare)]
 }
 
 // A workspace protocol resolves to the only version this container was built against, and
@@ -80,6 +140,7 @@ function entry(
   candidate: string,
   range: string,
   policy: SharingPolicy,
+  shareScope: string,
   installedVersion: (name: string) => string | undefined,
 ): SharedModuleConfig {
   const name = packageOf(candidate)
@@ -94,6 +155,7 @@ function entry(
     // A prefix share has no package.json to read a version from, and omitting the field is the
     // only way to say "unknown" here, since `version` has no `false` the way `requiredVersion` has.
     ...(candidate.endsWith('/') && installed !== undefined ? { version: installed } : {}),
+    shareScope,
   }
 }
 
@@ -108,6 +170,13 @@ export function containerDependencies(manifest: {
   readonly peerDependencies?: Readonly<Record<string, string>>
 }): Readonly<Record<string, string>> {
   return { ...manifest.peerDependencies, ...manifest.dependencies }
+}
+
+/** Sorted by name, so the federation options are stable between builds. */
+export function sortedByName(
+  shared: Readonly<Record<string, SharedModuleConfig>>,
+): Readonly<Record<string, SharedModuleConfig>> {
+  return Object.fromEntries(Object.entries(shared).sort(([left], [right]) => compare(left, right)))
 }
 
 function compare(left: string, right: string): number {
