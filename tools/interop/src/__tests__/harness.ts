@@ -25,13 +25,13 @@ import {
 } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
 import { provideMfeRuntime } from '@company/mfe-angular'
-import { OVERLAY_ROOT_ATTRIBUTE, type MfeRuntime } from '@company/mfe-runtime'
+import { MfeProvider } from '@company/mfe-react'
+import { OVERLAY_ROOT_ATTRIBUTE, type MfeRuntime } from '@company/mfe-react/host'
 import {
   createMemoryRuntime,
   type MemoryRuntime,
   type MemoryRuntimeOptions,
-} from '@company/mfe-runtime/testing'
-import { MfeProvider } from '@company/mfe-react'
+} from '@company/mfe-react/testing'
 import { createElement as h, Suspense, type ReactNode } from 'react'
 import { onTestFinished } from 'vitest'
 

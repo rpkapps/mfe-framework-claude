@@ -9,14 +9,14 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core'
 import { toSignal } from '@angular/core/rxjs-interop'
 import { ActivatedRoute, RouterLink, type CanDeactivateFn } from '@angular/router'
 import { createApp, injectMfeMount, mfeRouteData } from '@company/mfe-angular'
+import { AppHost } from '@company/mfe-react'
 import {
   createNavigationIntent,
   KIND_ATTRIBUTE,
   parseBoundaryLocation,
   SCOPE_ATTRIBUTE,
   type NavigationOutcome,
-} from '@company/mfe-runtime'
-import { AppHost } from '@company/mfe-react'
+} from '@company/mfe-react/host'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { createElement as h, useState, type ReactNode } from 'react'

@@ -7,7 +7,7 @@
 
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core'
 import { MfeAppHostComponent, type MfeError } from '@company/mfe-angular'
-import { KIND_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
+import { KIND_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-angular/host'
 import { createApp, useBasePath, type MfeRouterContext } from '@company/mfe-react'
 import {
   createRootRouteWithContext,

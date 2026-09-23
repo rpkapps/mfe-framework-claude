@@ -17,13 +17,13 @@ import {
   type SimpleChanges,
 } from '@angular/core'
 import { createWidget } from '@company/mfe-angular'
+import { DynamicWidget, lazyWidget, type WidgetFallbackProps } from '@company/mfe-react'
 import {
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
-} from '@company/mfe-runtime'
-import { DynamicWidget, lazyWidget, type WidgetFallbackProps } from '@company/mfe-react'
+} from '@company/mfe-react/host'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { createElement as h, useState, type ReactNode } from 'react'

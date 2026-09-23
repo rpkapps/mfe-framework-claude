@@ -13,7 +13,7 @@ import {
   MfeWidgetComponent,
   type MfeWidgetEvent,
 } from '@company/mfe-angular'
-import { SCOPE_ATTRIBUTE } from '@company/mfe-runtime'
+import { SCOPE_ATTRIBUTE } from '@company/mfe-angular/host'
 import { AppHost, createWidget, useCommand } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor } from '@testing-library/react'

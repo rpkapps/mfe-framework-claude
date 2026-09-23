@@ -13,6 +13,14 @@ import type { Linter } from 'eslint'
 import mfe from '@company/eslint-plugin-mfe'
 import react from '@company/eslint-plugin-mfe/react'
 
+/** The vendor telemetry ban `mfe.framework()` carries; restated where `mfe.application()` runs. */
+const TELEMETRY_BAN = {
+  group: ['@opentelemetry/*', '@grafana/faro', '@grafana/faro-*'],
+  message:
+    'Telemetry boundary: emit through the neutral telemetry contract in @company/mfe-core (`MfeTelemetry`) rather than a vendor SDK directly. Type-only imports are restricted too.',
+  allowTypeImports: false,
+} as const
+
 const config: Linter.Config[] = [
   {
     ignores: [
@@ -69,10 +77,25 @@ const config: Linter.Config[] = [
   }),
 
   /*
-   * `tools/interop` still imports `@company/mfe-runtime` and its `/testing` subpath directly (7
-   * sites), exactly like `apps/shell` — a later chunk moves both to the adapters' `/host` and
-   * `/testing` subpaths and turns the mfe-core/mfe-runtime application boundary on for both then.
+   * `application()` replaces `framework()`'s own `no-restricted-imports` rule for the files it
+   * covers rather than adding to it (ESLint keeps the last config's value for a repeated rule), so
+   * both application configs restate the vendor telemetry ban `framework()` would otherwise carry
+   * for these files: the shell's own Faro adapter is the one place that names `@grafana/faro-*`
+   * (`repo/shell-telemetry-adapter`, below), and a cross-adapter harness has no telemetry vendor
+   * of its own to name either.
    */
+  ...mfe.application({
+    files: ['apps/shell/src/**/*.{ts,tsx}'],
+    adapterModules: ['@company/mfe-react'],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
+  }),
+
+  ...mfe.application({
+    files: ['tools/interop/src/**/*.ts'],
+    // A cross-adapter harness, so it may import both adapters.
+    adapterModules: ['@company/mfe-react', '@company/mfe-angular'],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
+  }),
 
   ...mfe.tooling({
     tsconfigRootDir: import.meta.dirname,
@@ -96,6 +119,14 @@ const config: Linter.Config[] = [
     // The one file that adapts the neutral telemetry contract to Faro.
     name: 'repo/shell-telemetry-adapter',
     files: ['apps/shell/src/shell/faro.ts', 'apps/shell/src/shell/faro.test.ts'],
+    rules: { '@typescript-eslint/no-restricted-imports': 'off' },
+  },
+
+  {
+    // Registers remotes at boot: the one file that legitimately imports the Module Federation
+    // runtime directly, as the header comment atop this config says the shell may.
+    name: 'repo/shell-boot-federation',
+    files: ['apps/shell/src/boot.tsx'],
     rules: { '@typescript-eslint/no-restricted-imports': 'off' },
   },
 
