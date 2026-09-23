@@ -1,15 +1,14 @@
 /**
  * Applications and their capability pages come from the registry, so the palette gains a
  * destination when a container is deployed and the shell is not rebuilt. The shell registers its
- * own commands exactly as a mounted application does, and both arrive through one snapshot (§26).
+ * own commands exactly as a mounted application does, and both arrive through one snapshot (§26),
+ * each with the shortcut the runtime will run it for.
  */
 
-import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
-  allow,
   defaultInputsFor,
-  deny,
   describeWidgetInputs,
   HOST_SCOPE,
   needsInputPrompt,
@@ -18,12 +17,9 @@ import {
   useMfeRuntime,
   useTheme,
   useWidgets,
-  type Decision,
   type MfeRuntime,
   type RegistryEntry,
-  type StoredStateSetter,
 } from '@company/mfe-react'
-import { devtools } from '@company/mfe-devtools'
 import {
   Command,
   CommandDialog,
@@ -35,7 +31,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@tecton/react/components/command'
-import { ShortcutKeys, useShortcuts } from '@tecton/react/tecton/shortcuts'
+import { ShortcutKeys } from '@tecton/react/tecton/shortcuts'
 import { toast } from 'sonner'
 import {
   AppWindowIcon,
@@ -55,20 +51,16 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 
-import { collectDiagnostics, formatReport } from './diagnostics.ts'
-import { addTile, EMPTY_LAYOUT, tileKey, type DashboardLayout } from './dashboard/layout-store.ts'
+import { addTile, tileKey, type DashboardLayout } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
 import type { ShellTheme } from './preferences.ts'
-import { shellUi } from './ui-store.ts'
 
 type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
 
-/** What a shell command reads at the moment it is drawn, or run. */
+/** What a shell command's row reads at the moment it is drawn. */
 interface Live {
-  readonly runtime: MfeRuntime
   readonly theme: ShellTheme
   readonly layout: DashboardLayout
-  readonly setLayout: StoredStateSetter<DashboardLayout>
 }
 
 /**
@@ -88,85 +80,28 @@ interface Row {
   readonly run: () => void
 }
 
-/** A shell command: from what it can read now, to the row it draws. */
-type HostCommand = (live: Live) => Omit<Row, 'id' | 'isDisabled' | 'keys'> & {
-  canExecute?: () => Decision
-  /**
-   * The id of the shortcut whose keys this row shows, looked up in the live registry rather than
-   * typed out here, so the palette and the header cannot disagree about a key (§26).
-   */
-  shortcut?: string
-}
+/**
+ * How a shell command is drawn, by the name `shell-commands.ts` registers it under; what it does
+ * is registered there, so a key and a row run the same thing.
+ */
+type HostFace = (live: Live) => Pick<Row, 'icon' | 'text' | 'hint'>
 
-const HOST_COMMANDS: Readonly<Record<string, HostCommand>> = {
-  registry: () => ({
-    label: 'Open the registry',
-    icon: <LayersIcon />,
-    shortcut: 'shell.registry',
-    text: 'loaded rejected entries',
-    run: () => devtools.open('registry'),
-  }),
-  settings: () => ({
-    label: 'Open settings',
-    icon: <SettingsIcon />,
-    shortcut: 'shell.settings',
-    text: 'theme dashboard overrides',
-    run: () => shellUi.show('settings'),
-  }),
-  help: () => ({
-    label: 'Help and keyboard shortcuts',
-    icon: <CircleHelpIcon />,
-    shortcut: 'shell.help',
-    text: 'keyboard shortcuts',
-    run: () => shellUi.show('help'),
-  }),
-  releases: () => ({
-    label: 'What’s new',
-    icon: <SparklesIcon />,
-    text: 'what is new release notes',
-    run: () => shellUi.show('releases'),
-  }),
-  bug: () => ({
-    label: 'Report a bug',
-    icon: <BugIcon />,
-    text: 'diagnostics report',
-    run: () => shellUi.show('bug'),
-  }),
+const HOST_FACES: Readonly<Record<string, HostFace>> = {
+  registry: () => ({ icon: <LayersIcon />, text: 'loaded rejected entries' }),
+  settings: () => ({ icon: <SettingsIcon />, text: 'theme dashboard overrides' }),
+  help: () => ({ icon: <CircleHelpIcon />, text: 'keyboard shortcuts' }),
+  releases: () => ({ icon: <SparklesIcon />, text: 'what is new release notes' }),
+  bug: () => ({ icon: <BugIcon />, text: 'diagnostics report' }),
   theme: live => ({
-    label: live.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
     icon: live.theme === 'dark' ? <SunIcon /> : <MoonIcon />,
-    shortcut: 'shell.theme',
     text: 'switch light dark',
-    run: () => live.runtime.shellState.apply({ theme: live.theme === 'dark' ? 'light' : 'dark' }),
   }),
-  'copy-url': () => ({
-    label: 'Copy a link to this page',
-    icon: <LinkIcon />,
-    text: 'copy link share',
-    run: () => void copyToClipboard(window.location.href, 'Link copied to the clipboard.'),
-  }),
-  'copy-diagnostics': live => ({
-    label: 'Copy diagnostics',
-    icon: <ClipboardCopyIcon />,
-    text: 'copy support',
-    run: () => {
-      const detail = 'Copied from the command palette.'
-      const report = formatReport('Shell diagnostics', detail, collectDiagnostics(live.runtime))
-      void copyToClipboard(report, 'Diagnostics copied to the clipboard.')
-    },
-  }),
+  'copy-url': () => ({ icon: <LinkIcon />, text: 'copy link share' }),
+  'copy-diagnostics': () => ({ icon: <ClipboardCopyIcon />, text: 'copy support' }),
   'clear-dashboard': live => ({
-    label: 'Clear the dashboard canvas',
     icon: <Trash2Icon />,
     hint: `${String(live.layout.tiles.length)} tiles`,
     text: 'remove every widget canvas',
-    // Listed and denied rather than hidden: a control that disappears reads as a lost feature.
-    canExecute: () =>
-      live.layout.tiles.length === 0 ? deny('The dashboard canvas is already empty.') : allow(),
-    run: () => {
-      live.setLayout(EMPTY_LAYOUT)
-      toast.success('The dashboard canvas was cleared.')
-    },
   }),
 }
 
@@ -184,8 +119,7 @@ export function CommandPalette({
   const pages = useCapabilityPages()
   const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
-  // The same registry the header registers into and the help sheet lists (§26).
-  const shortcuts = useShortcuts()
+  // The same snapshot the help sheet lists and the key listener reads (§26).
   const commands = useSyncExternalStore(
     runtime.commands.subscribe,
     runtime.commands.getSnapshot,
@@ -196,35 +130,15 @@ export function CommandPalette({
     if (open) runtime.commands.evaluateAll()
   }, [open, runtime])
 
-  const current: Live = { runtime, theme, layout, setLayout }
-  const live = useRef(current)
-  useEffect(() => {
-    live.current = current
-  })
-
-  // Registered once for as long as this runtime lives, so what changes is read through the ref
-  // when the command runs.
-  useEffect(() => {
-    const handles = Object.entries(HOST_COMMANDS).map(([name, command]) =>
-      runtime.commands.registerHost({
-        name,
-        label: command(live.current).label,
-        canExecute: () => command(live.current).canExecute?.() ?? allow(),
-        execute: () => command(live.current).run(),
-      }),
-    )
-    return () => {
-      for (const handle of handles) handle.remove()
-    }
-  }, [runtime])
+  const live: Live = { theme, layout }
 
   const close = (): void => {
     onOpenChange(false)
   }
 
-  /** A shortcut nothing has registered draws no caps, rather than caps for a key that is dead. */
-  const keysFor = (id: string | undefined): string | undefined =>
-    id === undefined ? undefined : shortcuts.find(shortcut => shortcut.id === id)?.keys
+  /** A shortcut the runtime refused draws no caps, rather than caps for a key that is dead. */
+  const keysFor = (id: string): string | undefined =>
+    commands.find(entry => entry.id === id)?.shortcut
 
   const add = (entry: RegistryEntry): void => {
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
@@ -241,19 +155,19 @@ export function CommandPalette({
     })
   }
 
-  // Drawn from the table rather than the snapshot, because a registration is not remade when the
-  // theme flips.
   const commandRow = (entry: CommandEntry): Row => {
     const { allowed } = entry.decision
-    const command = HOST_COMMANDS[entry.name]?.(current)
+    const face = entry.definitionId === HOST_SCOPE ? HOST_FACES[entry.name]?.(live) : undefined
     return {
       text: entry.definitionId,
       icon: allowed ? <TerminalIcon /> : <BanIcon />,
       label: entry.label,
-      // A mount command's trailing column names its owner; one of the shell's shows its keys.
-      hint: command === undefined ? entry.definitionId : undefined,
-      ...command,
-      keys: keysFor(command?.shortcut),
+      ...face,
+      // The trailing column shows the keys when there are any; otherwise a mount command's names
+      // its owner, and a shell command's says what its face says.
+      ...(entry.shortcut === undefined
+        ? { hint: face === undefined ? entry.definitionId : face.hint }
+        : { keys: entry.shortcut, hint: undefined }),
       // A denied row spends that column on the reason instead, which is the whole point of
       // listing it rather than hiding it.
       ...(allowed ? {} : { hint: entry.decision.reason, keys: undefined }),
@@ -263,8 +177,9 @@ export function CommandPalette({
     }
   }
 
-  const host = commands.filter(entry => entry.definitionId === HOST_SCOPE).map(commandRow)
-  const mounted = commands.filter(entry => entry.definitionId !== HOST_SCOPE).map(commandRow)
+  const listed = commands.filter(entry => entry.placements.includes('command-palette'))
+  const host = listed.filter(entry => entry.definitionId === HOST_SCOPE).map(commandRow)
+  const mounted = listed.filter(entry => entry.definitionId !== HOST_SCOPE).map(commandRow)
 
   const destinations: readonly Row[] = [
     {
@@ -272,7 +187,7 @@ export function CommandPalette({
       text: 'home widgets',
       icon: <LayoutDashboardIcon />,
       label: 'Widget dashboard',
-      keys: keysFor('shell.dashboard'),
+      keys: keysFor(`${HOST_SCOPE}:dashboard`),
       run: () => void navigate({ to: '/' }),
     },
     ...apps.map(app => ({
@@ -371,13 +286,4 @@ function Groups({
         </CommandGroup>
       </Fragment>
     ))
-}
-
-async function copyToClipboard(value: string, success: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(value)
-    toast.success(success)
-  } catch {
-    toast.error('This browser would not give the page the clipboard.')
-  }
 }

@@ -1,8 +1,8 @@
-/** The shortcut list is the live registry rather than a table written here, so it gains and loses rows as you navigate (§26). */
+/** The shortcut list is the live command snapshot rather than a table written here, so it gains and loses rows as you navigate (§26). */
 
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useApps } from '@company/mfe-react'
+import { HOST_SCOPE, useApps, useMfeRuntime, type MfeRuntime } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@tecton/react/components/sheet'
-import { ShortcutKeys, useShortcuts } from '@tecton/react/tecton/shortcuts'
+import { ShortcutKeys } from '@tecton/react/tecton/shortcuts'
 import {
   AppWindowIcon,
   BoxIcon,
@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 
 import { shellUi } from './ui-store.ts'
+
+type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
 
 const CONCEPTS: readonly {
   readonly icon: typeof AppWindowIcon
@@ -60,15 +62,24 @@ export function HelpSheet({
   readonly isOpen: boolean
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
-  const shortcuts = useShortcuts()
+  const runtime = useMfeRuntime('the shell help sheet')
+  const commands = useSyncExternalStore(
+    runtime.commands.subscribe,
+    runtime.commands.getSnapshot,
+    runtime.commands.getSnapshot,
+  )
   const apps = useApps()
   const navigate = useNavigate()
 
-  const groups = new Map<string, typeof shortcuts>()
-  for (const shortcut of shortcuts) {
-    if (shortcut.hidden === true) continue
-    const group = shortcut.group ?? 'General'
-    groups.set(group, [...(groups.get(group) ?? []), shortcut])
+  // Only the keys that can fire: the runtime leaves a refused shortcut off its entry.
+  const shortcuts = commands.filter(entry => entry.shortcut !== undefined)
+  const groups = new Map<string, CommandEntry[]>()
+  for (const entry of shortcuts) {
+    const group =
+      entry.definitionId === HOST_SCOPE
+        ? 'Shell'
+        : (runtime.registry.entries.get(entry.definitionId)?.title ?? entry.definitionId)
+    groups.set(group, [...(groups.get(group) ?? []), entry])
   }
 
   return (
@@ -111,13 +122,13 @@ export function HelpSheet({
               <div key={group} className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">{group}</span>
                 <ItemGroup className="gap-1">
-                  {entries.map(shortcut => (
-                    <Item key={shortcut.id} variant="muted" size="xs">
+                  {entries.map(entry => (
+                    <Item key={entry.id} variant="muted" size="xs">
                       <ItemContent>
-                        <ItemTitle className="font-normal">{shortcut.label}</ItemTitle>
+                        <ItemTitle className="font-normal">{entry.label}</ItemTitle>
                       </ItemContent>
                       <ItemActions>
-                        <ShortcutKeys keys={shortcut.keys} />
+                        <ShortcutKeys keys={entry.shortcut ?? ''} />
                       </ItemActions>
                     </Item>
                   ))}
