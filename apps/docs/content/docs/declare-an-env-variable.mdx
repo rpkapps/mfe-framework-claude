@@ -50,17 +50,17 @@ spreads and no shorthand.
 
 ### 3. Add a value for local development
 
-```json title="examples/operations/public/runtime-config.json"
+```json title="examples/operations/.mfe/runtime-config.json"
 {
   "apiBaseUrl": "http://localhost:3010/api/",
   "telemetryEnabled": false
 }
 ```
 
-Your dev server publishes `public/` beside your assets, which is where the values are read from.
-`pnpm run generate` creates this file with your `.default(…)` values and adds any default it is
-missing later. It never changes a value you wrote, and it names each required field you still have
-to fill in.
+Your dev server answers `runtime-config.json` beside your assets with this file, and no build copies
+it, so a local value never ships. `pnpm run generate` creates it with your `.default(…)` values and
+adds any default it is missing later. It never changes a value you wrote, and it names each required
+field you still have to fill in.
 
 </Step>
 

@@ -702,6 +702,25 @@ container's ahead-of-time build, because the adapter's own suites compile just i
 time. And the packages ship TypeScript source, which a consuming Nx workspace has to
 add to its container's `tsconfig` until they ship compiled output.
 
+**Amendment (2026-09-23):** the developer's runtime configuration moved out of
+`public/` into `.mfe/runtime-config.json`, `.mfe/<runtimeConfigFileName>` when renamed.
+Three reasons. Developer values, such as a localhost API, no longer sit in a folder a
+build deploys: both bundlers copy `public/` into their output, and `.mfe/` is copied by
+neither. Keeping the old file out of production took a guard in each integration (the
+generator's production-assets `ignore`, the webpack plugin's overwrite of the copied
+asset, the Rsbuild skip), and a guard can miss: `withMfe({ runtimeConfigFileName })`
+renamed the file the build shipped but not the `ignore` the generator had already
+written into `project.json`, so a renamed file's local values reached production. And
+the per-integration code is gone: one middleware in `@company/mfe-build` answers the
+container's usual `runtime-config.json` URL from `.mfe/` in both dev servers, ahead of
+their own serving, so container code is unchanged and a production build ships only the
+declared defaults by construction. The costs: the one file in a build-managed directory
+that is committed needs an exception in both the container's `.gitignore` (`.mfe/*`,
+not `.mfe/`) and the generated `.mfe/.gitignore`; a generate command reads no bundler
+configuration, so a renamed file is created by hand and committed once with
+`git add -f`; and a copy left in `public/` is moved once by the next generate run, or
+reported, because it would now ship, when both exist.
+
 ---
 
 ## 32. `@company/mfe-host` is `@company/mfe-runtime`, the core holds contracts only, and an application imports only its adapter

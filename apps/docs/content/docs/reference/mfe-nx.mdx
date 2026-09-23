@@ -30,15 +30,16 @@ file, because Nx 23's Angular plugin requires Angular 20.
 | `skipPackageJson` | `false`                         | Leave the workspace `package.json` alone.                      |
 
 An `app` project holds `src/mfe.ts` with `createApp`, a route file with a capability route, a
-configuration schema and `public/runtime-config.json`. A `widget` project holds `createWidget` with
-its contract exported separately. Both hold `src/primeng.ts`, a `webpack.config.ts`, an
-`eslint.config.ts` against the Angular lint preset, and Vitest configuration.
+configuration schema and `.mfe/runtime-config.json`, your local values. A `widget` project holds
+`createWidget` with its contract exported separately. Both hold `src/primeng.ts`, a
+`webpack.config.ts`, an `eslint.config.ts` against the Angular lint preset, and Vitest
+configuration.
 
 ## The targets
 
 | Target      | Runs                          | Does                                                         |
 | ----------- | ----------------------------- | ------------------------------------------------------------ |
-| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/` and seeds `public/runtime-config.json`.       |
+| `generate`  | `@company/mfe-nx:generate`    | Writes `.mfe/` and seeds `.mfe/runtime-config.json`.         |
 | `build`     | `@nx/angular:webpack-browser` | Builds the remote, with `customWebpackConfig`.               |
 | `serve`     | `@nx/angular:dev-server`      | Serves it on the project's port, open to the shell's origin. |
 | `test`      | `nx:run-commands`             | `vitest run`.                                                |
@@ -61,7 +62,9 @@ plugin and replaces nothing you wrote. It plans the container from its sources b
 compile, adds the Module Federation 2 plugin, and makes the generated entry the only one. It scopes
 the generated stylesheet with `@scope`, and `src/styles.css` with it. Component styles keep
 Angular's own encapsulation. It also emits the registry entry, with `framework: 'angular'` and the
-container's share scopes.
+container's share scopes. In the dev server it answers `runtime-config.json` with your
+`.mfe/runtime-config.json`, which no build copies, so a production build ships only the declared
+defaults.
 
 `withMfe({ shared })` adds share candidates. `withMfe({ containerRoot })` points it at a container
 other than the project being built.

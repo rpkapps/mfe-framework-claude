@@ -52,7 +52,7 @@ orders failed to register definition: expected one registry entry per definition
 operations failed to load its runtime configuration: expected a file at http://localhost:3001/runtime-config.json, received 404 Not Found. The container configuration contract declares this expectation. Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.
 ```
 
-**Fix.** Publish the file with the container. In development, create `public/runtime-config.json` and restart the dev server.
+**Fix.** Publish the file with the container. In development, run `pnpm run generate`, which creates `.mfe/runtime-config.json` for the dev server to answer with, and reload.
 
 </Callout>
 

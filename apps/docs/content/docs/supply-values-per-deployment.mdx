@@ -15,15 +15,15 @@ values into it, and your container reads it at load time.
 
 ### 1. Write the file for local development
 
-```json title="examples/operations/public/runtime-config.json"
+```json title="examples/operations/.mfe/runtime-config.json"
 {
   "apiBaseUrl": "http://localhost:3010/api/",
   "telemetryEnabled": false
 }
 ```
 
-A flat object of values: no metadata, no comments and no trailing commas. `pnpm run generate`
-seeds it with your declared defaults and adds any it is missing, without changing a value already
+A flat object of values, which your dev server answers `runtime-config.json` with and no build
+copies. `pnpm run generate` seeds it with your declared defaults and never changes a value already
 there.
 
 </Step>
@@ -69,6 +69,22 @@ field and rejects a key you did not declare.
 </Step>
 
 </Steps>
+
+## Keep your local values committed
+
+`.mfe/runtime-config.json` is the one file in `.mfe/` you commit. Ignore `.mfe/*` rather than
+`.mfe/`, and add `!.mfe/runtime-config.json`, as a scaffolded container's `.gitignore` already does:
+a directory pattern stops git looking inside, so no exception could apply. The build's own
+`.mfe/.gitignore` makes the same exception.
+
+`runtimeConfigFileName` in `pluginMfe()` or `withMfe()` renames the published file, and the dev
+server then answers with `.mfe/<that name>`. The generate command does not read your bundler
+config, so it neither seeds that file nor excepts it in `.mfe/.gitignore`. Create it yourself and
+commit it once with `git add -f`; git keeps tracking it after that.
+
+Earlier versions kept the file in `public/`, which every build copies into its output. The next
+`pnpm run generate` moves it to `.mfe/` byte for byte, and says so. If both exist it leaves both and
+warns that the `public/` copy is no longer read and would now ship in production: delete it.
 
 ## Run it in a Docker image
 
@@ -116,9 +132,10 @@ needs that directory owned by its user.
 ## Check it works
 
 Start your container's dev server and open `http://localhost:3001/runtime-config.json`. It answers
-with the values your App will read. A container scaffolded as a Widget has no `public/` directory,
-so create one the first time you add configuration. The values are a snapshot, so changing one
-takes a new deployment and a page reload.
+with `.mfe/runtime-config.json`, the values your App will read, and reads the file again on every
+request. A container scaffolded as a Widget has no configuration, so run `pnpm run generate` after
+you add `src/mfe.config.ts` to create the file. In a deployment the values are a snapshot, so
+changing one takes a new deployment and a page reload.
 
 ## Errors
 
@@ -140,8 +157,8 @@ operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
 
-**Fix.** Publish the file next to the container's assets. In development, add
-`public/runtime-config.json` and restart the dev server.
+**Fix.** Publish the file next to the container's assets. In development, run `pnpm run generate`,
+which creates `.mfe/runtime-config.json` for the dev server to answer with, and reload.
 
 </Callout>
 
