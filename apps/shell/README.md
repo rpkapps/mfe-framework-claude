@@ -54,7 +54,7 @@ wherever you already are and dismissed back to it.
 | Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered command, host or mount      |
 | Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the entry as published         |
 | Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
-| Help            | the question mark, `?`     | what the pieces of the page are, and the live shortcut registry                            |
+| Help            | the question mark, `?`     | what the pieces of the page are, and every shortcut that can fire right now                |
 | What's new      | the sparkle                | release notes                                                                              |
 | Report a bug    | the bug                    | a report with the build, the route, the registry state and the overrides already filled in |
 
@@ -68,9 +68,16 @@ settings and settings open the registry without either knowing where the other
 lives.
 
 The shell's own commands are registered through `runtime.commands.registerHost`,
-so the palette renders one snapshot that holds the mounted App's as well. One
-table in `palette.tsx` says what each of the shell's commands is called, what is
-drawn beside it, whether it may run and what it does.
+so the palette renders one snapshot that holds the mounted App's as well.
+`shell-commands.ts` says what each of the shell's commands is called, its
+shortcut, whether it may run and what it does; `palette.tsx` says what is drawn
+beside it.
+
+Every key goes through one `keydown` listener on the document, which hands it
+to `runtime.commands.handleKeyDown`. A shortcut is a field on a command, the
+shell's and a mounted App's alike, so the palette shows the keys beside each
+command and the help sheet lists them from the same snapshot. The shell's keys
+are reserved: an App asking for one of them is refused with a diagnostic.
 
 ### The theme
 
@@ -126,9 +133,9 @@ already told of, so a `popstate` the bridge delivered is not repeated.
 state for the load and a `fallback` with a retry for a failure. Every App is
 mounted through the runtime's `mountDefinition` into an element `AppHost`
 renders, in a React root of its own when React built it. The shell never asks
-which framework built an App, so nothing it provides through React context —
-the Tecton shortcut registry included — reaches a mounted App; the runtime is
-what they share.
+which framework built an App, so nothing it provides through React context
+reaches a mounted App; the runtime is what they share, keyboard shortcuts
+included.
 
 ### The widget dashboard
 
