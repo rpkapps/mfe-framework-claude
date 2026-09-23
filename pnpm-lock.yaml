@@ -1305,6 +1305,12 @@ importers:
         specifier: 'catalog:'
         version: 1.0.0
     devDependencies:
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../mfe-runtime
+      '@module-federation/runtime':
+        specifier: 'catalog:'
+        version: 2.9.0
       '@rsbuild/core':
         specifier: 'catalog:'
         version: 2.2.8(@module-federation/runtime-tools@2.9.0)

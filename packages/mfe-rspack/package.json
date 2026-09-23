@@ -54,6 +54,8 @@
     }
   },
   "devDependencies": {
+    "@company/mfe-runtime": "workspace:*",
+    "@module-federation/runtime": "catalog:",
     "@rsbuild/core": "catalog:",
     "@rspack/core": "catalog:",
     "@tecton/react": "link:../../../tecton-ui-1/packages/tecton-react",
