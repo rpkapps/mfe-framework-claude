@@ -7,39 +7,17 @@
 import {
   createMfeError,
   isBrandedDefinition,
+  withoutUndefined,
   type DefinitionKind,
   type MfeError,
   type RegistryEntry,
 } from '@company/mfe-core'
 
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
-import {
-  isMountableDefinition,
-  type MountableAppDefinition,
-  type MountableDefinition,
-  type MountableWidgetDefinition,
-} from './mountable-definition.ts'
+import { isMountableDefinition, type MountableDefinition } from './mountable-definition.ts'
 
 const LABELS: Readonly<Record<DefinitionKind, string>> = { app: 'App', widget: 'Widget' }
 
-export function resolveDefinition(
-  runtime: MfeRuntime,
-  id: string,
-  kind: 'app',
-  signal: AbortSignal,
-): Promise<MountableAppDefinition>
-export function resolveDefinition(
-  runtime: MfeRuntime,
-  id: string,
-  kind: 'widget',
-  signal: AbortSignal,
-): Promise<MountableWidgetDefinition>
-export function resolveDefinition(
-  runtime: MfeRuntime,
-  id: string,
-  kind: DefinitionKind,
-  signal: AbortSignal,
-): Promise<MountableDefinition>
 export async function resolveDefinition(
   runtime: MfeRuntime,
   id: string,
@@ -67,7 +45,7 @@ export async function resolveDefinition(
     throw createMfeError({
       code: 'load/entry-failure',
       id,
-      ...(entry.version === undefined ? {} : { definitionVersion: entry.version }),
+      ...withoutUndefined({ definitionVersion: entry.version }),
       operation: `resolve ${LABELS[kind]}`,
       expected: `a definition created with create${LABELS[kind]}`,
       observed: describeUnmountable(definition),
@@ -82,7 +60,7 @@ function placedAsTheWrongKind(entry: RegistryEntry, kind: DefinitionKind): MfeEr
   return createMfeError({
     code: 'registry/invalid-entry',
     id: entry.id,
-    ...(entry.version === undefined ? {} : { definitionVersion: entry.version }),
+    ...withoutUndefined({ definitionVersion: entry.version }),
     operation: `resolve ${LABELS[kind]}`,
     expected: kind === 'app' ? 'an entry for an App' : 'an entry for a Widget',
     observed:

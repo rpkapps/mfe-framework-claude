@@ -3,7 +3,12 @@
  * down with it, whichever adapter renders the definition, and anything on the runtime outlives it.
  */
 
-import type { DefinitionKind, MfeStorage, MfeTelemetry } from '@company/mfe-core'
+import {
+  withoutUndefined,
+  type DefinitionKind,
+  type MfeStorage,
+  type MfeTelemetry,
+} from '@company/mfe-core'
 
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { createMountTelemetry } from '../telemetry/service.ts'
@@ -29,8 +34,9 @@ export interface MountContext {
   /** Aborts on disposal. */
   readonly signal: AbortSignal
   /**
-   * The element carrying this mount's scope attributes, which its scoped stylesheet matches. The
-   * runtime creates and places it; the definition renders inside it, never replaces it.
+   * The element carrying this mount's scope attributes, which its scoped stylesheet matches.
+   * Created with the context, detached, and placed by whoever places the mount — `mountDefinition`
+   * for every host; the definition renders inside it, never replaces it.
    */
   readonly scopeRoot: HTMLElement
   /** Framework-created body-level root for overlays raised by this mount. */
@@ -46,12 +52,7 @@ export interface CreateMountContextOptions {
   readonly basePath?: string
   /** The enclosing mount's depth plus one; 1, a top-level mount, when omitted. */
   readonly depth?: number
-  /**
-   * Stamped with this mount's scope attributes, so the token on it is always the context's own.
-   * The caller places and removes it. Omitted, the context carries a detached element instead,
-   * for a host that still renders a scope root of its own.
-   */
-  readonly scopeRoot?: HTMLElement
+  /** Where both roots are created; the page's own when omitted. */
   readonly document?: Document
 }
 
@@ -77,14 +78,13 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
   const telemetry = createMountTelemetry(runtime.telemetryProvider, {
     definitionId,
     definitionKind: kind,
-    ...(options.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: options.definitionVersion }),
+    ...withoutUndefined({ definitionVersion: options.definitionVersion }),
     mountToken,
   })
 
+  // Both roots are created here, so the token stamped on them is always this context's own.
   const ownerDocument = options.document ?? document
-  const scopeRoot = options.scopeRoot ?? ownerDocument.createElement('div')
+  const scopeRoot = ownerDocument.createElement('div')
   applyScopeAttributes(scopeRoot, { definitionId, mountToken, kind })
   const overlay = createOverlayRoot(definitionId, mountToken, ownerDocument)
 

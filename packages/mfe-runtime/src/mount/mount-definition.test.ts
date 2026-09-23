@@ -789,6 +789,35 @@ describe('Widget events', () => {
     expect(onEvent).toHaveBeenCalledWith('acknowledged', { alertId: 'a-7' })
   })
 
+  /** The Angular host passes its contract as a getter, so one bound after mounting applies. */
+  it('reads the host’s events when one arrives, following a getter the host passed', async () => {
+    const onEvent = vi.fn()
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    let consumerEvents: WidgetMountRequest['consumerEvents'] = undefined
+    const mount = mountDefinition({
+      runtime,
+      element: host,
+      definitionId: 'alert-panel',
+      kind: 'widget',
+      inputs: { label: 'Pressure high' },
+      onEvent,
+      get consumerEvents() {
+        return consumerEvents
+      },
+    })
+    await settled(mount, 'mounted')
+
+    at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
+    consumerEvents = ALERT_CONTRACT.events
+    at(widget.targets).emit('acknowledged', { alertId: 'a-8', extra: true })
+
+    expect(onEvent.mock.calls).toEqual([
+      ['acknowledged', { alertId: 'a-7', extra: true }],
+      ['acknowledged', { alertId: 'a-8' }],
+    ])
+  })
+
   it('reports a payload the host’s contract refuses, and never throws into the Widget', async () => {
     const onEvent = vi.fn()
     const widget = plainWidget()

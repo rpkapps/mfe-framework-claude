@@ -9,6 +9,7 @@ import {
   shallowEqual,
   toMfeError,
   validateAgainstContract,
+  withoutUndefined,
   type MfeError,
   type MountHandle,
   type WidgetContract,
@@ -89,7 +90,7 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
 
   const controller: MountController<MountableDefinition> = new MountController({
     id: definitionId,
-    ...(version === undefined ? {} : { definitionVersion: version }),
+    ...withoutUndefined({ definitionVersion: version }),
     operations,
     deadlines: runtime.deadlines,
     diagnostics: runtime.diagnostics,
@@ -124,6 +125,22 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
   })
 }
 
+type HeldWidgetRequest = Omit<WidgetMountRequest, 'inputs'>
+type HeldRequest = AppMountRequest | HeldWidgetRequest
+
+/**
+ * The request without its first inputs, which `#inputs` and each attempt's `delivered` replace:
+ * holding the request itself would keep that first set alive for the mount's whole life. Copied
+ * by descriptor rather than by value, because a host may pass a field as a getter that follows
+ * its own state, as the Angular host does with `consumerEvents`.
+ */
+function withoutFirstInputs(request: MountRequest): HeldRequest {
+  if (request.kind === 'app') return request
+  const descriptors = Object.getOwnPropertyDescriptors(request)
+  Reflect.deleteProperty(descriptors, 'inputs')
+  return Object.create(Object.getPrototypeOf(request) as object | null, descriptors) as HeldRequest
+}
+
 /** The parent's signal aborts when it is disposed, which takes every mount inside it along. */
 function followParent(parent: MountContext | null | undefined, onAbort: () => void): () => void {
   if (parent === null || parent === undefined || parent.signal.aborted) return () => undefined
@@ -134,11 +151,10 @@ function followParent(parent: MountContext | null | undefined, onAbort: () => vo
 }
 
 /**
- * One attach: the scope root and context it created, and the definition's own mount. Once
- * `detached`, nothing the definition calls back with reaches the host again.
+ * One attach: the context it created, whose scope root it placed, and the definition's own
+ * mount. Once `detached`, nothing the definition calls back with reaches the host again.
  */
 class Attempt {
-  readonly scopeRoot: HTMLElement
   readonly context: MountContextHandle
   /** What the definition's `mount` returned, awaited by the attach and again by teardown. */
   readonly mounting: Promise<Mounted>
@@ -149,12 +165,10 @@ class Attempt {
   delivered: Inputs
 
   constructor(
-    scopeRoot: HTMLElement,
     context: MountContextHandle,
     delivered: Inputs,
     mount: (attempt: Attempt) => Promise<Mounted>,
   ) {
-    this.scopeRoot = scopeRoot
     this.context = context
     this.delivered = delivered
     // Last, so every field a definition's synchronous callback reads already exists.
@@ -173,7 +187,7 @@ function isMountedWidget(mounted: Mounted): mounted is MountedWidget {
  * attach all leave through that one path.
  */
 class DefinitionAttempts implements MountOperations<MountableDefinition> {
-  readonly #request: MountRequest
+  readonly #request: HeldRequest
   readonly #fail: (error: unknown) => void
   readonly #teardowns = new Set<Promise<void>>()
   #attempt: Attempt | null = null
@@ -181,7 +195,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   #inputs: Inputs
 
   constructor(request: MountRequest, fail: (error: unknown) => void) {
-    this.#request = request
+    this.#request = withoutFirstInputs(request)
     this.#fail = fail
     this.#inputs = request.kind === 'widget' ? request.inputs : {}
   }
@@ -224,7 +238,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     this.#attempt = null
 
     attempt.detached = true
-    attempt.scopeRoot.remove()
+    attempt.context.context.scopeRoot.remove()
 
     const teardown = this.#tearDown(attempt).then(() => {
       this.#teardowns.delete(teardown)
@@ -241,8 +255,9 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     if (shallowEqual(inputs, this.#inputs)) return
     this.#inputs = inputs
 
+    // A detached attempt is never the current one, so there is no `detached` to check here.
     const attempt = this.#attempt
-    if (attempt === null || attempt.detached || attempt.mounted === null) return
+    if (attempt === null || attempt.mounted === null) return
     if (!isMountedWidget(attempt.mounted)) return
 
     attempt.delivered = inputs
@@ -259,27 +274,25 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     const { runtime, element, parent } = this.#request
     const ownerDocument = element.ownerDocument
 
-    const scopeRoot = ownerDocument.createElement('div')
     const context = createMountContext({
       runtime,
       definitionId: definition.id,
-      ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+      ...withoutUndefined({ definitionVersion: definition.version }),
       kind: definition.kind,
       ...(this.#request.kind === 'app' ? { basePath: this.#request.basePath } : {}),
       depth: (parent?.depth ?? 0) + 1,
-      scopeRoot,
       document: ownerDocument,
     })
 
     // Inline rather than a class, because the framework ships no stylesheet.
     const target = ownerDocument.createElement('div')
     target.style.display = 'contents'
+    const { scopeRoot } = context.context
     scopeRoot.appendChild(target)
     element.appendChild(scopeRoot)
 
     // Async, so a definition whose `mount` throws synchronously still yields a rejection.
     const attempt = new Attempt(
-      scopeRoot,
       context,
       this.#inputs,
       async current => await this.#mount(definition, target, current),
@@ -301,7 +314,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     if (definition.kind === 'app') return definition.mount({ element, context, onFailure })
 
     // A Widget definition, so a Widget request: `resolveDefinition` refused the other kind.
-    const request = this.#request as WidgetMountRequest
+    const request = this.#request as HeldWidgetRequest
     const { onInputRejected } = request
     return definition.mount({
       element,
@@ -357,7 +370,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 
 /** The provider already validated the payload; this checks only what the host declared. */
 function deliverEvent(
-  request: WidgetMountRequest,
+  request: HeldWidgetRequest,
   definition: MountableWidgetDefinition,
   event: string,
   payload: unknown,
@@ -370,7 +383,7 @@ function deliverEvent(
 
   const accepted = validateAgainstContract(schema, payload, {
     id: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+    ...withoutUndefined({ definitionVersion: definition.version }),
     direction: 'event',
     side: 'consumer',
     eventName: event,

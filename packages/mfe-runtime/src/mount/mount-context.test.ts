@@ -71,32 +71,33 @@ describe('createMountContext', () => {
     expect(context.depth).toBe(1)
   })
 
-  it('stamps the scope root it is given with its definition, its own token and its kind', () => {
-    const scopeRoot = document.createElement('div')
-
+  it('creates a detached scope root stamped with its definition, its own token and its kind', () => {
     const { context } = createMountContext({
       runtime: runtime(),
       definitionId: 'alert-panel',
       kind: 'widget',
-      scopeRoot,
     })
+    const { scopeRoot } = context
 
-    expect(context.scopeRoot).toBe(scopeRoot)
     expect(scopeRoot.getAttribute(SCOPE_ATTRIBUTE)).toBe('alert-panel')
     expect(scopeRoot.getAttribute(MOUNT_ATTRIBUTE)).toBe(context.mountToken)
     expect(scopeRoot.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
     expect(scopeRoot.style.display).toBe('contents')
+    expect(scopeRoot.isConnected).toBe(false)
   })
 
-  it('carries a detached scope root when it is given none', () => {
+  it('creates its roots in the document it is given', () => {
+    const other = document.implementation.createHTMLDocument('other')
+
     const { context } = createMountContext({
       runtime: runtime(),
       definitionId: 'reports',
       kind: 'app',
+      document: other,
     })
 
-    expect(context.scopeRoot.getAttribute(MOUNT_ATTRIBUTE)).toBe(context.mountToken)
-    expect(context.scopeRoot.isConnected).toBe(false)
+    expect(context.scopeRoot.ownerDocument).toBe(other)
+    expect(context.overlayRoot.ownerDocument).toBe(other)
   })
 
   it('scopes storage to the definition, so two mounts of it share their records', () => {

@@ -7,6 +7,7 @@
 import {
   createMfeError,
   toMfeError,
+  withoutUndefined,
   type AttemptToken,
   type DeadlineConfig,
   type MfeError,
@@ -68,9 +69,7 @@ export class MountController<TLoaded> implements MountHandle {
     this.#options = options
     this.#identity = {
       id: options.id,
-      ...(options.definitionVersion === undefined
-        ? {}
-        : { definitionVersion: options.definitionVersion }),
+      ...withoutUndefined({ definitionVersion: options.definitionVersion }),
     }
     this.#lifecycle = new MountLifecycle({
       ...this.#identity,
@@ -241,16 +240,13 @@ export class MountController<TLoaded> implements MountHandle {
     this.#safeDetach()
     this.#lifecycle.markDisposed(reason)
 
+    // A failed cleanup still finishes: the mount stays disposed and late callbacks stay fenced,
+    // and the promise rejects so the caller learns cleanup did not finish.
     try {
       await this.#cleanUp('complete asynchronous cleanup')
-    } catch (error) {
-      // The mount stays disposed and late callbacks stay fenced; the promise rejects so
-      // the caller learns cleanup did not finish.
+    } finally {
       this.#finish()
-      throw error
     }
-
-    this.#finish()
   }
 
   /** Runs the operations' cleanup under the dispose deadline, reporting a failure once. */

@@ -202,7 +202,6 @@ describe('a React Widget mounting itself', () => {
   })
 
   it('reads the scope root the runtime made through useScopeRoot', async () => {
-    const scopeRoot = document.createElement('div')
     let seen: HTMLElement | null = null
     const probe = createWidget({
       id: 'scope-probe',
@@ -217,9 +216,9 @@ describe('a React Widget mounting itself', () => {
       runtime: createRuntime().runtime,
       definitionId: 'scope-probe',
       kind: 'widget',
-      scopeRoot,
     })
     contexts.push(handle)
+    const { scopeRoot } = handle.context
     element = document.createElement('div')
     scopeRoot.append(element)
     document.body.append(scopeRoot)
