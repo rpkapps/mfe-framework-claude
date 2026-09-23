@@ -6,7 +6,7 @@ import { buildFederationOptions, containerPostcssPlugins } from '@company/mfe-bu
 
 import { loadScopePlugin } from './css/scope.ts'
 import type { MfePluginOptions } from './options.ts'
-import { planContainer } from './plan.ts'
+import { createContainerPlanner } from './plan.ts'
 import { MfeRspackPlugin } from './plugin.ts'
 
 export const PLUGIN_MFE_NAME = 'mfe'
@@ -20,8 +20,10 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
         const containerRoot = options.containerRoot ?? api.context.rootPath
 
         // Read once at configuration time, because Rsbuild cannot apply a change to what a
-        // container exposes or shares without a restart; the Rspack plugin re-reads per build.
-        const plan = planContainer({ ...options, defaultRoot: containerRoot })
+        // container exposes or shares without a restart; the Rspack plugin re-plans the sources
+        // before every compile after the first, with the same planner.
+        const replan = createContainerPlanner({ ...options, containerRoot })
+        const plan = replan()
 
         // Rsbuild's federation plugin applies its defaults only to a config that declares
         // `moduleFederation.options` before a plugin's arrive, so these three are repeated (§13).
@@ -66,7 +68,9 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
                 }),
               )
             },
-            rspack: { plugins: [new MfeRspackPlugin(options, { emitRuntimeConfig: isBuild })] },
+            rspack: {
+              plugins: [new MfeRspackPlugin(plan, replan, { emitRuntimeConfig: isBuild })],
+            },
           },
         })
 

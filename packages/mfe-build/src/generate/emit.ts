@@ -1,7 +1,7 @@
 /** The same sources produce the same bytes, so a watching build never restarts itself (§19). */
 
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync, type Stats } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 
 export interface GeneratedFile {
@@ -10,6 +10,8 @@ export interface GeneratedFile {
   readonly contents: string
   /** A script the deployment runs, so it is written with its execute bits set. */
   readonly executable?: boolean
+  /** The name it ships under beside the container's assets; absent for a file that stays local. */
+  readonly asset?: string
 }
 
 /** Names the integration that wrote the file, which is where a reader goes to change it. */
@@ -37,40 +39,80 @@ export function joinBlocks(blocks: readonly string[]): string {
   return `${blocks.filter(block => block.trim() !== '').join('\n\n')}\n`
 }
 
+/** `relative()` answers in the host's separator; every path a person or a specifier reads is POSIX. */
+export function posixRelative(from: string, to: string): string {
+  return relative(from, to).split(sep).join('/')
+}
+
 /** A POSIX relative specifier from one generated file to a target file. */
 export function relativeSpecifier(fromFile: string, toFile: string): string {
-  const relativePath = relative(dirname(fromFile), toFile).split(sep).join('/')
+  const relativePath = posixRelative(dirname(fromFile), toFile)
   return relativePath.startsWith('.') ? relativePath : `./${relativePath}`
 }
 
 /** Skipping unchanged files keeps a watching build from restarting itself on its output (§19). */
 export function writeGeneratedFiles(files: readonly GeneratedFile[]): readonly GeneratedFile[] {
-  const written: GeneratedFile[] = []
+  return createGeneratedFileWriter()(files)
+}
 
-  for (const file of files) {
-    let current: string | null
-    try {
-      current = readFileSync(file.path, 'utf8')
-    } catch {
-      current = null
+interface WrittenFile {
+  readonly contents: string
+  readonly size: number
+  readonly mtimeMs: number
+}
+
+/**
+ * For a build that writes before every compile: a file this writer wrote, which still has the
+ * size and modification time it left it with, is compared in memory instead of read back. One
+ * deleted or edited since is read and rewritten like any other.
+ */
+export function createGeneratedFileWriter(): (
+  files: readonly GeneratedFile[],
+) => readonly GeneratedFile[] {
+  const known = new Map<string, WrittenFile>()
+
+  return files => {
+    const written: GeneratedFile[] = []
+
+    for (const file of files) {
+      let stats = statOf(file.path)
+      if (stats === null || !holds(file, stats, known.get(file.path))) {
+        mkdirSync(dirname(file.path), { recursive: true })
+        writeFileSync(file.path, file.contents, 'utf8')
+        written.push(file)
+        stats = statSync(file.path)
+      }
+      // Also when unchanged: a copy that lost the bit would otherwise never get it back.
+      if (file.executable === true) chmodSync(file.path, 0o755)
+
+      known.set(file.path, { contents: file.contents, size: stats.size, mtimeMs: stats.mtimeMs })
     }
-    if (current !== file.contents) {
-      mkdirSync(dirname(file.path), { recursive: true })
-      writeFileSync(file.path, file.contents, 'utf8')
-      written.push(file)
-    }
-    // Also when unchanged: a copy that lost the bit would otherwise never get it back.
-    if (file.executable === true) chmodSync(file.path, 0o755)
+
+    return written
   }
+}
 
-  return written
+/** Whether the file on disk already holds these contents, answered from memory when it can be. */
+function holds(file: GeneratedFile, onDisk: Stats, last: WrittenFile | undefined): boolean {
+  if (last !== undefined && last.size === onDisk.size && last.mtimeMs === onDisk.mtimeMs) {
+    return last.contents === file.contents
+  }
+  return readFileSync(file.path, 'utf8') === file.contents
+}
+
+function statOf(path: string): Stats | null {
+  try {
+    return statSync(path)
+  } catch {
+    return null
+  }
 }
 
 /** Paths hash relative to the generated directory, so another checkout hashes the same (§19). */
 export function contentHash(files: readonly GeneratedFile[], baseDir: string): string {
   const hash = createHash('sha256')
   const entries = files
-    .map(file => ({ name: relative(baseDir, file.path).split(sep).join('/'), file }))
+    .map(file => ({ name: posixRelative(baseDir, file.path), file }))
     .sort((left, right) => (left.name < right.name ? -1 : 1))
 
   for (const entry of entries) {

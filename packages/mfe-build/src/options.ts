@@ -55,10 +55,9 @@ const DEFAULT_REGISTRY_FILE = 'mfe-registry.json'
 /** `containerRootOption` is how the author names the root, for the repair when it is wrong. */
 export function resolveOptions(
   options: ContainerOptions,
-  containerRoot: string,
   containerRootOption: string,
 ): ResolvedOptions {
-  const root = resolve(options.containerRoot ?? containerRoot)
+  const root = resolve(options.containerRoot ?? process.cwd())
   const manifest = readManifest(root, containerRootOption)
 
   const packageName = options.name ?? manifest.name ?? 'mfe-container'

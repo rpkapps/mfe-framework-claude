@@ -3,7 +3,7 @@
 import { resolve } from 'node:path'
 
 import {
-  planContainer as planBuildContainer,
+  createContainerPlanner as createBuildPlanner,
   type ContainerPlan as BuildContainerPlan,
 } from '@company/mfe-build'
 
@@ -14,16 +14,19 @@ export interface ContainerPlan extends BuildContainerPlan {
   readonly options: ResolvedOptions
 }
 
-export interface PlanContainerOptions extends MfePluginOptions {
-  /** Fallback container root when the options do not name one. */
-  readonly defaultRoot?: string
+/** Reads the container and derives everything the build needs from it. */
+export function planContainer(options: MfePluginOptions = {}): ContainerPlan {
+  return createContainerPlanner(options)()
 }
 
-/** Reads the container and derives everything the build needs from it. */
-export function planContainer(options: PlanContainerOptions = {}): ContainerPlan {
-  const containerRoot = resolve(options.containerRoot ?? options.defaultRoot ?? process.cwd())
+/** `mfe-build`'s planner, with the React options settled once alongside the rest. */
+export function createContainerPlanner(options: MfePluginOptions = {}): () => ContainerPlan {
+  const containerRoot = resolve(options.containerRoot ?? process.cwd())
   const react = resolveReactOptions(options, containerRoot)
+  const plan = createBuildPlanner(reactProfile(react), { ...options, containerRoot })
 
-  const plan = planBuildContainer(reactProfile(react), { ...options, containerRoot })
-  return { ...plan, options: { ...plan.options, ...react } }
+  return () => {
+    const planned = plan()
+    return { ...planned, options: { ...planned.options, ...react } }
+  }
 }

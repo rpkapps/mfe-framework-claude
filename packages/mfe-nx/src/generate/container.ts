@@ -2,7 +2,8 @@
 
 import { writeGeneratedFiles, type ContainerPlan, type GeneratedFile } from '@company/mfe-build'
 
-import { planContainer, type PlanContainerOptions } from '../plan.ts'
+import type { MfeAngularOptions } from '../options.ts'
+import { planContainer } from '../plan.ts'
 
 export interface ContainerGeneration {
   readonly plan: ContainerPlan
@@ -11,7 +12,7 @@ export interface ContainerGeneration {
 }
 
 /** Re-reads the container's sources and rewrites what changed. */
-export function generateContainer(options: PlanContainerOptions = {}): ContainerGeneration {
+export function generateContainer(options: MfeAngularOptions = {}): ContainerGeneration {
   const plan = planContainer(options)
   return { plan, written: writeGeneratedFiles(plan.generated.files) }
 }

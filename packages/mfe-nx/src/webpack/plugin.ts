@@ -5,21 +5,18 @@
  * because a page only works when every container agrees on them.
  */
 
-import { relative, sep } from 'node:path'
-
 import { ModuleFederationPlugin } from '@module-federation/enhanced/webpack'
-import type { Compilation, Compiler, WebpackError, WebpackPluginInstance } from 'webpack'
+import type { Compiler, WebpackError, WebpackPluginInstance } from 'webpack'
 
 import {
+  applyContainerCompilation,
   buildFederationOptions,
   isMfeBuildError,
-  RUNTIME_CONFIG_DEFAULTS_FILE,
-  withFrameworkMetadata,
   type ContainerPlan,
 } from '@company/mfe-build'
 
-import { generateContainer } from '../generate/container.ts'
 import type { MfeAngularOptions } from '../options.ts'
+import { createContainerPlanner } from '../plan.ts'
 import { applyContainerStylesheet } from './stylesheet.ts'
 
 const PLUGIN_NAME = 'MfePlugin'
@@ -36,59 +33,39 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
   readonly name = PLUGIN_NAME
   readonly #options: MfeAngularOptions
   readonly #settings: MfeWebpackPluginSettings
-  #plan: ContainerPlan | undefined
 
   constructor(options: MfeAngularOptions = {}, settings: MfeWebpackPluginSettings = {}) {
     this.#options = options
     this.#settings = settings
   }
 
-  /** The same generation the `generate` executor performs, so a build and an editor agree. */
-  #refresh(containerRoot: string): ContainerPlan {
-    const { plan } = generateContainer({ ...this.#options, defaultRoot: containerRoot })
-    this.#plan = plan
-    return plan
-  }
-
   apply(compiler: Compiler): void {
-    const containerRoot = this.#options.containerRoot ?? compiler.context
-    // Read once here, because what a container exposes and shares cannot change without a
-    // restart; the generated modules are rewritten before every compile.
-    const plan = this.#refresh(containerRoot)
-    const currentPlan = (): ContainerPlan => this.#plan ?? plan
+    // What a container exposes and shares cannot change without a restart, so the compiler is
+    // configured from this plan; the same planner, which the `generate` executor also runs,
+    // re-reads the sources before every compile after the first.
+    const replan = createContainerPlanner({
+      ...this.#options,
+      containerRoot: this.#options.containerRoot ?? compiler.context,
+    })
+    const plan = replan()
 
     applyContainerShape(compiler, plan)
-    applyContainerStylesheet(compiler, currentPlan)
     new ModuleFederationPlugin(buildFederationOptions(plan)).apply(compiler)
 
-    compiler.hooks.beforeCompile.tap(PLUGIN_NAME, () => {
-      this.#refresh(containerRoot)
+    const currentPlan = applyContainerCompilation(compiler, {
+      name: PLUGIN_NAME,
+      plan,
+      replan,
+      emitRuntimeConfig: this.#settings.emitRuntimeConfig,
+      // Watching, Angular copies `public/` during the compilation, before this runs, so that copy
+      // is replaced; a one-off build copies it after webpack, which the generated production
+      // configuration's asset `ignore` covers.
+      copiedRuntimeConfig: 'replace',
+      toError: diagnostic => toCompilationError(compiler, diagnostic),
+      federationRepair:
+        "Check that the project's customWebpackConfig still returns withMfe() and that nothing removed the ModuleFederationPlugin it adds.",
     })
-
-    const emitRuntimeConfig =
-      this.#settings.emitRuntimeConfig ?? compiler.options.mode === 'production'
-
-    compiler.hooks.thisCompilation.tap(PLUGIN_NAME, compilation => {
-      const current = currentPlan()
-      for (const diagnostic of current.diagnostics) {
-        compilation.errors.push(toCompilationError(compiler, diagnostic))
-      }
-
-      compilation.hooks.processAssets.tap(
-        { name: PLUGIN_NAME, stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_DERIVED },
-        () => {
-          emitContainerArtifacts(compiler, compilation, current, emitRuntimeConfig)
-        },
-      )
-
-      // The federation manifest is written during processAssets, so the metadata goes in last.
-      compilation.hooks.processAssets.tap(
-        { name: PLUGIN_NAME, stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT },
-        () => {
-          addFrameworkMetadata(compiler, compilation, current)
-        },
-      )
-    })
+    applyContainerStylesheet(compiler, currentPlan)
   }
 }
 
@@ -150,80 +127,4 @@ function toCompilationError(compiler: Compiler, diagnostic: Error): WebpackError
   error.name = diagnostic.name
   if (isMfeBuildError(diagnostic)) error.file = diagnostic.file
   return error
-}
-
-/** Into the federation manifest's own metadata area; a second manifest would disagree. */
-function addFrameworkMetadata(
-  compiler: Compiler,
-  compilation: Compilation,
-  plan: ContainerPlan,
-): void {
-  const name = plan.options.manifestFileName
-  const asset = compilation.getAsset(name)
-
-  if (asset === undefined) {
-    compilation.errors.push(
-      new compiler.webpack.WebpackError(
-        `${PLUGIN_NAME}: no ${name} was emitted, so this container declares no framework ` +
-          'contract and a shell cannot tell which major it was built against. Check that the ' +
-          "project's customWebpackConfig still returns withMfe() and that nothing removed the " +
-          'ModuleFederationPlugin it adds.',
-      ),
-    )
-    return
-  }
-
-  const stats = JSON.parse(asset.source.source().toString()) as Record<string, unknown>
-  const { RawSource } = compiler.webpack.sources
-
-  compilation.updateAsset(
-    name,
-    new RawSource(
-      `${JSON.stringify(withFrameworkMetadata(stats, plan.generated.frameworkMetadata), null, 2)}\n`,
-    ),
-  )
-}
-
-/**
- * Ships the registry entry and config schema with the container, and in a build the declared
- * defaults as its runtime configuration, which the start-up script writes the environment over.
- */
-function emitContainerArtifacts(
-  compiler: Compiler,
-  compilation: Compilation,
-  plan: ContainerPlan,
-  emitRuntimeConfig: boolean,
-): void {
-  const { RawSource } = compiler.webpack.sources
-
-  for (const file of plan.generated.files) {
-    // Normalized, because `join` uses backslashes on Windows and these checks are about shape.
-    const name = relative(plan.options.generatedDir, file.path).split(sep).join('/')
-    if (!name.endsWith('.json') || name.includes('/')) continue
-    if (name === 'tsconfig.paths.json') continue
-
-    if (name === RUNTIME_CONFIG_DEFAULTS_FILE) {
-      if (emitRuntimeConfig) shipDefaults(compilation, plan, new RawSource(file.contents))
-      continue
-    }
-    if (compilation.getAsset(name) !== undefined) continue
-    compilation.emitAsset(name, new RawSource(file.contents))
-  }
-}
-
-/**
- * The copy in `public/` is the developer's, with values such as a localhost API, so a production
- * compile ships the declared defaults in its place and no local value is ever deployed. Watching,
- * Angular copies assets during the compilation, before this runs, so that copy is replaced; a
- * one-off build copies them after webpack, which the generated production configuration's asset
- * `ignore` covers.
- */
-function shipDefaults(
-  compilation: Compilation,
-  plan: ContainerPlan,
-  defaults: InstanceType<Compiler['webpack']['sources']['RawSource']>,
-): void {
-  const name = plan.options.runtimeConfigFileName
-  if (compilation.getAsset(name) === undefined) compilation.emitAsset(name, defaults)
-  else compilation.updateAsset(name, defaults)
 }

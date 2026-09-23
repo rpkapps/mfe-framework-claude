@@ -7,6 +7,9 @@ import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-
 import { ALIASES, containerId, exposeName, type GenerateContext } from './modules.ts'
 import { generatedPath, jsonFile, type GeneratedFile } from './emit.ts'
 
+/** Shipped beside the container, so a deployment validates its configuration before release. */
+const RUNTIME_CONFIG_SCHEMA_FILE = 'runtime-config.schema.json'
+
 /** What the plugin embeds in the Module Federation manifest's metadata area. */
 export interface FrameworkManifestMetadata {
   readonly kind: 'mfe'
@@ -93,6 +96,7 @@ export function registryDescriptorFile(
   return {
     path: generatedPath(context.options.generatedDir, context.options.registryFileName),
     contents: jsonFile(descriptor),
+    asset: context.options.registryFileName,
   }
 }
 
@@ -125,8 +129,9 @@ export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile
   }
 
   return {
-    path: generatedPath(context.options.generatedDir, 'runtime-config.schema.json'),
+    path: generatedPath(context.options.generatedDir, RUNTIME_CONFIG_SCHEMA_FILE),
     contents: jsonFile(schema),
+    asset: RUNTIME_CONFIG_SCHEMA_FILE,
   }
 }
 

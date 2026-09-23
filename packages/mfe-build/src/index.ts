@@ -4,8 +4,14 @@
  * subpath, and the share scope is `./federation`, so neither loads the compiler.
  */
 
-export { planContainer } from './plan.ts'
-export type { ContainerPlan, PlanContainerOptions } from './plan.ts'
+export { createContainerPlanner, planContainer } from './plan.ts'
+export type { ContainerPlan } from './plan.ts'
+export { applyContainerCompilation } from './compilation.ts'
+export type {
+  BundlerCompilation,
+  BundlerCompiler,
+  ContainerCompilationOptions,
+} from './compilation.ts'
 export type {
   CapabilityContext,
   ContainerProfile,
@@ -64,7 +70,7 @@ export type { FrameworkManifestMetadata } from './generate/artifacts.ts'
 export type { GeneratedOutput } from './generate/index.ts'
 export { exportedName } from './generate/modules.ts'
 export type { GenerateContext } from './generate/modules.ts'
-export { RUNTIME_CONFIG_DEFAULTS_FILE, seedLocalRuntimeConfig } from './generate/runtime-config.ts'
+export { seedLocalRuntimeConfig } from './generate/runtime-config.ts'
 export type { LocalRuntimeConfig } from './generate/runtime-config.ts'
 
 export { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'

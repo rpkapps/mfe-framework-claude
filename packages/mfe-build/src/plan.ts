@@ -9,7 +9,7 @@ import { readConfigSource, type ConfigSource } from './config/config-source.ts'
 import type { CapabilityOwner } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
-import { standaloneSources } from './discovery/sources.ts'
+import { createSourceCache, type ContainerSources } from './discovery/sources.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
 import { adapterCarriedShares, resolveFrameworkScope } from './federation/framework-scope.ts'
 import { installedVersionFrom } from './federation/installed-version.ts'
@@ -52,32 +52,63 @@ export interface ContainerPlan {
   readonly diagnostics: readonly Error[]
 }
 
-export interface PlanContainerOptions extends ContainerOptions {
-  /** Fallback container root when the options do not name one. */
-  readonly defaultRoot?: string
-}
-
 /** Reads the container and derives everything the build needs from it. */
 export function planContainer(
   profile: ContainerProfile,
-  options: PlanContainerOptions = {},
+  options: ContainerOptions = {},
 ): ContainerPlan {
-  const resolved = resolveOptions(
-    options,
-    options.defaultRoot ?? process.cwd(),
-    profile.containerRootOption,
-  )
+  return createContainerPlanner(profile, options)()
+}
 
+/**
+ * Plans the container on every call. What cannot change without a restart — the options its
+ * manifest settles, what it shares and in which scopes — is read by the first call alone, because
+ * it walks `node_modules`; each call re-reads only the sources, and parses only the files that
+ * changed since the call before.
+ */
+export function createContainerPlanner(
+  profile: ContainerProfile,
+  options: ContainerOptions = {},
+): () => ContainerPlan {
+  const settled = resolveOptions(options, profile.containerRootOption)
+  const nextSources = createSourceCache()
+  let shares: Shares | undefined
+
+  return () => {
+    // The time is the one option a restart does not settle: a shape that changes while watching
+    // records when it changed.
+    const resolved = settled.buildTimeFixed
+      ? settled
+      : { ...settled, buildTime: new Date().toISOString() }
+    return planSources(profile, resolved, nextSources(), () => {
+      shares ??= planShares(profile, settled)
+      return shares
+    })
+  }
+}
+
+interface Shares {
+  readonly shared: Readonly<Record<string, SharedModuleConfig>>
+  /** The share scopes a host registers this container with, `default` first. */
+  readonly shareScopes: readonly string[]
+}
+
+/**
+ * `shares` is read where a failure to resolve them has always been reported: after the sources,
+ * so a container that is wrong in both ways is told about its sources first.
+ */
+function planSources(
+  profile: ContainerProfile,
+  resolved: ResolvedOptions,
+  sources: ContainerSources,
+  shares: () => Shares,
+): ContainerPlan {
   const sourceRoot = join(resolved.containerRoot, 'src')
-  const generatedDir = resolved.generatedDir
-
-  // Every reader below shares one read and one parse of each file.
-  const sources = standaloneSources()
 
   const entryFile = resolveEntryModule(resolved.containerRoot, profile.definitions)
   const discovery = discoverDefinitions(entryFile, profile.definitions, sources)
   const configSource = readConfigSource(resolved.containerRoot, profile.envModules, sources)
-  const sourceFiles = containerSourceFiles(sourceRoot, new Set([generatedDir]))
+  const sourceFiles = containerSourceFiles(sourceRoot, new Set([resolved.generatedDir]))
 
   const owner: CapabilityOwner = {
     hasApp: discovery.app !== undefined,
@@ -93,7 +124,7 @@ export function planContainer(
       sources,
     }) ?? []
 
-  const shared = planShared(profile, resolved)
+  const { shared, shareScopes } = shares()
 
   const context: GenerateContext = {
     options: resolved,
@@ -101,7 +132,7 @@ export function planContainer(
     discovery,
     configSource,
     profile,
-    shareScopes: shareScopesOf(shared),
+    shareScopes,
   }
 
   const generated = generateContainerFiles(context, capabilities)
@@ -142,6 +173,11 @@ export function planContainer(
       ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file, sources)),
     ],
   }
+}
+
+function planShares(profile: ContainerProfile, resolved: ResolvedOptions): Shares {
+  const shared = planShared(profile, resolved)
+  return { shared, shareScopes: shareScopesOf(shared) }
 }
 
 /**

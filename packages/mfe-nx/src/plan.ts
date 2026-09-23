@@ -2,21 +2,24 @@
 
 import { resolve } from 'node:path'
 
-import { planContainer as planBuildContainer, type ContainerPlan } from '@company/mfe-build'
+import {
+  createContainerPlanner as createBuildPlanner,
+  type ContainerPlan,
+} from '@company/mfe-build'
 
 import { assertShareable } from './federation/sharing.ts'
 import type { MfeAngularOptions } from './options.ts'
 import { angularProfile } from './profile.ts'
 
-export interface PlanContainerOptions extends MfeAngularOptions {
-  /** Fallback container root when the options do not name one. */
-  readonly defaultRoot?: string
+/** Reads the container and derives everything the build needs from it. */
+export function planContainer(options: MfeAngularOptions = {}): ContainerPlan {
+  return createContainerPlanner(options)()
 }
 
-/** Reads the container and derives everything the build needs from it. */
-export function planContainer(options: PlanContainerOptions = {}): ContainerPlan {
-  const containerRoot = resolve(options.containerRoot ?? options.defaultRoot ?? process.cwd())
+/** `mfe-build`'s planner, after refusing a share no Angular container may add. */
+export function createContainerPlanner(options: MfeAngularOptions = {}): () => ContainerPlan {
+  const containerRoot = resolve(options.containerRoot ?? process.cwd())
   assertShareable(options.shared ?? {}, containerRoot)
 
-  return planBuildContainer(angularProfile(), { ...options, containerRoot })
+  return createBuildPlanner(angularProfile(), { ...options, containerRoot })
 }

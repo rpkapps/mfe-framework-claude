@@ -33,6 +33,8 @@ export function runtimeConfigDefaultsFile(context: GenerateContext): GeneratedFi
   return {
     path: generatedPath(context.options.generatedDir, RUNTIME_CONFIG_DEFAULTS_FILE),
     contents: jsonFile(defaults),
+    // A build ships them as the configuration itself, which the start-up script writes over.
+    asset: context.options.runtimeConfigFileName,
   }
 }
 
