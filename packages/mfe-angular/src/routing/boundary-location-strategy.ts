@@ -89,7 +89,12 @@ export class BoundaryLocationStrategy extends LocationStrategy {
     return this.#baseHref
   }
 
-  /** Called from the application's `DestroyRef`, because the strategy outlives nothing else. */
+  /** Whether the page is inside the boundary, and so a path the App's routes are for. */
+  ownsCurrentPath(): boolean {
+    return this.#owns(this.#bridge.read().pathname)
+  }
+
+  /** The mount disposes it after its application, whose `Location` listens through it. */
   dispose(): void {
     for (const unsubscribe of this.#subscriptions.splice(0)) unsubscribe()
   }

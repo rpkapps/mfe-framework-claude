@@ -1,5 +1,5 @@
 import { APP_BASE_HREF, Location } from '@angular/common'
-import { Component, inject } from '@angular/core'
+import { Component, inject, Input } from '@angular/core'
 import {
   ActivatedRoute,
   Router,
@@ -7,6 +7,7 @@ import {
   type CanDeactivateFn,
   type RouterStateSnapshot,
   type Routes,
+  withComponentInputBinding,
 } from '@angular/router'
 import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-host'
 import { describe, expect, it, vi } from 'vitest'
@@ -18,11 +19,7 @@ import { injectNavigationBlock, type NavigationBlock } from '../inject/navigatio
 import { injectTheme } from '../inject/shell-state.ts'
 import { injectStoredState } from '../inject/stored-state.ts'
 import { mfeRouteData } from '../routing/route-data.ts'
-import {
-  createMfeTestEnvironment,
-  mountApp,
-  type MountedTestDefinition,
-} from '../testing/index.ts'
+import { createMfeTestEnvironment, mountApp, type MountedTestDefinition } from '../testing/index.ts'
 
 @Component({ selector: 'test-overview', template: '<h1>overview</h1>' })
 class OverviewComponent {}
@@ -104,6 +101,36 @@ describe('mounting an App', () => {
     expect(app.injector.get(Location).prepareExternalUrl('/reports/1')).toBe('/reports/reports/1')
   })
 
+  it('waits while the page is outside its boundary, and routes once the page arrives', async () => {
+    const app = await mountApp(reportsApp, {
+      basePath: '/reports',
+      initialEntries: ['/reports/reports/3', '/elsewhere'],
+    })
+    expect(heading(app)).toBeUndefined()
+
+    app.environment.navigation.back()
+
+    await vi.waitFor(() => {
+      expect(heading(app)).toBe('report 3')
+    })
+  })
+
+  it('applies the App’s router features', async () => {
+    @Component({ selector: 'test-bound', template: '<h1>bound {{ reportId }}</h1>' })
+    class BoundReportComponent {
+      @Input() reportId = ''
+    }
+    const bound = createApp({
+      id: 'bound',
+      routes: [{ path: ':reportId', component: BoundReportComponent }],
+      routerFeatures: [withComponentInputBinding()],
+    })
+
+    const app = await mountApp(bound, { basePath: '/bound', initialEntries: ['/bound/9'] })
+
+    expect(heading(app)).toBe('bound 9')
+  })
+
   it('renders an App’s own root component around its routes', async () => {
     @Component({
       selector: 'test-shell',
@@ -131,14 +158,15 @@ describe('mounting an App', () => {
     expect(runtime.breadcrumbs.contributionCount).toBe(0)
   })
 
-  it('gives two mounts of one App their own router, base path and history position', async () => {
+  it('gives two mounts of one App their own router and base path', async () => {
     const environment = createMfeTestEnvironment({ initialEntries: ['/left/reports/1'] })
     const left = await mountApp(reportsApp, { environment, basePath: '/left' })
     const right = await mountApp(reportsApp, { environment, basePath: '/right' })
 
     expect(left.injector.get(Router)).not.toBe(right.injector.get(Router))
     expect(heading(left)).toBe('report 1')
-    expect(right.injector.get(Location).path()).toBe('/left/reports/1')
+    // The page is inside the other boundary, so this App waits rather than routing it.
+    expect(heading(right)).toBeUndefined()
 
     await left.dispose()
     await right.injector.get(Router).navigateByUrl('/reports/2')
@@ -163,7 +191,7 @@ describe('mounting an App', () => {
       }
     }
     const busyApp = createApp({ id: 'busy', routes: [{ path: '', component: BusyComponent }] })
-    const environment = createMfeTestEnvironment()
+    const environment = createMfeTestEnvironment({ initialEntries: ['/busy'] })
     const { runtime } = environment
 
     for (let cycle = 0; cycle < 3; cycle += 1) {

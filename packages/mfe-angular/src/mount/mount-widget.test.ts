@@ -5,6 +5,7 @@ import {
   inject,
   Input,
   Output,
+  provideEnvironmentInitializer,
   type OnInit,
 } from '@angular/core'
 import { createMountContext } from '@company/mfe-host'
@@ -332,6 +333,23 @@ describe('mounting a Widget', () => {
         /throwing failed to render the definition: Error: boom/,
       )
       expect(document.body.childElementCount).toBe(0)
+    })
+
+    it('names the Widget when one of its own providers fails', async () => {
+      const misconfigured = createWidget({
+        id: 'misconfigured',
+        ...alertContract,
+        component: AlertComponent,
+        providers: [
+          provideEnvironmentInitializer(() => {
+            throw new Error('no API base URL')
+          }),
+        ],
+      })
+
+      await expect(mountWidget(misconfigured, { inputs: { alertId: 'a-1' } })).rejects.toThrowError(
+        /misconfigured failed to create its application: Error: no API base URL/,
+      )
     })
 
     it('reports a failure after mounting to the shell’s diagnostics, not the console', async () => {

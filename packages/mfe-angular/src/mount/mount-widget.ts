@@ -6,7 +6,6 @@
  */
 
 import { createComponent, type ComponentRef, type EnvironmentInjector } from '@angular/core'
-import { createApplication } from '@angular/platform-browser'
 import { shallowEqual, toMfeError } from '@company/mfe-core'
 import type { MountedWidget, WidgetMountTarget } from '@company/mfe-host'
 
@@ -15,6 +14,7 @@ import { WIDGET_EMIT } from '../inject/tokens.ts'
 import { readComponentContract, type ComponentContract } from './component-contract.ts'
 import {
   createHostElement,
+  createMountApplication,
   disposedWhileMounting,
   MountErrorHandler,
   provideMfeMount,
@@ -83,13 +83,15 @@ export async function mountWidget(
   const errors = new MountErrorHandler(context)
   const emit = createWidgetEmitter(definition, target.emit)
 
-  const appRef = await createApplication({
-    providers: [
+  // The author's providers come first, so none of them can replace what the mount owns.
+  const appRef = await createMountApplication(
+    [
+      ...definition.providers,
       ...provideMfeMount(context, errors),
       { provide: WIDGET_EMIT, useValue: emit },
-      ...definition.providers,
     ],
-  })
+    errors,
+  )
 
   if (context.signal.aborted) {
     appRef.destroy()

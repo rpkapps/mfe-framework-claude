@@ -7,9 +7,11 @@
 import {
   ErrorHandler,
   provideExperimentalZonelessChangeDetection,
+  type ApplicationRef,
   type EnvironmentProviders,
   type Provider,
 } from '@angular/core'
+import { createApplication } from '@angular/platform-browser'
 import { isMfeError, toMfeError, type ContractValidation, type MfeError } from '@company/mfe-core'
 import type { MountContext } from '@company/mfe-host'
 
@@ -84,6 +86,21 @@ export function provideMfeMount(
     { provide: MFE_MOUNT, useValue: context },
     { provide: MFE_RUNTIME, useValue: context.runtime },
   ]
+}
+
+/**
+ * One application per mount, on the page's shared browser platform, which no mount ever destroys.
+ * A provider that fails here is the definition's, so the failure is named after it.
+ */
+export async function createMountApplication(
+  providers: readonly (Provider | EnvironmentProviders)[],
+  errors: MountErrorHandler,
+): Promise<ApplicationRef> {
+  try {
+    return await createApplication({ providers: [...providers] })
+  } catch (error) {
+    throw errors.toMountError(error, 'create its application')
+  }
 }
 
 /**

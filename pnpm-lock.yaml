@@ -1000,9 +1000,6 @@ importers:
       '@company/mfe-host':
         specifier: workspace:*
         version: link:../mfe-host
-      '@module-federation/runtime':
-        specifier: 'catalog:'
-        version: 2.9.0
     devDependencies:
       '@angular/common':
         specifier: 'catalog:'

@@ -5,7 +5,7 @@
  */
 
 import type { EnvironmentProviders, Provider, Type } from '@angular/core'
-import type { Routes } from '@angular/router'
+import type { RouterFeatures, Routes } from '@angular/router'
 import {
   createMfeError,
   DEFINITION_BRAND,
@@ -56,6 +56,11 @@ export interface AppOptions extends PresentationOptions {
   readonly version?: string
   /** The App's routes; their paths are relative to the boundary the host assigns. */
   readonly routes: Routes
+  /**
+   * Features for the App's router, such as `withComponentInputBinding()`. The mount owns the
+   * router's location and its first navigation, so features that set either are overridden.
+   */
+  readonly routerFeatures?: readonly RouterFeatures[]
   /** Extra environment providers for this App's application injector, created once per mount. */
   readonly providers?: AngularProviders
   /** The root component; defaults to one rendering `<router-outlet />`. It must contain one. */
@@ -67,6 +72,7 @@ export interface AppOptions extends PresentationOptions {
 export interface AppDefinition extends MountableAppDefinition {
   readonly framework: 'angular'
   readonly routes: Routes
+  readonly routerFeatures: readonly RouterFeatures[]
   readonly providers: AngularProviders
   readonly component: Type<unknown>
   mount(target: AppMountTarget): Promise<AngularMountedApp>
@@ -121,6 +127,7 @@ export function createApp(options: AppOptions): AppDefinition {
     id: options.id,
     ...(options.version === undefined ? {} : { version: options.version }),
     routes: options.routes,
+    routerFeatures: options.routerFeatures ?? [],
     providers: providersOf(options.id, options.providers),
     component: options.component ?? MfeAppRootComponent,
     contributesBreadcrumbs: options.breadcrumbs !== false,

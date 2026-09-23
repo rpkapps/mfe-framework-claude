@@ -45,14 +45,8 @@
     "@angular/core": "catalog:",
     "@angular/platform-browser": "catalog:",
     "@angular/router": "catalog:",
-    "@module-federation/runtime": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "@module-federation/runtime": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@angular/common": "catalog:",
