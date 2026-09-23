@@ -12,6 +12,7 @@ import {
   eventNameToHandlerProp,
   findEventNameProblem,
   isReservedInputName,
+  withoutUndefined,
   type ContractEvents,
   type ContractInputs,
   type WidgetContract,
@@ -84,7 +85,7 @@ export function createApp(options: AppOptions): AppDefinition {
     kind: 'app',
     framework: 'react',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     createRouter: options.router,
     contributesBreadcrumbs: options.breadcrumbs !== false,
     // `this` rather than the record above, because a container's build mounts the copy that
@@ -149,7 +150,7 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
     kind: 'widget',
     framework: 'react',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     contract: { inputs: options.inputs, events: options.events },
     render: options.render,
     // See `createApp`: `this` is the copy a container's build attached its style root to.

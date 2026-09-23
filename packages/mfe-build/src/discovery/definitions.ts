@@ -7,6 +7,7 @@ import {
   isReservedInputName,
   isValidDefinitionId,
   RESERVED_INPUT_NAMES,
+  withoutUndefined,
   type DefinitionKind,
   type IconData,
 } from '@company/mfe-core'
@@ -267,18 +268,18 @@ function readDefinition(
       : readWidgetContract(sourceFile, entryFile, factory, id, imports, topLevel, sources)
   const presentation = readPresentation(sourceFile, entryFile, factory, id, imports, syntax)
 
-  return {
+  return withoutUndefined({
     id,
     kind: factory.kind,
-    ...(version === undefined ? {} : { version }),
+    version,
     ...presentation,
     exportName: binding.exportName,
     isDefaultExport: binding.isDefaultExport,
     eventNames: contract?.eventNames ?? [],
     inputNames: contract?.inputNames ?? [],
-    ...(contract?.inputSchema === undefined ? {} : { inputSchema: contract.inputSchema }),
-    ...(contract === null ? {} : { contractSource: contract.source }),
-  }
+    inputSchema: contract?.inputSchema,
+    contractSource: contract === null ? undefined : contract.source,
+  })
 }
 
 /**
@@ -294,17 +295,12 @@ function readPresentation(
   imports: ReadonlyMap<string, ImportedBinding>,
   syntax: DefinitionSyntax,
 ): Presentation {
-  const title = readPresentationString(sourceFile, factory, id, 'title')
-  const description = readPresentationString(sourceFile, factory, id, 'description')
-  const tags = readTags(sourceFile, factory, id)
-  const icon = readIcon(sourceFile, entryFile, factory, id, imports, syntax)
-
-  return {
-    ...(title === undefined ? {} : { title }),
-    ...(description === undefined ? {} : { description }),
-    ...(tags === undefined ? {} : { tags }),
-    ...(icon === undefined ? {} : { icon }),
-  }
+  return withoutUndefined({
+    title: readPresentationString(sourceFile, factory, id, 'title'),
+    description: readPresentationString(sourceFile, factory, id, 'description'),
+    tags: readTags(sourceFile, factory, id),
+    icon: readIcon(sourceFile, entryFile, factory, id, imports, syntax),
+  })
 }
 
 function readPresentationString(

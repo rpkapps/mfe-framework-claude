@@ -11,6 +11,7 @@ import {
   createMfeError,
   DEFINITION_BRAND,
   findEventNameProblem,
+  withoutUndefined,
   type WidgetContract,
 } from '@company/mfe-core'
 import type {
@@ -122,7 +123,7 @@ export function createApp(options: AppOptions): AppDefinition {
     kind: 'app',
     framework: 'angular',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     routes: options.routes,
     routerFeatures: options.routerFeatures ?? [],
     providers: providersOf(options.id, options.providers),
@@ -145,7 +146,7 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
     kind: 'widget',
     framework: 'angular',
     id: options.id,
-    ...(options.version === undefined ? {} : { version: options.version }),
+    ...withoutUndefined({ version: options.version }),
     contract: { inputs: options.inputs, events: options.events },
     component: options.component,
     providers: providersOf(options.id, options.providers),

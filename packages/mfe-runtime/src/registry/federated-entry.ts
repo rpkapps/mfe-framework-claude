@@ -10,6 +10,7 @@ import {
   FRAMEWORK_CONTRACT_MAJOR,
   isRecord,
   isSupportedContractMajor,
+  withoutUndefined,
   type BuildProvenance,
   type CapabilityDescriptor,
   type IconData,
@@ -81,10 +82,10 @@ const build = z.unknown().transform((value): BuildProvenance | undefined => {
   const hash = value['hash']
   const time = value['time']
   if (typeof hash !== 'string' && typeof time !== 'string') return undefined
-  return {
-    ...(typeof hash === 'string' ? { hash } : {}),
-    ...(typeof time === 'string' ? { time } : {}),
-  }
+  return withoutUndefined({
+    hash: typeof hash === 'string' ? hash : undefined,
+    time: typeof time === 'string' ? time : undefined,
+  })
 })
 
 const capability = z
@@ -101,12 +102,14 @@ const capability = z
     },
     { error: 'a capability object' },
   )
-  .transform((value): CapabilityDescriptor => ({
-    name: value.name,
-    label: value.label,
-    path: value.path,
-    ...(value.icon === undefined ? {} : { icon: value.icon }),
-  }))
+  .transform((value): CapabilityDescriptor =>
+    withoutUndefined({
+      name: value.name,
+      label: value.label,
+      path: value.path,
+      icon: value.icon,
+    }),
+  )
 
 /** The build emits values only, never a `$ref`, so the host carries the schema uninterpreted. */
 const inputsSchema = z.custom<JsonSchemaObject>(isRecord, {
@@ -128,10 +131,12 @@ const publishedContract = z
     },
     { error: 'an object with the declared event names and, when readable, an inputs schema' },
   )
-  .transform((value): PublishedWidgetContract => ({
-    events: value.events,
-    ...(value.inputs === undefined ? {} : { inputs: value.inputs }),
-  }))
+  .transform((value): PublishedWidgetContract =>
+    withoutUndefined({
+      events: value.events,
+      inputs: value.inputs,
+    }),
+  )
 
 /**
  * The framework version the container was built for. Which adapter the entry is for sits beside
@@ -240,22 +245,26 @@ export function parseFederatedEntry<K extends string>(
 
   const parsed = result.data
 
+  // `adapter` is assigned outside `withoutUndefined`: it is typed by the caller's own generic
+  // `K`, and a mapped type cannot decide whether a still-generic field's type includes `undefined`.
   return {
-    id: parsed.id,
-    definitionKind: parsed.kind,
     adapter,
-    manifestUrl: parsed.manifestUrl,
-    container: parsed.container,
-    ...(parsed.expose === undefined ? {} : { expose: parsed.expose }),
-    ...(parsed.shareScopes === undefined ? {} : { shareScopes: parsed.shareScopes }),
-    ...(parsed.version === undefined ? {} : { version: parsed.version }),
-    ...(parsed.capabilities === undefined ? {} : { capabilities: parsed.capabilities }),
-    ...(parsed.contract === undefined ? {} : { contract: parsed.contract }),
-    ...(parsed.build === undefined ? {} : { build: parsed.build }),
-    ...(parsed.hidden === true ? { hidden: true } : {}),
-    ...(parsed.title === undefined ? {} : { title: parsed.title }),
-    ...(parsed.description === undefined ? {} : { description: parsed.description }),
-    ...(parsed.tags === undefined ? {} : { tags: parsed.tags }),
-    ...(parsed.icon === undefined ? {} : { icon: parsed.icon }),
+    ...withoutUndefined({
+      id: parsed.id,
+      definitionKind: parsed.kind,
+      manifestUrl: parsed.manifestUrl,
+      container: parsed.container,
+      expose: parsed.expose,
+      shareScopes: parsed.shareScopes,
+      version: parsed.version,
+      capabilities: parsed.capabilities,
+      contract: parsed.contract,
+      build: parsed.build,
+      hidden: parsed.hidden === true ? true : undefined,
+      title: parsed.title,
+      description: parsed.description,
+      tags: parsed.tags,
+      icon: parsed.icon,
+    }),
   }
 }

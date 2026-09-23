@@ -5,6 +5,26 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+/** Every key whose value could be `undefined` becomes optional, and `undefined` drops out of it. */
+type Compacted<T> = { [K in keyof T as undefined extends T[K] ? never : K]: T[K] } & {
+  [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>
+}
+
+/**
+ * Drops every key whose value is `undefined`, so a caller can assign an optional field straight
+ * from a `T | undefined` computation instead of spreading `...(x === undefined ? {} : { x })` by
+ * hand for each one. `exactOptionalPropertyTypes` treats "absent" and "present as undefined" as
+ * different shapes, so the returned type carries the field as optional rather than as `X | undefined`.
+ */
+export function withoutUndefined<T extends Record<string, unknown>>(value: T): Compacted<T> {
+  const result: Record<string, unknown> = {}
+  for (const key of Object.keys(value)) {
+    const entry = value[key]
+    if (entry !== undefined) result[key] = entry
+  }
+  return result as Compacted<T>
+}
+
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
 

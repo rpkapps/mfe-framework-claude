@@ -126,6 +126,7 @@ export {
   isRecord,
   isWithinBoundary,
   shallowEqual,
+  withoutUndefined,
   type BoundaryLocation,
   type BreadcrumbItem,
   type CommandEntry,
