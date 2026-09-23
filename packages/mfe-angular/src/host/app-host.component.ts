@@ -1,8 +1,9 @@
 /**
  * `<mfe-app-host>` — an Angular host placing an App at a URL boundary. Used directly it takes the
  * App and the boundary as inputs; placed by `mfeAppRoute` it reads the App from its route and
- * derives the boundary from where the route matched, remounting if that ever moves. The App mounts
- * itself, so it may be an Angular App or one any other adapter built.
+ * derives the boundary from where the route matched, remounting if that ever moves. The runtime's
+ * `mountDefinition` does the placing, as it does for every host, so the App may be one any adapter
+ * built.
  *
  * Decorated rather than built from signals, like every component this package ships: the JIT
  * pipeline the package's own tests run under has no transform for signal inputs, and a container
@@ -22,17 +23,17 @@ import {
   type OnChanges,
   type OnDestroy,
   type OnInit,
+  type Signal,
   type TemplateRef,
 } from '@angular/core'
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router'
 import { createMfeError, type MfeError } from '@company/mfe-core'
-import type { MountedApp } from '@company/mfe-runtime'
+import { mountDefinition, type DefinitionMount } from '@company/mfe-runtime'
 import { filter, type Subscription } from 'rxjs'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { readAppRoute } from '../routing/app-route-data.ts'
-import { DefinitionSlot } from './definition-slot.ts'
-import { forgetDefinition, loadDefinition } from './load-definition.ts'
+import { HostedMount, type MountStatus } from './hosted-mount.ts'
 
 interface Placement {
   readonly appId: string
@@ -48,7 +49,7 @@ function boundaryOf(route: ActivatedRoute, location: Location): string {
 @Component({
   selector: 'mfe-app-host',
   imports: [NgTemplateOutlet],
-  template: `@if (slot.status() === 'loading' && pending) {
+  template: `@if (status() === 'pending' && pending) {
     <ng-container [ngTemplateOutlet]="pending" />
   }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,7 +62,7 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   /** Shown while the App loads. */
   @Input() pending: TemplateRef<unknown> | undefined
 
-  /** The App could not be loaded or mounted; `retry()` starts a fresh attempt. */
+  /** The App could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
   @Output() readonly failed = new EventEmitter<MfeError>()
 
   readonly #runtime = injectMfeRuntime('<mfe-app-host>')
@@ -72,10 +73,12 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   #initialized = false
   #placement: Placement | null = null
   #navigations: Subscription | null = null
-
-  protected readonly slot = new DefinitionSlot<MountedApp>(this.#runtime, this.#element, error => {
+  readonly #mount = new HostedMount<DefinitionMount>(error => {
     this.failed.emit(error)
   })
+
+  /** Where the App's mount is: `pending`, `mounted`, `error` or `disposed`. */
+  readonly status: Signal<MountStatus> = this.#mount.status
 
   // The first placement waits for `ngOnInit`, which runs whether or not an input is bound; placed
   // by `mfeAppRoute`, none is, and Angular never calls `ngOnChanges` at all.
@@ -88,15 +91,14 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
     if (this.#initialized) this.#place()
   }
 
+  /** Acts only after a failure; a failed load is loaded afresh. */
   retry(): void {
-    if (this.#placement === null) return
-    forgetDefinition(this.#runtime, this.#placement.appId)
-    this.#start(this.#placement)
+    this.#mount.current?.retry()
   }
 
   ngOnDestroy(): void {
     this.#navigations?.unsubscribe()
-    this.slot.stop()
+    this.#mount.release()
   }
 
   /** The App and its boundary together are the mount's identity; a change to either remounts. */
@@ -109,14 +111,16 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
 
   #start(placement: Placement): void {
     this.#placement = placement
-    this.slot.start({
-      id: placement.appId,
-      kind: 'app',
-      basePath: placement.basePath,
-      depth: (this.#parent?.depth ?? 0) + 1,
-      load: () => loadDefinition(this.#runtime, placement.appId, 'app'),
-      mount: (definition, element, context) => definition.mount({ element, context }),
-    })
+    this.#mount.replace(
+      mountDefinition({
+        runtime: this.#runtime,
+        element: this.#element,
+        definitionId: placement.appId,
+        kind: 'app',
+        basePath: placement.basePath,
+        parent: this.#parent,
+      }),
+    )
   }
 
   #resolvePlacement(): Placement | null {
@@ -148,6 +152,10 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
       .events.pipe(filter(event => event instanceof NavigationEnd))
       .subscribe(() => {
         this.#place()
+        // A router over the page's own history moves the page without the navigation bridge
+        // hearing of it, so the App below this route is told here; one whose router writes
+        // through the runtime's navigator has already been told, and hears nothing twice.
+        this.#runtime.navigator.announce()
       })
 
     return { appId: routed.appId, basePath: routed.basePath ?? boundaryOf(route, location) }

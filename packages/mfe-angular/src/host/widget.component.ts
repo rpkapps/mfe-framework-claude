@@ -1,7 +1,7 @@
 /**
- * `<mfe-widget>` — an Angular host placing a Widget by id. The Widget mounts itself into an element
- * this component owns, so the Widget may be an Angular one or one any other adapter built; its
- * inputs are validated by the Widget, and a contract the host declares here checks the events.
+ * `<mfe-widget>` — an Angular host placing a Widget by id. The runtime's `mountDefinition` does the
+ * placing, as it does for every host, so the Widget may be one any adapter built; the Widget
+ * validates its own inputs, and a contract the host declares here checks the events.
  *
  * Decorated rather than built from signals, like every component this package ships: the JIT
  * pipeline the package's own tests run under has no transform for signal inputs, and a container
@@ -19,20 +19,15 @@ import {
   Output,
   type OnChanges,
   type OnDestroy,
+  type Signal,
   type SimpleChanges,
   type TemplateRef,
 } from '@angular/core'
-import {
-  shallowEqual,
-  validateAgainstContract,
-  type MfeError,
-  type WidgetContract,
-} from '@company/mfe-core'
-import type { MountedWidget } from '@company/mfe-runtime'
+import type { MfeError, WidgetContract } from '@company/mfe-core'
+import { mountDefinition, type WidgetDefinitionMount } from '@company/mfe-runtime'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
-import { DefinitionSlot } from './definition-slot.ts'
-import { forgetDefinition, loadDefinition } from './load-definition.ts'
+import { HostedMount, type MountStatus } from './hosted-mount.ts'
 
 export interface MfeWidgetEvent {
   readonly name: string
@@ -42,7 +37,7 @@ export interface MfeWidgetEvent {
 @Component({
   selector: 'mfe-widget',
   imports: [NgTemplateOutlet],
-  template: `@if (slot.status() === 'loading' && pending) {
+  template: `@if (status() === 'pending' && pending) {
     <ng-container [ngTemplateOutlet]="pending" />
   }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,92 +53,56 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
 
   /** Every event the Widget emits, by name, after the Widget's contract and this host's accept it. */
   @Output() readonly event = new EventEmitter<MfeWidgetEvent>()
-  /** The Widget could not be loaded or mounted; `retry()` starts a fresh attempt. */
+  /** The Widget could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
   @Output() readonly failed = new EventEmitter<MfeError>()
 
   readonly #runtime = injectMfeRuntime('<mfe-widget>')
   readonly #parent = injectOptionalMfeMount()
   readonly #element: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement
-  /** The inputs the mounted Widget was last given. */
-  #delivered: Readonly<Record<string, unknown>> = {}
+  readonly #mount = new HostedMount<WidgetDefinitionMount>(error => {
+    this.failed.emit(error)
+  })
 
-  protected readonly slot = new DefinitionSlot<MountedWidget>(
-    this.#runtime,
-    this.#element,
-    error => {
-      this.failed.emit(error)
-    },
-  )
+  /** Where the Widget's mount is: `pending`, `mounted`, `error` or `disposed`. */
+  readonly status: Signal<MountStatus> = this.#mount.status
 
   ngOnChanges(changes: SimpleChanges): void {
     // A different Widget replaces the mount rather than feeding it another Widget's inputs.
     if (changes['widgetId']) {
-      this.#start()
+      this.#place()
       return
     }
-    if (changes['inputs']) this.#update()
+    if (changes['inputs']) this.#mount.current?.update(this.inputs)
   }
 
+  /** Acts only after a failure; a failed load is loaded afresh. */
   retry(): void {
-    forgetDefinition(this.#runtime, this.widgetId)
-    this.#start()
+    this.#mount.current?.retry()
   }
 
   ngOnDestroy(): void {
-    this.slot.stop()
+    this.#mount.release()
   }
 
-  /** An equal input set is not an update, whichever adapter built the Widget. */
-  #update(): void {
-    const mounted = this.slot.mounted
-    if (mounted === null || shallowEqual(this.inputs, this.#delivered)) return
-    this.#delivered = this.inputs
-    mounted.update(this.inputs)
-  }
-
-  #start(): void {
-    const id = this.widgetId
-    this.slot.start({
-      id,
-      kind: 'widget',
-      depth: (this.#parent?.depth ?? 0) + 1,
-      load: () => loadDefinition(this.#runtime, id, 'widget'),
-      mount: (definition, element, context) => {
-        this.#delivered = this.inputs
-        return definition.mount({
-          element,
-          context,
-          inputs: this.#delivered,
-          emit: (name, payload) => {
-            this.#deliver(id, name, payload)
-          },
-        })
-      },
-      // Inputs that changed while the Widget was mounting reach it now.
-      mounted: () => {
-        this.#update()
-      },
-    })
-  }
-
-  /** The provider already validated the payload; this checks only what the host declared. */
-  #deliver(id: string, name: string, payload: unknown): void {
-    const schema = this.contract?.events[name]
-    if (!schema) {
-      this.event.emit({ name, payload })
-      return
-    }
-
-    const accepted = validateAgainstContract(schema, payload, {
-      id,
-      direction: 'event',
-      side: 'consumer',
-      eventName: name,
-    })
-    if (!accepted.ok) {
-      this.#runtime.diagnostics.report(accepted.error, { context: { widget: id, event: name } })
-      return
-    }
-    this.event.emit({ name, payload: accepted.value })
+  #place(): void {
+    // The mount reads the consumer events when an event arrives, so a contract bound later
+    // applies to the Widget already mounted.
+    const consumerEvents = (): WidgetContract['events'] => this.contract?.events ?? {}
+    this.#mount.replace(
+      mountDefinition({
+        runtime: this.#runtime,
+        element: this.#element,
+        definitionId: this.widgetId,
+        kind: 'widget',
+        parent: this.#parent,
+        inputs: this.inputs,
+        onEvent: (name, payload) => {
+          this.event.emit({ name, payload })
+        },
+        get consumerEvents() {
+          return consumerEvents()
+        },
+      }),
+    )
   }
 }

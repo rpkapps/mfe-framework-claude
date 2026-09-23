@@ -8,14 +8,23 @@ import {
   type ApplicationRef,
 } from '@angular/core'
 import { DEFINITION_BRAND, type MfeError, type WidgetContract } from '@company/mfe-core'
-import type { MountableWidgetDefinition, WidgetMountTarget } from '@company/mfe-runtime'
+import type {
+  MountableWidgetDefinition,
+  MountContext,
+  MountedWidget,
+  WidgetMountTarget,
+} from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createHostApplication, renderInHost, type RenderedHost } from '../__tests__/harness.ts'
-import { createWidget } from '../definition.ts'
-import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.ts'
+import { createApp, createWidget } from '../definition.ts'
+import { injectMfeMount } from '../inject/runtime.ts'
+import { createMfeTestEnvironment, mountApp, type MfeTestEnvironment } from '../testing/index.ts'
 import { MfeWidgetComponent, type MfeWidgetEvent } from './widget.component.ts'
+
+/** The mount each Alert component was created in, as `injectMfeMount()` gave it. */
+const alertMounts: MountContext[] = []
 
 @Component({
   selector: 'test-alert',
@@ -24,6 +33,10 @@ import { MfeWidgetComponent, type MfeWidgetEvent } from './widget.component.ts'
 class AlertComponent {
   @Input() alertId = ''
   @Output() readonly acknowledged = new EventEmitter<unknown>()
+
+  constructor() {
+    alertMounts.push(injectMfeMount())
+  }
 }
 
 const alertWidget = createWidget({
@@ -33,19 +46,26 @@ const alertWidget = createWidget({
   component: AlertComponent,
 })
 
+interface ForeignWidgetOptions {
+  readonly failFirstMount?: boolean
+  /** Holds every mount until the test calls `calls.finishMounting()`. */
+  readonly deferMount?: boolean
+}
+
 /** A definition another adapter built: only the neutral contract, recording what the host did. */
-function foreignWidget(id: string, options: { readonly failFirstMount?: boolean } = {}) {
+function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
   const calls = {
     targets: [] as WidgetMountTarget[],
     updates: [] as Readonly<Record<string, unknown>>[],
     disposals: 0,
+    finishMounting: () => undefined as void,
   }
   let attempts = 0
 
   const definition: MountableWidgetDefinition = {
     [DEFINITION_BRAND]: true,
     kind: 'widget',
-    framework: 'react',
+    framework: 'plain-dom',
     id,
     contract: {
       inputs: z.object({ count: z.number() }),
@@ -58,7 +78,7 @@ function foreignWidget(id: string, options: { readonly failFirstMount?: boolean 
       }
       calls.targets.push(target)
       target.element.textContent = `count ${String(target.inputs['count'])}`
-      return Promise.resolve({
+      const mounted: MountedWidget = {
         update: inputs => {
           calls.updates.push(inputs)
           target.element.textContent = `count ${String(inputs['count'])}`
@@ -68,6 +88,12 @@ function foreignWidget(id: string, options: { readonly failFirstMount?: boolean 
           target.element.textContent = ''
           return Promise.resolve()
         },
+      }
+      if (options.deferMount !== true) return Promise.resolve(mounted)
+      return new Promise(resolve => {
+        calls.finishMounting = () => {
+          resolve(mounted)
+        }
       })
     },
   }
@@ -115,6 +141,19 @@ async function renderHost(
 }
 
 describe('<mfe-widget>', () => {
+  it('mounts an Angular Widget by id inside exactly one scope root, the one its mount sees', async () => {
+    alertMounts.length = 0
+    const { rendered } = await renderHost([alertWidget])
+
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('p')?.textContent).toBe('a-1')
+    })
+    const scopes = rendered.element.querySelectorAll('[data-mfe-scope]')
+    expect(scopes).toHaveLength(1)
+    expect(alertMounts.map(mount => mount.scopeRoot)).toEqual([scopes[0]])
+    expect(document.querySelectorAll('[data-mfe-overlay-root]')).toHaveLength(1)
+  })
+
   it('mounts an Angular Widget by id inside a scope root of its own', async () => {
     const { rendered } = await renderHost([alertWidget])
 
@@ -276,6 +315,135 @@ describe('<mfe-widget>', () => {
       })
       expect(rendered.element.textContent).toContain('count 1')
     })
+  })
+
+  it('exposes where the mount is as a status signal', async () => {
+    const { definition, calls } = foreignWidget('counter', { deferMount: true })
+    const { rendered } = await renderHost([definition], host => {
+      host.widgetId.set('counter')
+      host.inputs.set({ count: 1 })
+    })
+    const widget = rendered.ref.instance.widget
+
+    expect(widget?.status()).toBe('pending')
+    await vi.waitFor(() => {
+      expect(calls.targets).toHaveLength(1)
+    })
+    expect(widget?.status()).toBe('pending')
+
+    calls.finishMounting()
+
+    await vi.waitFor(() => {
+      expect(widget?.status()).toBe('mounted')
+    })
+  })
+
+  it('passes on only an inputs object that changed, and one changed while mounting once', async () => {
+    const { definition, calls } = foreignWidget('counter', { deferMount: true })
+    const { rendered, appRef } = await renderHost([definition], host => {
+      host.widgetId.set('counter')
+      host.inputs.set({ count: 1 })
+    })
+    await vi.waitFor(() => {
+      expect(calls.targets).toHaveLength(1)
+    })
+
+    rendered.ref.instance.inputs.set({ count: 2 })
+    await appRef.whenStable()
+    rendered.ref.instance.inputs.set({ count: 3 })
+    await appRef.whenStable()
+    calls.finishMounting()
+    await vi.waitFor(() => {
+      expect(rendered.ref.instance.widget?.status()).toBe('mounted')
+    })
+    expect(calls.updates).toEqual([{ count: 3 }])
+
+    rendered.ref.instance.inputs.set({ count: 3 })
+    await appRef.whenStable()
+
+    expect(calls.updates).toEqual([{ count: 3 }])
+  })
+
+  it('reports a failure after mounting through failed, and mounts afresh on retry', async () => {
+    const { definition, calls } = foreignWidget('counter')
+    const { rendered } = await renderHost([definition], host => {
+      host.widgetId.set('counter')
+      host.inputs.set({ count: 1 })
+    })
+    const host = rendered.ref.instance
+    await vi.waitFor(() => {
+      expect(host.widget?.status()).toBe('mounted')
+    })
+
+    calls.targets[0]?.onFailure?.(new Error('its root unmounted itself'))
+
+    await vi.waitFor(() => {
+      expect(host.failures).toHaveLength(1)
+    })
+    expect(host.failures[0]?.message).toContain('its root unmounted itself')
+    expect(host.widget?.status()).toBe('error')
+    expect(rendered.element.querySelector('[data-mfe-scope]')).toBeNull()
+
+    host.widget?.retry()
+
+    await vi.waitFor(() => {
+      expect(host.widget?.status()).toBe('mounted')
+    })
+    expect(calls.targets).toHaveLength(2)
+    expect(calls.targets[1]?.context.mountToken).not.toBe(calls.targets[0]?.context.mountToken)
+    expect(rendered.element.querySelectorAll('[data-mfe-scope]')).toHaveLength(1)
+  })
+
+  it('ignores retry while the Widget is mounted, so it never attaches a second one', async () => {
+    const { definition, calls } = foreignWidget('counter')
+    const { rendered } = await renderHost([definition], host => {
+      host.widgetId.set('counter')
+      host.inputs.set({ count: 1 })
+    })
+    await vi.waitFor(() => {
+      expect(rendered.ref.instance.widget?.status()).toBe('mounted')
+    })
+
+    rendered.ref.instance.widget?.retry()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(calls.targets).toHaveLength(1)
+    expect(calls.disposals).toBe(0)
+  })
+
+  it('places a Widget one level below the mount it sits in, and goes when that mount goes', async () => {
+    const { definition, calls } = foreignWidget('counter')
+
+    @Component({
+      selector: 'test-dashboard',
+      imports: [MfeWidgetComponent],
+      template: '<mfe-widget widgetId="counter" [inputs]="{ count: 1 }" />',
+    })
+    class DashboardComponent {}
+
+    const dashboard = createApp({
+      id: 'dashboard',
+      routes: [{ path: '', component: DashboardComponent }],
+    })
+    const environment = createMfeTestEnvironment({
+      definitions: [dashboard, definition],
+      initialEntries: ['/dashboard'],
+    })
+    const app = await mountApp(dashboard, { environment, basePath: '/dashboard' })
+
+    await vi.waitFor(() => {
+      expect(calls.targets).toHaveLength(1)
+    })
+    expect(calls.targets[0]?.context.depth).toBe(2)
+    expect(app.element.querySelector('[data-mfe-scope="counter"]')).not.toBeNull()
+
+    await app.dispose()
+
+    await vi.waitFor(() => {
+      expect(calls.disposals).toBe(1)
+    })
+    expect(calls.targets[0]?.context.signal.aborted).toBe(true)
+    environment.dispose()
   })
 
   it('reports an id the registry does not know, once', async () => {
