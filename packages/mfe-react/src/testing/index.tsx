@@ -27,8 +27,6 @@ import {
 import { act, render, waitFor, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
-import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'
-import { resetMfeFetch as resetMfeFetchState } from './generated/fetch.ts'
 import { createRouterContext } from '../app-mount.tsx'
 import type { AppDefinition, WidgetDefinition } from '../definition.ts'
 import { MfeMountProvider } from '../mount-context.tsx'
@@ -38,31 +36,11 @@ import { MfeProvider } from '../runtime-context.tsx'
 import { withQueryClient, type MfeMount, type MfeRuntime } from '../runtime.ts'
 import { deliverWidgetEvent, widgetInputs } from '../widget-props.ts'
 
-/** The runtime's memory fakes, so a test imports its adapter's `/testing` and nothing else. */
-export * from '@company/mfe-runtime/testing'
-
 /**
- * The generated-alias fixtures, which a container's vitest config points `#mfe/config` and
- * `#mfe/fetch` at. The source under test keeps its production imports (§14); nothing here is a
- * second configuration API.
+ * The runtime's memory fakes and the generated-alias fixtures, so a test imports its adapter's
+ * `/testing` and nothing else.
  */
-export { setMfeConfig, resetMfeConfig } from './generated/config.ts'
-export {
-  mfeRequests,
-  setMfeAccessToken,
-  setMfeApiBaseUrl,
-  setMfeApiOrigins,
-  setMfeFetch,
-  resetMfeFetch,
-  type MfeFetchHandler,
-  type MfeFetchRecord,
-} from './generated/fetch.ts'
-
-/** Everything the aliases hold, cleared; the shared vitest setup calls it. */
-export function resetGeneratedAliases(): void {
-  resetMfeConfigState()
-  resetMfeFetchState()
-}
+export * from '@company/mfe-runtime/testing'
 
 export interface TestShellState {
   readonly user?: ShellUser | null

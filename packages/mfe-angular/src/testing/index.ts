@@ -21,34 +21,12 @@ import {
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
 import { provideMfeRuntime } from '../host/provide-runtime.ts'
 import { mountedApplicationOf, type MountedApplication } from '../mount/mounted-applications.ts'
-import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'
-import { resetMfeFetch as resetMfeFetchState } from './generated/fetch.ts'
-
-/** The runtime's own test surface: the memory runtime, its loader, bridge, storage and telemetry. */
-export * from '@company/mfe-runtime/testing'
 
 /**
- * The generated-alias fixtures, which a container's vitest config points `#mfe/config` and
- * `#mfe/fetch` at. The source under test keeps its production imports; nothing here is a second
- * configuration API.
+ * The runtime's own test surface: the memory runtime, its loader, bridge, storage and telemetry,
+ * and the generated-alias fixtures with `resetGeneratedAliases`.
  */
-export { setMfeConfig, resetMfeConfig } from './generated/config.ts'
-export {
-  mfeRequests,
-  setMfeAccessToken,
-  setMfeApiBaseUrl,
-  setMfeApiOrigins,
-  setMfeFetch,
-  resetMfeFetch,
-  type MfeFetchHandler,
-  type MfeFetchRecord,
-} from './generated/fetch.ts'
-
-/** Everything the aliases hold, cleared; the shared vitest setup calls it. */
-export function resetGeneratedAliases(): void {
-  resetMfeConfigState()
-  resetMfeFetchState()
-}
+export * from '@company/mfe-runtime/testing'
 
 export type MfeTestEnvironmentOptions = MemoryRuntimeOptions
 
