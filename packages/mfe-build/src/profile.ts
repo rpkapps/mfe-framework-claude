@@ -11,6 +11,7 @@ import type {
   DiscoveredDefinition,
   DiscoveryResult,
 } from './discovery/definitions.ts'
+import type { ContainerSources } from './discovery/sources.ts'
 import type { SharingPolicies } from './federation/sharing.ts'
 import type { GeneratedFile } from './generate/emit.ts'
 import type { GenerateContext } from './generate/modules.ts'
@@ -81,4 +82,6 @@ export interface CapabilityContext {
   readonly owner: CapabilityOwner
   /** The container's own sources, generated output excluded and tests included. */
   readonly sourceFiles: readonly string[]
+  /** Reads and parses them, and any other file, once for the whole plan. */
+  readonly sources: ContainerSources
 }

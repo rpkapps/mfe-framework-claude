@@ -41,7 +41,11 @@ export function reactProfile(options: ReactOptions): ContainerProfile {
       return styleRoot === null ? [] : [styleRoot]
     },
     readCapabilities: context =>
-      extractCapabilities({ routesDirectory: options.routesDirectory, ...context.owner }),
+      extractCapabilities({
+        routesDirectory: options.routesDirectory,
+        ...context.owner,
+        sources: context.sources,
+      }),
     containerRootOption: 'pluginMfe({ containerRoot })',
   }
 }

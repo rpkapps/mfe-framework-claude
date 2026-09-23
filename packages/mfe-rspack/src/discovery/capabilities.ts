@@ -16,6 +16,7 @@ import {
   walk,
   type CapabilityMarker,
   type CapabilityOwner,
+  type ContainerSources,
   type MarkerTerms,
 } from '@company/mfe-build'
 
@@ -30,6 +31,8 @@ const FILE_ROUTE_TERMS: MarkerTerms = {
 export interface ExtractCapabilitiesOptions extends CapabilityOwner {
   /** Absolute path of the routes directory. */
   readonly routesDirectory: string
+  /** The plan's sources, which the route files usually are among. */
+  readonly sources?: ContainerSources
 }
 
 /** Sorted by capability name, so the descriptor is identical between builds. */
@@ -37,9 +40,11 @@ export function extractCapabilities(
   options: ExtractCapabilitiesOptions,
 ): readonly CapabilityDescriptor[] {
   const markers: CapabilityMarker[] = []
+  const parse = (file: string): ts.SourceFile =>
+    options.sources === undefined ? parseSourceFile(file) : options.sources.parse(file)
 
   for (const file of routeFiles(options.routesDirectory)) {
-    const sourceFile = parseSourceFile(file)
+    const sourceFile = parse(file)
 
     walk(sourceFile, node => {
       const marker = asFileRouteMarker(file, sourceFile, node)

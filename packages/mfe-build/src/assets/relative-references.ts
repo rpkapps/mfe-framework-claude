@@ -1,7 +1,8 @@
 /** A bare relative path in a string resolves against the shell document, not the container. */
 
 import { createBuildError } from '../diagnostics.ts'
-import { parseSourceFile, positionOf, ts, walk } from '../discovery/ts-ast.ts'
+import { standaloneSources, type ContainerSources } from '../discovery/sources.ts'
+import { positionOf, ts, walk } from '../discovery/ts-ast.ts'
 
 /** Extensions that mean "this string names an asset", not "this is a route". */
 const ASSET_EXTENSIONS = [
@@ -25,17 +26,22 @@ const ASSET_EXTENSIONS = [
   'wasm',
 ]
 
-const RELATIVE_ASSET_PATTERN = new RegExp(
-  `^\\.{1,2}/[^\\s'"\`]*\\.(?:${ASSET_EXTENSIONS.join('|')})$`,
-  'i',
-)
+const RELATIVE_ASSET = `\\.{1,2}/[^\\s'"\`]*\\.(?:${ASSET_EXTENSIONS.join('|')})`
+
+const RELATIVE_ASSET_PATTERN = new RegExp(`^${RELATIVE_ASSET}$`, 'i')
+
+/** Anywhere in a file: a literal the pattern above accepts is written out in the file's text. */
+const RELATIVE_ASSET_MENTION = new RegExp(RELATIVE_ASSET, 'i')
 
 /** Import specifiers and `new URL(…, import.meta.url)` are container-aware and not reported. */
 export function findNonContainerAwareAssetReferences(
   file: string,
-  source?: string,
+  sources: ContainerSources = standaloneSources(),
 ): readonly Error[] {
-  const sourceFile = parseSourceFile(file, source)
+  // Most modules name no asset at all, and parsing is what the scan costs.
+  if (!RELATIVE_ASSET_MENTION.test(sources.read(file))) return []
+
+  const sourceFile = sources.parse(file)
   const errors: Error[] = []
 
   walk(sourceFile, node => {

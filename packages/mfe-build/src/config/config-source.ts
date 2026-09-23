@@ -4,11 +4,11 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
+import { standaloneSources, type ContainerSources } from '../discovery/sources.ts'
 import {
-  collectImportedBindings,
   describeNode,
+  importedLocals,
   objectProperty,
-  parseSourceFile,
   positionOf,
   propertyName,
   stringLiteralValue,
@@ -46,19 +46,13 @@ export interface ConfigSource {
 export function readConfigSource(
   containerRoot: string,
   envModules: readonly string[],
+  sources: ContainerSources = standaloneSources(),
 ): ConfigSource | undefined {
   const file = join(containerRoot, CONFIG_MODULE_NAME)
   if (!existsSync(file)) return undefined
 
-  const sourceFile = parseSourceFile(file)
-  const imports = collectImportedBindings(sourceFile)
-
-  const envLocals = new Set<string>()
-  for (const [local, binding] of imports) {
-    if (binding.imported === 'env' && envModules.includes(binding.moduleSpecifier)) {
-      envLocals.add(local)
-    }
-  }
+  const sourceFile = sources.parse(file)
+  const envLocals = importedLocals(sourceFile, envModules, ['env'])
 
   const declaration = findDefaultExportObject(sourceFile, file)
   const fields: ConfigField[] = []

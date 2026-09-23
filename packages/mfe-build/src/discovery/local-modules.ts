@@ -1,28 +1,22 @@
 /**
- * A container's own modules, reached one import at a time and read from syntax only. The neutral
- * build follows a Widget contract's import the same way; its helpers are private to it, so the
- * route reader keeps this small copy rather than reaching into another package.
+ * A container's own modules, reached one import at a time and read from syntax only: how a Widget
+ * contract, an icon and an Angular App's routes are followed out of the entry.
  */
 
 import { statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
-import {
-  collectImportedBindings,
-  collectTopLevelBindings,
-  ts,
-  unwrapExpression,
-} from '@company/mfe-build'
+import { collectImportedBindings, collectTopLevelBindings, ts, unwrapExpression } from './ts-ast.ts'
 
-const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.js', '.jsx'] as const
+const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.mjs', '.js', '.jsx'] as const
 
-/** Resolves a relative specifier to a file on disk, or `null` for a bare one. */
+/** Resolves a relative specifier to a file on disk the way a bundler does, or `null` for a bare one. */
 export function resolveRelativeModule(fromFile: string, specifier: string): string | null {
   if (!specifier.startsWith('.')) return null
 
   const base = resolve(dirname(fromFile), specifier)
   const candidates: string[] = [base]
-  // `./app.routes.js` is how a TypeScript ESM import may spell `./app.routes.ts`.
+  // `./schemas.js` is how a TypeScript ESM import spells `./schemas.ts`.
   if (base.endsWith('.js')) candidates.push(`${base.slice(0, -3)}.ts`, `${base.slice(0, -3)}.tsx`)
   for (const extension of MODULE_EXTENSIONS) candidates.push(`${base}${extension}`)
   for (const extension of MODULE_EXTENSIONS) candidates.push(resolve(base, `index${extension}`))

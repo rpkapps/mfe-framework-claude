@@ -4,13 +4,10 @@
  * knows the route exists before the App is loaded.
  */
 
-import { readFileSync } from 'node:fs'
-
 import {
   collectCapabilities,
   isTestFile,
   objectProperty,
-  parseSourceFile,
   stringLiteralValue,
   type CapabilityMarker,
   type ContainerProfile,
@@ -38,16 +35,15 @@ const ROUTE_DATA_TERMS: MarkerTerms = {
 export const readRouteDataCapabilities: NonNullable<
   ContainerProfile['readCapabilities']
 > = context => {
-  const { owner } = context
+  const { owner, sources } = context
   let appRoutes: AppRoutes | undefined
   const markers: CapabilityMarker[] = []
 
   for (const file of context.sourceFiles) {
     if (isTestFile(file)) continue
-    const text = readFileSync(file, 'utf8')
     // Most modules never mention it, and parsing is what the scan costs.
-    if (!text.includes(ROUTE_DATA_FACTORY)) continue
-    const sourceFile = parseSourceFile(file, text)
+    if (!sources.read(file).includes(ROUTE_DATA_FACTORY)) continue
+    const sourceFile = sources.parse(file)
 
     for (const call of routeDataCalls(sourceFile)) {
       const data = routeDataObject(sourceFile, call, owner.appId)
@@ -60,7 +56,7 @@ export const readRouteDataCapabilities: NonNullable<
         data,
         capability,
         path: () => {
-          appRoutes ??= resolveAppRoutes(context.entryFile)
+          appRoutes ??= resolveAppRoutes(context.entryFile, sources)
           return routeDataPath(sourceFile, call, appRoutes, {
             name: stringLiteralValue(capability.initializer) ?? 'capability',
             ...(owner.appId === undefined ? {} : { appId: owner.appId }),

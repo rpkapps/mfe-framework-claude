@@ -9,6 +9,7 @@ import { readConfigSource, type ConfigSource } from './config/config-source.ts'
 import type { CapabilityOwner } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
+import { standaloneSources } from './discovery/sources.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
 import { adapterCarriedShares, resolveFrameworkScope } from './federation/framework-scope.ts'
 import { installedVersionFrom } from './federation/installed-version.ts'
@@ -70,9 +71,12 @@ export function planContainer(
   const sourceRoot = join(resolved.containerRoot, 'src')
   const generatedDir = resolved.generatedDir
 
+  // Every reader below shares one read and one parse of each file.
+  const sources = standaloneSources()
+
   const entryFile = resolveEntryModule(resolved.containerRoot, profile.definitions)
-  const discovery = discoverDefinitions(entryFile, profile.definitions)
-  const configSource = readConfigSource(resolved.containerRoot, profile.envModules)
+  const discovery = discoverDefinitions(entryFile, profile.definitions, sources)
+  const configSource = readConfigSource(resolved.containerRoot, profile.envModules, sources)
   const sourceFiles = containerSourceFiles(sourceRoot, new Set([generatedDir]))
 
   const owner: CapabilityOwner = {
@@ -86,6 +90,7 @@ export function planContainer(
       discovery,
       owner,
       sourceFiles,
+      sources,
     }) ?? []
 
   const shared = planShared(profile, resolved)
@@ -131,9 +136,10 @@ export function planContainer(
       ...findStrayDefinitions(sourceRoot, {
         entryFile,
         factoryModules: profile.definitions.factoryModules,
-        ignoredDirectories: [generatedDir],
+        sourceFiles,
+        sources,
       }),
-      ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file)),
+      ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file, sources)),
     ],
   }
 }

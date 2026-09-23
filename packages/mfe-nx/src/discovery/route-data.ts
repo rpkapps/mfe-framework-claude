@@ -5,23 +5,24 @@
  */
 
 import {
-  calleeName,
+  callsTo,
   collectImportedBindings,
   collectTopLevelBindings,
   createBuildError,
   describeNode,
+  findExportedExpression,
+  importedLocals,
   objectProperty,
-  parseSourceFile,
   positionOf,
   propertyName,
+  resolveRelativeModule,
   stringLiteralValue,
   ts,
   unwrapExpression,
-  walk,
+  type ContainerSources,
 } from '@company/mfe-build'
 
 import { ANGULAR_ADAPTER } from '../adapter.ts'
-import { findExportedExpression, resolveRelativeModule } from './local-modules.ts'
 
 /** The adapter's route-data factory; the build reads its argument, never its result. */
 export const ROUTE_DATA_FACTORY = 'mfeRouteData'
@@ -40,29 +41,20 @@ export type AppRoutes = RoutesArray | { readonly unresolved: string }
  * Follows `createApp({ routes })` to an array literal: inline, a top-level `const` in the entry,
  * or an exported `const` of a relative module the entry imports it from.
  */
-export function resolveAppRoutes(entryFile: string): AppRoutes {
-  const sourceFile = parseSourceFile(entryFile)
+export function resolveAppRoutes(entryFile: string, sources: ContainerSources): AppRoutes {
+  const sourceFile = sources.parse(entryFile)
+  const factories = importedLocals(sourceFile, [ANGULAR_ADAPTER], ['createApp'])
 
-  const factories = new Set<string>()
-  for (const [local, binding] of collectImportedBindings(sourceFile)) {
-    if (binding.moduleSpecifier === ANGULAR_ADAPTER && binding.imported === 'createApp') {
-      factories.add(local)
-    }
+  for (const { call } of callsTo(sourceFile, factories)) {
+    const options = call.arguments[0]
+    if (options === undefined) continue
+    const literal = unwrapExpression(options)
+    if (!ts.isObjectLiteralExpression(literal)) continue
+    const routes = routesOption(literal)
+    if (routes !== undefined) return followToArray(sourceFile, routes, sources)
   }
 
-  let routes: ts.Expression | undefined
-  walk(sourceFile, node => {
-    if (routes !== undefined || !ts.isCallExpression(node)) return
-    const callee = calleeName(node)
-    if (callee === null || !factories.has(callee)) return
-    const options = node.arguments[0]
-    if (options === undefined) return
-    const literal = unwrapExpression(options)
-    if (ts.isObjectLiteralExpression(literal)) routes = routesOption(literal)
-  })
-
-  if (routes === undefined) return { unresolved: 'createApp without a routes option' }
-  return followToArray(sourceFile, routes)
+  return { unresolved: 'createApp without a routes option' }
 }
 
 /** `routes: appRoutes`, or the shorthand `{ routes }`. */
@@ -76,7 +68,11 @@ function routesOption(options: ts.ObjectLiteralExpression): ts.Expression | unde
 }
 
 /** One hop into another module is enough for the `export const routes: Routes = […]` idiom. */
-function followToArray(sourceFile: ts.SourceFile, expression: ts.Expression): AppRoutes {
+function followToArray(
+  sourceFile: ts.SourceFile,
+  expression: ts.Expression,
+  sources: ContainerSources,
+): AppRoutes {
   const node = unwrapExpression(expression)
   if (ts.isArrayLiteralExpression(node)) {
     return { file: sourceFile.fileName, pos: node.pos, end: node.end }
@@ -95,7 +91,7 @@ function followToArray(sourceFile: ts.SourceFile, expression: ts.Expression): Ap
     return { unresolved: `createApp routes from ${node.text}, which is not a relative import` }
   }
 
-  const imported = parseSourceFile(file)
+  const imported = sources.parse(file)
   const exported = findExportedExpression(imported, binding.imported)
   if (exported === null) {
     return {
@@ -118,21 +114,10 @@ function writtenAs(sourceFile: ts.SourceFile, node: ts.Node): string {
 
 /** Every `mfeRouteData(…)` call bound to the Angular adapter, by alias or through a namespace. */
 export function routeDataCalls(sourceFile: ts.SourceFile): readonly ts.CallExpression[] {
-  const callees = new Set<string>()
-  for (const [local, binding] of collectImportedBindings(sourceFile)) {
-    if (binding.moduleSpecifier !== ANGULAR_ADAPTER) continue
-    if (binding.imported === ROUTE_DATA_FACTORY) callees.add(local)
-    if (binding.imported === '*') callees.add(`${local}.${ROUTE_DATA_FACTORY}`)
-  }
-  if (callees.size === 0) return []
-
-  const calls: ts.CallExpression[] = []
-  walk(sourceFile, node => {
-    if (!ts.isCallExpression(node)) return
-    const callee = calleeName(node)
-    if (callee !== null && callees.has(callee)) calls.push(node)
+  const callees = importedLocals(sourceFile, [ANGULAR_ADAPTER], [ROUTE_DATA_FACTORY], {
+    namespaces: true,
   })
-  return calls
+  return callsTo(sourceFile, callees).map(({ call }) => call)
 }
 
 /** The build reads the route data without running it, so it has to be written in the call. */

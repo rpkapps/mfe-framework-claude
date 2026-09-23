@@ -5,7 +5,7 @@ import { cleanupContainers, createContainer, entryOf } from '../testing/fixtures
 import { TEST_PROFILE } from '../testing/profile.ts'
 import { discoverDefinitions } from './definitions.ts'
 import { resolveEntryModule } from './entry.ts'
-import { findStrayDefinitions } from './stray-definitions.ts'
+import { containerSourceFiles, findStrayDefinitions } from './stray-definitions.ts'
 
 const SYNTAX = TEST_PROFILE.definitions
 
@@ -362,12 +362,18 @@ export const hidden = createWidget({
     expect(result.definitions.map(definition => definition.id)).toEqual(['operations'])
   })
 
-  it('reports it as a build error instead of ignoring it silently', () => {
-    const root = createContainer({ 'src/mfe.ts': APP, 'src/widgets/hidden.ts': STRAY })
-    const errors = findStrayDefinitions(`${root}/src`, {
+  function strayDefinitionsIn(root: string): readonly Error[] {
+    const sourceRoot = `${root}/src`
+    return findStrayDefinitions(sourceRoot, {
       entryFile: entryOf(root),
       factoryModules: SYNTAX.factoryModules,
+      sourceFiles: containerSourceFiles(sourceRoot),
     })
+  }
+
+  it('reports it as a build error instead of ignoring it silently', () => {
+    const root = createContainer({ 'src/mfe.ts': APP, 'src/widgets/hidden.ts': STRAY })
+    const errors = strayDefinitionsIn(root)
 
     expect(errors).toHaveLength(1)
     expect(errors[0]?.message).toContain('hidden.ts')
@@ -377,12 +383,7 @@ export const hidden = createWidget({
   it('leaves test files alone', () => {
     const root = createContainer({ 'src/mfe.ts': APP, 'src/widgets/hidden.test.ts': STRAY })
 
-    expect(
-      findStrayDefinitions(`${root}/src`, {
-        entryFile: entryOf(root),
-        factoryModules: SYNTAX.factoryModules,
-      }),
-    ).toHaveLength(0)
+    expect(strayDefinitionsIn(root)).toHaveLength(0)
   })
 
   it("leaves another adapter's factories alone, since they declare nothing here", () => {
@@ -391,11 +392,6 @@ export const hidden = createWidget({
       'src/widgets/hidden.ts': STRAY.replace("'@acme/mfe-adapter'", "'@other/mfe-adapter'"),
     })
 
-    expect(
-      findStrayDefinitions(`${root}/src`, {
-        entryFile: entryOf(root),
-        factoryModules: SYNTAX.factoryModules,
-      }),
-    ).toHaveLength(0)
+    expect(strayDefinitionsIn(root)).toHaveLength(0)
   })
 })

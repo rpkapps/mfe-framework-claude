@@ -29,12 +29,16 @@ export type {
   DiscoveredDefinition,
   DiscoveryResult,
 } from './discovery/definitions.ts'
+export { findExportedExpression, resolveRelativeModule } from './discovery/local-modules.ts'
+export type { ContainerSources } from './discovery/sources.ts'
 export { isTestFile } from './discovery/stray-definitions.ts'
 export {
   calleeName,
+  callsTo,
   collectImportedBindings,
   collectTopLevelBindings,
   describeNode,
+  importedLocals,
   objectProperty,
   parseSourceFile,
   positionOf,
@@ -44,7 +48,7 @@ export {
   unwrapExpression,
   walk,
 } from './discovery/ts-ast.ts'
-export type { ImportedBinding } from './discovery/ts-ast.ts'
+export type { CallSite, ImportedBinding } from './discovery/ts-ast.ts'
 
 export {
   banner,

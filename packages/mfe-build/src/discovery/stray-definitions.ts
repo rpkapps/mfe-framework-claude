@@ -5,17 +5,11 @@ import type { Dirent } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import {
-  calleeName,
-  collectImportedBindings,
-  parseSourceFile,
-  positionOf,
-  ts,
-  walk,
-} from './ts-ast.ts'
+import { standaloneSources, type ContainerSources } from './sources.ts'
+import { callsTo, importedLocals, positionOf } from './ts-ast.ts'
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'] as const
-const FACTORY_NAMES = new Set(['createApp', 'createWidget'])
+const FACTORY_NAMES = ['createApp', 'createWidget'] as const
 
 const IGNORED_DIRECTORIES = new Set(['node_modules', 'dist', '__tests__', '__mocks__'])
 const TEST_PATTERN = /\.(?:test|spec)\.[cm]?[jt]sx?$/
@@ -25,8 +19,9 @@ export interface StrayDefinitionOptions {
   readonly entryFile: string
   /** The modules `createApp` and `createWidget` may be imported from. */
   readonly factoryModules: readonly string[]
-  /** Directories skipped entirely, such as the build-managed output. */
-  readonly ignoredDirectories?: readonly string[]
+  /** The container's sources, as `containerSourceFiles` lists them. */
+  readonly sourceFiles: readonly string[]
+  readonly sources?: ContainerSources
 }
 
 /** Reports every definition declared outside the designated entry module. */
@@ -34,29 +29,22 @@ export function findStrayDefinitions(
   sourceRoot: string,
   options: StrayDefinitionOptions,
 ): readonly Error[] {
-  const ignored = new Set(options.ignoredDirectories ?? [])
+  const sources = options.sources ?? standaloneSources()
   const errors: Error[] = []
 
-  for (const file of containerSourceFiles(sourceRoot, ignored)) {
+  for (const file of options.sourceFiles) {
     if (file === options.entryFile) continue
     if (isTestFile(file)) continue
+    // A factory is imported by a string literal naming its module, so a file that never mentions
+    // one declares nothing, and most files are never parsed.
+    const text = sources.read(file)
+    if (!options.factoryModules.some(module => text.includes(module))) continue
 
-    const sourceFile = parseSourceFile(file)
-    const imports = collectImportedBindings(sourceFile)
+    const sourceFile = sources.parse(file)
+    const factories = importedLocals(sourceFile, options.factoryModules, FACTORY_NAMES)
 
-    const factories = new Set<string>()
-    for (const [local, binding] of imports) {
-      if (!options.factoryModules.includes(binding.moduleSpecifier)) continue
-      if (FACTORY_NAMES.has(binding.imported)) factories.add(local)
-    }
-    if (factories.size === 0) continue
-
-    walk(sourceFile, node => {
-      if (!ts.isCallExpression(node)) return
-      const callee = calleeName(node)
-      if (callee === null || !factories.has(callee)) return
-
-      const { line, column } = positionOf(sourceFile, node)
+    for (const { call, callee } of callsTo(sourceFile, factories)) {
+      const { line, column } = positionOf(sourceFile, call)
       errors.push(
         createBuildError({
           code: 'registry/invalid-entry',
@@ -71,7 +59,7 @@ export function findStrayDefinitions(
             'Move the call into the container entry and export it from there. Discovery reads the entry only, so a definition declared anywhere else is never built into the container and never reaches the shell.',
         }),
       )
-    })
+    }
   }
 
   return errors

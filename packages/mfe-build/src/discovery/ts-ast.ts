@@ -110,6 +110,49 @@ export function collectImportedBindings(
   return bindings
 }
 
+/**
+ * The local names a file binds to any of `names` imported from any of `modules`, so an alias such
+ * as `import { createWidget as make }` is recognised. With `namespaces`, a namespace import of one
+ * of the modules adds each name in the dotted form `calleeName` spells it: `ns.createWidget`.
+ */
+export function importedLocals(
+  sourceFile: ts.SourceFile,
+  modules: readonly string[],
+  names: readonly string[],
+  options: { readonly namespaces?: boolean } = {},
+): ReadonlySet<string> {
+  const locals = new Set<string>()
+
+  for (const [local, binding] of collectImportedBindings(sourceFile)) {
+    if (!modules.includes(binding.moduleSpecifier)) continue
+    if (names.includes(binding.imported)) locals.add(local)
+    if (options.namespaces === true && binding.imported === '*') {
+      for (const name of names) locals.add(`${local}.${name}`)
+    }
+  }
+
+  return locals
+}
+
+export interface CallSite {
+  readonly call: ts.CallExpression
+  /** The callee as `calleeName` spells it. */
+  readonly callee: string
+}
+
+/** Every call below `node` to one of `callees`, in source order. */
+export function callsTo(node: ts.Node, callees: ReadonlySet<string>): readonly CallSite[] {
+  const calls: CallSite[] = []
+  if (callees.size === 0) return calls
+
+  walk(node, child => {
+    if (!ts.isCallExpression(child)) return
+    const callee = calleeName(child)
+    if (callee !== null && callees.has(callee)) calls.push({ call: child, callee })
+  })
+  return calls
+}
+
 /** Top-level `const`/`let` initialisers, keyed by the declared name. */
 export function collectTopLevelBindings(
   sourceFile: ts.SourceFile,
