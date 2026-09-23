@@ -77,6 +77,13 @@ apps/my-app/
   README.md
 ```
 
+`src/primeng.ts` is the container's, not the adapter's: `providePrimeNgForMfe()` routes PrimeNG's
+overlays into the mount's overlay root and follows the shell's theme with a class on the mount's
+scope and overlay roots. Dialog, ConfirmDialog and Drawer do not read the overlay setting, so each
+needs `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component. PrimeNG
+writes unscoped global styles, so every Angular container on a page uses the same PrimeNG version
+and preset.
+
 A `widget` project has no routes, configuration or `public/`; its `src/mfe.ts` calls
 `createWidget({ id, version, inputs, events, component, providers })` with the contract exported
 separately, `src/<id>.component.ts` renders a `p-button` with signal `input()`/`output()`, and its
