@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-rspack",
   "version": "0.1.0",
-  "description": "pluginMfe(): definition and capability discovery, generated #mfe/* modules, container-relative assets, the container's own scoped stylesheet, React Compiler integration and Module Federation plumbing for MFE containers, as an Rsbuild plugin.",
+  "description": "pluginMfe() for Rsbuild and withMfe() for a plain Rspack configuration: definition and capability discovery for React and Angular containers, generated #mfe/* modules, container-relative assets, the container's own scoped stylesheet, React Compiler integration and Module Federation plumbing.",
   "type": "module",
   "sideEffects": false,
   "bin": {
@@ -12,6 +12,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./rspack": {
+      "types": "./src/rspack.ts",
+      "default": "./src/rspack.ts"
     },
     "./env": {
       "types": "./src/config/env.ts",
@@ -40,19 +44,24 @@
     "@tanstack/router-plugin": "catalog:",
     "babel-loader": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "css-loader": "catalog:",
     "globby": "catalog:",
     "picocolors": "catalog:",
     "postcss": "catalog:",
+    "postcss-loader": "catalog:",
     "tailwindcss": "catalog:"
   },
   "peerDependencies": {
     "@rsbuild/core": "catalog:",
-    "@rspack/core": "catalog:",
+    "@rspack/core": ">=1.3.5 <3",
     "@tecton/react": ">=0.1.0",
-    "typescript": "catalog:",
+    "typescript": ">=5.8.0 <7",
     "zod": "catalog:"
   },
   "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    },
     "@tecton/react": {
       "optional": true
     }

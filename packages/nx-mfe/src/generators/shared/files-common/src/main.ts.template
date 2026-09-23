@@ -1,0 +1,4 @@
+// Nothing bootstraps here: the shell mounts this container's definitions directly, through the
+// `mount()` each one carries. Rspack still needs a browser entry to build a chunk graph from, so
+// this file exists to be it.
+export {}

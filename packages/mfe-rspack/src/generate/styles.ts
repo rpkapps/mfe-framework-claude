@@ -19,9 +19,16 @@ export function styleRootPath(context: GenerateContext): string {
   return generatedPath(context.options.generatedDir, 'entries', 'style-root.tsx')
 }
 
+/** The design system renders React, so only a React container is wrapped in its style root. */
 export function usesDesignSystem(context: GenerateContext): boolean {
-  return DESIGN_SYSTEM in context.options.dependencies
+  return context.discovery.framework === 'react' && DESIGN_SYSTEM in context.options.dependencies
 }
+
+/** An Angular component keeps its classes in a template, inline or in its own `.html` file. */
+const SOURCE_GLOBS = {
+  react: '**/*.{ts,tsx}',
+  angular: '**/*.{ts,html}',
+} as const
 
 export function stylesheetFile(context: GenerateContext): GeneratedFile {
   const file = stylesheetPath(context)
@@ -60,7 +67,7 @@ export function stylesheetFile(context: GenerateContext): GeneratedFile {
         " * below covers the whole of this container's `src/`; nothing under",
         ' * node_modules needs scanning.',
         ' */',
-        `@source "${relativeSpecifier(file, join(context.options.containerRoot, 'src'))}/**/*.{ts,tsx}";`,
+        `@source "${relativeSpecifier(file, join(context.options.containerRoot, 'src'))}/${SOURCE_GLOBS[context.discovery.framework]}";`,
       ].join('\n'),
     ]),
   }

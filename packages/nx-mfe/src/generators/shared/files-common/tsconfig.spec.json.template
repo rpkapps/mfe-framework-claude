@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  // vitest.setup.ts is in the program because it runs before every test file.
+  "include": ["src/**/*.spec.ts", ".mfe/**/*.ts", "vitest.setup.ts", "vitest.config.mts"]
+}

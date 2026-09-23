@@ -1,0 +1,5 @@
+node_modules/
+dist/
+
+# Generated build output. `mfe-generate` runs before typecheck, test and build.
+.mfe/

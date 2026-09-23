@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title><%= id %></title>
+  </head>
+  <body>
+    <!--
+      A remote is fetched by a shell, never browsed to: this page exists only so `rspack serve`
+      has something to answer with. There is no standalone preview — point the shell at this
+      container's manifest instead (see the README).
+    -->
+    <p>This container has no standalone preview. Point the shell at its manifest instead.</p>
+  </body>
+</html>

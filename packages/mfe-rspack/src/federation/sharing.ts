@@ -3,7 +3,9 @@
  * would load a second one into a page that already has one, and no hook in it would work.
  */
 
-import { shared as designSystemShared } from '@tecton/react/federation/shared'
+import { createRequire } from 'node:module'
+
+import type { DefinitionFramework } from '@company/mfe-core'
 
 /** What a candidate needs independent of any container; `resolveShared` fills in the versions. */
 interface SharingPolicy {
@@ -15,19 +17,61 @@ interface SharingPolicy {
 const SINGLETON: SharingPolicy = { singleton: true, strictVersion: true }
 
 // These carry React context across the boundary, so a second copy makes every hook fail with
-// "rendered outside any mount" while both copies look perfectly correct on their own.
-const FRAMEWORK_POLICY: Readonly<Record<string, SharingPolicy>> = {
+// "rendered outside any mount" while both copies look perfectly correct on their own. React itself
+// is listed too, so a container that renders no design system still shares the one React.
+const REACT_FRAMEWORK_POLICY: Readonly<Record<string, SharingPolicy>> = {
   '@company/mfe-core': SINGLETON,
   '@company/mfe-host': SINGLETON,
   '@company/mfe-react': SINGLETON,
   '@tanstack/react-router': SINGLETON,
   '@tanstack/react-query': SINGLETON,
+  react: SINGLETON,
+  'react-dom': SINGLETON,
+}
+
+// The React shell provides none of these, so the first Angular container on a page provides them
+// to the ones after it. A second copy of the core means a second injector tree and change-detection
+// scheduler, and a second RxJS fails every `instanceof Observable` across the boundary.
+const ANGULAR_FRAMEWORK_POLICY: Readonly<Record<string, SharingPolicy>> = {
+  '@company/mfe-core': SINGLETON,
+  '@company/mfe-host': SINGLETON,
+  '@company/mfe-angular': SINGLETON,
+  '@angular/core': SINGLETON,
+  '@angular/common': SINGLETON,
+  '@angular/common/http': SINGLETON,
+  '@angular/platform-browser': SINGLETON,
+  '@angular/router': SINGLETON,
+  '@angular/forms': SINGLETON,
+  rxjs: SINGLETON,
+}
+
+const DESIGN_SYSTEM_SHARED = '@tecton/react/federation/shared'
+
+interface DesignSystemShared {
+  readonly shared: Readonly<
+    Record<string, { readonly singleton: boolean; readonly eager?: boolean }>
+  >
+}
+
+/**
+ * The design system is an optional peer, so a build without it — every Angular container's —
+ * shares nothing on its behalf. Only its absence is tolerated: a copy that is installed but fails
+ * to load is an error here, as it was when this was a static import.
+ */
+function readDesignSystemShared(): DesignSystemShared['shared'] {
+  try {
+    // `require` of an ES module hands back its namespace object, which carries `shared`.
+    return (createRequire(import.meta.url)(DESIGN_SYSTEM_SHARED) as DesignSystemShared).shared
+  } catch (error) {
+    if ((error as { code?: unknown }).code === 'MODULE_NOT_FOUND') return {}
+    throw error
+  }
 }
 
 // The library states its own contract; `strictVersion` is the one thing it leaves out, and a
 // mismatch is an error exactly where a second copy would be.
 const DESIGN_SYSTEM_POLICY: Readonly<Record<string, SharingPolicy>> = Object.fromEntries(
-  Object.entries(designSystemShared).map(([name, policy]): [string, SharingPolicy] => [
+  Object.entries(readDesignSystemShared()).map(([name, policy]): [string, SharingPolicy] => [
     name,
     {
       singleton: policy.singleton,
@@ -37,17 +81,21 @@ const DESIGN_SYSTEM_POLICY: Readonly<Record<string, SharingPolicy>> = Object.fro
   ]),
 )
 
-const CANDIDATE_POLICY: Readonly<Record<string, SharingPolicy>> = {
-  ...FRAMEWORK_POLICY,
-  ...DESIGN_SYSTEM_POLICY,
+// The design system renders React, so it is part of the React policy only.
+const CANDIDATE_POLICY: Readonly<
+  Record<DefinitionFramework, Readonly<Record<string, SharingPolicy>>>
+> = {
+  react: { ...REACT_FRAMEWORK_POLICY, ...DESIGN_SYSTEM_POLICY },
+  angular: ANGULAR_FRAMEWORK_POLICY,
 }
 
-/** The candidates the adapter shares, each only when a container depends on it. */
-export const DEFAULT_SHARED_CANDIDATES: readonly string[] = Object.keys(CANDIDATE_POLICY)
+/** The candidates a React container or host shares, each only when it depends on it. */
+export const DEFAULT_SHARED_CANDIDATES: readonly string[] = Object.keys(CANDIDATE_POLICY.react)
 
-/** The dependency a candidate is satisfied by; a prefix names the package. */
+/** The dependency a candidate is satisfied by: a prefix or a subpath names its package. */
 export function packageOf(candidate: string): string {
-  return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate
+  const segments = candidate.split('/')
+  return candidate.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? candidate)
 }
 
 // A workspace protocol means "whatever is installed", not a range any resolver understands.
@@ -67,11 +115,13 @@ export interface SharedModuleConfig {
 }
 
 export interface ResolveSharedOptions {
+  /** The adapter whose policy applies; a host shares what the React shell holds. */
+  readonly framework?: DefinitionFramework
   /** The container's `dependencies` and `peerDependencies`, merged. */
   readonly dependencies: Readonly<Record<string, string>>
   /** The one supported author override: additive, never subtractive. */
   readonly overrides?: Readonly<Record<string, string>>
-  /** Overridable for tests; defaults to the adapter's candidate list. */
+  /** Overridable for tests; defaults to the framework's candidate list. */
   readonly candidates?: readonly string[]
   /** The version actually installed, injected so this stays a pure function. */
   readonly installedVersion?: (name: string) => string | undefined
@@ -81,7 +131,8 @@ export interface ResolveSharedOptions {
 export function resolveShared(
   options: ResolveSharedOptions,
 ): Readonly<Record<string, SharedModuleConfig>> {
-  const candidates = options.candidates ?? DEFAULT_SHARED_CANDIDATES
+  const policy = CANDIDATE_POLICY[options.framework ?? 'react']
+  const candidates = options.candidates ?? Object.keys(policy)
   const shared: Record<string, SharedModuleConfig> = {}
 
   const installed = options.installedVersion ?? (() => undefined)
@@ -89,7 +140,8 @@ export function resolveShared(
   for (const name of candidates) {
     const range = options.dependencies[packageOf(name)]
     if (range === undefined) continue
-    shared[name] = entry(name, range, policyOf(name), installed)
+    // A candidate outside the policy — a test's own list — is a singleton.
+    shared[name] = entry(name, range, policy[name] ?? SINGLETON, installed)
   }
 
   // An override is additive rather than a way to relax a candidate, so it stays a singleton.
@@ -98,11 +150,6 @@ export function resolveShared(
   }
 
   return Object.fromEntries(Object.entries(shared).sort(([left], [right]) => compare(left, right)))
-}
-
-/** A candidate outside `CANDIDATE_POLICY` — a test's own list — is a singleton. */
-function policyOf(candidate: string): SharingPolicy {
-  return CANDIDATE_POLICY[candidate] ?? SINGLETON
 }
 
 // A workspace protocol resolves to the only version this container was built against, and

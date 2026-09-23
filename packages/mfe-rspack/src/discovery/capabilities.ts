@@ -1,6 +1,9 @@
-/** Read out of the route file, so the shell knows a route exists before the App is loaded. */
+/**
+ * Read out of the routes, so the shell knows a route exists before the App is loaded: a React
+ * App marks a file route's `staticData`, an Angular App a route's `data: mfeRouteData(…)`.
+ */
 
-import { readdirSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -11,6 +14,14 @@ import {
 } from '@company/mfe-core'
 
 import { createBuildError, listNames } from '../diagnostics.ts'
+import {
+  resolveAppRoutes,
+  ROUTE_DATA_FACTORY,
+  routeDataCalls,
+  routeDataObject,
+  routeDataPath,
+  type AppRoutes,
+} from './angular-routes.ts'
 import {
   calleeName,
   describeNode,
@@ -29,51 +40,136 @@ const ROUTE_EXTENSIONS = ['.ts', '.tsx'] as const
 /** Anything that looks like markup is markup, whatever it claims to be. */
 const MARKUP_PATTERN = /[<>]/
 
-export interface ExtractCapabilitiesOptions {
-  /** Absolute path of the routes directory. */
-  readonly routesDirectory: string
+interface CapabilityOwner {
   /** The App's id, for diagnostics; absent for a Widget-only container. */
   readonly appId?: string
   /** False when the container exports no App; a capability is then an error. */
   readonly hasApp: boolean
 }
 
-/** Sorted by capability name, so the descriptor is identical between builds. */
+export interface ExtractCapabilitiesOptions extends CapabilityOwner {
+  /** Absolute path of the routes directory. */
+  readonly routesDirectory: string
+}
+
+export interface ExtractRouteDataCapabilitiesOptions extends CapabilityOwner {
+  /** The entry, whose `createApp` call names the routes array every capability must sit in. */
+  readonly entryFile: string
+  /** The container's own sources, tests and generated output excluded. */
+  readonly sourceFiles: readonly string[]
+}
+
+/** One route that declares a capability, before any of it is validated. */
+interface CapabilityMarker {
+  readonly file: string
+  readonly sourceFile: ts.SourceFile
+  /** The object literal holding `capability`, `label` and `icon`. */
+  readonly data: ts.ObjectLiteralExpression
+  readonly capability: ts.PropertyAssignment
+  /** Resolved once the marker is known to be a capability an App declares. */
+  readonly path: () => string
+}
+
+/** How the diagnostics name the marker, in the vocabulary of the author's router. */
+interface MarkerTerms {
+  /** Completes "Remove …": the one marker that should go. */
+  readonly removeOne: string
+  /** Completes "or …, and let the route be an ordinary one". */
+  readonly drop: string
+}
+
+const FILE_ROUTE_TERMS: MarkerTerms = {
+  removeOne: 'the staticData marker from one of them',
+  drop: 'drop the staticData marker',
+}
+
+const ROUTE_DATA_TERMS: MarkerTerms = {
+  removeOne: `the capability from one of their ${ROUTE_DATA_FACTORY} calls`,
+  drop: `drop the capability from the ${ROUTE_DATA_FACTORY} call`,
+}
+
+/** A React App's capabilities, from its file routes; sorted, so the descriptor is stable. */
 export function extractCapabilities(
   options: ExtractCapabilitiesOptions,
 ): readonly CapabilityDescriptor[] {
-  const found: { descriptor: CapabilityDescriptor; file: string }[] = []
+  const markers: CapabilityMarker[] = []
 
   for (const file of routeFiles(options.routesDirectory)) {
     const sourceFile = parseSourceFile(file)
 
     walk(sourceFile, node => {
-      const marked = asMarkedRoute(node)
-      if (marked === null) return
-
-      const descriptor = readCapability(sourceFile, file, marked, options)
-      if (descriptor === null) return
-      found.push({ descriptor, file })
+      const marker = asFileRouteMarker(file, sourceFile, node)
+      if (marker !== null) markers.push(marker)
     })
   }
 
+  return collectCapabilities(markers, options, FILE_ROUTE_TERMS)
+}
+
+/**
+ * An Angular App's capabilities, from `mfeRouteData(…)` anywhere in its sources; the path is
+ * resolved through the route config, which is read only when a capability needs it.
+ */
+export function extractRouteDataCapabilities(
+  options: ExtractRouteDataCapabilitiesOptions,
+): readonly CapabilityDescriptor[] {
+  let appRoutes: AppRoutes | undefined
+  const markers: CapabilityMarker[] = []
+
+  for (const file of options.sourceFiles) {
+    const text = readFileSync(file, 'utf8')
+    // Most modules never mention it, and parsing is what the scan costs.
+    if (!text.includes(ROUTE_DATA_FACTORY)) continue
+    const sourceFile = parseSourceFile(file, text)
+
+    for (const call of routeDataCalls(sourceFile)) {
+      const data = routeDataObject(sourceFile, call, options.appId)
+      const capability = objectProperty(data, 'capability')
+      if (capability === undefined) continue
+
+      markers.push({
+        file,
+        sourceFile,
+        data,
+        capability,
+        path: () => {
+          appRoutes ??= resolveAppRoutes(options.entryFile)
+          return routeDataPath(sourceFile, call, appRoutes, {
+            name: stringLiteralValue(capability.initializer) ?? 'capability',
+            ...(options.appId === undefined ? {} : { appId: options.appId }),
+          })
+        },
+      })
+    }
+  }
+
+  return collectCapabilities(markers, options, ROUTE_DATA_TERMS)
+}
+
+/** Sorted by capability name, so the descriptor is identical between builds. */
+function collectCapabilities(
+  markers: readonly CapabilityMarker[],
+  owner: CapabilityOwner,
+  terms: MarkerTerms,
+): readonly CapabilityDescriptor[] {
   const byName = new Map<string, { descriptor: CapabilityDescriptor; file: string }>()
-  for (const entry of found) {
-    const existing = byName.get(entry.descriptor.name)
+
+  for (const marker of markers) {
+    const descriptor = readCapability(marker, owner, terms)
+    const existing = byName.get(descriptor.name)
     if (existing !== undefined) {
       throw createBuildError({
         code: 'registry/invalid-entry',
-        file: entry.file,
-        ...(options.appId === undefined ? {} : { id: options.appId }),
-        operation: `extract the '${entry.descriptor.name}' capability route`,
+        file: marker.file,
+        ...(owner.appId === undefined ? {} : { id: owner.appId }),
+        operation: `extract the '${descriptor.name}' capability route`,
         expected: 'one route per capability',
-        observed: `'${existing.descriptor.path}' and '${entry.descriptor.path}' both declare it`,
+        observed: `'${existing.descriptor.path}' and '${descriptor.path}' both declare it`,
         declaredBy: 'The capability contract',
-        repair:
-          'Remove the staticData marker from one of them. The shell opens exactly one route per capability, so two candidates have no tie-break.',
+        repair: `Remove ${terms.removeOne}. The shell opens exactly one route per capability, so two candidates have no tie-break.`,
       })
     }
-    byName.set(entry.descriptor.name, entry)
+    byName.set(descriptor.name, { descriptor, file: marker.file })
   }
 
   return [...byName.values()]
@@ -99,14 +195,12 @@ function routeFiles(routesDirectory: string): readonly string[] {
     .sort()
 }
 
-interface MarkedRoute {
-  readonly routePath: string
-  readonly staticData: ts.ObjectLiteralExpression
-  readonly node: ts.Node
-}
-
 /** Matches `createFileRoute('<path>')({ … })`; a route whose path is computed is not marked. */
-function asMarkedRoute(node: ts.Node): MarkedRoute | null {
+function asFileRouteMarker(
+  file: string,
+  sourceFile: ts.SourceFile,
+  node: ts.Node,
+): CapabilityMarker | null {
   if (!ts.isCallExpression(node)) return null
 
   const inner = unwrapExpression(node.expression)
@@ -125,19 +219,18 @@ function asMarkedRoute(node: ts.Node): MarkedRoute | null {
   if (staticData === undefined) return null
   const value = unwrapExpression(staticData.initializer)
   if (!ts.isObjectLiteralExpression(value)) return null
-  if (objectProperty(value, 'capability') === undefined) return null
+  const capability = objectProperty(value, 'capability')
+  if (capability === undefined) return null
 
-  return { routePath, staticData: value, node }
+  return { file, sourceFile, data: value, capability, path: () => routePath }
 }
 
 function readCapability(
-  sourceFile: ts.SourceFile,
-  file: string,
-  marked: MarkedRoute,
-  options: ExtractCapabilitiesOptions,
-): CapabilityDescriptor | null {
-  const capability = objectProperty(marked.staticData, 'capability')
-  if (capability === undefined) return null
+  marker: CapabilityMarker,
+  owner: CapabilityOwner,
+  terms: MarkerTerms,
+): CapabilityDescriptor {
+  const { file, sourceFile, capability } = marker
 
   const { line, column } = positionOf(sourceFile, capability)
   const name = stringLiteralValue(capability.initializer)
@@ -148,7 +241,7 @@ function readCapability(
       file,
       line,
       column,
-      ...(options.appId === undefined ? {} : { id: options.appId }),
+      ...(owner.appId === undefined ? {} : { id: owner.appId }),
       operation: 'extract a capability route',
       expected: 'a plain string literal',
       observed: describeNode(sourceFile, capability.initializer),
@@ -163,17 +256,16 @@ function readCapability(
       file,
       line,
       column,
-      ...(options.appId === undefined ? {} : { id: options.appId }),
+      ...(owner.appId === undefined ? {} : { id: owner.appId }),
       operation: 'extract a capability route',
       expected: `one of ${listNames([...CAPABILITY_NAMES])}`,
       observed: JSON.stringify(name),
       declaredBy: 'The capability contract',
-      repair:
-        'Use one of the three capability names, or drop the staticData marker and let the route be an ordinary one. The shell only has surfaces for those three.',
+      repair: `Use one of the three capability names, or ${terms.drop} and let the route be an ordinary one. The shell only has surfaces for those three.`,
     })
   }
 
-  if (!options.hasApp) {
+  if (!owner.hasApp) {
     throw createBuildError({
       code: 'registry/invalid-entry',
       file,
@@ -188,36 +280,33 @@ function readCapability(
     })
   }
 
-  const label = readLabel(sourceFile, file, marked, options)
-  const icon = readIcon(sourceFile, file, marked, options, name)
+  const path = marker.path()
+  const label = readLabel(marker, owner, path)
+  const icon = readIcon(marker, owner, name)
 
   return {
     name,
     label,
     ...(icon === undefined ? {} : { icon }),
-    path: marked.routePath,
+    path,
   }
 }
 
-function readLabel(
-  sourceFile: ts.SourceFile,
-  file: string,
-  marked: MarkedRoute,
-  options: ExtractCapabilitiesOptions,
-): string {
-  const label = objectProperty(marked.staticData, 'label')
+function readLabel(marker: CapabilityMarker, owner: CapabilityOwner, path: string): string {
+  const { file, sourceFile } = marker
+  const label = objectProperty(marker.data, 'label')
   const value = label === undefined ? null : stringLiteralValue(label.initializer)
 
   if (value === null || value.trim() === '') {
-    const anchor = label ?? marked.staticData
+    const anchor = label ?? marker.data
     const { line, column } = positionOf(sourceFile, anchor)
     throw createBuildError({
       code: 'registry/invalid-entry',
       file,
       line,
       column,
-      ...(options.appId === undefined ? {} : { id: options.appId }),
-      operation: `extract the capability route '${marked.routePath}'`,
+      ...(owner.appId === undefined ? {} : { id: owner.appId }),
+      operation: `extract the capability route '${path}'`,
       expected: 'a non-empty `label` string literal',
       observed: label === undefined ? 'no label' : describeNode(sourceFile, label.initializer),
       declaredBy: 'The capability contract',
@@ -230,13 +319,12 @@ function readLabel(
 }
 
 function readIcon(
-  sourceFile: ts.SourceFile,
-  file: string,
-  marked: MarkedRoute,
-  options: ExtractCapabilitiesOptions,
+  marker: CapabilityMarker,
+  owner: CapabilityOwner,
   name: string,
 ): CapabilityIconRef | undefined {
-  const icon = objectProperty(marked.staticData, 'icon')
+  const { file, sourceFile } = marker
+  const icon = objectProperty(marker.data, 'icon')
   if (icon === undefined) return undefined
 
   const initializer = unwrapExpression(icon.initializer)
@@ -248,7 +336,7 @@ function readIcon(
       file,
       line,
       column,
-      ...(options.appId === undefined ? {} : { id: options.appId }),
+      ...(owner.appId === undefined ? {} : { id: owner.appId }),
       operation: `extract the icon for the '${name}' capability`,
       expected: "an icon name from the shell set, or { src: '<url>' }",
       observed,

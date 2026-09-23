@@ -22,6 +22,10 @@ allowBuilds:
   # Denied: msw's postinstall writes a service worker into a public directory.
   # We do not use MSW (§15.1 keeps it optional), so its script must not run.
   msw: false
+  # Reviewed: nx's postinstall only asserts platform support and, when an nx.json
+  # is present, checks Nx Cloud usage; both are no-ops here (this repo has no
+  # nx.json — it is not an Nx workspace), and the script exits within 30s either way.
+  nx: true
 
 # `@angular/core` 19 declares `zone.js` as a required peer. The Angular adapter runs zoneless
 # only and never imports it, so the peer is deliberately absent rather than installed.
@@ -42,6 +46,10 @@ catalog:
   '@excalidraw/excalidraw': 0.18.1
   '@module-federation/enhanced': 2.9.0
   '@module-federation/runtime': 2.9.0
+  # Pinned for packages/nx-mfe's own tests and typecheck only; the Nx plugin declares its actual
+  # `@nx/devkit`/`nx` compatibility as a peerDependency range (see that package's README), since a
+  # consumer's workspace picks its own Nx version.
+  '@nx/devkit': 22.7.12
   '@playwright/test': 1.63.0
   '@rsbuild/core': 2.2.8
   '@rsbuild/plugin-react': 2.1.0
@@ -76,6 +84,7 @@ catalog:
   caniuse-lite: 1.0.30001810
   cn: 0.2.6
   concurrently: 10.0.5
+  css-loader: 7.1.5
   eslint: 10.10.0
   eslint-plugin-react-hooks: 7.1.1
   fumadocs-core: 16.15.9
@@ -85,6 +94,8 @@ catalog:
   jsdom: 30.1.0
   lucide-react: 1.45.0
   next-themes: 0.4.6
+  # Same scope as `@nx/devkit` above: packages/nx-mfe's own devDependency for tests.
+  nx: 22.7.12
   picocolors: 1.1.1
   postcss: 8.5.28
   postcss-loader: 8.2.1

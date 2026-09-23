@@ -1,0 +1,39 @@
+# <%= packageName %>
+
+An MFE App, scaffolded by `@company/nx-mfe`. Its id is `<%= id %>`. `nx run <%= projectName %>:serve`
+starts the Rspack dev server; `build`, `typecheck` and `test` do what they say. Each target runs
+`generate` (`mfe-generate`) first, so `nx run <%= projectName %>:generate` is only ever a recovery
+command.
+
+This container is zoneless: it never imports `zone.js`, and every component uses
+`ChangeDetectionStrategy.OnPush` with signals. `src/app.routes.ts` declares its routes, including
+the `settings` capability page the shell opens from its own navigation; `src/main.ts` bootstraps
+nothing on its own, because the shell mounts this App's definition directly.
+
+## Configuration
+
+`src/mfe.config.ts` holds the schema and the environment mapping — no values and no secrets. The
+values live in `public/runtime-config.json`: the dev server publishes `public/` next to this
+container's assets, which is where the generated loader fetches it from at boot. Put your local
+values there. A deployment publishes its own file beside its assets, so no value is ever built
+into the container.
+
+Read configuration with `import { config } from '#mfe/config'` and make authenticated requests
+with `import { fetch } from '#mfe/fetch'`; the token is attached only to origins declared
+`{ api: true }`, and request code never handles one.
+
+## Connecting to the shell
+
+Start the shell, run this in its browser console, and reload.
+
+```js
+const key = 'company:mfe:overrides'
+const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+overrides['<%= id %>'] = 'http://localhost:<%= port %>/mf-manifest.json'
+localStorage.setItem(key, JSON.stringify(overrides))
+location.reload()
+```
+
+Deleting just your id resets it; unrelated overrides are kept. A change needs a reload, not a
+remount: the container's modules are already registered and its chunks are document-level. The
+override is a URL only, never a token.

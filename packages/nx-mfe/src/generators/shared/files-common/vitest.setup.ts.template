@@ -1,0 +1,3 @@
+// JIT component creation (`createComponent`, `reflectComponentType`) needs the compiler present
+// before any component is created. No zone.js setup here: this container runs zoneless.
+import '@angular/compiler'

@@ -1,5 +1,7 @@
 /** Neutral definition records; the host's internal mount and scope tokens never appear here. */
 
+import type { DefinitionFramework } from './definition-brand.ts'
+
 export type DefinitionKind = 'app' | 'widget'
 
 /** App-only; a Widget cannot declare a capability. */
@@ -60,7 +62,7 @@ export interface ContainerDescriptor {
   readonly container: string
   readonly contractMajor: number
   /** The adapter that built it; absent means a React container built before this field existed. */
-  readonly framework?: 'react' | 'angular'
+  readonly framework?: DefinitionFramework
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path. */
   readonly entries: Readonly<Record<string, string>>

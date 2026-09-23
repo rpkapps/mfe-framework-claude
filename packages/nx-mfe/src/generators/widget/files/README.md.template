@@ -1,0 +1,36 @@
+# <%= packageName %>
+
+An MFE Widget, scaffolded by `@company/nx-mfe`. Its id is `<%= id %>`. A Widget is non-routable:
+it owns no URL boundary, never mutates history and never sets the document title. Anything that
+needs a URL is an App. `nx run <%= projectName %>:serve` starts this container's dev server on
+its `mfe.port`, and nothing else: there is no standalone preview. To see the Widget, run the
+shell, then either drag it from the catalogue onto the dashboard, or point the shell at this
+container with the `localStorage` override below.
+
+This container is zoneless: it never imports `zone.js`. `<%= id %>.component.ts` uses signal
+`input()`/`output()`, which needs AOT (or, under Vitest, the JIT transform `vitest.config.mts`
+already wires in) — the adapter drives both signal-based and decorator-based components the same
+way, through `ComponentRef.setInput` and `reflectComponentType`.
+
+## Connecting to the shell
+
+Start the shell, run this in its browser console, and reload.
+
+```js
+const key = 'company:mfe:overrides'
+const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+overrides['<%= id %>'] = 'http://localhost:<%= port %>/mf-manifest.json'
+localStorage.setItem(key, JSON.stringify(overrides))
+location.reload()
+```
+
+Deleting just your id resets it; unrelated overrides are kept. A change needs a reload, not a
+remount: the container's modules are already registered and its chunks are document-level. The
+override is a URL only, never a token.
+
+## Being consumed
+
+The generated `.mfe/widgets/<%= id %>.contract.ts` module (published at
+`<%= packageName %>/contracts`) exports `inputs` and `events` for a consumer that wants prop and
+event inference; without it a consumer gets `Record<string, unknown>` inputs and `unknown`
+payloads.

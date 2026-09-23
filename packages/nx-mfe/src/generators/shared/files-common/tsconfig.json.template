@@ -1,0 +1,17 @@
+{
+  "extends": "<%= offsetFromRoot %>tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "strict": true,
+    // Angular 19 decorators are the legacy proposal, and Define semantics would shadow the
+    // input/output members Angular sets up on a component instance.
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "paths": {
+      "#mfe/*": ["./.mfe/*.ts"]
+    }
+  },
+  "files": [],
+  "include": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.spec.json" }]
+}

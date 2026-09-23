@@ -3,6 +3,8 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 
+import type { DefinitionFramework } from '@company/mfe-core'
+
 import { createBuildError } from './diagnostics.ts'
 
 export interface MfePluginOptions {
@@ -38,6 +40,7 @@ export interface MfePluginOptions {
 interface ContainerManifest {
   readonly name?: string
   readonly version?: string
+  readonly mfe?: { readonly port?: unknown }
   readonly dependencies?: Readonly<Record<string, string>>
   readonly peerDependencies?: Readonly<Record<string, string>>
 }
@@ -52,6 +55,8 @@ export interface ResolvedOptions {
   readonly federationName: string
   readonly packageName: string
   readonly packageVersion: string | undefined
+  /** `mfe.port` in the container's package.json: where the development registry expects it. */
+  readonly devPort: number | undefined
   readonly dependencies: Readonly<Record<string, string>>
   readonly sharedOverrides: Readonly<Record<string, string>>
   readonly reactCompiler: boolean
@@ -83,6 +88,7 @@ export function resolveOptions(options: MfePluginOptions, containerRoot: string)
     federationName: sanitizeFederationName(packageName),
     packageName: manifest.name ?? packageName,
     packageVersion: manifest.version,
+    devPort: typeof manifest.mfe?.port === 'number' ? manifest.mfe.port : undefined,
     dependencies: { ...manifest.peerDependencies, ...manifest.dependencies },
     sharedOverrides: options.shared ?? {},
     reactCompiler: options.reactCompiler !== false,
@@ -90,6 +96,37 @@ export function resolveOptions(options: MfePluginOptions, containerRoot: string)
       options.router === false ? false : options.router === true ? {} : (options.router ?? {}),
     buildTime: options.buildTime ?? new Date().toISOString(),
     buildTimeFixed: options.buildTime !== undefined,
+  }
+}
+
+/** What each React-only option switches, for the diagnostic that rejects it elsewhere. */
+const REACT_ONLY_OPTIONS = {
+  reactCompiler: 'the React Compiler',
+  router: 'the TanStack Router plugin and its generated route tree',
+} as const
+
+/**
+ * A React-only option on another adapter's container is almost always a config copied from a
+ * React one, so it fails rather than being ignored: the author believes it does something.
+ */
+export function assertOptionsApply(
+  options: MfePluginOptions,
+  framework: DefinitionFramework,
+  entryFile: string,
+): void {
+  if (framework === 'react') return
+
+  for (const [option, switches] of Object.entries(REACT_ONLY_OPTIONS)) {
+    const value = options[option as keyof typeof REACT_ONLY_OPTIONS]
+    if (value === undefined) continue
+    throw createBuildError({
+      file: entryFile,
+      operation: `apply the ${option} build option`,
+      expected: `${option} left unset for a container built by the ${framework} adapter`,
+      observed: `${option}: ${JSON.stringify(value)}`,
+      declaredBy: 'The build plugin options',
+      repair: `Remove ${option} from the options passed to the build plugin. It configures ${switches} for React containers, and this entry imports its factories from the ${framework} adapter, so there is nothing for it to switch.`,
+    })
   }
 }
 

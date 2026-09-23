@@ -2,13 +2,17 @@
 
 import { join } from 'node:path'
 
-import type { CapabilityDescriptor } from '@company/mfe-core'
+import type { CapabilityDescriptor, DefinitionFramework } from '@company/mfe-core'
 
 import { readConfigSource, type ConfigSource } from './config/config-source.ts'
-import { extractCapabilities } from './discovery/capabilities.ts'
+import { extractCapabilities, extractRouteDataCapabilities } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
-import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
+import {
+  containerSourceFiles,
+  findStrayDefinitions,
+  isTestFile,
+} from './discovery/stray-definitions.ts'
 import { installedVersionFrom } from './federation/installed-version.ts'
 import {
   containerDependencies,
@@ -25,10 +29,17 @@ import {
   type GenerateContext,
 } from './generate/modules.ts'
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
-import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
+import {
+  assertOptionsApply,
+  resolveOptions,
+  type MfePluginOptions,
+  type ResolvedOptions,
+} from './options.ts'
 
 export interface ContainerPlan {
   readonly options: ResolvedOptions
+  /** The adapter that builds, shares and mounts this container, from where its entry imports. */
+  readonly framework: DefinitionFramework
   readonly entryFile: string
   readonly discovery: DiscoveryResult
   readonly capabilities: readonly CapabilityDescriptor[]
@@ -61,13 +72,23 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
 
   const entryFile = resolveEntryModule(resolved.containerRoot)
   const discovery = discoverDefinitions(entryFile)
+  const { framework } = discovery
+  assertOptionsApply(options, framework, entryFile)
   const configSource = readConfigSource(resolved.containerRoot)
+  const sourceFiles = containerSourceFiles(sourceRoot, new Set([generatedDir]))
 
-  const capabilities = extractCapabilities({
-    routesDirectory: resolved.routesDirectory,
+  const owner = {
     hasApp: discovery.app !== undefined,
     ...(discovery.app === undefined ? {} : { appId: discovery.app.id }),
-  })
+  }
+  const capabilities =
+    framework === 'angular'
+      ? extractRouteDataCapabilities({
+          ...owner,
+          entryFile,
+          sourceFiles: sourceFiles.filter(file => !isTestFile(file)),
+        })
+      : extractCapabilities({ ...owner, routesDirectory: resolved.routesDirectory })
 
   const context: GenerateContext = {
     options: resolved,
@@ -94,11 +115,13 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
 
   return {
     options: resolved,
+    framework,
     entryFile,
     discovery,
     capabilities,
     configSource,
     shared: resolveShared({
+      framework,
       dependencies: containerDependencies(resolved),
       overrides: resolved.sharedOverrides,
       installedVersion: installedVersionFrom(resolved.containerRoot),
@@ -110,9 +133,7 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     generated,
     diagnostics: [
       ...findStrayDefinitions(sourceRoot, { entryFile, ignoredDirectories: [generatedDir] }),
-      ...containerSourceFiles(sourceRoot, new Set([generatedDir])).flatMap(file =>
-        findNonContainerAwareAssetReferences(file),
-      ),
+      ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file)),
     ],
   }
 }

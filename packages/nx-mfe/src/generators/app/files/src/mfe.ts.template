@@ -1,0 +1,9 @@
+import { createApp } from '@company/mfe-angular'
+
+import { routes } from './app.routes.ts'
+
+export default createApp({
+  id: '<%= id %>',
+  version: '0.1.0',
+  routes,
+})

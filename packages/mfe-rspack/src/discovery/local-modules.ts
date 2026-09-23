@@ -29,7 +29,10 @@ export function resolveRelativeModule(fromFile: string, specifier: string): stri
 }
 
 /** The initialiser of an exported top-level binding in another module. */
-export function findExportedExpression(sourceFile: ts.SourceFile, name: string): ts.Expression | null {
+export function findExportedExpression(
+  sourceFile: ts.SourceFile,
+  name: string,
+): ts.Expression | null {
   const topLevel = collectTopLevelBindings(sourceFile)
   const localImports = collectImportedBindings(sourceFile)
 

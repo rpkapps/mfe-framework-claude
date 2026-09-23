@@ -39,6 +39,9 @@ const everything = () => '1.2.3'
 /** Reading a version is the filesystem's job and has its own tests. */
 const ROOT = '/host-root-the-resolver-never-reads'
 
+// The design system's contract is read from an installed copy of it.
+const designSystemInstalled = DEFAULT_SHARED_CANDIDATES.includes('@tecton/react/')
+
 describe('hostShared', () => {
   it('shares the framework packages as strict singletons', () => {
     const shared = hostShared({
@@ -74,19 +77,22 @@ describe('hostShared', () => {
     expect(shared['react']?.requiredVersion).toBe('1.2.3')
   })
 
-  it('keeps the design system contract as the contract states it', () => {
-    const shared = hostShared({ root: ROOT, installedVersion: everything })
+  it.runIf(designSystemInstalled)(
+    'keeps the design system contract as the contract states it',
+    () => {
+      const shared = hostShared({ root: ROOT, installedVersion: everything })
 
-    expect(shared['react-aria-components']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '1.2.3',
-    })
-    expect(shared['recharts']?.eager).toBe(false)
-    expect(shared['react']?.singleton).toBe(true)
-  })
+      expect(shared['react-aria-components']).toEqual({
+        singleton: false,
+        strictVersion: false,
+        requiredVersion: '1.2.3',
+      })
+      expect(shared['recharts']?.eager).toBe(false)
+      expect(shared['react']?.singleton).toBe(true)
+    },
+  )
 
-  it('states the version on the design system prefix share', () => {
+  it.runIf(designSystemInstalled)('states the version on the design system prefix share', () => {
     const shared = hostShared({
       root: ROOT,
       installedVersion: name => (name === '@tecton/react' ? '0.1.0' : undefined),

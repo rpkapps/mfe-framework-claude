@@ -1,0 +1,30 @@
+import { mountWidget } from '@company/mfe-angular/testing'
+import { afterEach, expect, it, vi } from 'vitest'
+
+import { <%= camel %> } from './mfe.ts'
+
+let dispose: (() => Promise<void>) | null = null
+
+afterEach(async () => {
+  // Cleared before the await, not after: a second test may have assigned a new handle by the
+  // time this one resolves, and clearing then would drop it.
+  const current = dispose
+  dispose = null
+  await current?.()
+})
+
+it('emits a validated event when activated', async () => {
+  const onActivated = vi.fn()
+  const mounted = await mountWidget(<%= camel %>, {
+    inputs: { label: 'Run' },
+    onEvent: (name, payload) => {
+      if (name === 'activated') onActivated(payload)
+    },
+  })
+  dispose = mounted.dispose
+
+  mounted.element.querySelector('button')?.click()
+  await Promise.resolve()
+
+  expect(onActivated).toHaveBeenCalledTimes(1)
+})

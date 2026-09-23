@@ -140,6 +140,7 @@ describe('Module Federation options', () => {
       {
         kind: 'mfe',
         major: 1,
+        framework: 'react',
         buildHash: 'abc',
         buildTime: 't',
         registryDescriptor: 'mfe-registry.json',

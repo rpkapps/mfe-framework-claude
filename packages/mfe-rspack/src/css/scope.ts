@@ -1,18 +1,21 @@
-/** The framework supplies the selectors; the design system's own plugin does the scoping (§17). */
+/**
+ * The framework supplies the selectors; the design system's own plugin does the scoping when it
+ * is installed, and a built-in one with the same recipe when it is not (§17).
+ */
 
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-import type { ScopeTectonOptions } from '@tecton/react/postcss/scope'
 import type { Plugin } from 'postcss'
 
 import { createBuildError } from '../diagnostics.ts'
+import { scopeFallbackPlugin, type ScopeOptions } from './scope-fallback.ts'
 
 /**
- * The return type is spelled against this package's PostCSS because it is an optional peer of
- * the design system, whose own declaration resolves to nothing where it was not installed.
+ * Spelled against this package's PostCSS rather than imported from the design system, which is an
+ * optional peer and resolves to nothing where it was not installed.
  */
-type ScopeTecton = (options: ScopeTectonOptions) => Plugin
+type ScopePluginFactory = (options: ScopeOptions) => Plugin
 
 /** The attribute a mount root carries, and the scope its CSS belongs to. */
 const SCOPE_ATTRIBUTE = 'data-mfe-scope'
@@ -52,31 +55,26 @@ export function containerScopePlugin(options: ContainerScopeOptions): Plugin {
 
 /**
  * Resolved from the container root first, so a container on an older design system is scoped by
- * that version's recipe; the fallback scopes a container that does not depend on it at all.
+ * that version's recipe; a build with no copy of it at all, such as an Angular container's, is
+ * scoped by the built-in plugin.
  */
-function loadScopePlugin(containerRoot: string): ScopeTecton {
+function loadScopePlugin(containerRoot: string): ScopePluginFactory {
   for (const resolve of [createRequire(join(containerRoot, 'package.json')), ownRequire]) {
     let exported: unknown
     try {
       exported = resolve(SCOPE_PLUGIN)
-    } catch {
-      // Not installed here; the next resolution says whether it is anywhere.
-      continue
+    } catch (error) {
+      // Not installed here, so the next resolution says whether it is anywhere; a copy that is
+      // installed but fails to load is reported rather than silently replaced.
+      if ((error as { code?: unknown }).code === 'MODULE_NOT_FOUND') continue
+      throw error
     }
 
     // `require` of an ES module hands back the namespace object, so the plugin is its default.
     return (
       typeof exported === 'function' ? exported : (exported as { default?: unknown }).default
-    ) as ScopeTecton
+    ) as ScopePluginFactory
   }
 
-  throw createBuildError({
-    file: join(containerRoot, 'package.json'),
-    operation: 'load the stylesheet scope plugin',
-    expected: `to resolve '${SCOPE_PLUGIN}' from the container or from the build plugin`,
-    observed: 'no copy of @tecton/react beside either',
-    declaredBy: 'The container stylesheet scope',
-    repair:
-      'Install @tecton/react (>=0.1.0). Its PostCSS plugin is what contains a container stylesheet, whether or not the container renders the design system itself.',
-  })
+  return scopeFallbackPlugin
 }

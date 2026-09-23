@@ -1,0 +1,8 @@
+/** Declarations only: values live in the deployed runtime-config.json, so no secret belongs here. */
+
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}

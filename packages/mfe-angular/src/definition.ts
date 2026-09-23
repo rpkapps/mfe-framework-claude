@@ -1,0 +1,236 @@
+/**
+ * `createApp` and `createWidget` return plain records the build plugin discovers statically, plus
+ * the `mount` every host calls: an Angular definition mounts itself into an element, which is how
+ * a React shell places an Angular container it could never render.
+ */
+
+import type { EnvironmentProviders, Provider, Type } from '@angular/core'
+import type { Routes } from '@angular/router'
+import {
+  createMfeError,
+  DEFINITION_BRAND,
+  DEFINITION_ID_RULE,
+  eventNameToHandlerProp,
+  isValidDefinitionId,
+  isValidEventName,
+  type WidgetContract,
+} from '@company/mfe-core'
+import {
+  isMountableDefinition,
+  type AppMountTarget,
+  type MountableAppDefinition,
+  type MountableWidgetDefinition,
+  type WidgetMountTarget,
+} from '@company/mfe-host'
+import type { z } from 'zod'
+
+import { mountApp, type AngularMountedApp } from './mount/mount-app.ts'
+import { mountWidget, type AngularMountedWidget } from './mount/mount-widget.ts'
+import { MfeAppRootComponent } from './routing/app-root.component.ts'
+
+type AngularProviders = readonly (Provider | EnvironmentProviders)[]
+
+/**
+ * What a host shows before it has loaded anything. Read statically out of this call at build time
+ * and published in the registry, so a catalogue can name, describe, filter and draw a definition
+ * whose container has never been fetched.
+ */
+interface PresentationOptions {
+  /** Overridden by the host's own presentation map, where a deployment keeps its wording. */
+  readonly title?: string
+  readonly description?: string
+  /** Free-form; a host filters its catalogue on them and never interprets them. */
+  readonly tags?: readonly string[]
+  /**
+   * An imported identifier — an imported `.svg`, or an icon package's icon data — or a short
+   * text mark. Nothing reads this value: the build follows the import to the shapes behind it and
+   * publishes those, because the registry crosses an origin boundary and carries data only.
+   */
+  readonly icon?: string | object
+}
+
+export interface AppOptions extends PresentationOptions {
+  /** The only public identity field, globally unique across Apps and Widgets. */
+  readonly id: string
+  /** Recorded in diagnostics so a failure identifies which build was running. */
+  readonly version?: string
+  /** The App's routes; their paths are relative to the boundary the host assigns. */
+  readonly routes: Routes
+  /** Extra environment providers for this App's application injector, created once per mount. */
+  readonly providers?: AngularProviders
+  /** The root component; defaults to one rendering `<router-outlet />`. It must contain one. */
+  readonly component?: Type<unknown>
+  /** Opts this App out of its own breadcrumb segment, not nested child Apps' contributions. */
+  readonly breadcrumbs?: false
+}
+
+export interface AppDefinition extends MountableAppDefinition {
+  readonly framework: 'angular'
+  readonly routes: Routes
+  readonly providers: AngularProviders
+  readonly component: Type<unknown>
+  mount(target: AppMountTarget): Promise<AngularMountedApp>
+}
+
+export interface WidgetOptions<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>
+  extends PresentationOptions {
+  readonly id: string
+  readonly version?: string
+  readonly inputs: Inputs
+  readonly events: Events
+  /** A standalone component whose inputs are the input keys and whose outputs are the events. */
+  readonly component: Type<unknown>
+  /** Extra environment providers for this Widget's application injector, created once per mount. */
+  readonly providers?: AngularProviders
+}
+
+export interface WidgetDefinition<
+  Inputs extends z.ZodType = z.ZodType,
+  Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
+> extends MountableWidgetDefinition {
+  readonly framework: 'angular'
+  readonly contract: WidgetContract<Inputs, Events>
+  readonly component: Type<unknown>
+  readonly providers: AngularProviders
+  mount(target: WidgetMountTarget): Promise<AngularMountedWidget>
+}
+
+export type MfeDefinition = AppDefinition | WidgetDefinition
+
+export function createApp(options: AppOptions): AppDefinition {
+  assertValidId(options.id, 'createApp')
+
+  if (!Array.isArray(options.routes)) {
+    throw createMfeError({
+      code: 'app/invalid-router',
+      id: options.id,
+      operation: 'create App definition',
+      expected: 'an array of Angular routes',
+      observed: describeOption(options.routes),
+      repair: 'Pass the App’s Routes array as `routes`; its paths are relative to the boundary.',
+    })
+  }
+  if (options.component !== undefined) assertComponent(options.id, options.component, 'App')
+
+  const definition: AppDefinition = {
+    [DEFINITION_BRAND]: true,
+    kind: 'app',
+    framework: 'angular',
+    id: options.id,
+    ...(options.version === undefined ? {} : { version: options.version }),
+    routes: options.routes,
+    providers: providersOf(options.id, options.providers),
+    component: options.component ?? MfeAppRootComponent,
+    contributesBreadcrumbs: options.breadcrumbs !== false,
+    mount: target => mountApp(definition, target),
+  }
+  return definition
+}
+
+export function createWidget<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>(
+  options: WidgetOptions<Inputs, Events>,
+): WidgetDefinition<Inputs, Events> {
+  assertValidId(options.id, 'createWidget')
+  assertUsableEventNames(options.id, options.events)
+  assertComponent(options.id, options.component, 'Widget')
+
+  const definition: WidgetDefinition<Inputs, Events> = {
+    [DEFINITION_BRAND]: true,
+    kind: 'widget',
+    framework: 'angular',
+    id: options.id,
+    ...(options.version === undefined ? {} : { version: options.version }),
+    contract: { inputs: options.inputs, events: options.events },
+    component: options.component,
+    providers: providersOf(options.id, options.providers),
+    mount: target => mountWidget(definition, target),
+  }
+  return definition
+}
+
+/** The Angular definitions among the neutral ones, for a host that treats its own kind specially. */
+export function isAngularDefinition(value: unknown): value is MfeDefinition {
+  return (
+    isMountableDefinition(value) &&
+    value.framework === 'angular' &&
+    typeof (value as { readonly component?: unknown }).component === 'function'
+  )
+}
+
+function describeOption(value: unknown): string {
+  if (value === undefined) return 'nothing'
+  if (value === null) return 'null'
+  return `a ${typeof value}`
+}
+
+function assertValidId(id: unknown, operation: string): asserts id is string {
+  if (isValidDefinitionId(id)) return
+  throw createMfeError({
+    code: 'registry/invalid-entry',
+    id: typeof id === 'string' && id !== '' ? id : '<missing>',
+    operation,
+    expected: DEFINITION_ID_RULE,
+    observed:
+      id === undefined ? 'nothing' : typeof id === 'string' ? JSON.stringify(id) : typeof id,
+    repair: 'Give the definition a stable id; it is also its storage prefix and CSS scope value.',
+  })
+}
+
+function assertComponent(id: string, component: unknown, kind: 'App' | 'Widget'): void {
+  if (typeof component === 'function') return
+  throw createMfeError({
+    code: 'mount/failure',
+    id,
+    operation: `create ${kind} definition`,
+    expected: 'a standalone component class',
+    observed: describeOption(component),
+    repair: 'Pass the class decorated with @Component as `component`, imported, not instantiated.',
+  })
+}
+
+function providersOf(id: string, providers: AngularProviders | undefined): AngularProviders {
+  if (providers === undefined) return []
+  if (Array.isArray(providers)) return providers
+  throw createMfeError({
+    code: 'mount/failure',
+    id,
+    operation: 'read the definition’s providers',
+    expected: 'an array of providers',
+    observed: describeOption(providers),
+    repair: 'Pass `providers: [...]`, as you would to bootstrapApplication.',
+  })
+}
+
+/** Two events mapping to one `on`-prefixed prop would make a subscription ambiguous. */
+function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
+  const handlerProps = new Map<string, string>()
+
+  for (const name of Object.keys(events)) {
+    const declaration = {
+      code: 'contract/event-mismatch',
+      id,
+      operation: `declare event '${name}'`,
+    } as const
+
+    if (!isValidEventName(name)) {
+      throw createMfeError({
+        ...declaration,
+        expected: 'a lower-camel-case event name, for example "acknowledged"',
+        observed: JSON.stringify(name),
+        repair: 'Rename the event; it is also the name of the component output that raises it.',
+      })
+    }
+
+    const handlerProp = eventNameToHandlerProp(name)
+    const existing = handlerProps.get(handlerProp)
+    if (existing !== undefined) {
+      throw createMfeError({
+        ...declaration,
+        expected: 'event names that map to distinct handler props',
+        observed: `'${existing}' and '${name}' both map to ${handlerProp}`,
+        repair: `Rename one of them, for example '${name}Completed'.`,
+      })
+    }
+    handlerProps.set(handlerProp, name)
+  }
+}

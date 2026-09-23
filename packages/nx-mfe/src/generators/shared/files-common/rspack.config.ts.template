@@ -1,0 +1,30 @@
+/**
+ * An ordinary, zoneless Angular-Rspack configuration — everything here is what `createConfig`
+ * would produce for any Angular-Rspack project. `withMfe` is what makes this a container: it adds
+ * the MFE discovery plugin, the `ModuleFederationPlugin`, the `#mfe/*` aliases, `publicPath:
+ * 'auto'`, the CORS header this container's dev server needs when the shell fetches it from
+ * another origin, the port from this project's own `mfe.port`, and the PostCSS pipeline for
+ * `src/styles.css` (Angular inlines component styles itself, so nothing else goes through it).
+ * None of that is repeated here, and none of it is configurable per project — a page only works
+ * when every container agrees.
+ */
+
+import { createConfig } from '@nx/angular-rspack'
+import { withMfe } from '@company/mfe-rspack/rspack'
+
+export default withMfe(
+  createConfig({
+    options: {
+      aot: true,
+      browser: './src/main.ts',
+      index: './src/index.html',
+      tsConfig: './tsconfig.app.json',
+      // Zoneless: nothing patches timers or DOM events, so there is nothing for zone.js's
+      // polyfill to prepare.
+      polyfills: [],
+      styles: ['./src/styles.css'],
+      outputPath: './dist',
+      devServer: { port: <%= port %> },
+    },
+  }),
+)

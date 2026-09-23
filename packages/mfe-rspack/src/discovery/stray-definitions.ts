@@ -38,7 +38,7 @@ export function findStrayDefinitions(
 
   for (const file of containerSourceFiles(sourceRoot, ignored)) {
     if (file === options.entryFile) continue
-    if (TEST_PATTERN.test(file)) continue
+    if (isTestFile(file)) continue
 
     const sourceFile = parseSourceFile(file)
     const imports = collectImportedBindings(sourceFile)
@@ -74,6 +74,11 @@ export function findStrayDefinitions(
   }
 
   return errors
+}
+
+/** A test declares fixtures, not the container, so what it contains is never discovered. */
+export function isTestFile(file: string): boolean {
+  return TEST_PATTERN.test(file)
 }
 
 /** Every TypeScript source of a container, in a stable order. */
