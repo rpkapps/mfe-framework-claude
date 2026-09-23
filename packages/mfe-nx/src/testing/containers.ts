@@ -4,11 +4,12 @@
  * stand-ins, beside links to the real packages a build resolves (Zod, Tailwind).
  */
 
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, symlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-const created: string[] = []
+import { createContainerFixture, writeFile, writeJsonFile } from '@company/mfe-build/testing'
+
+export { cleanupContainers, writeFile } from '@company/mfe-build/testing'
 
 const ANGULAR_CORE = '@angular/core'
 
@@ -30,17 +31,15 @@ export function createContainer(
   files: Readonly<Record<string, string>>,
   options: ContainerFixtureOptions = {},
 ): string {
-  const root = mkdtempSync(join(tmpdir(), 'mfe-nx-container-'))
-  created.push(root)
-
-  writeJsonFile(root, 'package.json', {
-    name: '@acme/reports',
-    version: '1.2.0',
-    type: 'module',
-    dependencies: { '@company/mfe-angular': '^0.1.0', rxjs: '^7.8.0' },
-    ...options.manifest,
+  const root = createContainerFixture(files, {
+    manifest: {
+      name: '@acme/reports',
+      version: '1.2.0',
+      type: 'module',
+      dependencies: { '@company/mfe-angular': '^0.1.0', rxjs: '^7.8.0' },
+      ...options.manifest,
+    },
   })
-  for (const [path, contents] of Object.entries(files)) writeFile(root, path, contents)
 
   installAdapter(root)
   // Its version names the container's Angular share scope; a test that links the real one uses that.
@@ -102,23 +101,4 @@ function writePackage(
     dependencies,
   })
   writeFile(root, join(directory, 'index.js'), source)
-}
-
-export function writeFile(root: string, path: string, contents: string): string {
-  const file = join(root, path)
-  mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, contents, 'utf8')
-  return file
-}
-
-function writeJsonFile(root: string, path: string, value: unknown): void {
-  writeFile(root, path, `${JSON.stringify(value, null, 2)}\n`)
-}
-
-/** Removes every fixture created so far; call it from `afterEach`. */
-export function cleanupContainers(): void {
-  while (created.length > 0) {
-    const root = created.pop()
-    if (root !== undefined) rmSync(root, { recursive: true, force: true })
-  }
 }

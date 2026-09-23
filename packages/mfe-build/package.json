@@ -17,6 +17,10 @@
     "./federation": {
       "types": "./src/federation/index.ts",
       "default": "./src/federation/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
     }
   },
   "files": [
