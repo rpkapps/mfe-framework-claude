@@ -22,11 +22,11 @@ export {
 } from './loader/federation-loader.ts'
 
 export {
-  createHostRuntime,
-  type CreateHostRuntimeOptions,
-  type HostRuntimeHandle,
-  type MfeHostRuntime,
-} from './runtime/host-runtime.ts'
+  createMfeRuntime,
+  type CreateMfeRuntimeOptions,
+  type MfeRuntime,
+  type MfeRuntimeHandle,
+} from './runtime/create-runtime.ts'
 
 export {
   MountController,

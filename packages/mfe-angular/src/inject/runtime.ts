@@ -6,11 +6,11 @@
 
 import { assertInInjectionContext, inject } from '@angular/core'
 import { createMfeError } from '@company/mfe-core'
-import type { MfeHostRuntime, MountContext } from '@company/mfe-runtime'
+import type { MfeRuntime, MountContext } from '@company/mfe-runtime'
 
 import { MFE_MOUNT, MFE_RUNTIME } from './tokens.ts'
 
-export function injectMfeRuntime(consumer = 'injectMfeRuntime()'): MfeHostRuntime {
+export function injectMfeRuntime(consumer = 'injectMfeRuntime()'): MfeRuntime {
   assertInInjectionContext(injectMfeRuntime)
 
   const mount = inject(MFE_MOUNT, { optional: true })

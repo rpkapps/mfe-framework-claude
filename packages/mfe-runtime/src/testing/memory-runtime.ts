@@ -5,15 +5,25 @@
  * adapter's own test environment adds only what renders.
  */
 
-import type { BrandedDefinition, Diagnostic, RegistryEntry } from '@company/mfe-core'
+import {
+  isMfeError,
+  type BrandedDefinition,
+  type DeadlineConfig,
+  type Diagnostic,
+  type MfeAdapter,
+  type RegistryEntry,
+} from '@company/mfe-core'
 
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { CommandRegistry } from '../commands/command-registry.ts'
+import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
+import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
 import { SharedContainerLoader, type LoadedDefinition } from '../loader/container-loader.ts'
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
-import type { MfeHostRuntime } from '../runtime/host-runtime.ts'
+import { readRegistry } from '../registry/read-registry.ts'
+import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import {
   requiresSessionRetirement,
   ShellStateStore,
@@ -28,17 +38,26 @@ import {
   type RecordingTelemetryProvider,
 } from './recording-provider.ts'
 
-export interface MemoryHostRuntimeOptions {
+export interface MemoryRuntimeOptions {
   /** Merged over a signed-in test user in the `testers` group, on the light theme. */
   readonly shellState?: ShellStatePatch
-  /** What the loader resolves, each listed in the registry under its own id. */
+  /**
+   * What the loader resolves, each listed in the registry under its own id with the adapter its
+   * `framework` names, unless `registryEntries` lists that id itself.
+   */
   readonly definitions?: readonly BrandedDefinition[]
+  /** Raw entries as a build publishes them, read through `adapters` exactly as a shell reads them. */
+  readonly registryEntries?: readonly unknown[]
+  /** What `registryEntries` are read through, and whose `aroundLoad` wraps each load. */
+  readonly adapters?: readonly MfeAdapter[]
+  /** Merged over `DEFAULT_DEADLINES`. */
+  readonly deadlines?: Partial<DeadlineConfig>
   readonly initialEntries?: readonly string[]
   readonly sessionGeneration?: string
 }
 
-export interface MemoryHostRuntime {
-  readonly runtime: MfeHostRuntime
+export interface MemoryRuntime {
+  readonly runtime: MfeRuntime
   /** Exercises real snapshot, session and group update behaviour. */
   setShellState(patch: ShellStatePatch): void
   readonly telemetry: RecordingTelemetryProvider
@@ -54,7 +73,7 @@ export interface MemoryHostRuntime {
   dispose(): void
 }
 
-export function createMemoryHostRuntime(options: MemoryHostRuntimeOptions = {}): MemoryHostRuntime {
+export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryRuntime {
   const diagnostics = new DiagnosticsHub()
   const recorded: Diagnostic[] = []
   diagnostics.add(diagnostic => recorded.push(diagnostic))
@@ -110,12 +129,27 @@ export function createMemoryHostRuntime(options: MemoryHostRuntimeOptions = {}):
     ]),
   )
 
+  // What a published entry says wins over what a definition implies, as it would on a page.
+  const adapters = options.adapters ?? []
+  const read = readRegistry(options.registryEntries ?? [], { adapters })
+  for (const [id, entry] of read.entries) entries.set(id, entry)
+  for (const rejected of read.rejected) {
+    if (isMfeError(rejected.error)) {
+      diagnostics.report(rejected.error, {
+        severity: 'error',
+        context: { entry: rejected.id, reason: rejected.reason },
+      })
+    }
+  }
+
   const commands = new CommandRegistry({ diagnostics })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
 
-  const runtime: MfeHostRuntime = {
-    registry: { entries, rejected: [] },
-    loader: new SharedContainerLoader(createInProcessLoader(loadable)),
+  const runtime: MfeRuntime = {
+    registry: { entries, rejected: read.rejected },
+    loader: new SharedContainerLoader(
+      withAdapterLoadHooks(createInProcessLoader(loadable), adapters),
+    ),
     shellState,
     storage,
     commands,
@@ -123,6 +157,7 @@ export function createMemoryHostRuntime(options: MemoryHostRuntimeOptions = {}):
     navigator: new BoundaryNavigator({ bridge: navigation, diagnostics }),
     telemetryProvider: telemetry,
     diagnostics,
+    deadlines: Object.freeze({ ...DEFAULT_DEADLINES, ...options.deadlines }),
   }
 
   // Minted per transition, so a test exercises the real fencing rather than a fixed value.

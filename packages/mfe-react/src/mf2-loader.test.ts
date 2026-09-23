@@ -162,7 +162,7 @@ describe('createMf2ContainerLoader', () => {
   })
 })
 
-/** The router plugin's development HMR shim reads this global while a container evaluates. */
+/** The runtime applies `reactAdapter.aroundLoad`; applying it here too would hide it twice. */
 describe('the router global while a container evaluates', () => {
   const owner = globalThis as { __TSR_ROUTER__?: unknown }
 
@@ -170,51 +170,13 @@ describe('the router global while a container evaluates', () => {
     delete owner.__TSR_ROUTER__
   })
 
-  it('is hidden during the evaluation and restored afterwards', async () => {
+  it('is left to the adapter hook the runtime applies, rather than hidden here', async () => {
     const shellRouter = { id: 'shell' }
     owner.__TSR_ROUTER__ = shellRouter
-    let seenDuringLoad: boolean | undefined
-    const definition = anApp('operations')
+    let seenDuringLoad: unknown
     const { runtime } = createRuntime({
       example_operations: () => {
-        seenDuringLoad = '__TSR_ROUTER__' in owner
-        return Promise.resolve({ operations: definition })
-      },
-    })
-
-    await createMf2ContainerLoader({ runtime }).load(
-      appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
-      { signal: liveSignal() },
-    )
-
-    expect(seenDuringLoad).toBe(false)
-    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
-  })
-
-  it('is restored after an evaluation that failed', async () => {
-    const shellRouter = { id: 'shell' }
-    owner.__TSR_ROUTER__ = shellRouter
-    const { runtime } = createRuntime({
-      example_operations: () => Promise.reject(new Error('Loading chunk 42 failed')),
-    })
-
-    await expect(
-      createMf2ContainerLoader({ runtime }).load(
-        appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
-        { signal: liveSignal() },
-      ),
-    ).rejects.toThrow()
-
-    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
-  })
-
-  /** Restoring the old one would resurrect a router nothing uses any more. */
-  it('keeps a router published during the evaluation rather than restoring the old one', async () => {
-    owner.__TSR_ROUTER__ = { id: 'shell' }
-    const published = { id: 'published during the load' }
-    const { runtime } = createRuntime({
-      example_operations: () => {
-        owner.__TSR_ROUTER__ = published
+        seenDuringLoad = owner.__TSR_ROUTER__
         return Promise.resolve({ operations: anApp('operations') })
       },
     })
@@ -224,20 +186,7 @@ describe('the router global while a container evaluates', () => {
       { signal: liveSignal() },
     )
 
-    expect(owner.__TSR_ROUTER__).toBe(published)
-  })
-
-  it('is not created when the page had none', async () => {
-    const { runtime } = createRuntime({
-      example_operations: () => Promise.resolve({ operations: anApp('operations') }),
-    })
-
-    await createMf2ContainerLoader({ runtime }).load(
-      appEntry('operations', 'example_operations', 'http://localhost:3001/mf-manifest.json'),
-      { signal: liveSignal() },
-    )
-
-    expect('__TSR_ROUTER__' in owner).toBe(false)
+    expect(seenDuringLoad).toBe(shellRouter)
   })
 })
 

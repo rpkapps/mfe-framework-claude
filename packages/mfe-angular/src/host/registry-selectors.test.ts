@@ -1,6 +1,6 @@
 import { runInInjectionContext, signal } from '@angular/core'
 import type { RegistryEntry } from '@company/mfe-core'
-import type { MfeHostRuntime } from '@company/mfe-runtime'
+import type { MfeRuntime } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
 
 import { createHostApplication } from '../__tests__/harness.ts'
@@ -42,7 +42,7 @@ const entries: readonly RegistryEntry[] = [
 /** The environment's own runtime over a registry the test writes, as a shell would read one. */
 async function hostOver(registry: readonly RegistryEntry[]) {
   const environment: MfeTestEnvironment = createMfeTestEnvironment()
-  const runtime: MfeHostRuntime = {
+  const runtime: MfeRuntime = {
     ...environment.runtime,
     registry: { entries: new Map(registry.map(item => [item.id, item])), rejected: [] },
   }

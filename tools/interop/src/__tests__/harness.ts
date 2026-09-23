@@ -25,11 +25,11 @@ import {
 } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
 import { provideMfeRuntime } from '@company/mfe-angular'
-import { OVERLAY_ROOT_ATTRIBUTE, type MfeHostRuntime } from '@company/mfe-runtime'
+import { OVERLAY_ROOT_ATTRIBUTE, type MfeRuntime } from '@company/mfe-runtime'
 import {
-  createMemoryHostRuntime,
-  type MemoryHostRuntime,
-  type MemoryHostRuntimeOptions,
+  createMemoryRuntime,
+  type MemoryRuntime,
+  type MemoryRuntimeOptions,
 } from '@company/mfe-runtime/testing'
 import { MfeProvider } from '@company/mfe-react'
 import { createElement as h, Suspense, type ReactNode } from 'react'
@@ -40,8 +40,8 @@ import { onTestFinished } from 'vitest'
  * `onTestFinished` run after the setup's Testing Library cleanup and in reverse order, so every
  * mount and every host application is gone before the runtime they registered with.
  */
-export function createPageRuntime(options: MemoryHostRuntimeOptions): MemoryHostRuntime {
-  const memory = createMemoryHostRuntime(options)
+export function createPageRuntime(options: MemoryRuntimeOptions): MemoryRuntime {
+  const memory = createMemoryRuntime(options)
   onTestFinished(() => {
     memory.dispose()
   })
@@ -49,12 +49,12 @@ export function createPageRuntime(options: MemoryHostRuntimeOptions): MemoryHost
 }
 
 /** A React host page: the runtime provided once, with a Suspense boundary for the loads. */
-export function reactHostPage(runtime: MfeHostRuntime, children: ReactNode): ReactNode {
+export function reactHostPage(runtime: MfeRuntime, children: ReactNode): ReactNode {
   return h(MfeProvider, { runtime, children: h(Suspense, { fallback: null }, children) })
 }
 
 /** An Angular host application: zoneless, with the runtime provided once, as a shell boots one. */
-export async function createAngularHost(runtime: MfeHostRuntime): Promise<ApplicationRef> {
+export async function createAngularHost(runtime: MfeRuntime): Promise<ApplicationRef> {
   const appRef = await createApplication({
     providers: [provideExperimentalZonelessChangeDetection(), provideMfeRuntime(runtime)],
   })

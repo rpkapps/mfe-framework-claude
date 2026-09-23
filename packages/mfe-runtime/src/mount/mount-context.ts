@@ -5,13 +5,13 @@
 
 import type { DefinitionKind, MfeStorage, MfeTelemetry } from '@company/mfe-core'
 
-import type { MfeHostRuntime } from '../runtime/host-runtime.ts'
+import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { createMountTelemetry } from '../telemetry/service.ts'
 import { createOverlayRoot } from './scope-root.ts'
 
 /** Everything one mount owns. */
 export interface MountContext {
-  readonly runtime: MfeHostRuntime
+  readonly runtime: MfeRuntime
   readonly definitionId: string
   readonly definitionVersion: string | undefined
   readonly kind: DefinitionKind
@@ -33,7 +33,7 @@ export interface MountContext {
 }
 
 export interface CreateMountContextOptions {
-  readonly runtime: MfeHostRuntime
+  readonly runtime: MfeRuntime
   readonly definitionId: string
   readonly definitionVersion?: string
   readonly kind: DefinitionKind

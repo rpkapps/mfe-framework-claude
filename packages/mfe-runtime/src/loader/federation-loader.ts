@@ -51,11 +51,13 @@ export interface FederationRuntime {
   loadRemote<T>(id: string): Promise<T | null>
 }
 
+/**
+ * Nothing here wraps a load: an adapter that needs page state hidden while its containers
+ * evaluate says so through `MfeAdapter.aroundLoad`, which the runtime applies around this loader.
+ */
 export interface FederationLoaderOptions {
   /** Injected so this module has no import-time side effects and tests need no real runtime. */
   readonly runtime: FederationRuntime
-  /** Wraps each remote evaluation; the React adapter hides the TanStack router global here. */
-  readonly aroundLoad?: <T>(load: () => Promise<T>) => Promise<T>
 }
 
 /**
@@ -73,7 +75,6 @@ export function createFederationContainerLoader(
   options: FederationLoaderOptions,
 ): ContainerLoader<BrandedDefinition> {
   const registered = new Set<string>()
-  const aroundLoad = options.aroundLoad ?? (<T>(load: () => Promise<T>): Promise<T> => load())
 
   return {
     load: async (entry, { signal }): Promise<LoadedDefinition<BrandedDefinition>> => {
@@ -108,8 +109,8 @@ export function createFederationContainerLoader(
 
       let moduleExports: unknown
       try {
-        moduleExports = await aroundLoad(() =>
-          options.runtime.loadRemote(`${containerName}/${expose.replace(/^\.\//, '')}`),
+        moduleExports = await options.runtime.loadRemote(
+          `${containerName}/${expose.replace(/^\.\//, '')}`,
         )
       } catch (error) {
         throw toMfeError(

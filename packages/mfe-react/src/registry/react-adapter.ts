@@ -236,6 +236,26 @@ function namesReact(marker: unknown): boolean {
   return framework === undefined || framework === REACT_ADAPTER_KIND
 }
 
+/**
+ * Hides `window.__TSR_ROUTER__` while a React container's modules evaluate: the router plugin's
+ * development HMR shim reads it back and, finding the shell's `__root__` registered under the
+ * same id, copies the shell's component onto the App that just mounted. It is restored only if
+ * nothing published a newer router meanwhile, which would resurrect a stale reference.
+ */
+async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
+  const owner = globalThis as { __TSR_ROUTER__?: unknown }
+  if (!('__TSR_ROUTER__' in owner)) return await load()
+
+  const previous = owner.__TSR_ROUTER__
+  delete owner.__TSR_ROUTER__
+
+  try {
+    return await load()
+  } finally {
+    if (!('__TSR_ROUTER__' in owner)) owner.__TSR_ROUTER__ = previous
+  }
+}
+
 export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEntry> = {
   kind: REACT_ADAPTER_KIND,
 
@@ -276,4 +296,7 @@ export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEn
   },
 
   is: (entry): entry is ReactRegistryEntry => entry.adapter === REACT_ADAPTER_KIND,
+
+  // The runtime runs every React container's load inside this, and no other adapter's.
+  aroundLoad: withoutCurrentRouterGlobal,
 }

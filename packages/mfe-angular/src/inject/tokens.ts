@@ -4,10 +4,10 @@
  */
 
 import { InjectionToken } from '@angular/core'
-import type { MfeHostRuntime, MountContext } from '@company/mfe-runtime'
+import type { MfeRuntime, MountContext } from '@company/mfe-runtime'
 
 /** The shell's runtime, provided once per host application and by every mount. */
-export const MFE_RUNTIME = new InjectionToken<MfeHostRuntime>('MFE_RUNTIME')
+export const MFE_RUNTIME = new InjectionToken<MfeRuntime>('MFE_RUNTIME')
 
 /** The mount this application was created for; absent in a host application. */
 export const MFE_MOUNT = new InjectionToken<MountContext>('MFE_MOUNT')

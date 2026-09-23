@@ -5,11 +5,12 @@
 
 import type { MfeAdapter } from '@company/mfe-core'
 import {
-  createHostRuntime,
+  // Aliased because this module's own `createMfeRuntime` wraps it under the same name.
+  createMfeRuntime as createNeutralRuntime,
   createMountContext,
-  type CreateHostRuntimeOptions,
+  type CreateMfeRuntimeOptions,
   type CreateMountContextOptions,
-  type HostRuntimeHandle,
+  type MfeRuntimeHandle,
 } from '@company/mfe-runtime'
 import { QueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -17,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { reactAdapter } from './registry/react-adapter.ts'
 import type { MfeMount } from './runtime.ts'
 
-export interface CreateRuntimeOptions extends Omit<CreateHostRuntimeOptions, 'adapters'> {
+export interface CreateRuntimeOptions extends Omit<CreateMfeRuntimeOptions, 'adapters'> {
   /**
    * Adapters besides `reactAdapter`, which is always registered. Order means nothing: exactly
    * one adapter must recognise an entry, so an entry a framework build published can never be
@@ -26,10 +27,13 @@ export interface CreateRuntimeOptions extends Omit<CreateHostRuntimeOptions, 'ad
   readonly adapters?: readonly MfeAdapter[]
 }
 
-export type MfeRuntimeHandle = HostRuntimeHandle
+export type { MfeRuntimeHandle }
 
 export function createMfeRuntime(options: CreateRuntimeOptions): MfeRuntimeHandle {
-  return createHostRuntime({ ...options, adapters: [reactAdapter, ...(options.adapters ?? [])] })
+  return createNeutralRuntime({
+    ...options,
+    adapters: [reactAdapter, ...(options.adapters ?? [])],
+  })
 }
 
 export type CreateMountOptions = CreateMountContextOptions

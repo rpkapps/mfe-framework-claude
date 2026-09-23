@@ -1,6 +1,7 @@
 /**
- * The React adapter's federation loader: the neutral one from the host, plus the one thing only
- * a React shell needs while a container's modules evaluate (§6).
+ * The React adapter's federation loader, which is the neutral one from the runtime. What a React
+ * container needs hidden while it evaluates is `reactAdapter.aroundLoad`, which the runtime
+ * applies around every load of a React entry, so it is not applied here a second time.
  */
 
 import type { BrandedDefinition, RegistryEntry } from '@company/mfe-core'
@@ -21,32 +22,9 @@ export function containerNameOf(entry: RegistryEntry): string | undefined {
   return isFederatedEntry(entry) ? entry.container : undefined
 }
 
-/**
- * Hides `window.__TSR_ROUTER__` while a container's modules evaluate: the router plugin's
- * development HMR shim reads it back and, finding the shell's `__root__` registered under the
- * same id, copies the shell's component onto the App that just mounted. It is restored only if
- * nothing published a newer router meanwhile, which would resurrect a stale reference.
- */
-async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
-  const owner = globalThis as { __TSR_ROUTER__?: unknown }
-  if (!('__TSR_ROUTER__' in owner)) return await load()
-
-  const previous = owner.__TSR_ROUTER__
-  delete owner.__TSR_ROUTER__
-
-  try {
-    return await load()
-  } finally {
-    if (!('__TSR_ROUTER__' in owner)) owner.__TSR_ROUTER__ = previous
-  }
-}
-
 /** Loads every adapter's containers, so a React shell can also host an Angular one. */
 export function createMf2ContainerLoader(
   options: Mf2LoaderOptions,
 ): ContainerLoader<BrandedDefinition> {
-  return createFederationContainerLoader({
-    runtime: options.runtime,
-    aroundLoad: withoutCurrentRouterGlobal,
-  })
+  return createFederationContainerLoader({ runtime: options.runtime })
 }

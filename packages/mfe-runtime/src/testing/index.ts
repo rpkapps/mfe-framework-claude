@@ -3,10 +3,10 @@
 export { createInProcessLoader } from './in-process-loader.ts'
 
 export {
-  createMemoryHostRuntime,
-  type MemoryHostRuntime,
-  type MemoryHostRuntimeOptions,
-} from './memory-host-runtime.ts'
+  createMemoryRuntime,
+  type MemoryRuntime,
+  type MemoryRuntimeOptions,
+} from './memory-runtime.ts'
 
 export { createMemoryNavigationBridge } from './memory-navigation-bridge.ts'
 

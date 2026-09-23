@@ -13,6 +13,7 @@ import {
   type RegistryEntry,
 } from '@company/mfe-core'
 
+import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import { SharedContainerLoader } from '../loader/container-loader.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
@@ -20,10 +21,10 @@ import { createInProcessLoader } from '../testing/in-process-loader.ts'
 import { createMemoryNavigationBridge } from '../testing/memory-navigation-bridge.ts'
 import { createNoopTelemetryProvider } from '../telemetry/tracer.ts'
 import {
-  createHostRuntime,
-  type CreateHostRuntimeOptions,
-  type HostRuntimeHandle,
-} from './host-runtime.ts'
+  createMfeRuntime,
+  type CreateMfeRuntimeOptions,
+  type MfeRuntimeHandle,
+} from './create-runtime.ts'
 
 /** Recognises entries carrying a `kind` of its own name, and names their container. */
 function adapterFor(kind: string): MfeAdapter {
@@ -67,7 +68,7 @@ function overridesOf(value: Record<string, string> | string): Pick<Storage, 'get
   return { getItem: key => (key === OVERRIDES_STORAGE_KEY ? text : null) }
 }
 
-let handle: HostRuntimeHandle | null = null
+let handle: MfeRuntimeHandle | null = null
 let recorded: Diagnostic[] = []
 
 beforeEach(() => {
@@ -81,7 +82,7 @@ afterEach(() => {
 })
 
 /** Everything but the session generation, which most tests fix and one leaves to the runtime. */
-function baseOptions(): Omit<CreateHostRuntimeOptions, 'sessionGeneration'> {
+function baseOptions(): Omit<CreateMfeRuntimeOptions, 'sessionGeneration'> {
   return {
     registryEntries: [],
     loader: createInProcessLoader(new Map()),
@@ -93,8 +94,8 @@ function baseOptions(): Omit<CreateHostRuntimeOptions, 'sessionGeneration'> {
   }
 }
 
-function create(options: Partial<CreateHostRuntimeOptions> = {}): HostRuntimeHandle {
-  handle = createHostRuntime({ ...baseOptions(), sessionGeneration: 'gen-1', ...options })
+function create(options: Partial<CreateMfeRuntimeOptions> = {}): MfeRuntimeHandle {
+  handle = createMfeRuntime({ ...baseOptions(), sessionGeneration: 'gen-1', ...options })
   return handle
 }
 
@@ -138,6 +139,105 @@ describe('reading the registry', () => {
     const { runtime } = create()
 
     expect(runtime.loader).toBeInstanceOf(SharedContainerLoader)
+  })
+})
+
+describe('the adapter load hook', () => {
+  /** Loads whatever `modules` holds for an id, counting how often it actually ran. */
+  function countingLoader(modules: Readonly<Record<string, unknown>>) {
+    const load = vi.fn((entry: RegistryEntry) =>
+      Promise.resolve({
+        identity: { id: entry.id, kind: entry.definitionKind },
+        module: modules[entry.id],
+      }),
+    )
+    return { load, loader: { load } }
+  }
+
+  const liveSignal = (): AbortSignal => new AbortController().signal
+
+  it('runs each load inside the hook of the adapter that parsed its entry, and no other', async () => {
+    const seen: string[] = []
+    const hooked: MfeAdapter = {
+      ...first,
+      aroundLoad: async (load, entry) => {
+        seen.push(`before ${entry.id}`)
+        try {
+          return await load()
+        } finally {
+          seen.push(`after ${entry.id}`)
+        }
+      },
+    }
+    const { loader, load } = countingLoader({ reports: 'reports module', feed: 'feed module' })
+    const { runtime } = create({
+      adapters: [hooked, second],
+      loader,
+      registryEntries: [published('reports', 'first'), published('feed', 'second')],
+    })
+    const entryFor = (id: string): RegistryEntry => {
+      const entry = runtime.registry.entries.get(id)
+      if (!entry) throw new Error(`expected ${id} in the registry`)
+      return entry
+    }
+
+    const reports = await runtime.loader.load(entryFor('reports'), { signal: liveSignal() })
+    await runtime.loader.load(entryFor('feed'), { signal: liveSignal() })
+
+    expect(reports.module).toBe('reports module')
+    expect(seen).toEqual(['before reports', 'after reports'])
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs once for a load many callers share', async () => {
+    const aroundLoad = vi.fn((load: () => Promise<unknown>) => load())
+    const { loader, load } = countingLoader({ reports: 'reports module' })
+    const { runtime } = create({
+      adapters: [{ ...first, aroundLoad: aroundLoad as NonNullable<MfeAdapter['aroundLoad']> }],
+      loader,
+      registryEntries: [published('reports', 'first')],
+    })
+    const entry = runtime.registry.entries.get('reports')
+    if (!entry) throw new Error('expected reports in the registry')
+
+    await Promise.all([
+      runtime.loader.load(entry, { signal: liveSignal() }),
+      runtime.loader.load(entry, { signal: liveSignal() }),
+    ])
+
+    expect(aroundLoad).toHaveBeenCalledTimes(1)
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it('wraps a speculative preload the same way', async () => {
+    const aroundLoad = vi.fn((load: () => Promise<unknown>) => load())
+    const preload = vi.fn(async () => undefined)
+    const { runtime } = create({
+      adapters: [{ ...first, aroundLoad: aroundLoad as NonNullable<MfeAdapter['aroundLoad']> }],
+      loader: { ...countingLoader({}).loader, preload },
+      registryEntries: [published('reports', 'first')],
+    })
+    const entry = runtime.registry.entries.get('reports')
+    if (!entry) throw new Error('expected reports in the registry')
+
+    await runtime.loader.preload?.(entry, { signal: liveSignal() })
+
+    expect(preload).toHaveBeenCalledTimes(1)
+    expect(aroundLoad).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('deadlines', () => {
+  it('uses the defaults when the shell names none', () => {
+    const { runtime } = create()
+
+    expect(runtime.deadlines).toEqual(DEFAULT_DEADLINES)
+  })
+
+  it('merges the phases a shell tunes over the defaults', () => {
+    const { runtime } = create({ deadlines: { load: 90_000 } })
+
+    expect(runtime.deadlines).toEqual({ ...DEFAULT_DEADLINES, load: 90_000 })
   })
 })
 
@@ -191,7 +291,7 @@ describe('the storage session', () => {
   it('establishes one when none is given, from the generation it mints', () => {
     const mint = vi.fn(() => 'gen-minted')
 
-    handle = createHostRuntime({ ...baseOptions(), nextSessionGeneration: mint })
+    handle = createMfeRuntime({ ...baseOptions(), nextSessionGeneration: mint })
     const { runtime } = handle
 
     expect(runtime.storage.sessionGeneration).toBe('gen-minted')

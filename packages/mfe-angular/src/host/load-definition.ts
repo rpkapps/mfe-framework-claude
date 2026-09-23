@@ -7,26 +7,26 @@
 import { toMfeError, type DefinitionKind } from '@company/mfe-core'
 import {
   isMountableDefinition,
-  type MfeHostRuntime,
+  type MfeRuntime,
   type MountableAppDefinition,
   type MountableDefinition,
   type MountableWidgetDefinition,
 } from '@company/mfe-runtime'
 
-const loadsByRuntime = new WeakMap<MfeHostRuntime, Map<string, Promise<MountableDefinition>>>()
+const loadsByRuntime = new WeakMap<MfeRuntime, Map<string, Promise<MountableDefinition>>>()
 
 export function loadDefinition(
-  runtime: MfeHostRuntime,
+  runtime: MfeRuntime,
   id: string,
   kind: 'app',
 ): Promise<MountableAppDefinition>
 export function loadDefinition(
-  runtime: MfeHostRuntime,
+  runtime: MfeRuntime,
   id: string,
   kind: 'widget',
 ): Promise<MountableWidgetDefinition>
 export function loadDefinition(
-  runtime: MfeHostRuntime,
+  runtime: MfeRuntime,
   id: string,
   kind: DefinitionKind,
 ): Promise<MountableDefinition> {
@@ -87,6 +87,6 @@ export function loadDefinition(
 }
 
 /** Drops a cached outcome so the next load is a genuinely fresh attempt. */
-export function forgetDefinition(runtime: MfeHostRuntime, id: string): void {
+export function forgetDefinition(runtime: MfeRuntime, id: string): void {
   loadsByRuntime.get(runtime)?.delete(id)
 }

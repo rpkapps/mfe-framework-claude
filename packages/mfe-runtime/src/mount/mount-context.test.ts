@@ -7,19 +7,19 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createMemoryHostRuntime, type MemoryHostRuntime } from '../testing/memory-host-runtime.ts'
+import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
 import { createMountContext, createMountToken } from './mount-context.ts'
 import { MOUNT_ATTRIBUTE, OVERLAY_ROOT_ATTRIBUTE, SCOPE_ATTRIBUTE } from './scope-root.ts'
 
-let memory: MemoryHostRuntime | null = null
+let memory: MemoryRuntime | null = null
 
 afterEach(() => {
   memory?.dispose()
   memory = null
 })
 
-function runtime(): MemoryHostRuntime['runtime'] {
-  memory = createMemoryHostRuntime()
+function runtime(): MemoryRuntime['runtime'] {
+  memory = createMemoryRuntime()
   return memory.runtime
 }
 

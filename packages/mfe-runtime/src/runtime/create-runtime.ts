@@ -6,6 +6,7 @@
 
 import {
   isMfeError,
+  type DeadlineConfig,
   type DiagnosticsSink,
   type MfeAdapter,
   type NavigationBridge,
@@ -16,7 +17,9 @@ import {
 
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { CommandRegistry, type CommandDenialNotifier } from '../commands/command-registry.ts'
+import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
+import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
 import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
 import {
   BoundaryNavigator,
@@ -29,8 +32,9 @@ import { establishSessionGeneration, mintSessionGeneration } from '../storage/se
 import { MfeStorageStore } from '../storage/storage-store.ts'
 
 /** Shared, shell-owned services, one instance per document. */
-export interface MfeHostRuntime {
+export interface MfeRuntime {
   readonly registry: Registry
+  /** Shares in-flight and resolved loads, and runs each load through its adapter's `aroundLoad`. */
   readonly loader: ContainerLoader
   readonly shellState: ShellStateStore
   readonly storage: MfeStorageStore
@@ -39,9 +43,11 @@ export interface MfeHostRuntime {
   readonly navigator: BoundaryNavigator
   readonly telemetryProvider: TelemetryProvider
   readonly diagnostics: DiagnosticsHub
+  /** The budget every mount's load, mount and disposal runs under. */
+  readonly deadlines: DeadlineConfig
 }
 
-export interface CreateHostRuntimeOptions {
+export interface CreateMfeRuntimeOptions {
   /** Raw registry entries, usually fetched by the shell at boot. */
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
@@ -53,12 +59,14 @@ export interface CreateHostRuntimeOptions {
   /** An existing hub to report into; `dispose()` removes only the sinks it added (§25). */
   readonly diagnostics?: DiagnosticsHub
   /**
-   * Every adapter the registry is read through; nothing is registered implicitly, so an
-   * adapter's own `createMfeRuntime` is where its adapter joins the list. Order means nothing:
-   * exactly one adapter must recognise an entry, so an entry one framework's build published can
-   * never be read by another adapter because one of its fields was malformed.
+   * Every adapter the registry is read through and loads are wrapped by; nothing is registered
+   * implicitly, so the shell lists each one. Order means nothing: exactly one adapter must
+   * recognise an entry, so an entry one framework's build published can never be read by another
+   * adapter because one of its fields was malformed.
    */
   readonly adapters: readonly MfeAdapter[]
+  /** Merged over `DEFAULT_DEADLINES`, so a shell names only the phases it tunes. */
+  readonly deadlines?: Partial<DeadlineConfig>
   readonly notifyCommandDenial?: CommandDenialNotifier
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
@@ -68,8 +76,8 @@ export interface CreateHostRuntimeOptions {
   readonly overrideStorage?: Pick<Storage, 'getItem'>
 }
 
-export interface HostRuntimeHandle {
-  readonly runtime: MfeHostRuntime
+export interface MfeRuntimeHandle {
+  readonly runtime: MfeRuntime
   /** Applied developer overrides, for the shell's active-override indicator. */
   readonly activeOverrides: ReadonlyMap<string, string>
   dispose(): void
@@ -92,7 +100,7 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
   return byId
 }
 
-export function createHostRuntime(options: CreateHostRuntimeOptions): HostRuntimeHandle {
+export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHandle {
   const ownsDiagnostics = options.diagnostics === undefined
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
@@ -165,9 +173,9 @@ export function createHostRuntime(options: CreateHostRuntimeOptions): HostRuntim
     )
   })
 
-  const runtime: MfeHostRuntime = {
+  const runtime: MfeRuntime = {
     registry,
-    loader: new SharedContainerLoader(options.loader),
+    loader: new SharedContainerLoader(withAdapterLoadHooks(options.loader, options.adapters)),
     shellState,
     storage,
     commands,
@@ -175,6 +183,7 @@ export function createHostRuntime(options: CreateHostRuntimeOptions): HostRuntim
     navigator,
     telemetryProvider: options.telemetryProvider,
     diagnostics,
+    deadlines: Object.freeze({ ...DEFAULT_DEADLINES, ...options.deadlines }),
   }
 
   return {

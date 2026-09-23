@@ -5,8 +5,8 @@
 
 import type { BrandedDefinition, Diagnostic, ShellTheme, ShellUser } from '@company/mfe-core'
 import {
-  createMemoryHostRuntime,
-  type MemoryHostRuntime,
+  createMemoryRuntime,
+  type MemoryRuntime,
   type MemoryStorageArea,
   type RecordingTelemetryProvider,
 } from '@company/mfe-runtime/testing'
@@ -78,7 +78,7 @@ export interface MfeTestEnvironment {
   setShellState(patch: TestShellState): void
   readonly telemetry: RecordingTelemetryProvider
   readonly diagnostics: readonly Diagnostic[]
-  readonly navigation: MemoryHostRuntime['navigation']
+  readonly navigation: MemoryRuntime['navigation']
   /** The injected browser stores, which count the calls made against them. */
   readonly storageAreas: {
     readonly local: MemoryStorageArea
@@ -95,7 +95,7 @@ export interface MfeTestEnvironment {
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
 ): MfeTestEnvironment {
-  const memory = createMemoryHostRuntime({
+  const memory = createMemoryRuntime({
     ...(options.shellState === undefined ? {} : { shellState: options.shellState }),
     ...(options.definitions === undefined ? {} : { definitions: options.definitions }),
     ...(options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries }),

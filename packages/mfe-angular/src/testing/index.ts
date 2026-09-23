@@ -8,9 +8,9 @@ import type { EnvironmentInjector, EnvironmentProviders } from '@angular/core'
 import type { DefinitionKind, MfeError } from '@company/mfe-core'
 import { applyScopeAttributes, createMountContext, type MountContext } from '@company/mfe-runtime'
 import {
-  createMemoryHostRuntime,
-  type MemoryHostRuntime,
-  type MemoryHostRuntimeOptions,
+  createMemoryRuntime,
+  type MemoryRuntime,
+  type MemoryRuntimeOptions,
 } from '@company/mfe-runtime/testing'
 
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
@@ -41,9 +41,9 @@ export function resetGeneratedAliases(): void {
   resetMfeFetchState()
 }
 
-export type MfeTestEnvironmentOptions = MemoryHostRuntimeOptions
+export type MfeTestEnvironmentOptions = MemoryRuntimeOptions
 
-export interface MfeTestEnvironment extends MemoryHostRuntime {
+export interface MfeTestEnvironment extends MemoryRuntime {
   /** `provideMfeRuntime(runtime)`, for a host component under test outside any mount. */
   readonly providers: EnvironmentProviders
 }
@@ -52,7 +52,7 @@ export interface MfeTestEnvironment extends MemoryHostRuntime {
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
 ): MfeTestEnvironment {
-  const memory = createMemoryHostRuntime(options)
+  const memory = createMemoryRuntime(options)
   return { ...memory, providers: provideMfeRuntime(memory.runtime) }
 }
 

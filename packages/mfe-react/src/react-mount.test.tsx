@@ -11,7 +11,7 @@ import {
   type MountedApp,
   type MountedWidget,
 } from '@company/mfe-runtime'
-import { createMemoryHostRuntime, type MemoryHostRuntime } from '@company/mfe-runtime/testing'
+import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-runtime/testing'
 import {
   createRootRouteWithContext,
   createRoute,
@@ -28,7 +28,7 @@ import { useBasePath } from './hooks/services.ts'
 import type { MfeRouterContext } from './router-contract.ts'
 import { withStyleRoot, type StyleRootProps } from './style-root.ts'
 
-let memory: MemoryHostRuntime | null = null
+let memory: MemoryRuntime | null = null
 let contexts: MountContextHandle[] = []
 let element: HTMLElement
 
@@ -46,7 +46,7 @@ function hostFor(
   definitionId: string,
   options: { readonly basePath?: string; readonly initialEntries?: readonly string[] } = {},
 ): MountContextHandle {
-  memory = createMemoryHostRuntime(
+  memory = createMemoryRuntime(
     options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries },
   )
   const handle = createMountContext({

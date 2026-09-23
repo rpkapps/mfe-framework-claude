@@ -45,8 +45,8 @@ export interface RegistryEntry {
  * Exactly one adapter must recognise an entry. None and the entry is rejected as unrecognised,
  * more than one and it is rejected as ambiguous, so there is no order to register adapters in.
  *
- * This is the reading half. The mount half — load and mount a container of this kind — joins
- * this interface in a later change, where `ContainerLoader` lives today.
+ * Mounting needs nothing from the adapter: every definition mounts itself through its own
+ * `mount`, whichever host places it. Loading may need one thing, `aroundLoad`.
  */
 export interface MfeAdapter<K extends string = string, E extends RegistryEntry = RegistryEntry> {
   /** What `entry.adapter` says on everything this adapter parses. */
@@ -60,6 +60,12 @@ export interface MfeAdapter<K extends string = string, E extends RegistryEntry =
   parse(raw: unknown): E
   /** How a caller gets back to this adapter's own fields without a cast. */
   is(entry: RegistryEntry): entry is E
+  /**
+   * Wraps loading a container whose entry this adapter parsed, for page state the container's
+   * modules must not see while they evaluate. It runs once per load that actually happens, not
+   * once per caller waiting on it, and must return what `load` resolved to.
+   */
+  aroundLoad?<T>(load: () => Promise<T>, entry: RegistryEntry): Promise<T>
 }
 
 /** An entry that could not be read; rejected with a reason rather than dropped silently. */

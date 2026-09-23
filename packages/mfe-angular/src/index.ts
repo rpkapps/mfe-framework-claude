@@ -124,8 +124,8 @@ export {
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
   type FederatedRegistryEntry,
-  type HostRuntimeHandle,
-  type MfeHostRuntime,
+  type MfeRuntimeHandle,
+  type MfeRuntime,
   type MountableDefinition,
   type MountContext,
 } from '@company/mfe-runtime'

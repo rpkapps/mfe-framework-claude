@@ -3,7 +3,7 @@
  * broken framework entry never falls to another adapter, and `parse` names the field that broke.
  */
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { isMfeError, type MfeError, type RegistryEntry } from '@company/mfe-core'
 
@@ -380,5 +380,66 @@ describe('build provenance', () => {
   it('drops a build it cannot read instead of failing the entry over it', () => {
     expect(parse(entry({ build: 'yesterday' })).build).toBeUndefined()
     expect(parse(entry({ build: { hash: 42 } })).build).toBeUndefined()
+  })
+})
+
+/** The router plugin's development HMR shim reads this global while a container evaluates. */
+describe('aroundLoad: the router global while a container evaluates', () => {
+  const owner = globalThis as { __TSR_ROUTER__?: unknown }
+  const parsed = (): ReactRegistryEntry => parse(entry())
+
+  /** The adapter declares the hook, so a test reaching it without one fails loudly. */
+  function aroundLoad<T>(load: () => Promise<T>): Promise<T> {
+    if (reactAdapter.aroundLoad === undefined) throw new Error('expected a load hook')
+    return reactAdapter.aroundLoad(load, parsed())
+  }
+
+  afterEach(() => {
+    delete owner.__TSR_ROUTER__
+  })
+
+  it('is hidden during the evaluation and restored afterwards', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+    let seenDuringLoad: boolean | undefined
+
+    const loaded = await aroundLoad(() => {
+      seenDuringLoad = '__TSR_ROUTER__' in owner
+      return Promise.resolve('module')
+    })
+
+    expect(loaded).toBe('module')
+    expect(seenDuringLoad).toBe(false)
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  it('is restored after an evaluation that failed', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+
+    await expect(
+      aroundLoad(() => Promise.reject(new Error('Loading chunk 42 failed'))),
+    ).rejects.toThrow('Loading chunk 42 failed')
+
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  /** Restoring the old one would resurrect a router nothing uses any more. */
+  it('keeps a router published during the evaluation rather than restoring the old one', async () => {
+    owner.__TSR_ROUTER__ = { id: 'shell' }
+    const published = { id: 'published during the load' }
+
+    await aroundLoad(() => {
+      owner.__TSR_ROUTER__ = published
+      return Promise.resolve('module')
+    })
+
+    expect(owner.__TSR_ROUTER__).toBe(published)
+  })
+
+  it('is not created when the page had none', async () => {
+    await aroundLoad(() => Promise.resolve('module'))
+
+    expect('__TSR_ROUTER__' in owner).toBe(false)
   })
 })

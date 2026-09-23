@@ -12,7 +12,7 @@ import { toMfeError, type DefinitionKind, type MfeError } from '@company/mfe-cor
 import {
   applyScopeAttributes,
   createMountContext,
-  type MfeHostRuntime,
+  type MfeRuntime,
   type MountableDefinition,
   type MountContext,
   type MountContextHandle,
@@ -46,7 +46,7 @@ interface Attempt<M extends Disposable> {
 }
 
 export class DefinitionSlot<M extends Disposable> {
-  readonly #runtime: MfeHostRuntime
+  readonly #runtime: MfeRuntime
   readonly #container: HTMLElement
   readonly #onFailed: (error: MfeError) => void
   readonly #status = signal<SlotStatus>('loading')
@@ -54,11 +54,7 @@ export class DefinitionSlot<M extends Disposable> {
   #generation = 0
   #current: Attempt<M> | null = null
 
-  constructor(
-    runtime: MfeHostRuntime,
-    container: HTMLElement,
-    onFailed: (error: MfeError) => void,
-  ) {
+  constructor(runtime: MfeRuntime, container: HTMLElement, onFailed: (error: MfeError) => void) {
     this.#runtime = runtime
     this.#container = container
     this.#onFailed = onFailed
