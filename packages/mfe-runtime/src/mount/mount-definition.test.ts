@@ -794,7 +794,8 @@ describe('Widget events', () => {
     const onEvent = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
-    let consumerEvents: WidgetMountRequest['consumerEvents'] = undefined
+    // What the Angular host's getter returns before a contract is bound: nothing declared.
+    let consumerEvents: Record<string, z.ZodType> = {}
     const mount = mountDefinition({
       runtime,
       element: host,
