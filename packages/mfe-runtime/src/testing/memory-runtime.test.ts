@@ -208,12 +208,18 @@ describe('createMemoryRuntime', () => {
     expect(second.storageAreas.local.length).toBe(0)
   })
 
-  it('stops following the shell state once disposed', () => {
+  it('stops following the shell state and drops every blocker once disposed, as a shell’s does', () => {
     const memory = createMemoryRuntime({ sessionGeneration: 'gen-1' })
+    memory.runtime.navigator.registerBlocker('reports#1', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => Promise.resolve('proceed'),
+    })
 
     memory.dispose()
     memory.setShellState({ user: { id: 'grace', name: 'Grace' } })
 
     expect(memory.runtime.storage.sessionGeneration).toBe('gen-1')
+    expect(memory.runtime.navigator.blockerCount).toBe(0)
   })
 })

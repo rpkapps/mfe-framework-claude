@@ -6,29 +6,22 @@
  */
 
 import {
-  isMfeError,
+  withoutUndefined,
   type BrandedDefinition,
   type DeadlineConfig,
   type Diagnostic,
   type MfeAdapter,
+  type Registry,
   type RegistryEntry,
 } from '@company/mfe-core'
 
-import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import { CommandRegistry } from '../commands/command-registry.ts'
-import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
-import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
-import { SharedContainerLoader, type LoadedDefinition } from '../loader/container-loader.ts'
+import type { LoadedDefinition } from '../loader/container-loader.ts'
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
-import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
 import { readRegistry } from '../registry/read-registry.ts'
+import { assembleRuntime, reportRejectedEntries } from '../runtime/assemble-runtime.ts'
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
-import {
-  requiresSessionRetirement,
-  ShellStateStore,
-  type ShellStatePatch,
-} from '../shell-state/shell-state-store.ts'
+import { ShellStateStore, type ShellStatePatch } from '../shell-state/shell-state-store.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 import { createInProcessLoader } from './in-process-loader.ts'
 import { createMemoryNavigationBridge } from './memory-navigation-bridge.ts'
@@ -108,7 +101,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
         identity: {
           id: definition.id,
           kind: definition.kind,
-          ...(definition.version === undefined ? {} : { version: definition.version }),
+          ...withoutUndefined({ version: definition.version }),
         },
         module: definition,
       },
@@ -133,54 +126,29 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
   const adapters = options.adapters ?? []
   const read = readRegistry(options.registryEntries ?? [], { adapters })
   for (const [id, entry] of read.entries) entries.set(id, entry)
-  for (const rejected of read.rejected) {
-    if (isMfeError(rejected.error)) {
-      diagnostics.report(rejected.error, {
-        severity: 'error',
-        context: { entry: rejected.id, reason: rejected.reason },
-      })
-    }
-  }
-
-  const navigator = new BoundaryNavigator({ bridge: navigation, diagnostics })
-  const commands = new CommandRegistry({
-    diagnostics,
-    readPathname: () => navigator.read().pathname,
-  })
-  const breadcrumbs = new BreadcrumbStore({ diagnostics })
-
-  const runtime: MfeRuntime = {
-    registry: { entries, rejected: read.rejected },
-    loader: new SharedContainerLoader(
-      withAdapterLoadHooks(createInProcessLoader(loadable), adapters),
-    ),
-    shellState,
-    storage,
-    commands,
-    breadcrumbs,
-    navigator,
-    telemetryProvider: telemetry,
-    diagnostics,
-    deadlines: Object.freeze({ ...DEFAULT_DEADLINES, ...options.deadlines }),
-  }
+  const registry: Registry = { entries, rejected: read.rejected }
+  reportRejectedEntries(registry, diagnostics)
 
   // Minted per transition, so a test exercises the real fencing rather than a fixed value.
   let generation = 0
-  const stopWatchingSession = shellState.observeTransitions(change => {
-    if (!requiresSessionRetirement(change.transitions)) return
-
-    generation += 1
-    const identity = change.transitions.find(transition => transition.kind === 'identity')
-    storage.applySessionTransition(
-      identity
-        ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
-        : { kind: 'groups', groups: change.next.groups },
-      `test-session-${generation}`,
-    )
+  const assembled = assembleRuntime({
+    registry,
+    loader: createInProcessLoader(loadable),
+    adapters,
+    shellState,
+    storage,
+    navigationBridge: navigation,
+    telemetryProvider: telemetry,
+    diagnostics,
+    deadlines: options.deadlines,
+    nextSessionGeneration: () => {
+      generation += 1
+      return `test-session-${String(generation)}`
+    },
   })
 
   return {
-    runtime,
+    runtime: assembled.runtime,
     setShellState: patch => {
       shellState.apply(patch)
     },
@@ -189,11 +157,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     navigation,
     storageAreas,
     dispose: () => {
-      stopWatchingSession()
-      commands.dispose()
-      breadcrumbs.dispose()
-      storage.dispose()
-      shellState.dispose()
+      assembled.dispose()
       diagnostics.clear()
     },
   }

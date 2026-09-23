@@ -5,7 +5,7 @@
  */
 
 import {
-  isMfeError,
+  withoutUndefined,
   type DeadlineConfig,
   type DiagnosticsSink,
   type MfeAdapter,
@@ -15,21 +15,20 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import { CommandRegistry, type CommandDenialNotifier } from '../commands/command-registry.ts'
-import { DEFAULT_DEADLINES } from '../deadline.ts'
+import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
+import type { CommandDenialNotifier, CommandRegistry } from '../commands/command-registry.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
-import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
-import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
+import type { ContainerLoader } from '../loader/container-loader.ts'
 import {
-  BoundaryNavigator,
   createBrowserNavigationBridge,
+  type BoundaryNavigator,
 } from '../navigation/boundary-navigator.ts'
 import { findConflictingContainerOverrides, readDevOverrides } from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
-import { requiresSessionRetirement, ShellStateStore } from '../shell-state/shell-state-store.ts'
+import { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { establishSessionGeneration, mintSessionGeneration } from '../storage/session-generation.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
+import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
@@ -123,82 +122,40 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     diagnostics.report(error, { severity: 'warning' })
   }
 
-  // A rejected entry never removes unrelated valid ones.
-  for (const rejected of registry.rejected) {
-    if (isMfeError(rejected.error)) {
-      diagnostics.report(rejected.error, {
-        severity: 'error',
-        context: { entry: rejected.id, reason: rejected.reason },
-      })
-    }
-  }
+  reportRejectedEntries(registry, diagnostics)
 
   const shellState = new ShellStateStore(options.shellState)
-  const nextGeneration = options.nextSessionGeneration ?? mintSessionGeneration
+  const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
   const storage = new MfeStorageStore({
     diagnostics,
-    ...(options.sessionGeneration === undefined
-      ? {}
-      : { sessionGeneration: options.sessionGeneration }),
+    ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
   })
   if (options.sessionGeneration === undefined) {
     // Identity is opaque and compared for equality, so an anonymous page still gets one.
     establishSessionGeneration(storage, shellState.getUser()?.id ?? ANONYMOUS_IDENTITY, {
-      mint: nextGeneration,
+      mint: nextSessionGeneration,
     })
   }
 
-  const navigator = new BoundaryNavigator({
-    bridge: options.navigationBridge ?? createBrowserNavigationBridge(),
-    diagnostics,
-  })
-  const commands = new CommandRegistry({
-    diagnostics,
-    // An App's shortcuts fire while the page is inside its boundary, read where it is read for
-    // navigation.
-    readPathname: () => navigator.read().pathname,
-    ...(options.notifyCommandDenial === undefined
-      ? {}
-      : { notifyDenial: options.notifyCommandDenial }),
-  })
-  const breadcrumbs = new BreadcrumbStore({ diagnostics })
-
-  // The new generation fences records written under the old one, so it is minted, not reused.
-  const stopWatchingSession = shellState.observeTransitions(change => {
-    if (!requiresSessionRetirement(change.transitions)) return
-
-    const identity = change.transitions.find(transition => transition.kind === 'identity')
-    storage.applySessionTransition(
-      identity
-        ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
-        : { kind: 'groups', groups: change.next.groups },
-      nextGeneration(),
-    )
-  })
-
-  const runtime: MfeRuntime = {
+  const assembled = assembleRuntime({
     registry,
-    loader: new SharedContainerLoader(withAdapterLoadHooks(options.loader, options.adapters)),
+    loader: options.loader,
+    adapters: options.adapters,
     shellState,
     storage,
-    commands,
-    breadcrumbs,
-    navigator,
+    navigationBridge: options.navigationBridge ?? createBrowserNavigationBridge(),
     telemetryProvider: options.telemetryProvider,
     diagnostics,
-    deadlines: Object.freeze({ ...DEFAULT_DEADLINES, ...options.deadlines }),
-  }
+    deadlines: options.deadlines,
+    notifyCommandDenial: options.notifyCommandDenial,
+    nextSessionGeneration,
+  })
 
   return {
-    runtime,
+    runtime: assembled.runtime,
     activeOverrides: overrides.overrides,
     dispose: () => {
-      stopWatchingSession()
-      commands.dispose()
-      breadcrumbs.dispose()
-      navigator.clearBlockers()
-      storage.dispose()
-      shellState.dispose()
+      assembled.dispose()
       if (ownsDiagnostics) diagnostics.clear()
       else for (const remove of removeSinks) remove()
     },
