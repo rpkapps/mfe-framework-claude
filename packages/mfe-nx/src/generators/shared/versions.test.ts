@@ -15,6 +15,13 @@ describe('nxAngularVersionFor', () => {
     expect(nxAngularVersionFor(undefined)).toBe(NX_VERSION)
   })
 
+  it.each(['catalog:', 'catalog:tooling', 'workspace:*'])(
+    'uses the running Nx when the workspace names its Nx with %s, which is no version',
+    specifier => {
+      expect(nxAngularVersionFor(specifier)).toBe(NX_VERSION)
+    },
+  )
+
   it.each(['19.8.0', '23.2.0', '^24.0.0'])(
     'refuses Nx %s, whose @nx/angular cannot build Angular 19.2',
     version => {

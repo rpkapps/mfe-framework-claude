@@ -72,11 +72,12 @@ export const SUPPORTED_NX_MAJORS: readonly number[] = [20, 21, 22]
 
 /**
  * `@nx/angular` has to be the workspace's own Nx version, as every Nx plugin does, so it is
- * written with the same specifier as `nx`. A workspace on an Nx line that cannot build Angular
- * 19.2 is refused before anything is written.
+ * written with the same specifier as `nx`. A specifier that names no version, such as pnpm's
+ * `catalog:`, is read as the Nx running this generator, which is what it resolved to. A workspace
+ * on an Nx line that cannot build Angular 19.2 is refused before anything is written.
  */
 export function nxAngularVersionFor(nxVersion: string | undefined): string {
-  const version = nxVersion ?? NX_VERSION
+  const version = nxVersion !== undefined && /^[\^~]?\d/.test(nxVersion) ? nxVersion : NX_VERSION
   const major = Number(/^[\^~]?(\d+)\./.exec(version)?.[1])
   if (SUPPORTED_NX_MAJORS.includes(major)) return version
 
