@@ -4,10 +4,21 @@
  * would not show that.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { parseSvg, readIconData } from './icon.ts'
+import type * as TsAst from './ts-ast.ts'
+import { parseModuleFile } from './ts-ast.ts'
+
+vi.mock('./ts-ast.ts', async importOriginal => {
+  const original = await importOriginal<typeof TsAst>()
+  return { ...original, parseModuleFile: vi.fn(original.parseModuleFile) }
+})
 
 /** Any file in this package; only its directory matters, for resolving relative specifiers. */
 const here = fileURLToPath(new URL('icon.test.ts', import.meta.url))
@@ -126,5 +137,75 @@ describe('an identifier that leads nowhere', () => {
   it('is null rather than a guess, so the caller can report the position', () => {
     expect(readIconData(here, { imported: 'Missing', moduleSpecifier: './nope.mjs' })).toBeNull()
     expect(readIconData(here, { imported: 'Button', moduleSpecifier: 'vitest' })).toBeNull()
+  })
+})
+
+const packs: string[] = []
+
+afterEach(() => {
+  while (packs.length > 0) {
+    const pack = packs.pop()
+    if (pack !== undefined) rmSync(pack, { recursive: true, force: true })
+  }
+})
+
+/** An icon module drawing one path at the given size, shaped as icon packages publish them. */
+function iconSource(size: number): string {
+  return [
+    `const icon = { size: ${String(size)}, node: [['path', { d: 'M0 0 L1 1' }]] }`,
+    'export default icon',
+    '',
+  ].join('\n')
+}
+
+/** A barrel of two icons in a fresh directory, so no earlier read has indexed it. */
+function iconPack(): { readonly entry: string; readonly icon: (name: string) => string } {
+  const root = mkdtempSync(join(tmpdir(), 'mfe-icons-'))
+  packs.push(root)
+  const write = (path: string, contents: string): void => {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), contents)
+  }
+  write(
+    'pack/index.mjs',
+    [
+      "export { default as Sun, default as SunIcon } from './icons/sun.mjs'",
+      "export { default as Moon, default as MoonIcon } from './icons/moon.mjs'",
+      '',
+    ].join('\n'),
+  )
+  write('pack/icons/sun.mjs', iconSource(24))
+  write('pack/icons/moon.mjs', iconSource(24))
+  return { entry: join(root, 'src/mfe.ts'), icon: name => join(root, 'pack/icons', name) }
+}
+
+describe('icon modules read by one process', () => {
+  const parsed = vi.mocked(parseModuleFile)
+
+  it('parses a barrel and each icon module once, however many icons are read', () => {
+    const pack = iconPack()
+    const read = (imported: string) =>
+      readIconData(pack.entry, { imported, moduleSpecifier: '../pack/index.mjs' })
+
+    parsed.mockClear()
+    for (const name of ['SunIcon', 'Sun', 'MoonIcon', 'SunIcon']) expect(read(name)).not.toBeNull()
+
+    const root = dirname(dirname(pack.entry))
+    expect(parsed.mock.calls.map(([file]) => relative(root, file))).toEqual([
+      'pack/index.mjs',
+      'pack/icons/sun.mjs',
+      'pack/icons/moon.mjs',
+    ])
+  })
+
+  it('reads an icon module again once it changes, as a watching build needs', () => {
+    const pack = iconPack()
+    const read = () =>
+      readIconData(pack.entry, { imported: 'SunIcon', moduleSpecifier: '../pack/index.mjs' })
+
+    expect(read()?.viewBox).toBe('0 0 24 24')
+    writeFileSync(pack.icon('sun.mjs'), iconSource(320))
+
+    expect(read()?.viewBox).toBe('0 0 320 320')
   })
 })

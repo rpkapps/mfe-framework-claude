@@ -5,11 +5,12 @@
  * parser, the same way a Widget's contract is read one import deep, and nothing is evaluated.
  */
 
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync, type Stats } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { ICON_ELEMENT_TAGS, type IconData, type IconNode } from '@company/mfe-core'
 
+import { resolveRelativeModule } from './local-modules.ts'
 import {
   collectTopLevelBindings,
   parseModuleFile,
@@ -19,8 +20,6 @@ import {
   unwrapExpression,
   type ImportedBinding,
 } from './ts-ast.ts'
-
-const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.mjs', '.js', '.jsx'] as const
 
 /** What an icon may draw with; anything else is dropped rather than carried into a host's DOM. */
 const ELEMENT_TAGS = new Set<string>(ICON_ELEMENT_TAGS)
@@ -82,21 +81,49 @@ const OUTLINE_DEFAULTS: Readonly<Record<string, string>> = {
   'stroke-linejoin': 'round',
 }
 
-/** Parsed once per build: an icon barrel runs to a quarter of a megabyte. */
-const parsedFiles = new Map<string, ts.SourceFile | null>()
+/** What a module offers the reader, kept in place of its syntax tree. */
+interface IconModule {
+  /** Each name the module re-exports from another, with that module's specifier. */
+  readonly reExports: ReadonlyMap<string, string>
+  /** The icon the module holds itself, when it is an icon module rather than a barrel. */
+  readonly icon: IconData | null
+}
 
-function parseCached(file: string): ts.SourceFile | null {
-  const cached = parsedFiles.get(file)
-  if (cached !== undefined) return cached
+interface IndexedModule {
+  readonly size: number
+  readonly mtimeMs: number
+  readonly module: IconModule | null
+}
 
-  let parsed: ts.SourceFile | null
+/**
+ * Parsed once per process, because an icon barrel runs to a quarter of a megabyte, but only its
+ * index is kept: the tree is many times that. A file whose size or modification time moved is
+ * read again, so a watching build sees an edited icon module of the container's own.
+ */
+const indexedModules = new Map<string, IndexedModule>()
+
+function iconModule(file: string): IconModule | null {
+  let stats: Stats
   try {
-    parsed = parseModuleFile(file)
+    stats = statSync(file)
   } catch {
-    parsed = null
+    return null
   }
-  parsedFiles.set(file, parsed)
-  return parsed
+
+  const known = indexedModules.get(file)
+  if (known !== undefined && known.size === stats.size && known.mtimeMs === stats.mtimeMs) {
+    return known.module
+  }
+
+  let module: IconModule | null
+  try {
+    const sourceFile = parseModuleFile(file)
+    module = { reExports: reExportsOf(sourceFile), icon: iconDataFrom(sourceFile) }
+  } catch {
+    module = null
+  }
+  indexedModules.set(file, { size: stats.size, mtimeMs: stats.mtimeMs, module })
+  return module
 }
 
 /**
@@ -119,22 +146,9 @@ interface PackageManifest {
 
 /** Relative specifiers resolve on disk the way the bundler resolves them; bare ones through Node. */
 function resolveModule(fromFile: string, specifier: string): string | null {
-  if (!specifier.startsWith('.')) return resolveBareModule(fromFile, specifier)
-
-  const base = resolve(dirname(fromFile), specifier)
-  const candidates = [base]
-  // `./icon.js` is how a TypeScript ESM import spells `./icon.ts`.
-  if (base.endsWith('.js')) candidates.push(`${base.slice(0, -3)}.ts`, `${base.slice(0, -3)}.tsx`)
-  for (const extension of MODULE_EXTENSIONS) candidates.push(`${base}${extension}`)
-
-  for (const candidate of candidates) {
-    try {
-      if (statSync(candidate).isFile()) return candidate
-    } catch {
-      // Not a file: try the next candidate.
-    }
-  }
-  return null
+  return specifier.startsWith('.')
+    ? resolveRelativeModule(fromFile, specifier)
+    : resolveBareModule(fromFile, specifier)
 }
 
 /**
@@ -191,22 +205,23 @@ function esmEntry(manifest: PackageManifest): string | null {
  * already points at the icon module is read where it stands.
  */
 function readIconModule(file: string, exportName: string): IconData | null {
-  const sourceFile = parseCached(file)
-  if (sourceFile === null) return null
+  const module = iconModule(file)
+  if (module === null) return null
 
-  const target = reExportTarget(sourceFile, exportName)
-  if (target === null) return iconDataFrom(sourceFile)
+  const target = module.reExports.get(exportName)
+  if (target === undefined) return module.icon
 
   const resolved = resolveModule(file, target)
   if (resolved === null) return null
   if (resolved.endsWith('.svg')) return readSvgFile(resolved)
 
-  const hop = parseCached(resolved)
-  return hop === null ? null : iconDataFrom(hop)
+  return iconModule(resolved)?.icon ?? null
 }
 
-/** The specifier an `export … from` re-exports `exportName` through. */
-function reExportTarget(sourceFile: ts.SourceFile, exportName: string): string | null {
+/** Every name an `export … from` re-exports, with its specifier; the first statement wins. */
+function reExportsOf(sourceFile: ts.SourceFile): ReadonlyMap<string, string> {
+  const reExports = new Map<string, string>()
+
   for (const statement of sourceFile.statements) {
     if (!ts.isExportDeclaration(statement)) continue
     if (statement.isTypeOnly) continue
@@ -214,12 +229,15 @@ function reExportTarget(sourceFile: ts.SourceFile, exportName: string): string |
 
     const clause = statement.exportClause
     if (clause === undefined || !ts.isNamedExports(clause)) continue
+    const specifier = stringLiteralValue(statement.moduleSpecifier)
+    if (specifier === null) continue
 
     for (const element of clause.elements) {
-      if (element.name.text === exportName) return stringLiteralValue(statement.moduleSpecifier)
+      if (!reExports.has(element.name.text)) reExports.set(element.name.text, specifier)
     }
   }
-  return null
+
+  return reExports
 }
 
 /**
