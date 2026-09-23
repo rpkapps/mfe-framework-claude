@@ -54,9 +54,10 @@ log: an Nx workspace has one TypeScript for every project in it.
 
 ```
 apps/my-app/
-  project.json              # generate, build, serve, test, typecheck (see below)
+  project.json              # generate, build, serve, test, typecheck, lint (see below)
   package.json              # this container's own manifest: mfe.port, mfe.definitions, dependencies
   webpack.config.ts         # export default withMfe()
+  eslint.config.ts          # @company/eslint-plugin-mfe/angular, plus the tooling preset for this file
   src/
     index.html              # required by the Angular builder; a remote is never browsed to
     styles.css              # the container's global stylesheet, compiled and scoped by the build
@@ -79,7 +80,9 @@ apps/my-app/
 A `widget` project has no routes, configuration or `public/`; its `src/mfe.ts` calls
 `createWidget({ id, version, inputs, events, component, providers })` with the contract exported
 separately, `src/<id>.component.ts` renders a `p-button` with signal `input()`/`output()`, and its
-`package.json` publishes `exports['./contracts']`. Neither project gets an ESLint configuration yet.
+`package.json` publishes `exports['./contracts']`. Its `eslint.config.ts` declares its whole `src/`
+as its own Widget scope (`widgetScopes: ['src/**']`); an `app` project declares none, since an App
+owns its boundary router.
 
 The generated project depends on `@company/mfe-angular` and nothing beneath it: the neutral
 `@company/mfe-core` and `@company/mfe-runtime` arrive through the adapter, and the build shares
@@ -94,12 +97,13 @@ them on its behalf (see [Sharing](#sharing)).
 | `serve`     | `@nx/angular:dev-server`      | On the project's port, with `Access-Control-Allow-Origin: *` for the shell's origin.   |
 | `test`      | `nx:run-commands`             | `vitest run`.                                                                          |
 | `typecheck` | `nx:run-commands`             | `tsc --noEmit` over `tsconfig.app.json` and `tsconfig.spec.json`.                      |
+| `lint`      | `nx:run-commands`             | `eslint .`, against `@company/eslint-plugin-mfe/angular`.                              |
 
-`build`, `serve`, `test` and `typecheck` depend on `generate`, because the `.mfe/` modules have to
-exist before webpack, Vitest or `tsc` can resolve them. The build's `main` names the generated entry
-stub, and its production configuration leaves `public/runtime-config.json` out of the copied
-assets: the build ships the declared defaults instead, and the builder copies assets only after
-webpack has emitted.
+`build`, `serve`, `test`, `typecheck` and `lint` depend on `generate`, because the `.mfe/` modules
+have to exist before webpack, Vitest, `tsc` or ESLint's `#mfe/*` imports can resolve them. The
+build's `main` names the generated entry stub, and its production configuration leaves
+`public/runtime-config.json` out of the copied assets: the build ships the declared defaults
+instead, and the builder copies assets only after webpack has emitted.
 
 ## `withMfe()`
 

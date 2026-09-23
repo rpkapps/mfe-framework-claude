@@ -13,7 +13,9 @@ import {
   ANALOG_VITEST_ANGULAR_VERSION,
   ANGULAR_CDK_VERSION,
   ANGULAR_DEVKIT_VERSION,
+  ANGULAR_ESLINT_VERSION,
   ANGULAR_VERSION,
+  ESLINT_VERSION,
   FRAMEWORK_PACKAGE_VERSION,
   JSDOM_VERSION,
   PRIMENG_THEMES_VERSION,
@@ -76,11 +78,17 @@ export function projectDependencies(nxAngularVersion: string): ProjectDependenci
       '@analogjs/vitest-angular': ANALOG_VITEST_ANGULAR_VERSION,
       // What @nx/angular:webpack-browser and :dev-server delegate to.
       '@angular-devkit/build-angular': ANGULAR_DEVKIT_VERSION,
+      '@angular-eslint/eslint-plugin': ANGULAR_ESLINT_VERSION,
+      '@angular-eslint/eslint-plugin-template': ANGULAR_ESLINT_VERSION,
+      '@angular-eslint/template-parser': ANGULAR_ESLINT_VERSION,
       '@angular/compiler': ANGULAR_VERSION,
       '@angular/compiler-cli': ANGULAR_VERSION,
       // withMfe() and the generate executor run at build time.
       '@company/mfe-nx': FRAMEWORK_PACKAGE_VERSION,
+      // The generated eslint.config.ts imports its `angular` subpath.
+      '@company/eslint-plugin-mfe': FRAMEWORK_PACKAGE_VERSION,
       '@nx/angular': nxAngularVersion,
+      eslint: ESLINT_VERSION,
       jsdom: JSDOM_VERSION,
       // The container stylesheet imports Tailwind's theme and utilities from here.
       tailwindcss: TAILWIND_VERSION,

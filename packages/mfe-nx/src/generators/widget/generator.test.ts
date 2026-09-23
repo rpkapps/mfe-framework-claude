@@ -19,6 +19,7 @@ describe('the widget generator', () => {
       'project.json',
       'package.json',
       'webpack.config.ts',
+      'eslint.config.ts',
       'src/index.html',
       'src/styles.css',
       'src/primeng.ts',
@@ -44,6 +45,17 @@ describe('the widget generator', () => {
 
     expect(readTreeFile(tree, 'apps/alert-panel/src/mfe.ts')).not.toContain('routes')
     expect(tree.exists('apps/alert-panel/public/runtime-config.json')).toBe(false)
+  })
+
+  it('lints against the Angular preset, and declares its own src/ as its Widget scope', async () => {
+    await widgetGenerator(tree, { name: 'alert-panel', skipFormat: true })
+
+    const config = readTreeFile(tree, 'apps/alert-panel/eslint.config.ts')
+    expect(config).toContain("import angular from '@company/eslint-plugin-mfe/angular'")
+    expect(config).toContain("widgetScopes: ['src/**']")
+
+    const project = readProjectConfiguration(tree, 'alert-panel')
+    expect(targetOf(project, 'lint').executor).toBe('nx:run-commands')
   })
 
   it('exports the contract separately, with a component whose members match it', async () => {

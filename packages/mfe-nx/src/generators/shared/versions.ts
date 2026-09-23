@@ -51,6 +51,14 @@ export const ANALOG_VITEST_ANGULAR_VERSION = '^2.7.0'
 export const FRAMEWORK_PACKAGE_VERSION = '^0.1.0'
 
 /**
+ * `@company/eslint-plugin-mfe`'s own peer range for these is `>=19 <23`; this pins the exact line
+ * the plugin's tests and this repository's catalog verify against.
+ */
+export const ANGULAR_ESLINT_VERSION = '22.5.0'
+/** Matches this repository's own `catalog:` pin, which `@angular-eslint/*` above accepts (`^9 || ^10`). */
+export const ESLINT_VERSION = '10.10.0'
+
+/**
  * The Nx majors whose `@nx/angular` still builds Angular 19.2: 20.x peers the Angular builder
  * `>=17 <20`, 21.x `>=18 <21`, 22.x `>=19 <22`, and 23.x requires Angular 20.
  */

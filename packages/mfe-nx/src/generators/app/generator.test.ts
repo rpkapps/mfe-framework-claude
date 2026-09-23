@@ -47,6 +47,7 @@ describe('the app generator', () => {
       'package.json',
       'public/runtime-config.json',
       'webpack.config.ts',
+      'eslint.config.ts',
       'src/index.html',
       'src/styles.css',
       'src/primeng.ts',
@@ -71,7 +72,7 @@ describe('the app generator', () => {
     )
   })
 
-  it('writes no Rspack configuration, no application bootstrap and no lint configuration', async () => {
+  it('writes no Rspack configuration and no application bootstrap', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     for (const [path, contents] of readTreeFiles(tree, 'apps/operations')) {
@@ -79,7 +80,26 @@ describe('the app generator', () => {
       expect(contents, path).not.toMatch(/from 'zone\.js'|import 'zone\.js'/)
     }
     expect(tree.exists('apps/operations/src/main.ts')).toBe(false)
-    expect(tree.exists('apps/operations/eslint.config.ts')).toBe(false)
+  })
+
+  it('lints against the Angular preset, and an App declares no Widget scope of its own', async () => {
+    await appGenerator(tree, { name: 'operations', skipFormat: true })
+
+    const config = readTreeFile(tree, 'apps/operations/eslint.config.ts')
+    expect(config).toContain("import angular from '@company/eslint-plugin-mfe/angular'")
+    expect(config).toContain('angular.angular(')
+    expect(config).toContain('widgetScopes: []')
+
+    const pkg = readJson<ProjectManifest>(tree, 'apps/operations/package.json')
+    expect(pkg.devDependencies['@company/eslint-plugin-mfe']).toBeDefined()
+    expect(pkg.devDependencies['eslint']).toBeDefined()
+    expect(pkg.devDependencies['@angular-eslint/eslint-plugin']).toBeDefined()
+    expect(pkg.devDependencies['@angular-eslint/eslint-plugin-template']).toBeDefined()
+    expect(pkg.devDependencies['@angular-eslint/template-parser']).toBeDefined()
+
+    const project = readProjectConfiguration(tree, 'operations')
+    expect(commandOf(project, 'lint')).toBe('eslint .')
+    expect(targetOf(project, 'lint').dependsOn).toContain('generate')
   })
 
   it("creates a definition whose id, routes, root component and PrimeNG providers are the project's own", async () => {

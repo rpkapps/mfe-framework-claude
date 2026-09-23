@@ -96,5 +96,12 @@ export function buildTargets(options: NormalizedSchema): Record<string, TargetCo
         cwd: '{projectRoot}',
       },
     },
+    lint: {
+      executor: 'nx:run-commands',
+      // The generated modules are exactly what `src/**/*.ts` imports through `#mfe/*`, so an
+      // unbuilt `.mfe/` reads as unresolved imports rather than a lint result.
+      dependsOn: ['generate'],
+      options: { command: 'eslint .', cwd: '{projectRoot}' },
+    },
   }
 }
