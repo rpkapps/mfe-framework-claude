@@ -8,7 +8,7 @@ import type { ContainerProfile } from '@company/mfe-build'
 import { ANGULAR_ADAPTER } from './adapter.ts'
 import { readRouteDataCapabilities } from './discovery/capabilities.ts'
 import { ANGULAR_ANCHOR, ANGULAR_FRAMEWORK, ANGULAR_SHARING_POLICY } from './federation/sharing.ts'
-import { globalStylesheetImports } from './generate/styles.ts'
+import { GLOBAL_STYLE_QUERY, globalStylesheetImports } from './generate/styles.ts'
 import { CONTAINER_ROOT_OPTION } from './options.ts'
 
 /** The browser-safe subpath a container's `src/mfe.config.ts` imports `env` from. */
@@ -33,7 +33,11 @@ export function angularProfile(): ContainerProfile {
     sharing: ANGULAR_SHARING_POLICY,
     // Templates are inline in `.ts` or beside it in `.html`; Angular inlines component styles and
     // encapsulates them itself, so they never reach this stylesheet.
-    stylesheet: { sources: '**/*.{ts,html}', imports: globalStylesheetImports },
+    stylesheet: {
+      sources: '**/*.{ts,html}',
+      imports: globalStylesheetImports,
+      query: GLOBAL_STYLE_QUERY,
+    },
     readCapabilities: readRouteDataCapabilities,
     containerRootOption: CONTAINER_ROOT_OPTION,
   }

@@ -30,6 +30,7 @@ import {
   exposeName,
   type GenerateContext,
 } from './generate/modules.ts'
+import { stylesheetPath } from './generate/styles.ts'
 import { resolveOptions, type ContainerOptions, type ResolvedOptions } from './options.ts'
 import type { ContainerProfile } from './profile.ts'
 
@@ -46,6 +47,8 @@ export interface ContainerPlan {
   readonly entryStub: string
   /** `#mfe/*` to the generated module each one resolves to. */
   readonly aliases: Readonly<Record<string, string>>
+  /** The generated stylesheet every exposed entry imports. */
+  readonly stylesheet: string
   /** The `data-mfe-scope` values this container's CSS is scoped to. */
   readonly scopes: readonly string[]
   readonly generated: GeneratedOutput
@@ -162,6 +165,7 @@ function planSources(
     exposes,
     entryStub: containerEntryPath(context),
     aliases,
+    stylesheet: stylesheetPath(context),
     scopes: discovery.definitions.map(definition => definition.id),
     generated,
     diagnostics: [

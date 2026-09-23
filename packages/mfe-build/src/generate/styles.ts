@@ -12,6 +12,12 @@ export function stylesheetPath(context: GenerateContext): string {
   return generatedPath(context.options.generatedDir, 'styles.css')
 }
 
+/** How the generated module `fromFile` imports the stylesheet, query included. */
+export function stylesheetRequest(context: GenerateContext, fromFile: string): string {
+  const query = context.profile.stylesheet.query ?? ''
+  return `${relativeSpecifier(fromFile, stylesheetPath(context))}${query}`
+}
+
 export function stylesheetFile(context: GenerateContext): GeneratedFile {
   const file = stylesheetPath(context)
   const { stylesheet } = context.profile
@@ -50,8 +56,12 @@ export function stylesheetFile(context: GenerateContext): GeneratedFile {
 
 /** TypeScript only has to know the module exists; the bundler injects the stylesheet. */
 export function cssModuleTypes(context: GenerateContext): GeneratedFile {
+  const { query } = context.profile.stylesheet
+  const declarations = ["declare module '*.css'"]
+  if (query !== undefined) declarations.push(`declare module '*${query}'`)
+
   return {
     path: generatedPath(context.options.generatedDir, 'css.d.ts'),
-    contents: joinBlocks([banner(context.profile.generator), "declare module '*.css'"]),
+    contents: joinBlocks([banner(context.profile.generator), declarations.join('\n')]),
   }
 }

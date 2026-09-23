@@ -16,7 +16,7 @@ import {
   relativeSpecifier,
   type GeneratedFile,
 } from './emit.ts'
-import { stylesheetPath } from './styles.ts'
+import { stylesheetRequest } from './styles.ts'
 
 export interface GenerateContext {
   readonly options: ResolvedOptions
@@ -363,7 +363,7 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
       "// The container's own stylesheet: its utilities, scoped to this",
       "// container's mount roots, and none of the page-level declarations the",
       '// shell owns.',
-      `import ${quote(relativeSpecifier(file, stylesheetPath(context)))}`,
+      `import ${quote(stylesheetRequest(context, file))}`,
       ...(context.configSource === undefined
         ? []
         : [

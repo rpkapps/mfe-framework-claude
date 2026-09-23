@@ -207,6 +207,18 @@ describe('the exposed federation entry', () => {
     expect(source.indexOf("import '../styles.css'")).toBeLessThan(source.indexOf('src/mfe.ts'))
   })
 
+  it('imports it with the query the integration names, and declares that request', () => {
+    const profile: ContainerProfile = {
+      ...TEST_PROFILE,
+      stylesheet: { ...TEST_PROFILE.stylesheet, query: '?acmeGlobalStyle' },
+    }
+    const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile })
+
+    expect(fileFor('entries/app.ts')).toContain("import '../styles.css?acmeGlobalStyle'")
+    expect(fileFor('css.d.ts')).toContain("declare module '*?acmeGlobalStyle'")
+    expect(plan.stylesheet).toBe(join(plan.options.generatedDir, 'styles.css'))
+  })
+
   it('re-exports the author definition unchanged by default', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
     const source = fileFor('entries/app.ts')

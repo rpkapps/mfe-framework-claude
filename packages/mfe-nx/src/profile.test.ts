@@ -130,6 +130,13 @@ describe('planning an Angular container', () => {
     )
   })
 
+  it('has every exposed entry import the stylesheet the way Angular compiles a global one', () => {
+    const root = createContainer({ 'src/mfe.ts': APP_ENTRY, 'src/app.routes.ts': APP_ROUTES })
+
+    expect(generatedFile(root, 'entries/app.ts')).toContain("import '../styles.css?ngGlobalStyle'")
+    expect(generatedFile(root, 'css.d.ts')).toContain("declare module '*?ngGlobalStyle'")
+  })
+
   it('imports no global stylesheet when the container has deleted it', () => {
     const root = createContainer({ 'src/mfe.ts': APP_ENTRY, 'src/app.routes.ts': APP_ROUTES })
 

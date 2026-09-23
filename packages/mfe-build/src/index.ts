@@ -72,6 +72,7 @@ export { exportedName } from './generate/modules.ts'
 export type { GenerateContext } from './generate/modules.ts'
 export { seedLocalRuntimeConfig, summarizeGeneration } from './generate/runtime-config.ts'
 export type { GenerationSummary, LocalRuntimeConfig } from './generate/runtime-config.ts'
+export { stylesheetPath } from './generate/styles.ts'
 
 export { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
 export type { FederationOptions } from './federation/federation-options.ts'

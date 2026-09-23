@@ -66,6 +66,11 @@ export interface StylesheetProfile {
   readonly sources: string
   /** Lines added after the Tailwind imports, such as a UI library's scoped entry. */
   readonly imports?: (context: GenerateContext) => readonly string[]
+  /**
+   * Appended to the request every exposed entry imports the stylesheet with, for a bundler whose
+   * stylesheet rules select on a query, such as `?ngGlobalStyle`.
+   */
+  readonly query?: string
 }
 
 export interface ExposedDefinition {
