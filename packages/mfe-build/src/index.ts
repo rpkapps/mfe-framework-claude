@@ -78,12 +78,14 @@ export type { FederationOptions } from './federation/federation-options.ts'
 export { installedVersionFrom } from './federation/installed-version.ts'
 export {
   frameworkShareScope,
+  PAGE_POLICY,
   PAGE_SHARE_SCOPE,
   PAGE_SINGLETON,
   packageOf,
   resolveShared,
   shareScopesOf,
   SINGLETON,
+  withPagePolicy,
 } from './federation/sharing.ts'
 export type { SharedModuleConfig, SharingPolicies, SharingPolicy } from './federation/sharing.ts'
 

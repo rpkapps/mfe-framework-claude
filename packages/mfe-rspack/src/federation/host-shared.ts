@@ -7,6 +7,7 @@ import {
   packageOf,
   resolveFrameworkScope,
   resolveShared,
+  withPagePolicy,
   type SharedModuleConfig,
 } from '@company/mfe-build/federation'
 
@@ -59,7 +60,7 @@ export function hostShared(
   }
 
   return resolveShared({
-    policy: REACT_SHARING_POLICY,
+    policy: withPagePolicy(REACT_SHARING_POLICY),
     dependencies: installed,
     installedVersion,
     frameworkScope: resolveFrameworkScope({
@@ -81,11 +82,7 @@ function hostInstalledVersion(root: string): (name: string) => string | undefine
   const fromHost = installedVersionFrom(root)
   const adapter = adapterDependencies(REACT_ADAPTER, root)
 
-  return name =>
-    fromHost(name) ??
-    (adapter !== undefined && name in adapter.dependencies
-      ? adapter.installedVersion(name)
-      : undefined)
+  return name => fromHost(name) ?? adapter?.installedVersion(name)
 }
 
 // `version-first` re-initialises every registered remote before resolving a share, so one

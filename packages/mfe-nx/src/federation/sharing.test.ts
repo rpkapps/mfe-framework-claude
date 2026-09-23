@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { PAGE_SINGLETON, resolveShared, SINGLETON } from '@company/mfe-build/federation'
+import {
+  PAGE_POLICY,
+  PAGE_SINGLETON,
+  resolveShared,
+  SINGLETON,
+  withPagePolicy,
+} from '@company/mfe-build/federation'
 
 import { planContainer } from '../plan.ts'
 import {
@@ -9,13 +15,7 @@ import {
   createContainer,
   writeFile,
 } from '../testing/containers.ts'
-import {
-  ANGULAR_FRAMEWORK_POLICY,
-  ANGULAR_SHARING_POLICY,
-  assertShareable,
-  NEVER_SHARED,
-  PAGE_POLICY,
-} from './sharing.ts'
+import { ANGULAR_SHARING_POLICY, assertShareable, NEVER_SHARED } from './sharing.ts'
 
 afterEach(cleanupContainers)
 
@@ -48,14 +48,14 @@ describe('the Angular sharing policy', () => {
       'rxjs',
       '@company/mfe-angular',
     ]) {
-      expect(ANGULAR_FRAMEWORK_POLICY[name], name).toEqual(SINGLETON)
+      expect(ANGULAR_SHARING_POLICY[name], name).toEqual(SINGLETON)
     }
   })
 
   it('shares the entry points of Common, the CDK and RxJS through prefix entries', () => {
-    expect(ANGULAR_FRAMEWORK_POLICY['@angular/common/']).toEqual(SINGLETON)
-    expect(ANGULAR_FRAMEWORK_POLICY['@angular/cdk/']).toEqual(SINGLETON)
-    expect(ANGULAR_FRAMEWORK_POLICY['rxjs/']).toEqual(SINGLETON)
+    expect(ANGULAR_SHARING_POLICY['@angular/common/']).toEqual(SINGLETON)
+    expect(ANGULAR_SHARING_POLICY['@angular/cdk/']).toEqual(SINGLETON)
+    expect(ANGULAR_SHARING_POLICY['rxjs/']).toEqual(SINGLETON)
   })
 
   it('keeps the neutral packages as page singletons, apart from the framework group', () => {
@@ -63,8 +63,11 @@ describe('the Angular sharing policy', () => {
       '@company/mfe-core': PAGE_SINGLETON,
       '@company/mfe-runtime': PAGE_SINGLETON,
     })
-    expect(Object.keys(ANGULAR_FRAMEWORK_POLICY)).not.toContain('@company/mfe-core')
-    expect(ANGULAR_SHARING_POLICY).toEqual({ ...ANGULAR_FRAMEWORK_POLICY, ...PAGE_POLICY })
+    expect(Object.keys(ANGULAR_SHARING_POLICY)).not.toContain('@company/mfe-core')
+    expect(withPagePolicy(ANGULAR_SHARING_POLICY)).toEqual({
+      ...ANGULAR_SHARING_POLICY,
+      ...PAGE_POLICY,
+    })
   })
 
   it('never offers PrimeNG or its theme engine as a candidate', () => {

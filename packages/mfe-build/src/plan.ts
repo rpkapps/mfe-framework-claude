@@ -18,6 +18,7 @@ import {
   resolveShared,
   shareScopesOf,
   sortedByName,
+  withPagePolicy,
   type SharedModuleConfig,
 } from './federation/sharing.ts'
 import { generateContainerFiles, type GeneratedOutput } from './generate/index.ts'
@@ -190,9 +191,10 @@ function planShared(
 ): Readonly<Record<string, SharedModuleConfig>> {
   const root = resolved.containerRoot
   const installedVersion = installedVersionFrom(root)
+  const policy = withPagePolicy(profile.sharing)
 
   const own = resolveShared({
-    policy: profile.sharing,
+    policy,
     dependencies: containerDependencies(resolved),
     overrides: resolved.sharedOverrides,
     installedVersion,
@@ -206,7 +208,7 @@ function planShared(
   const carried = adapterCarriedShares({
     adapter: profile.adapterModule,
     containerRoot: root,
-    policy: profile.sharing,
+    policy,
   })
 
   return sortedByName({ ...carried, ...own })

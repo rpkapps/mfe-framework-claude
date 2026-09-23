@@ -1,17 +1,12 @@
 /**
  * What an Angular container shares, and what it never shares, in one place. The framework group
  * goes in a share scope of its own, keyed by the exact `@angular/core` version, apart from the
- * packages every framework on the page agrees on, which stay in `default`.
+ * packages every framework on the page agrees on, which the build adds and keeps in `default`.
  */
 
 import { join } from 'node:path'
 
-import {
-  createBuildError,
-  PAGE_SINGLETON,
-  SINGLETON,
-  type SharingPolicies,
-} from '@company/mfe-build/federation'
+import { createBuildError, SINGLETON, type SharingPolicies } from '@company/mfe-build/federation'
 
 import { ANGULAR_ADAPTER } from '../adapter.ts'
 import { SHARED_OPTION } from '../options.ts'
@@ -28,7 +23,7 @@ export const ANGULAR_ANCHOR = '@angular/core'
  * Angular container on the same Angular version takes one copy, and a version mismatch inside
  * that scope fails loudly at load. A container on another Angular version brings its own set.
  */
-export const ANGULAR_FRAMEWORK_POLICY: SharingPolicies = {
+export const ANGULAR_SHARING_POLICY: SharingPolicies = {
   '@angular/core': SINGLETON,
   '@angular/common': SINGLETON,
   // `packageOf` only strips a trailing slash, so `@angular/common/http` is shared through this
@@ -43,22 +38,6 @@ export const ANGULAR_FRAMEWORK_POLICY: SharingPolicies = {
   rxjs: SINGLETON,
   'rxjs/': SINGLETON,
   [ANGULAR_ADAPTER]: SINGLETON,
-}
-
-/**
- * The neutral packages keep page-wide state — the mount-token sequence, and the `instanceof`
- * checks errors and spans are recognised by — so they are the page's singletons whatever
- * framework a container renders with. A container depends on the adapter alone, never on these,
- * so the build shares them at the versions the adapter it installed declares.
- */
-export const PAGE_POLICY: SharingPolicies = {
-  '@company/mfe-core': PAGE_SINGLETON,
-  '@company/mfe-runtime': PAGE_SINGLETON,
-}
-
-export const ANGULAR_SHARING_POLICY: SharingPolicies = {
-  ...ANGULAR_FRAMEWORK_POLICY,
-  ...PAGE_POLICY,
 }
 
 /**

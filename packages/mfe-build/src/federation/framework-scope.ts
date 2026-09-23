@@ -4,11 +4,10 @@
  * adapter carries in as its own dependencies.
  */
 
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createBuildError } from '../diagnostics.ts'
-import { installedPackageRoot, installedVersionFrom } from './installed-version.ts'
+import { installedPackage, installedVersionFrom } from './installed-version.ts'
 import {
   containerDependencies,
   frameworkShareScope,
@@ -56,24 +55,30 @@ export function pagePolicy(policy: SharingPolicies): SharingPolicies {
 export interface AdapterDependencies {
   /** The adapter's own `dependencies` and `peerDependencies`, merged. */
   readonly dependencies: Readonly<Record<string, string>>
-  /** Versions as the adapter resolves them, which is where its own imports land. */
+  /**
+   * Versions as the adapter resolves them, which is where its own imports land, for the names it
+   * declares; anything else beside it is not what the adapter imports.
+   */
   readonly installedVersion: (name: string) => string | undefined
 }
 
 /**
- * `undefined` when the adapter is not installed: the container's own import of it then fails
- * with the bundler's message, which names the import.
+ * Where a container's or a host's page singletons are read, since neither depends on them itself:
+ * beside the adapter, at the versions it declares. `undefined` when the adapter is not installed:
+ * the container's own import of it then fails with the bundler's message, which names the import.
  */
 export function adapterDependencies(
   adapter: string,
   root: string,
 ): AdapterDependencies | undefined {
-  const adapterRoot = installedPackageRoot(adapter, root)
-  if (adapterRoot === undefined) return undefined
+  const installed = installedPackage(adapter, root)
+  if (installed === undefined) return undefined
 
+  const dependencies = containerDependencies(installed.manifest)
+  const beside = installedVersionFrom(installed.directory)
   return {
-    dependencies: containerDependencies(readAdapterManifest(adapter, adapterRoot)),
-    installedVersion: installedVersionFrom(adapterRoot),
+    dependencies,
+    installedVersion: name => (Object.hasOwn(dependencies, name) ? beside(name) : undefined),
   }
 }
 
@@ -98,26 +103,4 @@ export function adapterCarriedShares(options: {
     // Only page-wide candidates are carried, so none of them goes in a framework scope.
     frameworkScope: PAGE_SHARE_SCOPE,
   })
-}
-
-interface PackageManifest {
-  readonly dependencies?: Readonly<Record<string, string>>
-  readonly peerDependencies?: Readonly<Record<string, string>>
-}
-
-function readAdapterManifest(adapter: string, adapterRoot: string): PackageManifest {
-  const file = join(adapterRoot, 'package.json')
-  try {
-    return JSON.parse(readFileSync(file, 'utf8')) as PackageManifest
-  } catch (cause) {
-    throw createBuildError({
-      file,
-      operation: `read the dependencies of ${adapter}`,
-      expected: 'a readable package manifest',
-      observed: cause instanceof Error ? cause.message : 'an unreadable file',
-      declaredBy: 'The build integration',
-      repair: `Reinstall ${adapter}. The page singletons it depends on are shared at the versions its manifest names.`,
-      cause,
-    })
-  }
 }

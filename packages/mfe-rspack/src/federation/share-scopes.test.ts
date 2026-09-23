@@ -10,7 +10,7 @@
 import { createInstance, type ModuleFederationRuntimePlugin } from '@module-federation/runtime'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { resolveShared, shareScopesOf } from '@company/mfe-build/federation'
+import { resolveShared, shareScopesOf, withPagePolicy } from '@company/mfe-build/federation'
 import { DEFINITION_BRAND } from '@company/mfe-core'
 import { createFederationContainerLoader, parseFederatedEntry } from '@company/mfe-runtime'
 
@@ -97,7 +97,7 @@ function reactContainer(name: string, react: string): ContainerBuild {
     name,
     installed,
     shared: resolveShared({
-      policy: REACT_SHARING_POLICY,
+      policy: withPagePolicy(REACT_SHARING_POLICY),
       dependencies: {
         react: 'catalog:',
         'react-dom': 'catalog:',

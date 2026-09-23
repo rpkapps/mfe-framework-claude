@@ -46,6 +46,25 @@ export const PAGE_SINGLETON: SharingPolicy = {
   frameworkScoped: false,
 }
 
+/**
+ * The page's singletons whatever framework renders: the mount-token sequence, and the `instanceof`
+ * checks errors and spans are recognised by, are module state in these, and neither imports a
+ * framework, so pinning them pins no container's framework.
+ */
+export const PAGE_POLICY: SharingPolicies = {
+  '@company/mfe-core': PAGE_SINGLETON,
+  '@company/mfe-runtime': PAGE_SINGLETON,
+}
+
+/**
+ * An integration's own candidates behind the page singletons, which the build adds itself: an
+ * integration that had to list them could forget, and its containers would each bundle a second
+ * core.
+ */
+export function withPagePolicy(policy: SharingPolicies): SharingPolicies {
+  return { ...PAGE_POLICY, ...policy }
+}
+
 /** The dependency a candidate is satisfied by; a prefix names the package. */
 export function packageOf(candidate: string): string {
   return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate

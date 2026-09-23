@@ -4,10 +4,12 @@ import {
   containerDependencies,
   frameworkShareScope,
   isUsableVersionRange,
+  PAGE_POLICY,
   PAGE_SINGLETON,
   resolveShared as resolveSharedIn,
   shareScopesOf,
   SINGLETON,
+  withPagePolicy,
   type ResolveSharedOptions,
   type SharingPolicies,
 } from './sharing.ts'
@@ -281,6 +283,23 @@ describe('framework share scopes', () => {
       requiredVersion: '^2.0.0',
       shareScope: FRAMEWORK_SCOPE,
     })
+  })
+})
+
+describe('the page singletons', () => {
+  it('are the neutral core and runtime, shared page-wide', () => {
+    expect(PAGE_POLICY).toEqual({
+      '@company/mfe-core': PAGE_SINGLETON,
+      '@company/mfe-runtime': PAGE_SINGLETON,
+    })
+  })
+
+  it("join every integration's own candidates, ahead of them", () => {
+    expect(Object.keys(withPagePolicy(POLICY))).toEqual([
+      '@company/mfe-core',
+      '@company/mfe-runtime',
+      ...Object.keys(POLICY),
+    ])
   })
 })
 

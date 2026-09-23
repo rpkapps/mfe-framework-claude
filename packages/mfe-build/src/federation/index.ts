@@ -20,6 +20,7 @@ export {
   containerDependencies,
   frameworkShareScope,
   isUsableVersionRange,
+  PAGE_POLICY,
   PAGE_SHARE_SCOPE,
   PAGE_SINGLETON,
   packageOf,
@@ -27,6 +28,7 @@ export {
   shareScopesOf,
   SINGLETON,
   sortedByName,
+  withPagePolicy,
 } from './sharing.ts'
 export type {
   ResolveSharedOptions,

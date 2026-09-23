@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveShared, type ResolveSharedOptions } from '@company/mfe-build/federation'
+import {
+  resolveShared,
+  withPagePolicy,
+  type ResolveSharedOptions,
+} from '@company/mfe-build/federation'
 
 import { DEFAULT_SHARED_CANDIDATES, REACT_SHARING_POLICY } from './sharing.ts'
 
 const REACT_SCOPE = 'react@19.3.0'
 
-/** The machinery has its own tests in the build package; these are about what React shares. */
+/**
+ * The machinery has its own tests in the build package; these are about what React shares, with
+ * the page singletons the build adds to every integration's policy.
+ */
 function resolveReactShared(options: Omit<ResolveSharedOptions, 'policy' | 'frameworkScope'>) {
-  return resolveShared({ policy: REACT_SHARING_POLICY, frameworkScope: REACT_SCOPE, ...options })
+  return resolveShared({
+    policy: withPagePolicy(REACT_SHARING_POLICY),
+    frameworkScope: REACT_SCOPE,
+    ...options,
+  })
 }
 
 describe('the React sharing policy', () => {
