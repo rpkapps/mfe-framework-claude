@@ -5,10 +5,16 @@ A micro-frontend framework for a TanStack React shell, with two author models:
 - an **App** is a routable, independently deployable product surface;
 - a **Widget** is a non-routable, independently mountable embedded surface.
 
+Apps and Widgets are written in React, or in zoneless Angular 19 through the
+Angular adapter and its Nx generator, and any host places any of them: every
+definition mounts itself, in a root of its own, through one runtime function,
+`mountDefinition`.
+
 The guiding rule is that every micro-frontend concern is expressed through a
-mechanism TanStack Router already has, or is invisible. An App author should be
-writing a TanStack Router application: deployment, loading, style isolation and
-federation plumbing stay behind the entry and the build integration.
+mechanism the author's router already has, or is invisible. An App author should
+be writing a TanStack Router (or Angular Router) application: deployment,
+loading, style isolation and federation plumbing stay behind the entry and the
+build integration.
 
 **Apps take URLs. Widgets take props.** Anything that cannot be expressed as a
 URL is a Widget, not an App.
@@ -145,6 +151,16 @@ the fallback title and the tone that marks an override stay the host's.
 | to store what the page owns          | `useStoredState` outside a mount, or `bindHost` / `hostStorage`                          |
 | to register the page's own commands  | `useCommand` outside a mount, or `CommandRegistry.registerHost`                          |
 | the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                        |
+
+A React shell boots from `@company/mfe-react/host`, which re-exports the whole
+runtime beside `MfeProvider`, and lists every adapter it reads the registry
+through — `createMfeRuntime({ adapters: [reactAdapter, angularAdapter, legacyAngularAdapter] })`,
+with the two framework adapters from their packages' `/registry` entries,
+which import no framework. None is registered
+implicitly, and a shell never imports `@company/mfe-core` or
+`@company/mfe-runtime` itself; lint rejects both. `AppHost` and `DynamicWidget`
+place Angular definitions exactly as they place React ones, and show a `pending`
+slot instead of suspending.
 
 Chrome rendered above every mount is a first-class caller: `useTheme`,
 `useUser`, `useGroups`, `useBreadcrumbs`, `useCommand` and `useStoredState` all
@@ -299,19 +315,19 @@ Everything above works on Windows. Two things to know:
 
 ## Packages
 
-| Package                       | Responsibility                                                                                                                                                                                                                                                                                              |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@company/mfe-core`           | Neutral contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or federation dependency.                                                                                                                         |
-| `@company/mfe-runtime`        | Neutral orchestration: reading the registry through the adapter interface, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. `MountController`, the neutral mount controller no shipped adapter uses, is here too. No React, router, single-spa or federation dependency. |
-| `@company/mfe-react`          | The React adapter: the author and host surface, the TanStack Router adapter, and the federation loader.                                                                                                                                                                                                     |
-| `@company/mfe-angular`        | The Angular adapter: the author and host surface, zoneless, UI-library agnostic.                                                                                                                                                                                                                            |
-| `@company/mfe-build`          | The neutral build layer shared by every build integration: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing.                                                                                                                                            |
-| `@company/mfe-rspack`         | `pluginMfe()`: the Rspack integration built on `@company/mfe-build`.                                                                                                                                                                                                                                        |
-| `@company/mfe-nx`             | Nx generators that scaffold an Angular container, built on `@company/mfe-build`.                                                                                                                                                                                                                            |
-| `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                                                                                 |
-| `@company/mfe-legacy-angular` | The removable legacy adapter.                                                                                                                                                                                                                                                                               |
-| `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules. Development-only.                                                                                                                                                                                                                                               |
-| `@company/create-mfe`         | `pnpm create @company/mfe <directory>`: the App and Widget starters. Writes files and imports no framework package.                                                                                                                                                                                         |
+| Package                       | Responsibility                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@company/mfe-core`           | Contracts only: identity, lifecycle types, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No state, and no React, Angular, router, single-spa or federation dependency; a lint zone keeps it that way.                                                                                         |
+| `@company/mfe-runtime`        | The runtime every host and definition shares: reading the registry through the adapters a shell lists, the federation loader, `mountDefinition` (the one mount path), deadlines, shell state, validated storage, commands, breadcrumbs, the navigation bridge, auth. No React, Angular, router, single-spa or federation dependency. |
+| `@company/mfe-react`          | The React adapter: the author and host surface, the TanStack Router adapter; `/host` re-exports the runtime with `MfeProvider`, `/registry` is `reactAdapter` alone.                                                                                                                                                                 |
+| `@company/mfe-angular`        | The Angular 19 adapter: the author and host surface, zoneless, UI-library agnostic; `/host` re-exports the runtime with `provideMfeRuntime`, `/registry` is `angularAdapter` alone.                                                                                                                                                  |
+| `@company/mfe-build`          | The neutral build layer shared by every build integration: discovery, generated modules, the container's own scoped stylesheet, asset URLs, federation plumbing and one share scope per framework version.                                                                                                                           |
+| `@company/mfe-rspack`         | `pluginMfe()`: the React containers' Rsbuild integration, built on `@company/mfe-build`, and `hostFederation()` for a React shell.                                                                                                                                                                                                   |
+| `@company/mfe-nx`             | The `app` and `widget` Nx generators, which scaffold an Angular container with PrimeNG, and `withMfe()` on Nx's Angular webpack builder, built on `@company/mfe-build`.                                                                                                                                                              |
+| `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                                                                                                          |
+| `@company/mfe-legacy-angular` | The removable legacy adapter. It reads legacy registry entries; no host mounts a legacy application yet.                                                                                                                                                                                                                             |
+| `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules: a neutral root, `/react` and `/angular`, with each framework's lint plugins as optional peers. Development-only.                                                                                                                                                                         |
+| `@company/create-mfe`         | `pnpm create @company/mfe <directory>`: the App and Widget starters. Writes files and imports no framework package.                                                                                                                                                                                                                  |
 
 The import DAG is enforced mechanically by `pnpm boundaries`, which reads both
 source imports and package manifests, so a forbidden dependency cannot be added
@@ -337,6 +353,11 @@ drawn. `@company/create-mfe` appears in neither direction: it writes files and
 depends on no framework package, and `@company/eslint-plugin-mfe` is
 development-only.
 
+An application — the shell, an example, a generated container — imports only
+its adapter: the root, `/host`, `/testing` or `/registry`. The author presets
+and the `application()` lint preset reject `@company/mfe-core` and
+`@company/mfe-runtime` anywhere else (`docs/decisions.md` §32).
+
 ---
 
 ## What to read next
@@ -349,27 +370,32 @@ development-only.
 - [`apps/shell/README.md`](apps/shell/README.md) — the shell: the widget
   dashboard, the registry view, and what consuming the design system costs.
 - [`packages/eslint-plugin-mfe/README.md`](packages/eslint-plugin-mfe/README.md)
-  — the presets and the four framework-specific rules.
+  — the presets and the five framework-specific rules.
+- [`packages/mfe-angular/README.md`](packages/mfe-angular/README.md) and
+  [`packages/mfe-nx/README.md`](packages/mfe-nx/README.md) — the Angular adapter,
+  and scaffolding and building an Angular container in an Nx workspace.
 
 ### Documentation
 
 The author documentation is a site of its own in [`apps/docs`](apps/docs):
 `pnpm docs:dev` serves it on port 3020 and `pnpm docs:build` builds it. It is a
-start-here page, ten guides — declaring, shape, lifecycle, storage, styling,
-config and data, what the shell gives you, what you must not do, the daily
-workflow, shipping and failures — and a glossary, with
-[`docs/design.md`](docs/design.md) as the map of how the pieces fit. The
+start-here page, one recipe per task, the How it works pages — the mount
+lifecycle, the isolation boundaries, the adapters — and a reference section,
+with pages for the Angular adapter and `@company/mfe-nx` beside the React ones,
+and [`docs/design.md`](docs/design.md) as the map of how the pieces fit. The
 diagrams those pages embed are rendered with `pnpm diagrams:render`.
 
 ---
 
 ## Status
 
-This repository implements the framework contract, the neutral host, the React
-adapter, the build plugin, the lint tooling and the shell, with the example
-micro-frontends that exercise them.
+This repository implements the framework contract, the neutral runtime, the
+React and Angular adapters, the build layer with its Rsbuild and Nx
+integrations, the lint tooling and the shell, with the example micro-frontends
+that exercise them. `tools/interop` mounts React and Angular definitions in each
+other's hosts, and two React versions on one page.
 
-Two scope limits are worth stating plainly rather than discovering later:
+Four scope limits are worth stating plainly rather than discovering later:
 
 1. **Legacy Angular compatibility is proven against contract fixtures, not the
    real applications.** The legacy repositories are not available here. The
@@ -385,3 +411,8 @@ Two scope limits are worth stating plainly rather than discovering later:
    fonts, `@property` registrations and the theme variables — which inherits
    into every container. `docs/decisions.md` §17 records the model and its two
    limits, one of which is the `@scope` support item 2 describes.
+4. **Angular containers are built in a separate Nx workspace, and PrimeNG is
+   not scoped.** This repository is not an Nx workspace, so `@company/mfe-nx` is
+   proven by its own tests, which compile a small container with real webpack.
+   PrimeNG writes unscoped global styles, so every Angular container on a page
+   uses the same PrimeNG version and preset (`docs/decisions.md` §31).
