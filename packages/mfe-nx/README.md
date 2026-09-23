@@ -119,8 +119,9 @@ adds any declared default the file lacks and never changes or removes a value al
 nothing that regenerates `.mfe/` touches it. `withMfe()` adds a middleware to Angular's dev server,
 ahead of the compiled output, that answers `runtime-config.json` beside the container's assets with
 that file, read on every request; so the generated `#mfe/config` fetches the same URL in development
-and in production. No build copies `.mfe/`, so a production build ships only the declared defaults,
-whatever the file holds and whatever it is named.
+and in production. `nx serve -c production` compiles in production mode and serves the declared
+defaults instead, as a build ships them. No build copies `.mfe/`, so a production build ships only
+the declared defaults, whatever the file holds and whatever it is named.
 
 It is the one file in `.mfe/` that is committed: the project's `.gitignore` ignores `.mfe/*` and
 adds `!.mfe/runtime-config.json`, and the `.mfe/.gitignore` the build writes, which takes
