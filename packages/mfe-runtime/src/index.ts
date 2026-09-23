@@ -136,6 +136,9 @@ export {
   type BreadcrumbStoreOptions,
 } from './breadcrumbs/breadcrumb-store.ts'
 
+/** How an adapter labels and marks the crumbs it derives from its router. */
+export { humanizeSegment, withCurrentLast } from './breadcrumbs/breadcrumb-items.ts'
+
 export {
   BoundaryNavigator,
   boundaryDefinitionId,

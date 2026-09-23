@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { BreadcrumbItem } from '@company/mfe-core'
 
+import { humanizeSegment, withCurrentLast } from './breadcrumb-items.ts'
 import { BreadcrumbStore } from './breadcrumb-store.ts'
 import { recordingDiagnostics } from '../__tests__/harness.ts'
 
@@ -315,5 +316,56 @@ describe('removal', () => {
 
     expect(store.contributionCount).toBe(0)
     expect(subscriber).not.toHaveBeenCalled()
+  })
+})
+
+/** What `useBreadcrumbs` and `injectBreadcrumbs` register through, wherever they render. */
+describe('a component’s own contribution', () => {
+  it('outside every mount, publishes the host page’s crumbs ahead of every App’s', () => {
+    const store = new BreadcrumbStore()
+    const app = store.registerMount('reports', 'mount-1', 1)
+    app.update([crumb('reports')])
+
+    const host = store.contribute(null, 'owner-1')
+    host.update([crumb('home')])
+
+    expect(keysOf(store.getSnapshot())).toEqual(['home', 'reports'])
+
+    host.remove()
+    expect(keysOf(store.getSnapshot())).toEqual(['reports'])
+  })
+
+  it('inside a mount, overrides that mount’s portion and treats an empty list as no override', () => {
+    const store = new BreadcrumbStore()
+    const app = store.registerMount('reports', 'mount-1', 1)
+    app.update([crumb('reports')])
+    const flow = store.contribute('mount-1', 'owner-1')
+
+    flow.update([crumb('step-1'), crumb('step-2')])
+    expect(keysOf(store.getSnapshot())).toEqual(['step-1', 'step-2'])
+
+    flow.update([])
+    expect(keysOf(store.getSnapshot())).toEqual(['reports'])
+
+    flow.update([crumb('step-1')])
+    flow.remove()
+    expect(keysOf(store.getSnapshot())).toEqual(['reports'])
+  })
+})
+
+describe('labelling and marking derived crumbs', () => {
+  it('turns a path segment into a label only a person would write', () => {
+    expect(humanizeSegment('asset-reports')).toBe('Asset reports')
+    expect(humanizeSegment('quarterlyTotals')).toBe('Quarterly totals')
+    expect(humanizeSegment('--')).toBe('--')
+  })
+
+  it('marks the deepest item current and freezes the trail', () => {
+    const trail = withCurrentLast([crumb('reports'), crumb('q3')])
+
+    expect(trail.map(item => item.current)).toEqual([undefined, true])
+    expect(Object.isFrozen(trail)).toBe(true)
+    expect(Object.isFrozen(trail[1])).toBe(true)
+    expect(withCurrentLast([])).toEqual([])
   })
 })

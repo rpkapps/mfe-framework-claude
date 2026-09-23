@@ -5,23 +5,13 @@
 
 import { NavigationEnd, type ActivatedRouteSnapshot, type Router } from '@angular/router'
 import type { BreadcrumbItem, Unsubscribe } from '@company/mfe-core'
-import type { MountContext } from '@company/mfe-runtime'
+import { humanizeSegment, withCurrentLast, type MountContext } from '@company/mfe-runtime'
 import { filter } from 'rxjs'
 
 import { MFE_ROUTE_DATA, type MfeRouteData } from './route-data.ts'
 
 /** Parameters whose names carry no meaning worth showing to a user. */
 const GENERIC_PARAM_NAMES = new Set(['id'])
-
-/** `asset-reports` becomes `Asset reports`; a last resort only. */
-function humanize(segment: string): string {
-  const spaced = segment
-    .replace(/[-_]+/g, ' ')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .trim()
-  if (spaced === '') return segment
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
-}
 
 /**
  * Read from the route's own declaration: the router copies a componentless parent's data and title
@@ -50,10 +40,10 @@ function resolveLabel(route: ActivatedRouteSnapshot, path: string): string | nul
     // A generic parameter renders nothing rather than showing a raw id.
     if (name === '' || GENERIC_PARAM_NAMES.has(name)) return null
     const value: unknown = route.params[name]
-    return typeof value === 'string' ? value : humanize(name)
+    return typeof value === 'string' ? value : humanizeSegment(name)
   }
 
-  return humanize(segment)
+  return humanizeSegment(segment)
 }
 
 function joinPath(basePath: string, segments: readonly string[]): string {
@@ -86,10 +76,7 @@ export function breadcrumbsFromSnapshot(
     items.push(Object.freeze({ key: href, label, href }))
   }
 
-  const last = items[items.length - 1]
-  if (last) items[items.length - 1] = Object.freeze({ ...last, current: true })
-
-  return Object.freeze(items)
+  return withCurrentLast(items)
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   breadcrumbTrailEqual,
   createMfeError,
   DEV,
+  HOST_SCOPE,
   type BreadcrumbItem,
   type Unsubscribe,
 } from '@company/mfe-core'
@@ -16,6 +17,9 @@ import type { DiagnosticsHub } from '../diagnostics.ts'
 import { SnapshotSource } from '../observable.ts'
 
 const EMPTY_TRAIL: readonly BreadcrumbItem[] = Object.freeze([])
+
+/** The host composes at 0; a top-level App is 1, one nested inside it 2. */
+const HOST_DEPTH = 0
 
 export interface BreadcrumbContributionHandle {
   update(items: readonly BreadcrumbItem[]): void
@@ -93,6 +97,27 @@ export class BreadcrumbStore {
         active = false
         this.#contributions.delete(mountToken)
         this.#compose()
+      },
+    }
+  }
+
+  /**
+   * What one component contributes, by where it is. Inside a mount its items override only that
+   * mount's own portion of the trail, and an empty list is *no override*, so a flow that is idle
+   * leaves the App's route-derived crumbs in place. Outside every mount (`mountToken` null) they
+   * are the host page's own crumbs, composed first. `ownerToken` tells two components apart, so
+   * a competing override is diagnosed rather than winning by render order.
+   */
+  contribute(mountToken: string | null, ownerToken: string): BreadcrumbContributionHandle {
+    if (mountToken === null) return this.registerMount(HOST_SCOPE, ownerToken, HOST_DEPTH)
+
+    return {
+      update: items => {
+        if (items.length === 0) this.clearOverride(mountToken, ownerToken)
+        else this.setOverride(mountToken, items, ownerToken)
+      },
+      remove: () => {
+        this.clearOverride(mountToken, ownerToken)
       },
     }
   }
