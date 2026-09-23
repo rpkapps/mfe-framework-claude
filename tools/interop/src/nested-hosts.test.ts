@@ -13,60 +13,24 @@ import {
   MfeWidgetComponent,
   type MfeWidgetEvent,
 } from '@company/mfe-angular'
-import { SCOPE_ATTRIBUTE } from '@company/mfe-angular/host'
-import { AppHost, createWidget, useCommand } from '@company/mfe-react'
+import { AppHost } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { createElement as h, useEffect, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { z } from 'zod'
+import { createElement as h } from 'react'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import {
   applicationCensus,
   createPageRuntime,
+  expectedScope,
+  expectReleased,
   overlayRootCount,
   reactHostPage,
+  scopesAround,
 } from './__tests__/harness.ts'
+import { counter, counterContract, counterRoots } from './fixtures/counter.ts'
 
 const applications = applicationCensus()
-
-/** How many React Widget roots are mounted right now, reset before every test. */
-const seen = { liveWidgets: 0 }
-
-beforeEach(() => {
-  seen.liveWidgets = 0
-})
-
-const counterContract = {
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
-}
-
-const counter = createWidget({
-  id: 'counter',
-  version: '2.0.0',
-  ...counterContract,
-  render: function Counter({ inputs, emit }): ReactNode {
-    useCommand({ name: 'reset', label: 'Reset the counter', execute: () => undefined })
-    useEffect(() => {
-      seen.liveWidgets += 1
-      return () => {
-        seen.liveWidgets -= 1
-      }
-    }, [])
-
-    return h(
-      'button',
-      {
-        type: 'button',
-        onClick: () => {
-          emit('bumped', { count: inputs.count + 1 })
-        },
-      },
-      `${inputs.label}: ${String(inputs.count)}`,
-    )
-  },
-})
 
 @Component({
   selector: 'interop-workbench',
@@ -129,9 +93,11 @@ describe('a React Widget inside an Angular App inside a React host', () => {
       depth: 2,
     })
 
-    const button = screen.getByRole('button', { name: 'Nested: 1' })
-    expect(button.closest(`[${SCOPE_ATTRIBUTE}]`)?.getAttribute(SCOPE_ATTRIBUTE)).toBe('counter')
-    expect(button.parentElement?.closest(`[${SCOPE_ATTRIBUTE}="workbench"]`)).not.toBeNull()
+    // The React host is no mount, so the Widget sits in the App's scope and in nothing else.
+    expect(scopesAround(screen.getByRole('button', { name: 'Nested: 1' }))).toEqual([
+      expectedScope('counter', 'widget'),
+      expectedScope('workbench', 'app'),
+    ])
   })
 
   it('delivers the React Widget’s events to the Angular App, and the App’s answer back down', async () => {
@@ -147,7 +113,7 @@ describe('a React Widget inside an Angular App inside a React host', () => {
     const { memory, view } = await renderThreeLevels()
     const { runtime } = memory
     expect(applications.live).toBe(1)
-    expect(seen.liveWidgets).toBe(1)
+    expect(counterRoots.live).toBe(1)
     expect(overlayRootCount()).toBe(2)
     await waitFor(() => {
       expect(runtime.commands.size).toBe(2)
@@ -161,13 +127,8 @@ describe('a React Widget inside an Angular App inside a React host', () => {
       expect(applications.live).toBe(0)
     })
     await waitFor(() => {
-      expect(seen.liveWidgets).toBe(0)
+      expect(counterRoots.live).toBe(0)
     })
-    expect(overlayRootCount()).toBe(0)
-    expect(runtime.commands.size).toBe(0)
-    expect(runtime.navigator.blockerCount).toBe(0)
-    expect(runtime.breadcrumbs.contributionCount).toBe(0)
-    expect(runtime.shellState.fieldListenerCount('theme')).toBe(0)
-    expect(document.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
+    expectReleased(runtime)
   })
 })

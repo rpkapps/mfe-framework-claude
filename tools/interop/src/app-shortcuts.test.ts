@@ -19,7 +19,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { createElement as h, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createPageRuntime, reactHostPage } from './__tests__/harness.ts'
+import { createPageRuntime, expectReleased, reactHostPage } from './__tests__/harness.ts'
 
 /** How many times each App's command ran, reset before every test. */
 const ran = { ledger: 0, insights: 0 }
@@ -140,6 +140,7 @@ describe('shortcuts registered by a React App and an Angular App', () => {
     await waitFor(() => {
       expect(commands.size).toBe(0)
     })
+    expectReleased(memory.runtime)
     memory.navigation.push('/ledger')
     press()
     expect(ran).toEqual({ ledger: 1, insights: 1 })

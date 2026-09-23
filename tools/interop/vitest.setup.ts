@@ -11,9 +11,10 @@
 
 import '@angular/compiler'
 
+import { cleanup as cleanupAngularHosts } from '@company/mfe-angular/testing'
 import * as jestDom from '@testing-library/jest-dom/matchers'
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
-import { cleanup } from '@testing-library/react'
+import { cleanup as cleanupReactTrees } from '@testing-library/react'
 import { afterEach, expect } from 'vitest'
 
 declare module 'vitest' {
@@ -26,8 +27,10 @@ declare module 'vitest' {
 
 expect.extend(jestDom)
 
-// A React tree left rendered would keep every definition mounted inside it — Angular
-// applications included — and their registrations into the next test.
-afterEach(() => {
-  cleanup()
+// A React tree or an Angular host application left rendered would keep every definition mounted
+// inside it, and their registrations, into the next test. This runs before the `onTestFinished`
+// hooks, so each page runtime is disposed only after everything mounted with it is gone.
+afterEach(async () => {
+  cleanupReactTrees()
+  await cleanupAngularHosts()
 })

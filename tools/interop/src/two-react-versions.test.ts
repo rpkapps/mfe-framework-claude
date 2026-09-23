@@ -4,13 +4,12 @@
  * is what a framework share scope per React version allows: a container on another React brings
  * its own React, React DOM, adapter and router, while the page keeps one core and one runtime.
  *
- * The 19.2 container is a real second bundle, built by `__tests__/build-container-b.ts` before any
- * test runs, so its React is a different module from the test's, not a mock of one. Every level
- * mounts the next through the shared runtime's `mountDefinition`, into a root of its own, so no
- * React tree ever renders inside the other React's tree.
+ * The 19.2 container is a real second bundle, which `__tests__/build-container-b.ts` builds before
+ * the tests run whenever its inputs changed, so its React is a different module from the test's,
+ * not a mock of one. Every level mounts the next through the shared runtime's `mountDefinition`,
+ * into a root of its own, so no React tree ever renders inside the other React's tree.
  */
 
-import { OVERLAY_ROOT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-react/host'
 import { AppHost, createApp, createWidget, type MfeRouterContext } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { createRootRouteWithContext, createRoute, createRouter } from '@tanstack/react-router'
@@ -24,9 +23,17 @@ import {
 } from 'react'
 import { version as testReactDomVersion } from 'react-dom'
 import { beforeAll, beforeEach, describe, expect, inject, it } from 'vitest'
-import { z } from 'zod'
 
-import { createPageRuntime, overlayRootCount, reactHostPage } from './__tests__/harness.ts'
+import {
+  createPageRuntime,
+  expectedScope,
+  expectReleased,
+  overlayRootCount,
+  reactHostPage,
+  scopeOf,
+  scopeRootCount,
+} from './__tests__/harness.ts'
+import { counterContract } from './fixtures/counter.ts'
 
 /** The bundle's own exports, typed here because the test imports the built file, not the source. */
 interface ContainerB {
@@ -58,11 +65,11 @@ function useCountedWhileMounted(key: keyof typeof live): void {
   }, [key])
 }
 
+/** The counter's contract, drawn with its React version and a state of its own the test reads. */
 const counter = createWidget({
   id: 'counter',
   version: '2.0.0',
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
+  ...counterContract,
   render: function Counter({ inputs, emit }): ReactNode {
     useCountedWhileMounted('widgets')
     const [presses, setPresses] = useState(0)
@@ -128,14 +135,11 @@ const outerApp = createApp({
  * How long a wait on the 19.2 tree may take. That React renders on its own scheduler, outside the
  * `act` the test's React is flushed by, and its first render is the first time the bundle's React,
  * router and adapter run in the worker; with the rest of the suite running beside it, that can
- * take longer than Testing Library's default second.
+ * take longer than Testing Library's default second. A mount's `whenStable` cannot replace these
+ * waits: it covers what a host last handed the mount, and each wait here is on state a tree set
+ * for itself, on its router's loads, or on a disposal.
  */
 const SECOND_REACT = { timeout: 10_000 }
-
-/** The in-flow roots the runtime appends per mount; an overlay root carries the scope too. */
-function scopeRootCount(): number {
-  return document.querySelectorAll(`[${SCOPE_ATTRIBUTE}]:not([${OVERLAY_ROOT_ATTRIBUTE}])`).length
-}
 
 async function renderThreeLevels() {
   const memory = createPageRuntime({
@@ -177,11 +181,9 @@ describe('two React versions on one page', () => {
     // The 19.2 App's adapter is its own copy, and it reads the boundary the 19.3 App assigned.
     expect(within(inner).getByText('Inner base path /outer/inner')).toBeInTheDocument()
 
-    const scopeOf = (element: HTMLElement) =>
-      element.closest(`[${SCOPE_ATTRIBUTE}]`)?.getAttribute(SCOPE_ATTRIBUTE)
-    expect(scopeOf(outer)).toBe('outer')
-    expect(scopeOf(inner)).toBe('inner-b')
-    expect(scopeOf(widget)).toBe('counter')
+    expect(scopeOf(outer)).toEqual(expectedScope('outer', 'app'))
+    expect(scopeOf(inner)).toEqual(expectedScope('inner-b', 'app'))
+    expect(scopeOf(widget)).toEqual(expectedScope('counter', 'widget'))
     expect(outer.contains(inner)).toBe(true)
     expect(inner.contains(widget)).toBe(true)
   })
@@ -216,8 +218,8 @@ describe('two React versions on one page', () => {
     await within(widget).findByRole('button', { name: 'Counter: 3' }, SECOND_REACT)
   })
 
-  it('leaves no scope root and no overlay root of any level once the host is disposed', async () => {
-    const { view } = await renderThreeLevels()
+  it('leaves nothing of any level behind once the host is disposed', async () => {
+    const { memory, view } = await renderThreeLevels()
     expect(live).toEqual({ outer: 1, widgets: 1 })
     expect(containerB.innerLive.count).toBe(1)
     expect(scopeRootCount()).toBe(3)
@@ -233,6 +235,6 @@ describe('two React versions on one page', () => {
     }, SECOND_REACT)
     expect(live).toEqual({ outer: 0, widgets: 0 })
     expect(containerB.innerLive.count).toBe(0)
-    expect(document.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
+    expectReleased(memory.runtime)
   })
 })

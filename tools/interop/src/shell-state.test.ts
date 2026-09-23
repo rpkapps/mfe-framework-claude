@@ -13,7 +13,7 @@ import { createElement as h, Fragment, useEffect, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createPageRuntime, reactHostPage } from './__tests__/harness.ts'
+import { createPageRuntime, reactHostPage, watchMounts } from './__tests__/harness.ts'
 
 /**
  * How often each consumer did work, reset before every test. The React side counts commits rather
@@ -84,7 +84,10 @@ async function renderBothWidgets() {
 
 describe('shell state on a page with a React and an Angular Widget', () => {
   it('reaches the React hook and the Angular injectable alike when the theme changes', async () => {
+    const badge = watchMounts(reactThemeBadge)
     const memory = await renderBothWidgets()
+    // Every commit of the first render counted, so the one below is the only one added.
+    await badge.whenStable()
     const mounted = seen.reactThemeCommits
 
     act(() => {

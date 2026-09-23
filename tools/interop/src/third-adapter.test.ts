@@ -6,30 +6,21 @@
  * React Widget itself, through `mountDefinition`, the way any host does.
  *
  * Everything the adapter needs comes from the published surfaces: the brand is the registered
- * symbol every adapter stamps, the entry shape is the runtime's `parseFederatedEntry`, and the
- * mount contract is the runtime's. The runtime is reached through an adapter's `/host`, as an
- * application reaches it, so this file imports no package the application preset forbids.
+ * symbol every adapter stamps, the registry adapter is the runtime's `createFederatedAdapter` given
+ * nothing but the adapter's kind and its load hook, and the mount contract is the runtime's. The
+ * runtime is reached through an adapter's `/host`, as an application reaches it, so this file
+ * imports no package the application preset forbids.
  */
 
-import { ChangeDetectionStrategy, Component, signal } from '@angular/core'
-import {
-  MfeAppHostComponent,
-  MfeWidgetComponent,
-  type MfeError,
-  type MfeWidgetEvent,
-} from '@company/mfe-angular'
 import { angularAdapter } from '@company/mfe-angular/registry'
-import { AppHost, createWidget, DynamicWidget, lazyWidget } from '@company/mfe-react'
+import { DynamicWidget, lazyWidget } from '@company/mfe-react'
 import {
+  createFederatedAdapter,
   createFederationContainerLoader,
   createMfeRuntime,
-  KIND_ATTRIBUTE,
   mountDefinition,
-  parseFederatedEntry,
-  SCOPE_ATTRIBUTE,
   type AppMountTarget,
   type CreateMfeRuntimeOptions,
-  type FederatedRegistryEntry,
   type FederationRuntime,
   type MfeRuntime,
   type MountableAppDefinition,
@@ -45,19 +36,23 @@ import {
   renderSuspending,
 } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { createElement as h, useEffect, type ReactNode } from 'react'
+import { createElement as h, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { z } from 'zod'
+import type { z } from 'zod'
 
 import {
-  createAngularHost,
+  appHosts,
+  expectedScope,
+  expectReleased,
   overlayRootCount,
+  placeInAngularHost,
   reactHostPage,
-  renderInAngularHost,
+  scopeOf,
+  scopesAround,
 } from './__tests__/harness.ts'
+import { counter, counterContract, counterRoots } from './fixtures/counter.ts'
 
 type MfeAdapter = CreateMfeRuntimeOptions['adapters'][number]
-type RegistryEntry = Parameters<MfeAdapter['is']>[0]
 
 // ---------------------------------------------------------------------------------------------
 // The third adapter. Nothing below this line until the fixtures is known to any library package.
@@ -73,14 +68,6 @@ const PLAIN_DOM = 'plain-dom'
  */
 type DefinitionBrand = Extract<keyof MountableAppDefinition, symbol>
 const DEFINITION_BRAND: DefinitionBrand = Symbol.for('@company/mfe.definition') as DefinitionBrand
-
-interface PlainDomEntry extends FederatedRegistryEntry {
-  readonly adapter: typeof PLAIN_DOM
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
 
 /**
  * What the adapter's `aroundLoad` saw, reset before every test: the container evaluating right
@@ -100,13 +87,10 @@ function enterLoad(id: string): () => void {
   }
 }
 
-const plainDomAdapter = {
+/** Reads the entries whose `mfe.framework` names this adapter, as every federation adapter does. */
+const plainDomAdapter = createFederatedAdapter({
   kind: PLAIN_DOM,
-  detect: (raw: unknown): boolean =>
-    isRecord(raw) && isRecord(raw['mfe']) && raw['mfe']['framework'] === PLAIN_DOM,
-  parse: (raw: unknown): PlainDomEntry => parseFederatedEntry(raw, PLAIN_DOM),
-  is: (entry: RegistryEntry): entry is PlainDomEntry => entry.adapter === PLAIN_DOM,
-  async aroundLoad<T>(load: () => Promise<T>, entry: RegistryEntry): Promise<T> {
+  async aroundLoad(load, entry) {
     const leave = enterLoad(entry.id)
     try {
       return await load()
@@ -114,7 +98,7 @@ const plainDomAdapter = {
       leave()
     }
   },
-} satisfies MfeAdapter
+}) satisfies MfeAdapter
 
 /** What a plain-DOM Widget's author writes: draw into the element, and redraw or clean up on request. */
 interface PlainDomWidgetView<I> {
@@ -189,26 +173,21 @@ function createPlainDomApp(options: {
 // Fixtures: two plain-DOM definitions and one React Widget, published as three containers.
 // ---------------------------------------------------------------------------------------------
 
-/** What the definitions went through, reset before every test. */
-const seen = { tallyMounts: 0, liveTallies: 0, liveCounters: 0 }
+/** What the plain-DOM Widget went through, reset before every test. */
+const seen = { tallyMounts: 0, liveTallies: 0 }
 
 beforeEach(() => {
   seen.tallyMounts = 0
   seen.liveTallies = 0
-  seen.liveCounters = 0
   loadHook.evaluating = null
   loadHook.wrapped = []
 })
 
-const tallyContract = {
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
-}
-
+/** The plain-DOM Widget has the same contract as the React counter, and draws the same button. */
 const tally = createPlainDomWidget({
   id: 'tally',
   version: '1.0.0',
-  ...tallyContract,
+  ...counterContract,
   mount: (element, first, emit) => {
     seen.tallyMounts += 1
     seen.liveTallies += 1
@@ -230,37 +209,6 @@ const tally = createPlainDomWidget({
         seen.liveTallies -= 1
       },
     }
-  },
-})
-
-const counterContract = {
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
-}
-
-/** A real React Widget, which the plain-DOM App places itself. */
-const counter = createWidget({
-  id: 'counter',
-  version: '2.0.0',
-  ...counterContract,
-  render: function Counter({ inputs, emit }): ReactNode {
-    useEffect(() => {
-      seen.liveCounters += 1
-      return () => {
-        seen.liveCounters -= 1
-      }
-    }, [])
-
-    return h(
-      'button',
-      {
-        type: 'button',
-        onClick: () => {
-          emit('bumped', { count: inputs.count + 1 })
-        },
-      },
-      `${inputs.label}: ${String(inputs.count)}`,
-    )
   },
 })
 
@@ -436,7 +384,7 @@ type TallyProps = {
   readonly onBumped?: (payload: { readonly count: number }) => void
 }
 
-const Tally = lazyWidget('tally', { contract: tallyContract })
+const Tally = lazyWidget('tally', { contract: counterContract })
 
 /** The two ways a React host places a Widget; each has to mount the plain-DOM one. */
 const reactPlacements: readonly (readonly [string, (props: TallyProps) => ReactNode])[] = [
@@ -451,9 +399,7 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
     await renderSuspending(reactHostPage(runtime, place({ label: 'Clicks', count: 1 })))
 
     const button = await screen.findByRole('button', { name: 'Clicks: 1' })
-    const scope = button.closest(`[${SCOPE_ATTRIBUTE}]`)
-    expect(scope?.getAttribute(SCOPE_ATTRIBUTE)).toBe('tally')
-    expect(scope?.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
+    expect(scopeOf(button)).toEqual(expectedScope('tally', 'widget'))
     expect(federation.registered).toEqual([
       {
         name: 'plain_tally',
@@ -485,7 +431,7 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
     expect(seen.tallyMounts).toBe(1)
   })
 
-  it('is disposed with its scope and overlay roots when the React host unmounts it', async () => {
+  it('is disposed with everything it held when the React host unmounts it', async () => {
     const { runtime } = createPage()
     const view = await renderSuspending(
       reactHostPage(runtime, place({ label: 'Clicks', count: 1 })),
@@ -498,39 +444,20 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
     await waitFor(() => {
       expect(seen.liveTallies).toBe(0)
     })
-    expect(overlayRootCount()).toBe(0)
-    expect(document.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
+    expectReleased(runtime)
   })
 })
-
-@Component({
-  selector: 'interop-tally-host',
-  imports: [MfeWidgetComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@if (shown()) {
-    <mfe-widget
-      widgetId="tally"
-      [inputs]="inputs()"
-      (event)="events.push($event)"
-      (failed)="failures.push($event)"
-    />
-  }`,
-})
-class TallyHostComponent {
-  readonly shown = signal(true)
-  readonly inputs = signal<Readonly<Record<string, unknown>>>({ label: 'Clicks', count: 1 })
-  readonly events: MfeWidgetEvent[] = []
-  readonly failures: MfeError[] = []
-}
 
 describe('a plain-DOM Widget placed by Angular’s <mfe-widget>', () => {
   it('mounts, delivers its events to (event), takes changed inputs and is disposed', async () => {
     const { runtime, federation } = createPage()
-    const appRef = await createAngularHost(runtime)
-    const { ref, element } = await renderInAngularHost(appRef, TallyHostComponent)
+    const { ref, element } = await placeInAngularHost(runtime, 'tally', {
+      label: 'Clicks',
+      count: 1,
+    })
 
     const button = await within(element).findByRole('button', { name: 'Clicks: 1' })
-    expect(button.closest(`[${SCOPE_ATTRIBUTE}]`)?.getAttribute(SCOPE_ATTRIBUTE)).toBe('tally')
+    expect(scopeOf(button)).toEqual(expectedScope('tally', 'widget'))
     expect(federation.evaluated).toEqual([
       { id: 'plain_tally/widgets/tally', underHookFor: 'tally' },
     ])
@@ -547,73 +474,27 @@ describe('a plain-DOM Widget placed by Angular’s <mfe-widget>', () => {
     await waitFor(() => {
       expect(seen.liveTallies).toBe(0)
     })
-    expect(element.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
-    expect(overlayRootCount()).toBe(0)
+    expectReleased(runtime)
     expect(ref.instance.failures).toEqual([])
   })
 })
 
-@Component({
-  selector: 'interop-notes-host',
-  imports: [MfeAppHostComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@if (shown()) {
-    <mfe-app-host appId="notes" basePath="/notes" (failed)="failures.push($event)" />
-  }`,
-})
-class NotesHostComponent {
-  readonly shown = signal(true)
-  readonly failures: MfeError[] = []
-}
-
 /**
- * Each framework's App host, placing the plain-DOM App, which places a React Widget in turn: the
+ * Each framework's App host places the plain-DOM App, which places a React Widget in turn: the
  * third adapter's definitions sit between two framework hosts in either direction.
  */
-const appHosts: readonly (readonly [
-  string,
-  (runtime: MfeRuntime) => Promise<{ readonly container: HTMLElement; remove(): void }>,
-])[] = [
-  [
-    'React’s AppHost',
-    async runtime => {
-      const view = await renderSuspending(
-        reactHostPage(runtime, h(AppHost, { appId: 'notes', basePath: '/notes' })),
-      )
-      return {
-        container: view.container,
-        remove: () => {
-          view.unmount()
-        },
-      }
-    },
-  ],
-  [
-    'Angular’s <mfe-app-host>',
-    async runtime => {
-      const appRef = await createAngularHost(runtime)
-      const { ref, element } = await renderInAngularHost(appRef, NotesHostComponent)
-      return {
-        container: element,
-        remove: () => {
-          ref.instance.shown.set(false)
-        },
-      }
-    },
-  ],
-]
+describe.each(appHosts)('a plain-DOM App placed by %s', (_host, host) => {
+  const place = (runtime: MfeRuntime) => host(runtime, 'notes', '/notes')
 
-describe.each(appHosts)('a plain-DOM App placed by %s', (_host, place) => {
   it('mounts at its boundary and follows the page through the runtime’s navigator', async () => {
     const { runtime } = createPage(['/notes/today'])
-    const { container } = await place(runtime)
+    const { container, failures } = await place(runtime)
 
     const heading = await within(container).findByRole('heading', {
       name: 'Notes at /today (depth 1)',
     })
-    const scope = heading.closest(`[${SCOPE_ATTRIBUTE}]`)
-    expect(scope?.getAttribute(SCOPE_ATTRIBUTE)).toBe('notes')
-    expect(scope?.getAttribute(KIND_ATTRIBUTE)).toBe('app')
+    expect(scopeOf(heading)).toEqual(expectedScope('notes', 'app'))
+    expect(failures).toEqual([])
 
     runtime.navigator.push('/notes/yesterday')
     runtime.navigator.push('/notes/tomorrow')
@@ -627,12 +508,11 @@ describe.each(appHosts)('a plain-DOM App placed by %s', (_host, place) => {
     const { container } = await place(runtime)
 
     const button = await within(container).findByRole('button', { name: 'Nested: 1' })
-    const widgetScope = button.closest(`[${SCOPE_ATTRIBUTE}]`)
-    expect(widgetScope?.getAttribute(SCOPE_ATTRIBUTE)).toBe('counter')
-    expect(
-      widgetScope?.parentElement?.closest(`[${SCOPE_ATTRIBUTE}]`)?.getAttribute(SCOPE_ATTRIBUTE),
-    ).toBe('notes')
-    expect(seen.liveCounters).toBe(1)
+    expect(scopesAround(button)).toEqual([
+      expectedScope('counter', 'widget'),
+      expectedScope('notes', 'app'),
+    ])
+    expect(counterRoots.live).toBe(1)
 
     fireEvent.click(button)
 
@@ -655,13 +535,12 @@ describe.each(appHosts)('a plain-DOM App placed by %s', (_host, place) => {
     remove()
 
     await waitFor(() => {
-      expect(seen.liveCounters).toBe(0)
+      expect(counterRoots.live).toBe(0)
     })
     await waitFor(() => {
       expect(overlayRootCount()).toBe(0)
     })
-    expect(container.querySelector(`[${SCOPE_ATTRIBUTE}]`)).toBeNull()
-    expect(runtime.navigator.blockerCount).toBe(0)
+    expectReleased(runtime)
   })
 })
 

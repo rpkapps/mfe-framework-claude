@@ -18,12 +18,7 @@ import {
 } from '@angular/core'
 import { createWidget } from '@company/mfe-angular'
 import { DynamicWidget, lazyWidget, type WidgetFallbackProps } from '@company/mfe-react'
-import {
-  KIND_ATTRIBUTE,
-  MOUNT_ATTRIBUTE,
-  OVERLAY_ROOT_ATTRIBUTE,
-  SCOPE_ATTRIBUTE,
-} from '@company/mfe-react/host'
+import { MOUNT_ATTRIBUTE, OVERLAY_ROOT_ATTRIBUTE } from '@company/mfe-react/host'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { createElement as h, useState, type ReactNode } from 'react'
@@ -33,8 +28,12 @@ import { z } from 'zod'
 import {
   applicationCensus,
   createPageRuntime,
+  expectedScope,
+  expectReleased,
   overlayRootCount,
   reactHostPage,
+  scopeOf,
+  watchMounts,
 } from './__tests__/harness.ts'
 
 const applications = applicationCensus()
@@ -101,6 +100,7 @@ interface AlertPanelProps {
   readonly label: string
   readonly alertId: string
   readonly onAcknowledged?: (payload: { readonly alertId: string }) => void
+  readonly onEvent?: (name: string, payload: unknown) => void
 }
 
 /** The two ways a React host places a Widget; every behaviour below holds for both. */
@@ -117,16 +117,15 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
       reactHostPage(memory.runtime, place({ label: 'Disk full', alertId: 'alert-1' })),
     )
 
-    const label = await screen.findByText('Disk full')
-    const scope = label.closest(`[${SCOPE_ATTRIBUTE}]`)
-    expect(scope?.getAttribute(SCOPE_ATTRIBUTE)).toBe('alert-panel')
-    expect(scope?.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
+    const scope = scopeOf(await screen.findByText('Disk full'))
+    expect(scope).toEqual(expectedScope('alert-panel', 'widget'))
     const overlay = document.querySelector(`[${OVERLAY_ROOT_ATTRIBUTE}]`)
-    expect(overlay?.getAttribute(MOUNT_ATTRIBUTE)).toBe(scope?.getAttribute(MOUNT_ATTRIBUTE))
+    expect(overlay?.getAttribute(MOUNT_ATTRIBUTE)).toBe(scope?.mount)
     expect(applications.live).toBe(1)
   })
 
   it('hands the Angular component an input only when it actually changed', async () => {
+    const mounts = watchMounts(alertPanel)
     const memory = createPageRuntime({ definitions: [alertPanel] })
     const page = (props: AlertPanelProps): ReactNode => reactHostPage(memory.runtime, place(props))
     const view = await renderSuspending(page({ label: 'Disk full', alertId: 'alert-1' }))
@@ -136,33 +135,38 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
     // Equal inputs in a new object, then a new handler: nothing for the Angular component to do.
     view.rerender(page({ label: 'Disk full', alertId: 'alert-1' }))
     view.rerender(page({ label: 'Disk full', alertId: 'alert-1', onAcknowledged: vi.fn() }))
+    // Settled, so a change handed over late would have reached the component by now.
+    await mounts.whenStable()
     expect(seen.changes).toHaveLength(1)
 
     view.rerender(page({ label: 'Disk cleared', alertId: 'alert-1' }))
+    await mounts.whenStable()
 
-    await screen.findByText('Disk cleared')
+    expect(screen.getByText('Disk cleared')).toBeInTheDocument()
     expect(seen.changes).toEqual([['alertId', 'label'], ['label']])
     expect(seen.created).toBe(1)
     expect(applications.live).toBe(1)
   })
 
-  it('delivers an Angular output to the React onX handler, validated', async () => {
+  it('delivers an Angular output to the React onX handler and the onEvent catch-all, validated', async () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })
     const onAcknowledged = vi.fn()
+    const onEvent = vi.fn()
     await renderSuspending(
       reactHostPage(
         memory.runtime,
-        place({ label: 'Disk full', alertId: 'alert-1', onAcknowledged }),
+        place({ label: 'Disk full', alertId: 'alert-1', onAcknowledged, onEvent }),
       ),
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Acknowledge' }))
 
     expect(onAcknowledged.mock.calls).toEqual([[{ alertId: 'alert-1' }]])
+    expect(onEvent.mock.calls).toEqual([['acknowledged', { alertId: 'alert-1' }]])
     expect(memory.diagnostics).toEqual([])
   })
 
-  it('destroys the Angular application and removes the overlay root when it unmounts', async () => {
+  it('destroys the Angular application and releases everything when it unmounts', async () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })
     const view = await renderSuspending(
       reactHostPage(memory.runtime, place({ label: 'Disk full', alertId: 'alert-1' })),
@@ -176,35 +180,12 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
       expect(applications.live).toBe(0)
     })
     expect(seen.destroyed).toBe(1)
-    expect(overlayRootCount()).toBe(0)
     expect(screen.queryByText('Disk full')).not.toBeInTheDocument()
+    expectReleased(memory.runtime)
   })
 })
 
 describe('an Angular Widget’s events in a React host', () => {
-  it('reach the onEvent catch-all beside the onX handler, with the validated payload', async () => {
-    const memory = createPageRuntime({ definitions: [alertPanel] })
-    const onAcknowledged = vi.fn()
-    const onEvent = vi.fn()
-    await renderSuspending(
-      reactHostPage(
-        memory.runtime,
-        h(DynamicWidget, {
-          widgetId: 'alert-panel',
-          label: 'Disk full',
-          alertId: 'a-1',
-          onAcknowledged,
-          onEvent,
-        }),
-      ),
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Acknowledge' }))
-
-    expect(onAcknowledged.mock.calls).toEqual([[{ alertId: 'a-1' }]])
-    expect(onEvent.mock.calls).toEqual([['acknowledged', { alertId: 'a-1' }]])
-  })
-
   /** The mismatch is the consumer's to fix, so it is reported and never thrown at the Widget. */
   it('are reported, not delivered, when the consumer’s own contract rejects them', async () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })
