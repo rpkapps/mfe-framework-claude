@@ -1,0 +1,203 @@
+---
+title: 'The Angular adapter'
+description: 'Declare an Angular 19 App or Widget with @company/mfe-angular, read the shell from inside a mount, host other definitions from Angular, and the limits PrimeNG brings.'
+---
+
+`@company/mfe-angular` is the Angular 19 adapter. An Angular container uses it to declare its App or
+Widget and to read the shell from inside a mount. An Angular host uses it to place other
+definitions, whichever framework built them. Every other page in this site shows the React adapter,
+and the same rules apply here under Angular names.
+
+An Angular container is scaffolded and built by [`@company/mfe-nx`](/docs/reference/mfe-nx), in an
+Nx workspace of its own.
+
+## What you import
+
+| Entry point                     | Holds                                                                             |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| `@company/mfe-angular`          | `createApp`, `createWidget`, `mfeRouteData`, the injectables, the host components |
+| `@company/mfe-angular/host`     | the runtime's whole host surface, plus `provideMfeRuntime`                        |
+| `@company/mfe-angular/registry` | `angularAdapter` alone, with no Angular import                                    |
+| `@company/mfe-angular/testing`  | `mountApp`, `mountWidget` and the runtime's test fakes                            |
+
+An application imports this package and nothing beneath it. Lint rejects `@company/mfe-core` and
+`@company/mfe-runtime` in a container, and names the entry point to use instead.
+
+## Zoneless, and nothing else
+
+Every mount is an Angular application of its own, created with
+`provideExperimentalZonelessChangeDetection()`. No container loads `zone.js`, not even in its
+polyfills. State that renders lives in signals, or is marked with `markForCheck()`. A plain field
+changed from a `setTimeout` does not render.
+
+The Angular lint preset rejects `zone.js`, `NgZone`, `bootstrapApplication`, `createApplication`
+and `platformBrowserDynamic`. The host owns the application, so a container never bootstraps one.
+
+## Declare an App
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-angular'
+
+import { routes } from './app.routes'
+
+export const reportsApp = createApp({ id: 'reports', version: '0.1.0', routes })
+```
+
+```ts title="src/app.routes.ts"
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+
+import { OverviewComponent } from './overview.component'
+import { SettingsComponent } from './settings.component'
+
+export const routes: Routes = [
+  { path: '', component: OverviewComponent },
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    data: mfeRouteData({ capability: 'settings', label: 'Reports settings', icon: 'settings' }),
+  },
+]
+```
+
+Route paths are relative to the boundary the host assigns. The App's router reads and writes the
+host's navigation bridge through `BoundaryLocationStrategy`, and never touches `window.history`.
+The build reads capability routes statically, so write `data: mfeRouteData({ … })` inline, on a
+route object with a literal `path`.
+
+| Option           | What it is                                                            |
+| ---------------- | --------------------------------------------------------------------- |
+| `id`             | The definition id.                                                    |
+| `version`        | Optional. Recorded in diagnostics.                                    |
+| `routes`         | The App's route tree.                                                 |
+| `component`      | Optional. A root of your own, which must render `<router-outlet />`.  |
+| `routerFeatures` | Optional. `withComponentInputBinding()` and the like.                 |
+| `providers`      | Optional. Environment providers, created once per mount.              |
+| `breadcrumbs`    | Optional. `false` stops the App deriving breadcrumbs from its routes. |
+
+Your providers are applied first, so none of them can replace what the mount owns: change
+detection, the error handler, the mount tokens and the router's location.
+
+## Declare a Widget
+
+```ts title="src/mfe.ts"
+import { createWidget } from '@company/mfe-angular'
+import { z } from 'zod'
+
+import { AlertPanelComponent } from './alert-panel.component'
+
+export const alertPanelContract = {
+  inputs: z.object({ label: z.string() }),
+  events: { activated: z.object({ at: z.string() }) },
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '0.1.0',
+  ...alertPanelContract,
+  component: AlertPanelComponent,
+})
+```
+
+The component is the contract. Every input key is a component input, and every event is a
+component output of the same name. The mount checks that before it creates anything, and a mismatch
+rejects the mount with the member to add. Inputs are validated against the schema before the first
+render, and every payload is validated against its event schema before the host sees it.
+
+## Read the shell from inside a mount
+
+Call each function in an injection context, such as a constructor or a field initialiser. Each one
+cleans up with the injector that created it.
+
+| Function                                          | Gives                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                           |
+| `injectStoredState(name, schema, options)`        | `{ value, set, remove }`, stored under the definition's scope      |
+| `injectCommand(registration)`                     | a command in the shell's palette                                   |
+| `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
+| `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
+| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
+| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary, `''` for a Widget, and the imperative storage handle |
+| `injectWidgetEmit()`                              | the Widget's validating emit                                       |
+| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
+
+Inside an App, a route's `canDeactivate` guards also answer a shell navigation that would leave the
+App.
+
+## Host other definitions from Angular
+
+```ts title="src/main.ts"
+import { createMfeRuntime, provideMfeRuntime } from '@company/mfe-angular/host'
+
+bootstrapApplication(ShellComponent, {
+  providers: [provideExperimentalZonelessChangeDetection(), provideMfeRuntime(runtime)],
+})
+```
+
+```html
+<mfe-widget
+  widgetId="alert-panel"
+  [inputs]="{ label: 'Acknowledge' }"
+  [pending]="loading"
+  (event)="onWidgetEvent($event)"
+  (failed)="error = $event"
+/>
+<mfe-app-host appId="reports" basePath="/reports" />
+```
+
+Both components place the definition through the runtime's `mountDefinition`, so they host React
+definitions as readily as Angular ones. Inside a mount, they use the mount's own runtime.
+
+| Member     | What it does                                                         |
+| ---------- | -------------------------------------------------------------------- |
+| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.               |
+| `pending`  | A template shown while the status is `pending`.                      |
+| `(failed)` | Emits the error each time the mount fails, before or after mounting. |
+| `retry()`  | Tries again after a failure. A failed load is loaded afresh.         |
+| `[inputs]` | Reaches the Widget only when it changed.                             |
+
+Inside an App, `mfeAppRoute({ appId, path })` delegates everything below a prefix to another App. A
+routed `<mfe-app-host>` calls `navigator.announce()` after each navigation of the router it sits
+under, so the App below follows the shell.
+
+A shell lists every adapter it reads the registry through, `angularAdapter` from `/registry`
+included. The runtime registers none of its own.
+
+## Use PrimeNG
+
+A container generated by `@company/mfe-nx` brings PrimeNG 19.1.4 with the Aura preset, in its own
+`src/primeng.ts`. The adapter itself names no UI library. Three limits come with PrimeNG.
+
+- **Every Angular container on a page uses the same PrimeNG version and preset.** PrimeNG writes its
+  theme into unscoped style tags in the document head, so two versions or presets restyle each
+  other.
+- **Dialog, ConfirmDialog and Drawer need an explicit `appendTo`.** The generated providers route
+  every other overlay into the mount's overlay root, and these three do not read that setting.
+  Write `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component.
+- **PrimeNG is never shared through federation.** Each container downloads its own copy.
+
+Dark mode follows the shell. The generated providers toggle a class on the mount's scope root and
+overlay root whenever `injectTheme()` changes.
+
+## Test a definition
+
+```ts title="src/alert-panel.spec.ts"
+import { mountWidget } from '@company/mfe-angular/testing'
+
+const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
+widget.element.querySelector('button')?.click()
+expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
+```
+
+`mountWidget` and `mountApp` place the definition through `mountDefinition`, the path every host
+takes. They resolve once the first render has settled. The result holds the scope root as
+`element`, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered `events`
+and the `rejectedInputs`.
+
+## Related
+
+- [`@company/mfe-nx`](/docs/reference/mfe-nx) — scaffold and build an Angular container.
+- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — how an entry reaches this adapter.
+- [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what the runtime does around `mount`.
+- [Lint rules](/docs/reference/lint-rules) — the Angular preset.
+- [Decision log](/docs/how-it-works/decisions) — decision 31, the Angular adapter.

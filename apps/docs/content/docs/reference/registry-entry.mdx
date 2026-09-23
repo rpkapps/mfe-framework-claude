@@ -12,6 +12,8 @@ Your build writes one record per container. A shell turns each definition in it 
   "manifestUrl": "mf-manifest.json",
   "container": "example_alert_panel",
   "contractMajor": 1,
+  "framework": "react",
+  "shareScopes": ["default", "react@19.3.0"],
   "definitions": [
     {
       "id": "alert-panel",
@@ -35,14 +37,16 @@ Your build writes one record per container. A shell turns each definition in it 
 }
 ```
 
-| Field           | Type                  | What it is                                                     |
-| --------------- | --------------------- | -------------------------------------------------------------- |
-| `manifestUrl`   | `string`              | Where the container's `mf-manifest.json` sits, relative to it. |
-| `container`     | `string`              | The Module Federation container name.                          |
-| `contractMajor` | `number`              | The framework contract this build targets. It is `1`.          |
-| `definitions`   | array                 | One record per App or Widget the container exports.            |
-| `entries`       | definition id to path | The generated path each definition is published at.            |
-| `build`         | `{ hash?, time? }`    | Which build this came from. It never gates loading.            |
+| Field           | Type                  | What it is                                                        |
+| --------------- | --------------------- | ----------------------------------------------------------------- |
+| `manifestUrl`   | `string`              | Where the container's `mf-manifest.json` sits, relative to it.    |
+| `container`     | `string`              | The Module Federation container name.                             |
+| `contractMajor` | `number`              | The framework contract this build targets. It is `1`.             |
+| `framework`     | `string`              | The framework the container was built with: `react` or `angular`. |
+| `shareScopes`   | `string[]`            | The share scopes its shared packages live in, `default` first.    |
+| `definitions`   | array                 | One record per App or Widget the container exports.               |
+| `entries`       | definition id to path | The generated path each definition is published at.               |
+| `build`         | `{ hash?, time? }`    | Which build this came from. It never gates loading.               |
 
 Each record in `definitions` holds `id` and `kind`, plus the optional `version`, `capabilities` (Apps), `contract` (Widgets), `title`, `description`, `tags` and `icon`.
 
@@ -52,10 +56,11 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 {
   "id": "alert-panel",
   "kind": "widget",
-  "mfe": { "contractMajor": 1 },
+  "mfe": { "contractMajor": 1, "framework": "react" },
   "manifestUrl": "http://localhost:3003/mf-manifest.json",
   "container": "example_alert_panel",
   "expose": "./widgets/alert-panel",
+  "shareScopes": ["default", "react@19.3.0"],
   "version": "1.4.0",
   "contract": { "events": ["acknowledged", "dismissed"], "inputs": { "type": "object" } },
   "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" },
@@ -66,20 +71,21 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 }
 ```
 
-| Field                                  | Required | What it is                                                                             |
-| -------------------------------------- | -------- | -------------------------------------------------------------------------------------- |
-| `id`                                   | yes      | The definition id, under the usual character rule.                                     |
-| `kind`                                 | yes      | `"app"` or `"widget"`.                                                                 |
-| `mfe`                                  | yes      | `{ "contractMajor": 1 }`. Its presence is what the React adapter recognises.           |
-| `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                           |
-| `container`                            | yes      | The federation container name. The React adapter reads it.                             |
-| `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.      |
-| `version`                              | no       | Recorded in diagnostics.                                                               |
-| `capabilities`                         | no       | App-only. One record per marked route.                                                 |
-| `contract`                             | no       | Widget-only. Declared event names, and the inputs schema when the build could read it. |
-| `build`                                | no       | Repeated from the build's own record onto every entry it produced.                     |
-| `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.          |
-| `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                         |
+| Field                                  | Required | What it is                                                                                            |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `id`                                   | yes      | The definition id, under the usual character rule.                                                    |
+| `kind`                                 | yes      | `"app"` or `"widget"`.                                                                                |
+| `mfe`                                  | yes      | `{ "contractMajor": 1, "framework": "react" }`. The framework picks the adapter that reads the entry. |
+| `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                                          |
+| `container`                            | yes      | The federation container name. The runtime's loader registers the remote under it.                    |
+| `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.                     |
+| `shareScopes`                          | no       | The share scopes the loader registers the remote with. Without it, only `default`.                    |
+| `version`                              | no       | Recorded in diagnostics.                                                                              |
+| `capabilities`                         | no       | App-only. One record per marked route.                                                                |
+| `contract`                             | no       | Widget-only. Declared event names, and the inputs schema when the build could read it.                |
+| `build`                                | no       | Repeated from the build's own record onto every entry it produced.                                    |
+| `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                         |
+| `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                        |
 
 A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`.
 
@@ -88,7 +94,7 @@ A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `hel
 In this repository `tools/dev/build-registry.mjs` does the assembly. It reads what every container published and writes `apps/shell/public/registry.json`. For each definition it:
 
 1. resolves `manifestUrl` against the container's own origin,
-2. copies the `expose` path out of `entries`,
+2. copies the `expose` path out of `entries`, and `framework` and `shareScopes` from the record,
 3. repeats the `build` block onto every entry,
 4. carries `version`, `capabilities`, `contract` and the four presentation fields across,
 5. applies the shell's own presentation last, so a deployment's wording wins.

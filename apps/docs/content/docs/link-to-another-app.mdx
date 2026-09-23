@@ -80,8 +80,8 @@ other MFEs learn about a navigation only by accident.
 <Callout type="error" title="Public API boundary">
 
 ```text
-Public API boundary: @company/mfe-runtime is the shell's loader and registry. An MFE that imports it
-can mount itself outside the host lifecycle and will leak on unmount.
+Public API boundary: @company/mfe-runtime is the shell's loader and registry. An application that
+imports it directly can mount outside the host lifecycle and will leak on unmount.
 ```
 
 **Fix.** Import from `@company/mfe-react` only. The loader and the navigator belong to whoever

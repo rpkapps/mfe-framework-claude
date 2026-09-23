@@ -183,8 +183,9 @@ file and the selector ([add styles beyond utilities](/docs/add-custom-styles)).
 import { useMfeStorage, useStoredState } from '@company/mfe-react'
 ```
 
-Everything an author needs, types included, comes from that one package. Lint blocks the rest, so
-no framework internal reaches your code and pins you to a patch release.
+Everything an author needs, types included, comes from that one package. Tests import its
+`/testing` entry point. Lint blocks the rest, so no framework internal reaches your code and pins
+you to a patch release.
 
 | Blocked import                                  | Why                                                                                                  |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |

@@ -68,16 +68,16 @@ operations failed to attach the access token for https://reports.example.test: e
 
 ## Loading and lifecycle codes
 
-| Code                    | When it happens                                                                           | Fix                                                                                                |
-| ----------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                    | Check that the manifest URL is reachable and serves a valid manifest.                              |
-| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.         | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
-| `load/share-conflict`   | Declared, and never raised on the React path.                                             | A duplicated shared singleton reaches you as a hook reported outside any mount.                    |
-| `load/timeout`          | Declared for a host that loads under a deadline. The React adapter sets none.             | Check the network panel for the request that never settled, then retry.                            |
-| `mount/failure`         | Mounting threw, a hook was called in the wrong place, or a command threw.                 | See the two messages below, or fix what the message names.                                         |
-| `mount/timeout`         | Declared for a host that mounts under a deadline. The React adapter sets none.            | Check the network panel, then retry.                                                               |
-| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal. | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
-| `dispose/timeout`       | Declared for a host that disposes under a deadline. The React adapter sets none.          | Check the diagnostics for the cleanup step that did not finish.                                    |
+| Code                    | When it happens                                                                                           | Fix                                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                                    | Check that the manifest URL is reachable and serves a valid manifest.                              |
+| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                         | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
+| `load/share-conflict`   | Declared, and never raised.                                                                               | A second copy inside one share scope reaches you as a hook reported outside any mount.             |
+| `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                | Check the network panel for the request that never settled, then retry.                            |
+| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or a command threw. | See the two messages below, or fix what the message names.                                         |
+| `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                 | Check what the first render waits on, then retry.                                                  |
+| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                 | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
+| `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                | Check the diagnostics for the cleanup step that did not finish.                                    |
 
 <Callout type="error" title="mount/failure, outside a mount">
 

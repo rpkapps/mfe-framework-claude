@@ -7,12 +7,12 @@ For framework maintainers and shell builders. If you are writing an App or a Wid
 tell you what you need.
 
 Six boundaries separate one mount from the rest of the page: the URL, styles, storage, the network,
-errors and shared singletons. Each one answers the same question in a different medium. What can
+errors and framework share scopes. Each one answers the same question in a different medium. What can
 this container reach, and what can reach it?
 
 <Diagram
   src="/diagrams/isolation-boundaries.svg"
-  alt="One mounted container in the middle, ringed by six boundaries: URL, styles, storage, network, errors and shared singletons."
+  alt="One mounted container in the middle, ringed by six boundaries: URL, styles, storage, network, errors and framework share scopes."
   caption="Six boundaries between one mounted container and the page."
 >
 Seven boxes. **One mount**, holding one token, one base path and one scope root, sits in the middle.
@@ -23,7 +23,7 @@ One dashed arrow points out to each of the six boxes around it.
 - **Storage** — the key `<definitionId>:<name>`, and retention decides who reads it.
 - **Network** — `#mfe/fetch`, and the token reaches declared origins only.
 - **Errors** — one `MfeError` code, into the diagnostics hub.
-- **Shared singletons** — one copy per page, resolved loaded-first.
+- **Framework share scopes** — one copy per framework version, resolved loaded-first.
 
 </Diagram>
 
@@ -38,6 +38,10 @@ The framework builds the boundary history by hand. `createBrowserHistory()` reas
 other's URL. The shell owns `/`, `/$appId` and `/$appId/$`, and nothing else. Decision 1 argues the
 hand-built history.
 
+The shell's own router writes the page's history directly, and the browser reports only `popstate`.
+So after each navigation of its router the shell calls `navigator.announce()`, which tells mounted
+Apps where the page went. It tells them nothing when they already know.
+
 ## Styles
 
 The build wraps every rule in a container's stylesheet in one scope rule,
@@ -45,10 +49,12 @@ The build wraps every rule in a container's stylesheet in one scope rule,
 place of injection order. Two builds that both spell `bg-primary` no longer resolve by whichever
 chunk the browser parsed last.
 
-Three roots carry that attribute. The scope root is a `display: contents` div around the whole tree,
-carrying `data-mfe-scope`, `data-mfe-mount` and `data-mfe-kind`. The generated style root sits
-inside it. The overlay root is appended to `document.body` per mount, with the same scope value, so
-a dialog at body level still matches the start selector.
+The runtime creates two roots per mount, whichever adapter built the definition. The scope root is a
+`display: contents` div around the definition's element, carrying `data-mfe-scope`,
+`data-mfe-mount` and `data-mfe-kind`. The overlay root is appended to `document.body`, with the same
+scope value, so a dialog at body level still matches the start selector. A definition renders
+inside the first, portals into the second, and adds no root of its own. A React container's
+generated style root renders inside the scope root.
 
 Three more things happen to the sheet. Document-global at-rules are hoisted out of the scope
 unchanged. Every `@keyframes` the sheet defines is renamed after the container's ids, and its
@@ -57,6 +63,12 @@ references are rewritten to match. A leading `:root`, `html` or `body` compound 
 
 `@scope` is the narrowest-supported feature the framework requires, at Chrome 118, Firefox 146 and
 iOS Safari 17.4. There is no fallback, and decisions 17 and 5 record why.
+
+An Angular container's global stylesheet is scoped the same way. Its component styles keep
+Angular's own encapsulation. PrimeNG is the exception to all of it. Its theme engine writes unscoped
+style tags into the document head, so every Angular container on a page has to use the same PrimeNG
+version and preset. Its Dialog, ConfirmDialog and Drawer also need `appendTo` set to the mount's
+overlay root, or they render outside the scope.
 
 ## Storage
 
@@ -99,16 +111,27 @@ from a closed union, so adding one is a deliberate contract change.
 Diagnostics fan out to the sinks the shell registered. A sink that throws cannot stop the others,
 and a hub with no sinks discards everything.
 
-## Shared singletons
+## Framework share scopes
 
-The framework packages, the router, Query, React and the design system's own list are shared as
-singletons, each with a strict version requirement. A container shares a candidate only when it
-depends on that package.
+Each framework shares in a Module Federation share scope named after its exact installed version:
+`react@19.3.0`, `angular@19.2.25`. Inside a scope every framework-bound package is one strict
+singleton. For React that is React, `react-dom`, `sonner`, the adapter, the TanStack packages and
+the design system's own list. A container shares a candidate only when it depends on that package.
 
-A second copy of any of them is the failure this boundary exists to prevent. Both copies look
+Containers on the same version therefore download one copy. A container on another version brings
+its own complete set, so several React versions can share one page. `@company/mfe-core` and
+`@company/mfe-runtime` stay page singletons in the `default` scope, whatever framework a container
+uses. A registry entry lists its container's scopes as `shareScopes`, and the loader registers the
+remote with exactly those.
+
+A second copy inside one scope is the failure this boundary exists to prevent. Both copies look
 correct on their own, and every framework hook inside the container then reports being rendered
-outside any mount. A container may add to the candidate list and cannot remove from it. Decision 30
-records how a host resolves those shares.
+outside any mount. A container may add to the candidate list and cannot remove from it.
+
+The scopes have three costs. A container on another React version has its own `sonner`, so its toasts
+never reach the shell's `Toaster`. `strictVersion` still rejects a minor mismatch inside a scope. The
+shell shares only what it installs, so it no longer shares `recharts`. PrimeNG is never shared at
+all. Decision 33 argues the scopes, and decision 30 records how a host resolves them.
 
 ## Related
 
