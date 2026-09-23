@@ -1,6 +1,5 @@
 import { runInInjectionContext } from '@angular/core'
 import type { MfeAdapter } from '@company/mfe-core'
-import * as runtimeSurface from '@company/mfe-runtime'
 import {
   createInProcessLoader,
   createRecordingTelemetryProvider,
@@ -38,16 +37,9 @@ function runtimeOver(adapters: readonly MfeAdapter[]) {
   })
 }
 
+// That this surface is the runtime's own plus `provideMfeRuntime` is checked beside React's, in
+// `tools/interop/src/host-surface-parity.test.ts`.
 describe('@company/mfe-angular/host', () => {
-  it('is the runtime’s own surface, binding for binding, plus provideMfeRuntime', () => {
-    const extra = Object.keys(hostSurface).filter(name => !(name in runtimeSurface))
-
-    expect(extra).toEqual(['provideMfeRuntime'])
-    for (const [name, value] of Object.entries(runtimeSurface)) {
-      expect(hostSurface[name as keyof typeof hostSurface], name).toBe(value)
-    }
-  })
-
   it('reads Angular entries when the shell lists the Angular adapter, and nothing implicitly', () => {
     const withAngular = runtimeOver([angularAdapter])
     const without = runtimeOver([])
