@@ -1,8 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core'
 import { RouterOutlet } from '@angular/router'
 
-import { bindPrimeNgDarkModeToShell } from './primeng'
-
 /** The component each mount of this App renders; the router renders the pages inside it. */
 @Component({
   selector: '<%= id %>-root',
@@ -10,8 +8,4 @@ import { bindPrimeNgDarkModeToShell } from './primeng'
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: '<router-outlet />',
 })
-export class AppComponent {
-  constructor() {
-    bindPrimeNgDarkModeToShell()
-  }
-}
+export class AppComponent {}

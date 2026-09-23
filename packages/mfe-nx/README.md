@@ -61,10 +61,10 @@ apps/my-app/
   src/
     index.html              # required by the Angular builder; a remote is never browsed to
     styles.css              # the container's global stylesheet, compiled and scoped by the build
-    primeng.ts              # providePrimeNgForMfe() and bindPrimeNgDarkModeToShell()
+    primeng.ts              # providePrimeNgForMfe(), dark mode bound in an environment initializer
     mfe.ts                  # createApp({ id, version, routes, component, providers })
     mfe.config.ts           # the config schema, with env from @company/mfe-nx/env
-    app.component.ts        # the root each mount renders: <router-outlet />, PrimeNG dark mode
+    app.component.ts        # the root each mount renders: <router-outlet />
     app.routes.ts           # '' and 'settings' (a capability route, via mfeRouteData)
     overview.component.ts   # p-select and p-button, injectUser()
     overview.component.spec.ts

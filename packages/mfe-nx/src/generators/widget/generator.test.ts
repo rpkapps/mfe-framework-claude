@@ -75,13 +75,15 @@ describe('the widget generator', () => {
     expect(component).toContain('output<{ at: string }>()')
   })
 
-  it('renders a PrimeNG button and binds its dark mode from the component the mount renders', async () => {
+  it('renders a PrimeNG button with no PrimeNG wiring of its own', async () => {
     await widgetGenerator(tree, { name: 'alert-panel', skipFormat: true })
 
     const component = readTreeFile(tree, 'apps/alert-panel/src/alert-panel.component.ts')
     expect(component).toContain("import { Button } from 'primeng/button'")
     expect(component).toContain('<p-button [label]="label()" (onClick)="activate()" />')
-    expect(component).toMatch(/constructor\(\) \{\s+bindPrimeNgDarkModeToShell\(\)\s+\}/)
+    expect(component).not.toContain('bindPrimeNgDarkModeToShell')
+    expect(component).not.toContain("from './primeng'")
+    expect(component).not.toContain('constructor')
 
     const readme = readTreeFile(tree, 'apps/alert-panel/README.md')
     expect(readme).toContain('Dialog, ConfirmDialog and Drawer do not')

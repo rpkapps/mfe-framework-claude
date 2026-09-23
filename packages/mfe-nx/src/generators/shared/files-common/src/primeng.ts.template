@@ -8,11 +8,13 @@
  */
 
 import {
-  ElementRef,
+  DestroyRef,
   effect,
   inject,
+  Injector,
   makeEnvironmentProviders,
   provideAppInitializer,
+  provideEnvironmentInitializer,
   type EnvironmentProviders,
 } from '@angular/core'
 import { provideNoopAnimations } from '@angular/platform-browser/animations'
@@ -27,7 +29,12 @@ import { PrimeNG, providePrimeNG } from 'primeng/config'
  */
 export const PRIMENG_DARK_CLASS = 'mfe-primeng-dark'
 
-/** The environment providers for `createApp` / `createWidget`'s `providers`. */
+/**
+ * The environment providers for `createApp` / `createWidget`'s `providers`. Keeps PrimeNG's dark
+ * mode on the shell's theme for this mount only: `scopeRoot` and `overlayRoot` already exist on
+ * `injectMfeMount()` by the time an environment initializer runs, unlike an app initializer, which
+ * fires before the mount context the definition renders into is ready.
+ */
 export function providePrimeNgForMfe(): EnvironmentProviders {
   return makeEnvironmentProviders([
     // PrimeNG's overlays declare Angular animations, and opening one without any animations
@@ -46,22 +53,23 @@ export function providePrimeNgForMfe(): EnvironmentProviders {
       const config = inject(PrimeNG)
       config.overlayOptions = { ...config.overlayOptions, appendTo: mount.overlayRoot }
     }),
+    provideEnvironmentInitializer(() => {
+      const injector = inject(Injector)
+      const destroyRef = inject(DestroyRef)
+      const mount = injectMfeMount()
+      const theme = injectTheme()
+
+      const binding = effect(
+        () => {
+          const dark = theme() === 'dark'
+          mount.scopeRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
+          mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
+        },
+        { injector },
+      )
+      destroyRef.onDestroy(() => {
+        binding.destroy()
+      })
+    }),
   ])
-}
-
-/**
- * Keeps PrimeNG's dark mode on the shell's theme, for this mount only. Call it once, from the
- * constructor of the component the definition mounts: only that component's `ElementRef` reaches
- * the mount's own root element, which the environment providers above never see.
- */
-export function bindPrimeNgDarkModeToShell(): void {
-  const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement
-  const mount = injectMfeMount()
-  const theme = injectTheme()
-
-  effect(() => {
-    const dark = theme() === 'dark'
-    host.classList.toggle(PRIMENG_DARK_CLASS, dark)
-    mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
-  })
 }

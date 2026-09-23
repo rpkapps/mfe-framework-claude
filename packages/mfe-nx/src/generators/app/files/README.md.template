@@ -39,8 +39,8 @@ PrimeNG is wired in `src/primeng.ts` and given to each mount through `createApp`
   `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component.
 - PrimeNG's theme engine is page-wide, so **every Angular container on a page must use the same
   PrimeNG version and the same preset**. The build never shares PrimeNG between containers.
-- Dark mode follows the shell's theme for this mount only, through `bindPrimeNgDarkModeToShell()`
-  in `src/app.component.ts`.
+- Dark mode follows the shell's theme for this mount only, through an environment initializer
+  inside `providePrimeNgForMfe()` — no wiring needed in `src/app.component.ts`.
 
 ## Connecting to the shell
 

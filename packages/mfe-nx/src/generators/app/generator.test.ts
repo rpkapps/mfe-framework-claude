@@ -120,15 +120,16 @@ describe('the app generator', () => {
     expect(routes).toContain("label: 'operations settings'")
   })
 
-  it('binds PrimeNG dark mode to the shell from the root component the mount renders', async () => {
+  it('renders the root component with no PrimeNG wiring of its own', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const root = readTreeFile(tree, 'apps/operations/src/app.component.ts')
     expect(root).toContain("template: '<router-outlet />'")
-    expect(root).toMatch(/constructor\(\) \{\s+bindPrimeNgDarkModeToShell\(\)\s+\}/)
+    expect(root).not.toContain('primeng')
+    expect(root).not.toContain('constructor')
   })
 
-  it('scaffolds the PrimeNG integration against the mount, zoneless', async () => {
+  it('scaffolds the PrimeNG integration against the mount, zoneless, dark mode bound in an environment initializer', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const primeng = readTreeFile(tree, 'apps/operations/src/primeng.ts')
@@ -136,7 +137,11 @@ describe('the app generator', () => {
     expect(primeng).toContain("import Aura from '@primeng/themes/aura'")
     expect(primeng).toContain('darkModeSelector: `.${PRIMENG_DARK_CLASS}`')
     expect(primeng).toContain('appendTo: mount.overlayRoot')
-    expect(primeng).toContain('export function bindPrimeNgDarkModeToShell(): void')
+    expect(primeng).toContain('provideEnvironmentInitializer(() => {')
+    expect(primeng).toContain('mount.scopeRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)')
+    expect(primeng).toContain('mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)')
+    expect(primeng).toContain('binding.destroy()')
+    expect(primeng).not.toContain('bindPrimeNgDarkModeToShell')
   })
 
   it('gives the overview page a PrimeNG button and select', async () => {
