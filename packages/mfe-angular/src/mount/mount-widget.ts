@@ -117,6 +117,20 @@ export async function mountWidget(
 
   const { ref, subscriptions } = rendered.value
 
+  /**
+   * An Angular host updates from inside its own change detection, where Angular's refreshing flag
+   * is global: `setInput` then marks this application's view dirty without scheduling its refresh,
+   * so the update is rendered here instead of waiting for an unrelated tick. A failure has already
+   * reached the mount's error handler, which reported it, when `detectChanges` rethrows it.
+   */
+  const render = (): void => {
+    try {
+      ref.changeDetectorRef.detectChanges()
+    } catch {
+      // Reported by the mount's ErrorHandler before Angular rethrew it.
+    }
+  }
+
   let checked = target.inputs
   let valid = first.value
   let disposal: Promise<void> | null = null
@@ -166,9 +180,13 @@ export async function mountWidget(
 
       const previous = valid
       valid = next.value
+      let changed = false
       for (const name of new Set([...Object.keys(previous), ...Object.keys(next.value)])) {
-        if (!Object.is(previous[name], next.value[name])) ref.setInput(name, next.value[name])
+        if (Object.is(previous[name], next.value[name])) continue
+        ref.setInput(name, next.value[name])
+        changed = true
       }
+      if (changed) render()
     },
   }
 }

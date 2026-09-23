@@ -22,7 +22,12 @@ import {
   type SimpleChanges,
   type TemplateRef,
 } from '@angular/core'
-import { validateAgainstContract, type MfeError, type WidgetContract } from '@company/mfe-core'
+import {
+  shallowEqual,
+  validateAgainstContract,
+  type MfeError,
+  type WidgetContract,
+} from '@company/mfe-core'
 import type { MountedWidget } from '@company/mfe-host'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
@@ -59,6 +64,8 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   readonly #runtime = injectMfeRuntime('<mfe-widget>')
   readonly #parent = injectOptionalMfeMount()
   readonly #element: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement
+  /** The inputs the mounted Widget was last given. */
+  #delivered: Readonly<Record<string, unknown>> = {}
 
   protected readonly slot = new DefinitionSlot<MountedWidget>(this.#runtime, this.#element, error => {
     this.failed.emit(error)
@@ -70,7 +77,7 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
       this.#start()
       return
     }
-    if (changes['inputs']) this.slot.mounted?.update(this.inputs)
+    if (changes['inputs']) this.#update()
   }
 
   retry(): void {
@@ -82,6 +89,14 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
     this.slot.stop()
   }
 
+  /** An equal input set is not an update, whichever adapter built the Widget. */
+  #update(): void {
+    const mounted = this.slot.mounted
+    if (mounted === null || shallowEqual(this.inputs, this.#delivered)) return
+    this.#delivered = this.inputs
+    mounted.update(this.inputs)
+  }
+
   #start(): void {
     const id = this.widgetId
     this.slot.start({
@@ -89,18 +104,20 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
       kind: 'widget',
       depth: (this.#parent?.depth ?? 0) + 1,
       load: () => loadDefinition(this.#runtime, id, 'widget'),
-      mount: (definition, element, context) =>
-        definition.mount({
+      mount: (definition, element, context) => {
+        this.#delivered = this.inputs
+        return definition.mount({
           element,
           context,
-          inputs: this.inputs,
+          inputs: this.#delivered,
           emit: (name, payload) => {
             this.#deliver(id, name, payload)
           },
-        }),
+        })
+      },
       // Inputs that changed while the Widget was mounting reach it now.
-      mounted: mounted => {
-        mounted.update(this.inputs)
+      mounted: () => {
+        this.#update()
       },
     })
   }
