@@ -22,12 +22,7 @@ export function addContainerPlugin(
     ...config,
     plugins: [
       ...(config.plugins ?? []),
-      // Angular's dev server adds its own `devServer` block; a dev server serves the developer's
-      // `public/` copy, and only a build ships the declared defaults.
-      new MfeWebpackPlugin(
-        { ...options, containerRoot },
-        { emitRuntimeConfig: !('devServer' in config) },
-      ),
+      new MfeWebpackPlugin({ ...options, containerRoot }),
     ],
   }
 }

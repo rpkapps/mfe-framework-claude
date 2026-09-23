@@ -59,7 +59,12 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
 
     applyContainerShape(compiler, plan)
     applyContainerStylesheet(compiler, currentPlan)
-    new ModuleFederationPlugin(buildFederationOptions(plan)).apply(compiler)
+    new ModuleFederationPlugin({
+      ...buildFederationOptions(plan),
+      // Otherwise the federation runtime's entry is written into the working directory's
+      // node_modules as a `.js` file, whose module type that directory's package.json decides.
+      virtualRuntimeEntry: true,
+    }).apply(compiler)
 
     compiler.hooks.beforeCompile.tap(PLUGIN_NAME, () => {
       this.#refresh(containerRoot)
@@ -212,9 +217,11 @@ function emitContainerArtifacts(
 }
 
 /**
- * Angular copies `public/` as assets before this runs, and that copy is the developer's, with
- * values such as a localhost API. A build ships the declared defaults in its place, so no local
- * value is ever deployed.
+ * The copy in `public/` is the developer's, with values such as a localhost API, so a production
+ * compile ships the declared defaults in its place and no local value is ever deployed. Watching,
+ * Angular copies assets during the compilation, before this runs, so that copy is replaced; a
+ * one-off build copies them after webpack, which the generated production configuration's asset
+ * `ignore` covers.
  */
 function shipDefaults(
   compilation: Compilation,
