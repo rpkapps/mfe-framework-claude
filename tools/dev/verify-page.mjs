@@ -104,7 +104,7 @@ const PAGES = [
     nested: [],
     contains: 'Field inspections',
     present: [
-      '[data-mfe-scope="fieldwork"] p-select .p-select',
+      '[data-mfe-scope="fieldwork"] p-select.p-select',
       '[data-mfe-scope="fieldwork"] p-button button.p-button',
     ],
   },
