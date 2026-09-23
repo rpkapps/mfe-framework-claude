@@ -7,7 +7,9 @@
 import { describe, expect, it, afterEach, beforeEach } from 'vitest'
 import { z } from 'zod'
 
-import { DiagnosticsHub, HOST_SCOPE, isMfeError, type Diagnostic } from '@company/mfe-core'
+import { HOST_SCOPE, isMfeError, type Diagnostic } from '@company/mfe-core'
+
+import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'

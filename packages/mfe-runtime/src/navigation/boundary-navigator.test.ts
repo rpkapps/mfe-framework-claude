@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   isMfeError,
-  type DiagnosticsHub,
   type BoundaryLocation,
   type NavigationBridge,
   type NavigationIntent,
   type Unsubscribe,
 } from '@company/mfe-core'
 
+import type { DiagnosticsHub } from '../diagnostics.ts'
 import {
   BoundaryNavigator,
   boundaryDefinitionId,

@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createMfeError,
-  DiagnosticsHub,
   type Diagnostic,
   type MfeAdapter,
   type RegistryEntry,
 } from '@company/mfe-core'
 
+import { DiagnosticsHub } from '../diagnostics.ts'
 import { SharedContainerLoader } from '../loader/container-loader.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
 import { createInProcessLoader } from '../testing/in-process-loader.ts'

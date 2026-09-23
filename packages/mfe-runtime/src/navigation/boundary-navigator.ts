@@ -8,12 +8,13 @@ import {
   createMfeError,
   toMfeError,
   type BoundaryLocation,
-  type DiagnosticsHub,
   type NavigationAction,
   type NavigationBridge,
   type NavigationIntent,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import type { DiagnosticsHub } from '../diagnostics.ts'
 
 /** The MFE owns the decision and whatever UI it shows; the host only asks. */
 export interface NavigationBlocker {

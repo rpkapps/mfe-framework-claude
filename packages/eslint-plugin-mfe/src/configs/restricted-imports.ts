@@ -34,7 +34,7 @@ const neutral = (pkg: string, what: string): string =>
   `Package boundary: ${pkg} is framework-neutral, so it cannot depend on ${what}. Put the code that needs it in @company/mfe-react (React) or @company/mfe-legacy-angular (single-spa), and keep the contract in the neutral package.`
 
 const STATE_MESSAGE =
-  'Package boundary: framework packages do not take a general state-management dependency, because it would be forced on every consumer and duplicated once per MFE. Model framework state with the primitives in @company/mfe-core (`SnapshotSource`, `Subscribable`) instead.'
+  'Package boundary: framework packages do not take a general state-management dependency, because it would be forced on every consumer and duplicated once per MFE. Model framework state with the primitives in @company/mfe-core (`Subscribable`) and @company/mfe-runtime (`SnapshotSource`) instead.'
 
 const TELEMETRY_MESSAGE =
   'Telemetry boundary: the vendor telemetry SDK is shell-owned, and a framework package that imports it pins one version for the whole page. Emit through the neutral telemetry contract in @company/mfe-core (`MfeTelemetry`) and let the shell adapt it to OpenTelemetry or Faro. Type-only imports are restricted too: they still couple this package to the vendor and still leak into its published declarations.'

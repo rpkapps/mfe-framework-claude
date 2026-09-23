@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isMfeError } from './errors.ts'
+import { isMfeError } from '@company/mfe-core'
+
 import { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadline.ts'
 
 const loadContext: DeadlineContext = {

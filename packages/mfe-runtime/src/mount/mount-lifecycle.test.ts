@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createMfeError } from './errors.ts'
-import { MountLifecycle } from './lifecycle.ts'
+import { createMfeError } from '@company/mfe-core'
+
+import { MountLifecycle } from './mount-lifecycle.ts'
 
 function disposalReason() {
   return createMfeError({ code: 'dispose/failure', id: 'operations', operation: 'dispose' })

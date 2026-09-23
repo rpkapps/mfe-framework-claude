@@ -12,11 +12,9 @@ import {
   describeValue,
   HOST_SCOPE,
   isStorageEnvelope,
-  KeyedListeners,
   physicalStorageKey,
   storagePrefix,
   toMfeError,
-  type DiagnosticsHub,
   type Listener,
   type MfeError,
   type MfeStorage,
@@ -30,6 +28,8 @@ import {
 
 import type { z } from 'zod'
 
+import type { DiagnosticsHub } from '../diagnostics.ts'
+import { KeyedListeners } from '../observable.ts'
 import {
   describeIssue,
   readEnvelope,

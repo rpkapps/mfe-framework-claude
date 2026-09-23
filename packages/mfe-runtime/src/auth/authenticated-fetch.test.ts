@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DiagnosticsHub, type Diagnostic } from '@company/mfe-core'
+import type { Diagnostic } from '@company/mfe-core'
 
+import { DiagnosticsHub } from '../diagnostics.ts'
 import {
   createAuthenticatedFetch,
   createAuthTransport,

@@ -46,7 +46,7 @@ export function isValidEventName(name: string): boolean {
 }
 
 /** Built-ins whose instances cannot survive JSON, by the name they report. */
-const UNSERIALIZABLE_CLASSES = new Set(['Date', 'Map', 'Set', 'RegExp', 'Error'])
+const UNSERIALIZABLE_CLASSES: readonly string[] = ['Date', 'Map', 'Set', 'RegExp', 'Error']
 
 /** Prohibiting what JSON cannot carry keeps iframe or worker isolation available later. */
 export function findNonSerializableValue(
@@ -86,7 +86,7 @@ export function findNonSerializableValue(
   if (seen.has(object)) return { path, description: 'a circular reference' }
 
   const className = object.constructor?.name
-  if (className !== undefined && UNSERIALIZABLE_CLASSES.has(className)) {
+  if (className !== undefined && UNSERIALIZABLE_CLASSES.includes(className)) {
     return { path, description: `a ${className}` }
   }
   if (typeof Node !== 'undefined' && object instanceof Node) {

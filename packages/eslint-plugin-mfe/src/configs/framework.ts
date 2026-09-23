@@ -36,6 +36,59 @@ export type FrameworkPresetOptions = PresetOptions
 const SIBLING =
   'Package boundary: the legacy adapter is a sibling of the React adapter, not a consumer of it. Share code through @company/mfe-core.'
 
+const CORE_STATELESS =
+  '@company/mfe-core holds contracts only — types, constants and pure validation. Stateful code (a class other than an Error subclass, module-scope mutable bindings, a timer, or a browser global) belongs in @company/mfe-runtime.'
+
+/**
+ * Guards the split in `docs/decisions.md` §32: the neutral contract package never becomes a
+ * second place state can live. Tests are exempt, because a fixture legitimately builds a `Map`
+ * or reads a stubbed global that production code never would.
+ */
+function coreStatelessZone(files: readonly string[]): Linter.Config {
+  return {
+    name: 'mfe/zone/mfe-core-stateless',
+    files: intersectFiles(files, '**/packages/mfe-core/src/**'),
+    ignores: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', '**/__tests__/**'],
+    plugins: typeScriptPlugins,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':matches(ExportNamedDeclaration, ExportDefaultDeclaration) > ClassDeclaration[superClass.name!=/Error$/]',
+          message: `Exported class: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            ':matches(Program, Program > ExportNamedDeclaration) > VariableDeclaration[kind=/^(let|var)$/]',
+          message: `Top-level mutable binding: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            ':matches(Program, Program > ExportNamedDeclaration) > VariableDeclaration > VariableDeclarator > NewExpression[callee.name=/^(Map|Set|WeakMap)$/]',
+          message: `Top-level mutable collection: ${CORE_STATELESS}`,
+        },
+        {
+          selector:
+            'CallExpression[callee.name=/^(setTimeout|setInterval|queueMicrotask|requestAnimationFrame)$/]',
+          message: `Timer call: ${CORE_STATELESS}`,
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: CORE_STATELESS },
+        { name: 'document', message: CORE_STATELESS },
+        { name: 'localStorage', message: CORE_STATELESS },
+        { name: 'sessionStorage', message: CORE_STATELESS },
+        { name: 'history', message: CORE_STATELESS },
+        { name: 'location', message: CORE_STATELESS },
+        { name: 'fetch', message: CORE_STATELESS },
+        { name: 'navigator', message: CORE_STATELESS },
+      ],
+    },
+  }
+}
+
 /**
  * Each zone mirrors one rule of `tools/boundaries/check-boundaries.mjs`, so a developer meets in
  * the editor the same boundary CI enforces from the manifests.
@@ -165,6 +218,7 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
       },
     },
     ...packageZones(files, extraPaths, extraPatterns),
+    coreStatelessZone(files),
     {
       name: 'mfe/framework/rules',
       files: [...files],

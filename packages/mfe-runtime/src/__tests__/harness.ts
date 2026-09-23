@@ -1,6 +1,8 @@
 /** Fixtures shared by the host tests: diagnostics capture, deferreds, task flush. */
 
-import { DiagnosticsHub, type Diagnostic } from '@company/mfe-core'
+import type { Diagnostic } from '@company/mfe-core'
+
+import { DiagnosticsHub } from '../diagnostics.ts'
 
 export interface RecordedDiagnostics {
   readonly hub: DiagnosticsHub

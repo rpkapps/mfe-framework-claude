@@ -6,17 +6,18 @@
 
 import {
   createMfeError,
-  MountLifecycle,
   toMfeError,
-  withDeadline,
   type AttemptToken,
   type DeadlineConfig,
-  type DiagnosticsHub,
   type MfeError,
   type MountHandle,
   type MountState,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import { withDeadline } from '../deadline.ts'
+import type { DiagnosticsHub } from '../diagnostics.ts'
+import { MountLifecycle } from './mount-lifecycle.ts'
 
 /** `attach` receives whatever `load` resolved; the controller never inspects it. */
 export interface MountOperations<TLoaded> {

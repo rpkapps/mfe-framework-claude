@@ -10,17 +10,18 @@ import {
   commandEntryEqual,
   createMfeError,
   HOST_SCOPE,
-  SnapshotSource,
   toMfeError,
   type CommandEntry,
   type CommandPlacement,
   type CommandRegistration,
   type Decision,
-  type DiagnosticsHub,
   type MfeError,
   type MfeErrorDetails,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import type { DiagnosticsHub } from '../diagnostics.ts'
+import { SnapshotSource } from '../observable.ts'
 
 const DEFAULT_PLACEMENTS: readonly CommandPlacement[] = Object.freeze(['command-palette'])
 const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)

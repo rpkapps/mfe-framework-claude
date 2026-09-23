@@ -5,7 +5,6 @@
  */
 
 import {
-  DiagnosticsHub,
   isMfeError,
   type DiagnosticsSink,
   type MfeAdapter,
@@ -17,6 +16,7 @@ import {
 
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { CommandRegistry, type CommandDenialNotifier } from '../commands/command-registry.ts'
+import { DiagnosticsHub } from '../diagnostics.ts'
 import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
 import {
   BoundaryNavigator,
@@ -24,14 +24,8 @@ import {
 } from '../navigation/boundary-navigator.ts'
 import { findConflictingContainerOverrides, readDevOverrides } from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
-import {
-  requiresSessionRetirement,
-  ShellStateStore,
-} from '../shell-state/shell-state-store.ts'
-import {
-  establishSessionGeneration,
-  mintSessionGeneration,
-} from '../storage/session-generation.ts'
+import { requiresSessionRetirement, ShellStateStore } from '../shell-state/shell-state-store.ts'
+import { establishSessionGeneration, mintSessionGeneration } from '../storage/session-generation.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 
 /** Shared, shell-owned services, one instance per document. */

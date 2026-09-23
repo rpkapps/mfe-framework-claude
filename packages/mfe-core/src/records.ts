@@ -1,7 +1,5 @@
 /** Neutral records the host orchestrates without knowing which adapter produced them. */
 
-import { arrayEqual } from './observable.ts'
-
 /** Only `command-palette` is standardized. */
 export type CommandPlacement = 'command-palette'
 
@@ -133,4 +131,27 @@ export interface NavigationIntent {
   readonly leavesBoundary: boolean
   /** Absent means the host did not say, and a reader should treat it as an ordinary push. */
   readonly action?: NavigationAction
+}
+
+/** Pure equality helpers; every stateful subscription primitive that uses them lives in
+ * `@company/mfe-runtime`. */
+
+export function shallowEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false
+
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  const right = b as Record<string, unknown>
+  for (const key of aKeys) {
+    if (!Object.hasOwn(right, key)) return false
+    if (!Object.is((a as Record<string, unknown>)[key], right[key])) return false
+  }
+  return true
+}
+
+export function arrayEqual<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  return a.every((entry, index) => Object.is(entry, b[index]))
 }

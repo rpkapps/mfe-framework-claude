@@ -34,6 +34,8 @@ export {
   type MountOperations,
 } from './mount/mount-controller.ts'
 
+export { MountLifecycle, type MountLifecycleOptions } from './mount/mount-lifecycle.ts'
+
 export {
   createMountContext,
   createMountToken,
@@ -112,6 +114,10 @@ export * from './storage/index.ts'
 export * from './auth/index.ts'
 export * from './telemetry/index.ts'
 
+export { KeyedListeners, ListenerSet, SnapshotSource } from './observable.ts'
+
+export { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadline.ts'
+
 // The provider contract a shell implements is defined in mfe-core, but a shell depends on
 // this package rather than on core, so naming it has to be possible from here.
 export type {
@@ -128,14 +134,12 @@ export type {
 } from '@company/mfe-core'
 
 /**
- * Re-exported for the same reason: a shell constructs the hub itself, because
- * `installShellAuth` runs before `createMfeRuntime` exists to make one (§25).
+ * A shell constructs the hub itself, because `installShellAuth` runs before `createMfeRuntime`
+ * exists to make one (§25).
  */
-export {
-  DiagnosticsHub,
-  type Diagnostic,
-  type DiagnosticSeverity,
-  type DiagnosticsSink,
-} from '@company/mfe-core'
+export { DiagnosticsHub } from './diagnostics.ts'
+
+/** The sink and event shapes are defined in `@company/mfe-core`, which holds no fan-out itself. */
+export type { Diagnostic, DiagnosticSeverity, DiagnosticsSink } from '@company/mfe-core'
 
 export { capabilityRoute } from './registry/capability-route.ts'

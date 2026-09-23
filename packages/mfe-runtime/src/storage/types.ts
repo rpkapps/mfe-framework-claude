@@ -3,13 +3,14 @@
 import type { z } from 'zod'
 
 import type {
-  DiagnosticsHub,
   Listener,
   StorageArea,
   StorageRetention,
   StorageSnapshot,
   Unsubscribe,
 } from '@company/mfe-core'
+
+import type { DiagnosticsHub } from '../diagnostics.ts'
 
 /** `clear()` is deliberately absent: the framework only ever removes its own `<id>:` prefix. */
 export interface StorageAreaLike {

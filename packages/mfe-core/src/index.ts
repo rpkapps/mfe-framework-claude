@@ -15,24 +15,9 @@ export {
   type MfeErrorDirection,
 } from './errors.ts'
 
-export {
-  arrayEqual,
-  KeyedListeners,
-  ListenerSet,
-  shallowEqual,
-  SnapshotSource,
-  type Listener,
-  type Subscribable,
-  type Unsubscribe,
-} from './observable.ts'
+export { type Listener, type Subscribable, type Unsubscribe } from './observable.ts'
 
-export {
-  MountLifecycle,
-  type AttemptToken,
-  type MountHandle,
-  type MountLifecycleOptions,
-  type MountState,
-} from './lifecycle.ts'
+export { type AttemptToken, type MountHandle, type MountState } from './lifecycle.ts'
 
 export {
   CAPABILITY_NAMES,
@@ -125,18 +110,15 @@ export {
   type RejectedRegistryEntry,
 } from './registry.ts'
 
-export {
-  DEFAULT_DEADLINES,
-  withDeadline,
-  type DeadlineConfig,
-  type DeadlineContext,
-} from './deadline.ts'
+export { type DeadlineConfig } from './deadline.ts'
 
 export {
   allow,
+  arrayEqual,
   breadcrumbTrailEqual,
   commandEntryEqual,
   deny,
+  shallowEqual,
   type BoundaryLocation,
   type BreadcrumbItem,
   type CommandEntry,
@@ -152,12 +134,7 @@ export {
   type ShellUser,
 } from './records.ts'
 
-export {
-  DiagnosticsHub,
-  type Diagnostic,
-  type DiagnosticSeverity,
-  type DiagnosticsSink,
-} from './diagnostics.ts'
+export { type Diagnostic, type DiagnosticSeverity, type DiagnosticsSink } from './diagnostics.ts'
 
 /** In a module of its own rather than beside either surface, because it belongs to both. */
 export { HOST_SCOPE } from './scope.ts'

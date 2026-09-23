@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { DiagnosticsHub } from '@company/mfe-core'
+import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { establishSessionGeneration, SESSION_GENERATION_KEY } from './session-generation.ts'

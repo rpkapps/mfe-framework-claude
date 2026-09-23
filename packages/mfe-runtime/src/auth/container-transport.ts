@@ -4,8 +4,9 @@
  * because a per-mount token source would be the bug (§10).
  */
 
-import { createMfeError, type DiagnosticsHub } from '@company/mfe-core'
+import { createMfeError } from '@company/mfe-core'
 
+import type { DiagnosticsHub } from '../diagnostics.ts'
 import {
   createAuthTransport,
   type AccessTokenSource,

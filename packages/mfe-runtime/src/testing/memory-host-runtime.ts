@@ -5,15 +5,11 @@
  * adapter's own test environment adds only what renders.
  */
 
-import {
-  DiagnosticsHub,
-  type BrandedDefinition,
-  type Diagnostic,
-  type RegistryEntry,
-} from '@company/mfe-core'
+import type { BrandedDefinition, Diagnostic, RegistryEntry } from '@company/mfe-core'
 
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { CommandRegistry } from '../commands/command-registry.ts'
+import { DiagnosticsHub } from '../diagnostics.ts'
 import { SharedContainerLoader, type LoadedDefinition } from '../loader/container-loader.ts'
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'

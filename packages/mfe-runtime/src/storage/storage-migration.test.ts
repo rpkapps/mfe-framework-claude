@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { DiagnosticsHub, type Diagnostic, type StorageEnvelope } from '@company/mfe-core'
+import type { Diagnostic, StorageEnvelope } from '@company/mfe-core'
+
+import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'

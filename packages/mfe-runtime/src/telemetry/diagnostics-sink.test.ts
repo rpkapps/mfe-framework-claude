@@ -4,8 +4,9 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { createMfeError, DiagnosticsHub, HOST_SCOPE } from '@company/mfe-core'
+import { createMfeError, HOST_SCOPE } from '@company/mfe-core'
 
+import { DiagnosticsHub } from '../diagnostics.ts'
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { telemetryDiagnosticsSink } from './diagnostics-sink.ts'
 

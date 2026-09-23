@@ -8,11 +8,12 @@ import {
   breadcrumbTrailEqual,
   createMfeError,
   DEV,
-  SnapshotSource,
   type BreadcrumbItem,
-  type DiagnosticsHub,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import type { DiagnosticsHub } from '../diagnostics.ts'
+import { SnapshotSource } from '../observable.ts'
 
 const EMPTY_TRAIL: readonly BreadcrumbItem[] = Object.freeze([])
 

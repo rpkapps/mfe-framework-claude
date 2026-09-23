@@ -7,8 +7,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactNode } from 'react'
-import { createMfeError, DiagnosticsHub, HOST_SCOPE, type Diagnostic } from '@company/mfe-core'
-import { createNoopTelemetryProvider, type MfeStorageStore } from '@company/mfe-runtime'
+import { createMfeError, HOST_SCOPE, type Diagnostic } from '@company/mfe-core'
+import {
+  createNoopTelemetryProvider,
+  DiagnosticsHub,
+  type MfeStorageStore,
+} from '@company/mfe-runtime'
 import { createInProcessLoader } from '@company/mfe-runtime/testing'
 import { z } from 'zod'
 

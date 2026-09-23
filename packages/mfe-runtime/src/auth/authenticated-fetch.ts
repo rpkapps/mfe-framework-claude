@@ -5,8 +5,8 @@
  */
 
 import { createMfeError, DEV } from '@company/mfe-core'
-import type { DiagnosticsHub } from '@company/mfe-core'
 
+import type { DiagnosticsHub } from '../diagnostics.ts'
 import { normalizeAllowedOrigins } from './origins.ts'
 import type { AccessTokenOptions, GetAccessToken } from './session.ts'
 

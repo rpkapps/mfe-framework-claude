@@ -7,7 +7,6 @@
 
 import {
   arrayEqual,
-  KeyedListeners,
   shallowEqual,
   type ShellState,
   type ShellTheme,
@@ -15,6 +14,8 @@ import {
   type ShellUser,
   type Unsubscribe,
 } from '@company/mfe-core'
+
+import { KeyedListeners } from '../observable.ts'
 
 export type ShellStateField = keyof ShellState
 
