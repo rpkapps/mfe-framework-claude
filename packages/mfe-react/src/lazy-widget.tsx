@@ -1,17 +1,15 @@
 /**
- * Consuming a Widget as an ordinary lazy component; `lazyWidget` is called at module scope
- * because a component created during render remounts the Widget on every parent render (§15).
+ * Consuming a Widget as an ordinary component; `lazyWidget` is called at module scope because a
+ * component created during render remounts the Widget on every parent render (§15). The Widget
+ * mounts itself into an element this renders, whichever framework built it.
  */
 
 import type { ContractEvents, ContractInputs, MfeError, WidgetContract } from '@company/mfe-core'
-import { Suspense, use, useCallback, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
-import { createMount, useOwnedMount } from './create-runtime.ts'
-import { isReactDefinition } from './definition.ts'
-import { ForeignWidgetMount } from './foreign-mount.tsx'
-import { forgetDefinition, loadDefinition, RetryBoundary } from './remote-definition.tsx'
-import { useMfeRuntime } from './runtime-context.tsx'
-import { declaredEventNames, partitionWidgetProps, WidgetMount } from './widget-mount.tsx'
+import { DefinitionSlot } from './definition-slot.tsx'
+import { useDefinitionMount } from './use-definition-mount.ts'
+import { deliverWidgetEvent, widgetInputs } from './widget-props.ts'
 
 /** What the `fallback` slot receives, the one documented inline failure seam. */
 export interface WidgetFallbackProps {
@@ -56,7 +54,7 @@ export function lazyWidget(
   const { contract } = options
 
   function LazyWidget(props: Record<string, unknown>): ReactNode {
-    return <WidgetBoundary widgetId={widgetId} contract={contract} props={props} />
+    return <WidgetSlot widgetId={widgetId} contract={contract} props={props} />
   }
 
   LazyWidget.displayName = `LazyWidget(${widgetId})`
@@ -78,11 +76,11 @@ export interface DynamicWidgetProps extends LazyWidgetProps<undefined> {
 }
 
 export function DynamicWidget({ widgetId, ...props }: DynamicWidgetProps): ReactNode {
-  return <WidgetBoundary key={widgetId} widgetId={widgetId} contract={undefined} props={props} />
+  return <WidgetSlot key={widgetId} widgetId={widgetId} contract={undefined} props={props} />
 }
 
 /** Module scope rather than a closure per call, so no component is created during render. */
-function WidgetBoundary({
+function WidgetSlot({
   widgetId,
   contract,
   props,
@@ -91,86 +89,26 @@ function WidgetBoundary({
   readonly contract: WidgetContract | undefined
   readonly props: Record<string, unknown>
 }): ReactNode {
-  const fallback = props['fallback'] as ((props: WidgetFallbackProps) => ReactNode) | undefined
-  const pending = props['pending'] as ReactNode
-  const runtime = useMfeRuntime(`the "${widgetId}" Widget`)
-  const [attempt, setAttempt] = useState(0)
-  const retry = useCallback(() => {
-    forgetDefinition(runtime, widgetId)
-    setAttempt(current => current + 1)
-  }, [runtime, widgetId])
-
-  // Without a boundary here, one Widget's load would suspend the whole consuming page.
-  const body = (
-    <Suspense fallback={pending}>
-      <WidgetLoader key={attempt} widgetId={widgetId} contract={contract} props={props} />
-    </Suspense>
+  const { element, state, retry } = useDefinitionMount(
+    {
+      kind: 'widget',
+      definitionId: widgetId,
+      inputs: widgetInputs(props),
+      onEvent: (event, payload) => {
+        deliverWidgetEvent(props, event, payload)
+      },
+      consumerEvents: contract?.events,
+    },
+    `the "${widgetId}" Widget`,
   )
-
-  return fallback ? (
-    <RetryBoundary
-      fallback={fallback}
-      retry={retry}
-      resetKey={attempt}
-      id="<widget>"
-      operation="mount Widget"
-    >
-      {body}
-    </RetryBoundary>
-  ) : (
-    body
-  )
-}
-
-function WidgetLoader({
-  widgetId,
-  contract,
-  props,
-}: {
-  readonly widgetId: string
-  readonly contract: WidgetContract | undefined
-  readonly props: Record<string, unknown>
-}): ReactNode {
-  const runtime = useMfeRuntime(`the "${widgetId}" Widget`)
-  const definition = use(loadDefinition(runtime, widgetId, 'widget'))
-
-  const mount = useOwnedMount(
-    () =>
-      createMount({
-        runtime,
-        definitionId: definition.id,
-        ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
-        kind: 'widget',
-      }),
-    [runtime, definition],
-  )
-
-  // Event names come from the provider's own contract, so a consumer without one still works.
-  const { inputs, handlers } = partitionWidgetProps(props, declaredEventNames(definition.contract))
-
-  // The one render before the effect has built the mount.
-  if (mount === null) return null
-
-  // Another framework's Widget cannot join this tree, so it mounts itself inside it instead.
-  if (!isReactDefinition(definition)) {
-    return (
-      <ForeignWidgetMount
-        definition={definition}
-        mount={mount}
-        inputs={inputs}
-        handlers={handlers}
-        consumerEvents={contract?.events}
-      />
-    )
-  }
 
   return (
-    <WidgetMount
-      definition={definition}
-      mount={mount}
-      inputs={inputs}
-      handlers={handlers}
-      consumerEvents={contract?.events}
+    <DefinitionSlot
+      element={element}
+      state={state}
+      retry={retry}
+      pending={props['pending'] as ReactNode}
+      fallback={props['fallback'] as ((props: WidgetFallbackProps) => ReactNode) | undefined}
     />
   )
 }

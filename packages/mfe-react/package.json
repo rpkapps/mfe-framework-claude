@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-react",
   "version": "0.1.0",
-  "description": "React author and host surface for the MFE framework: createApp, createWidget, lazyWidget, mfeRoute, AppHost, shell-state and service hooks, scope and portal roots, and the style root a container's build attaches to its definition.",
+  "description": "React author and host surface for the MFE framework: createApp, createWidget, lazyWidget, mfeRoute, AppHost and DynamicWidget over the runtime's mountDefinition, shell-state and service hooks, and the style root a container's build attaches to its definition; /host re-exports the runtime for a React shell, /registry is the adapter alone.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -9,6 +9,14 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./host": {
+      "types": "./src/host/index.ts",
+      "default": "./src/host/index.ts"
+    },
+    "./registry": {
+      "types": "./src/registry/index.ts",
+      "default": "./src/registry/index.ts"
     },
     "./testing": {
       "types": "./src/testing/index.tsx",
@@ -37,20 +45,13 @@
     "@company/mfe-runtime": "workspace:*"
   },
   "peerDependencies": {
-    "@module-federation/runtime": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "zod": "catalog:"
   },
-  "peerDependenciesMeta": {
-    "@module-federation/runtime": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@module-federation/runtime": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@testing-library/dom": "catalog:",

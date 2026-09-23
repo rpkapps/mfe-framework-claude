@@ -5,21 +5,11 @@
  */
 
 import { RouterProvider, type AnyRouter } from '@tanstack/react-router'
-import { QueryClientProvider } from '@tanstack/react-query'
-import {
-  createMfeError,
-  createMfeErrorFactory,
-  DEV,
-  type BreadcrumbItem,
-  type NavigationBridge,
-} from '@company/mfe-core'
+import { createMfeError, createMfeErrorFactory, DEV, type BreadcrumbItem } from '@company/mfe-core'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { breadcrumbsFromMatches, type BreadcrumbMatch } from './breadcrumbs-from-matches.ts'
 import { createBoundaryHistory } from './boundary-history.ts'
-import { MfeMountProvider } from './mount-context.tsx'
-import { MfeScopeRoot } from './scope-root.tsx'
-import { styleRootOf } from './style-root.ts'
 import { useRouterBlockerBridge } from './router-blockers.ts'
 import type { AppDefinition } from './definition.ts'
 import type { MfeContext, MfeRouterContext } from './router-contract.ts'
@@ -146,12 +136,15 @@ function toBreadcrumbMatches(router: AnyRouter): readonly BreadcrumbMatch[] {
 export interface AppMountProps {
   readonly definition: AppDefinition
   readonly mount: MfeMount
-  readonly bridge: NavigationBridge
 }
 
-/** The router is built once per mount, so an ordinary rerender never rebuilds it. */
-export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNode {
-  const boundary = useMemo(() => createBoundaryHistory(bridge), [bridge])
+/**
+ * The router is built once per mount, so an ordinary rerender never rebuilds it. Its history is
+ * built over the runtime's navigator, which every mount on the page shares.
+ */
+export function AppMount({ definition, mount }: AppMountProps): ReactNode {
+  const navigator = mount.runtime.navigator
+  const boundary = useMemo(() => createBoundaryHistory(navigator), [navigator])
 
   const { router, context } = useMemo(() => {
     const routerContext = createRouterContext(mount)
@@ -184,21 +177,7 @@ export function AppMount({ definition, mount, bridge }: AppMountProps): ReactNod
   useShellStateSync(router, mount)
   useBreadcrumbContribution(router, mount, definition, context)
 
-  return (
-    <MfeMountProvider mount={mount}>
-      <QueryClientProvider client={mount.queryClient}>
-        <MfeScopeRoot
-          definitionId={definition.id}
-          mountToken={mount.mountToken}
-          kind="app"
-          overlayRoot={mount.overlayRoot}
-          styleRoot={styleRootOf(definition)}
-        >
-          <RouterProvider router={router} />
-        </MfeScopeRoot>
-      </QueryClientProvider>
-    </MfeMountProvider>
-  )
+  return <RouterProvider router={router} />
 }
 
 /**

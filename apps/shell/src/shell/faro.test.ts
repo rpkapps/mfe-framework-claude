@@ -1,7 +1,7 @@
 /** Asserts the translation against a fake Faro api: no network, no SDK initialization. */
 
-import { createNonRecordingTracer } from '@company/mfe-runtime'
-import type { SpanRecord, TelemetryAttribution } from '@company/mfe-runtime'
+import { createNonRecordingTracer } from '@company/mfe-react/host'
+import type { SpanRecord, TelemetryAttribution } from '@company/mfe-react/host'
 import type { Faro } from '@grafana/faro-web-sdk'
 import { describe, expect, it, vi } from 'vitest'
 

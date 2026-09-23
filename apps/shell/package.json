@@ -11,8 +11,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@company/mfe-angular": "workspace:*",
     "@company/mfe-devtools": "workspace:*",
-    "@company/mfe-runtime": "workspace:*",
     "@company/mfe-legacy-angular": "workspace:*",
     "@company/mfe-react": "workspace:*",
     "@fontsource/figtree": "^5.2.8",

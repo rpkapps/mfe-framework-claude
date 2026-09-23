@@ -9,16 +9,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactNode } from 'react'
 import { createMfeError, HOST_SCOPE, type Diagnostic } from '@company/mfe-core'
 import {
+  createMfeRuntime,
+  createMountContext,
   createNoopTelemetryProvider,
   DiagnosticsHub,
+  type MfeRuntimeHandle,
   type MfeStorageStore,
 } from '@company/mfe-runtime'
 import { createInProcessLoader } from '@company/mfe-runtime/testing'
 import { z } from 'zod'
 
-import { createMfeRuntime, createMount, type MfeRuntimeHandle } from '../create-runtime.ts'
 import { MfeMountProvider } from '../mount-context.tsx'
+import { reactAdapter } from '../registry/react-adapter.ts'
 import { MfeProvider } from '../runtime-context.tsx'
+import { withQueryClient, type MfeMount } from '../runtime.ts'
 import { useStoredState, type StoredStateSetter } from './use-stored-state.ts'
 
 type ShellTheme = 'light' | 'dark'
@@ -55,11 +59,22 @@ function wire(): Wired {
     shellState: { user: null, groups: [], theme: 'dark' },
     telemetryProvider: createNoopTelemetryProvider(),
     diagnostics,
+    adapters: [reactAdapter],
     sessionGeneration: 'gen-1',
   })
 
   wired = { handle, storage: handle.runtime.storage, reported }
   return wired
+}
+
+/** A mount as a React host's definition renders under, with its dispose. */
+function mountOf(handle: MfeRuntimeHandle): { mount: MfeMount; dispose: () => Promise<void> } {
+  const context = createMountContext({
+    runtime: handle.runtime,
+    definitionId: 'acme-orders',
+    kind: 'app',
+  })
+  return { mount: withQueryClient(context.context), dispose: context.dispose }
 }
 
 /** The framework records this page wrote, by physical key. */
@@ -174,11 +189,7 @@ describe('the scope follows where the component renders', () => {
   it('binds the host scope outside a mount and the definition inside one', async () => {
     const { handle } = wire()
 
-    const mounted = createMount({
-      runtime: handle.runtime,
-      definitionId: 'acme-orders',
-      kind: 'app',
-    })
+    const mounted = mountOf(handle)
 
     const view = render(
       <MfeProvider runtime={handle.runtime}>
@@ -211,11 +222,7 @@ describe('the scope follows where the component renders', () => {
   it('goes through one binding path, so both scopes get the same envelope', async () => {
     const { handle } = wire()
 
-    const mounted = createMount({
-      runtime: handle.runtime,
-      definitionId: 'acme-orders',
-      kind: 'app',
-    })
+    const mounted = mountOf(handle)
 
     const view = render(
       <MfeProvider runtime={handle.runtime}>

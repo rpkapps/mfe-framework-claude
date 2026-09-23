@@ -25,11 +25,14 @@ import {
   renderInAngularHost,
 } from './__tests__/harness.ts'
 
-/** What the React Widget went through, reset before every test. */
-const seen = { renders: 0, live: 0 }
+/**
+ * What the React Widget went through, reset before every test. Commits rather than renders,
+ * because a React root renders twice under development StrictMode and commits once.
+ */
+const seen = { commits: 0, live: 0 }
 
 beforeEach(() => {
-  seen.renders = 0
+  seen.commits = 0
   seen.live = 0
 })
 
@@ -39,7 +42,9 @@ const counter = createWidget({
   inputs: z.object({ label: z.string(), count: z.number() }),
   events: { bumped: z.object({ count: z.number() }) },
   render: function Counter({ inputs, emit }): ReactNode {
-    seen.renders += 1
+    useEffect(() => {
+      seen.commits += 1
+    })
     useEffect(() => {
       seen.live += 1
       return () => {
@@ -124,19 +129,19 @@ describe('a React Widget placed by an Angular <mfe-widget>', () => {
   it('re-renders with a changed inputs binding, and not for an equal one', async () => {
     const { ref, appRef, element } = await renderHost()
     await within(element).findByRole('button', { name: 'Clicks: 1' })
-    expect(seen.renders).toBe(1)
+    const mounted = seen.commits
 
     ref.instance.inputs.set({ label: 'Clicks', count: 2 })
 
     await within(element).findByRole('button', { name: 'Clicks: 2' })
-    expect(seen.renders).toBe(2)
+    expect(seen.commits).toBe(mounted + 1)
 
     // A new object with the same values: Angular binds it, and the Widget has nothing to render.
     ref.instance.inputs.set({ label: 'Clicks', count: 2 })
     await appRef.whenStable()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(seen.renders).toBe(2)
+    expect(seen.commits).toBe(mounted + 1)
     expect(seen.live).toBe(1)
   })
 

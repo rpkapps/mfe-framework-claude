@@ -8,7 +8,7 @@ import type {
   TelemetryProvider,
   TelemetryRecord,
   Tracer,
-} from '@company/mfe-runtime'
+} from '@company/mfe-react/host'
 import { initializeFaro, LogLevel, type Faro } from '@grafana/faro-web-sdk'
 
 /** Faro's context is string-valued, so scalars are rendered, never dropped. */

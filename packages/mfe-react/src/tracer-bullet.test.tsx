@@ -20,7 +20,7 @@ import { createApp } from './definition.ts'
 import { renderApp } from './testing/index.tsx'
 import { useUser } from './hooks/shell-state.ts'
 import { MfeProvider } from './runtime-context.tsx'
-import { AppMount } from './app-mount.tsx'
+import { AppHost } from './app-host.tsx'
 import type { AppRouterOptions, MfeRouterContext } from './router-contract.ts'
 
 interface BeforeLoadObservation {
@@ -376,8 +376,8 @@ describe('hooks outside a mount', () => {
     )
   })
 
-  it('exposes AppMount and MfeProvider for shell-owned placement', () => {
-    expect(AppMount).toBeTypeOf('function')
+  it('exposes AppHost and MfeProvider for shell-owned placement', () => {
+    expect(AppHost).toBeTypeOf('function')
     expect(MfeProvider).toBeTypeOf('function')
   })
 })

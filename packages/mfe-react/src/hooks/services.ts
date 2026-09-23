@@ -24,3 +24,12 @@ export function useMfeStorage(area: StorageArea = 'local'): MfeStorage {
   const mount = useMfeMount('useMfeStorage')
   return area === 'session' ? mount.storage.session : mount.storage.local
 }
+
+/**
+ * The element carrying this mount's scope attributes, which its scoped stylesheet matches. The
+ * runtime creates it around the mount's element; read it to measure the mount's region or to
+ * give a library a container inside the scope, never to replace or restyle it.
+ */
+export function useScopeRoot(): HTMLElement {
+  return useMfeMount('useScopeRoot').scopeRoot
+}

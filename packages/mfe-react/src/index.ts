@@ -6,8 +6,6 @@
 export {
   createApp,
   createWidget,
-  isMfeDefinition,
-  isReactDefinition,
   type AppDefinition,
   type AppOptions,
   type MfeDefinition,
@@ -44,7 +42,13 @@ export {
 
 export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 
-export { useBasePath, useMfeSignal, useMfeStorage, useTelemetry } from './hooks/services.ts'
+export {
+  useBasePath,
+  useMfeSignal,
+  useMfeStorage,
+  useScopeRoot,
+  useTelemetry,
+} from './hooks/services.ts'
 export { useCommand } from './hooks/use-command.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
@@ -103,16 +107,6 @@ export {
   type RejectedRegistryEntry,
 } from '@company/mfe-core'
 
-/* Shell-facing composition */
-export {
-  createMfeRuntime,
-  createMount,
-  type CreateMountOptions,
-  type CreateRuntimeOptions,
-  type MfeRuntimeHandle,
-  type MountHandleWithCleanup,
-} from './create-runtime.ts'
-
 /** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {
   createContainerTransport,
@@ -126,7 +120,7 @@ export {
   type ShellAuthOptions,
 } from '@company/mfe-runtime'
 
-/** What a shell reads to place a definition another adapter built, or to find its container. */
+/** What a shell reads to tell a federated entry's container, or to name a mount's context. */
 export {
   isFederatedEntry,
   isMountableDefinition,
@@ -136,18 +130,17 @@ export {
 } from '@company/mfe-runtime'
 
 export { MfeProvider, useMfeRuntime, type MfeProviderProps } from './runtime-context.tsx'
-export { AppMount, type AppMountProps } from './app-mount.tsx'
 export { DefinitionIcon, type DefinitionIconProps } from './definition-icon.tsx'
-export { containerNameOf, createMf2ContainerLoader, type Mf2LoaderOptions } from './mf2-loader.ts'
-/** Always registered by `createMfeRuntime`; exported so a shell can name it and read its fields. */
+/** Listed in the shell's `adapters`; `/registry` exports it alone, without React. */
 export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.ts'
+/** The runtime stamps these on every mount's roots, so a tool reading the page finds each mount. */
 export {
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
   SCOPE_ATTRIBUTE,
   createOverlayRoot,
-} from './scope-root.tsx'
+} from '@company/mfe-runtime'
 /** Exported because the generated container entry imports it (§17). */
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'

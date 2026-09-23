@@ -361,6 +361,9 @@ importers:
 
   apps/shell:
     dependencies:
+      '@company/mfe-angular':
+        specifier: workspace:*
+        version: link:../../packages/mfe-angular
       '@company/mfe-devtools':
         specifier: workspace:*
         version: link:../../packages/mfe-devtools
@@ -370,9 +373,6 @@ importers:
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
-      '@company/mfe-runtime':
-        specifier: workspace:*
-        version: link:../../packages/mfe-runtime
       '@fontsource/figtree':
         specifier: ^5.2.8
         version: 5.3.0
@@ -1231,9 +1231,6 @@ importers:
         specifier: workspace:*
         version: link:../mfe-runtime
     devDependencies:
-      '@module-federation/runtime':
-        specifier: 'catalog:'
-        version: 2.9.0
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.103.1(react@19.3.0)

@@ -3,7 +3,7 @@
  * nothing of its own, which is why the mount root itself is layout-neutral.
  */
 
-import { Suspense, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { AppHost, type MfeError } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
@@ -24,15 +24,15 @@ export function AppBoundary(): ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
   const appId: string = useParams({ strict: false }).appId ?? ''
 
-  // `fallback` covers an unresolvable id and a mount-time failure alike, with a fresh retry.
+  // `fallback` covers an unresolvable id, a mount-time failure and one the App reports once it is
+  // running, all with a fresh retry; `pending` covers the load and the mount alike.
   return (
-    <Suspense fallback={<Loading appId={appId} />}>
-      <AppHost
-        appId={appId}
-        basePath={`/${appId}`}
-        fallback={props => <MountFailure error={props.error} retry={props.retry} />}
-      />
-    </Suspense>
+    <AppHost
+      appId={appId}
+      basePath={`/${appId}`}
+      pending={<Loading appId={appId} />}
+      fallback={props => <MountFailure error={props.error} retry={props.retry} />}
+    />
   )
 }
 

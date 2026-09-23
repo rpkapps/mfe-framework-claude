@@ -1,29 +1,45 @@
 /**
  * `@company/mfe-react/testing` — supported author testing utilities, never imported by the
  * production entry and never supplying live credentials.
+ *
+ * Two ways to put a definition on the page. `renderApp` and `renderWidget` render its tree in the
+ * test's own React tree: fast, synchronous and made for Testing Library, and the tree they render
+ * is the `MountTree` a production mount renders. `mountApp` and `mountWidget` place it the way a
+ * host does, through the runtime's `mountDefinition` and the definition's own `mount`, for a test
+ * about loading, retry, disposal or anything else the host decides.
  */
 
-import type { BrandedDefinition, Diagnostic, ShellTheme, ShellUser } from '@company/mfe-core'
+import type { Diagnostic, MfeError, ShellTheme, ShellUser } from '@company/mfe-core'
+import {
+  createMountContext,
+  mountDefinition,
+  type DefinitionMount,
+  type MountableAppDefinition,
+  type MountableWidgetDefinition,
+} from '@company/mfe-runtime'
 import {
   createMemoryRuntime,
   type MemoryRuntime,
+  type MemoryRuntimeOptions,
   type MemoryStorageArea,
   type RecordingTelemetryProvider,
 } from '@company/mfe-runtime/testing'
-import { act, render, type RenderResult } from '@testing-library/react'
+import { act, render, waitFor, type RenderResult } from '@testing-library/react'
+import type { ReactNode } from 'react'
 
 import { resetMfeConfig as resetMfeConfigState } from './generated/config.ts'
 import { resetMfeFetch as resetMfeFetchState } from './generated/fetch.ts'
-import type { ReactNode } from 'react'
-
-import { AppMount, createRouterContext } from '../app-mount.tsx'
-import { createMount } from '../create-runtime.ts'
-import { MfeProvider } from '../runtime-context.tsx'
-import { MfeMountProvider } from '../mount-context.tsx'
-import { WidgetMount, declaredEventNames, partitionWidgetProps } from '../widget-mount.tsx'
+import { createRouterContext } from '../app-mount.tsx'
 import type { AppDefinition, WidgetDefinition } from '../definition.ts'
+import { MfeMountProvider } from '../mount-context.tsx'
+import { MountTree } from '../mount-tree.tsx'
 import type { MfeRouterContext } from '../router-contract.ts'
-import type { MfeMount, MfeRuntime } from '../runtime.ts'
+import { MfeProvider } from '../runtime-context.tsx'
+import { withQueryClient, type MfeMount, type MfeRuntime } from '../runtime.ts'
+import { deliverWidgetEvent, widgetInputs } from '../widget-props.ts'
+
+/** The runtime's memory fakes, so a test imports its adapter's `/testing` and nothing else. */
+export * from '@company/mfe-runtime/testing'
 
 /**
  * The generated-alias fixtures, which a container's vitest config points `#mfe/config` and
@@ -62,7 +78,7 @@ export interface MfeTestEnvironmentOptions {
   readonly basePath?: string
   readonly shellState?: TestShellState
   /** Definitions the in-process loader can resolve, by id, whichever adapter built them. */
-  readonly definitions?: readonly BrandedDefinition[]
+  readonly definitions?: MemoryRuntimeOptions['definitions']
   readonly initialEntries?: readonly string[]
   readonly sessionGeneration?: string
 }
@@ -87,25 +103,30 @@ export interface MfeTestEnvironment {
   dispose(): Promise<void>
 }
 
-/**
- * The host's memory runtime plus what is React's: a mount with its Query client, the providers,
- * and the router context. Every environment is independent, so no singleton leaks state between
- * tests.
- */
-export function createMfeTestEnvironment(
-  options: MfeTestEnvironmentOptions = {},
-): MfeTestEnvironment {
-  const memory = createMemoryRuntime({
+/** Only the options a memory runtime reads, so an absent one stays absent. */
+function memoryOptions(options: MfeTestEnvironmentOptions): MemoryRuntimeOptions {
+  return {
     ...(options.shellState === undefined ? {} : { shellState: options.shellState }),
     ...(options.definitions === undefined ? {} : { definitions: options.definitions }),
     ...(options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries }),
     ...(options.sessionGeneration === undefined
       ? {}
       : { sessionGeneration: options.sessionGeneration }),
-  })
+  }
+}
+
+/**
+ * The runtime's memory runtime plus what is React's: a mount with its Query client, the providers,
+ * and the router context. Every environment is independent, so no singleton leaks state between
+ * tests.
+ */
+export function createMfeTestEnvironment(
+  options: MfeTestEnvironmentOptions = {},
+): MfeTestEnvironment {
+  const memory = createMemoryRuntime(memoryOptions(options))
   const { runtime } = memory
 
-  const handle = createMount({
+  const handle = createMountContext({
     runtime,
     definitionId: options.definitionId ?? 'test-definition',
     ...(options.definitionVersion === undefined
@@ -114,16 +135,17 @@ export function createMfeTestEnvironment(
     kind: options.kind ?? 'app',
     ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
   })
+  const mount = withQueryClient(handle.context)
 
   return {
     runtime,
-    mount: handle.mount,
+    mount,
     wrapper: ({ children }) => (
       <MfeProvider runtime={runtime}>
-        <MfeMountProvider mount={handle.mount}>{children}</MfeMountProvider>
+        <MfeMountProvider mount={mount}>{children}</MfeMountProvider>
       </MfeProvider>
     ),
-    routerContext: createRouterContext(handle.mount),
+    routerContext: createRouterContext(mount),
     // Wrapped in `act` so updates land inside the test's normal React boundary.
     setShellState: patch => {
       act(() => {
@@ -142,7 +164,7 @@ export function createMfeTestEnvironment(
 }
 
 /**
- * Renders a tree that will suspend, inside an awaited act scope: React warns and leaves the tree
+ * Renders a tree that may suspend, inside an awaited act scope: React warns and leaves the tree
  * stuck on its fallback when a component suspends inside an act scope that was never awaited.
  */
 export async function renderSuspending(ui: ReactNode): Promise<RenderResult> {
@@ -165,20 +187,27 @@ export interface RenderedMfe extends RenderResult {
   dispose(): Promise<void>
 }
 
+/**
+ * Renders into the mount's own scope root, placed in the document the way the runtime places it
+ * for a production mount, so a scoped selector and `useScopeRoot` see what they would see there.
+ */
 function renderInto(environment: MfeTestEnvironment, ui: ReactNode): RenderedMfe {
-  const result = render(<MfeProvider runtime={environment.runtime}>{ui}</MfeProvider>)
+  const { scopeRoot } = environment.mount
+  document.body.appendChild(scopeRoot)
+  const result = render(ui, { container: scopeRoot })
 
   return {
     ...result,
     environment,
     dispose: async () => {
       result.unmount()
+      scopeRoot.remove()
       await environment.dispose()
     },
   }
 }
 
-/** Renders a real App through the adapter production uses, over a test-owned memory history. */
+/** Renders a real App through the tree production renders, over a test-owned memory history. */
 export function renderApp(definition: AppDefinition, options: RenderAppOptions = {}): RenderedMfe {
   const environment = createMfeTestEnvironment({
     ...options,
@@ -189,17 +218,11 @@ export function renderApp(definition: AppDefinition, options: RenderAppOptions =
     definitions: [...(options.definitions ?? []), definition],
   })
 
-  return renderInto(
-    environment,
-    <AppMount
-      definition={definition}
-      mount={environment.mount}
-      bridge={environment.runtime.navigator}
-    />,
-  )
+  return renderInto(environment, <MountTree definition={definition} mount={environment.mount} />)
 }
 
 export interface RenderWidgetOptions extends MfeTestEnvironmentOptions {
+  /** Inputs and `onX` handlers, split exactly as a host splits a consumer's props. */
   readonly props?: Readonly<Record<string, unknown>>
 }
 
@@ -215,20 +238,173 @@ export function renderWidget(
     kind: 'widget',
     definitions: [...(options.definitions ?? []), definition],
   })
-
-  const { inputs, handlers } = partitionWidgetProps(
-    options.props ?? {},
-    declaredEventNames(definition.contract),
-  )
+  const props = options.props ?? {}
 
   return renderInto(
     environment,
-    <WidgetMount
+    <MountTree
       definition={definition}
       mount={environment.mount}
-      inputs={inputs}
-      handlers={handlers}
-      consumerEvents={definition.contract.events}
+      inputs={widgetInputs(props)}
+      emit={(event, payload) => {
+        deliverWidgetEvent(props, event, payload)
+      }}
     />,
   )
+}
+
+interface PlacementOptions extends MemoryRuntimeOptions {
+  /** Mounts into a runtime the test owns, which the returned `dispose` leaves alive. */
+  readonly memory?: MemoryRuntime
+}
+
+export interface MountedTestDefinition {
+  /** The scope root the runtime created for the mount, attached to `document.body`. */
+  readonly element: HTMLElement
+  readonly memory: MemoryRuntime
+  /** The runtime's handle on the mount: its state, `retry` and `context`. */
+  readonly mount: DefinitionMount
+  /** Disposes the mount, removes the element, and disposes the runtime if it made it. */
+  dispose(): Promise<void>
+}
+
+export interface MountAppOptions extends PlacementOptions {
+  /** The boundary the App is mounted at; the memory history starts there unless told otherwise. */
+  readonly basePath?: string
+}
+
+export interface WidgetEvent {
+  readonly name: string
+  readonly payload: unknown
+}
+
+export interface MountWidgetOptions extends PlacementOptions {
+  readonly inputs?: Readonly<Record<string, unknown>>
+  readonly onEvent?: (name: string, payload: unknown) => void
+}
+
+export interface MountedTestWidget extends MountedTestDefinition {
+  /** Every event the Widget emitted and its contract accepted, in order. */
+  readonly events: readonly WidgetEvent[]
+  /** Every later input set the Widget rejected, in order. */
+  readonly rejectedInputs: readonly MfeError[]
+  /** Replaces the inputs, as a host re-rendering with new props does. */
+  update(inputs: Readonly<Record<string, unknown>>): void
+}
+
+interface Placement {
+  /** The element a host renders and hands the runtime, attached to `document.body`. */
+  readonly host: HTMLElement
+  readonly memory: MemoryRuntime
+  /** Disposes the mount, removes the host element, and the runtime when this made it. */
+  readonly teardown: (mount: DefinitionMount) => Promise<void>
+}
+
+function place(
+  definition: MountableAppDefinition | MountableWidgetDefinition,
+  { memory: provided, ...runtimeOptions }: PlacementOptions,
+  basePath: string,
+): Placement {
+  const memory =
+    provided ??
+    createMemoryRuntime({
+      ...runtimeOptions,
+      definitions: [...(runtimeOptions.definitions ?? []), definition],
+      initialEntries: runtimeOptions.initialEntries ?? [basePath || '/'],
+    })
+
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+
+  return {
+    host,
+    memory,
+    teardown: async mount => {
+      await mount.dispose()
+      host.remove()
+      if (provided === undefined) memory.dispose()
+    },
+  }
+}
+
+/**
+ * Resolves once the mount settled: with the mounted definition, or by rejecting with the error the
+ * mount failed with, after disposing everything it made. Waits through Testing Library, which
+ * lets a React root render on React's own scheduler while it polls.
+ */
+async function settled(mount: DefinitionMount, placement: Placement): Promise<HTMLElement> {
+  await waitFor(() => {
+    if (mount.state.status === 'pending') throw new Error(`${mount.id} is still mounting`)
+  })
+
+  const { state, context } = mount
+  if (state.status === 'error') {
+    await placement.teardown(mount)
+    throw state.error
+  }
+  if (context === null) throw new Error(`${mount.id} settled without a mount context`)
+  return context.scopeRoot
+}
+
+/** Mounts a real App the way every host does, over a memory history starting at its boundary. */
+export async function mountApp(
+  definition: MountableAppDefinition,
+  options: MountAppOptions = {},
+): Promise<MountedTestDefinition> {
+  const { basePath = '', ...placementOptions } = options
+  const placement = place(definition, placementOptions, basePath)
+  const mount = mountDefinition({
+    runtime: placement.memory.runtime,
+    element: placement.host,
+    definitionId: definition.id,
+    kind: 'app',
+    basePath,
+  })
+
+  const element = await settled(mount, placement)
+  return {
+    element,
+    memory: placement.memory,
+    mount,
+    dispose: () => placement.teardown(mount),
+  }
+}
+
+/** Mounts a real Widget the way every host does, with the production validation on both sides. */
+export async function mountWidget(
+  definition: MountableWidgetDefinition,
+  options: MountWidgetOptions = {},
+): Promise<MountedTestWidget> {
+  const { inputs = {}, onEvent, ...placementOptions } = options
+  const placement = place(definition, placementOptions, '')
+  const events: WidgetEvent[] = []
+  const rejectedInputs: MfeError[] = []
+
+  const mount = mountDefinition({
+    runtime: placement.memory.runtime,
+    element: placement.host,
+    definitionId: definition.id,
+    kind: 'widget',
+    inputs,
+    onEvent: (name, payload) => {
+      events.push({ name, payload })
+      onEvent?.(name, payload)
+    },
+    onInputRejected: error => {
+      rejectedInputs.push(error)
+    },
+  })
+
+  const element = await settled(mount, placement)
+  return {
+    element,
+    memory: placement.memory,
+    mount,
+    events,
+    rejectedInputs,
+    update: next => {
+      mount.update(next)
+    },
+    dispose: () => placement.teardown(mount),
+  }
 }

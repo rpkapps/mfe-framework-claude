@@ -9,17 +9,20 @@ import { createWidget as createAngularWidget, injectTheme, injectUser } from '@c
 import { createWidget, DynamicWidget, useTheme } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { act, screen } from '@testing-library/react'
-import { createElement as h, Fragment, type ReactNode } from 'react'
+import { createElement as h, Fragment, useEffect, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { createPageRuntime, reactHostPage } from './__tests__/harness.ts'
 
-/** How often each consumer did work, reset before every test. */
-const seen = { reactThemeRenders: 0, angularUserReads: 0 }
+/**
+ * How often each consumer did work, reset before every test. The React side counts commits rather
+ * than renders, because a React root renders twice under development StrictMode and commits once.
+ */
+const seen = { reactThemeCommits: 0, angularUserReads: 0 }
 
 beforeEach(() => {
-  seen.reactThemeRenders = 0
+  seen.reactThemeCommits = 0
   seen.angularUserReads = 0
 })
 
@@ -29,7 +32,9 @@ const reactThemeBadge = createWidget({
   events: {},
   render: function ThemeBadge(): ReactNode {
     const theme = useTheme()
-    seen.reactThemeRenders += 1
+    useEffect(() => {
+      seen.reactThemeCommits += 1
+    })
     return h('p', null, `React sees ${theme}`)
   },
 })
@@ -80,7 +85,7 @@ async function renderBothWidgets() {
 describe('shell state on a page with a React and an Angular Widget', () => {
   it('reaches the React hook and the Angular injectable alike when the theme changes', async () => {
     const memory = await renderBothWidgets()
-    expect(seen.reactThemeRenders).toBe(1)
+    const mounted = seen.reactThemeCommits
 
     act(() => {
       memory.setShellState({ theme: 'dark' })
@@ -88,7 +93,7 @@ describe('shell state on a page with a React and an Angular Widget', () => {
 
     expect(screen.getByText('React sees dark')).toBeInTheDocument()
     await screen.findByText('Angular sees dark')
-    expect(seen.reactThemeRenders).toBe(2)
+    expect(seen.reactThemeCommits).toBe(mounted + 1)
   })
 
   it('does not notify an Angular consumer of the user when only the theme changes', async () => {

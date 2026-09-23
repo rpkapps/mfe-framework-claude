@@ -1,8 +1,8 @@
 /**
  * `createApp` and `createWidget` both return plain, side-effect-free records, so the build
- * plugin can discover them statically without invoking a render function. Each also carries the
- * neutral `mount`, so a host built on another framework can place it; a React host renders the
- * record directly instead.
+ * plugin can discover them statically without invoking a render function. Each carries the
+ * neutral `mount`, through which every host places it, a React host included: the definition
+ * opens a React root of its own in the element the host provides.
  */
 
 import {
@@ -10,7 +10,6 @@ import {
   DEFINITION_BRAND,
   DEFINITION_ID_RULE,
   eventNameToHandlerProp,
-  isBrandedDefinition,
   isReservedInputName,
   isValidDefinitionId,
   isValidEventName,
@@ -90,8 +89,8 @@ export function createApp(options: AppOptions): AppDefinition {
     createRouter: options.router,
     contributesBreadcrumbs: options.breadcrumbs !== false,
     // `this` rather than the record above, because a container's build mounts the copy that
-    // `withStyleRoot` attached its style root to. Imported on first use, because the React
-    // mount imports this module and only a host on another framework ever calls it.
+    // `withStyleRoot` attached its style root to. Imported on first use, so a module that only
+    // declares definitions, such as a container's entry, does not pull the renderer in with it.
     async mount(target: AppMountTarget): Promise<MountedApp> {
       const { mountApp } = await import('./react-mount.tsx')
       return mountApp(this, target)
@@ -163,20 +162,6 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
 }
 
 export type MfeDefinition = AppDefinition | WidgetDefinition
-
-/** Recognises the brand, whichever adapter stamped it; `isReactDefinition` is the one to narrow. */
-export function isMfeDefinition(value: unknown): value is MfeDefinition {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    (value as Record<symbol, unknown>)[DEFINITION_BRAND] === true
-  )
-}
-
-/** A definition this adapter renders in its own tree, rather than one it hosts through `mount`. */
-export function isReactDefinition(value: unknown): value is MfeDefinition {
-  return isBrandedDefinition(value) && value.framework === 'react'
-}
 
 function assertValidId(id: unknown, operation: string): asserts id is string {
   if (isValidDefinitionId(id)) return

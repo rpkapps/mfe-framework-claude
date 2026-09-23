@@ -7,17 +7,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
+import { angularAdapter } from '@company/mfe-angular/registry'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
-import { createMf2ContainerLoader, createMfeRuntime, MfeProvider } from '@company/mfe-react'
 import {
   createBrowserNavigationBridge,
+  createFederationContainerLoader,
+  createMfeRuntime,
   createNoopTelemetryProvider,
   createSpanEmitter,
   DiagnosticsHub,
   installShellAuth,
+  MfeProvider,
   telemetryDiagnosticsSink,
   type TelemetryProvider,
-} from '@company/mfe-runtime'
+} from '@company/mfe-react/host'
+import { reactAdapter } from '@company/mfe-react/registry'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
@@ -79,10 +83,11 @@ const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
   registryEntries: await fetchRegistryEntries(),
-  // The framework adapter is always registered; this shell also serves legacy Angular apps.
-  adapters: [legacyAngularAdapter],
+  // Every framework this shell serves, each listed: nothing is registered implicitly, and no
+  // entry is read by an adapter it does not name.
+  adapters: [reactAdapter, angularAdapter, legacyAngularAdapter],
   // The only place in the shell that knows federation exists.
-  loader: createMf2ContainerLoader({
+  loader: createFederationContainerLoader({
     runtime: {
       registerRemotes: (remotes, options) => registerRemotes([...remotes], options),
       loadRemote: <T,>(id: string): Promise<T | null> => loadRemote<T>(id),

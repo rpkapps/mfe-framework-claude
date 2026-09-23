@@ -10,21 +10,17 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { StrictMode, Suspense, type ReactNode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { AppMount } from './app-mount.tsx'
 import { createApp, createWidget } from './definition.ts'
 import { lazyWidget } from './lazy-widget.tsx'
 import { MfeProvider } from './runtime-context.tsx'
 import { useMfeSignal } from './hooks/services.ts'
 import { useMfeMount } from './mount-context.tsx'
-import {
-  createMfeTestEnvironment,
-  renderSuspending,
-  type MfeTestEnvironment,
-} from './testing/index.tsx'
+import { MountTree } from './mount-tree.tsx'
+import { createMfeTestEnvironment, type MfeTestEnvironment } from './testing/index.tsx'
 import type { AppRouterOptions, MfeRouterContext } from './router-contract.ts'
 
 let environment: MfeTestEnvironment | null = null
@@ -66,21 +62,15 @@ describe('a mount under StrictMode', () => {
   it('is alive after React unmounts and remounts it', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [reporter] })
 
-    await renderSuspending(
-      (
-        <StrictMode>
-          <MfeProvider runtime={environment.runtime}>
-            <Suspense fallback={null}>
-              <Reporter />
-            </Suspense>
-          </MfeProvider>
-        </StrictMode>
-      ) as ReactNode,
+    render(
+      <StrictMode>
+        <MfeProvider runtime={environment.runtime}>
+          <Reporter />
+        </MfeProvider>
+      </StrictMode>,
     )
 
-    await waitFor(() => {
-      expect(screen.getByTestId('aborted')).toBeInTheDocument()
-    })
+    await screen.findByTestId('aborted')
 
     // Every one of these is false or missing on the mount React tore down during its double-invoke.
     expect(screen.getByTestId('aborted')).toHaveTextContent('false')
@@ -118,23 +108,19 @@ function buildApp() {
 
 describe('an App’s history under StrictMode', () => {
   it('still hears the bridge after React unmounts and remounts it', async () => {
-    // What this pins is that `AppMount` connects its history to the bridge at all; the narrower
+    // What this pins is that the App's tree connects its history to the bridge at all; the narrower
     // claim is in `boundary-history.test.ts`, which jsdom cannot reproduce here (§14).
     environment = createMfeTestEnvironment({
       definitionId: 'lab',
       basePath: '/lab',
       initialEntries: ['/lab/storage', '/lab/commands'],
     })
-    const { runtime, mount, navigation } = environment
+    const { mount, navigation } = environment
 
     render(
-      (
-        <StrictMode>
-          <MfeProvider runtime={runtime}>
-            <AppMount definition={buildApp()} mount={mount} bridge={runtime.navigator} />
-          </MfeProvider>
-        </StrictMode>
-      ) as ReactNode,
+      <StrictMode>
+        <MountTree definition={buildApp()} mount={mount} />
+      </StrictMode>,
     )
 
     await waitFor(() => {

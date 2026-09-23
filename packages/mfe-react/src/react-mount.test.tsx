@@ -1,7 +1,7 @@
 /**
- * A React definition mounted by a host on another framework: nothing but an element and a mount
- * context, exactly what an Angular host hands over. The provider's validation has to hold there
- * as it does in a React host, because nothing around the element can do it instead.
+ * A React definition mounting itself: nothing but an element and a mount context, exactly what
+ * every host hands over, a React host included. The provider's validation has to hold there,
+ * because nothing around the element can do it instead.
  */
 
 import type { MfeError } from '@company/mfe-core'
@@ -18,39 +18,47 @@ import {
   createRouter,
   Outlet,
 } from '@tanstack/react-router'
+import { QueryClient, useQueryClient } from '@tanstack/react-query'
 import { act, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createApp, createWidget } from './definition.ts'
-import { useBasePath } from './hooks/services.ts'
+import { useBasePath, useScopeRoot } from './hooks/services.ts'
 import type { MfeRouterContext } from './router-contract.ts'
 import { withStyleRoot, type StyleRootProps } from './style-root.ts'
 
+/** The runtime the latest `hostFor` made; every one made is disposed after the test. */
 let memory: MemoryRuntime | null = null
+let memories: MemoryRuntime[] = []
 let contexts: MountContextHandle[] = []
 let element: HTMLElement
 
 afterEach(async () => {
   for (const handle of contexts) await handle.dispose()
   contexts = []
-  memory?.dispose()
+  for (const made of memories) made.dispose()
+  memories = []
   memory = null
   element.remove()
 })
 
-/** What an Angular host builds before it calls `mount`: a runtime, a context and an element. */
+function createRuntime(initialEntries?: readonly string[]): MemoryRuntime {
+  memory = createMemoryRuntime(initialEntries === undefined ? {} : { initialEntries })
+  memories.push(memory)
+  return memory
+}
+
+/** What every host builds before it calls `mount`: a runtime, a context and an element. */
 function hostFor(
   kind: 'app' | 'widget',
   definitionId: string,
   options: { readonly basePath?: string; readonly initialEntries?: readonly string[] } = {},
 ): MountContextHandle {
-  memory = createMemoryRuntime(
-    options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries },
-  )
+  const { runtime } = createRuntime(options.initialEntries)
   const handle = createMountContext({
-    runtime: memory.runtime,
+    runtime,
     definitionId,
     kind,
     ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
@@ -116,12 +124,96 @@ describe('a React Widget mounting itself', () => {
     expect(within(element).getByRole('button')).toHaveTextContent('Clicks')
   })
 
-  it('renders inside its own scope root, in the host’s element', async () => {
+  /** The runtime made the scope root around the element; a second one would nest the scope. */
+  it('renders straight into the element, adding no scope root of its own', async () => {
     await mountCounter({ label: 'Clicks' })
 
-    const scopeRoot = element.firstElementChild
-    expect(scopeRoot?.getAttribute('data-mfe-scope')).toBe('counter-widget')
-    expect(scopeRoot?.getAttribute('data-mfe-kind')).toBe('widget')
+    expect(element.querySelector('[data-mfe-scope]')).toBeNull()
+    expect(element.firstElementChild).toBe(within(element).getByRole('button'))
+  })
+
+  it('gives the Widget a Query client of its own mount', async () => {
+    const { context } = hostFor('widget', 'client-probe')
+    let seen: QueryClient | null = null
+    const probe = createWidget({
+      id: 'client-probe',
+      inputs: z.object({}),
+      events: {},
+      render: function ClientProbe(): ReactNode {
+        seen = useQueryClient()
+        return null
+      },
+    })
+
+    await act(async () => {
+      await probe.mount({ element, context, inputs: {}, emit: () => undefined })
+    })
+
+    expect(seen).toBeInstanceOf(QueryClient)
+    expect(seen).not.toBeNull()
+  })
+
+  /** Every mount is a root of its own, and `useId` counts per root. */
+  it('prefixes the ids it hands out with its mount, so two roots never collide', async () => {
+    const ids: string[] = []
+    const probe = createWidget({
+      id: 'id-probe',
+      inputs: z.object({}),
+      events: {},
+      render: function IdProbe(): ReactNode {
+        const id = useId()
+        ids.push(id)
+        return <span id={id} />
+      },
+    })
+    const first = hostFor('widget', 'id-probe').context
+    const firstElement = element
+    const second = hostFor('widget', 'id-probe').context
+
+    await act(async () => {
+      await probe.mount({
+        element: firstElement,
+        context: first,
+        inputs: {},
+        emit: () => undefined,
+      })
+      await probe.mount({ element, context: second, inputs: {}, emit: () => undefined })
+    })
+
+    expect(new Set(ids).size).toBe(2)
+    firstElement.remove()
+  })
+
+  it('reads the scope root the runtime made through useScopeRoot', async () => {
+    const scopeRoot = document.createElement('div')
+    let seen: HTMLElement | null = null
+    const probe = createWidget({
+      id: 'scope-probe',
+      inputs: z.object({}),
+      events: {},
+      render: function ScopeProbe(): ReactNode {
+        seen = useScopeRoot()
+        return null
+      },
+    })
+    const handle = createMountContext({
+      runtime: createRuntime().runtime,
+      definitionId: 'scope-probe',
+      kind: 'widget',
+      scopeRoot,
+    })
+    contexts.push(handle)
+    element = document.createElement('div')
+    scopeRoot.append(element)
+    document.body.append(scopeRoot)
+
+    await act(async () => {
+      await probe.mount({ element, context: handle.context, inputs: {}, emit: () => undefined })
+    })
+
+    expect(seen).toBe(scopeRoot)
+    expect(scopeRoot.getAttribute('data-mfe-scope')).toBe('scope-probe')
+    scopeRoot.remove()
   })
 
   it('re-renders with the inputs an update hands it', async () => {
@@ -214,6 +306,30 @@ describe('a React Widget mounting itself', () => {
       id: 'counter-widget',
     })
     expect((memory?.diagnostics[0]?.error as Error).message).toContain('boom')
+  })
+
+  /** Outside `act`, for the same reason as above. */
+  it('hands a render failure after the first to the host’s onFailure instead', async () => {
+    const { context } = hostFor('widget', 'counter-widget')
+    const onFailure = vi.fn()
+    let mounted: MountedWidget | undefined
+    await act(async () => {
+      mounted = await counter.mount({
+        element,
+        context,
+        inputs: { label: 'Clicks' },
+        emit: () => undefined,
+        onFailure,
+      })
+    })
+
+    mounted?.update({ label: 'boom' })
+
+    await vi.waitFor(() => {
+      expect(onFailure).toHaveBeenCalledTimes(1)
+    })
+    expect(onFailure.mock.calls[0]?.[0]).toMatchObject({ code: 'mount/failure' })
+    expect(memory?.diagnostics).toEqual([])
   })
 
   it('empties the element when disposed', async () => {
