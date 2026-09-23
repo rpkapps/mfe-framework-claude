@@ -86,6 +86,8 @@ export class BoundaryNavigator {
   // away would leave the page the user is still being asked about (§20).
   readonly #deferred = new Set<(location: BoundaryLocation) => void>()
   readonly #listeners = new Set<(location: BoundaryLocation) => void>()
+  /** The one bridge subscription every listener shares, held while any listener is subscribed. */
+  #stopHearing: Unsubscribe | null = null
   /**
    * Where subscribers were last told the page is, or where a push through this navigator took
    * it, which the mount that pushed already knows. `announce` measures a change against it.
@@ -144,23 +146,32 @@ export class BoundaryNavigator {
    * the order the host's own popstate listener and this one were registered in.
    */
   subscribe(listener: (location: BoundaryLocation) => void): Unsubscribe {
-    let live = true
     this.#listeners.add(listener)
-
-    const unsubscribe = this.#bridge.subscribe(() => {
-      queueMicrotask(() => {
-        if (!live) return
-        if (this.#negotiating) this.#deferred.add(listener)
-        else this.#emit([listener], this.#bridge.read())
-      })
-    })
+    this.#stopHearing ??= this.#bridge.subscribe(this.#hear)
 
     return () => {
-      live = false
       this.#listeners.delete(listener)
       this.#deferred.delete(listener)
-      unsubscribe()
+      if (this.#listeners.size > 0) return
+      this.#stopHearing?.()
+      this.#stopHearing = null
     }
+  }
+
+  /**
+   * One bridge report, told to everyone subscribed when it arrived and still subscribed a
+   * microtask later: one browser listener and one microtask per history step rather than one of
+   * each per mounted App. Each listener reads the page afresh, as each used to on its own.
+   */
+  readonly #hear = (): void => {
+    const listeners = [...this.#listeners]
+    queueMicrotask(() => {
+      for (const listener of listeners) {
+        if (!this.#listeners.has(listener)) continue
+        if (this.#negotiating) this.#deferred.add(listener)
+        else this.#emit([listener], this.#bridge.read())
+      }
+    })
   }
 
   /**

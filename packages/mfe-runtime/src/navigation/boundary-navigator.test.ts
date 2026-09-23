@@ -525,6 +525,46 @@ describe('bridge delegation', () => {
     expect(heard).toEqual([])
   })
 
+  it('hears the bridge once however many listen, and tells each of them', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const first: BoundaryLocation[] = []
+    const second: BoundaryLocation[] = []
+
+    const stopFirst = navigator.subscribe(location => first.push(location))
+    const stopSecond = navigator.subscribe(location => second.push(location))
+    expect(bridge.listeners).toHaveLength(1)
+
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+    expect(first).toHaveLength(1)
+    expect(second).toHaveLength(1)
+
+    stopFirst()
+    expect(bridge.listeners).toHaveLength(1)
+    stopSecond()
+    expect(bridge.listeners).toHaveLength(0)
+  })
+
+  it('tells only the listeners subscribed when the report arrived and still subscribed', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const early: BoundaryLocation[] = []
+    const leaving: BoundaryLocation[] = []
+    const late: BoundaryLocation[] = []
+    navigator.subscribe(location => early.push(location))
+    const stopLeaving = navigator.subscribe(location => leaving.push(location))
+
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    stopLeaving()
+    navigator.subscribe(location => late.push(location))
+    await Promise.resolve()
+
+    expect(early).toHaveLength(1)
+    expect(leaving).toEqual([])
+    expect(late).toEqual([])
+  })
+
   it('reads and subscribes through the bridge', () => {
     const bridge = createRecordingBridge()
     const navigator = new BoundaryNavigator({ bridge })
