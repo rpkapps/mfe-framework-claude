@@ -5,6 +5,7 @@
  */
 
 import {
+  withoutUndefined,
   createMfeError,
   isWithinBoundary,
   toMfeError,
@@ -406,7 +407,7 @@ export function createNavigationIntent(
     from,
     to,
     leavesBoundary: !isWithinBoundary(basePath, to.pathname),
-    ...(action === undefined ? {} : { action }),
+    ...withoutUndefined({ action }),
   }
 }
 

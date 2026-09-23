@@ -5,7 +5,7 @@
  * root on the context, so this renders neither.
  */
 
-import { DEV, toMfeError, type MfeError } from '@company/mfe-core'
+import { DEV, toMfeError, withoutUndefined, type MfeError } from '@company/mfe-core'
 import type {
   AppMountTarget,
   MountedApp,
@@ -60,9 +60,7 @@ function renderFailure(mount: MfeMount, operation: string, error: unknown): MfeE
   return toMfeError(error, {
     code: 'mount/failure',
     id: mount.definitionId,
-    ...(mount.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: mount.definitionVersion }),
+    ...withoutUndefined({ definitionVersion: mount.definitionVersion }),
     operation,
     repair: 'Fix the error the definition threw while rendering, then use the retry action.',
   })

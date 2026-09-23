@@ -5,6 +5,7 @@
  */
 
 import type { Route } from '@angular/router'
+import { withoutUndefined } from '@company/mfe-core'
 
 import { MfeAppHostComponent } from '../host/app-host.component.ts'
 import { appRouteData } from './app-route-data.ts'
@@ -23,7 +24,7 @@ export function mfeAppRoute(options: MfeAppRouteOptions): Route {
     component: MfeAppHostComponent,
     data: appRouteData({
       appId: options.appId,
-      ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
+      ...withoutUndefined({ basePath: options.basePath }),
     }),
     children: [{ path: '**', children: [] }],
   }

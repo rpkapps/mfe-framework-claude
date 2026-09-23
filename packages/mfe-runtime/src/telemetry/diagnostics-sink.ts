@@ -1,6 +1,11 @@
 /** The one `Diagnostic`-to-`TelemetryRecord` translation, so no host repeats it (§25). */
 
-import type { Diagnostic, DiagnosticsSink, TelemetryProvider } from '@company/mfe-core'
+import {
+  withoutUndefined,
+  type Diagnostic,
+  type DiagnosticsSink,
+  type TelemetryProvider,
+} from '@company/mfe-core'
 
 /** Reports every diagnostic into `provider` as a `framework` record, honouring its level filter. */
 export function telemetryDiagnosticsSink(provider: TelemetryProvider): DiagnosticsSink {
@@ -17,7 +22,7 @@ export function telemetryDiagnosticsSink(provider: TelemetryProvider): Diagnosti
       error,
       attributes: {
         code: error.code,
-        ...(definitionVersion === undefined ? {} : { definitionVersion }),
+        ...withoutUndefined({ definitionVersion }),
         ...context,
       },
       // A page-owned diagnostic is filed under 'app' because `definitionKind` has no third

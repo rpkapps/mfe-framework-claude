@@ -79,7 +79,7 @@ export class MountErrorHandler implements ErrorHandler {
     return toMfeError(error, {
       code: 'mount/failure',
       id: definitionId,
-      ...(definitionVersion === undefined ? {} : { definitionVersion }),
+      ...withoutUndefined({ definitionVersion }),
       operation,
       repair:
         'Handle the failure inside the component, or follow the cause attached to this error to the line that threw.',
@@ -131,7 +131,7 @@ export function disposedWhileMounting(context: MountContext): MfeError {
   return toMfeError(context.signal.reason, {
     code: 'mount/failure',
     id: definitionId,
-    ...(definitionVersion === undefined ? {} : { definitionVersion }),
+    ...withoutUndefined({ definitionVersion }),
     operation: 'mount',
     observed: 'the mount was disposed before it finished mounting',
     repair: 'No action required when this follows a disposal or a retry.',
@@ -156,7 +156,7 @@ function reportForeignDestroy(
       createMfeError({
         code: 'mount/failure',
         id: definitionId,
-        ...(definitionVersion === undefined ? {} : { definitionVersion }),
+        ...withoutUndefined({ definitionVersion }),
         operation: `keep the ${kind === 'app' ? 'App' : 'Widget'}'s application running`,
         expected: 'the application to live until the host disposes the mount',
         observed: 'the application was destroyed while the mount was live',

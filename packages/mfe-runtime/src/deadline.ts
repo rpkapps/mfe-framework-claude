@@ -2,6 +2,7 @@
 
 import {
   createMfeError,
+  withoutUndefined,
   type DeadlineConfig,
   type MfeError,
   type MfeErrorCode,
@@ -54,9 +55,7 @@ export async function withDeadline<T>(
         const error = createMfeError({
           code: TIMEOUT_CODES[context.phase],
           id: context.id,
-          ...(context.definitionVersion === undefined
-            ? {}
-            : { definitionVersion: context.definitionVersion }),
+          ...withoutUndefined({ definitionVersion: context.definitionVersion }),
           operation: context.operation,
           expected: `the ${context.phase} phase to settle within ${deadlineMs}ms`,
           observed: `it was still running after ${Math.round(Date.now() - startedAt)}ms`,

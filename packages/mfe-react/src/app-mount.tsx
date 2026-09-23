@@ -5,7 +5,13 @@
  */
 
 import { RouterProvider, type AnyRouter } from '@tanstack/react-router'
-import { createMfeError, createMfeErrorFactory, DEV, type BreadcrumbItem } from '@company/mfe-core'
+import {
+  createMfeError,
+  createMfeErrorFactory,
+  DEV,
+  withoutUndefined,
+  type BreadcrumbItem,
+} from '@company/mfe-core'
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { breadcrumbsFromMatches, type BreadcrumbMatch } from './breadcrumbs-from-matches.ts'
@@ -39,7 +45,7 @@ function validateAuthoredRouter(
 ): void {
   const fail = createMfeErrorFactory({
     id: expected.id,
-    ...(expected.version === undefined ? {} : { definitionVersion: expected.version }),
+    ...withoutUndefined({ definitionVersion: expected.version }),
     operation: 'mount App',
   })
 
@@ -158,7 +164,7 @@ export function AppMount({ definition, mount }: AppMountProps): ReactNode {
       created,
       {
         id: definition.id,
-        ...(definition.version === undefined ? {} : { version: definition.version }),
+        ...withoutUndefined({ version: definition.version }),
         basePath: mount.basePath,
       },
       { history: boundary.history, context: routerContext },

@@ -10,6 +10,7 @@ import {
   createMfeError,
   DEV,
   normalizeError,
+  withoutUndefined,
   type Diagnostic,
   type DiagnosticsSink,
   type MeasurementUnit,
@@ -228,9 +229,9 @@ export class MountTelemetryRuntime {
       error: createMfeError({
         ...message,
         id: this.attribution.definitionId,
-        ...(version === undefined ? {} : { definitionVersion: version }),
+        ...withoutUndefined({ definitionVersion: version }),
       }),
-      ...(context === undefined ? {} : { context }),
+      ...withoutUndefined({ context }),
       timestamp: this.now(),
     }
 
@@ -351,7 +352,7 @@ export class MountTelemetryRuntime {
         kind: 'log',
         level,
         message: boundName(message),
-        ...(error === undefined ? {} : { error }),
+        ...withoutUndefined({ error }),
         ...this.#envelope(attributes, operation),
       },
       operation,
@@ -433,7 +434,7 @@ export class MountTelemetryRuntime {
         level,
         operation: boundName(operation),
         message: boundName(details.message),
-        ...(error === undefined ? {} : { error }),
+        ...withoutUndefined({ error }),
         ...this.#envelope(details.attributes, label),
       },
       label,

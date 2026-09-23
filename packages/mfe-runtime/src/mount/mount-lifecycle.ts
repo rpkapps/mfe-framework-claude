@@ -2,6 +2,7 @@
 
 import {
   createMfeError,
+  withoutUndefined,
   type AttemptToken,
   type MfeError,
   type MfeErrorDetails,
@@ -132,9 +133,7 @@ export class MountLifecycle implements Subscribable<MountState> {
     return createMfeError({
       code: 'mount/failure',
       id: this.id,
-      ...(this.definitionVersion === undefined
-        ? {}
-        : { definitionVersion: this.definitionVersion }),
+      ...withoutUndefined({ definitionVersion: this.definitionVersion }),
       ...details,
     })
   }

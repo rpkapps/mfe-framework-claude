@@ -297,6 +297,6 @@ export function createFederatedAdapter<K extends string>(
     parse: raw => parseFederatedEntry(raw, kind),
     is: (entry: RegistryEntry): entry is FederatedRegistryEntry & { readonly adapter: K } =>
       entry.adapter === kind,
-    ...(aroundLoad === undefined ? {} : { aroundLoad }),
+    ...withoutUndefined({ aroundLoad }),
   }
 }

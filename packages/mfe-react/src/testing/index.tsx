@@ -9,7 +9,13 @@
  * about loading, retry, disposal or anything else the host decides.
  */
 
-import type { Diagnostic, MfeError, ShellTheme, ShellUser } from '@company/mfe-core'
+import {
+  withoutUndefined,
+  type Diagnostic,
+  type MfeError,
+  type ShellTheme,
+  type ShellUser,
+} from '@company/mfe-core'
 import {
   createMountContext,
   mountDefinition,
@@ -83,14 +89,12 @@ export interface MfeTestEnvironment {
 
 /** Only the options a memory runtime reads, so an absent one stays absent. */
 function memoryOptions(options: MfeTestEnvironmentOptions): MemoryRuntimeOptions {
-  return {
-    ...(options.shellState === undefined ? {} : { shellState: options.shellState }),
-    ...(options.definitions === undefined ? {} : { definitions: options.definitions }),
-    ...(options.initialEntries === undefined ? {} : { initialEntries: options.initialEntries }),
-    ...(options.sessionGeneration === undefined
-      ? {}
-      : { sessionGeneration: options.sessionGeneration }),
-  }
+  return withoutUndefined({
+    shellState: options.shellState,
+    definitions: options.definitions,
+    initialEntries: options.initialEntries,
+    sessionGeneration: options.sessionGeneration,
+  })
 }
 
 /**
@@ -107,11 +111,9 @@ export function createMfeTestEnvironment(
   const handle = createMountContext({
     runtime,
     definitionId: options.definitionId ?? 'test-definition',
-    ...(options.definitionVersion === undefined
-      ? {}
-      : { definitionVersion: options.definitionVersion }),
+    ...withoutUndefined({ definitionVersion: options.definitionVersion }),
     kind: options.kind ?? 'app',
-    ...(options.basePath === undefined ? {} : { basePath: options.basePath }),
+    ...withoutUndefined({ basePath: options.basePath }),
   })
   const mount = withQueryClient(handle.context)
 
@@ -190,7 +192,7 @@ export function renderApp(definition: AppDefinition, options: RenderAppOptions =
   const environment = createMfeTestEnvironment({
     ...options,
     definitionId: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+    ...withoutUndefined({ definitionVersion: definition.version }),
     kind: 'app',
     basePath: options.basePath ?? '',
     definitions: [...(options.definitions ?? []), definition],
@@ -212,7 +214,7 @@ export function renderWidget(
   const environment = createMfeTestEnvironment({
     ...options,
     definitionId: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+    ...withoutUndefined({ definitionVersion: definition.version }),
     kind: 'widget',
     definitions: [...(options.definitions ?? []), definition],
   })

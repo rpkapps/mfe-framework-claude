@@ -4,7 +4,12 @@
  * every definition mounts itself into the element this returns a ref to.
  */
 
-import { shallowEqual, type MountState, type WidgetContract } from '@company/mfe-core'
+import {
+  shallowEqual,
+  withoutUndefined,
+  type MountState,
+  type WidgetContract,
+} from '@company/mfe-core'
 import {
   mountDefinition,
   type DefinitionMount,
@@ -96,7 +101,7 @@ function open(
       const latest = committed.current
       if (latest.kind === 'widget') latest.onEvent(event, payload)
     },
-    ...(consumerEvents === undefined ? {} : { consumerEvents }),
+    ...withoutUndefined({ consumerEvents }),
   })
 }
 

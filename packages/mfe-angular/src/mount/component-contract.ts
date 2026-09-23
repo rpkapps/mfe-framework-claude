@@ -6,7 +6,12 @@
  */
 
 import { reflectComponentType } from '@angular/core'
-import { createMfeErrorFactory, isReservedInputName, type MfeError } from '@company/mfe-core'
+import {
+  createMfeErrorFactory,
+  isReservedInputName,
+  withoutUndefined,
+  type MfeError,
+} from '@company/mfe-core'
 
 import type { WidgetDefinition } from '../definition.ts'
 
@@ -48,7 +53,7 @@ function reflectComponentContract(definition: WidgetDefinition): ComponentContra
   const fail = createMfeErrorFactory({
     code: 'mount/failure',
     id: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+    ...withoutUndefined({ definitionVersion: definition.version }),
     operation: 'mount Widget',
   })
 
@@ -109,7 +114,7 @@ export function undeclaredInput(
   const fail = createMfeErrorFactory({
     code: 'mount/failure',
     id: definition.id,
-    ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+    ...withoutUndefined({ definitionVersion: definition.version }),
     operation: `accept input '${name}'`,
   })
   return fail({
