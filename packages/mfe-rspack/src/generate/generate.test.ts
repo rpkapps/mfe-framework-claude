@@ -129,7 +129,9 @@ describe('the container stylesheet', () => {
 
     expect(stylesheet).toContain('@layer theme, base, components, utilities;')
     expect(stylesheet).toContain('@import "tailwindcss/theme.css" layer(theme);')
-    expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
+    expect(stylesheet).toContain(
+      '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
+    )
     expect(stylesheet).toContain('@import "@tecton/react/styles/scoped.css";')
     expect(stylesheet).not.toContain('@import "tailwindcss";')
     expect(stylesheet).not.toContain('globals.css')
@@ -148,7 +150,9 @@ describe('the container stylesheet', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
     const stylesheet = fileFor('styles.css')
 
-    expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
+    expect(stylesheet).toContain(
+      '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
+    )
     expect(stylesheet).not.toContain('@tecton/react')
   })
 })

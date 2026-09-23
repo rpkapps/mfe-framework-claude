@@ -1,6 +1,8 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 
+import tailwindcss from '@tailwindcss/postcss'
+import postcss from 'postcss'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
@@ -14,6 +16,9 @@ import { writeGeneratedFiles } from './emit.ts'
 afterEach(cleanupContainers)
 
 const BUILD_TIME = '2026-01-02T03:04:05.000Z'
+
+/** This package's own `node_modules`, where the Tailwind a fixture links to is installed. */
+const INSTALLED = join(import.meta.dirname, '../../node_modules')
 
 const APP_ENTRY = `
 import { createApp } from '@acme/mfe-adapter'
@@ -167,7 +172,9 @@ describe('the container stylesheet', () => {
 
     expect(stylesheet).toContain('@layer theme, base, components, utilities;')
     expect(stylesheet).toContain('@import "tailwindcss/theme.css" layer(theme);')
-    expect(stylesheet).toContain('@import "tailwindcss/utilities.css" layer(utilities);')
+    expect(stylesheet).toContain(
+      '@import "tailwindcss/utilities.css" layer(utilities) source(none);',
+    )
     expect(stylesheet).not.toContain('@import "tailwindcss";')
     expect(stylesheet).not.toContain('globals.css')
     expect(stylesheet).not.toContain(':root {')
@@ -178,6 +185,33 @@ describe('the container stylesheet', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
 
     expect(fileFor('styles.css')).toContain('@source "../src/**/*.{ts,html}";')
+  })
+
+  it('scans nothing else, whichever directory the build runs in', async () => {
+    const { root, plan } = planFixture({
+      'src/mfe.ts': APP_ENTRY,
+      'src/panel.ts': `export const template = '<p class="underline">'`,
+      'notes.md': '<p class="italic">',
+    })
+    writeGeneratedFiles(plan.generated.files)
+    mkdirSync(join(root, 'node_modules'), { recursive: true })
+    symlinkSync(join(INSTALLED, 'tailwindcss'), join(root, 'node_modules/tailwindcss'), 'dir')
+    const stylesheet = join(root, '.mfe/styles.css')
+
+    // A build runs from the container root, or from a workspace root above it.
+    const result = await postcss([tailwindcss({ base: root })]).process(
+      readFileSync(stylesheet, 'utf8'),
+      { from: stylesheet },
+    )
+
+    expect(result.css).toContain('.underline')
+    expect(result.css).not.toContain('.italic')
+    // Every directory Tailwind reports is one a dev server watches and rebuilds on.
+    const watched = result.messages.flatMap(message => {
+      const dir: unknown = message['dir']
+      return message.type === 'dir-dependency' && typeof dir === 'string' ? [dir] : []
+    })
+    expect(watched).toEqual([join(root, 'src')])
   })
 
   it("adds the integration's imports after Tailwind's own, and none by default", () => {
@@ -192,7 +226,7 @@ describe('the container stylesheet', () => {
     const kit = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile: withKit }).fileFor('styles.css')
 
     expect(kit).toContain(
-      '@import "tailwindcss/utilities.css" layer(utilities);\n\n/* The UI kit. */\n@import "@acme/ui-kit/scoped.css";\n',
+      '@import "tailwindcss/utilities.css" layer(utilities) source(none);\n\n/* The UI kit. */\n@import "@acme/ui-kit/scoped.css";\n',
     )
     expect(plain).not.toContain('ui-kit')
   })
