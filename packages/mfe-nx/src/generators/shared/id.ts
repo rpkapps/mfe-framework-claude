@@ -4,7 +4,7 @@
  * every one of those roles, not merely be a valid identifier.
  */
 
-export const DEFINITION_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const DEFINITION_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export function assertUsableId(id: string): void {
   if (DEFINITION_ID_PATTERN.test(id)) return

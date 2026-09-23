@@ -13,13 +13,13 @@ import {
   formatFiles,
   generateFiles,
   installPackagesTask,
+  names,
   runTasksInSerial,
   writeJson,
   type GeneratorCallback,
   type Tree,
 } from '@nx/devkit'
 
-import { toCamel, toPascal } from './names.ts'
 import { normalizeOptions, type NormalizedSchema } from './normalize.ts'
 import { pinWorkspaceTypeScript, readNxVersion } from './nx-workspace.ts'
 import { buildProjectPackageJson, projectDependencies } from './project-package-json.ts'
@@ -27,36 +27,26 @@ import type { MfeGeneratorSchema, MfeTemplate } from './schema.ts'
 import { buildTargets } from './targets.ts'
 import { nxAngularVersionFor } from './versions.ts'
 
-export interface GenerateProjectOptions {
-  readonly tree: Tree
-  readonly schema: MfeGeneratorSchema
-  readonly template: MfeTemplate
-  /** Absolute path to this generator's own `files` folder (`path.join(__dirname, 'files')`). */
-  readonly filesRoot: string
-  /** Absolute path to the files every container needs, regardless of template. */
-  readonly commonFilesRoot: string
-}
+/** The files every container needs, beside each template's own `files` folder. */
+const COMMON_FILES = join(__dirname, 'files-common')
 
 function templateSubstitutions(options: NormalizedSchema, template: MfeTemplate) {
+  const { propertyName, className } = names(options.id)
   return {
     ...options,
-    template,
-    isApp: template === 'app',
     isWidget: template === 'widget',
-    // The Widget component's class name and the contract's variable name; harmless when a
-    // template does not reference them.
-    camel: toCamel(options.id),
-    pascal: toPascal(options.id),
+    // The Widget component's class name and the contract's variable name, as `packages/create-mfe`
+    // spells them; harmless when a template does not reference them.
+    camel: propertyName,
+    pascal: className,
   }
 }
 
-export async function generateProject({
-  tree,
-  schema,
-  template,
-  filesRoot,
-  commonFilesRoot,
-}: GenerateProjectOptions): Promise<GeneratorCallback> {
+export async function generateProject(
+  tree: Tree,
+  schema: MfeGeneratorSchema,
+  template: MfeTemplate,
+): Promise<GeneratorCallback> {
   const options = normalizeOptions(schema, template)
   // Checked before anything is written, so an unsupported workspace is left as it was.
   const dependencies = projectDependencies(nxAngularVersionFor(readNxVersion(tree)))
@@ -70,8 +60,8 @@ export async function generateProject({
   })
 
   const substitutions = templateSubstitutions(options, template)
-  generateFiles(tree, commonFilesRoot, options.projectRoot, substitutions)
-  generateFiles(tree, filesRoot, options.projectRoot, substitutions)
+  generateFiles(tree, COMMON_FILES, options.projectRoot, substitutions)
+  generateFiles(tree, join(__dirname, '..', template, 'files'), options.projectRoot, substitutions)
 
   writeJson(
     tree,

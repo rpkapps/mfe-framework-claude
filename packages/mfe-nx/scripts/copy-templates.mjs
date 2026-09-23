@@ -3,8 +3,9 @@
  * `tsc` only emits TypeScript; the generator template folders (each generator's own `files`
  * folder, and the shared `files-common` one) and the JSON schemas `generators.json` and
  * `executors.json` point at are data, not source, so this copies them into `dist` beside the
- * compiled modules after the build. Both `src` (tests) and `dist` (Nx, via
- * `path.join(__dirname, 'files')`) then have a `files` folder next to `generator.js`.
+ * compiled modules after the build. Both `src` (tests) and `dist` (Nx) then have them where
+ * `generate-project.js` reads them: `files-common` beside it, and each template's `files` in
+ * that template's folder.
  */
 
 import { cpSync, copyFileSync, existsSync } from 'node:fs'
