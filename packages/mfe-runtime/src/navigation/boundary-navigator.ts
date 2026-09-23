@@ -6,6 +6,7 @@
 
 import {
   createMfeError,
+  isWithinBoundary,
   toMfeError,
   type BoundaryLocation,
   type NavigationAction,
@@ -358,14 +359,10 @@ export function createNavigationIntent(
   basePath: string,
   action?: NavigationAction,
 ): NavigationIntent {
-  const normalized = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
-  const withinBoundary =
-    normalized === '' || to.pathname === normalized || to.pathname.startsWith(`${normalized}/`)
-
   return {
     from,
     to,
-    leavesBoundary: !withinBoundary,
+    leavesBoundary: !isWithinBoundary(basePath, to.pathname),
     ...(action === undefined ? {} : { action }),
   }
 }

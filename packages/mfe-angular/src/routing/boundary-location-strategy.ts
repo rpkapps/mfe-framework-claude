@@ -6,7 +6,12 @@
  */
 
 import { Location, LocationStrategy, type LocationChangeListener } from '@angular/common'
-import type { BoundaryLocation, NavigationBridge, Unsubscribe } from '@company/mfe-core'
+import {
+  isWithinBoundary,
+  type BoundaryLocation,
+  type NavigationBridge,
+  type Unsubscribe,
+} from '@company/mfe-core'
 
 function hrefOf(location: BoundaryLocation, includeHash: boolean): string {
   const path = `${location.pathname}${location.search}`
@@ -104,7 +109,6 @@ export class BoundaryLocationStrategy extends LocationStrategy {
   }
 
   #owns(pathname: string): boolean {
-    const base = Location.stripTrailingSlash(this.#baseHref)
-    return base === '' || pathname === base || pathname.startsWith(`${base}/`)
+    return isWithinBoundary(this.#baseHref, pathname)
   }
 }

@@ -120,6 +120,7 @@ export {
   breadcrumbTrailEqual,
   commandEntryEqual,
   deny,
+  isWithinBoundary,
   shallowEqual,
   type BoundaryLocation,
   type BreadcrumbItem,

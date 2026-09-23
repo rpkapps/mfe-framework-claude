@@ -117,6 +117,15 @@ export interface BoundaryLocation {
   readonly hash: string
 }
 
+/**
+ * Whether `pathname` is an App's own boundary or a path below it; `basePath` may carry a trailing
+ * slash. The one containment test every navigator, router and boundary-aware command shares.
+ */
+export function isWithinBoundary(basePath: string, pathname: string): boolean {
+  const boundary = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+  return boundary === '' || pathname === boundary || pathname.startsWith(`${boundary}/`)
+}
+
 /** The narrow internal bridge at an App boundary; not author API, never a global History patch. */
 export interface NavigationBridge {
   read(): BoundaryLocation
