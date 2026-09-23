@@ -101,12 +101,12 @@ operations failed to attach the access token for https://reports.example.test: e
 
 ## Router, command and storage codes
 
-| Code                     | When it happens                                                                                                | Fix                                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `app/invalid-base-path`  | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.      | Pass `basepath: basePath` to `createRouter`.                                                        |
-| `app/invalid-router`     | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                               | Forward the history, and spread the context you were given.                                         |
-| `command/duplicate-name` | Two commands in one mount share a name, a registration is invalid, or a command ran after its owner went away. | Rename one command, or fix the field the message names.                                             |
-| `storage/failure`        | A stored record could not be read, written or removed.                                                         | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
+| Code                     | When it happens                                                                                                                                                                   | Fix                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `app/invalid-base-path`  | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.                                                                         | Pass `basepath: basePath` to `createRouter`.                                                        |
+| `app/invalid-router`     | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                                                                                                  | Forward the history, and spread the context you were given.                                         |
+| `command/duplicate-name` | Two commands in one mount share a name, a registration is invalid, or a command ran after its owner went away. A warning with this code means a shortcut was ignored or collides. | Rename one command, or fix the field the message names. For a shortcut, choose other keys.          |
+| `storage/failure`        | A stored record could not be read, written or removed.                                                                                                                            | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
 
 <Callout type="error" title="app/invalid-base-path">
 
