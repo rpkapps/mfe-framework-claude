@@ -1,7 +1,7 @@
 /**
- * A container built against another React: `global-setup.ts` bundles this module with `react` and
- * `react-dom` aliased to the 19.2 copies in `tools/interop-react-b`, the way a federated container
- * on React 19.2 brings its own React scope. Everything React-bound it imports — the adapter,
+ * A container built against another React: `__tests__/build-container-b.ts` bundles this module
+ * with `react` and `react-dom` aliased to the 19.2 copies in `tools/interop-react-b`, the way a
+ * federated container on React 19.2 brings its own React scope. Everything React-bound it imports — the adapter,
  * TanStack Router — is bundled with it and binds to that React. `@company/mfe-core` and
  * `@company/mfe-runtime` stay external, because the page shares one copy of each whatever React a
  * container renders with.
