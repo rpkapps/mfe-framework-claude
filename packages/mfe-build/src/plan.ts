@@ -4,8 +4,9 @@ import { join } from 'node:path'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
 
+import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { readConfigSource, type ConfigSource } from './config/config-source.ts'
-import { extractCapabilities } from './discovery/capabilities.ts'
+import type { CapabilityOwner } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
@@ -24,8 +25,8 @@ import {
   exposeName,
   type GenerateContext,
 } from './generate/modules.ts'
-import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
-import { resolveOptions, type MfePluginOptions, type ResolvedOptions } from './options.ts'
+import { resolveOptions, type ContainerOptions, type ResolvedOptions } from './options.ts'
+import type { ContainerProfile } from './profile.ts'
 
 export interface ContainerPlan {
   readonly options: ResolvedOptions
@@ -43,37 +44,53 @@ export interface ContainerPlan {
   /** The `data-mfe-scope` values this container's CSS is scoped to. */
   readonly scopes: readonly string[]
   readonly generated: GeneratedOutput
-  /** Non-fatal findings the plugin reports on the compilation. */
+  /** Non-fatal findings the integration reports on the compilation. */
   readonly diagnostics: readonly Error[]
 }
 
-export interface PlanContainerOptions extends MfePluginOptions {
+export interface PlanContainerOptions extends ContainerOptions {
   /** Fallback container root when the options do not name one. */
   readonly defaultRoot?: string
 }
 
 /** Reads the container and derives everything the build needs from it. */
-export function planContainer(options: PlanContainerOptions = {}): ContainerPlan {
-  const resolved = resolveOptions(options, options.defaultRoot ?? process.cwd())
+export function planContainer(
+  profile: ContainerProfile,
+  options: PlanContainerOptions = {},
+): ContainerPlan {
+  const resolved = resolveOptions(
+    options,
+    options.defaultRoot ?? process.cwd(),
+    profile.containerRootOption,
+  )
 
   const sourceRoot = join(resolved.containerRoot, 'src')
   const generatedDir = resolved.generatedDir
 
-  const entryFile = resolveEntryModule(resolved.containerRoot)
-  const discovery = discoverDefinitions(entryFile)
-  const configSource = readConfigSource(resolved.containerRoot)
+  const entryFile = resolveEntryModule(resolved.containerRoot, profile.definitions)
+  const discovery = discoverDefinitions(entryFile, profile.definitions)
+  const configSource = readConfigSource(resolved.containerRoot, profile.envModules)
+  const sourceFiles = containerSourceFiles(sourceRoot, new Set([generatedDir]))
 
-  const capabilities = extractCapabilities({
-    routesDirectory: resolved.routesDirectory,
+  const owner: CapabilityOwner = {
     hasApp: discovery.app !== undefined,
     ...(discovery.app === undefined ? {} : { appId: discovery.app.id }),
-  })
+  }
+  const capabilities =
+    profile.readCapabilities?.({
+      containerRoot: resolved.containerRoot,
+      entryFile,
+      discovery,
+      owner,
+      sourceFiles,
+    }) ?? []
 
   const context: GenerateContext = {
     options: resolved,
     entryFile,
     discovery,
     configSource,
+    profile,
   }
 
   const generated = generateContainerFiles(context, capabilities)
@@ -99,6 +116,7 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     capabilities,
     configSource,
     shared: resolveShared({
+      policy: profile.sharing,
       dependencies: containerDependencies(resolved),
       overrides: resolved.sharedOverrides,
       installedVersion: installedVersionFrom(resolved.containerRoot),
@@ -109,10 +127,12 @@ export function planContainer(options: PlanContainerOptions = {}): ContainerPlan
     scopes: discovery.definitions.map(definition => definition.id),
     generated,
     diagnostics: [
-      ...findStrayDefinitions(sourceRoot, { entryFile, ignoredDirectories: [generatedDir] }),
-      ...containerSourceFiles(sourceRoot, new Set([generatedDir])).flatMap(file =>
-        findNonContainerAwareAssetReferences(file),
-      ),
+      ...findStrayDefinitions(sourceRoot, {
+        entryFile,
+        factoryModules: profile.definitions.factoryModules,
+        ignoredDirectories: [generatedDir],
+      }),
+      ...sourceFiles.flatMap(file => findNonContainerAwareAssetReferences(file)),
     ],
   }
 }

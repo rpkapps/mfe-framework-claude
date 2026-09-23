@@ -1,16 +1,16 @@
 import { join } from 'node:path'
 
-import { createBuildError } from '../diagnostics.ts'
-
-import { installedVersionFrom } from './installed-version.ts'
 import {
-  DEFAULT_SHARED_CANDIDATES,
+  createBuildError,
+  installedVersionFrom,
   packageOf,
   resolveShared,
   type SharedModuleConfig,
-} from './sharing.ts'
+} from '@company/mfe-build/federation'
 
-export type { SharedModuleConfig } from './sharing.ts'
+import { DEFAULT_SHARED_CANDIDATES, REACT_SHARING_POLICY } from './sharing.ts'
+
+export type { SharedModuleConfig } from '@company/mfe-build/federation'
 
 export interface HostSharedOptions {
   /** The directory holding the host's package.json; every candidate is resolved from it. */
@@ -48,7 +48,7 @@ export function hostShared(
     })
   }
 
-  return resolveShared({ dependencies: installed, installedVersion })
+  return resolveShared({ policy: REACT_SHARING_POLICY, dependencies: installed, installedVersion })
 }
 
 // `version-first` re-initialises every registered remote before resolving a share, so one

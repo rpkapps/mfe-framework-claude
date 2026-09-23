@@ -1,0 +1,79 @@
+/**
+ * An integration states what differs in a `ContainerProfile` and calls `planContainer`; the rest
+ * is the building blocks its own bundler glue and generated files are made of. `env` is also a
+ * subpath, and the share scope is `./federation`, so neither loads the compiler.
+ */
+
+export { planContainer } from './plan.ts'
+export type { ContainerPlan, PlanContainerOptions } from './plan.ts'
+export type {
+  CapabilityContext,
+  ContainerProfile,
+  ExposedDefinition,
+  StylesheetProfile,
+} from './profile.ts'
+export { resolveContainerPath } from './options.ts'
+export type { ContainerOptions, ResolvedOptions } from './options.ts'
+
+export { createBuildError, isMfeBuildError, listNames, MfeBuildError } from './diagnostics.ts'
+export type { BuildDiagnosticDetails } from './diagnostics.ts'
+
+export { env } from './config/env.ts'
+export type { EnvOptions, EnvVarDescriptor, InferEnvConfig } from './config/env.ts'
+export type { ConfigField, ConfigSource } from './config/config-source.ts'
+
+export { collectCapabilities } from './discovery/capabilities.ts'
+export type { CapabilityMarker, CapabilityOwner, MarkerTerms } from './discovery/capabilities.ts'
+export type {
+  DefinitionSyntax,
+  DiscoveredDefinition,
+  DiscoveryResult,
+} from './discovery/definitions.ts'
+export { isTestFile } from './discovery/stray-definitions.ts'
+export {
+  calleeName,
+  collectImportedBindings,
+  collectTopLevelBindings,
+  describeNode,
+  objectProperty,
+  parseSourceFile,
+  positionOf,
+  propertyName,
+  stringLiteralValue,
+  ts,
+  unwrapExpression,
+  walk,
+} from './discovery/ts-ast.ts'
+export type { ImportedBinding } from './discovery/ts-ast.ts'
+
+export {
+  banner,
+  generatedPath,
+  joinBlocks,
+  jsonFile,
+  quote,
+  relativeSpecifier,
+  writeGeneratedFiles,
+} from './generate/emit.ts'
+export type { GeneratedFile } from './generate/emit.ts'
+export type { FrameworkManifestMetadata } from './generate/artifacts.ts'
+export type { GeneratedOutput } from './generate/index.ts'
+export { exportedName } from './generate/modules.ts'
+export type { GenerateContext } from './generate/modules.ts'
+export { RUNTIME_CONFIG_DEFAULTS_FILE, seedLocalRuntimeConfig } from './generate/runtime-config.ts'
+export type { LocalRuntimeConfig } from './generate/runtime-config.ts'
+
+export { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'
+export type { FederationOptions } from './federation/federation-options.ts'
+export { installedVersionFrom } from './federation/installed-version.ts'
+export { packageOf, resolveShared, SINGLETON } from './federation/sharing.ts'
+export type {
+  SharedModuleConfig,
+  SharingPolicies,
+  SharingPolicy,
+} from './federation/sharing.ts'
+
+export { containerPostcssPlugins } from './css/postcss-plugins.ts'
+export type { ContainerPostcssOptions } from './css/postcss-plugins.ts'
+export type { ScopeOptions, ScopePluginFactory, ScopePluginLoader } from './css/scope.ts'
+export { scopeFallbackPlugin } from './css/scope-fallback.ts'

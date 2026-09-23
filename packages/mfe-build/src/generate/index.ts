@@ -25,7 +25,7 @@ import {
   type GenerateContext,
 } from './modules.ts'
 import { runtimeConfigDefaultsFile, runtimeConfigScriptFile } from './runtime-config.ts'
-import { cssModuleTypes, styleRootModule, stylesheetFile } from './styles.ts'
+import { cssModuleTypes, stylesheetFile } from './styles.ts'
 
 export interface GeneratedOutput {
   readonly files: readonly GeneratedFile[]
@@ -47,10 +47,8 @@ export function generateContainerFiles(
     containerEntryModule(context),
     ...federationEntryModules(context),
     ...widgetContractModules(context),
+    ...(context.profile.generatedFiles?.(context) ?? []),
   ]
-
-  const styleRoot = styleRootModule(context)
-  if (styleRoot !== null) base.push(styleRoot)
 
   const config = configModule(context)
   if (config !== null) base.push(config)

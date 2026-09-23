@@ -7,6 +7,7 @@ import { summarizeSchema } from '../config/zod-static.ts'
 import type { DiscoveredDefinition, DiscoveryResult } from '../discovery/definitions.ts'
 import type { ContractImport, WidgetContractSource } from '../discovery/widget-contract.ts'
 import type { ResolvedOptions } from '../options.ts'
+import type { ContainerProfile } from '../profile.ts'
 import {
   banner,
   generatedPath,
@@ -15,13 +16,14 @@ import {
   relativeSpecifier,
   type GeneratedFile,
 } from './emit.ts'
-import { styleRootPath, stylesheetPath, usesDesignSystem } from './styles.ts'
+import { stylesheetPath } from './styles.ts'
 
 export interface GenerateContext {
   readonly options: ResolvedOptions
   readonly entryFile: string
   readonly discovery: DiscoveryResult
   readonly configSource: ConfigSource | undefined
+  readonly profile: ContainerProfile
 }
 
 export const ALIASES = {
@@ -51,9 +53,9 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
   return {
     path: file,
     contents: joinBlocks([
-      banner(ALIASES.config),
+      banner(context.profile.generator, ALIASES.config),
       [
-        "import type { InferEnvConfig } from '@company/mfe-rspack'",
+        `import type { InferEnvConfig } from ${quote(context.profile.envModules[0])}`,
         '',
         `import descriptors from ${quote(relativeSpecifier(file, source.file))}`,
       ].join('\n'),
@@ -238,7 +240,7 @@ const CONFIG_VALIDATE = [
 
 /**
  * The global `fetch` is never replaced, so nothing a container does here changes what the shell
- * observes; the import is from `@company/mfe-react` because that is what a container depends on.
+ * observes; the transport comes from the container's own adapter, which is what it depends on.
  */
 export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
@@ -252,9 +254,9 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
   return {
     path: generatedPath(context.options.generatedDir, 'fetch.ts'),
     contents: joinBlocks([
-      banner(ALIASES.fetch),
+      banner(context.profile.generator, ALIASES.fetch),
       [
-        "import { createContainerTransport } from '@company/mfe-react'",
+        `import { createContainerTransport } from ${quote(context.profile.adapterModule)}`,
         ...(apiFields.length === 0 ? [] : ['', "import { config } from './config.ts'"]),
       ].join('\n'),
       [
@@ -289,7 +291,7 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
   return {
     path: generatedPath(context.options.generatedDir, 'meta.ts'),
     contents: joinBlocks([
-      banner(ALIASES.meta),
+      banner(context.profile.generator, ALIASES.meta),
       [
         'export interface DefinitionMeta {',
         '  readonly id: string',
@@ -336,7 +338,7 @@ export function containerEntryModule(context: GenerateContext): GeneratedFile {
   return {
     path: containerEntryPath(context),
     contents: joinBlocks([
-      banner(),
+      banner(context.profile.generator),
       [
         '// Intentionally empty. This container is loaded through remoteEntry.js and',
         '// the exposed entries beside this file; nothing imports this module.',
@@ -354,7 +356,6 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
   return context.discovery.definitions.map(definition => {
     const file = entryModulePath(context, definition)
     const authored = relativeSpecifier(file, context.entryFile)
-    const exported = definition.isDefaultExport ? 'default' : definition.exportName
 
     const sideEffectImports = [
       "// The container's own stylesheet: its utilities, scoped to this",
@@ -372,29 +373,14 @@ export function federationEntryModules(context: GenerateContext): readonly Gener
           ]),
     ].join('\n')
 
-    // Without a design system there is nothing to wrap the rendered tree in.
-    const exposed = usesDesignSystem(context)
-      ? [
-          "import { withStyleRoot } from '@company/mfe-react'",
-          [
-            definition.isDefaultExport
-              ? `import authored from ${quote(authored)}`
-              : `import { ${exported} as authored } from ${quote(authored)}`,
-            `import { StyleRoot } from ${quote(relativeSpecifier(file, styleRootPath(context)))}`,
-          ].join('\n'),
-          [
-            '// The mount renders the style root inside the scope root and hands it',
-            "// this mount's overlay container, so the design system's overlays portal",
-            '// into the container scope instead of a bare document body.',
-            'export const definition = withStyleRoot(authored, StyleRoot)',
-          ].join('\n'),
-        ]
-      : [`export { ${exported} as definition } from ${quote(authored)}`]
+    const exposed = context.profile.exposeDefinition?.(context, { file, definition, authored }) ?? [
+      `export { ${exportedName(definition)} as definition } from ${quote(authored)}`,
+    ]
 
     return {
       path: file,
       contents: joinBlocks([
-        banner(),
+        banner(context.profile.generator),
         `// Module Federation expose: '${exposeName(definition)}'. Generated, not a public name.`,
         sideEffectImports,
         ...exposed,
@@ -467,7 +453,7 @@ function widgetContractModule(
   return {
     path: file,
     contents: joinBlocks([
-      banner(),
+      banner(context.profile.generator),
       [
         `// The contract of the '${widget.id}' Widget. Side-effect free: it imports no App`,
         '// entry, no route tree, no generated configuration and no router augmentation,',
@@ -497,6 +483,11 @@ function zodBinding(
 
   if (!boundNames.has('z')) return { local: 'z', importLine: "import type { z } from 'zod'" }
   return { local: 'zodTypes', importLine: "import type { z as zodTypes } from 'zod'" }
+}
+
+/** The name an exposed entry imports the author's definition by. */
+export function exportedName(definition: DiscoveredDefinition): string {
+  return definition.isDefaultExport ? 'default' : definition.exportName
 }
 
 /** The id a container reports itself as: its App's, or its first Widget's. */

@@ -50,7 +50,7 @@ export function createPageRuntime(options: MemoryHostRuntimeOptions): MemoryHost
 
 /** A React host page: the runtime provided once, with a Suspense boundary for the loads. */
 export function reactHostPage(runtime: MfeHostRuntime, children: ReactNode): ReactNode {
-  return h(MfeProvider, { runtime }, h(Suspense, { fallback: null }, children))
+  return h(MfeProvider, { runtime, children: h(Suspense, { fallback: null }, children) })
 }
 
 /** An Angular host application: zoneless, with the runtime provided once, as a shell boots one. */
@@ -103,7 +103,7 @@ export async function renderInAngularHost<T>(
 export interface ApplicationCensus {
   /** Passed as the definition's `providers`. */
   readonly providers: EnvironmentProviders
-  readonly created: number
+  /** Created and not yet destroyed. */
   readonly live: number
 }
 
@@ -118,9 +118,6 @@ export function applicationCensus(): ApplicationCensus {
         destroyed += 1
       })
     }),
-    get created() {
-      return created
-    },
     get live() {
       return created - destroyed
     },

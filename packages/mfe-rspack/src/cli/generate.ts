@@ -4,9 +4,10 @@
 import { relative, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 
+import { seedLocalRuntimeConfig } from '@company/mfe-build'
+
 import { generateContainer } from '../generate/container.ts'
 import { generateRouteTree, ownsRouteTree } from '../generate/route-tree.ts'
-import { seedLocalRuntimeConfig } from '../generate/runtime-config.ts'
 
 const USAGE = `
 mfe-generate [options]

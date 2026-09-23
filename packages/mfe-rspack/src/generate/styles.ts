@@ -1,18 +1,21 @@
 /**
- * A container ships the CSS for the classes it uses, because Tailwind emits a utility only for
- * a class it has seen; the shell owns the document, so no preflight and no variables here (§17).
+ * What the design system adds to a React container's generated output: its scoped stylesheet
+ * entry, and a root around each mounted tree so its overlays stay inside the container (§17).
  */
 
-import { join } from 'node:path'
-
-import { banner, generatedPath, joinBlocks, relativeSpecifier, type GeneratedFile } from './emit.ts'
-import type { GenerateContext } from './modules.ts'
+import {
+  banner,
+  exportedName,
+  generatedPath,
+  joinBlocks,
+  quote,
+  relativeSpecifier,
+  type ExposedDefinition,
+  type GenerateContext,
+  type GeneratedFile,
+} from '@company/mfe-build'
 
 const DESIGN_SYSTEM = '@tecton/react'
-
-export function stylesheetPath(context: GenerateContext): string {
-  return generatedPath(context.options.generatedDir, 'styles.css')
-}
 
 /** Where the component that wraps a mounted definition's tree lives. */
 export function styleRootPath(context: GenerateContext): string {
@@ -23,47 +26,41 @@ export function usesDesignSystem(context: GenerateContext): boolean {
   return DESIGN_SYSTEM in context.options.dependencies
 }
 
-export function stylesheetFile(context: GenerateContext): GeneratedFile {
-  const file = stylesheetPath(context)
+/** Added to the container stylesheet after Tailwind's own imports. */
+export function designSystemStylesheetImports(context: GenerateContext): readonly string[] {
+  if (!usesDesignSystem(context)) return []
 
-  return {
-    path: file,
-    contents: joinBlocks([
-      banner(),
-      [
-        '/*',
-        ' * Tailwind, split: the theme and the utilities, and deliberately not',
-        ' * `@import "tailwindcss"`, which would also bring preflight. The reset',
-        ' * belongs to whoever owns the document, and that is the shell — along',
-        ' * with the fonts, which reach this container through --font-sans and',
-        ' * --font-mono like any other inherited value.',
-        ' */',
-        '@layer theme, base, components, utilities;',
-        '@import "tailwindcss/theme.css" layer(theme);',
-        '@import "tailwindcss/utilities.css" layer(utilities);',
-        ...(usesDesignSystem(context)
-          ? [
-              '',
-              '/*',
-              " * The design system's scoped entry: utilities only, no variables, so",
-              " * nothing here redeclares what the shell's :root already says.",
-              ' */',
-              `@import "${DESIGN_SYSTEM}/styles/scoped.css";`,
-            ]
-          : []),
-      ].join('\n'),
-      [
-        '/*',
-        ' * What Tailwind scans. Splitting the imports above turns automatic source',
-        ' * detection off, so every directory holding classes this container renders',
-        ' * has to be named here — the library scans its own. The one entry',
-        " * below covers the whole of this container's `src/`; nothing under",
-        ' * node_modules needs scanning.',
-        ' */',
-        `@source "${relativeSpecifier(file, join(context.options.containerRoot, 'src'))}/**/*.{ts,tsx}";`,
-      ].join('\n'),
-    ]),
-  }
+  return [
+    '/*',
+    " * The design system's scoped entry: utilities only, no variables, so",
+    " * nothing here redeclares what the shell's :root already says.",
+    ' */',
+    `@import "${DESIGN_SYSTEM}/styles/scoped.css";`,
+  ]
+}
+
+/** Without a design system there is nothing to wrap the rendered tree in. */
+export function exposeWithStyleRoot(
+  context: GenerateContext,
+  { file, definition, authored }: ExposedDefinition,
+): readonly string[] | null {
+  if (!usesDesignSystem(context)) return null
+
+  return [
+    "import { withStyleRoot } from '@company/mfe-react'",
+    [
+      definition.isDefaultExport
+        ? `import authored from ${quote(authored)}`
+        : `import { ${exportedName(definition)} as authored } from ${quote(authored)}`,
+      `import { StyleRoot } from ${quote(relativeSpecifier(file, styleRootPath(context)))}`,
+    ].join('\n'),
+    [
+      '// The mount renders the style root inside the scope root and hands it',
+      "// this mount's overlay container, so the design system's overlays portal",
+      '// into the container scope instead of a bare document body.',
+      'export const definition = withStyleRoot(authored, StyleRoot)',
+    ].join('\n'),
+  ]
 }
 
 /**
@@ -76,7 +73,7 @@ export function styleRootModule(context: GenerateContext): GeneratedFile | null 
   return {
     path: styleRootPath(context),
     contents: joinBlocks([
-      banner(),
+      banner(context.profile.generator),
       [
         `import { ThemeRoot } from '${DESIGN_SYSTEM}/tecton/theme-root'`,
         "import { useLayoutEffect, type ReactNode } from 'react'",
@@ -119,13 +116,5 @@ export function styleRootModule(context: GenerateContext): GeneratedFile | null 
         '}',
       ].join('\n'),
     ]),
-  }
-}
-
-/** TypeScript only has to know the module exists; the bundler injects the stylesheet. */
-export function cssModuleTypes(context: GenerateContext): GeneratedFile {
-  return {
-    path: generatedPath(context.options.generatedDir, 'css.d.ts'),
-    contents: joinBlocks([banner(), "declare module '*.css'"]),
   }
 }

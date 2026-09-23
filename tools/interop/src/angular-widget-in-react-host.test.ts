@@ -17,7 +17,12 @@ import {
   type SimpleChanges,
 } from '@angular/core'
 import { createWidget } from '@company/mfe-angular'
-import { KIND_ATTRIBUTE, MOUNT_ATTRIBUTE, SCOPE_ATTRIBUTE } from '@company/mfe-host'
+import {
+  KIND_ATTRIBUTE,
+  MOUNT_ATTRIBUTE,
+  OVERLAY_ROOT_ATTRIBUTE,
+  SCOPE_ATTRIBUTE,
+} from '@company/mfe-host'
 import { DynamicWidget, lazyWidget, type WidgetFallbackProps } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
@@ -116,7 +121,7 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
     const scope = label.closest(`[${SCOPE_ATTRIBUTE}]`)
     expect(scope?.getAttribute(SCOPE_ATTRIBUTE)).toBe('alert-panel')
     expect(scope?.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
-    const overlay = document.querySelector(`[data-mfe-overlay-root][${SCOPE_ATTRIBUTE}]`)
+    const overlay = document.querySelector(`[${OVERLAY_ROOT_ATTRIBUTE}]`)
     expect(overlay?.getAttribute(MOUNT_ATTRIBUTE)).toBe(scope?.getAttribute(MOUNT_ATTRIBUTE))
     expect(applications.live).toBe(1)
   })
@@ -205,7 +210,10 @@ describe('an Angular Widget’s events in a React host', () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })
     const onAcknowledged = vi.fn()
     const page = (alertId: string): ReactNode =>
-      reactHostPage(memory.runtime, h(StrictAlertPanel, { label: 'Disk full', alertId, onAcknowledged }))
+      reactHostPage(
+        memory.runtime,
+        h(StrictAlertPanel, { label: 'Disk full', alertId, onAcknowledged }),
+      )
     const view = await renderSuspending(page('a-1'))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Acknowledge' }))

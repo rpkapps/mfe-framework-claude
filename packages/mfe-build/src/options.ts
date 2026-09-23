@@ -5,19 +5,14 @@ import { isAbsolute, join, resolve } from 'node:path'
 
 import { createBuildError } from './diagnostics.ts'
 
-export interface MfePluginOptions {
-  /** Defaults to the compiler context, the directory holding `rsbuild.config.ts`. */
+/** The options every integration takes; each adds its own framework's beside them. */
+export interface ContainerOptions {
+  /** Defaults to the directory the integration runs in. */
   readonly containerRoot?: string
   /** Additive: the adapter's defaults are kept, and there is no way to remove one. */
   readonly shared?: Readonly<Record<string, string>>
-  /** Exists so a repository can run its test matrix compiled and uncompiled. */
-  readonly reactCompiler?: boolean
-  /** Pass `false` when the container's config already applies `@tanstack/router-plugin` first. */
-  readonly router?: boolean | Readonly<Record<string, unknown>>
   /** Build-managed output directory, relative to the container root. */
   readonly generatedDir?: string
-  /** The App's file-based routes, relative to the container root. */
-  readonly routesDirectory?: string
   /** The deployment-provided config file, relative to the container's assets. */
   readonly runtimeConfigFileName?: string
   readonly manifestFileName?: string
@@ -39,7 +34,6 @@ interface ContainerManifest {
 export interface ResolvedOptions {
   readonly containerRoot: string
   readonly generatedDir: string
-  readonly routesDirectory: string
   readonly runtimeConfigFileName: string
   readonly manifestFileName: string
   readonly registryFileName: string
@@ -48,29 +42,30 @@ export interface ResolvedOptions {
   readonly packageVersion: string | undefined
   readonly dependencies: Readonly<Record<string, string>>
   readonly sharedOverrides: Readonly<Record<string, string>>
-  readonly reactCompiler: boolean
-  readonly router: false | Readonly<Record<string, unknown>>
   readonly buildTime: string
   /** A fixed time is recorded as given; otherwise an unchanged shape keeps its time (§19). */
   readonly buildTimeFixed: boolean
 }
 
 const DEFAULT_GENERATED_DIR = '.mfe'
-const DEFAULT_ROUTES_DIRECTORY = 'src/routes'
 const DEFAULT_RUNTIME_CONFIG_FILE = 'runtime-config.json'
 const DEFAULT_MANIFEST_FILE = 'mf-manifest.json'
 const DEFAULT_REGISTRY_FILE = 'mfe-registry.json'
 
-export function resolveOptions(options: MfePluginOptions, containerRoot: string): ResolvedOptions {
+/** `containerRootOption` is how the author names the root, for the repair when it is wrong. */
+export function resolveOptions(
+  options: ContainerOptions,
+  containerRoot: string,
+  containerRootOption: string,
+): ResolvedOptions {
   const root = resolve(options.containerRoot ?? containerRoot)
-  const manifest = readManifest(root)
+  const manifest = readManifest(root, containerRootOption)
 
   const packageName = options.name ?? manifest.name ?? 'mfe-container'
 
   return {
     containerRoot: root,
-    generatedDir: absolute(root, options.generatedDir ?? DEFAULT_GENERATED_DIR),
-    routesDirectory: absolute(root, options.routesDirectory ?? DEFAULT_ROUTES_DIRECTORY),
+    generatedDir: resolveContainerPath(root, options.generatedDir ?? DEFAULT_GENERATED_DIR),
     runtimeConfigFileName: options.runtimeConfigFileName ?? DEFAULT_RUNTIME_CONFIG_FILE,
     manifestFileName: options.manifestFileName ?? DEFAULT_MANIFEST_FILE,
     registryFileName: options.registryFileName ?? DEFAULT_REGISTRY_FILE,
@@ -79,15 +74,13 @@ export function resolveOptions(options: MfePluginOptions, containerRoot: string)
     packageVersion: manifest.version,
     dependencies: { ...manifest.peerDependencies, ...manifest.dependencies },
     sharedOverrides: options.shared ?? {},
-    reactCompiler: options.reactCompiler !== false,
-    router:
-      options.router === false ? false : options.router === true ? {} : (options.router ?? {}),
     buildTime: options.buildTime ?? new Date().toISOString(),
     buildTimeFixed: options.buildTime !== undefined,
   }
 }
 
-function absolute(root: string, path: string): string {
+/** A path an author gives relative to the container root, or absolute. */
+export function resolveContainerPath(root: string, path: string): string {
   return isAbsolute(path) ? path : join(root, path)
 }
 
@@ -102,7 +95,7 @@ function sanitizeFederationName(packageName: string): string {
       : sanitized
 }
 
-function readManifest(root: string): ContainerManifest {
+function readManifest(root: string, containerRootOption: string): ContainerManifest {
   const file = join(root, 'package.json')
   let text: string
   try {
@@ -114,8 +107,7 @@ function readManifest(root: string): ContainerManifest {
       expected: 'a package.json at the container root',
       observed: 'no readable file',
       declaredBy: 'The build plugin',
-      repair:
-        'Point pluginMfe({ containerRoot }) at the directory holding the container package.json. The manifest is what the sharing defaults are intersected with.',
+      repair: `Point ${containerRootOption} at the directory holding the container package.json. The manifest is what the sharing defaults are intersected with.`,
       cause,
     })
   }

@@ -1,7 +1,8 @@
 /** The generation step, shared by the build and `mfe-generate` so neither can drift. */
 
+import { writeGeneratedFiles, type GeneratedFile } from '@company/mfe-build'
+
 import { planContainer, type ContainerPlan, type PlanContainerOptions } from '../plan.ts'
-import { writeGeneratedFiles, type GeneratedFile } from './emit.ts'
 
 export interface ContainerGeneration {
   readonly plan: ContainerPlan

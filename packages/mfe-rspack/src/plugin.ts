@@ -10,10 +10,10 @@ import { relative, sep } from 'node:path'
 import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 import type { Compilation, Compiler, RspackPluginInstance, RuleSetUse } from '@rspack/core'
 
-import { withFrameworkMetadata } from './federation/federation-options.ts'
+import { RUNTIME_CONFIG_DEFAULTS_FILE, withFrameworkMetadata } from '@company/mfe-build'
+
 import { generateContainer } from './generate/container.ts'
 import { ownsRouteTree, routeTreeOptions } from './generate/route-tree.ts'
-import { RUNTIME_CONFIG_DEFAULTS_FILE } from './generate/runtime-config.ts'
 import type { MfePluginOptions } from './options.ts'
 import type { ContainerPlan } from './plan.ts'
 

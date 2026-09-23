@@ -20,8 +20,8 @@ import { AppHost } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { createElement as h, useState, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { map } from 'rxjs'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   applicationCensus,
@@ -41,7 +41,9 @@ const applications = applicationCensus()
     <a routerLink="/items/7">Open item 7</a>`,
 })
 class ItemComponent {
-  readonly itemId = toSignal(inject(ActivatedRoute).paramMap.pipe(map(params => params.get('itemId'))))
+  readonly itemId = toSignal(
+    inject(ActivatedRoute).paramMap.pipe(map(params => params.get('itemId'))),
+  )
   readonly depth = injectMfeMount().depth
 }
 

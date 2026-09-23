@@ -5,7 +5,8 @@ import { join } from 'node:path'
 
 import { Generator, getConfig, type Config } from '@tanstack/router-generator'
 
-import { createBuildError } from '../diagnostics.ts'
+import { createBuildError } from '@company/mfe-build'
+
 import type { ContainerPlan } from '../plan.ts'
 
 /** A Widget-only container has no URL boundary and therefore no routes. */

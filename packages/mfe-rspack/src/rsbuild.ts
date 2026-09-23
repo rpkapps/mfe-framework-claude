@@ -2,8 +2,9 @@
 
 import type { RsbuildConfig, RsbuildPlugin } from '@rsbuild/core'
 
-import { containerPostcssPlugins } from './css/postcss-plugins.ts'
-import { buildFederationOptions } from './federation/federation-options.ts'
+import { buildFederationOptions, containerPostcssPlugins } from '@company/mfe-build'
+
+import { loadScopePlugin } from './css/scope.ts'
 import type { MfePluginOptions } from './options.ts'
 import { planContainer } from './plan.ts'
 import { MfeRspackPlugin } from './plugin.ts'
@@ -60,6 +61,7 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
                 containerPostcssPlugins({
                   scopes: plan.scopes,
                   containerRoot: plan.options.containerRoot,
+                  loadScopePlugin,
                   configured: postcss.postcssOptions,
                 }),
               )
