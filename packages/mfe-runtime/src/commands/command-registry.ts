@@ -1,6 +1,6 @@
 /**
  * Scoped command registration, where the host page is one more scope so a palette renders
- * one list instead of merging a snapshot with a hard-coded one (§26). The performance
+ * one list instead of merging a snapshot with a hard-coded one. The performance
  * contract is the interesting part: replacing `execute`/`canExecute` closure identity must
  * not change the public snapshot, and updating one command must not re-evaluate any other.
  *
@@ -49,7 +49,7 @@ const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)
 const COMMAND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
 
 /** Every registration failure this module raises carries the same code. */
-function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id' | 'declaredBy'>): MfeError {
+function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id'>): MfeError {
   return createMfeError({
     code: 'command/duplicate-name',
     id,
@@ -131,7 +131,7 @@ const UNMATCHED: ShortcutDispatchResult = Object.freeze({ status: 'unmatched' })
 
 /**
  * Commands are stored per scope, so a name may repeat across mounts but never inside one
- * and a mount's disposal cannot take the host page's with it (§26).
+ * and a mount's disposal cannot take the host page's with it.
  */
 export class CommandRegistry {
   readonly #byScope = new Map<string, Map<string, RegisteredCommand>>()
@@ -180,7 +180,7 @@ export class CommandRegistry {
   /**
    * A host has no definition id and no mount token, and a made-up token cannot be told
    * from a real mount's, which would put the host's commands at the mercy of
-   * `removeMount` (§26).
+   * `removeMount`.
    */
   registerHost(registration: CommandRegistration): CommandRegistrationHandle {
     return this.#add(
@@ -202,10 +202,7 @@ export class CommandRegistry {
   evaluateAll(): void {
     let changed = false
     for (const command of this.#allCommands()) {
-      const next = this.#buildEntry(command)
-      if (commandEntryEqual(command.entry, next)) continue
-      command.entry = next
-      changed = true
+      if (this.#refreshEntry(command)) changed = true
     }
     if (changed) this.#publish()
   }
@@ -294,11 +291,7 @@ export class CommandRegistry {
     const decision = this.#decide(command.definitionId, command.registration)
     if (!decision.allowed) {
       // Refresh this entry so the palette shows the current denial state.
-      const next = this.#buildEntry(command)
-      if (!commandEntryEqual(command.entry, next)) {
-        command.entry = next
-        this.#publish()
-      }
+      if (this.#refreshEntry(command)) this.#publish()
       this.#options.notifyDenial?.({
         commandId: command.qualifiedId,
         label: command.registration.label,
@@ -346,8 +339,8 @@ export class CommandRegistry {
     const command: RegisteredCommand = { ...unpublished, entry: this.#buildEntry(unpublished) }
 
     commands.set(registration.name, command)
+    if (declared) this.#afterShortcutChange(command)
     this.#publish()
-    this.#afterShortcutChange(command)
 
     let active = true
     return {
@@ -363,9 +356,9 @@ export class CommandRegistry {
           owned.delete(command.registration.name)
           if (owned.size === 0) this.#byScope.delete(scopeToken)
         }
-        this.#publish()
         // A host shortcut going away frees the keys for a container that was refused them.
         if (command.kind === 'host' && command.declared) this.#refreshContainerShortcuts()
+        this.#publish()
       },
     }
   }
@@ -374,67 +367,62 @@ export class CommandRegistry {
     const commands = this.#scopeCommands(command.scopeToken)
     const shortcutChanged = next.shortcut !== command.registration.shortcut
 
-    // Changing `name` replaces the local registration, with the same duplicate validation
-    // as a fresh register.
+    // Changing `name` replaces the local registration, with the same validation as a fresh
+    // register. Otherwise the shortcut is parsed only when it changed, because this runs after
+    // every commit of the component that registered it.
+    let { declared } = command
     if (next.name !== command.registration.name) {
-      const declared = this.#assertValid(command.definitionId, next)
+      declared = this.#assertValid(command.definitionId, next)
       if (commands.has(next.name)) {
         throw this.#duplicateNameError(command.definitionId, next.name)
       }
       commands.delete(command.registration.name)
-      command.registration = next
-      command.declared = declared
-      command.qualifiedId = `${command.definitionId}:${next.name}`
-      command.entry = this.#buildEntry(command)
       commands.set(next.name, command)
-      this.#publish()
-      if (shortcutChanged) this.#afterShortcutChange(command)
-      return
+      command.qualifiedId = `${command.definitionId}:${next.name}`
+    } else if (shortcutChanged) {
+      declared = this.#parseDeclared(command.definitionId, next)
     }
-
-    // Parsed only when it changed: this runs after every commit of the component that
-    // registered it.
-    if (shortcutChanged) command.declared = this.#parseDeclared(command.definitionId, next)
     command.registration = next
+    command.declared = declared
 
-    // An identical visible result keeps the existing entry reference, so the palette's
-    // snapshot does not change and no subscriber re-renders.
-    const candidate = this.#buildEntry(command)
-    if (!commandEntryEqual(command.entry, candidate)) {
-      command.entry = candidate
-      this.#publish()
-    }
-    if (shortcutChanged) this.#afterShortcutChange(command)
+    let changed = this.#refreshEntry(command)
+    if (shortcutChanged && this.#afterShortcutChange(command)) changed = true
+    if (changed) this.#publish()
   }
 
   /**
    * Reported once, when a shortcut is declared or changes, rather than on every key press: a
    * Widget's is refused, a container's that the host page uses is refused, and one that another
-   * live registration could be pressed for at the same time collides with it.
+   * live registration could be pressed for at the same time collides with it. A change to the
+   * host page's shortcuts can claim or free a container's keys; returns whether that changed an
+   * entry, so the caller publishes once.
    */
-  #afterShortcutChange(command: RegisteredCommand): void {
+  #afterShortcutChange(command: RegisteredCommand): boolean {
     if (command.declared) {
       const refusal = this.#shortcutRefusal(command)
       if (refusal === undefined) this.#reportCollisions(command, command.declared)
       else this.#reportRefusal(command, command.declared, refusal)
     }
-    if (command.kind === 'host') this.#refreshContainerShortcuts()
+    return command.kind === 'host' && this.#refreshContainerShortcuts()
   }
 
-  /** The host page's shortcuts changed, so a container's may have been claimed or freed. */
-  #refreshContainerShortcuts(): void {
+  /**
+   * The host page's shortcuts changed, so a container's may have been claimed or freed. Returns
+   * whether any entry changed; the caller publishes.
+   */
+  #refreshContainerShortcuts(): boolean {
     let changed = false
     for (const command of this.#allCommands()) {
       if (command.kind === 'host' || !command.declared) continue
-      const next = this.#buildEntry(command)
-      if (commandEntryEqual(command.entry, next)) continue
-      const lost = command.entry.shortcut !== undefined && next.shortcut === undefined
-      command.entry = next
+      const had = command.entry.shortcut
+      if (!this.#refreshEntry(command)) continue
       changed = true
       const refusal = this.#shortcutRefusal(command)
-      if (lost && refusal !== undefined) this.#reportRefusal(command, command.declared, refusal)
+      if (had !== undefined && refusal !== undefined) {
+        this.#reportRefusal(command, command.declared, refusal)
+      }
     }
-    if (changed) this.#publish()
+    return changed
   }
 
   /**
@@ -581,6 +569,17 @@ export class CommandRegistry {
       decision: this.#decide(definitionId, registration),
       ...(shortcut === undefined ? {} : { shortcut: shortcut.source }),
     })
+  }
+
+  /**
+   * An identical visible result keeps the existing entry reference, so the palette's snapshot does
+   * not change and no subscriber re-renders. Returns whether the entry changed.
+   */
+  #refreshEntry(command: RegisteredCommand): boolean {
+    const next = this.#buildEntry(command)
+    if (commandEntryEqual(command.entry, next)) return false
+    command.entry = next
+    return true
   }
 
   #publish(): void {
