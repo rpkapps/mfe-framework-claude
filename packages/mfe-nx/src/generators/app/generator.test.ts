@@ -160,6 +160,7 @@ describe('the app generator', () => {
     expect(primeng).toContain('provideNoopAnimations()')
     expect(primeng).toContain("import Aura from '@primeng/themes/aura'")
     expect(primeng).toContain('darkModeSelector: `.${PRIMENG_DARK_CLASS}`')
+    expect(primeng).toContain('preset: redeclaredForScopedDarkMode(Aura)')
     expect(primeng).toContain('appendTo: mount.overlayRoot')
     expect(primeng).toContain('provideEnvironmentInitializer(() => {')
     expect(primeng).toContain('mount.scopeRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)')

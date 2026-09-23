@@ -79,7 +79,9 @@ apps/my-app/
 
 `src/primeng.ts` is the container's, not the adapter's: `providePrimeNgForMfe()` routes PrimeNG's
 overlays into the mount's overlay root and follows the shell's theme with a class on the mount's
-scope and overlay roots. Dialog, ConfirmDialog and Drawer do not read the overlay setting, so each
+scope and overlay roots. It hands PrimeNG the Aura preset with every token repeated in its dark
+scheme: PrimeNG resolves a light variable's references on `:root`, so without the repeat a select
+would stay light under a dark scope root while a button went dark. Dialog, ConfirmDialog and Drawer do not read the overlay setting, so each
 needs `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component. PrimeNG
 writes unscoped global styles, so every Angular container on a page uses the same PrimeNG version
 and preset.
