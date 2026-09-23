@@ -22,7 +22,11 @@ import {
   type RouterStateSnapshot,
 } from '@angular/router'
 import type { BoundaryLocation, NavigationIntent, Unsubscribe } from '@company/mfe-core'
-import type { MountContext, NavigationBlocker } from '@company/mfe-runtime'
+import {
+  confirmUnlessDisposed,
+  type MountContext,
+  type NavigationBlocker,
+} from '@company/mfe-runtime'
 import { firstValueFrom, isObservable } from 'rxjs'
 
 /** What `injectNavigationBlock` registers; the host's own blocker minus the depth it lacks. */
@@ -51,26 +55,6 @@ export const APP_NAVIGATION_BLOCKERS = new InjectionToken<AppNavigationBlockers>
 
 export function provideMfeNavigationBlockers(): Provider {
   return { provide: APP_NAVIGATION_BLOCKERS, useFactory: () => new AppNavigationBlockers() }
-}
-
-/**
- * A mount torn down mid-negotiation never answers, so the host would wait forever and refuse
- * every later navigation as "already negotiating".
- */
-function whenDisposed(mount: AbortSignal, until: AbortSignal): Promise<'proceed'> {
-  return new Promise(resolve => {
-    if (mount.aborted) {
-      resolve('proceed')
-      return
-    }
-    mount.addEventListener(
-      'abort',
-      () => {
-        resolve('proceed')
-      },
-      { once: true, signal: until },
-    )
-  })
 }
 
 interface Deactivation {
@@ -240,17 +224,7 @@ export function registerAppNavigationBlocker({
     // A guard cannot answer synchronously, so only blockers that asked for the prompt get it.
     shouldBlockUnload: () => blockers.list().some(blocker => blocker.shouldBlockUnload?.() ?? true),
 
-    confirm: async intent => {
-      const answered = new AbortController()
-      try {
-        return await Promise.race([
-          askEveryone(intent),
-          whenDisposed(context.signal, answered.signal),
-        ])
-      } finally {
-        answered.abort()
-      }
-    },
+    confirm: intent => confirmUnlessDisposed(context.signal, () => askEveryone(intent)),
   }
 
   return context.runtime.navigator.registerBlocker(context.mountToken, delegate)

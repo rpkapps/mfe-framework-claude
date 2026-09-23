@@ -139,6 +139,7 @@ export {
 export {
   BoundaryNavigator,
   boundaryDefinitionId,
+  confirmUnlessDisposed,
   createBrowserNavigationBridge,
   createNavigationIntent,
   parseBoundaryLocation,

@@ -34,6 +34,38 @@ export interface NavigationBlocker {
 
 export type NavigationOutcome = 'proceeded' | 'blocked'
 
+/**
+ * Answers what `ask` answers, or `'proceed'` once the mount's signal aborts first. A mount torn
+ * down mid-negotiation never answers, so the host would wait forever and refuse every later
+ * navigation as "already negotiating". Every adapter's blocker delegate confirms through this.
+ */
+export async function confirmUnlessDisposed(
+  mountSignal: AbortSignal,
+  ask: () => Promise<'proceed' | 'reset'>,
+): Promise<'proceed' | 'reset'> {
+  const answer = ask()
+  const answered = new AbortController()
+  const disposed = new Promise<'proceed'>(resolve => {
+    if (mountSignal.aborted) {
+      resolve('proceed')
+      return
+    }
+    mountSignal.addEventListener(
+      'abort',
+      () => {
+        resolve('proceed')
+      },
+      { once: true, signal: answered.signal },
+    )
+  })
+
+  try {
+    return await Promise.race([answer, disposed])
+  } finally {
+    answered.abort()
+  }
+}
+
 export interface BoundaryNavigatorOptions {
   readonly bridge: NavigationBridge
   readonly diagnostics?: DiagnosticsHub

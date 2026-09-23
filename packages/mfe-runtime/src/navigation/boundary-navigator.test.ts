@@ -12,6 +12,7 @@ import type { DiagnosticsHub } from '../diagnostics.ts'
 import {
   BoundaryNavigator,
   boundaryDefinitionId,
+  confirmUnlessDisposed,
   createBrowserNavigationBridge,
   createNavigationIntent,
   parseBoundaryLocation,
@@ -863,5 +864,36 @@ describe('boundaryDefinitionId', () => {
         basePath,
       ).leavesBoundary,
     ).toBe(false)
+  })
+})
+
+/** A mount torn down while its blocker is being asked never answers; the host must not wait. */
+describe('confirmUnlessDisposed', () => {
+  it('answers what the mount answers while it is live', async () => {
+    const mount = new AbortController()
+
+    await expect(confirmUnlessDisposed(mount.signal, () => Promise.resolve('reset'))).resolves.toBe(
+      'reset',
+    )
+  })
+
+  it('proceeds once the mount is disposed before it answered', async () => {
+    const mount = new AbortController()
+    const answer = deferred<'proceed' | 'reset'>()
+
+    const confirming = confirmUnlessDisposed(mount.signal, () => answer.promise)
+    mount.abort()
+
+    await expect(confirming).resolves.toBe('proceed')
+    answer.resolve('reset')
+  })
+
+  it('proceeds for a mount already disposed, having still asked it', async () => {
+    const mount = new AbortController()
+    mount.abort()
+    const ask = vi.fn(() => new Promise<'proceed' | 'reset'>(() => undefined))
+
+    await expect(confirmUnlessDisposed(mount.signal, ask)).resolves.toBe('proceed')
+    expect(ask).toHaveBeenCalledOnce()
   })
 })
