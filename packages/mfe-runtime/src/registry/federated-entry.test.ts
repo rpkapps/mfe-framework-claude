@@ -217,11 +217,25 @@ describe('capabilities', () => {
     )
   })
 
-  it('rejects a capability name outside the closed set', () => {
+  it('drops a capability this shell has no surface for, and keeps the App and its other pages', () => {
+    const parsed = parse(
+      entry({
+        capabilities: [
+          { name: 'settings', label: 'Report settings', path: '/settings' },
+          { name: 'billing', label: 'Billing', path: '/billing' },
+        ],
+      }),
+    )
+
+    expect(parsed.capabilities).toEqual([
+      { name: 'settings', label: 'Report settings', path: '/settings' },
+    ])
+  })
+
+  it('rejects a capability whose name is not a string', () => {
     expect(
-      rejection(entry({ capabilities: [{ name: 'billing', label: 'Billing', path: '/b' }] }))
-        .message,
-    ).toContain('settings, help, releaseNotes')
+      rejection(entry({ capabilities: [{ name: 7, label: 'Billing', path: '/b' }] })).message,
+    ).toContain('a capability name string')
   })
 
   it('rejects an icon that is neither a shell icon name nor an asset reference', () => {

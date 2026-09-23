@@ -37,7 +37,7 @@ describe('the App starter', () => {
     expect(entry).toContain('interface StaticDataRouteOption extends MfeStaticData {}')
 
     const settings = await readFile(join(directory, 'src/routes/settings.tsx'), 'utf8')
-    expect(settings).toContain("capability: 'settings'")
+    expect(settings).toContain("name: 'settings'")
   })
 
   it('provides every documented script', async () => {

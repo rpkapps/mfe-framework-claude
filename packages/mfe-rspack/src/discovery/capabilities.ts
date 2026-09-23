@@ -98,5 +98,5 @@ function asFileRouteMarker(
   const capability = objectProperty(value, 'capability')
   if (capability === undefined) return null
 
-  return { file, sourceFile, data: value, capability, path: () => routePath }
+  return { file, sourceFile, capability, path: () => routePath }
 }

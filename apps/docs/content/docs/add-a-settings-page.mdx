@@ -22,9 +22,11 @@ import { SettingsPage } from '../components/settings-01/page.tsx'
 
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: 'Operations settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: 'Operations settings',
+      icon: 'settings',
+    },
     breadcrumb: 'Settings',
   },
   component: Settings,
@@ -35,8 +37,9 @@ function Settings(): ReactNode {
 }
 ```
 
-`capability` and `label` are both required. Write every field as a plain string, because the build
-reads the mark out of the file without running it.
+`capability` holds everything the shell reads about the page. Its `name` and `label` are required
+and `icon` is optional. Write every field as a plain string, because the build reads the mark out
+of the file without running it.
 
 </Step>
 
@@ -83,19 +86,32 @@ opens with <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>.
 <Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
 
 ```text
-/home/you/operations/src/routes/settings.tsx:9:5: 'operations' failed to extract a capability
+/home/you/operations/src/routes/settings.tsx:10:7: 'operations' failed to extract a capability
 route: expected one of 'settings', 'help' and 'releaseNotes', found "setings".
 ```
 
-**Fix.** Use one of the three names. To make a misspelling a compile error instead, type the
+**Fix.** Use one of the names. To make a misspelling a compile error instead, type the
 `staticData` slot as [Create an App](/docs/create-an-app) shows.
+
+</Callout>
+
+<Callout type="error" title="expected an inline object literal { name, label, icon? }">
+
+```text
+/home/you/operations/src/routes/settings.tsx:9:5: 'operations' failed to extract a capability
+route: expected an inline object literal { name, label, icon? }, found 'settings'.
+```
+
+**Fix.** Move the name, label and icon into one object, for example
+`capability: { name: 'settings', label: 'Operations settings' }`. Routes written before the
+capability was one object hit this.
 
 </Callout>
 
 <Callout type="error" title="expected a non-empty `label` string literal">
 
 ```text
-/home/you/operations/src/routes/settings.tsx:8:5: 'operations' failed to extract the capability
+/home/you/operations/src/routes/settings.tsx:9:17: 'operations' failed to extract the capability
 route '/settings': expected a non-empty `label` string literal, found no label.
 ```
 

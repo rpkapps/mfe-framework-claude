@@ -140,7 +140,7 @@ describe('the app generator', () => {
     const routes = readTreeFile(tree, 'apps/operations/src/app.routes.ts')
     expect(routes).toContain("path: 'settings'")
     expect(routes).toContain('data: mfeRouteData({')
-    expect(routes).toContain("capability: 'settings'")
+    expect(routes).toContain("name: 'settings'")
     expect(routes).toContain("label: 'operations settings'")
   })
 

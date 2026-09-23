@@ -74,9 +74,9 @@ changed since the call before.
   one, which confines every rule with CSS `@scope` and renames the keyframes it
   defines, for an integration that has no design-system plugin to use.
 - `collectCapabilities(markers, owner, terms)`: the capability contract's rules
-  (a known name, a label, an icon that is a name or `{ src }`, one route per
-  capability, Apps only), for a reader that has found the markers in its
-  router's own syntax.
+  (an inline `{ name, label, icon? }` object, a known name, a label, an icon
+  that is a name or `{ src }`, one route per capability, Apps only), for a
+  reader that has found the `capability` properties in its router's own syntax.
 - `seedLocalRuntimeConfig(plan)` and `summarizeGeneration(plan, written, local)`,
   for a standalone generate command and what it reports. The developer's own
   values live in `.mfe/runtime-config.json` (`localRuntimeConfigPath(options)`),

@@ -1,0 +1,75 @@
+name: Set up the workspace
+description: >
+  Installs the toolchain, builds @tecton/react and installs this workspace. The packages link
+  @tecton/react through the override in pnpm-workspace.yaml, so the design system is cloned to
+  wherever that override points and built before this workspace installs.
+
+inputs:
+  tecton-repository:
+    description: The repository holding the Tecton design system.
+    default: rpkapps/tecton-ui-1
+  tecton-ref:
+    description: The branch, tag or commit of it to build. Empty for its default branch.
+    default: ''
+  tecton-package:
+    description: Where @tecton/react sits inside that repository.
+    default: packages/tecton-react
+
+runs:
+  using: composite
+  steps:
+    # The location is read from pnpm-workspace.yaml rather than repeated here, so moving the
+    # checkout is one line there.
+    - name: Locate the design system
+      id: tecton
+      shell: bash
+      working-directory: mfe-framework-claude
+      env:
+        TECTON_PACKAGE: ${{ inputs.tecton-package }}
+      run: |
+        package_directory=$(node --input-type=module -e \
+          "import { tectonPackageDirectory } from './tools/tecton/location.mjs'; console.log(tectonPackageDirectory())")
+        checkout=${package_directory%/"$TECTON_PACKAGE"}
+        if [ "$checkout" = "$package_directory" ]; then
+          echo "::error::The @tecton/react override points at $package_directory, which does not end in the tecton-package input '$TECTON_PACKAGE'. Set that input to where the package sits inside the repository."
+          exit 1
+        fi
+        path=$(realpath --relative-to="$GITHUB_WORKSPACE" "$checkout")
+        case "$path" in ..|../*)
+          echo "::error::The @tecton/react override points outside the CI workspace ($checkout), where actions/checkout cannot clone."
+          exit 1
+        esac
+        echo "path=$path" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/checkout@v5
+      with:
+        repository: ${{ inputs.tecton-repository }}
+        ref: ${{ inputs.tecton-ref }}
+        path: ${{ steps.tecton.outputs.path }}
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10.33.4
+
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        cache: pnpm
+        cache-dependency-path: |
+          mfe-framework-claude/pnpm-lock.yaml
+          ${{ steps.tecton.outputs.path }}/pnpm-lock.yaml
+
+    # The design system's build scripts run on Bun.
+    - uses: oven-sh/setup-bun@v2
+
+    - name: Build @tecton/react
+      shell: bash
+      working-directory: ${{ steps.tecton.outputs.path }}
+      run: |
+        pnpm install --frozen-lockfile --filter @tecton/react...
+        pnpm --filter @tecton/react run build
+
+    - name: Install
+      shell: bash
+      working-directory: mfe-framework-claude
+      run: pnpm install --frozen-lockfile

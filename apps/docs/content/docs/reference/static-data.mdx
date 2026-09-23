@@ -1,30 +1,38 @@
 ---
 title: 'Route staticData fields'
-description: 'The four fields the framework reads from a route, and what each one changes.'
+description: 'The two fields the framework reads from a route, and what each one changes.'
 ---
 
-A route's `staticData` is where an App tells the shell about one of its pages. The framework reads four fields and ignores everything else you put there. Apps only: a Widget has no routes.
+A route's `staticData` is where an App tells the shell about one of its pages. The framework reads two fields and ignores everything else you put there. Apps only: a Widget has no routes.
 
-## The four fields
+## The two fields
 
 ```tsx title="examples/operations/src/routes/settings.tsx"
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: 'Operations settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: 'Operations settings',
+      icon: 'settings',
+    },
     breadcrumb: 'Settings',
   },
   component: Settings,
 })
 ```
 
-| Field        | Type                                       | Read       | What it does                                                     |
-| ------------ | ------------------------------------------ | ---------- | ---------------------------------------------------------------- |
-| `capability` | `'settings'`, `'help'` or `'releaseNotes'` | build time | Marks this route as the page the shell opens by that name.       |
-| `label`      | `string`                                   | build time | The text the shell puts in its menu. Required with `capability`. |
-| `icon`       | `string` or `{ src: string }`              | build time | An icon name from the shell set, or an asset URL.                |
-| `breadcrumb` | `string` or `false`                        | run time   | The label for this segment, or `false` to hide it.               |
+| Field        | Type                                      | Read       | What it does                                               |
+| ------------ | ----------------------------------------- | ---------- | ---------------------------------------------------------- |
+| `capability` | `{ name, label, icon? }`, described below | build time | Marks this route as the page the shell opens by that name. |
+| `breadcrumb` | `string` or `false`                       | run time   | The label for this segment, or `false` to hide it.         |
+
+`capability` is one object, so everything the shell reads about the page sits together:
+
+| Field   | Type                                       | Required | What it does                                      |
+| ------- | ------------------------------------------ | -------- | ------------------------------------------------- |
+| `name`  | `'settings'`, `'help'` or `'releaseNotes'` | yes      | Which of the shell's pages this route is.         |
+| `label` | `string`                                   | yes      | The text the shell puts in its menu.              |
+| `icon`  | `string` or `{ src: string }`              | no       | An icon name from the shell set, or an asset URL. |
 
 The route's own path is published with the capability, so the shell knows where to navigate. You do not write it twice.
 
@@ -38,16 +46,17 @@ declare module '@tanstack/react-router' {
 }
 ```
 
-## capability, label and icon
+## capability
 
-All three are read out of your source at build time, before anything runs. Write them as literals.
+It is read out of your source at build time, before anything runs. Write it as an object literal, and every field in it as a literal.
 
 - One route per capability. Two routes marking `settings` fail the build.
+- `name` must be one of the names above. A misspelt name fails the build.
 - `label` must be a non-empty string literal. A computed label cannot be read.
 - `icon` takes a name such as `'settings'`, or `{ src: '/icons/gear.svg' }`. SVG source is never accepted.
 - Capabilities are App-only. A container that exports Widgets alone fails the build.
 
-The three names are the only ones the shell has screens for.
+The names are the only ones the shell has screens for. They are listed once, in `CAPABILITY_NAMES` in `@company/mfe-core`, and the type above and the build's check both come from there. A shell skips a capability whose name it does not know, so an App that publishes a newer one still loads in an older shell.
 
 ## breadcrumb
 
@@ -77,7 +86,7 @@ To override the trail from inside a component, use `useBreadcrumbs`.
 /home/you/orders/src/routes/settings.tsx: 'orders' failed to extract the capability route '/settings': expected a non-empty `label` string literal, found no label. This expectation is declared by the capability contract. Add the text the shell puts in its menu, for example label: 'Order settings'. It is read at build time, so it cannot be computed.
 ```
 
-**Fix.** Add `label` beside `capability`.
+**Fix.** Add `label` inside the `capability` object.
 
 </Callout>
 

@@ -93,7 +93,9 @@ export const routes: Routes = [
   {
     path: 'settings',
     component: SettingsComponent,
-    data: mfeRouteData({ capability: 'settings', label: 'Reports settings', icon: 'settings' }),
+    data: mfeRouteData({
+      capability: { name: 'settings', label: 'Reports settings', icon: 'settings' },
+    }),
   },
 ]
 ```

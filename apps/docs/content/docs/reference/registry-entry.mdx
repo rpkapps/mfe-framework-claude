@@ -87,7 +87,7 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 | `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                         |
 | `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                        |
 
-A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`.
+A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`. A shell skips a capability whose name it does not know and keeps the rest of the entry, so an App built against a newer framework still loads in an older shell.
 
 ## How the build's record becomes an entry
 

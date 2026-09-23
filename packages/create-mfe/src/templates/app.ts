@@ -130,9 +130,11 @@ function Home() {
 // decides where it opens.
 export const Route = createFileRoute('/settings')({
   staticData: {
-    capability: 'settings',
-    label: '${id} settings',
-    icon: 'settings',
+    capability: {
+      name: 'settings',
+      label: '${id} settings',
+      icon: 'settings',
+    },
   },
   component: () => <h2>Settings</h2>,
 })

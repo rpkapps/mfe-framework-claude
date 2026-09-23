@@ -5,9 +5,9 @@
  */
 
 import {
-  CAPABILITY_NAMES,
   createMfeError,
   FRAMEWORK_CONTRACT_MAJOR,
+  isCapabilityName,
   isRecord,
   isSupportedContractMajor,
   withoutUndefined,
@@ -81,10 +81,15 @@ const build = z.unknown().transform((value): BuildProvenance | undefined => {
   })
 })
 
+/**
+ * The shape is checked, but the name is not: a container built against a framework that knows a
+ * capability this shell does not is still a working App, and the shell simply has nowhere to
+ * offer that one page. The build rejects a misspelt name, so an unknown one here is a newer one.
+ */
 const capability = z
   .object(
     {
-      name: z.enum(CAPABILITY_NAMES, { error: `one of ${CAPABILITY_NAMES.join(', ')}` }),
+      name: z.string({ error: 'a capability name string' }),
       label: z.string({ error: 'a string label' }),
       path: z.string({ error: 'a string route path' }),
       icon: z
@@ -95,13 +100,21 @@ const capability = z
     },
     { error: 'a capability object' },
   )
-  .transform((value): CapabilityDescriptor =>
-    withoutUndefined({
-      name: value.name,
-      label: value.label,
-      path: value.path,
-      icon: value.icon,
-    }),
+  .transform((value): CapabilityDescriptor | undefined =>
+    isCapabilityName(value.name)
+      ? withoutUndefined({
+          name: value.name,
+          label: value.label,
+          path: value.path,
+          icon: value.icon,
+        })
+      : undefined,
+  )
+
+const capabilities = z
+  .array(capability, { error: 'an array of capability objects' })
+  .transform(list =>
+    list.filter((descriptor): descriptor is CapabilityDescriptor => descriptor !== undefined),
   )
 
 /** The build emits values only, never a `$ref`, so the host carries the schema uninterpreted. */
@@ -154,7 +167,7 @@ const entrySchema = z
       })
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
-    capabilities: z.array(capability, { error: 'an array of capability objects' }).optional(),
+    capabilities: capabilities.optional(),
     contract: publishedContract.optional(),
     hidden: z.unknown().optional(),
     title: z.string({ error: 'a title string' }).optional(),

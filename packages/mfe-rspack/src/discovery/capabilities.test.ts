@@ -32,7 +32,7 @@ describe('extractCapabilities', () => {
     const capabilities = capabilitiesOf({
       'src/routes/settings.tsx': route(
         '/settings',
-        "{ capability: 'settings', label: 'Order settings', icon: 'gear' }",
+        "{ capability: { name: 'settings', label: 'Order settings', icon: 'gear' } }",
       ),
     })
 
@@ -44,7 +44,7 @@ describe('extractCapabilities', () => {
   it('ignores routes without a capability marker', () => {
     const capabilities = capabilitiesOf({
       'src/routes/index.tsx': route('/', "{ title: 'Home' }"),
-      'src/routes/help.tsx': route('/help', "{ capability: 'help', label: 'Help' }"),
+      'src/routes/help.tsx': route('/help', "{ capability: { name: 'help', label: 'Help' } }"),
     })
 
     expect(capabilities.map(capability => capability.name)).toEqual(['help'])
@@ -54,13 +54,13 @@ describe('extractCapabilities', () => {
     const capabilities = capabilitiesOf({
       'src/routes/release-notes.tsx': route(
         '/whats-new',
-        "{ capability: 'releaseNotes', label: 'What is new' }",
+        "{ capability: { name: 'releaseNotes', label: 'What is new' } }",
       ),
       'src/routes/settings.tsx': route(
         '/settings',
-        "{ capability: 'settings', label: 'Settings' }",
+        "{ capability: { name: 'settings', label: 'Settings' } }",
       ),
-      'src/routes/help.tsx': route('/help', "{ capability: 'help', label: 'Help' }"),
+      'src/routes/help.tsx': route('/help', "{ capability: { name: 'help', label: 'Help' } }"),
     })
 
     expect(capabilities.map(capability => capability.name)).toEqual([
@@ -77,7 +77,10 @@ describe('extractCapabilities', () => {
   it('rejects an unknown capability name', () => {
     expect(() =>
       capabilitiesOf({
-        'src/routes/admin.tsx': route('/admin', "{ capability: 'admin', label: 'Admin' }"),
+        'src/routes/admin.tsx': route(
+          '/admin',
+          "{ capability: { name: 'admin', label: 'Admin' } }",
+        ),
       }),
     ).toThrow(/'settings', 'help' and 'releaseNotes'/)
   })
@@ -88,7 +91,7 @@ describe('extractCapabilities', () => {
         {
           'src/routes/settings.tsx': route(
             '/settings',
-            "{ capability: 'settings', label: 'Settings' }",
+            "{ capability: { name: 'settings', label: 'Settings' } }",
           ),
         },
         false,
@@ -99,7 +102,7 @@ describe('extractCapabilities', () => {
   it('requires a label', () => {
     expect(() =>
       capabilitiesOf({
-        'src/routes/settings.tsx': route('/settings', "{ capability: 'settings' }"),
+        'src/routes/settings.tsx': route('/settings', "{ capability: { name: 'settings' } }"),
       }),
     ).toThrow(/label/)
   })
@@ -107,8 +110,8 @@ describe('extractCapabilities', () => {
   it('rejects two routes claiming the same capability', () => {
     expect(() =>
       capabilitiesOf({
-        'src/routes/a.tsx': route('/a', "{ capability: 'help', label: 'A' }"),
-        'src/routes/b.tsx': route('/b', "{ capability: 'help', label: 'B' }"),
+        'src/routes/a.tsx': route('/a', "{ capability: { name: 'help', label: 'A' } }"),
+        'src/routes/b.tsx': route('/b', "{ capability: { name: 'help', label: 'B' } }"),
       }),
     ).toThrow(/one route per capability/)
   })
@@ -117,7 +120,7 @@ describe('extractCapabilities', () => {
     const capabilities = capabilitiesOf({
       'src/routes/settings.tsx': route(
         '/settings',
-        "{ capability: 'settings', label: 'Settings', icon: { src: '/icons/gear.svg' } }",
+        "{ capability: { name: 'settings', label: 'Settings', icon: { src: '/icons/gear.svg' } } }",
       ),
     })
 
@@ -128,7 +131,7 @@ describe('extractCapabilities', () => {
     const capabilities = capabilitiesOf({
       'src/routes/settings.tsx': route(
         '/settings',
-        "{ capability: 'settings', label: 'Settings' }",
+        "{ capability: { name: 'settings', label: 'Settings' } }",
       ),
     })
 
@@ -140,7 +143,7 @@ describe('extractCapabilities', () => {
       capabilitiesOf({
         'src/routes/settings.tsx': route(
           '/settings',
-          "{ capability: 'settings', label: 'Settings', icon: '<svg viewBox=\"0 0 1 1\"></svg>' }",
+          "{ capability: { name: 'settings', label: 'Settings', icon: '<svg viewBox=\"0 0 1 1\"></svg>' } }",
         ),
       }),
     ).toThrow(/SVG source is not accepted/)
@@ -151,7 +154,7 @@ describe('extractCapabilities', () => {
       capabilitiesOf({
         'src/routes/settings.tsx': route(
           '/settings',
-          "{ capability: 'settings', label: 'Settings', icon: { src: 'data:image/svg+xml;utf8,<svg/>' } }",
+          "{ capability: { name: 'settings', label: 'Settings', icon: { src: 'data:image/svg+xml;utf8,<svg/>' } } }",
         ),
       }),
     ).toThrow(/markup/)
@@ -162,7 +165,7 @@ describe('extractCapabilities', () => {
       capabilitiesOf({
         'src/routes/settings.tsx': route(
           '/settings',
-          "{ capability: 'settings', label: 'Settings', icon: { src: '/a.svg', title: 'Gear' } }",
+          "{ capability: { name: 'settings', label: 'Settings', icon: { src: '/a.svg', title: 'Gear' } } }",
         ),
       }),
     ).toThrow(/single src property/)
@@ -173,9 +176,36 @@ describe('extractCapabilities', () => {
       capabilitiesOf({
         'src/routes/settings.tsx': route(
           '/settings',
-          '{ capability: CAPABILITY, label: "Settings" }',
+          "{ capability: { name: CAPABILITY, label: 'Settings' } }",
         ),
       }),
-    ).toThrow(/plain string literal/)
+    ).toThrow(/a `name` string literal, found CAPABILITY/)
+  })
+
+  it('rejects a capability without a name', () => {
+    expect(() =>
+      capabilitiesOf({
+        'src/routes/settings.tsx': route('/settings', "{ capability: { label: 'Settings' } }"),
+      }),
+    ).toThrow(/a `name` string literal, found no name/)
+  })
+
+  it('rejects a capability that is not an inline object, naming the object to write', () => {
+    expect(() =>
+      capabilitiesOf({
+        'src/routes/settings.tsx': route(
+          '/settings',
+          "{ capability: 'settings', label: 'Settings' }",
+        ),
+      }),
+    ).toThrow(/capability: \{ name: 'settings', label: 'Order settings' \}/)
+  })
+
+  it('rejects a capability object built elsewhere', () => {
+    expect(() =>
+      capabilitiesOf({
+        'src/routes/settings.tsx': route('/settings', '{ capability: SETTINGS }'),
+      }),
+    ).toThrow(/an inline object literal \{ name, label, icon\? \}, found SETTINGS/)
   })
 })

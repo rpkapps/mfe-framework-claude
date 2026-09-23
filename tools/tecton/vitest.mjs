@@ -4,7 +4,9 @@
  */
 
 import { createRequire } from 'node:module'
-import { dirname } from 'node:path'
+import { dirname, sep } from 'node:path'
+
+import { tectonCheckoutDirectory } from './location.mjs'
 
 /** Resolved from the shell, the only package here that declares every one of these. */
 const fromShell = createRequire(new URL('../../apps/shell/package.json', import.meta.url))
@@ -26,9 +28,17 @@ export const SINGLE_COPY = [
   'recharts',
 ]
 
+/** Anything under the design-system checkout, as Vite sees a path: resolved, with forward slashes. */
+const tectonCheckout = new RegExp(
+  tectonCheckoutDirectory()
+    .split(sep)
+    .join('/')
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/',
+)
+
 /** Externalized, they would keep Node's resolution and find the linked checkout's own React. */
 export const INLINE_DEPS = [
-  /tecton-ui-1/,
+  tectonCheckout,
   /lucide-react/,
   /react-aria/,
   /@react-(aria|stately|types)/,

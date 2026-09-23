@@ -38,7 +38,7 @@ const ROUTE = `
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings')({
-  staticData: { capability: 'settings', label: 'Order settings', icon: 'gear' },
+  staticData: { capability: { name: 'settings', label: 'Order settings', icon: 'gear' } },
   component: () => null,
 })
 `

@@ -270,6 +270,7 @@ catalogs:
 
 overrides:
   '@module-federation/runtime-tools@2.9.1': 2.9.0
+  '@tecton/react': link:../tecton-ui-1/packages/tecton-react
 
 importers:
 
@@ -1263,10 +1264,10 @@ importers:
       '@company/mfe-runtime':
         specifier: workspace:*
         version: link:../mfe-runtime
-    devDependencies:
       '@tecton/react':
         specifier: link:../../../tecton-ui-1/packages/tecton-react
         version: link:../../../tecton-ui-1/packages/tecton-react
+    devDependencies:
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2
@@ -1444,6 +1445,9 @@ importers:
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.168.40(@rsbuild/core@2.2.8(@module-federation/runtime-tools@2.9.0))(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(@tanstack/react-router@1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(esbuild@0.28.2)(rolldown@1.2.9)(rollup@4.63.4)(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.5.1)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2)(yaml@2.9.1))(webpack@5.111.1(esbuild@0.28.2)(postcss@8.5.28))
+      '@tecton/react':
+        specifier: link:../../../tecton-ui-1/packages/tecton-react
+        version: link:../../../tecton-ui-1/packages/tecton-react
       babel-loader:
         specifier: 'catalog:'
         version: 10.1.1(@babel/core@8.0.5)(@rspack/core@2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(webpack@5.111.1(esbuild@0.28.2)(postcss@8.5.28))
@@ -1463,9 +1467,6 @@ importers:
       '@rspack/core':
         specifier: 'catalog:'
         version: 2.2.6(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23)
-      '@tecton/react':
-        specifier: link:../../../tecton-ui-1/packages/tecton-react
-        version: link:../../../tecton-ui-1/packages/tecton-react
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.2

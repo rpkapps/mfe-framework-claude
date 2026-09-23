@@ -170,8 +170,9 @@ Every build message names the file, and most name the line and column.
 | What the build expected                                | Fix                                                 |
 | ------------------------------------------------------ | --------------------------------------------------- |
 | one route per capability                               | Remove the `staticData` marker from one of them.    |
-| a plain string literal, for `capability`               | Write the capability inline.                        |
-| one of `settings`, `help` and `releaseNotes`           | Use one of the three names, or drop the marker.     |
+| an inline object literal `{ name, label, icon? }`      | Write the capability as one object, inline.         |
+| a `name` string literal                                | Write the capability's name inline.                 |
+| one of `settings`, `help` and `releaseNotes`           | Use one of the names, or drop the marker.           |
 | a capability declared by an App                        | Remove the marker. Capabilities are App-only.       |
 | a non-empty `label` string literal                     | Add the text the shell puts in its menu.            |
 | an icon name from the shell set, or `{ src: '<url>' }` | Pass a name or a URL. SVG source is never accepted. |
@@ -226,7 +227,7 @@ The React adapter recognises any entry with an `mfe` property, then reads it str
 | `kind` of `"app"` or `"widget"`            | Rebuild. The kind comes from which factory you called.                        |
 | no Widget contract on an App               | Drop the contract, or declare the piece as a Widget.                          |
 | no capabilities on a Widget                | Move the capability routes into an App.                                       |
-| a valid capability name, label and path    | Correct the route's `staticData` and rebuild.                                 |
+| a capability object with a label and path  | Rebuild. A capability name this shell does not know is skipped, not refused.  |
 
 <Callout type="error" title="contract/unsupported-major">
 
