@@ -55,7 +55,7 @@ Each is its own commit, with the framework's tests green and no change in behavi
 
 `packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action input schemas, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeOutputs`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
 
-In the same step, the Widget contract takes the schema names actions use (see the naming rule in A): `inputs` becomes `inputSchema`, and `events` becomes `outputSchemas`, a map of one schema per output, the outputs being what Angular calls them. That covers the contract field, the published registry field, the build's reader and the Angular adapter's check that every declared output is one of the component's `output()`s. The values keep their names: `render` still receives `inputs`, and `emit`, the `onX` props and `DynamicWidget`'s `onEvent` stay, as Angular keeps "emit" and event binding for its outputs. §16 and §28 get an amendment.
+In the same step, a Widget's `events` become `outputs`, as Angular names them: the contract field, the published registry field, the build's reader and the Angular adapter's check that every declared output is one of the component's `output()`s. `inputs` keeps its name. `emit`, the `onX` props and `DynamicWidget`'s `onEvent` keep theirs too, as Angular keeps "emit" and event binding for its outputs. §16 and §28 get an amendment.
 
 ### 3. Extend entry equality with the new fields
 
@@ -80,7 +80,7 @@ The command registry, the breadcrumb store and the navigator's blockers each col
 On `ActionRegistration`:
 
 - `description` — written for the model; `label` stays the menu text.
-- `inputSchema` — a Zod object schema, the same kind and the same name as a Widget's `inputSchema`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none. The action receives the validated value as `input`.
+- `inputSchema` — a Zod object schema, the same kind of schema as a Widget's `inputs`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none. The action receives the validated value as `input`.
 - `outputSchema` — optional schema for the one value a call returns.
 - `effect` — `'read' | 'write' | 'destructive'`. Undeclared counts as `'write'`.
 - `needsApproval` — `boolean` or `(input) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
@@ -88,7 +88,7 @@ On `ActionRegistration`:
 - `parallelSafe` — writes run one at a time unless this is set.
 - `followUp` — whether the agent carries on after the result. Defaults to `true`; an action whose result is for the user rather than the agent sets `false`.
 
-Naming: a field that holds a schema ends in `Schema`, a value does not. `inputSchema` and `outputSchema` are the names TanStack AI, the AI SDK, MCP and WebMCP use for a tool, so an action maps onto a tool definition field for field. They also end the ambiguity in today's code, where `inputs` is the schema on a Widget's contract and the values in its `render`. A Widget's `inputSchema` is the same kind of thing as an action's, so it has the same name, the same schema reader and the same published shape. Its `outputSchemas` are a map, one schema per output, each emitted any number of times, or never, while it is mounted; wiring Widgets in sequence is one Widget's outputs feeding the next one's inputs. An action's `outputSchema` is one schema for exactly one value per call. The plural marks the map, and the two types differ, so passing one where the other belongs is a type error. Reporting progress over time is a Widget's job, not an action's.
+Naming: an action is a tool, and a Widget is a component, so each takes the names of its own world. An action's `inputSchema` and `outputSchema` are the names TanStack AI, the AI SDK, MCP and WebMCP use for a tool, so an action maps onto a tool definition field for field. A Widget's `inputs` and `outputs` are the names Angular uses for a component's, declared on the contract and received as values, as Angular's are. What is shared is underneath: an action's `inputSchema` and a Widget's `inputs` are the same kind of object schema, read by the same build code and published in the same shape. A Widget's `outputs` are a map, one schema per output, each emitted any number of times, or never, while it is mounted; wiring Widgets in sequence is one Widget's outputs feeding the next one's inputs. An action's `outputSchema` is one schema for exactly one value per call. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
 
