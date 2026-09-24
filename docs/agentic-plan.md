@@ -48,14 +48,14 @@ Each is its own commit, with the framework's tests green and no change in behavi
 `packages/mfe-runtime/src/commands/command-registry.ts` (697 lines) mixes shortcut matching and entry bookkeeping with execution.
 
 - Move execution into its own module (`action-executor.ts`); shortcut matching and entries stay in the registry.
-- `execute(id)` becomes `execute(id, { inputs, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
-- `#run` becomes ordered steps: decide (`canExecute`) → validate the inputs → approval → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
+- `execute(id)` becomes `execute(id, { input, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
+- `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
 
 ### 2. Share the build's schema extraction
 
-`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action inputs, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeOutputs`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
+`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action input schemas, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeOutputs`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
 
-In the same step, a Widget's `events` become `outputs`, as Angular names them: the contract field, the published registry field, the build's reader and the Angular adapter's check that every declared output is one of the component's `output()`s. `emit`, the `onX` props and `DynamicWidget`'s `onEvent` keep their names, as Angular keeps "emit" and event binding for its outputs. §16 and §28 get an amendment.
+In the same step, the Widget contract takes the schema names actions use (see the naming rule in A): `inputs` becomes `inputSchema`, and `events` becomes `outputSchemas`, a map of one schema per output, the outputs being what Angular calls them. That covers the contract field, the published registry field, the build's reader and the Angular adapter's check that every declared output is one of the component's `output()`s. The values keep their names: `render` still receives `inputs`, and `emit`, the `onX` props and `DynamicWidget`'s `onEvent` stay, as Angular keeps "emit" and event binding for its outputs. §16 and §28 get an amendment.
 
 ### 3. Extend entry equality with the new fields
 
@@ -80,15 +80,15 @@ The command registry, the breadcrumb store and the navigator's blockers each col
 On `ActionRegistration`:
 
 - `description` — written for the model; `label` stays the menu text.
-- `inputs` — a Zod object schema, the same kind and the same name as a Widget's `inputs`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none.
-- `output` — optional schema for the one value a call returns (MCP's `outputSchema` at that edge).
+- `inputSchema` — a Zod object schema, the same kind and the same name as a Widget's `inputSchema`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none. The action receives the validated value as `input`.
+- `outputSchema` — optional schema for the one value a call returns.
 - `effect` — `'read' | 'write' | 'destructive'`. Undeclared counts as `'write'`.
-- `needsApproval` — `boolean` or `(inputs) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
+- `needsApproval` — `boolean` or `(input) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
 - `placements` — `'palette'`, `'agent'`, later `'webmcp'`, possibly `'toolbar'` and `'context-menu'`. The default includes `'agent'`: anything a user can reach from the palette, the agent can reach too.
 - `parallelSafe` — writes run one at a time unless this is set.
 - `followUp` — whether the agent carries on after the result. Defaults to `true`; an action whose result is for the user rather than the agent sets `false`.
 
-Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. A Widget's `outputs` are named payloads emitted any number of times, or never, while it is mounted, as Angular's outputs are, and wiring Widgets in sequence reads as one Widget's outputs feeding the next one's inputs. An action's `output` is exactly one value per call. The rule behind the names: a plural is a map of named schemas (`inputs`, a Widget's `outputs`), a singular is one schema (an action's `output`). The two field types differ, so passing one where the other belongs is a type error. Reporting progress over time is a Widget's job, not an action's.
+Naming: a field that holds a schema ends in `Schema`, a value does not. `inputSchema` and `outputSchema` are the names TanStack AI, the AI SDK, MCP and WebMCP use for a tool, so an action maps onto a tool definition field for field. They also end the ambiguity in today's code, where `inputs` is the schema on a Widget's contract and the values in its `render`. A Widget's `inputSchema` is the same kind of thing as an action's, so it has the same name, the same schema reader and the same published shape. Its `outputSchemas` are a map, one schema per output, each emitted any number of times, or never, while it is mounted; wiring Widgets in sequence is one Widget's outputs feeding the next one's inputs. An action's `outputSchema` is one schema for exactly one value per call. The plural marks the map, and the two types differ, so passing one where the other belongs is a type error. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
 
@@ -112,7 +112,7 @@ Modelled on Agent-Native's context layers (`context-awareness` in its docs):
 
 ### C. Who acted
 
-Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the inputs with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
+Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the input with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
 
 ### D. Published routes
 
@@ -122,7 +122,7 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
 - Speaks AG-UI through `@ag-ui/client`, pinned and kept in one module of the shell, so the wire protocol can be swapped without touching the rest. Not CopilotKit (see its section below). A one-day spike comes first: one page action called by a backend agent, executed through the pipeline and its result returned, one approval, one interrupt. If the tool-call and approval plumbing proves large, `@copilotkit/core` headless is the fallback, fed from our registry.
-- Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its `output` goes back as the tool result.
+- Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its return value goes back as the tool result.
 - Approval, two paths, one card. For a page action, the pipeline's approval step renders a card in the chat and waits for the user's answer before `execute` runs; decline returns a declined result to the agent. For a backend (domain) tool, the backend stops the run with an AG-UI interrupt carrying that call's id; the same card resumes it or declines it.
 - Every tool call renders in three stages: its inputs streaming in, running, complete with its result. A tool with no renderer of its own gets one generic card with its label and stage.
 - Renders answers with the Tecton conversation components.
