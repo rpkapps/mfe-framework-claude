@@ -387,24 +387,28 @@ function recordFirstPrimeNgPaint() {
 const ANGULAR_ASSETS_DELAY_MS = 2500
 
 /**
+ * The shell's Angular stylesheet, the chunk Rsbuild's dev server names after
+ * apps/shell/src/angular/angular.css, and the font files it declares. Matched by URL, so nothing
+ * else the page requests passes through the handler.
+ */
+const ANGULAR_PAGE_ASSETS = [
+  'http://localhost:3000/**/src_angular_angular_css.css*',
+  'http://localhost:3000/**/material-symbols-rounded-*',
+]
+
+/** The URLs held back while the current page loaded, reset for each page. */
+let heldBack = []
+
+/**
  * From localhost the shell's Angular assets arrive long before a container's own download does,
  * so a mount that did not wait for them would still find them in place. Held back, it cannot.
  */
 async function holdBackAngularPageAssets(route) {
-  const request = route.request()
-  const type = request.resourceType()
-  if (type === 'font' && request.url().includes('material-symbols')) {
-    await new Promise(resolve => setTimeout(resolve, ANGULAR_ASSETS_DELAY_MS))
-    return route.continue()
-  }
-  if (type !== 'stylesheet') return route.continue()
-
-  const response = await route.fetch()
-  const body = await response.text()
-  if (body.includes('--p-button-primary-background')) {
-    await new Promise(resolve => setTimeout(resolve, ANGULAR_ASSETS_DELAY_MS))
-  }
-  return route.fulfill({ response, body })
+  heldBack.push(route.request().url())
+  await new Promise(resolve => setTimeout(resolve, ANGULAR_ASSETS_DELAY_MS))
+  // A navigation during the delay cancels the request, and continuing it then throws; there is
+  // nothing left to deliver it to.
+  await route.continue().catch(() => {})
 }
 
 async function checkAngularPageAssets(page, expected) {
@@ -429,6 +433,11 @@ async function checkAngularPageAssets(page, expected) {
 
   if (!expected) {
     check(
+      "the shell's Angular assets were not requested",
+      heldBack.length === 0,
+      `requested ${JSON.stringify(heldBack)}`,
+    )
+    check(
       "the shell's Angular assets were not loaded",
       facts.light === '' && facts.openProps === '',
       `${THEMED_PRIMENG_TOKEN} is ${JSON.stringify(facts.light)}, --size-3 is ${JSON.stringify(facts.openProps)}`,
@@ -436,6 +445,12 @@ async function checkAngularPageAssets(page, expected) {
     return
   }
 
+  // Without the delay the next check proves nothing, so a renamed chunk has to fail here.
+  check(
+    "the shell's Angular stylesheet was held back while the page loaded",
+    heldBack.some(url => url.includes('src_angular_angular_css')),
+    `held back ${JSON.stringify(heldBack)}`,
+  )
   check(
     "PrimeNG's tokens and the symbols font were in place before its first button painted",
     facts.firstPaint !== null &&
@@ -479,7 +494,7 @@ async function main() {
   )
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   await page.addInitScript(recordFirstPrimeNgPaint)
-  await page.route('http://localhost:3000/**', holdBackAngularPageAssets)
+  for (const pattern of ANGULAR_PAGE_ASSETS) await page.route(pattern, holdBackAngularPageAssets)
 
   let pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
@@ -498,6 +513,7 @@ async function main() {
 
   for (const expected of pages) {
     pageErrors = []
+    heldBack = []
 
     await page.evaluate(
       ({ key, overrides }) => {
