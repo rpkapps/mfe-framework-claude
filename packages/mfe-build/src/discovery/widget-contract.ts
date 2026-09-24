@@ -57,6 +57,8 @@ interface WidgetContractReadResult {
   readonly inputNames: readonly string[]
   /** Absent, never empty: "takes nothing" and "could not be read" differ for a host (§16). */
   readonly inputSchema?: JsonObject
+  /** Absent when the event names cannot be read; an unreadable payload alone is `{}`. */
+  readonly eventSchema?: JsonObject
   readonly source: WidgetContractSource
 }
 
@@ -104,6 +106,10 @@ export function readWidgetContract(
       const inputSchema = readInputSchema(inputs, id)
       return inputSchema === undefined ? {} : { inputSchema }
     })(),
+    ...(() => {
+      const eventSchema = readEventSchema(events, id)
+      return eventSchema === undefined ? {} : { eventSchema }
+    })(),
     source: {
       inputs: inputs.binding,
       events: events.binding,
@@ -131,6 +137,44 @@ function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undef
     return schema['type'] === 'object' ? { title: `${id} inputs`, ...schema } : undefined
   } catch {
     return undefined
+  }
+}
+
+/**
+ * The same shape as the inputs, so a host compares an event's payload with another Widget's inputs
+ * with one reader. Unreadable is not a build failure, as for the inputs: a payload the build cannot
+ * read is `{}`, which JSON Schema reads as "anything", and the provider still validates it.
+ */
+function readEventSchema(events: ResolvedSchema, id: string): JsonObject | undefined {
+  const node = unwrapExpression(events.expression)
+  if (!ts.isObjectLiteralExpression(node)) return undefined
+
+  const properties: Record<string, JsonObject> = {}
+  for (const property of node.properties) {
+    // A spread or a computed name hides which events exist; a partial list would claim a closed set.
+    const name = propertyName(property)
+    if (name === null) return undefined
+    properties[name] = ts.isPropertyAssignment(property)
+      ? readPayloadSchema(property.initializer, events.sourceFile, name)
+      : {}
+  }
+
+  return { title: `${id} events`, type: 'object', properties, additionalProperties: false }
+}
+
+function readPayloadSchema(
+  expression: ts.Expression,
+  sourceFile: ts.SourceFile,
+  name: string,
+): JsonObject {
+  try {
+    return readStaticSchema(expression, {
+      file: sourceFile.fileName,
+      field: `events.${name}`,
+      sourceFile,
+    }).jsonSchema
+  } catch {
+    return {}
   }
 }
 

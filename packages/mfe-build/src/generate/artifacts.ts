@@ -48,11 +48,12 @@ export function containerDescriptor(
       ...(definition.tags === undefined ? {} : { tags: definition.tags }),
       ...(definition.icon === undefined ? {} : { icon: definition.icon }),
       ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
-      // A Widget publishes what it takes so a host can catalogue it; an App takes a URL (§16).
+      // A Widget publishes what it takes and emits so a host can catalogue and wire it; an App
+      // takes a URL (§16).
       ...(definition.kind === 'widget'
         ? {
             contract: {
-              events: definition.eventNames,
+              ...(definition.eventSchema === undefined ? {} : { events: definition.eventSchema }),
               ...(definition.inputSchema === undefined ? {} : { inputs: definition.inputSchema }),
             },
           }

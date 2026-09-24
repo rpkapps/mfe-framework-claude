@@ -259,6 +259,8 @@ const notes = createPlainDomApp({
   },
 })
 
+const bumpedOnly = { type: 'object', properties: { bumped: {} }, additionalProperties: false }
+
 /** The registry as three builds would publish it: two plain-DOM containers and a React one. */
 const registryEntries = [
   {
@@ -269,7 +271,7 @@ const registryEntries = [
     container: 'plain_tally',
     shareScopes: ['default', 'plain-dom@1.0.0'],
     version: '1.0.0',
-    contract: { events: ['bumped'] },
+    contract: { events: bumpedOnly },
   },
   {
     id: 'notes',
@@ -287,7 +289,7 @@ const registryEntries = [
     container: 'react_counter',
     shareScopes: ['default', 'react@19.3.0'],
     version: '2.0.0',
-    contract: { events: ['bumped'] },
+    contract: { events: bumpedOnly },
   },
 ]
 
@@ -364,7 +366,7 @@ describe('a third adapter, registered beside React and Angular', () => {
       adapter: PLAIN_DOM,
       definitionKind: 'widget',
       container: 'plain_tally',
-      contract: { events: ['bumped'] },
+      contract: { events: bumpedOnly },
     })
     expect(runtime.registry.entries.get('notes')).toMatchObject({
       adapter: PLAIN_DOM,

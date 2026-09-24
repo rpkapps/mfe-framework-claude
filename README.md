@@ -104,9 +104,9 @@ learns which Widgets exist when it reads the registry cannot do that, so it uses
 
 That form has no contract and therefore no consumer-side types; the provider
 still validates every input and every event payload. What the host needs in
-order to ask for the inputs at all — the schema, and the event names — is
-published by the Widget's build into the registry, which is how the shell's
-dashboard renders a form for a Widget it has never imported.
+order to ask for the inputs at all — the inputs schema, and a schema for each
+event's payload — is published by the Widget's build into the registry, which
+is how the shell's dashboard renders a form for a Widget it has never imported.
 
 A host that knows those names only as strings takes every event through
 `DynamicWidget`'s `onEvent(name, payload)` instead, alongside any `onX` props.

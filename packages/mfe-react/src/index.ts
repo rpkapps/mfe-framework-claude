@@ -129,13 +129,15 @@ export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
 
-/** The one walk over a Widget's published inputs, for a host composing the registry (§28). */
+/** The one walk over a Widget's published inputs and events, for a host composing the registry (§28). */
 export {
   coerceInputs,
   defaultInputsFor,
+  describeWidgetEvents,
   describeWidgetInputs,
   needsInputPrompt,
   type BuildProvenance,
+  type WidgetEvent,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

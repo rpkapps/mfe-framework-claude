@@ -62,6 +62,8 @@ export interface DiscoveredDefinition {
   readonly inputNames: readonly string[]
   /** Widget only: the inputs as JSON Schema, when the build could read them. */
   readonly inputSchema?: JsonObject
+  /** Widget only: the events as JSON Schema, one property per event, when the names could be read. */
+  readonly eventSchema?: JsonObject
   /** Widget only: how to reach the contract schemas without the App entry. */
   readonly contractSource?: WidgetContractSource
   /** Presentation the author declared, so a host can catalogue the definition unloaded (§16). */
@@ -278,6 +280,7 @@ function readDefinition(
     eventNames: contract?.eventNames ?? [],
     inputNames: contract?.inputNames ?? [],
     inputSchema: contract?.inputSchema,
+    eventSchema: contract?.eventSchema,
     contractSource: contract === null ? undefined : contract.source,
   })
 }

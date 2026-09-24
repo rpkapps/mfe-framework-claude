@@ -192,7 +192,8 @@ included.
 
 `/` composes a page out of Widgets the shell was never built against. It knows
 three things about each one, all of them read from the registry: an id, an
-input schema and a list of event names. Drag a Widget from the catalogue onto
+input schema and an events schema, whose properties are the event names and
+their payloads. Drag a Widget from the catalogue onto
 the canvas — or press its Add button, which is the same thing without a pointer
 — and a dialog asks for its inputs.
 

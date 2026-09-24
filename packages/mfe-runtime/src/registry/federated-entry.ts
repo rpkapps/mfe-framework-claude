@@ -123,19 +123,37 @@ const inputsSchema = z.custom<JsonSchemaObject>(isRecord, {
 })
 
 /**
- * `inputs` is optional on purpose: a build that could not read the schema statically publishes
- * the event names alone, which must not collapse into the empty object a Widget that genuinely
- * takes nothing would publish.
+ * A container built before events carried their payload schemas published the names alone. They
+ * are read as the same shape with every payload unknown (`{}`), so a shell deployed first keeps
+ * reading those containers, and each reader handles one shape.
+ */
+const eventsSchema = z.union(
+  [
+    z.custom<JsonSchemaObject>(isRecord),
+    z.array(z.string()).transform((names): JsonSchemaObject => ({
+      type: 'object',
+      properties: Object.fromEntries(names.map(name => [name, {}])),
+      additionalProperties: false,
+    })),
+  ],
+  {
+    error:
+      'a JSON Schema object with one property per event, or nothing when the build could not read one',
+  },
+)
+
+/**
+ * Both fields are optional on purpose: a build that could not read a schema statically leaves it
+ * out, which must not collapse into the empty schema a Widget that genuinely takes or emits
+ * nothing would publish.
  */
 const publishedContract = z
   .object(
     {
-      events: z.array(z.string({ error: 'an array of event names' }), {
-        error: 'an array of event names',
-      }),
+      events: eventsSchema.optional(),
       inputs: inputsSchema.optional(),
     },
-    { error: 'an object with the declared event names and, when readable, an inputs schema' },
+    { error: 'an object with, when readable, an events schema and an inputs schema' },
   )
   .transform((value): PublishedWidgetContract =>
     withoutUndefined({

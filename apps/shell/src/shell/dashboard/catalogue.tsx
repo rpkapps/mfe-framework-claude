@@ -31,7 +31,7 @@ import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import { Chip, ChipGroup, ChipList } from '@tecton/react/tecton/chip'
 import { BoxIcon, PlusIcon, SearchIcon, XIcon, ZapIcon } from 'lucide-react'
 
-import { readInputFields, type InputField } from './input-schema.ts'
+import { readEvents, readInputFields, type EventDetail, type InputField } from './input-schema.ts'
 
 /** The drag payload. A custom type keeps unrelated drops out of the canvas. */
 export const WIDGET_MEDIA_TYPE = 'application/x-mfe-widget'
@@ -259,7 +259,7 @@ function WidgetIcon({ entry }: { readonly entry: RegistryEntry }): ReactNode {
 /** The published contract, in two lines: inputs in, events out. */
 function ContractDetail({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   const fields = readInputFields(entry.contract)
-  const events = entry.contract?.events ?? []
+  const events = readEvents(entry.contract)
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -293,7 +293,7 @@ function Contract({
   events,
 }: {
   readonly fields: readonly InputField[] | null
-  readonly events: readonly string[]
+  readonly events: readonly EventDetail[] | null
 }): ReactNode {
   return (
     <dl className="flex flex-col gap-1 text-xs">
@@ -328,13 +328,22 @@ function Contract({
       <div className="flex min-w-0 gap-2">
         <dt className="w-12 shrink-0 pt-0.5 text-muted-foreground">Emits</dt>
         <dd className="flex min-w-0 flex-wrap gap-1">
-          {events.length === 0 ? (
+          {events === null ? (
+            <span className="text-muted-foreground italic">no schema published</span>
+          ) : events.length === 0 ? (
             <span className="text-muted-foreground">nothing</span>
           ) : (
             events.map(event => (
-              <Badge key={event} variant="info" appearance="outline">
-                <ZapIcon aria-hidden data-icon="inline-start" /> {event}
-              </Badge>
+              <TooltipTrigger key={event.name}>
+                <Badge
+                  variant="info"
+                  appearance="outline"
+                  render={props => <span {...props} tabIndex={0} />}
+                >
+                  <ZapIcon aria-hidden data-icon="inline-start" /> {event.name}
+                </Badge>
+                <Tooltip>{event.payloadLabel}</Tooltip>
+              </TooltipTrigger>
             ))
           )}
         </dd>

@@ -151,8 +151,10 @@ export { HOST_SCOPE } from './scope.ts'
 export {
   coerceInputs,
   defaultInputsFor,
+  describeWidgetEvents,
   describeWidgetInputs,
   needsInputPrompt,
+  type WidgetEvent,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

@@ -626,14 +626,26 @@ export const alertPanel = createWidget({
 })
 `
 
-  it('publishes the inputs as JSON Schema and the declared event names', () => {
+  it('publishes the inputs and the events as JSON Schema', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': WIDGET })
     const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
       definitions: { contract?: Record<string, unknown> }[]
     }
 
     expect(descriptor.definitions[0]?.contract).toEqual({
-      events: ['acknowledged'],
+      events: {
+        title: 'alert-panel events',
+        type: 'object',
+        properties: {
+          acknowledged: {
+            type: 'object',
+            properties: { alertId: { type: 'string' } },
+            required: ['alertId'],
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
       inputs: {
         title: 'alert-panel inputs',
         type: 'object',
@@ -676,7 +688,67 @@ export const oddPanel = createWidget({
       definitions: { contract?: Record<string, unknown> }[]
     }
 
-    expect(descriptor.definitions[0]?.contract).toEqual({ events: ['picked'] })
+    expect(descriptor.definitions[0]?.contract).toEqual({
+      events: {
+        title: 'odd-panel events',
+        type: 'object',
+        properties: { picked: { type: 'object', properties: {}, additionalProperties: false } },
+        additionalProperties: false,
+      },
+    })
+  })
+
+  /** `{}` is "anything" in JSON Schema: the name stays, and the provider still validates. */
+  it('publishes an event whose payload is not statically readable as an unknown payload', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputs: z.object({}),
+  events: {
+    picked: z.object({ id: z.string() }).refine(value => value.id !== ''),
+    cleared: z.object({}),
+  },
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { events?: { properties?: Record<string, unknown> } } }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract?.events?.properties).toEqual({
+      picked: {},
+      cleared: { type: 'object', properties: {}, additionalProperties: false },
+    })
+  })
+
+  it('publishes no events schema when the event names are not statically readable', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const shared = { cleared: z.object({}) }
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputs: z.object({}),
+  events: { ...shared, picked: z.object({}) },
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: Record<string, unknown> }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('events')
   })
 })
 
