@@ -7,6 +7,11 @@
  * the bare specifier is a share key, so a subpath would bundle a second copy of the runtime.
  */
 
+// A container built with the React Compiler imports this and shares it in the React scope. Only a
+// module the host itself imports is provided, and a host is rarely compiled, so without this line
+// the first container to need it provides its own and downloads its React client chunk with it.
+import 'react/compiler-runtime'
+
 export * from '@company/mfe-runtime'
 
 export { MfeProvider, type MfeProviderProps } from '../runtime-context.tsx'

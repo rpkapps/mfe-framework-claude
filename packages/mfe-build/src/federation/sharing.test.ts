@@ -4,6 +4,7 @@ import {
   containerDependencies,
   frameworkShareScope,
   isUsableVersionRange,
+  packageOf,
   PAGE_POLICY,
   PAGE_SINGLETON,
   resolveShared as resolveSharedIn,
@@ -318,6 +319,16 @@ describe('shareScopesOf', () => {
 
     expect(shareScopesOf(shared)).toEqual(['default', FRAMEWORK_SCOPE])
     expect(shareScopesOf({})).toEqual(['default'])
+  })
+})
+
+describe('packageOf', () => {
+  it('names the package a bare, prefix or subpath candidate is satisfied by', () => {
+    expect(packageOf('react')).toBe('react')
+    expect(packageOf('react/jsx-runtime')).toBe('react')
+    expect(packageOf('@acme/ui-kit')).toBe('@acme/ui-kit')
+    expect(packageOf('@acme/ui-kit/')).toBe('@acme/ui-kit')
+    expect(packageOf('@acme/ui-kit/components/button')).toBe('@acme/ui-kit')
   })
 })
 

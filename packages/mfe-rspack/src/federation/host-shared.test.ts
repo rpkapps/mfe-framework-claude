@@ -69,6 +69,8 @@ describe('hostShared', () => {
       '@company/mfe-react',
       '@company/mfe-runtime',
       'react',
+      'react/compiler-runtime',
+      'react/jsx-runtime',
     ])
     expect(shared['@company/mfe-core']).toEqual({
       singleton: true,

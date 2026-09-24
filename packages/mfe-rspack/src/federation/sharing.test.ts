@@ -28,13 +28,36 @@ describe('the React sharing policy', () => {
       dependencies: { react: '^19.0.0', 'react-dom': '^19.0.0', lodash: '^4.0.0' },
     })
 
-    expect(Object.keys(shared)).toEqual(['react', 'react-dom'])
+    expect(Object.keys(shared)).toEqual([
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/compiler-runtime',
+      'react/jsx-runtime',
+    ])
     expect(shared['react']).toEqual({
       singleton: true,
       strictVersion: true,
       requiredVersion: '^19.0.0',
       shareScope: REACT_SCOPE,
     })
+  })
+
+  it("shares React's entry points as strict singletons at the version of the package they sit in", () => {
+    const shared = resolveReactShared({
+      dependencies: { react: 'catalog:', 'react-dom': 'catalog:' },
+      installedVersion: name => (name === 'react' || name === 'react-dom' ? '19.3.0' : undefined),
+    })
+
+    for (const entryPoint of ['react/jsx-runtime', 'react/compiler-runtime', 'react-dom/client']) {
+      expect(shared[entryPoint], entryPoint).toEqual({
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: '19.3.0',
+        version: '19.3.0',
+        shareScope: REACT_SCOPE,
+      })
+    }
   })
 
   it('shares nothing when the container depends on none of them', () => {
@@ -51,6 +74,10 @@ describe('the React sharing policy', () => {
       '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
+      // React's entry points, which a bare `react` share does not cover.
+      'react/jsx-runtime',
+      'react/compiler-runtime',
+      'react-dom/client',
       // Then `@tecton/react/federation/shared`, verbatim and in its own order.
       'react',
       'react-dom',
@@ -74,7 +101,7 @@ describe('the React sharing policy', () => {
       installedVersion: () => '0.1.0',
     })
 
-    expect(Object.keys(shared)).toHaveLength(8)
+    expect(Object.keys(shared)).toHaveLength(11)
     for (const entry of Object.values(shared)) {
       expect(entry.singleton).toBe(true)
       expect(entry.strictVersion).toBe(true)
@@ -101,6 +128,9 @@ describe('the React sharing policy', () => {
       react: REACT_SCOPE,
       'react-aria-components': REACT_SCOPE,
       'react-dom': REACT_SCOPE,
+      'react-dom/client': REACT_SCOPE,
+      'react/compiler-runtime': REACT_SCOPE,
+      'react/jsx-runtime': REACT_SCOPE,
       recharts: REACT_SCOPE,
       sonner: REACT_SCOPE,
     })

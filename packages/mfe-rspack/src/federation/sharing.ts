@@ -28,6 +28,14 @@ const REACT_BOUND_POLICY: SharingPolicies = {
   [REACT_ADAPTER]: SINGLETON,
   '@tanstack/react-router': SINGLETON,
   '@tanstack/react-query': SINGLETON,
+  // Only a bare specifier is a share key, so without these every container bundled its own copy
+  // of the entry points a React build actually imports, and Rsbuild's `lib-react` chunk put each
+  // copy beside react-dom's client: 69 KB gzipped per container, downloaded even when the host
+  // had already provided React. The compiler runtime reads React's internals, so it is as strict
+  // as React itself; a host provides it through `@company/mfe-react/host`.
+  'react/jsx-runtime': SINGLETON,
+  'react/compiler-runtime': SINGLETON,
+  'react-dom/client': SINGLETON,
 }
 
 // The library states its own contract; `strictVersion` is the one thing it leaves out, and a
