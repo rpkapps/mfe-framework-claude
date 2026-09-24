@@ -86,6 +86,7 @@ On `ActionRegistration`:
 - `needsApproval` — `boolean` or `(inputs) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
 - `placements` — `'palette'`, `'agent'`, later `'webmcp'`, possibly `'toolbar'` and `'context-menu'`. The default includes `'agent'`: anything a user can reach from the palette, the agent can reach too.
 - `parallelSafe` — writes run one at a time unless this is set.
+- `followUp` — whether the agent carries on after the result. Defaults to `true`; an action whose result is for the user rather than the agent sets `false`.
 
 Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. A Widget's `outputs` are named payloads emitted any number of times, or never, while it is mounted, as Angular's outputs are, and wiring Widgets in sequence reads as one Widget's outputs feeding the next one's inputs. An action's `output` is exactly one value per call. The rule behind the names: a plural is a map of named schemas (`inputs`, a Widget's `outputs`), a singular is one schema (an action's `output`). The two field types differ, so passing one where the other belongs is a type error. Reporting progress over time is a Widget's job, not an action's.
 
@@ -97,12 +98,14 @@ The App's own button calls the action through what `useAction` returns, so a cli
 
 Actions still live in the page and last as long as their mount; they are not server actions and cannot run headless. The decision entry says so.
 
+Angular Apps are first-class, so every author API in this plan ships for both adapters in the same change: `useAction` and `injectAction`, `useAgentContext` and `injectAgentContext`.
+
 ### B. Agent context
 
 Modelled on Agent-Native's context layers (`context-awareness` in its docs):
 
 - **URL** — every App's current path and search params go into each turn automatically; the framework already knows each boundary. Filters that can be shared live in the search params, so the agent changes them by navigating.
-- **Selection** — `useAgentContext(schema, value)`: a mount publishes a small, typed snapshot of what is selected or focused: stable ids, a short label, a `capturedAt`. Never whole records, never secrets.
+- **Selection** — `useAgentContext({ description, schema, value })`: a mount publishes a small, typed snapshot of what is selected or focused: stable ids, a short label, a `capturedAt`. `description` tells the model what the value is, as CopilotKit's hook of the same name does. Never whole records, never secrets.
 - **Reading the full records** — each App offers a read action that turns those ids into fresh data, so the agent checks the live object before it acts.
 - **Prompt handoff** — `agent.prompt({ message, context, submit })` on the host, so a click becomes a chat turn: `message` is visible, `context` is hidden, `submit: false` pre-fills for review.
 - **Selected text** — ⌘I sends the page's text selection into the next turn.
@@ -118,17 +121,22 @@ The build publishes each App's route paths and search-param schemas into the reg
 ### E. The chat host in the shell
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
-- Consumes one event stream from the backend, preferably the AG-UI protocol rather than an invented one: message start and delta, tool start and end, approval requests, done.
-- Approval: the loop pauses with the action, its inputs and a key for that exact call. Approve re-sends the turn with the key; decline sends nothing. The prompt is a Tecton `Questionnaire` or dialog.
+- Speaks AG-UI through `@ag-ui/client`, pinned and kept in one module of the shell, so the wire protocol can be swapped without touching the rest. Not CopilotKit (see its section below). A one-day spike comes first: one page action called by a backend agent, executed through the pipeline and its result returned, one approval, one interrupt. If the tool-call and approval plumbing proves large, `@copilotkit/core` headless is the fallback, fed from our registry.
+- Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its `output` goes back as the tool result.
+- Approval, two paths, one card. For a page action, the pipeline's approval step renders a card in the chat and waits for the user's answer before `execute` runs; decline returns a declined result to the agent. For a backend (domain) tool, the backend stops the run with an AG-UI interrupt carrying that call's id; the same card resumes it or declines it.
+- Every tool call renders in three stages: its inputs streaming in, running, complete with its result. A tool with no renderer of its own gets one generic card with its label and stage.
 - Renders answers with the Tecton conversation components.
+- Later: suggested prompts, before the first message and after each answer, which a mounted App can contribute to.
 - Replaces the two identical `ai-agent-panel` copies (`examples/operations`, `examples/insights`); the insights `agent-panel` Widget either goes or becomes something the chat renders.
 
 ### F. UI in the chat
 
 - A tool result renders as a component only when the tool said it would. Never inferred from the shape of the data, and never HTML or script from a result.
-- **Widgets** — the agent calls the render tool with `{ widgetId, inputs }`; the chat mounts `<DynamicWidget>` inside a `Message`. The provider validates the inputs, as it always does.
+- **Widgets** — the agent calls the render tool with `{ widgetId, inputs }`; the chat shows a skeleton while the inputs stream in, then mounts `<DynamicWidget>` inside a `Message`. The provider validates the inputs, as it always does. The render tool's `followUp` is `false`: showing the Widget ends the turn.
+- **Asking the user** — an `ask_user` tool renders a Tecton `Questionnaire`; submitting it answers the call with the user's answers, and the agent carries on with them. Cancelling, or the run being aborted, answers it as declined.
 - **Widget outputs back to the agent** — two kinds. Passive: the latest value is readable in later turns. Explicit: a new turn, only from a user's action (an Apply or Submit), never from a timer or an error handler.
 - **Built-in renderers** — a table, a chart and a summary card, in Tecton, for data the agent already fetched. The render tool is not a data source and must not be used to invent figures.
+- Later: one-off displays with no Widget and no built-in renderer through A2UI (an open spec in which the agent composes UI from a catalogue the client provides), with a Tecton catalogue, rather than a format of our own.
 
 ### G. External agents (later)
 
@@ -137,9 +145,15 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 ## Borrowed from Agent-Native
 
-[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native) (MIT) aims at the same thing, with a server it owns. Taken: one definition with every caller, exposure and approval fields on each operation, the pause-and-resume approval with a key per call, the context layers, renderers declared by the tool, the passive and explicit ways UI in the chat hands a value back, the audit fields, and the event stream that keeps the model out of the framework.
+[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native) (MIT) aims at the same thing, with a server it owns. Taken: one definition with every caller, exposure and approval fields on each operation, approval tied to one exact call (the interrupt's call id, for a backend tool), the context layers, renderers declared by the tool, the passive and explicit ways UI in the chat hands a value back, the audit fields, and the event stream that keeps the model out of the framework.
 
 Not taken: a dependency on it (it owns the server, the database, auth and the agent loop, and is at 0.x with a large dependency tree); agent context stored in SQL on the server (ours is an in-memory store in the shell whose snapshot goes along with each turn); agent-generated HTML in sandboxed frames (it breaks Tecton's rules; the Widget catalogue is the safer form); navigation by a state key the UI polls (we call the navigator).
+
+## Borrowed from CopilotKit
+
+[CopilotKit](https://github.com/CopilotKit/CopilotKit) (MIT) registers tools in the page while the component that owns them is mounted, as our actions are, and created AG-UI. Taken: the three stages of a rendered tool call and a generic card for the rest; the user's answer resolving the call a card belongs to (`useHumanInTheLoop`), for approvals and for `ask_user`; AG-UI interrupts for backend approvals; `description` on agent context; `followUp`; APIs for both React and Angular; suggestions and A2UI, later.
+
+Not taken: its hooks inside Apps and Widgets (every mount has a React root of its own, so a hook there cannot reach a provider in the shell, the wall §35 hit with shortcuts; containers use our `useAction`, and only the shell talks to the agent client); its chat components (Tecton has them); tools per agent id (one agent for now); a dependency on it, unless the spike in E says otherwise (its API is partway through a v1 to v2 change, and it carries Copilot Cloud hooks such as a license watermark, disabled today).
 
 ## Not doing
 
@@ -151,10 +165,10 @@ Not taken: a dependency on it (it owns the server, the database, auth and the ag
 ## Open questions
 
 - Is `'agent'` a default placement for Widget actions as well as App actions?
-- Which backend runs the loop, and which protocol it streams (AG-UI is the proposal).
+- Which backend runs the loop. It streams AG-UI.
 - Is the chat composer a Tecton component, or does upstream shadcn have one to sync first?
 - Where the audit trail is stored and for how long.
 
 ## Order
 
-0 → 4 → 1 → 2 → 3 with A → 6 → B → C → D → E → F → G. Steps 0 and 4 touch the same files and can go together.
+0 → 4 → 1 → 2 → 3 with A → 6 → B → C → D → the AG-UI spike → E → F → G. Steps 0 and 4 touch the same files and can go together.
