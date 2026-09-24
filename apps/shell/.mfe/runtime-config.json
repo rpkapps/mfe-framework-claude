@@ -1,0 +1,5 @@
+{
+  "oidcDisabled": true,
+  "oidcScope": "openid profile email offline_access",
+  "oidcGroupsClaim": "groups"
+}

@@ -3,12 +3,14 @@
  * for its share scope instead of resolving a second one (§27).
  */
 
-import { dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+import { pluginMfeHostConfig } from '@company/mfe-rspack'
 import { hostFederation } from '@company/mfe-rspack/federation'
 
 import {
@@ -26,12 +28,20 @@ useWorkspaceModules(here)
 const DEV_PORT = 3000
 
 export default defineConfig({
-  plugins: [pluginReact()],
+  // `#mfe/config`, validated without Zod, and the runtime configuration's files, from
+  // src/mfe.config.ts; it also serves .mfe/runtime-config.json in development (§37).
+  plugins: [pluginReact(), pluginMfeHostConfig()],
 
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },
 
-  html: { template: './src/index.html' },
+  html: {
+    template: './src/index.html',
+    // Inlined rather than loaded, so the loading screen draws before any script is fetched.
+    templateParameters: {
+      wellLogLoader: readFileSync(join(here, 'src/loader/well-log-loader.js'), 'utf8'),
+    },
+  },
 
   moduleFederation: {
     options: {

@@ -4,14 +4,212 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Discovery</title>
+    <!-- Sign-in reads the deployment's runtime configuration before anything else, so it downloads
+         alongside the entry rather than after it (§36). `crossorigin` makes it the same request
+         the entry's fetch makes, which is then answered from this one. -->
+    <link rel="preload" href="/runtime-config.json" as="fetch" crossorigin="anonymous" />
     <!-- Inline, or a browser requests /favicon.ico on every load and the 404 buries a real failed request in the console. -->
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f1a'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='600' fill='%237dd3fc' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E"
     />
+    <!-- The loading screen paints before any stylesheet or script arrives, so it cannot wait for
+         Tecton's: each value names the Tecton token first and falls back to that token's own value
+         for the mode, which is what it resolves to once globals.css loads (§36). -->
+    <style>
+      #shell-loader {
+        --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
+        --loader-text: var(--tecton-color-text-primary, #f6f5f8);
+        --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
+        /* Tecton's primary purple. In dark mode the primary is violet-220, a fill made to sit
+           behind white text, which vanishes as a line on this ground; a higher-contrast step of the
+           same ramp is the dark mode's foreground for it. */
+        --loader-accent: var(--tecton-palette-violet-460, #8e8199);
+        --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
+        --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
+        --loader-ring: var(--tecton-color-focus-ring, #ff00aa);
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        overflow: hidden;
+        background: var(--loader-bg);
+        color: var(--loader-text);
+        font-family:
+          Figtree,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      html:not(.dark) #shell-loader {
+        --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
+        --loader-text: var(--tecton-color-text-primary, #21172a);
+        --loader-muted: var(--tecton-color-text-secondary, #604e6e);
+        /* The primary itself: mauve-680, the colour of Tecton's primary actions. */
+        --loader-accent: var(--tecton-color-action-primary-bg, #644a78);
+        --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
+        --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
+      }
+      #shell-loader[data-state='done'] {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* The well log fills the screen; its colours are the loader's, so Tecton's once it loads. */
+      .shell-loader__log {
+        position: absolute;
+        inset: 0;
+        --well-log-bg: var(--loader-bg);
+        --well-log-ink: var(--loader-text);
+        --well-log-accent: var(--loader-accent);
+        --well-log-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --well-log-vignette: 0.7;
+        transition: opacity 400ms ease;
+      }
+      /* On a light page the texture and the vignette read as grey smudges, so both nearly go. */
+      html:not(.dark) .shell-loader__log {
+        --well-log-vignette: 0.35;
+        --well-log-texture: 0.25;
+      }
+
+      /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
+      .shell-loader__scene {
+        position: relative;
+        isolation: isolate;
+        /* The undrilled hole below the bit, where the log has only its depth scale. */
+        align-self: end;
+        margin-bottom: max(48px, 10vh);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 340px;
+        text-align: center;
+        animation: shell-loader-enter 700ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+        transition:
+          opacity 300ms ease,
+          transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      /* A pool of the page's own background, so the words read over the depth scale. */
+      .shell-loader__scene::before {
+        content: '';
+        position: absolute;
+        inset: -72px -160px;
+        z-index: -1;
+        background: radial-gradient(closest-side, var(--loader-bg), transparent);
+        opacity: 0.8;
+      }
+      html:not(.dark) .shell-loader__scene::before {
+        display: none;
+      }
+      #shell-loader[data-state='done'] .shell-loader__scene {
+        opacity: 0;
+        transform: scale(0.98);
+      }
+
+      .shell-loader__title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 20px;
+        letter-spacing: -0.005em;
+      }
+      .shell-loader__status {
+        min-height: 18px;
+        margin: 6px 0 0;
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--loader-muted);
+      }
+      .shell-loader__detail {
+        margin: 8px 0 0;
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--loader-muted);
+        text-wrap: pretty;
+      }
+      .shell-loader__detail:empty {
+        display: none;
+      }
+      .shell-loader__action {
+        height: 32px;
+        margin-top: 20px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--loader-button);
+        color: var(--loader-text);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+      }
+      .shell-loader__action:hover {
+        background: var(--loader-button-hover);
+      }
+      .shell-loader__action:focus-visible {
+        outline: 2px solid var(--loader-ring);
+        outline-offset: 2px;
+      }
+
+      /* A failure stops the log where it stands, and lets it recede behind the reason. */
+      #shell-loader[data-state='error'] .shell-loader__log {
+        --well-log-speed: 0;
+        opacity: 0.45;
+      }
+      #shell-loader[data-state='error'] .shell-loader__status {
+        color: var(--loader-text);
+        font-weight: 500;
+      }
+
+      /* Opacity only: a transform here would capture the shell's fixed-position overlays. */
+      #root {
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1) 80ms;
+      }
+      html:not([data-shell='ready']) #root {
+        opacity: 0;
+      }
+
+      @keyframes shell-loader-enter {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+          filter: blur(3px);
+        }
+      }
+      /* Reduced motion: no fades; the log slows to a quarter speed on its own. */
+      @media (prefers-reduced-motion: reduce) {
+        #shell-loader,
+        #root,
+        .shell-loader__scene,
+        .shell-loader__log {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <!-- A well log drilling down while sign-in and boot run: gamma ray and resistivity past the
+         bit, with its depth. `loader.ts` changes the words and removes it; it never needs React. -->
+    <div id="shell-loader" data-state="loading">
+      <well-log-loader class="shell-loader__log" aria-hidden="true"></well-log-loader>
+      <div class="shell-loader__scene">
+        <p class="shell-loader__title">Discovery</p>
+        <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">
+          Loading…
+        </p>
+        <p class="shell-loader__detail" data-part="detail"></p>
+        <button class="shell-loader__action" data-part="action" type="button" hidden></button>
+      </div>
+    </div>
     <!-- The theme before first paint, because a document that boots dark and flips to light on
          hydration is a flash every light-theme user sees on every load. It reads the bare key
          the legacy Angular applications read too, the same way `preferences.ts` does (§24). -->
@@ -29,6 +227,63 @@
           // Storage blocked, or a value this build cannot read: the class in <html> already stands.
         }
       })()
+    </script>
+    <!-- A failure before the shell paints must not leave the loader running forever. The entry's
+         own error handling cannot catch everything: the federation runtime starts before any shell
+         code, and a script that fails to download never runs at all. So until the shell is ready,
+         any uncaught error, unhandled rejection, or script or stylesheet that fails to load stops
+         the loader with the reason and a way to try again. A failure `loader.ts` already reported
+         keeps its own, more specific, words. -->
+    <script>
+      ;(function () {
+        function fail(detail) {
+          var loader = document.getElementById('shell-loader')
+          if (loader === null || loader.dataset.state !== 'loading') return
+          if (document.documentElement.dataset.shell === 'ready') return
+          loader.dataset.state = 'error'
+          var status = loader.querySelector('[data-part="status"]')
+          var text = loader.querySelector('[data-part="detail"]')
+          var action = loader.querySelector('[data-part="action"]')
+          if (status) status.textContent = 'The workspace failed to load'
+          if (text) text.textContent = detail
+          if (action) {
+            action.textContent = 'Try again'
+            action.hidden = false
+            action.onclick = function () {
+              window.location.reload()
+            }
+            action.focus()
+          }
+        }
+        function describe(reason) {
+          if (reason && typeof reason.message === 'string' && reason.message !== '') {
+            return reason.message
+          }
+          return typeof reason === 'string' && reason !== '' ? reason : 'An unexpected error.'
+        }
+        // Capturing, because a script or stylesheet that fails to load does not bubble its error.
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target
+            if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+              var source = target.src || target.href
+              if (target instanceof HTMLLinkElement && target.rel !== 'stylesheet') return
+              fail('A file the workspace needs did not load: ' + source + '.')
+              return
+            }
+            if (target === window) fail(describe(event.error || event.message))
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', function (event) {
+          fail(describe(event.reason))
+        })
+      })()
+    </script>
+    <!-- After the theme, so the log's first frame is drawn in the right mode. -->
+    <script>
+      <%= wellLogLoader %>
     </script>
   </body>
 </html>

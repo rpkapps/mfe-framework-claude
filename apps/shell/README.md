@@ -30,6 +30,57 @@ stale view of a page that has moved on since. To take one:
 node apps/shell/scripts/screenshot.mjs /operations/wells
 ```
 
+## Sign-in
+
+The whole page is behind OIDC sign-in, and it runs before anything else: the
+entry chunk either leaves for the identity provider or boots the shell. There
+is no per-route authorization. It is the authorization code flow with PKCE
+(`oidc-client-ts`). The session is kept in `sessionStorage`, so a reload
+restores it without going back to the identity provider (renewing it through
+the refresh token when it is about to expire), and it ends with the tab. A new
+tab signs in for itself, which is immediate while the provider's own session
+lasts, and so does a duplicated one, which drops the tokens it copied
+([decisions §36](../../docs/decisions.md)).
+
+Sign-in is configured at run time, so one build serves every environment. The
+values are declared in `src/mfe.config.ts`, as a container's are, and read
+through the framework's `#mfe/config` (`pluginMfeHostConfig()`), which for a
+host validates without Zod ([decisions §37](../../docs/decisions.md)). The
+file is `/runtime-config.json`, which `index.html` preloads alongside the entry,
+and a deployment writes it from the environment when the image starts:
+
+| Variable            | Field             | What it does                                                  |
+| ------------------- | ----------------- | ------------------------------------------------------------- |
+| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                   |
+| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                    |
+| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`             |
+| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups` |
+| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user          |
+
+The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
+in POSIX `sh` and `awk` only: copy it into an nginx image's
+`/docker-entrypoint.d/` and it runs before nginx starts, writing the
+environment over the declared defaults the build shipped in
+`/usr/share/nginx/html`. `.mfe/.env.example` and `.mfe/runtime-config.schema.json`
+say what it may carry. Serve the file with `Cache-Control: no-store`. A
+deployment without the file, or with one the shell cannot read, stops on the
+loading screen and says which.
+
+In development the dev server answers `/runtime-config.json` from
+`apps/shell/.mfe/runtime-config.json`, which ships with `"oidcDisabled": true`;
+put an `oidcAuthority` and `oidcClientId` there instead to sign in locally.
+Register `<origin>/` as both the redirect URI and the post-logout redirect URI,
+and allow refresh tokens for the client (Entra ID and Okta issue them only with
+`offline_access`). A production build with no provider configured refuses to
+boot until either the provider or `OIDC_DISABLED=true` is set.
+
+While sign-in and boot run, `index.html` shows a well log drilling down: gamma
+ray and resistivity scrolling past the bit, with its depth. It is the
+`<well-log-loader>` element in `src/loader/well-log-loader.js`, inlined into the
+page at build time so it draws before any script loads, and themed from Tecton's
+tokens. It fades out as the shell fades in; if sign-in fails the log stops and
+recedes behind the reason and a way forward.
+
 ## The pages the shell owns
 
 | Route     | What it is                                     |

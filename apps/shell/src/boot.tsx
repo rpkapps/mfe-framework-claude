@@ -1,7 +1,8 @@
 /**
- * Shell boot: the registry is fetched first, so `createMfeRuntime` applies the developer
- * overrides to the manifest URLs before any remote is registered. The diagnostics hub is built
- * before the runtime, because `installShellAuth` runs before a runtime exists to report into (§25).
+ * Shell boot, reached only once `authenticate` has established a session (§36). The registry is
+ * fetched first, so `createMfeRuntime` applies the developer overrides to the manifest URLs before
+ * any remote is registered. The diagnostics hub is built before the runtime, because
+ * `installShellAuth` runs before a runtime exists to report into (§25).
  */
 
 import { StrictMode } from 'react'
@@ -25,8 +26,10 @@ import { reactAdapter } from '@company/mfe-react/registry'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
+import { shellSession } from './auth/gate.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { preferredTheme } from './shell/preferences.ts'
+import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
 import { notices } from './shell/workspace.ts'
@@ -68,13 +71,15 @@ function telemetryProvider(): TelemetryProvider {
 const container = document.getElementById('root')
 if (!container) throw new Error('index.html must contain <div id="root">')
 
+const session = shellSession()
 const telemetry = telemetryProvider()
 const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry)])
 
 // Before any remote is registered: one session for the page keeps refresh single-flight across
 // every mount, and a container's generated #mfe/fetch resolves it at its first request (§10).
 installShellAuth({
-  tokens: createDevSession(),
+  // With sign-in off there is no identity provider, so development tokens stand in.
+  tokens: session.mode === 'oidc' ? session.tokens : createDevSession(),
   diagnostics,
   isDevelopment: process.env['NODE_ENV'] !== 'production',
 })
@@ -94,8 +99,8 @@ const { runtime, activeOverrides } = createMfeRuntime({
     },
   }),
   shellState: {
-    user: { id: 'u-2841', name: 'Robin Kolesnik', email: 'robin.kolesnik@example.com' },
-    groups: ['geoscience', 'well-planning.read'],
+    user: session.identity.user,
+    groups: session.identity.groups,
     // Decided the same way the pre-paint script in index.html decided it, so shell state agrees
     // with what the document is already painting.
     theme: preferredTheme(),
@@ -123,6 +128,7 @@ globalThis.shellRoot.render(
   <StrictMode>
     <MfeProvider runtime={runtime}>
       <RouterProvider router={router} />
+      <ShellReady />
     </MfeProvider>
   </StrictMode>,
 )

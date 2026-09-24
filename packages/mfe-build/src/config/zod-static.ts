@@ -19,7 +19,22 @@ export interface StaticSchema {
   readonly hasDefault: boolean
   readonly defaultValue?: JsonValue
   readonly description?: string
+  /**
+   * The string methods on the field itself that change its value, in order. JSON Schema has no
+   * word for them, so a validator that does not run Zod applies them from here.
+   */
+  readonly transforms?: readonly StringTransform[]
+  /** `z.coerce.<kind>()`: the value is converted as Zod converts it before it is checked. */
+  readonly coerce?: 'string' | 'number' | 'boolean'
 }
+
+export type StringTransform = 'trim' | 'toLowerCase' | 'toUpperCase'
+
+const STRING_TRANSFORMS: ReadonlySet<string> = new Set<StringTransform>([
+  'trim',
+  'toLowerCase',
+  'toUpperCase',
+])
 
 interface ChainStep {
   readonly name: string
@@ -62,13 +77,14 @@ export function readStaticSchema(
   expression: ts.Expression,
   context: ReadSchemaContext,
 ): StaticSchema {
-  const { base, steps } = chainOf(expression, context)
+  const { base, steps, coerced } = chainOf(expression, context)
 
   let schema = readBase(base, context)
   let optional = false
   let hasDefault = false
   let defaultValue: JsonValue | undefined
   let description: string | undefined
+  const transforms: StringTransform[] = []
 
   for (const step of steps) {
     switch (step.name) {
@@ -127,7 +143,10 @@ export function readStaticSchema(
           'Use .default(…) for a value the deployment may omit, and let an invalid value fail. A container that silently substitutes configuration hides the misconfiguration until something downstream misbehaves.',
         )
       default:
-        if (TRANSPARENT_METHODS.has(step.name)) break
+        if (TRANSPARENT_METHODS.has(step.name)) {
+          if (STRING_TRANSFORMS.has(step.name)) transforms.push(step.name as StringTransform)
+          break
+        }
         if (STRING_FORMATS.has(step.name)) {
           schema = { ...schema, type: 'string', format: STRING_FORMATS.get(step.name) ?? 'uri' }
           break
@@ -147,13 +166,17 @@ export function readStaticSchema(
     hasDefault,
     ...(defaultValue === undefined ? {} : { defaultValue }),
     ...(description === undefined ? {} : { description }),
+    ...(transforms.length === 0 ? {} : { transforms }),
+    ...(coerced && (base.name === 'string' || base.name === 'number' || base.name === 'boolean')
+      ? { coerce: base.name }
+      : {}),
   }
 }
 
 function chainOf(
   expression: ts.Expression,
   context: ReadSchemaContext,
-): { readonly base: ChainStep; readonly steps: readonly ChainStep[] } {
+): { readonly base: ChainStep; readonly steps: readonly ChainStep[]; readonly coerced: boolean } {
   const steps: ChainStep[] = []
   let current: ts.Expression = unwrapExpression(expression)
 
@@ -173,6 +196,7 @@ function chainOf(
       return {
         base: { name: callee.text, args: [...current.arguments], node: current },
         steps,
+        coerced: false,
       }
     }
 
@@ -191,6 +215,7 @@ function chainOf(
       return {
         base: { name: callee.name.text, args: [...current.arguments], node: current },
         steps,
+        coerced: ts.isPropertyAccessExpression(receiver) && receiver.name.text === 'coerce',
       }
     }
 

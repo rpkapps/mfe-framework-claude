@@ -62,12 +62,15 @@ import {
   CircleHelpIcon,
   ClipboardCopyIcon,
   LayoutDashboardIcon,
+  LogOutIcon,
   MoonIcon,
   SettingsIcon,
   SparklesIcon,
   SunIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+
+import { shellSession } from '../auth/gate.ts'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
@@ -186,6 +189,34 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
     </>
+  )
+}
+
+/** With sign-in off there is nothing to sign out of, and the menu says so rather than hiding it (§36). */
+function SignOutItem(): ReactNode {
+  const session = shellSession()
+
+  if (session.mode === 'disabled') {
+    return (
+      <DropdownMenuItem textValue="Sign-in is off" isDisabled>
+        <LogOutIcon /> Sign-in is off
+      </DropdownMenuItem>
+    )
+  }
+
+  return (
+    <DropdownMenuItem
+      textValue="Sign out"
+      onAction={() => {
+        session.signOut().catch(() => {
+          toast.error('Sign-out did not complete.', {
+            description: 'The identity provider could not be reached. Try again in a moment.',
+          })
+        })
+      }}
+    >
+      <LogOutIcon /> Sign out
+    </DropdownMenuItem>
   )
 }
 
@@ -393,6 +424,10 @@ function Header(): ReactNode {
             >
               <ClipboardCopyIcon /> Copy diagnostics
             </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <SignOutItem />
           </DropdownMenuGroup>
         </AppShellUserMenu>
       </AppShellActions>

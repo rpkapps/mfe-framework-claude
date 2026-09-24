@@ -74,7 +74,13 @@ export type { GeneratedOutput } from './generate/index.ts'
 export { exportedName } from './generate/modules.ts'
 export type { GenerateContext } from './generate/modules.ts'
 export { seedLocalRuntimeConfig, summarizeGeneration } from './generate/runtime-config.ts'
-export type { GenerationSummary, LocalRuntimeConfig } from './generate/runtime-config.ts'
+export type {
+  GenerationSummary,
+  LocalRuntimeConfig,
+  RuntimeConfigPlan,
+} from './generate/runtime-config.ts'
+export { planHostConfig } from './generate/host-config.ts'
+export type { HostConfigOptions, HostConfigPlan } from './generate/host-config.ts'
 export { stylesheetPath } from './generate/styles.ts'
 
 export { buildFederationOptions, withFrameworkMetadata } from './federation/federation-options.ts'

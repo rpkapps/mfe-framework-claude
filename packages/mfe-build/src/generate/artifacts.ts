@@ -4,7 +4,13 @@ import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe
 import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
 
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
-import { ALIASES, containerId, exposeName, type GenerateContext } from './modules.ts'
+import {
+  ALIASES,
+  configOwnerId,
+  exposeName,
+  type ConfigGenerateContext,
+  type GenerateContext,
+} from './modules.ts'
 import { generatedPath, jsonFile, type GeneratedFile } from './emit.ts'
 
 /** Shipped beside the container, so a deployment validates its configuration before release. */
@@ -101,7 +107,7 @@ export function registryDescriptorFile(
 }
 
 /** `additionalProperties: false`: an undeclared key is almost always a misspelled declared one. */
-export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile | null {
+export function runtimeConfigSchemaFile(context: ConfigGenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
 
@@ -120,8 +126,8 @@ export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile
 
   const schema: JsonObject = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
-    title: `${containerId(context)} runtime configuration`,
-    description: `Deployment values for the ${context.options.packageName} container. Values only: this file carries no envelope and no secrets beyond what the deployment chooses to place in it.`,
+    title: `${configOwnerId(context)} runtime configuration`,
+    description: `Deployment values for the ${context.options.packageName} ${context.host === undefined ? 'container' : 'host'}. Values only: this file carries no envelope and no secrets beyond what the deployment chooses to place in it.`,
     type: 'object',
     properties,
     ...(required.length > 0 ? { required } : {}),
@@ -136,7 +142,7 @@ export function runtimeConfigSchemaFile(context: GenerateContext): GeneratedFile
 }
 
 /** Derived from the `env()` declarations: names and expectations, never values. */
-export function envExampleFile(context: GenerateContext): GeneratedFile | null {
+export function envExampleFile(context: ConfigGenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
 
@@ -193,7 +199,7 @@ export function tsconfigPathsFile(context: GenerateContext): GeneratedFile {
  * developer's own runtime configuration. A container's own `.gitignore` cannot make that exception
  * alone: the patterns in this file take precedence over it for everything in the directory.
  */
-export function gitignoreFile(context: GenerateContext): GeneratedFile {
+export function gitignoreFile(context: ConfigGenerateContext): GeneratedFile {
   return {
     path: generatedPath(context.options.generatedDir, '.gitignore'),
     contents: [

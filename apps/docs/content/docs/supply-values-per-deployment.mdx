@@ -186,6 +186,20 @@ lands here.
 
 </Callout>
 
+## In a host
+
+A host, the shell that loads the containers, gets the same files: declare its values in its own
+`src/mfe.config.ts`, add `pluginMfeHostConfig()` from `@company/mfe-rspack` to its Rsbuild config,
+and give it a `generate` script of `mfe-generate --host`. Its `#mfe/config` is read the same way and
+fails the same way, but validates without Zod: a host reads its configuration before anything else
+on the page loads, so the generated module checks each value against the JSON Schema the build
+derived from your declaration, and the declarations reach it as a type only. The build already
+refuses any schema it cannot read that way, so both kinds of module accept exactly the same values.
+
+A host's module also reports a missing file served as `index.html` with a 200 as missing, and
+fetches with same-origin credentials, so a `<link rel="preload" as="fetch" crossorigin>` for the
+file in the host document answers it.
+
 ## Related
 
 - [Declare an environment variable](/docs/declare-an-env-variable) — what the file has to carry.

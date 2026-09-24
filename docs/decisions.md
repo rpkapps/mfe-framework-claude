@@ -894,3 +894,117 @@ the registry can tell an App from a Widget and knows the boundary. Shortcut erro
 warnings reuse `command/duplicate-name`, which already covered an invalid registration,
 rather than widening the closed union (§7). And a key the page is inside two nested
 Apps for is ambiguous where an inner-wins rule would have resolved it.
+
+---
+
+## 36. The shell signs in before anything loads, and holds its tokens in memory only
+
+**Status:** decided; the shell's half of §10.
+
+The shell has no server, so sign-in is an OIDC authorization code flow with PKCE run in
+the browser by `oidc-client-ts`, and it runs first: `index.tsx` calls `authenticate()`
+and imports the boot only when it resolves `true`. A visitor who is not signed in
+leaves for the identity provider from the entry chunk, before React, the registry or
+any container is fetched, so nothing behind sign-in is ever loaded for them. There is
+no per-route authorization; the whole page is behind one gate. Server rendering was
+considered and rejected: the micro-frontends are most of the page and mount in the
+browser regardless, and redirecting before the entry has done anything else is what
+makes sign-in fast.
+
+**The session lives in `sessionStorage`, and dies with the tab.** Tokens were first
+held in memory only, which sent every reload back through the provider; `sessionStorage`
+lets a reload restore the session, renewing it through the refresh token when it is
+within 30 seconds of expiry, without that round trip. `localStorage` was weighed and
+left: it would spare a new tab and a restarted browser the round trip too, but it keeps
+a refresh token on disk for days, shares one across tabs, and hands a shared computer's
+next user the last one's session. The session sits under `shell.oidc.session.` and the
+sign-in request's `state` and PKCE verifier under `shell.oidc.request.`, apart because
+clearing stale requests removes every key under that prefix it cannot read; this is why
+`apps/shell/src/auth/gate.ts` is in `storageAllowedScopes`.
+
+**A duplicated tab signs in for itself.** Duplicating a tab copies its `sessionStorage`,
+refresh token included, and two tabs rotating one refresh token retire each other's,
+which a provider with reuse detection answers by ending the session for both. Each tab
+therefore holds a Web Lock named after an id in its own `sessionStorage` (`shell.tab`)
+for as long as it lives; a copy finds the lock taken, drops the copied tokens and signs
+in fresh, which the provider's own session makes immediate. Without Web Locks a copy
+cannot be told apart, and a refused rotation ends in a fresh sign-in. So each tab holds
+its own refresh token and the rotation hazard §10 guards against never spans tabs;
+within a tab, `createOidcTokenSource` makes renewal
+single-flight, renews a token within 30 seconds of expiry rather than sending it, and
+answers a caller whose rejected token was already replaced with the new one. Renewal is
+the refresh token grant only; when it fails the session is lost and the page navigates
+to sign in again, back to where the user was.
+
+The redirect URI is `/`, the one path the shell owns outright, so a callback is
+recognised by `code` or `error` with `state` there. The return path travels as the
+request's state and only a path on this origin is honoured. The ID token's claims fill
+`shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
+
+**The configuration is read at run time, not built in.** One build serves every
+environment: the shell declares its five values in `src/mfe.config.ts` and reads them
+through the framework's `#mfe/config`, in its Zod-free form for a host (§37), and a
+deployment writes `/runtime-config.json` from the `OIDC_*` environment variables with the
+generated `runtime-config.sh`, exactly as it does a container's. `resolveAuthConfig`
+decides what the values mean. `index.html` preloads the file, so it downloads beside the
+entry and the entry's fetch is answered from that one request, and `#mfe/config` is
+imported eagerly, so it is no chunk of its own.
+
+**Sign-in off is written down, never inferred.** `OIDC_DISABLED=true` turns it off and
+the shell runs as the development user with development tokens. A development build
+with nothing configured does the same; a production build with nothing configured
+refuses to boot and says why, and one with only half a configuration always does. The
+user menu says "Sign-in is off" rather than hiding the sign-out entry.
+
+**The loading screen is in `index.html`**, painted before any stylesheet or script is
+fetched, so it cannot use Tecton's classes: each colour names the Tecton token first and
+falls back to that token's own value for the mode. Its well log is a canvas custom
+element, `<well-log-loader>`, whose source the build inlines into the page rather than
+loads. It draws in a worker through an `OffscreenCanvas`, so it keeps its frame rate while the
+entry parses and boots on the main thread, and the boot no longer shares that thread with it:
+under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s. It fades out once React commits the first frame, as the shell fades in beneath it.
+
+**Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
+running in the page could read it for that long rather than only use it; DPoP, where the
+provider supports it, would bind it to a key that cannot leave the browser. A new tab
+still costs a round trip through the identity provider, and one that issues no refresh
+token sends the user through it again every time the access token expires. Without a server-side session the shell cannot end a
+session early; revocation takes effect at the next renewal, so access tokens should be
+short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
+parallel with the entry.
+
+---
+
+## 37. A host's `#mfe/config` validates without Zod; a container's still runs the author's schema
+
+**Status:** decided; forced by §36.
+
+A host reads its runtime configuration before anything else on the page loads, sign-in
+included, so whatever that read imports is on every visitor's first paint. The container
+`#mfe/config` validates through the author's Zod schemas, which would put Zod there. The
+build already reads each schema without running it, into the JSON Schema the deployment
+validates against, and refuses any it cannot read that way (`zod-static.ts`). So a host's
+generated module checks each value against that JSON Schema with `checkConfigField`, a
+dependency-free check exported from the browser-safe `env` subpath, and imports the
+declarations with `import type` only: `MfeConfig` is still inferred from the Zod schemas, and
+the bundler erases the import. The shell's first paint carries no Zod.
+
+`planHostConfig` builds the host's files from the same declarations and the same generators
+a container uses: `runtime-config.json` defaults (shipped by a build), `runtime-config.sh`,
+`.env.example` and the JSON Schema, and the dev server serves `.mfe/runtime-config.json`.
+`pluginMfeHostConfig()` and `mfe-generate --host` are its Rsbuild and command-line faces. A
+container's output is unchanged, byte for byte.
+
+For the two to accept the same values, the static reader now also records what JSON Schema
+cannot say: the string transforms (`trim`, `toLowerCase`, `toUpperCase`) and `z.coerce`. A
+suite runs one set of samples through Zod's `safeParse` and through `checkConfigField` and
+requires the same verdict and the same value.
+
+A host's module differs from a container's in two small ways, both for the host document:
+it fetches with same-origin credentials and the default cache, so a `<link rel="preload"
+as="fetch" crossorigin>` answers it, and it reports a 200 that is not JSON, which a
+single-page fallback serves for a file it does not have, as a missing file.
+
+**Cost:** an object nested in a host's configuration refuses a key its schema does not
+name, as the JSON Schema says, where Zod would strip it; top-level unknown keys are refused
+by both. The string transforms apply to a top-level field only.

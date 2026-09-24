@@ -84,6 +84,11 @@ const config: Linter.Config[] = [
       // The theme only: the legacy Angular applications read `localStorage["theme"]` as a bare
       // string, so its name and shape are fixed by code that is not ours (docs/decisions.md §24).
       'apps/shell/src/shell/preferences.ts',
+      // The OIDC session and the sign-in request's state and PKCE verifier, in sessionStorage
+      // under `shell.oidc.`, and the tab's own id under `shell.tab`: they must survive a reload
+      // and the redirect to the identity provider, are read before any store exists, and die
+      // with the tab (docs/decisions.md §36).
+      'apps/shell/src/auth/gate.ts',
       // A further entry here is evidence of another missing primitive (docs/decisions.md §24).
     ],
   }),

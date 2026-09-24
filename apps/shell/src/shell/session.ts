@@ -1,4 +1,7 @@
-/** Owning the session is the shell's job, not the framework's; a real deployment replaces this file (§10). */
+/**
+ * Owning the session is the shell's job, not the framework's (§10). With sign-in on, the OIDC
+ * session in `auth/` supplies the tokens; this stands in only when sign-in is off (§36).
+ */
 
 import { createSessionTokenService, type AccessTokenSource } from '@company/mfe-react/host'
 
