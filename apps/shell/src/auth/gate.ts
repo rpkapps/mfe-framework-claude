@@ -14,9 +14,8 @@ import { InMemoryWebStorage, UserManager, WebStorageStateStore, type User } from
 
 import { failLoader, setLoaderStatus } from '../loader.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
-import { resolveAuthConfig, type OidcConfig } from './config.ts'
+import { resolveAuthConfig, type OidcConfig, type ShellRuntimeConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
-import { fetchRuntimeConfig } from './runtime-config.ts'
 import { claimTab, type TabClaim, type TabLocks } from './tab.ts'
 import { createOidcTokenSource, DEFAULT_SKEW_SECONDS } from './token-source.ts'
 
@@ -152,11 +151,15 @@ async function restoreSession(manager: UserManager, tab: TabClaim): Promise<User
  * provider, or the loader is showing why it cannot continue, and nothing else should load.
  */
 export async function authenticate(): Promise<boolean> {
-  const runtime = await fetchRuntimeConfig()
-  if (!runtime.ok) {
+  let runtime: ShellRuntimeConfig
+  try {
+    // Eager, so it is bundled here rather than fetched as a chunk of its own; the module's
+    // top-level await loads and validates runtime-config.json, which index.html preloads.
+    runtime = (await import(/* webpackMode: "eager" */ '#mfe/config')).config
+  } catch (cause) {
     failLoader({
       title: 'The configuration could not be loaded',
-      detail: runtime.problem,
+      detail: describe(cause),
       actionLabel: 'Reload',
       onAction: () => {
         window.location.reload()
@@ -166,7 +169,7 @@ export async function authenticate(): Promise<boolean> {
   }
 
   const production = process.env['NODE_ENV'] === 'production'
-  const config = resolveAuthConfig(runtime.config, production)
+  const config = resolveAuthConfig(runtime, production)
 
   if (config.kind === 'misconfigured') {
     failLoader({ title: 'Sign-in is not configured', detail: config.problem })

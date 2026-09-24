@@ -4,7 +4,14 @@
  * out (§36). The problems name the environment variables, because that is what an operator sets.
  */
 
-import type { ShellRuntimeConfig } from './runtime-config.ts'
+/** The fields of `#mfe/config` sign-in reads, declared in `src/mfe.config.ts`. */
+export interface ShellRuntimeConfig {
+  readonly oidcAuthority?: string | undefined
+  readonly oidcClientId?: string | undefined
+  readonly oidcScope?: string | undefined
+  readonly oidcGroupsClaim?: string | undefined
+  readonly oidcDisabled?: boolean | undefined
+}
 
 export interface OidcConfig {
   readonly kind: 'oidc'

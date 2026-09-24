@@ -10,6 +10,7 @@ import {
 } from '@company/mfe-build'
 
 import { generateContainer } from '../generate/container.ts'
+import { generateHostConfig } from '../generate/host-config.ts'
 import { generateRouteTree, ownsRouteTree } from '../generate/route-tree.ts'
 
 const USAGE = `
@@ -21,8 +22,13 @@ configuration schema and .env.example, and an App's route tree. It also
 adds any declared default missing from .mfe/runtime-config.json, the
 copy the dev server serves, and never changes a value already there.
 
+With --host it writes what a host (the shell loading the containers)
+generates instead: #mfe/config, validated without Zod, and the same
+runtime configuration files, from the host's src/mfe.config.ts.
+
 Options:
-  --root <directory>  the container to generate for (default: the working directory)
+  --root <directory>  the container or host to generate for (default: the working directory)
+  --host              generate a host's runtime configuration
   --help              show this message
 `
 
@@ -35,12 +41,32 @@ export async function generate(root: string): Promise<GenerationSummary> {
   return summarizeGeneration(plan, paths, seedLocalRuntimeConfig(plan))
 }
 
+/** A host has no definitions, only its runtime configuration. */
+export function generateHost(root: string): GenerationSummary {
+  const generation = generateHostConfig({ root })
+  if (generation === null) {
+    throw new Error(
+      `${root} has no src/mfe.config.ts, so there is no host configuration to generate. Declare the host's values there with env(), as a container does.`,
+    )
+  }
+  const { plan, written } = generation
+  return summarizeGeneration(
+    plan,
+    written.map(file => file.path),
+    seedLocalRuntimeConfig(plan),
+  )
+}
+
 export async function main(argv: readonly string[]): Promise<number> {
   let parsed
   try {
     parsed = parseArgs({
       args: [...argv],
-      options: { root: { type: 'string' }, help: { type: 'boolean', default: false } },
+      options: {
+        root: { type: 'string' },
+        host: { type: 'boolean', default: false },
+        help: { type: 'boolean', default: false },
+      },
     })
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
@@ -55,7 +81,8 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   let result: GenerationSummary
   try {
-    result = await generate(parsed.values.root ?? process.cwd())
+    const root = parsed.values.root ?? process.cwd()
+    result = parsed.values.host === true ? generateHost(root) : await generate(root)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     return 1

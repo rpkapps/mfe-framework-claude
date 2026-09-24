@@ -43,9 +43,11 @@ lasts, and so does a duplicated one, which drops the tokens it copied
 ([decisions §36](../../docs/decisions.md)).
 
 Sign-in is configured at run time, so one build serves every environment. The
-shell reads `/runtime-config.json`, which `index.html` preloads alongside the
-entry, and a deployment writes it from the environment when the image starts,
-as it does a container's:
+values are declared in `src/mfe.config.ts`, as a container's are, and read
+through the framework's `#mfe/config` (`pluginMfeHostConfig()`), which for a
+host validates without Zod ([decisions §37](../../docs/decisions.md)). The
+file is `/runtime-config.json`, which `index.html` preloads alongside the entry,
+and a deployment writes it from the environment when the image starts:
 
 | Variable            | Field             | What it does                                                  |
 | ------------------- | ----------------- | ------------------------------------------------------------- |
@@ -55,11 +57,14 @@ as it does a container's:
 | `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups` |
 | `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user          |
 
-`deploy/runtime-config.sh` writes the file, in POSIX `sh` and `awk` only: copy
-it into an nginx image's `/docker-entrypoint.d/` and it runs before nginx
-starts, writing to `/usr/share/nginx/html`, or pass it another directory. Serve
-the file with `Cache-Control: no-store`. A deployment without the file, or with
-one the shell cannot read, stops on the loading screen and says which.
+The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
+in POSIX `sh` and `awk` only: copy it into an nginx image's
+`/docker-entrypoint.d/` and it runs before nginx starts, writing the
+environment over the declared defaults the build shipped in
+`/usr/share/nginx/html`. `.mfe/.env.example` and `.mfe/runtime-config.schema.json`
+say what it may carry. Serve the file with `Cache-Control: no-store`. A
+deployment without the file, or with one the shell cannot read, stops on the
+loading screen and says which.
 
 In development the dev server answers `/runtime-config.json` from
 `apps/shell/.mfe/runtime-config.json`, which ships with `"oidcDisabled": true`;

@@ -14,6 +14,7 @@
      * each package's own transitive dependencies, resolves normally.
      */
     "paths": {
+      "#mfe/config": ["./.mfe/config.ts"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
@@ -30,5 +31,5 @@
       "sonner": ["./node_modules/sonner"]
     }
   },
-  "include": ["src", "scripts", "tests", "rsbuild.config.ts"]
+  "include": ["src", "scripts", "tests", ".mfe/**/*", "rsbuild.config.ts"]
 }

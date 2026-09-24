@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
-    "typecheck": "node ../../tools/tecton/typecheck.mjs apps/shell",
+    "generate": "mfe-generate --host",
+    "typecheck": "pnpm run generate && node ../../tools/tecton/typecheck.mjs apps/shell",
     "lint": "eslint ."
   },
   "dependencies": {

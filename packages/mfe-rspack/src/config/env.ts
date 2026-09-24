@@ -10,3 +10,7 @@ export type {
   EnvVarDescriptor,
   InferEnvConfig,
 } from '@company/mfe-build/env'
+
+// What a host's generated `#mfe/config` checks its values with, in place of Zod.
+export { checkConfigField, checkValue } from '@company/mfe-build/env'
+export type { ConfigFieldSpec, ConfigSchema, FieldCheck } from '@company/mfe-build/env'

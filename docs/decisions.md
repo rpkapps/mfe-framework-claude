@@ -942,17 +942,13 @@ request's state and only a path on this origin is honoured. The ID token's claim
 `shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
 
 **The configuration is read at run time, not built in.** One build serves every
-environment: the shell reads `/runtime-config.json`, which a deployment writes from the
-`OIDC_*` environment variables with `apps/shell/deploy/runtime-config.sh`, the same
-contract and the same POSIX-only approach as a container's generated script. It is not
-the framework's `#mfe/config`: that validates through the author's Zod schemas in the
-browser, and it runs before sign-in, so it would put Zod in the entry. The shell checks
-its five fields by hand in `parseRuntimeConfig`, refusing an unknown key so a misspelling
-is found at the first load, and `resolveAuthConfig` decides what they mean.
-`index.html` preloads the file, so it downloads beside the entry and the entry's fetch
-is answered from that one request. A missing file, which a single-page fallback serves
-as `index.html` with a 200, is reported as missing rather than as bad JSON. A Zod-free
-`#mfe/config` that a host could use as well is the natural follow-up.
+environment: the shell declares its five values in `src/mfe.config.ts` and reads them
+through the framework's `#mfe/config`, in its Zod-free form for a host (§37), and a
+deployment writes `/runtime-config.json` from the `OIDC_*` environment variables with the
+generated `runtime-config.sh`, exactly as it does a container's. `resolveAuthConfig`
+decides what the values mean. `index.html` preloads the file, so it downloads beside the
+entry and the entry's fetch is answered from that one request, and `#mfe/config` is
+imported eagerly, so it is no chunk of its own.
 
 **Sign-in off is written down, never inferred.** `OIDC_DISABLED=true` turns it off and
 the shell runs as the development user with development tokens. A development build
@@ -976,3 +972,39 @@ token sends the user through it again every time the access token expires. Witho
 session early; revocation takes effect at the next renewal, so access tokens should be
 short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
 parallel with the entry.
+
+---
+
+## 37. A host's `#mfe/config` validates without Zod; a container's still runs the author's schema
+
+**Status:** decided; forced by §36.
+
+A host reads its runtime configuration before anything else on the page loads, sign-in
+included, so whatever that read imports is on every visitor's first paint. The container
+`#mfe/config` validates through the author's Zod schemas, which would put Zod there. The
+build already reads each schema without running it, into the JSON Schema the deployment
+validates against, and refuses any it cannot read that way (`zod-static.ts`). So a host's
+generated module checks each value against that JSON Schema with `checkConfigField`, a
+dependency-free check exported from the browser-safe `env` subpath, and imports the
+declarations with `import type` only: `MfeConfig` is still inferred from the Zod schemas, and
+the bundler erases the import. The shell's first paint carries no Zod.
+
+`planHostConfig` builds the host's files from the same declarations and the same generators
+a container uses: `runtime-config.json` defaults (shipped by a build), `runtime-config.sh`,
+`.env.example` and the JSON Schema, and the dev server serves `.mfe/runtime-config.json`.
+`pluginMfeHostConfig()` and `mfe-generate --host` are its Rsbuild and command-line faces. A
+container's output is unchanged, byte for byte.
+
+For the two to accept the same values, the static reader now also records what JSON Schema
+cannot say: the string transforms (`trim`, `toLowerCase`, `toUpperCase`) and `z.coerce`. A
+suite runs one set of samples through Zod's `safeParse` and through `checkConfigField` and
+requires the same verdict and the same value.
+
+A host's module differs from a container's in two small ways, both for the host document:
+it fetches with same-origin credentials and the default cache, so a `<link rel="preload"
+as="fetch" crossorigin>` answers it, and it reports a 200 that is not JSON, which a
+single-page fallback serves for a file it does not have, as a missing file.
+
+**Cost:** an object nested in a host's configuration refuses a key its schema does not
+name, as the JSON Schema says, where Zod would strip it; top-level unknown keys are refused
+by both. The string transforms apply to a top-level field only.

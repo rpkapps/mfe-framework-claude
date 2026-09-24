@@ -4,13 +4,13 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { defineConfig, rspack, type RsbuildPlugin } from '@rsbuild/core'
+import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+import { pluginMfeHostConfig } from '@company/mfe-rspack'
 import { hostFederation } from '@company/mfe-rspack/federation'
 
 import {
@@ -27,42 +27,10 @@ useWorkspaceModules(here)
 
 const DEV_PORT = 3000
 
-/**
- * The developer's own runtime configuration, answered at the URL a deployment publishes
- * `runtime-config.json` at, as a container's dev server does. It lives in `.mfe/`, which no build
- * copies, and is read on every request, so an edit reaches the next page load (§36).
- */
-function pluginLocalRuntimeConfig(): RsbuildPlugin {
-  const file = join(here, '.mfe', 'runtime-config.json')
-  return {
-    name: 'shell-local-runtime-config',
-    setup(api) {
-      api.onBeforeStartDevServer(({ server }) => {
-        server.middlewares.use((request, response, next) => {
-          const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
-          if (request.method !== 'GET' || pathname !== '/runtime-config.json') {
-            next()
-            return
-          }
-          readFile(file).then(
-            body => {
-              response.setHeader('Content-Type', 'application/json; charset=utf-8')
-              response.setHeader('Cache-Control', 'no-store')
-              response.end(body)
-            },
-            // No file is a 404, which the page reports as a configuration it could not load.
-            () => {
-              next()
-            },
-          )
-        })
-      })
-    },
-  }
-}
-
 export default defineConfig({
-  plugins: [pluginReact(), pluginLocalRuntimeConfig()],
+  // `#mfe/config`, validated without Zod, and the runtime configuration's files, from
+  // src/mfe.config.ts; it also serves .mfe/runtime-config.json in development (§37).
+  plugins: [pluginReact(), pluginMfeHostConfig()],
 
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },

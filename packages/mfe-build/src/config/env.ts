@@ -78,3 +78,8 @@ export function isEnvVarDescriptor(value: unknown): value is EnvVarDescriptor {
     typeof (value as { name?: unknown }).name === 'string'
   )
 }
+
+// The Zod-free check a host's generated `#mfe/config` runs; it lives here because this is the one
+// part of the package evaluated in the browser.
+export { checkConfigField, checkValue } from './check.ts'
+export type { ConfigFieldSpec, ConfigSchema, FieldCheck, StringTransform } from './check.ts'

@@ -18,6 +18,15 @@ import {
 } from './emit.ts'
 import { stylesheetRequest } from './styles.ts'
 
+/** What the runtime-configuration files read: a container's context, or a host's. */
+export interface ConfigGenerateContext {
+  readonly options: ResolvedOptions
+  readonly configSource: ConfigSource | undefined
+  readonly profile: Pick<ContainerProfile, 'generator' | 'envModules'>
+  /** Set for a host, whose files and errors are worded for it; a container leaves it out. */
+  readonly host?: { readonly id: string }
+}
+
 export interface GenerateContext {
   readonly options: ResolvedOptions
   readonly entryFile: string
@@ -94,8 +103,12 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
         ...fieldRows,
         ']',
       ].join('\n'),
-      CONFIG_ERROR_CLASS,
-      CONFIG_READ_VALUES,
+      configErrorClass('container'),
+      configReadValues({
+        subject: 'container',
+        fetchInit: "{ cache: 'no-store', credentials: 'omit' }",
+        rejectNonJson: false,
+      }),
       CONFIG_VALIDATE,
       [
         '/**',
@@ -112,88 +125,122 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
   }
 }
 
-const CONFIG_ERROR_CLASS = [
-  '// Carries the same fields as a framework error without importing one, so this',
-  '// module resolves with nothing the container does not already have.',
-  'class MfeConfigError extends Error {',
-  '  readonly code: string',
-  '  readonly id: string',
-  '  readonly operation: string',
-  '',
-  '  constructor(code: string, operation: string, message: string, cause?: unknown) {',
-  '    super(message, cause === undefined ? undefined : { cause })',
-  "    this.name = 'MfeConfigError'",
-  '    this.code = code',
-  '    this.id = CONTAINER_ID',
-  '    this.operation = operation',
-  '  }',
-  '}',
-  '',
-  'function fail(',
-  '  code: string,',
-  '  operation: string,',
-  '  expected: string,',
-  '  observed: string,',
-  '  repair: string,',
-  '  cause?: unknown,',
-  '): never {',
-  '  const message =',
-  '    `${CONTAINER_ID} failed to ${operation}: expected ${expected}, received ${observed}.` +',
-  '    ` The container configuration contract declares this expectation. ${repair}`',
-  '  throw new MfeConfigError(code, operation, message, cause)',
-  '}',
-].join('\n')
+/** Which side of the page loads the configuration, for the words its errors use. */
+export type ConfigSubject = 'container' | 'host'
 
-const CONFIG_READ_VALUES = [
-  'async function readValues(): Promise<unknown> {',
-  '  let response: Response',
-  '  try {',
-  "    response = await fetch(CONFIG_URL, { cache: 'no-store', credentials: 'omit' })",
-  '  } catch (cause) {',
-  '    fail(',
-  "      'config/unreachable',",
-  "      'load its runtime configuration',",
-  '      `a readable file at ${CONFIG_URL}`,',
-  "      'a request that never completed',",
-  "      'Check that the deployment publishes this file next to the container assets and that the browser can reach it.',",
-  '      cause,',
-  '    )',
-  '  }',
-  '',
-  '  if (response.status === 404) {',
-  '    fail(',
-  "      'config/missing',",
-  "      'load its runtime configuration',",
-  '      `a file at ${CONFIG_URL}`,',
-  "      '404 Not Found',",
-  "      'Publish the runtime configuration with the container. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.',",
-  '    )',
-  '  }',
-  '',
-  '  if (!response.ok) {',
-  '    fail(',
-  "      'config/unreachable',",
-  "      'load its runtime configuration',",
-  '      `a 200 response from ${CONFIG_URL}`,',
-  '      `${response.status} ${response.statusText}`,',
-  "      'Check how the deployment serves the file. A container cannot start without its configuration, so this is not retried in the background.',",
-  '    )',
-  '  }',
-  '',
-  '  try {',
-  '    return (await response.json()) as unknown',
-  '  } catch (cause) {',
-  '    fail(',
-  "      'config/invalid',",
-  "      'read its runtime configuration',",
-  "      'a JSON object of configuration values',",
-  "      'a body that is not JSON',",
-  "      'Check what the deployment wrote. The file carries values only: no envelope, no comments and no trailing commas.',",
-  '      cause,',
-  '    )',
-  '  }',
-  '}',
-].join('\n')
+export function configErrorClass(subject: ConfigSubject): string {
+  return [
+    '// Carries the same fields as a framework error without importing one, so this',
+    `// module resolves with nothing the ${subject} does not already have.`,
+    'class MfeConfigError extends Error {',
+    '  readonly code: string',
+    '  readonly id: string',
+    '  readonly operation: string',
+    '',
+    '  constructor(code: string, operation: string, message: string, cause?: unknown) {',
+    '    super(message, cause === undefined ? undefined : { cause })',
+    "    this.name = 'MfeConfigError'",
+    '    this.code = code',
+    '    this.id = CONTAINER_ID',
+    '    this.operation = operation',
+    '  }',
+    '}',
+    '',
+    'function fail(',
+    '  code: string,',
+    '  operation: string,',
+    '  expected: string,',
+    '  observed: string,',
+    '  repair: string,',
+    '  cause?: unknown,',
+    '): never {',
+    '  const message =',
+    '    `${CONTAINER_ID} failed to ${operation}: expected ${expected}, received ${observed}.` +',
+    '    ` The ' + subject + ' configuration contract declares this expectation. ${repair}`',
+    '  throw new MfeConfigError(code, operation, message, cause)',
+    '}',
+  ].join('\n')
+}
+
+export interface ConfigReadOptions {
+  readonly subject: ConfigSubject
+  /** The `RequestInit` literal the file is fetched with. */
+  readonly fetchInit: string
+  /**
+   * Whether a 200 that is not JSON is reported as a missing file: a server with a single-page
+   * fallback answers a file it does not have with its index.html and a 200.
+   */
+  readonly rejectNonJson: boolean
+}
+
+export function configReadValues(options: ConfigReadOptions): string {
+  const { subject } = options
+  return [
+    'async function readValues(): Promise<unknown> {',
+    '  let response: Response',
+    '  try {',
+    `    response = await fetch(CONFIG_URL, ${options.fetchInit})`,
+    '  } catch (cause) {',
+    '    fail(',
+    "      'config/unreachable',",
+    "      'load its runtime configuration',",
+    '      `a readable file at ${CONFIG_URL}`,',
+    "      'a request that never completed',",
+    `      'Check that the deployment publishes this file next to the ${subject} assets and that the browser can reach it.',`,
+    '      cause,',
+    '    )',
+    '  }',
+    '',
+    '  if (response.status === 404) {',
+    '    fail(',
+    "      'config/missing',",
+    "      'load its runtime configuration',",
+    '      `a file at ${CONFIG_URL}`,',
+    "      '404 Not Found',",
+    `      'Publish the runtime configuration with the ${subject}. The generated .env.example lists every value it has to carry, and the generated JSON Schema validates it before release.',`,
+    '    )',
+    '  }',
+    '',
+    '  if (!response.ok) {',
+    '    fail(',
+    "      'config/unreachable',",
+    "      'load its runtime configuration',",
+    '      `a 200 response from ${CONFIG_URL}`,',
+    '      `${response.status} ${response.statusText}`,',
+    `      'Check how the deployment serves the file. A ${subject} cannot start without its configuration, so this is not retried in the background.',`,
+    '    )',
+    '  }',
+    '',
+    ...(options.rejectNonJson
+      ? [
+          "  const type = response.headers.get('Content-Type') ?? ''",
+          "  if (!type.includes('json')) {",
+          '    fail(',
+          "      'config/missing',",
+          "      'load its runtime configuration',",
+          '      `a JSON file at ${CONFIG_URL}`,',
+          "      type === '' ? 'a response with no content type' : type,",
+          "      'The file is missing, and the server answered with its single-page fallback instead. Publish it with the deployment: the generated runtime-config.sh writes it from the environment.',",
+          '    )',
+          '  }',
+          '',
+        ]
+      : []),
+    '  try {',
+    '    return (await response.json()) as unknown',
+    '  } catch (cause) {',
+    '    fail(',
+    "      'config/invalid',",
+    "      'read its runtime configuration',",
+    "      'a JSON object of configuration values',",
+    "      'a body that is not JSON',",
+    "      'Check what the deployment wrote. The file carries values only: no envelope, no comments and no trailing commas.',",
+    '      cause,',
+    '    )',
+    '  }',
+    '}',
+  ].join('\n')
+}
 
 const CONFIG_VALIDATE = [
   'function validate(raw: unknown): MfeConfig {',
@@ -493,6 +540,12 @@ export function exportedName(definition: DiscoveredDefinition): string {
 }
 
 /** The id a container reports itself as: its App's, or its first Widget's. */
+/** The name a configuration's files and errors carry: the host's, or the container's. */
+export function configOwnerId(context: ConfigGenerateContext): string {
+  if (context.host !== undefined) return context.host.id
+  return 'discovery' in context ? containerId(context as GenerateContext) : 'container'
+}
+
 export function containerId(context: GenerateContext): string {
   return context.discovery.app?.id ?? context.discovery.definitions[0]?.id ?? 'container'
 }

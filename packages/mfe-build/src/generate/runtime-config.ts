@@ -6,12 +6,18 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import type { ConfigField } from '../config/config-source.ts'
+import type { ConfigField, ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
 import { localRuntimeConfigPath, type ResolvedOptions } from '../options.ts'
 import { generatedPath, jsonFile, posixRelative, type GeneratedFile } from './emit.ts'
-import type { GenerateContext } from './modules.ts'
-import type { ContainerPlan } from '../plan.ts'
+import type { ConfigGenerateContext } from './modules.ts'
+
+/** What reading and seeding the local copy needs: a container's plan, or a host's. */
+export interface RuntimeConfigPlan {
+  readonly options: ResolvedOptions
+  readonly configSource: ConfigSource | undefined
+  readonly diagnostics?: readonly Error[]
+}
 
 export const RUNTIME_CONFIG_DEFAULTS_FILE = 'runtime-config.defaults.json'
 export const RUNTIME_CONFIG_SCRIPT_FILE = 'runtime-config.sh'
@@ -20,7 +26,7 @@ export const RUNTIME_CONFIG_SCRIPT_FILE = 'runtime-config.sh'
 const DEFAULT_SERVE_DIR = '/usr/share/nginx/html'
 
 /** Only `.default(…)` values: a required field stays absent, so the start-up script can tell. */
-export function runtimeConfigDefaultsFile(context: GenerateContext): GeneratedFile | null {
+export function runtimeConfigDefaultsFile(context: ConfigGenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
 
@@ -62,7 +68,7 @@ export interface LocalRuntimeConfig {
  * ever adds a missing key: a value already in the file is the developer's, so it is never changed
  * or removed.
  */
-export function seedLocalRuntimeConfig(plan: ContainerPlan): LocalRuntimeConfig | null {
+export function seedLocalRuntimeConfig(plan: RuntimeConfigPlan): LocalRuntimeConfig | null {
   const source = plan.configSource
   if (source === undefined) return null
 
@@ -139,7 +145,7 @@ export interface GenerationSummary {
  * `seedLocalRuntimeConfig` seeded, with whatever that left for the developer to supply.
  */
 export function summarizeGeneration(
-  plan: ContainerPlan,
+  plan: RuntimeConfigPlan,
   written: readonly string[],
   local: LocalRuntimeConfig | null,
 ): GenerationSummary {
@@ -176,7 +182,7 @@ export function summarizeGeneration(
   return {
     packageName: plan.options.packageName,
     paths: [...paths].sort(),
-    diagnostics: plan.diagnostics,
+    diagnostics: plan.diagnostics ?? [],
     notes,
   }
 }
@@ -236,7 +242,7 @@ export function fieldEncoding(schema: JsonObject): FieldEncoding {
  * POSIX `sh` and `awk` only, so it runs in an nginx:alpine image with no Node and no jq. A set,
  * non-empty variable replaces the file's value; anything else keeps it.
  */
-export function runtimeConfigScriptFile(context: GenerateContext): GeneratedFile | null {
+export function runtimeConfigScriptFile(context: ConfigGenerateContext): GeneratedFile | null {
   const source = context.configSource
   if (source === undefined) return null
 
