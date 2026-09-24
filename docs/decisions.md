@@ -894,3 +894,55 @@ the registry can tell an App from a Widget and knows the boundary. Shortcut erro
 warnings reuse `command/duplicate-name`, which already covered an invalid registration,
 rather than widening the closed union (§7). And a key the page is inside two nested
 Apps for is ambiguous where an inner-wins rule would have resolved it.
+
+---
+
+## 36. The shell signs in before anything loads, and holds its tokens in memory only
+
+**Status:** decided; the shell's half of §10.
+
+The shell has no server, so sign-in is an OIDC authorization code flow with PKCE run in
+the browser by `oidc-client-ts`, and it runs first: `index.tsx` calls `authenticate()`
+and imports the boot only when it resolves `true`. A visitor who is not signed in
+leaves for the identity provider from the entry chunk, before React, the registry or
+any container is fetched, so nothing behind sign-in is ever loaded for them. There is
+no per-route authorization; the whole page is behind one gate. Server rendering was
+considered and rejected: the micro-frontends are most of the page and mount in the
+browser regardless, and redirecting before the entry has done anything else is what
+makes sign-in fast.
+
+**Nothing that authenticates a request is written anywhere.** Tokens live in an
+in-memory user store, so a reload or a new tab has none and goes straight to the
+provider, which returns at once while its own session lasts. The one exception is the
+sign-in request's `state` and PKCE verifier, which must survive the redirect: they go
+to `sessionStorage` under `shell.oidc.` and are removed when the callback is handled,
+which is why `apps/shell/src/auth/gate.ts` is in `storageAllowedScopes`. Each tab signs
+in on its own and holds its own refresh token, so the rotation hazard §10 guards
+against never spans tabs; within a tab, `createOidcTokenSource` makes renewal
+single-flight, renews a token within 30 seconds of expiry rather than sending it, and
+answers a caller whose rejected token was already replaced with the new one. Renewal is
+the refresh token grant only; when it fails the session is lost and the page navigates
+to sign in again, back to where the user was.
+
+The redirect URI is `/`, the one path the shell owns outright, so a callback is
+recognised by `code` or `error` with `state` there. The return path travels as the
+request's state and only a path on this origin is honoured. The ID token's claims fill
+`shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
+
+**Sign-in off is written down, never inferred.** `OIDC_DISABLED=true` turns it off and
+the shell runs as the development user with development tokens. A development build
+with nothing configured does the same; a production build with nothing configured
+refuses to boot and says why, and one with only half a configuration always does. The
+user menu says "Sign-in is off" rather than hiding the sign-out entry.
+
+**The loading screen is static markup in `index.html`**, painted before any script or
+stylesheet, so it cannot use Tecton's classes: each colour names the Tecton token first
+and falls back to that token's own value for the mode. It fades out once React commits
+the first frame, as the shell fades in beneath it.
+
+**Cost:** a reload always costs a round trip through the identity provider, and an
+identity provider that issues no refresh token sends the user through it again every
+time the access token expires. Without a server-side session the shell cannot end a
+session early; revocation takes effect at the next renewal, so access tokens should be
+short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
+parallel with the entry.

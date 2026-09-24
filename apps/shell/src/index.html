@@ -9,9 +9,219 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f1a'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='600' fill='%237dd3fc' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E"
     />
+    <!-- The loading screen paints before any stylesheet or script arrives, so it cannot wait for
+         Tecton's: each value names the Tecton token first and falls back to that token's own value
+         for the mode, which is what it resolves to once globals.css loads (§36). -->
+    <style>
+      #shell-loader {
+        --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
+        --loader-text: var(--tecton-color-text-primary, #f6f5f8);
+        --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
+        --loader-line: var(--tecton-palette-graphite-370, #7a747f);
+        --loader-strata: var(--tecton-palette-graphite-160, #433d47);
+        --loader-oil: var(--tecton-palette-saffron-370, #a16941);
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background: var(--loader-bg);
+        color: var(--loader-text);
+        font-family: Figtree, ui-sans-serif, system-ui, sans-serif;
+        transition: opacity 450ms ease;
+      }
+      html:not(.dark) #shell-loader {
+        --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
+        --loader-text: var(--tecton-color-text-primary, #21172a);
+        --loader-muted: var(--tecton-color-text-secondary, #604e6e);
+        --loader-line: var(--tecton-palette-graphite-370, #8c769a);
+        --loader-strata: var(--tecton-palette-graphite-160, #cbc0d1);
+        --loader-oil: var(--tecton-palette-saffron-370, #bd672a);
+      }
+      #shell-loader[data-state='done'] {
+        opacity: 0;
+        pointer-events: none;
+      }
+      /* A fast sign-in or boot never shows it: the backdrop is immediate, the scene waits a beat. */
+      .shell-loader__scene {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        max-width: 360px;
+        text-align: center;
+        animation: shell-loader-enter 400ms ease 150ms both;
+      }
+      .shell-loader__art {
+        width: 240px;
+        height: 180px;
+        overflow: visible;
+      }
+      .shell-loader__art * {
+        fill: none;
+        stroke: var(--loader-line);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .shell-loader__art .strata {
+        stroke: var(--loader-strata);
+      }
+      .shell-loader__art .solid {
+        fill: var(--loader-line);
+      }
+      .shell-loader__art .reservoir {
+        fill: var(--loader-oil);
+        stroke: none;
+        opacity: 0.3;
+      }
+      .shell-loader__art .flow {
+        stroke: var(--loader-oil);
+        stroke-dasharray: 2 5;
+        animation: shell-loader-flow 700ms linear infinite;
+      }
+      .shell-loader__art .beam {
+        transform-box: view-box;
+        transform-origin: 100px 50px;
+        animation: shell-loader-beam 2.6s ease-in-out infinite alternate;
+      }
+      .shell-loader__art .rod {
+        animation: shell-loader-rod 2.6s ease-in-out infinite alternate;
+      }
+      .shell-loader__art .crank {
+        transform-box: view-box;
+        transform-origin: 152px 90px;
+        animation: shell-loader-crank 5.2s linear infinite;
+      }
+      .shell-loader__title {
+        margin: 4px 0 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .shell-loader__status {
+        margin: 0;
+        font-size: 14px;
+        color: var(--loader-muted);
+      }
+      .shell-loader__detail {
+        margin: 0;
+        font-size: 13px;
+        color: var(--loader-muted);
+      }
+      .shell-loader__detail:empty {
+        display: none;
+      }
+      .shell-loader__action {
+        margin-top: 4px;
+        padding: 6px 14px;
+        border: 1px solid var(--loader-line);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--loader-text);
+        font: inherit;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .shell-loader__action:focus-visible {
+        outline: 2px solid var(--loader-oil);
+        outline-offset: 2px;
+      }
+      /* A failure stops the pump: the page is not going anywhere until the user acts. */
+      #shell-loader[data-state='error'] .shell-loader__art * {
+        animation-play-state: paused;
+      }
+      #shell-loader[data-state='error'] .shell-loader__status {
+        color: var(--loader-text);
+        font-weight: 600;
+      }
+      #root {
+        transition: opacity 450ms ease;
+      }
+      html:not([data-shell='ready']) #root {
+        opacity: 0;
+      }
+      @keyframes shell-loader-enter {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+      }
+      @keyframes shell-loader-beam {
+        from {
+          transform: rotate(8deg);
+        }
+        to {
+          transform: rotate(-8deg);
+        }
+      }
+      /* The horsehead sits 56 units from the pivot, so ±8° moves the rod ±7.8. */
+      @keyframes shell-loader-rod {
+        from {
+          transform: translateY(-7.8px);
+        }
+        to {
+          transform: translateY(7.8px);
+        }
+      }
+      @keyframes shell-loader-crank {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes shell-loader-flow {
+        to {
+          stroke-dashoffset: -14;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #shell-loader,
+        #root,
+        .shell-loader__scene,
+        .shell-loader__art * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <!-- A pumpjack on its well, drawing oil up through the strata while sign-in and boot run.
+         `loader.ts` changes its words and removes it; it never needs React. -->
+    <div id="shell-loader" data-state="loading">
+      <div class="shell-loader__scene">
+        <svg class="shell-loader__art" viewBox="0 0 200 150" aria-hidden="true">
+          <path class="strata" d="M10 122 Q60 117 110 121 T190 119" />
+          <path class="strata" d="M10 132 Q70 128 120 133 T190 130" />
+          <path class="reservoir" d="M14 146 Q44 136 86 141 T150 146 Z" />
+          <line class="flow" x1="44" y1="146" x2="44" y2="112" />
+          <line x1="10" y1="110" x2="190" y2="110" />
+          <line class="rod" x1="44" y1="66" x2="44" y2="112" />
+          <rect x="39" y="100" width="10" height="10" rx="1" />
+          <line x1="86" y1="110" x2="100" y2="52" />
+          <line x1="114" y1="110" x2="100" y2="52" />
+          <line x1="91" y1="90" x2="109" y2="90" />
+          <rect x="140" y="92" width="24" height="18" rx="2" />
+          <g class="crank">
+            <line x1="152" y1="90" x2="152" y2="80" />
+            <rect class="solid" x="145" y="72" width="14" height="8" rx="2" />
+          </g>
+          <g class="beam">
+            <rect x="52" y="47" width="98" height="6" rx="1" />
+            <path class="solid" d="M58 41 L48 41 Q38 53 44 66 L52 66 Q48 53 58 47 Z" />
+          </g>
+          <circle class="solid" cx="100" cy="50" r="3" />
+        </svg>
+        <p class="shell-loader__title">Discovery</p>
+        <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">
+          Loading…
+        </p>
+        <p class="shell-loader__detail" data-part="detail"></p>
+        <button class="shell-loader__action" data-part="action" type="button" hidden></button>
+      </div>
+    </div>
     <!-- The theme before first paint, because a document that boots dark and flips to light on
          hydration is a flash every light-theme user sees on every load. It reads the bare key
          the legacy Angular applications read too, the same way `preferences.ts` does (§24). -->

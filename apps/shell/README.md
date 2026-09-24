@@ -30,6 +30,34 @@ stale view of a page that has moved on since. To take one:
 node apps/shell/scripts/screenshot.mjs /operations/wells
 ```
 
+## Sign-in
+
+The whole page is behind OIDC sign-in, and it runs before anything else: the
+entry chunk either leaves for the identity provider or boots the shell. There
+is no per-route authorization. It is the authorization code flow with PKCE
+(`oidc-client-ts`), and tokens are held in memory only, so a reload goes
+through the identity provider again and comes straight back while its session
+lasts ([decisions §36](../../docs/decisions.md)).
+
+| Variable            | What it does                                                  |
+| ------------------- | ------------------------------------------------------------- |
+| `OIDC_AUTHORITY`    | the issuer URL; https, or http on localhost                   |
+| `OIDC_CLIENT_ID`    | the public client registered for the shell                    |
+| `OIDC_SCOPE`        | defaults to `openid profile email offline_access`             |
+| `OIDC_GROUPS_CLAIM` | the claim read into `shellState.groups`; defaults to `groups` |
+| `OIDC_DISABLED`     | `true` runs without sign-in, as the development user          |
+
+They are read at build time, from the environment or an untracked
+`apps/shell/.env.local`. Register `<origin>/` as both the redirect URI and the
+post-logout redirect URI, and allow refresh tokens for the client (Entra ID and
+Okta issue them only with `offline_access`). With nothing set, a development
+build runs without sign-in and a production build refuses to boot until either
+the provider or `OIDC_DISABLED=true` is set.
+
+While sign-in and boot run, `index.html` shows a pumpjack drawing oil up
+through the strata; it fades out as the shell fades in, and stops with the
+reason and a way forward if sign-in fails.
+
 ## The pages the shell owns
 
 | Route     | What it is                                     |
