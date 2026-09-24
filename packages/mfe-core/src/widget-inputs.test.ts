@@ -4,6 +4,7 @@ import type { JsonSchemaObject, PublishedWidgetContract } from './definition.ts'
 import {
   coerceInputs,
   defaultInputsFor,
+  describeWidgetEvents,
   describeWidgetInputs,
   needsInputPrompt,
   type WidgetInputField,
@@ -15,7 +16,6 @@ function contractOf(
   required: readonly string[] = [],
 ): PublishedWidgetContract {
   return {
-    events: [],
     inputs: {
       title: 'alert-panel inputs',
       type: 'object',
@@ -38,13 +38,13 @@ function fieldsOf(
 describe('describeWidgetInputs', () => {
   it('tells a schema that was never published from one that takes nothing', () => {
     expect(describeWidgetInputs(undefined)).toBeNull()
-    expect(describeWidgetInputs({ events: ['acknowledged'] })).toBeNull()
+    expect(describeWidgetInputs({ events: { type: 'object', properties: {} } })).toBeNull()
     expect(describeWidgetInputs(contractOf({}))).toEqual([])
   })
 
   it('reports a schema it cannot read as properties as unpublished rather than as empty', () => {
-    expect(describeWidgetInputs({ events: [], inputs: { type: 'object' } })).toBeNull()
-    expect(describeWidgetInputs({ events: [], inputs: { properties: ['alertId'] } })).toBeNull()
+    expect(describeWidgetInputs({ inputs: { type: 'object' } })).toBeNull()
+    expect(describeWidgetInputs({ inputs: { properties: ['alertId'] } })).toBeNull()
   })
 
   it('marks the fields the schema lists as required, in declaration order', () => {
@@ -60,7 +60,6 @@ describe('describeWidgetInputs', () => {
 
   it('survives a `required` that is not a list of names', () => {
     const fields = describeWidgetInputs({
-      events: [],
       inputs: { properties: { alertId: {} }, required: 'alertId' },
     })
 
@@ -142,6 +141,63 @@ describe('describeWidgetInputs', () => {
   })
 })
 
+describe('describeWidgetEvents', () => {
+  const events = (properties: JsonSchemaObject): PublishedWidgetContract => ({
+    events: {
+      title: 'alert-panel events',
+      type: 'object',
+      properties,
+      additionalProperties: false,
+    },
+  })
+
+  it('tells event names that were never published from a Widget that emits nothing', () => {
+    expect(describeWidgetEvents(undefined)).toBeNull()
+    expect(describeWidgetEvents({ inputs: { type: 'object', properties: {} } })).toBeNull()
+    expect(describeWidgetEvents({ events: { type: 'object' } })).toBeNull()
+    expect(describeWidgetEvents(events({}))).toEqual([])
+  })
+
+  it('keeps the events in declaration order, each payload read as the inputs are', () => {
+    const acknowledged = {
+      type: 'object',
+      properties: { alertId: { type: 'string' }, note: { type: 'string' } },
+      required: ['alertId'],
+      additionalProperties: false,
+    }
+    const described = describeWidgetEvents(events({ acknowledged, dismissed: {} }))
+
+    expect(described?.map(event => event.name)).toEqual(['acknowledged', 'dismissed'])
+    expect(described?.[0]?.schema).toEqual(acknowledged)
+    expect(described?.[0]?.payload?.map(field => [field.name, field.kind, field.required])).toEqual(
+      [
+        ['alertId', 'string', true],
+        ['note', 'string', false],
+      ],
+    )
+  })
+
+  /** `{}` is "the build could not read this payload", which is not a payload with no fields. */
+  it('reports a payload it cannot read as fields as unknown rather than as empty', () => {
+    const described = describeWidgetEvents(
+      events({
+        dismissed: {},
+        cleared: { type: 'object', properties: {} },
+        renamed: { type: 'string' },
+        broken: 'not a schema',
+      }),
+    )
+
+    expect(described?.map(event => [event.name, event.payload])).toEqual([
+      ['dismissed', null],
+      ['cleared', []],
+      ['renamed', null],
+      ['broken', null],
+    ])
+    expect(described?.[3]?.schema).toEqual({})
+  })
+})
+
 describe('defaultInputsFor', () => {
   it('mounts a Widget with the defaults its schema declares and nothing else', () => {
     const fields = fieldsOf({
@@ -217,7 +273,7 @@ describe('coerceInputs', () => {
 describe('needsInputPrompt', () => {
   it('asks when the build published no schema, because the host knows nothing', () => {
     expect(needsInputPrompt(undefined)).toBe(true)
-    expect(needsInputPrompt({ events: [] })).toBe(true)
+    expect(needsInputPrompt({})).toBe(true)
   })
 
   it('asks for a required field, and does not for one that is optional or defaulted', () => {

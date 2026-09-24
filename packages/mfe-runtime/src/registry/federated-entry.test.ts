@@ -134,7 +134,20 @@ describe('the framework version the container was built for', () => {
  */
 describe('published Widget contract', () => {
   const contract = {
-    events: ['acknowledged', 'dismissed'],
+    events: {
+      title: 'alert-panel events',
+      type: 'object',
+      properties: {
+        acknowledged: {
+          type: 'object',
+          properties: { alertId: { type: 'string' } },
+          required: ['alertId'],
+          additionalProperties: false,
+        },
+        dismissed: {},
+      },
+      additionalProperties: false,
+    },
     inputs: {
       type: 'object',
       properties: { alertId: { type: 'string' }, severity: { enum: ['info', 'critical'] } },
@@ -143,7 +156,7 @@ describe('published Widget contract', () => {
     },
   }
 
-  it('carries the inputs schema and event names through to the entry', () => {
+  it('carries the inputs and events schemas through to the entry', () => {
     const parsed = parse(entry({ id: 'alert-panel', kind: 'widget', contract }))
 
     expect(parsed.contract).toEqual(contract)
@@ -155,21 +168,48 @@ describe('published Widget contract', () => {
    */
   it('accepts a contract that publishes events without an inputs schema', () => {
     const parsed = parse(
-      entry({ id: 'alert-panel', kind: 'widget', contract: { events: ['dismissed'] } }),
+      entry({ id: 'alert-panel', kind: 'widget', contract: { events: contract.events } }),
     )
 
-    expect(parsed.contract).toEqual({ events: ['dismissed'] })
+    expect(parsed.contract).toEqual({ events: contract.events })
     expect(parsed.contract && 'inputs' in parsed.contract).toBe(false)
+  })
+
+  it('accepts a contract that publishes neither schema', () => {
+    const parsed = parse(entry({ id: 'alert-panel', kind: 'widget', contract: {} }))
+
+    expect(parsed.contract).toEqual({})
+  })
+
+  /** A shell is deployed before the containers it reads are rebuilt. */
+  it('reads the event names an older build published as events with unknown payloads', () => {
+    const parsed = parse(
+      entry({
+        id: 'alert-panel',
+        kind: 'widget',
+        contract: { events: ['acknowledged', 'dismissed'] },
+      }),
+    )
+
+    expect(parsed.contract).toEqual({
+      events: {
+        type: 'object',
+        properties: { acknowledged: {}, dismissed: {} },
+        additionalProperties: false,
+      },
+    })
   })
 
   it('rejects a Widget contract on an App', () => {
     expect(rejection(entry({ contract })).message).toContain('An App has no inputs and no events')
   })
 
-  it('rejects a contract whose events are not names', () => {
-    expect(
-      rejection(entry({ id: 'alert-panel', kind: 'widget', contract: { events: [{}] } })).message,
-    ).toContain('an array of event names')
+  it('rejects a contract whose events are neither a schema nor names', () => {
+    for (const events of [[{}], 'acknowledged']) {
+      expect(
+        rejection(entry({ id: 'alert-panel', kind: 'widget', contract: { events } })).message,
+      ).toContain('a JSON Schema object with one property per event')
+    }
   })
 
   it('rejects a contract that is not an object', () => {

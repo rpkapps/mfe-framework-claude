@@ -116,8 +116,12 @@ export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
 export interface PublishedWidgetContract {
   /** JSON Schema (draft 2020-12), absent when the build could not read the schema statically. */
   readonly inputs?: JsonSchemaObject
-  /** Declared event names, in declaration order. */
-  readonly events: readonly string[]
+  /**
+   * The same shape as `inputs`: an object schema with one property per declared event, in
+   * declaration order, each the schema of that event's payload. A payload the build could not
+   * read is `{}`; the whole field is absent when the event names themselves could not be read.
+   */
+  readonly events?: JsonSchemaObject
 }
 
 /** The subset of JSON Schema the build emits: values only, no `$ref`. */

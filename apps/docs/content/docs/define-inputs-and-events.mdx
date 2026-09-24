@@ -94,6 +94,14 @@ exports `widgetId`, `inputs`, `events` and the types `Inputs` and `Events`. Insi
 declaration the consumer imports, which is why it has to be one the build can read without running
 your module.
 
+<Callout type="warning" title="The catalogue says “payload not published”">
+
+The build could not read that event's schema from your source. Write the payload as a plain Zod
+call, such as `z.object({ alertId: z.string() })`, with no `.refine(…)`. The registry then carries
+the payload's schema, and the shell's catalogue shows its fields.
+
+</Callout>
+
 ## Errors
 
 <Callout type="error" title="contract/event-mismatch">

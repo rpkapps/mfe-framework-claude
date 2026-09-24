@@ -27,7 +27,19 @@ Your build writes one record per container. A shell turns each definition in it 
         "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]]
       },
       "contract": {
-        "events": ["acknowledged", "dismissed"],
+        "events": {
+          "type": "object",
+          "properties": {
+            "acknowledged": {
+              "type": "object",
+              "properties": {
+                "alertId": { "type": "string" },
+                "acknowledgedAt": { "type": "string" }
+              }
+            },
+            "dismissed": { "type": "object", "properties": { "alertId": { "type": "string" } } }
+          }
+        },
         "inputs": { "type": "object", "properties": { "alertId": { "type": "string" } } }
       }
     }
@@ -62,7 +74,7 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
   "expose": "./widgets/alert-panel",
   "shareScopes": ["default", "react@19.3.0"],
   "version": "1.4.0",
-  "contract": { "events": ["acknowledged", "dismissed"], "inputs": { "type": "object" } },
+  "contract": { "events": { "type": "object", "properties": { … } }, "inputs": { "type": "object" } },
   "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" },
   "title": "Alert panel",
   "description": "Open alerts for one asset, acknowledged or dismissed in place.",
@@ -82,10 +94,24 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 | `shareScopes`                          | no       | The share scopes the loader registers the remote with. Without it, only `default`.                    |
 | `version`                              | no       | Recorded in diagnostics.                                                                              |
 | `capabilities`                         | no       | App-only. One record per marked route.                                                                |
-| `contract`                             | no       | Widget-only. Declared event names, and the inputs schema when the build could read it.                |
+| `contract`                             | no       | Widget-only. The `inputs` and `events` schemas, each when the build could read it. See below.         |
 | `build`                                | no       | Repeated from the build's own record onto every entry it produced.                                    |
 | `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                         |
 | `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                        |
+
+`contract.events` has the same shape as `contract.inputs`. It is an object schema with one property per declared event, in declaration order. Each property holds the JSON Schema of that event's payload.
+
+| What the build could not read | What the entry carries                                   |
+| ----------------------------- | -------------------------------------------------------- |
+| the `inputs` schema           | no `contract.inputs`                                     |
+| one event's payload           | that event, with `{}` as its payload, meaning "anything" |
+| the event names               | no `contract.events`                                     |
+
+A missing field means "unknown". An empty schema means the Widget takes or emits nothing. The Widget still validates every input and payload itself.
+
+Builds from before this shape published `events` as a list of names. A shell still accepts that list, as those events with unknown payloads. Upgrade the shell first, then rebuild your containers in any order.
+
+Read both schemas with [`describeWidgetInputs` and `describeWidgetEvents`](/docs/reference/hooks-and-components#describewidgetinputs-and-describewidgetevents). Do not walk them yourself.
 
 A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`. A shell skips a capability whose name it does not know and keeps the rest of the entry, so an App built against a newer framework still loads in an older shell.
 

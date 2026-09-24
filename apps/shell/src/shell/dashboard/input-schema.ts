@@ -1,6 +1,7 @@
 /** How to *show* a Widget's declared inputs; reading the schema is `describeWidgetInputs`'s job, and nothing here validates (§28). */
 
 import {
+  describeWidgetEvents,
   describeWidgetInputs,
   type PublishedWidgetContract,
   type WidgetInputField,
@@ -51,6 +52,34 @@ export function readInputFields(
       control: controlFor(field),
       typeLabel: field.nullable ? `${typeName(field)} | null` : typeName(field),
       ...(field.kind === 'enum' ? { options: (field.enumValues ?? []).map(memberLabel) } : {}),
+    })) ?? null
+  )
+}
+
+/** A declared event, with its payload in one line for a tooltip. */
+export interface EventDetail {
+  readonly name: string
+  readonly payloadLabel: string
+}
+
+/** `null` is "the build could not read the event names", never "emits nothing" (§28). */
+export function readEvents(
+  contract: PublishedWidgetContract | undefined,
+): readonly EventDetail[] | null {
+  return (
+    describeWidgetEvents(contract)?.map(event => ({
+      name: event.name,
+      payloadLabel:
+        event.payload === null
+          ? 'payload not published'
+          : event.payload.length === 0
+            ? 'no payload'
+            : `{ ${event.payload
+                .map(field => {
+                  const type = field.nullable ? `${typeName(field)} | null` : typeName(field)
+                  return `${field.name}${field.required ? '' : '?'}: ${type}`
+                })
+                .join(', ')} }`,
     })) ?? null
   )
 }

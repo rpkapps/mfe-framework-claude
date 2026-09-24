@@ -43,7 +43,6 @@ describe('the facts an entry states about itself', () => {
     const facts = factsOf(
       entry({
         contract: {
-          events: [],
           inputs: {
             type: 'object',
             properties: { alertId: { type: 'string' }, severity: { type: 'string' } },
@@ -57,7 +56,13 @@ describe('the facts an entry states about itself', () => {
   })
 
   it('keeps events in the order they were declared', () => {
-    const facts = factsOf(entry({ contract: { events: ['acknowledged', 'dismissed'] } }))
+    const facts = factsOf(
+      entry({
+        contract: {
+          events: { type: 'object', properties: { acknowledged: {}, dismissed: {} } },
+        },
+      }),
+    )
 
     expect(facts).toEqual([{ label: 'events', values: ['acknowledged', 'dismissed'] }, readByReact])
   })
@@ -74,21 +79,19 @@ describe('the facts an entry states about itself', () => {
   })
 
   it('reads a schema with no properties as no inputs, rather than as a blank row', () => {
-    expect(factsOf(entry({ contract: { events: [], inputs: { type: 'object' } } }))).toEqual([
-      readByReact,
-    ])
+    expect(factsOf(entry({ contract: { inputs: { type: 'object' } } }))).toEqual([readByReact])
   })
 
   it('survives a `properties` that is not an object', () => {
-    expect(
-      factsOf(entry({ contract: { events: [], inputs: { properties: ['alertId'] } } })),
-    ).toEqual([readByReact])
+    expect(factsOf(entry({ contract: { inputs: { properties: ['alertId'] } } }))).toEqual([
+      readByReact,
+    ])
   })
 
   it('survives a `required` that is not a list of names', () => {
     const facts = factsOf(
       entry({
-        contract: { events: [], inputs: { properties: { alertId: {} }, required: 'alertId' } },
+        contract: { inputs: { properties: { alertId: {} }, required: 'alertId' } },
       }),
     )
 

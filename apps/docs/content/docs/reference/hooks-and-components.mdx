@@ -271,6 +271,41 @@ Renders a Widget whose id is a value rather than a name in your source. It takes
 
 Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
 
+### describeWidgetInputs and describeWidgetEvents
+
+```ts
+describeWidgetInputs(contract: PublishedWidgetContract | undefined): readonly WidgetInputField[] | null
+describeWidgetEvents(contract: PublishedWidgetContract | undefined): readonly WidgetEvent[] | null
+```
+
+Read the schemas a registry entry publishes in `contract`. A host uses them for a Widget whose contract it never imports. Both walk the JSON Schema with the same code, so an event's payload and another Widget's inputs are described the same way.
+
+```ts title="apps/shell/src/shell/dashboard/input-schema.ts (trimmed)"
+import { describeWidgetEvents } from '@company/mfe-react'
+
+const events = describeWidgetEvents(entry.contract)
+// [{ name: 'acknowledged', schema: {…}, payload: [{ name: 'alertId', kind: 'string', required: true, … }] }]
+```
+
+| Return value         | What it means                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `null`               | The build could not read the schema. Show it as unknown.                                                                      |
+| `[]`                 | The Widget takes nothing, or emits nothing.                                                                                   |
+| `WidgetInputField[]` | One field per input: `name`, `required`, `kind`, `nullable`, and any `enumValues`, `format`, `defaultValue` or `description`. |
+| `WidgetEvent[]`      | One event per declared event, in order: `name`, `schema` and `payload`.                                                       |
+
+A `WidgetEvent`'s `payload` lists the payload's fields as `WidgetInputField`s. It is `null` when the build could not read that payload.
+
+Three helpers work on the input fields:
+
+- `defaultInputsFor(fields)` returns the defaults the schema declares.
+- `coerceInputs(fields, values)` converts text from a form into the JSON types the schema asks for.
+- `needsInputPrompt(contract)` says whether to ask for inputs before mounting.
+
+`@company/mfe-angular` exports all five too.
+
+Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
+
 ## Icons
 
 ### DefinitionIcon

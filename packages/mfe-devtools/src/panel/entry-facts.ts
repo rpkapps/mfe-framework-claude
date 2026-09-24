@@ -1,10 +1,11 @@
 /**
  * What an accepted entry has to say about itself, as label/value pairs: badges told a capability,
- * an input and an event apart by colour alone. `describeWidgetInputs` is the only reader of the
- * published schema, because a second walk is how this panel and the shell's dashboard drifted (§28).
+ * an input and an event apart by colour alone. `describeWidgetInputs` and `describeWidgetEvents` are
+ * the only readers of the published schemas, because a second walk is how this panel and the
+ * shell's dashboard drifted (§28).
  */
 
-import { describeWidgetInputs, type RegistryEntry } from '@company/mfe-react'
+import { describeWidgetEvents, describeWidgetInputs, type RegistryEntry } from '@company/mfe-react'
 
 export interface EntryFact {
   readonly label: string
@@ -26,8 +27,8 @@ export function factsOf(entry: RegistryEntry): readonly EntryFact[] {
   const inputs = inputNames(entry)
   if (inputs.length > 0) facts.push({ label: 'inputs', values: inputs })
 
-  const events = entry.contract?.events ?? []
-  if (events.length > 0) facts.push({ label: 'events', values: [...events] })
+  const events = describeWidgetEvents(entry.contract) ?? []
+  if (events.length > 0) facts.push({ label: 'events', values: events.map(event => event.name) })
 
   // Always, because no adapter is the usual one: a shell lists each of them, and which one read an
   // entry is what decides how it loads and mounts.

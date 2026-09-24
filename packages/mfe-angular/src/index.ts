@@ -123,13 +123,15 @@ export {
   type ShellAuthOptions,
 } from '@company/mfe-runtime'
 
-/** The one walk over a Widget's published inputs, for a host composing the registry. */
+/** The one walk over a Widget's published inputs and events, for a host composing the registry. */
 export {
   coerceInputs,
   defaultInputsFor,
+  describeWidgetEvents,
   describeWidgetInputs,
   needsInputPrompt,
   type BuildProvenance,
+  type WidgetEvent,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

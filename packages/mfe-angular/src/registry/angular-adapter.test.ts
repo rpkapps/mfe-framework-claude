@@ -67,11 +67,12 @@ describe('parse', () => {
   })
 
   it('reads a Widget’s published contract, capabilities and presentation', () => {
+    const acknowledgedOnly = { type: 'object', properties: { acknowledged: {} } }
     const widget = angularAdapter.parse(
       entry({
         id: 'alert-panel',
         kind: 'widget',
-        contract: { events: ['acknowledged'], inputs: { type: 'object' } },
+        contract: { events: acknowledgedOnly, inputs: { type: 'object' } },
         title: 'Alert panel',
         tags: ['ops', 3, ''],
         icon: 'AP',
@@ -85,7 +86,7 @@ describe('parse', () => {
 
     expect(widget).toMatchObject({
       definitionKind: 'widget',
-      contract: { events: ['acknowledged'], inputs: { type: 'object' } },
+      contract: { events: acknowledgedOnly, inputs: { type: 'object' } },
       title: 'Alert panel',
       tags: ['ops'],
       icon: 'AP',
@@ -105,9 +106,7 @@ describe('parse', () => {
   })
 
   it('refuses a Widget contract on an App', () => {
-    expect(rejection(entry({ contract: { events: [] } })).message).toContain(
-      'no Widget contract on an App',
-    )
+    expect(rejection(entry({ contract: {} })).message).toContain('no Widget contract on an App')
   })
 
   it('gates a contract major the shell cannot load before reading the shape', () => {

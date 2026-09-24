@@ -1,6 +1,8 @@
 /**
- * Reading the input schema a Widget publishes: one walk for every reader, because three separate
- * ones drifted as the emitter learned constructs a reader then reported as unreadable (§28).
+ * Reading the schemas a Widget publishes: one walk for every reader, because three separate ones
+ * drifted as the emitter learned constructs a reader then reported as unreadable (§28). An event
+ * payload is walked by the same code as the inputs, so a host wiring one Widget's event into
+ * another's inputs compares like with like.
  */
 
 import type { JsonSchemaObject, JsonSchemaValue, PublishedWidgetContract } from './definition.ts'
@@ -106,18 +108,45 @@ function describeType(raw: JsonSchemaObject): WidgetInputType {
   }
 }
 
+export interface WidgetEvent {
+  readonly name: string
+  /** The payload's own schema; `{}` when the build could not read it. */
+  readonly schema: JsonSchemaObject
+  /** The payload's fields, or `null` when it is not an object schema this can read. */
+  readonly payload: readonly WidgetInputField[] | null
+}
+
 /** `null` is "the build could not describe this", where `[]` is "this Widget takes nothing" (§28). */
 export function describeWidgetInputs(
   contract: PublishedWidgetContract | undefined,
 ): readonly WidgetInputField[] | null {
-  const inputs = contract?.inputs
-  if (inputs === undefined) return null
+  return describeFields(contract?.inputs)
+}
 
-  const properties = asObject(inputs['properties'])
+/**
+ * The declared events, in declaration order. `null` is "the build could not read the names",
+ * where `[]` is "this Widget emits nothing", as for the inputs (§28).
+ */
+export function describeWidgetEvents(
+  contract: PublishedWidgetContract | undefined,
+): readonly WidgetEvent[] | null {
+  const properties = asObject(contract?.events?.['properties'])
+  if (properties === undefined) return null
+
+  return Object.entries(properties).map(([name, value]) => {
+    const schema = asObject(value) ?? {}
+    return { name, schema, payload: describeFields(schema) }
+  })
+}
+
+function describeFields(schema: JsonSchemaObject | undefined): readonly WidgetInputField[] | null {
+  if (schema === undefined) return null
+
+  const properties = asObject(schema['properties'])
   if (properties === undefined) return null
 
   // An entry comes from a build this side does not control, so `required` is unvalidated JSON.
-  const declared = asArray(inputs['required']) ?? []
+  const declared = asArray(schema['required']) ?? []
   const required = new Set(declared.filter(name => typeof name === 'string'))
 
   return Object.entries(properties).map(([name, value]) => {
