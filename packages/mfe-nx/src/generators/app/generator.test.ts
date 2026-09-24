@@ -153,20 +153,16 @@ describe('the app generator', () => {
     expect(root).not.toContain('constructor')
   })
 
-  it('scaffolds the PrimeNG integration against the mount, zoneless, dark mode bound in an environment initializer', async () => {
+  it('scaffolds the PrimeNG integration against the mount, zoneless, with no preset of its own', async () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const primeng = readTreeFile(tree, 'apps/operations/src/primeng.ts')
     expect(primeng).toContain('provideNoopAnimations()')
-    expect(primeng).toContain("import Aura from '@primeng/themes/aura'")
-    expect(primeng).toContain('darkModeSelector: `.${PRIMENG_DARK_CLASS}`')
-    expect(primeng).toContain('preset: redeclaredForScopedDarkMode(Aura)')
+    expect(primeng).toContain('providePrimeNG({})')
     expect(primeng).toContain('appendTo: mount.overlayRoot')
-    expect(primeng).toContain('provideEnvironmentInitializer(() => {')
-    expect(primeng).toContain('mount.scopeRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)')
-    expect(primeng).toContain('mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)')
-    expect(primeng).toContain('binding.destroy()')
-    expect(primeng).not.toContain('bindPrimeNgDarkModeToShell')
+    expect(primeng).not.toContain('@primeng/themes')
+    expect(primeng).not.toContain('darkModeSelector')
+    expect(primeng).not.toContain('injectTheme')
   })
 
   it('gives the overview page a PrimeNG button and select', async () => {
@@ -187,7 +183,8 @@ describe('the app generator', () => {
     const readme = readTreeFile(tree, 'apps/operations/README.md')
     expect(readme).toContain('Dialog, ConfirmDialog and Drawer do not')
     expect(readme).toContain('[appendTo]="mount.overlayRoot"')
-    expect(readme).toContain('same\n  PrimeNG version and the same preset')
+    expect(readme).toContain('**The host declares\n  them**')
+    expect(readme).toContain('page must use the same PrimeNG version**')
     expect(readme).toContain("overrides['operations'] = 'http://localhost:3101/mf-manifest.json'")
   })
 
@@ -291,9 +288,9 @@ describe('the app generator', () => {
       '@angular/core': '19.2.25',
       '@angular/forms': '19.2.25',
       '@company/mfe-angular': '^0.1.0',
-      '@primeng/themes': '19.1.4',
       primeng: '19.1.4',
     })
+    expect(pkg.dependencies).not.toHaveProperty('@primeng/themes')
     const all = { ...pkg.dependencies, ...pkg.devDependencies }
     expect(all).not.toHaveProperty('@company/mfe-core')
     expect(all).not.toHaveProperty('@company/mfe-runtime')

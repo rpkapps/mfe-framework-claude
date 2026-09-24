@@ -65,10 +65,12 @@ references are rewritten to match. A leading `:root`, `html` or `body` compound 
 iOS Safari 17.4. There is no fallback, and decisions 17 and 5 record why.
 
 An Angular container's global stylesheet is scoped the same way. Its component styles keep
-Angular's own encapsulation. PrimeNG is the exception to all of it. Its theme engine writes unscoped
-style tags into the document head, so every Angular container on a page has to use the same PrimeNG
-version and preset. Its Dialog, ConfirmDialog and Drawer also need `appendTo` set to the mount's
-overlay root, or they render outside the scope.
+Angular's own encapsulation. PrimeNG is the exception to all of it. It writes its components' rules
+into unscoped style tags in the document head, named page-wide, so every Angular container on a page
+has to use the same PrimeNG version. Its design tokens are page-wide by intent: containers give it
+no preset, and the host declares the tokens once, with the other assets every Angular container
+shares, before the first one mounts. Its Dialog, ConfirmDialog and Drawer also need `appendTo` set
+to the mount's overlay root, or they render outside the scope.
 
 ## Storage
 

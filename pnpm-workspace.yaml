@@ -81,6 +81,9 @@ catalog:
   '@babel/core': 8.0.5
   '@changesets/cli': 3.0.3
   '@excalidraw/excalidraw': 0.18.1
+  # The shell's page-wide Angular assets (apps/shell/src/angular): the font file Material Symbols
+  # Rounded ships in, and Open Props below.
+  '@fontsource/material-symbols-rounded': 5.3.7
   '@module-federation/enhanced': 2.9.0
   '@module-federation/runtime': 2.9.0
   '@nx/angular': 22.7.12
@@ -89,7 +92,6 @@ catalog:
   # consumer's workspace picks its own Nx version.
   '@nx/devkit': 22.7.12
   '@playwright/test': 1.63.0
-  '@primeng/themes': 19.1.4
   '@rsbuild/core': 2.2.8
   '@rsbuild/plugin-react': 2.1.0
   '@rspack/cli': 2.2.6
@@ -142,6 +144,7 @@ catalog:
   # examples/fieldwork's own workspace runs.
   nx: 22.7.12
   oidc-client-ts: 3.5.0
+  open-props: 1.7.23
   picocolors: 1.1.1
   postcss: 8.5.28
   # @company/mfe-build inlines a stylesheet's imports without Tailwind. 16 keeps

@@ -2,7 +2,6 @@ import { mountApp } from '@company/mfe-angular/testing'
 import { expect, it } from 'vitest'
 
 import app from './mfe'
-import { PRIMENG_DARK_CLASS } from './primeng'
 
 // A component test with explicit fixtures: no shell process, no live credentials, no federation.
 // vitest.setup.ts disposes every mount after each test.
@@ -21,13 +20,17 @@ it('renders its PrimeNG controls inside the mount', async () => {
   expect(mounted.element.querySelector('p-button button')).not.toBeNull()
 })
 
-it('declares the select’s variables again for the dark class, so they resolve on this mount', async () => {
+it('declares no design tokens of its own, and reads the ones the host declares', async () => {
   await mountApp(app)
 
-  // PrimeNG writes each component's variables into the head once one renders. A reference left
-  // only in the light block would be resolved at :root and stay light under a dark scope root.
-  const css =
-    document.head.querySelector('style[data-primeng-style-id="select-variables"]')?.textContent ?? ''
-  const dark = css.slice(css.indexOf(`.${PRIMENG_DARK_CLASS}{`))
-  expect(dark).toContain('--p-select-background:var(--p-form-field-background)')
+  // With no preset PrimeNG writes its components' rules and none of the variables they read: the
+  // host declares those for the whole page, so they follow the theme class on <html>.
+  const styles = [...document.head.querySelectorAll<HTMLStyleElement>('style[data-primeng-style-id]')]
+  const declared = styles.filter(style => /--p-[\w-]+\s*:/.test(style.textContent ?? ''))
+  const button =
+    document.head.querySelector('style[data-primeng-style-id="button-style"]')?.textContent ?? ''
+
+  expect(styles.length).toBeGreaterThan(0)
+  expect(declared.map(style => style.dataset['primengStyleId'])).toEqual([])
+  expect(button).toContain('var(--p-button-primary-background)')
 })

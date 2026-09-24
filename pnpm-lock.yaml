@@ -73,6 +73,9 @@ catalogs:
     '@excalidraw/excalidraw':
       specifier: 0.18.1
       version: 0.18.1
+    '@fontsource/material-symbols-rounded':
+      specifier: 5.3.7
+      version: 5.3.7
     '@module-federation/enhanced':
       specifier: 2.9.0
       version: 2.9.0
@@ -88,9 +91,6 @@ catalogs:
     '@playwright/test':
       specifier: 1.63.0
       version: 1.63.0
-    '@primeng/themes':
-      specifier: 19.1.4
-      version: 19.1.4
     '@rsbuild/core':
       specifier: 2.2.8
       version: 2.2.8
@@ -208,6 +208,9 @@ catalogs:
     oidc-client-ts:
       specifier: 3.5.0
       version: 3.5.0
+    open-props:
+      specifier: 1.7.23
+      version: 1.7.23
     picocolors:
       specifier: 1.1.1
       version: 1.1.1
@@ -442,6 +445,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/material-symbols-rounded':
+        specifier: 'catalog:'
+        version: 5.3.7
       '@module-federation/runtime':
         specifier: 'catalog:'
         version: 2.9.0
@@ -469,6 +475,9 @@ importers:
       oidc-client-ts:
         specifier: 'catalog:'
         version: 3.5.0
+      open-props:
+        specifier: 'catalog:'
+        version: 1.7.23
       react:
         specifier: 'catalog:'
         version: 19.3.0
@@ -721,9 +730,6 @@ importers:
       '@company/mfe-angular':
         specifier: workspace:*
         version: link:../../packages/mfe-angular
-      '@primeng/themes':
-        specifier: 'catalog:'
-        version: 19.1.4
       primeng:
         specifier: 'catalog:'
         version: 19.1.4(d90cf516528eda08bfdb8cac518a6994)
@@ -3343,6 +3349,9 @@ packages:
   '@fontsource/ibm-plex-mono@5.3.0':
     resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
 
+  '@fontsource/material-symbols-rounded@5.3.7':
+    resolution: {integrity: sha512-mxOwmQJUdlZxP9Xg+ki0Sq0et/zAiHNQ0abKu9SNk2EUIJ1SdTs4adguDSnazU5P93zYIF7HmwxLvITxRygg2A==}
+
   '@fumari/image-size@0.1.1':
     resolution: {integrity: sha512-iaiV2wyzJ4mW358NX4CX3yGit+WjKYzpaQ+rldK9BjL/5jFpeV6ruWnZVq7MEyMn3Gd0DLi8g/79NZAAQaGscw==}
 
@@ -4498,10 +4507,6 @@ packages:
   '@pnpm/deps.graph-sequencer@1100.0.1':
     resolution: {integrity: sha512-pOr5+q1fLYKwFN3LAJuGZEnfXDcQ73zqgDHMtGy+K+uIoUqyY+6MeDCWFwfu+4EFuq76I5EPFofoNAI+Bmmq4A==}
     engines: {node: '>=22.13'}
-
-  '@primeng/themes@19.1.4':
-    resolution: {integrity: sha512-Hze5bBTjsLzZXb20qsm9apsFuzpZzXiU+Ulj/7R+2fwMmcQk0XpkQS7V88fsFw6xsTD7+R+hgqr7Rzy0Gf+4dw==}
-    deprecated: 'Deprecated. This package is no longer maintained. Please migrate to @primeuix/themes: https://www.npmjs.com/package/@primeuix/themes'
 
   '@primeuix/styled@0.3.2':
     resolution: {integrity: sha512-ColZes0+/WKqH4ob2x8DyNYf1NENpe5ZguOvx5yCLxaP8EIMVhLjWLO/3umJiDnQU4XXMLkn2mMHHw+fhTX/mw==}
@@ -9515,6 +9520,9 @@ packages:
   open-color@1.9.1:
     resolution: {integrity: sha512-vCseG/EQ6/RcvxhUcGJiHViOgrtz4x0XbZepXvKik66TMGkvbmjeJrKFyBEx6daG5rNyyd14zYXhz0hZVwQFOw==}
 
+  open-props@1.7.23:
+    resolution: {integrity: sha512-+xyrJmxV9QUBFbSwPROYhOg/FLXry+uuPr4R+B5EaE4556Oc18/8ZC/fL5A+/lbRSwNvA0Alh+C0KpyFWLmLZg==}
+
   open@10.1.0:
     resolution: {integrity: sha512-mnkeQ1qP5Ue2wd+aivTD3NHd/lZ96Lu0jgf0pwktLPtx6cTZiH7tyeGRRHs0zX0rbrahXPnXlUnbeXyaBBuIaw==}
     engines: {node: '>=18'}
@@ -14499,6 +14507,8 @@ snapshots:
 
   '@fontsource/ibm-plex-mono@5.3.0': {}
 
+  '@fontsource/material-symbols-rounded@5.3.7': {}
+
   '@fumari/image-size@0.1.1': {}
 
   '@grafana/faro-core@2.11.0':
@@ -15983,10 +15993,6 @@ snapshots:
       playwright: 1.63.0
 
   '@pnpm/deps.graph-sequencer@1100.0.1': {}
-
-  '@primeng/themes@19.1.4':
-    dependencies:
-      '@primeuix/styled': 0.3.2
 
   '@primeuix/styled@0.3.2':
     dependencies:
@@ -21624,6 +21630,8 @@ snapshots:
       regex-recursion: 6.0.2
 
   open-color@1.9.1: {}
+
+  open-props@1.7.23: {}
 
   open@10.1.0:
     dependencies:

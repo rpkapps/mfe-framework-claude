@@ -24,10 +24,12 @@ PrimeNG is wired in `src/primeng.ts` and given to each mount through `createWidg
 - Select, MultiSelect, AutoComplete and the other overlay components open inside the mount's
   overlay root on their own. **Dialog, ConfirmDialog and Drawer do not**: give each one
   `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component.
-- PrimeNG's theme engine is page-wide, so **every Angular container on a page must use the same
-  PrimeNG version and the same preset**. The build never shares PrimeNG between containers.
-- Dark mode follows the shell's theme for this mount only, through an environment initializer
-  inside `providePrimeNgForMfe()` — no wiring needed in the Widget component itself.
+- PrimeNG is given no preset, so it declares none of its `--p-*` design tokens. **The host declares
+  them**, once for the whole page, before the first Angular container mounts, and switches them
+  with its theme class on `<html>`, so dark mode needs no wiring here. Without them PrimeNG's
+  controls render uncoloured.
+- PrimeNG writes its components' rules into page-wide style tags, so **every Angular container on a
+  page must use the same PrimeNG version**. The build never shares PrimeNG between containers.
 
 ## Connecting to the shell
 

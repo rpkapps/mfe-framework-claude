@@ -8,7 +8,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
-import { angularAdapter } from '@company/mfe-angular/registry'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
 import {
   createBrowserNavigationBridge,
@@ -26,6 +25,7 @@ import { reactAdapter } from '@company/mfe-react/registry'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
+import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { preferredTheme } from './shell/preferences.ts'

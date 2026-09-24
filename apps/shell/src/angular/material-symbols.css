@@ -1,0 +1,25 @@
+/*
+ * Material Symbols Rounded at weight 400, one static font file rather than the variable font with
+ * every axis. Another weight is another `@fontsource/material-symbols-rounded/<weight>.css` import,
+ * and a font of your own (a subset of the icons you use, say) is an `@font-face` of the same family
+ * in place of the import. index.ts waits for the faces it names, so keep its list in step.
+ */
+
+@import '@fontsource/material-symbols-rounded/400.css';
+
+/* The ligature class Google's own stylesheet ships, which the Fontsource package does not. */
+.material-symbols-rounded {
+  display: inline-block;
+  direction: ltr;
+  font-family: 'Material Symbols Rounded';
+  font-feature-settings: 'liga';
+  font-size: 24px;
+  font-style: normal;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+}

@@ -80,13 +80,14 @@ apps/my-app/
 ```
 
 `src/primeng.ts` is the container's, not the adapter's: `providePrimeNgForMfe()` routes PrimeNG's
-overlays into the mount's overlay root and follows the shell's theme with a class on the mount's
-scope and overlay roots. It hands PrimeNG the Aura preset with every token repeated in its dark
-scheme: PrimeNG resolves a light variable's references on `:root`, so without the repeat a select
-would stay light under a dark scope root while a button went dark. Dialog, ConfirmDialog and Drawer do not read the overlay setting, so each
-needs `[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component. PrimeNG
-writes unscoped global styles, so every Angular container on a page uses the same PrimeNG version
-and preset.
+overlays into the mount's overlay root and gives PrimeNG no preset. With none, PrimeNG declares
+none of its `--p-*` variables and its components only read them: the host declares them for the
+whole page before the first Angular container mounts, through the Angular adapter's `pageAssets`,
+and switches them with its own theme class on `<html>`, so dark mode needs nothing in the
+container. Dialog, ConfirmDialog and Drawer do not read the overlay setting, so each needs
+`[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()` in the component. PrimeNG still
+writes its components' rules into unscoped style tags named page-wide, so every Angular container
+on a page uses the same PrimeNG version.
 
 A `widget` project has no routes, configuration or local values; its `src/mfe.ts` calls
 `createWidget({ id, version, inputs, events, component, providers })` with the contract exported
@@ -228,9 +229,8 @@ the emitted layout keeps the `src/` segment `generators.json` and `executors.jso
   polyfills. The builder is `@angular-devkit/build-angular` 19.2.27, the CLI release beside
   framework 19.2.25.
 - **TypeScript 5.8.x** — Angular 19.2's compiler rejects 5.9 and later.
-- **PrimeNG 19.1.4** with `@primeng/themes` 19.1.4 (its deprecation notice points to
-  `@primeuix/themes`, which only PrimeNG 20 reads). Every Angular container on a page uses the same
-  version and preset.
+- **PrimeNG 19.1.4**, with no theme package: the host declares its design tokens. Every Angular
+  container on a page uses the same version.
 - **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**.
 - **`@nx/devkit`**: this package's `peerDependencies` declare `>=20.0.0 <23.0.0`, written literally
   rather than as a repository `catalog:` entry, because a consumer workspace's Nx version is

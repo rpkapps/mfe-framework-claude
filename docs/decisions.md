@@ -371,6 +371,12 @@ compiles an attribute selector to `:root[…]`, which only ever matches `<html>`
 PrimeNG is never shared through federation, because that engine's style registry is
 module state.
 
+**Amendment (2026-09-24):** containers now give PrimeNG no preset, so it declares
+none of its variables, and the shell declares them once for the page, keyed on its
+own `dark` class on `<html>` (§38). The version still has to match, since PrimeNG
+still writes its components' rules into style tags named page-wide; the preset, and
+the dark class toggled on each mount's roots, are gone.
+
 ---
 
 ## 18. React Refresh only replaces a module whose every export is a component
@@ -734,6 +740,12 @@ configuration, so a renamed file is created by hand and committed once with
 `git add -f`; and a copy left in `public/` is moved once by the next generate run, or
 reported, because it can now ship, when both exist.
 
+**Amendment (2026-09-24):** the generated `src/primeng.ts` no longer carries a preset
+or binds dark mode, and `@primeng/themes` left the generated dependencies: the host
+declares PrimeNG's variables for the whole page before the first Angular container
+mounts (§38). `injectTheme()` and the mount's roots are still what a container's own
+theming code would build on.
+
 ---
 
 ## 32. `@company/mfe-host` is `@company/mfe-runtime`, the core holds contracts only, and an application imports only its adapter
@@ -1026,3 +1038,66 @@ single-page fallback serves for a file it does not have, as a missing file.
 **Cost:** an object nested in a host's configuration refuses a key its schema does not
 name, as the JSON Schema says, where Zod would strip it; top-level unknown keys are refused
 by both. The string transforms apply to a top-level field only.
+
+---
+
+## 38. The shell loads what every Angular container shares, before the first one mounts
+
+**Status:** decided.
+
+Every Angular container relies on three things none of them ships: PrimeNG's design
+tokens, Open Props and the Material Symbols Rounded font. None of them fits a
+container's own stylesheet. The tokens switch with the `dark` class the shell puts on
+`<html>`, which is outside every `@scope`, and a scoped stylesheet may not name `html`
+(§17). A font file emitted by each container downloads once per container. And a copy
+per container of values that are meant to be one per page can drift.
+
+So the host supplies them, through the adapter. `createAngularAdapter({ pageAssets })`
+in `@company/mfe-angular/registry` runs the host's `pageAssets` inside `aroundLoad`,
+once per page and in parallel with the first Angular container's own download, and
+every Angular load waits for it. A load is part of a mount's `pending` state, so the
+host shows its loading state meanwhile and no Angular definition paints before the
+assets have arrived. A rejection fails the load that was waiting, with
+`load/entry-failure`, and is forgotten, so the host's retry loads them again. Every
+host path and every preload goes through a load, so an Angular Widget inside a React
+App waits exactly as a routed Angular App does. The adapter still names no UI
+library: what the assets are is the host's function.
+
+In the shell that function lives in `apps/shell/src/angular/`, which also builds the
+adapter `boot.tsx` lists. It imports `angular.css` dynamically, so Rsbuild emits it
+as a stylesheet chunk of its own, with the font as a hashed file beside it, fetched
+only there, and waits on `document.fonts.load()`, because a declared font does not
+download until text uses it and an icon would paint as its name. `angular.css` is one
+`@import` per part — the PrimeNG tokens file, Open Props, Material Symbols — and the
+packages' versions are in the catalog, so a part is swapped or dropped in one line.
+They are page-wide on purpose, and owned by the one thing that is on the page once:
+a new version ships as a shell release.
+
+Containers give PrimeNG no preset. With none, PrimeNG declares no `--p-*` variable at
+all and its components' rules only read them, so the shell's tokens file is the only
+declaration and there is no injection order or cascade layer to arrange. The tokens
+file keys its blocks on the selectors the design system uses — `:root`, `.light` and
+`[data-theme="light"]`; `.dark` and `[data-theme="dark"]` — and declares every token
+in both, since a reference resolves on the element that declares it. That retired
+`redeclaredForScopedDarkMode` and the dark class the generated providers toggled on
+each mount's roots.
+
+Three Open Props files stay out, because page-wide they would change the shell:
+`fonts` declares `--font-sans`, `--font-mono` and `--font-serif` outside any cascade
+layer, where the design system declares them inside one; `animations` defines
+keyframes named `spin`, `ping`, `pulse` and `bounce`, as Tailwind does, and a
+keyframes name is page-wide; `media` is `@custom-media`, which a browser ignores. Its
+shadows follow `prefers-color-scheme`, so the three values its dark variant changes
+are declared again under the shell's own dark selectors. No other Open Props name is
+one the design system or Tailwind declares.
+
+**Cost:** the tokens file and the PrimeNG version agree only by inspection: a
+variable a newer PrimeNG reads and the file lacks leaves that part of a control
+uncoloured, and a host that passes no `pageAssets` leaves every PrimeNG control so.
+Every Angular container on a page still uses one PrimeNG version. The tokens and
+Open Props are visible to React mounts too, harmlessly, since no name is shared. The
+first Angular load waits for the whole stylesheet (about 31 kB compressed with the
+placeholder tokens) and the font (373 kB) even when its container uses neither.
+`pnpm verify:page` checks that the tokens and the font were in place when PrimeNG's
+first button was inserted, that the tokens follow the dark class, and that a page
+with no Angular container never loads them.

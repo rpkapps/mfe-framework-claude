@@ -23,12 +23,11 @@ export const RXJS_VERSION = '7.8.2'
 export const ZOD_VERSION = '4.6.5'
 
 /**
- * One PrimeNG version and one preset per page: its theme engine is page-wide, so every Angular
- * container on a page has to agree on both. `@primeng/themes` is the v19 theme package; its
- * deprecation notice points at `@primeuix/themes`, which only PrimeNG 20+ reads.
+ * One PrimeNG version per page: it writes its components' rules into page-wide style tags keyed by
+ * name, so every Angular container on a page has to agree on it. No theme package: the container
+ * gives PrimeNG no preset, and the host declares the design tokens its components read.
  */
 export const PRIMENG_VERSION = '19.1.4'
-export const PRIMENG_THEMES_VERSION = '19.1.4'
 
 /**
  * `@analogjs/vitest-angular` peers `vitest ^1.3.1 || ^2 || ^3 || ^4` — not 5 — so the generated

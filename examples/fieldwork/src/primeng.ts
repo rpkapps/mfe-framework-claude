@@ -1,116 +1,34 @@
 /**
  * PrimeNG for this container, kept to its own mounts. Each mount is its own Angular application,
  * so these providers go in the definition's `providers` and every mount gets its own PrimeNG
- * configuration. Verified with PrimeNG 19.1.4, @primeng/themes 19.1.4 and Angular 19.2, zoneless.
+ * configuration. Verified with PrimeNG 19.1.4 and Angular 19.2, zoneless.
  *
- * PrimeNG's theme engine writes page-wide style tags, so every Angular container on a page must use
- * the same PrimeNG version and the same preset; the build never shares PrimeNG between containers.
+ * PrimeNG is given no preset, so it declares none of its `--p-*` design tokens: its components only
+ * read them. The host declares them for the whole page, once, before the first Angular container
+ * mounts, and switches them with the theme class it puts on <html>, so dark mode needs nothing here.
+ * PrimeNG still writes each component's rules into page-wide style tags keyed by name, so every
+ * Angular container on a page uses the same PrimeNG version; the build never shares PrimeNG.
  */
 
 import {
-  DestroyRef,
-  effect,
   inject,
-  Injector,
   makeEnvironmentProviders,
   provideAppInitializer,
-  provideEnvironmentInitializer,
   type EnvironmentProviders,
 } from '@angular/core'
 import { provideNoopAnimations } from '@angular/platform-browser/animations'
-import { injectMfeMount, injectTheme } from '@company/mfe-angular'
-import Aura from '@primeng/themes/aura'
+import { injectMfeMount } from '@company/mfe-angular'
 import { PrimeNG, providePrimeNG } from 'primeng/config'
 
-/**
- * The class PrimeNG's dark-mode CSS is scoped under. It has to be a class: PrimeNG compiles an
- * attribute selector to `:root[…]`, which only ever matches `<html>`, while a class selector
- * cascades from whichever element carries it — here this mount's own root and overlay root.
- */
-export const PRIMENG_DARK_CLASS = 'mfe-primeng-dark'
-
-/** A layer of design tokens: nested records whose leaves are values or `{token.path}` references. */
-type TokenLayer = Readonly<Record<string, unknown>>
-
-/** The keys of a preset layer that hold something other than tokens. */
-const NOT_TOKENS: readonly string[] = ['colorScheme', 'css', 'extend']
-
-function isLayer(value: unknown): value is TokenLayer {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** Deep, and a later layer wins; a preset is plain data, so nothing else needs keeping. */
-function mergeLayers(...layers: readonly TokenLayer[]): TokenLayer {
-  const merged: Record<string, unknown> = {}
-  for (const layer of layers) {
-    for (const [key, value] of Object.entries(layer)) {
-      const current = merged[key]
-      merged[key] = isLayer(current) && isLayer(value) ? mergeLayers(current, value) : value
-    }
-  }
-  return merged
-}
-
-/** Every token the layer declares for light, declared again under its dark scheme. */
-function redeclaredForDark(layer: TokenLayer): TokenLayer {
-  const tokens = Object.fromEntries(
-    Object.entries(layer).filter(([key]) => !NOT_TOKENS.includes(key)),
-  )
-  const scheme = isLayer(layer['colorScheme']) ? layer['colorScheme'] : {}
-  const light = isLayer(scheme['light']) ? scheme['light'] : {}
-  const dark = isLayer(scheme['dark']) ? scheme['dark'] : {}
-  return { ...layer, colorScheme: { ...scheme, dark: mergeLayers(tokens, light, dark) } }
-}
-
-function redeclaredForDarkEach(group: unknown): unknown {
-  if (!isLayer(group)) return group
-  return Object.fromEntries(
-    Object.entries(group).map(([name, layer]) => [
-      name,
-      isLayer(layer) ? redeclaredForDark(layer) : layer,
-    ]),
-  )
-}
-
-/**
- * The preset with every token repeated in its dark scheme, so dark mode works below `<html>`.
- *
- * PrimeNG declares each light-scheme variable on `:root` and puts in the dark selector's block only
- * the tokens a preset gives a dark value. A custom property resolves the `var()`s in its value on
- * the element that declares it, so `--p-select-background: var(--p-form-field-background)` is fixed
- * at `:root`'s light value and inherited as that. On `<html>`, PrimeNG's own case, the light and the
- * dark declarations sit on one element and the reference follows the dark value. On this mount's
- * scope root it would not: the select would stay light while the button, whose tokens Aura does give
- * dark values, went dark. Declared again in the dark block, every variable resolves where the dark
- * class is.
- */
-export function redeclaredForScopedDarkMode(preset: TokenLayer): TokenLayer {
-  return {
-    ...preset,
-    ...(isLayer(preset['semantic']) ? { semantic: redeclaredForDark(preset['semantic']) } : {}),
-    components: redeclaredForDarkEach(preset['components']),
-    directives: redeclaredForDarkEach(preset['directives']),
-  }
-}
-
-/**
- * The environment providers for `createApp` / `createWidget`'s `providers`. Keeps PrimeNG's dark
- * mode on the shell's theme for this mount only: `scopeRoot` and `overlayRoot` already exist on
- * `injectMfeMount()` by the time an environment initializer runs, unlike an app initializer, which
- * fires before the mount context the definition renders into is ready.
- */
+/** The environment providers for `createApp` / `createWidget`'s `providers`. */
 export function providePrimeNgForMfe(): EnvironmentProviders {
   return makeEnvironmentProviders([
     // PrimeNG's overlays declare Angular animations, and opening one without any animations
     // provider throws NG05105. Swap to `provideAnimationsAsync()` for real transitions; both work
     // zoneless.
     provideNoopAnimations(),
-    providePrimeNG({
-      theme: {
-        preset: redeclaredForScopedDarkMode(Aura),
-        options: { darkModeSelector: `.${PRIMENG_DARK_CLASS}` },
-      },
-    }),
+    // No theme: the tokens are the host's, so PrimeNG writes only its components' rules.
+    providePrimeNG({}),
     // Select, MultiSelect, AutoComplete and the other overlay components fall back to
     // `overlayOptions.appendTo`, so this routes all of them into this mount's overlay root.
     // Dialog, ConfirmDialog and Drawer do not read it: give each an explicit
@@ -119,24 +37,6 @@ export function providePrimeNgForMfe(): EnvironmentProviders {
       const mount = injectMfeMount()
       const config = inject(PrimeNG)
       config.overlayOptions = { ...config.overlayOptions, appendTo: mount.overlayRoot }
-    }),
-    provideEnvironmentInitializer(() => {
-      const injector = inject(Injector)
-      const destroyRef = inject(DestroyRef)
-      const mount = injectMfeMount()
-      const theme = injectTheme()
-
-      const binding = effect(
-        () => {
-          const dark = theme() === 'dark'
-          mount.scopeRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
-          mount.overlayRoot.classList.toggle(PRIMENG_DARK_CLASS, dark)
-        },
-        { injector },
-      )
-      destroyRef.onDestroy(() => {
-        binding.destroy()
-      })
     }),
   ])
 }

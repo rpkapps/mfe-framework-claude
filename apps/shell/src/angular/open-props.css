@@ -1,0 +1,35 @@
+/*
+ * Open Props, one file per group, so a subset is a matter of deleting lines. Each file declares its
+ * properties on `:where(html)`, at no specificity.
+ *
+ * Left out on purpose, because they would change the shell once they are page-wide:
+ * - `open-props/fonts` declares --font-sans, --font-mono and --font-serif, which the design system
+ *   also declares, inside a cascade layer; these, outside any layer, would win and change the
+ *   shell's typefaces.
+ * - `open-props/animations` defines keyframes named spin, ping, pulse and bounce, which the shell's
+ *   Tailwind also defines. A keyframes name is page-wide, so whichever loads last animates both.
+ *   A container that wants them imports them into its own src/styles.css, where the build renames
+ *   every keyframes it defines.
+ * - `open-props/media` is `@custom-media` only, which a browser ignores without a PostCSS step.
+ */
+
+@import 'open-props/sizes';
+@import 'open-props/easings';
+@import 'open-props/zindex';
+@import 'open-props/shadows/light';
+@import 'open-props/aspects';
+@import 'open-props/colors';
+@import 'open-props/gradients';
+@import 'open-props/borders';
+
+/*
+ * `open-props/shadows` darkens its shadows under `prefers-color-scheme: dark`, the operating
+ * system's setting rather than the shell's theme. These are the values `open-props/shadows/dark`
+ * sets, keyed on the shell's own selectors instead; every shadow derives from them.
+ */
+.dark,
+[data-theme='dark'] {
+  --shadow-color: 220 40% 2%;
+  --shadow-strength: 25%;
+  --inner-shadow-highlight: inset 0 -0.5px 0 0 #fff1, inset 0 0.5px 0 0 #0007;
+}

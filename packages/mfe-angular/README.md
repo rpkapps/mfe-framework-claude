@@ -69,6 +69,33 @@ registry. `detect` claims exactly the entries whose `mfe.framework` is
 reads one; `parse` is the runtime's `parseFederatedEntry`, the one reading of
 the entry shape every framework build publishes.
 
+### What every Angular container needs of the page
+
+Some things every Angular container relies on and none of them ships: a UI
+library's design tokens, shared utility properties, an icon font. A host names
+them once, with `createAngularAdapter`, in place of `angularAdapter`:
+
+```ts
+import { createAngularAdapter } from '@company/mfe-angular/registry'
+
+export const angularAdapter = createAngularAdapter({
+  pageAssets: async () => {
+    await import('./angular.css')
+    await document.fonts.load('400 24px "Material Symbols Rounded"')
+  },
+})
+```
+
+`pageAssets` runs once per page, beside the first Angular container's own
+download, inside the adapter's `aroundLoad`, and every Angular load waits for
+it. A load is part of a mount's `pending` state, so the host shows its loading
+state meanwhile and no Angular definition mounts before the assets have
+arrived: nothing paints unstyled. A page that loads no Angular container never
+runs it. A rejection fails the load that was waiting, as `load/entry-failure`
+naming that definition, and is forgotten, so a retry runs it again. The adapter
+names no library: what the assets are is entirely the host's function. The
+shell's are in `apps/shell/src/angular/`.
+
 ## An App
 
 ```ts

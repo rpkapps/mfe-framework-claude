@@ -3,4 +3,10 @@
  * written in another framework registers Angular containers without resolving Angular itself.
  */
 
-export { angularAdapter, type AngularRegistryEntry } from './angular-adapter.ts'
+export {
+  angularAdapter,
+  createAngularAdapter,
+  type AngularAdapter,
+  type AngularAdapterOptions,
+  type AngularRegistryEntry,
+} from './angular-adapter.ts'
