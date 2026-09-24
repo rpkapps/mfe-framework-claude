@@ -114,6 +114,10 @@
         align-self: start;
         margin: calc(50dvh - 4px) 0 0;
       }
+      /* The words need no pool of the background here, and it would shade the logo above them. */
+      #shell-loader[data-art='bounce'] .shell-loader__scene::before {
+        display: none;
+      }
       html:not(.dark) .shell-loader__art {
         --bounce-shadow-opacity: 0.18;
       }

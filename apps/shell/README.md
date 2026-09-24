@@ -85,15 +85,14 @@ reason and a way forward.
 | ----------- | --------------------------------------------------------------------------- |
 | `drill-bit` | a 3D tricone drill bit turning under a scan ring, in WebGL; drag to turn it |
 | `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
-| `bounce`    | the logo bouncing on its shadow, with squash and stretch, in CSS alone      |
+| `bounce`    | the logo bouncing on its shadow, with squash and stretch                    |
 
 Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
 custom element `<name>-loader`. The build minifies every loader into
 `index.html`, so none waits for a download, and the page runs only the one the
 runtime configuration names, or the declared default when it cannot read it.
-The canvas loaders draw in a worker through an `OffscreenCanvas` where the
-browser has one, and the bounce animates transforms only, which the browser
-runs off the main thread, so each keeps its frame rate while the entry boots.
+Each draws in a worker through an `OffscreenCanvas` where the browser has one,
+so it keeps its frame rate while the page loads and boots on the main thread.
 
 A loader is themed through CSS custom properties, which the loader's styles in
 `index.html` set from Tecton's tokens for each mode. `--drill-background` is
@@ -115,7 +114,7 @@ map its properties onto the loader's colours in `index.html`. The build refuses
 a name with no file, a file no name reaches, and a loader missing from the
 durations. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
-well log and 1 kB for the bounce.
+well log and 3 kB for the bounce.
 
 ## The pages the shell owns
 
