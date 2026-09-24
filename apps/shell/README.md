@@ -302,7 +302,8 @@ Adding a Widget to this dashboard is a registry change, not a shell release.
 container's own `.mfe/mfe-registry.json`, and fetched at boot. It is handed to
 `createMfeRuntime` from `@company/mfe-react/host` raw: the runtime reads it
 through every adapter the shell lists — `reactAdapter`, `angularAdapter` from
-`@company/mfe-angular/registry` and `legacyAngularAdapter`, none registered
+`src/angular/` (see [What Angular containers share](#what-angular-containers-share))
+and `legacyAngularAdapter`, none registered
 implicitly — applies developer overrides and rejects whatever fails validation. Each entry also carries the build its
 container was produced from, which is what the bug report lists a line of.
 `boot.tsx` supplies the runtime's diagnostics hub, built with
@@ -424,6 +425,41 @@ mounted container, so a tenant customisation or a mode flip made here reaches
 all of them with nothing wired up. Each container compiles and scopes its own
 stylesheet for the classes it renders; `docs/decisions.md` §17 has the
 mechanism and its two limits.
+
+## What Angular containers share
+
+Everything the shell does for Angular containers is in `src/angular/`, and
+`boot.tsx` imports its `angularAdapter` in one line. The adapter loads what every
+Angular container relies on and none of them ships, once, with the first Angular
+container the page loads and beside that container's own download. No Angular
+definition mounts before it has arrived, so the mount's loading state covers it
+and nothing paints unstyled; a page with no Angular container never fetches it
+(`docs/decisions.md` §38).
+
+| File                   | Holds                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| `index.ts`             | the adapter, and the fonts it waits for                                       |
+| `angular.css`          | one `@import` per part: drop a line to drop a part                            |
+| `primeng-tokens.css`   | PrimeNG's `--p-*` tokens, light and dark; PrimeNG itself is given no preset   |
+| `open-props.css`       | one `@import` per Open Props group, so a subset is a matter of deleting lines |
+| `material-symbols.css` | Material Symbols Rounded at weight 400, and its ligature class                |
+
+- **A new version** of Open Props or of the font is its version in the catalog
+  of `pnpm-workspace.yaml`. New PrimeNG tokens are a new `primeng-tokens.css`:
+  the one here is a placeholder, PrimeNG 19.1.4's Aura preset exported with
+  every token in both blocks. Keep its two selector lists, which are the ones the
+  shell and the design system switch themes with, and declare every token in
+  both blocks, since a reference resolves on the element that declares it.
+- **A subset** is a deleted `@import`. Open Props' `fonts`, `animations` and
+  `media` are left out on purpose, and `open-props.css` says why; its shadows are
+  switched with the shell's dark class rather than the operating system's.
+- **Another weight, or a font of your own**, such as a subset of the icons you
+  use, is an `@font-face` in `material-symbols.css`; list each face `index.ts`
+  should wait for in `PAGE_FONTS`.
+
+It is a shell release, not a container one: the stylesheet is page-wide, so the
+page has one version of it, and every Angular container on the page uses the
+PrimeNG version whose variables it declares.
 
 ## Federation
 

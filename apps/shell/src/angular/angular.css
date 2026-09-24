@@ -1,0 +1,13 @@
+/*
+ * The page-wide stylesheet every Angular container relies on, loaded with the first one (see
+ * index.ts). Each part is its own file, so a part is swapped or dropped by editing one line here,
+ * and a package's version is changed in the catalog of pnpm-workspace.yaml.
+ *
+ * It is page-wide on purpose: the tokens switch with the `dark` class the shell puts on <html>, the
+ * same one the design system follows, and a container's own stylesheet is scoped to its mount and
+ * cannot see <html>. So nothing in these files may name anything a React mount also defines.
+ */
+
+@import './primeng-tokens.css';
+@import './open-props.css';
+@import './material-symbols.css';

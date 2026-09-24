@@ -43,6 +43,8 @@ const PAGES = [
     url: '/operations',
     mounts: ['operations'],
     nested: [{ parent: 'operations', child: 'alert-panel', contains: 'Alert a-1001' }],
+    // Only an Angular container's load fetches the shell's Angular assets.
+    angularPageAssets: false,
   },
   {
     // The child App is delegated at operations' own /reports/$ splat route, and the path below
@@ -103,6 +105,8 @@ const PAGES = [
     mounts: ['fieldwork'],
     nested: [],
     contains: 'Field inspections',
+    // The shell's page-wide Angular assets had arrived before PrimeNG first painted (§17).
+    angularPageAssets: true,
     present: [
       '[data-mfe-scope="fieldwork"] p-select.p-select',
       '[data-mfe-scope="fieldwork"] p-button button.p-button',
@@ -353,6 +357,124 @@ function check(description, condition, detail) {
   console.log(`  FAIL ${description}${detail === undefined ? '' : ` — ${detail}`}`)
 }
 
+/** A PrimeNG token the placeholder tokens file gives different values in light and dark. */
+const THEMED_PRIMENG_TOKEN = '--p-content-background'
+
+/**
+ * Runs in the page before any of its scripts, and records what the document held the moment the
+ * first PrimeNG button was inserted: whether the shell's Angular assets had already arrived is only
+ * observable then, since they are present afterwards either way.
+ */
+function recordFirstPrimeNgPaint() {
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('p-button') === null) return
+    observer.disconnect()
+    const root = getComputedStyle(document.documentElement)
+    window.__firstPrimeNgPaint = {
+      buttonToken: root.getPropertyValue('--p-button-primary-background').trim(),
+      // `document.fonts.check` is true when no face of the family is declared at all.
+      symbolsFont: [...document.fonts].some(
+        face =>
+          face.family.replaceAll('"', '') === 'Material Symbols Rounded' &&
+          face.status === 'loaded',
+      ),
+    }
+  })
+  observer.observe(document, { childList: true, subtree: true })
+}
+
+/** Long against a local container's download, short against the six seconds a page is given. */
+const ANGULAR_ASSETS_DELAY_MS = 2500
+
+/**
+ * The shell's Angular stylesheet, the chunk Rsbuild's dev server names after
+ * apps/shell/src/angular/angular.css, and the font files it declares. Matched by URL, so nothing
+ * else the page requests passes through the handler.
+ */
+const ANGULAR_PAGE_ASSETS = [
+  'http://localhost:3000/**/src_angular_angular_css.css*',
+  'http://localhost:3000/**/material-symbols-rounded-*',
+]
+
+/** The URLs held back while the current page loaded, reset for each page. */
+let heldBack = []
+
+/**
+ * From localhost the shell's Angular assets arrive long before a container's own download does,
+ * so a mount that did not wait for them would still find them in place. Held back, it cannot.
+ */
+async function holdBackAngularPageAssets(route) {
+  heldBack.push(route.request().url())
+  await new Promise(resolve => setTimeout(resolve, ANGULAR_ASSETS_DELAY_MS))
+  // A navigation during the delay cancels the request, and continuing it then throws; there is
+  // nothing left to deliver it to.
+  await route.continue().catch(() => {})
+}
+
+async function checkAngularPageAssets(page, expected) {
+  const facts = await page.evaluate(token => {
+    const root = document.documentElement
+    const read = () => getComputedStyle(root).getPropertyValue(token).trim()
+    const wasDark = root.classList.contains('dark')
+    root.classList.toggle('dark', false)
+    const light = read()
+    root.classList.toggle('dark', true)
+    const dark = read()
+    root.classList.toggle('dark', wasDark)
+    const button = document.querySelector('p-button button')
+    return {
+      firstPaint: window.__firstPrimeNgPaint ?? null,
+      light,
+      dark,
+      openProps: getComputedStyle(root).getPropertyValue('--size-3').trim(),
+      buttonBackground: button === null ? null : getComputedStyle(button).backgroundColor,
+    }
+  }, THEMED_PRIMENG_TOKEN)
+
+  if (!expected) {
+    check(
+      "the shell's Angular assets were not requested",
+      heldBack.length === 0,
+      `requested ${JSON.stringify(heldBack)}`,
+    )
+    check(
+      "the shell's Angular assets were not loaded",
+      facts.light === '' && facts.openProps === '',
+      `${THEMED_PRIMENG_TOKEN} is ${JSON.stringify(facts.light)}, --size-3 is ${JSON.stringify(facts.openProps)}`,
+    )
+    return
+  }
+
+  // Without the delay the next check proves nothing, so a renamed chunk has to fail here.
+  check(
+    "the shell's Angular stylesheet was held back while the page loaded",
+    heldBack.some(url => url.includes('src_angular_angular_css')),
+    `held back ${JSON.stringify(heldBack)}`,
+  )
+  check(
+    "PrimeNG's tokens and the symbols font were in place before its first button painted",
+    facts.firstPaint !== null &&
+      facts.firstPaint.buttonToken !== '' &&
+      facts.firstPaint.symbolsFont,
+    `at the first p-button: ${JSON.stringify(facts.firstPaint)}`,
+  )
+  check(
+    "PrimeNG's tokens switch with the shell's dark class on <html>",
+    facts.light !== '' && facts.dark !== '' && facts.light !== facts.dark,
+    `light ${JSON.stringify(facts.light)}, dark ${JSON.stringify(facts.dark)}`,
+  )
+  check(
+    'Open Props declares its properties page-wide',
+    facts.openProps !== '',
+    '--size-3 is empty on <html>',
+  )
+  check(
+    "a PrimeNG button is coloured by the shell's tokens",
+    facts.buttonBackground !== null && facts.buttonBackground !== 'rgba(0, 0, 0, 0)',
+    `background-color ${JSON.stringify(facts.buttonBackground)}`,
+  )
+}
+
 async function main() {
   const containers = await collectContainers()
 
@@ -371,6 +493,8 @@ async function main() {
     existsSync(PREINSTALLED) ? { executablePath: PREINSTALLED } : {},
   )
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  await page.addInitScript(recordFirstPrimeNgPaint)
+  for (const pattern of ANGULAR_PAGE_ASSETS) await page.route(pattern, holdBackAngularPageAssets)
 
   let pageErrors = []
   page.on('pageerror', error => pageErrors.push(error.message))
@@ -389,6 +513,7 @@ async function main() {
 
   for (const expected of pages) {
     pageErrors = []
+    heldBack = []
 
     await page.evaluate(
       ({ key, overrides }) => {
@@ -627,6 +752,10 @@ async function main() {
           `saw ${JSON.stringify(documentText.slice(0, 200))}`,
         )
       }
+    }
+
+    if (expected.angularPageAssets !== undefined) {
+      await checkAngularPageAssets(page, expected.angularPageAssets)
     }
 
     for (const selector of expected.present ?? []) {

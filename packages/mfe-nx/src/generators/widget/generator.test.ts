@@ -88,7 +88,8 @@ describe('the widget generator', () => {
 
     const readme = readTreeFile(tree, 'apps/alert-panel/README.md')
     expect(readme).toContain('Dialog, ConfirmDialog and Drawer do not')
-    expect(readme).toContain('same\n  PrimeNG version and the same preset')
+    expect(readme).toContain('**The host declares\n  them**')
+    expect(readme).toContain('page must use the same PrimeNG version**')
   })
 
   it("publishes the generated contract module at the package's own contracts export", async () => {

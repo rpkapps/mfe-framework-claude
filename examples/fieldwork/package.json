@@ -30,7 +30,6 @@
     "@angular/platform-browser": "catalog:",
     "@angular/router": "catalog:",
     "@company/mfe-angular": "workspace:*",
-    "@primeng/themes": "catalog:",
     "primeng": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:"

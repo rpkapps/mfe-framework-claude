@@ -148,7 +148,7 @@ The **base path** is the literal string form of the boundary. After `createRoute
 
 The `@scope` rule buys scope proximity in place of injection order, so two builds that both spell `bg-primary` no longer resolve by parse order. The runtime creates a **scope root** for each mount, carrying `data-mfe-scope`, and a body-level **overlay root** carrying the same attribute. A definition renders inside the first and portals into the second, and adds no root of its own. A React container's build-attached **style root** renders inside the scope root. `@scope` is the narrowest-supported feature the framework requires, at Chrome 118, Firefox 146 and iOS Safari 17.4, with no fallback ([decision 17](/docs/how-it-works/decisions#17-each-container-ships-its-own-stylesheet-scoped-to-its-own-mount-roots)).
 
-PrimeNG is outside this boundary. It writes its theme into unscoped style tags in the document head, so every Angular container on a page has to use the same PrimeNG version and preset. Its Dialog, ConfirmDialog and Drawer also need an explicit `appendTo` pointing at the mount's overlay root.
+PrimeNG is outside this boundary. It writes its components' rules into unscoped style tags in the document head, so every Angular container on a page has to use the same PrimeNG version. Its design tokens are the host's: containers give PrimeNG no preset, and the shell declares the tokens, Open Props and the Material Symbols font page-wide, before the first Angular container mounts ([decision 38](/docs/how-it-works/decisions#38-the-shell-loads-what-every-angular-container-shares-before-the-first-one-mounts)). Its Dialog, ConfirmDialog and Drawer also need an explicit `appendTo` pointing at the mount's overlay root.
 
 ### Storage
 
