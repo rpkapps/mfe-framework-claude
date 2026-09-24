@@ -1,4 +1,4 @@
-/* <bounce-loader> — the logo bouncing on its shadow, with squash and stretch. Themable via CSS
+/* <bounce-loader> — the logo as a glossy ball, bouncing on its shadow with squash and stretch. Themable via CSS
    custom properties on the element or any ancestor:
    --bounce-background      the backdrop: a colour, gradient, image or transparent (default #111217)
    --bounce-accent          the logo's disc and its shadow   (default #e50035)
@@ -82,8 +82,98 @@
       [1, 1],
     ])
 
+    // The mark: an upright H with straight, parallel edges, slanted by a fifth of its height.
+    const MARK =
+      'M86 239L104.6 146Q110.6 116 140.6 116L174.6 116L164 169L174 169L184.6 116L362.6 116L360 129L264 129Q250 129 247.2 143L233.2 213Q228 239 202 239L166 239L177 184L167 184L156 239Z'
+    // The key light, up and to the left of the viewer, and the half-vector of its highlight.
+    const unit = v => v.map(x => x / Math.hypot(...v))
+    const LIGHT = unit([-0.45, -0.6, 0.66])
+    const HALF = unit([LIGHT[0], LIGHT[1], LIGHT[2] + 1])
+    const BULGE = 0.4 // How far the logo wraps round the ball, 0–1.
+    const layer = (lw, lh) => {
+      if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(lw, lh)
+      const l = document.createElement('canvas')
+      l.width = lw
+      l.height = lh
+      return l
+    }
+
+    /**
+     * The logo as a ball, lit per pixel and drawn once per size and colour, then only scaled as
+     * it squashes. The flat logo is read from a canvas at twice the ball's resolution, wrapped a
+     * little round the sphere, and each pixel averages nine samples, so the edges stay smooth.
+     */
+    let ballSprite = null
+    let ballKey = ''
+    const ball = () => {
+      // Room for the stretch, so the ball is never drawn larger than it was rendered.
+      const px = Math.ceil(th.size * dpr * 1.2)
+      const key = `${px}|${th.accent}|${th.mark}`
+      if (ballSprite && key === ballKey) return ballSprite
+      ballKey = key
+
+      const tw = px * 2
+      const flat = layer(tw, tw)
+      const f = flat.getContext('2d', { willReadFrequently: true })
+      f.fillStyle = `rgb(${th.accent})`
+      f.fillRect(0, 0, tw, tw)
+      f.scale(tw / 340, tw / 340)
+      f.fillStyle = `rgb(${th.mark})`
+      f.fill(new Path2D(MARK))
+      const tex = f.getImageData(0, 0, tw, tw).data
+
+      ballSprite = layer(px, px)
+      const b = ballSprite.getContext('2d')
+      const img = b.createImageData(px, px)
+      const out = img.data
+      const R = (px * 164) / 340
+      const TR = (tw * 164) / 340
+      const C = px / 2
+      const TC = tw / 2
+      for (let j = 0; j < px; j++) {
+        for (let i = 0; i < px; i++) {
+          let r = 0
+          let g = 0
+          let bl = 0
+          let n = 0
+          for (let sj = 0; sj < 3; sj++) {
+            for (let si = 0; si < 3; si++) {
+              const x = (i + (si + 0.5) / 3 - C) / R
+              const y = (j + (sj + 0.5) / 3 - C) / R
+              const d2 = x * x + y * y
+              if (d2 >= 1) continue
+              const z = Math.sqrt(1 - d2)
+              const d = Math.sqrt(d2)
+              const wrap = d > 1e-6 ? (d + BULGE * ((2 / Math.PI) * Math.asin(d) - d)) / d : 1
+              const tx = Math.min(tw - 1, Math.max(0, Math.round(TC + x * wrap * TR)))
+              const ty = Math.min(tw - 1, Math.max(0, Math.round(TC + y * wrap * TR)))
+              const t = (ty * tw + tx) * 4
+              const diffuse = Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2])
+              const facing = Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2])
+              // Ambient and key light, darkened towards the rim, with light thrown back up from the
+              // floor on the lower edge; then a sharp highlight and a soft sheen.
+              const lit =
+                (0.42 + 0.7 * diffuse) * (0.78 + 0.22 * z) + 0.35 * Math.max(0, y) * (1 - z) ** 2
+              const shine = 255 * (0.7 * facing ** 90 + 0.1 * facing ** 12)
+              r += tex[t] * lit + shine
+              g += tex[t + 1] * lit + shine
+              bl += tex[t + 2] * lit + shine
+              n++
+            }
+          }
+          if (n === 0) continue
+          const o = (j * px + i) * 4
+          out[o] = r / n
+          out[o + 1] = g / n
+          out[o + 2] = bl / n
+          out[o + 3] = (255 * n) / 9
+        }
+      }
+      b.putImageData(img, 0, 0)
+      return ballSprite
+    }
+
     let cv = null
-    let mark = null
     let w = 0
     let h = 0
     let dpr = 1
@@ -133,20 +223,8 @@
       c.save()
       c.translate(cx, th.floor - (p === null ? 0 : lift(p) * size))
       if (p !== null) c.scale(scaleX(p), scaleY(p))
-      c.translate(-size / 2, -size)
-      c.scale(size / 340, size / 340)
-      c.beginPath()
-      c.arc(170, 170, 164, 0, Math.PI * 2)
-      c.fillStyle = `rgb(${th.accent})`
-      c.fill()
-      c.clip()
-      mark =
-        mark ||
-        new Path2D(
-          'M86 240 103 146Q108 116 135 116H174L164 169H173L184 116H338V129H263Q250 129 247 144L233 217Q229 239 203 239H166L177 184H167L156 239Z',
-        )
-      c.fillStyle = `rgb(${th.mark})`
-      c.fill(mark)
+      c.imageSmoothingQuality = 'high'
+      c.drawImage(ball(), -size / 2, -size, size, size)
       c.restore()
     }
 
