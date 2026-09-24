@@ -103,10 +103,16 @@
         --well-log-texture: 0.25;
       }
 
-      /* <bounce-loader>. The logo keeps its own red in both modes; on a light page its shadow is
-         lighter, since red blurred on white reads as a pink smudge. */
+      /* <bounce-loader>. The logo lands just above the middle, with the words right under it. It
+         keeps its own red in both modes; on a light page its shadow is lighter, since red blurred
+         on white reads as a pink smudge. */
       .shell-loader__art {
         --bounce-background: var(--loader-bg);
+        --bounce-floor: calc(50% - 16px);
+      }
+      #shell-loader[data-art='bounce'] .shell-loader__scene {
+        align-self: start;
+        margin: calc(50dvh - 4px) 0 0;
       }
       html:not(.dark) .shell-loader__art {
         --bounce-shadow-opacity: 0.18;
@@ -328,7 +334,15 @@
         var art = screen && screen.querySelector('[data-part="art"]')
         if (!art) return
 
-        function draw(name) {
+        // How long the loader stays up once drawn: the deployment's value, or the declared one.
+        function minDuration(config, name) {
+          var durations = config && config.loaderMinDuration
+          if (!durations || typeof durations !== 'object') durations = loaders.minDuration
+          var ms = Number(durations[name])
+          return ms > 0 ? ms : 0
+        }
+
+        function draw(name, config) {
           if (!Object.prototype.hasOwnProperty.call(loaders.draw, name)) name = loaders.fallback
           // A shell that was ready first never shows a drawing only to take it away again.
           var state = screen.dataset.state
@@ -352,9 +366,8 @@
           })
           screen.dataset.art = name
           art.appendChild(element)
-          // A loader may ask to stay up for a while once drawn (its element's `minimumDisplay`, in
-          // milliseconds), so a fast boot does not flash it; `revealShell` waits until then.
-          var minimum = Number(customElements.get(name + '-loader').minimumDisplay)
+          // So a fast boot does not flash the drawing, `revealShell` waits until then.
+          var minimum = minDuration(config, name)
           if (minimum > 0) screen.dataset.holdUntil = String(performance.now() + minimum)
         }
 
@@ -364,10 +377,11 @@
           })
           .then(
             function (config) {
-              draw(config && typeof config.loader === 'string' ? config.loader : loaders.fallback)
+              var name = config && typeof config.loader === 'string' ? config.loader : ''
+              draw(name, config)
             },
             function () {
-              draw(loaders.fallback)
+              draw(loaders.fallback, null)
             },
           )
       })()

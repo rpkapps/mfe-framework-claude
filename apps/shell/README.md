@@ -49,14 +49,15 @@ host validates without Zod ([decisions §37](../../docs/decisions.md)). The
 file is `/runtime-config.json`, which `index.html` preloads alongside the entry,
 and a deployment writes it from the environment when the image starts:
 
-| Variable            | Field             | What it does                                                          |
-| ------------------- | ----------------- | --------------------------------------------------------------------- |
-| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                           |
-| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                            |
-| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`                     |
-| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups`         |
-| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                  |
-| `SHELL_LOADER`      | `loader`          | the loading screen: `drill-bit` (the default), `well-log` or `bounce` |
+| Variable                    | Field               | What it does                                                                         |
+| --------------------------- | ------------------- | ------------------------------------------------------------------------------------ |
+| `OIDC_AUTHORITY`            | `oidcAuthority`     | the issuer URL; https, or http on localhost                                          |
+| `OIDC_CLIENT_ID`            | `oidcClientId`      | the public client registered for the shell                                           |
+| `OIDC_SCOPE`                | `oidcScope`         | defaults to `openid profile email offline_access`                                    |
+| `OIDC_GROUPS_CLAIM`         | `oidcGroupsClaim`   | the claim read into `shellState.groups`; defaults to `groups`                        |
+| `OIDC_DISABLED`             | `oidcDisabled`      | `true` runs without sign-in, as the development user                                 |
+| `SHELL_LOADER`              | `loader`            | the loading screen: `drill-bit` (the default), `well-log` or `bounce`                |
+| `SHELL_LOADER_MIN_DURATION` | `loaderMinDuration` | milliseconds each loader stays up at least, as JSON; `{"drill-bit":1000}` by default |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -101,15 +102,18 @@ other properties are listed at the top of `src/loaders/drill-bit.js`. Each
 loader also honours a `paused` attribute, which the page sets when loading
 fails.
 
-A loader can ask to stay on screen for a minimum time once drawn, so a fast
-boot does not flash it: `static minimumDisplay` on its element class, in
-milliseconds. The drill bit asks for 1000; the others ask for nothing and go as
-soon as the shell is ready. Until then the shell waits, hidden, behind it.
+A loader can stay on screen for a minimum time once drawn, so a fast boot does
+not flash it: `loaderMinDuration` in `src/mfe.config.ts`, milliseconds per
+loader, which the deployment can replace with `SHELL_LOADER_MIN_DURATION` (for
+example `{"drill-bit":1500,"bounce":960}`). The drill bit is held for 1000 by
+default and the others not at all. Until then the shell waits, hidden, behind
+it.
 
 To add a loader, add `src/loaders/<name>.js`, add `'<name>'` to the `z.enum`
-of `loader` in `src/mfe.config.ts`, and map its properties onto the loader's
-colours in `index.html`. The build refuses a name with no file, and a file no
-name reaches. Every loader adds its minified size to the document, whichever
+of `loader` and a key for it to `loaderMinDuration` in `src/mfe.config.ts`, and
+map its properties onto the loader's colours in `index.html`. The build refuses
+a name with no file, a file no name reaches, and a loader missing from the
+durations. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
 well log and 1 kB for the bounce.
 

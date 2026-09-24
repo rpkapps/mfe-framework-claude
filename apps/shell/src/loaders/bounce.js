@@ -5,6 +5,7 @@
    --bounce-mark            the mark on the disc             (default #fff)
    --bounce-shadow-opacity  the shadow's strength when the logo lands, 0–1 (default .26)
    --bounce-size            the logo's width and height      (default 88px)
+   --bounce-floor           how far down the box the logo lands (default 50% + .84 × its size)
    --bounce-speed           playback multiplier              (default 1)
 
    The `paused` attribute stops the bounce where it stands, and reduced motion rests the logo on
@@ -20,28 +21,35 @@
   const DURATION = 'calc(0.96s / var(--bounce-speed, 1))'
   const SIZE = 'var(--bounce-size, 88px)'
 
+  /* Every keyframe is a plain value, with no custom property in it, and each animated box is a
+     layer of its own: that is what lets the browser run the bounce on the compositor, so it stays
+     smooth while the main thread is busy. The travel is a percentage of the logo's own height,
+     and the shadow's strength is its wrapper's opacity. */
   const STYLE = `
-:host{display:block;position:relative;overflow:hidden;min-height:120px;background:var(--bounce-background,#111217)}
-.stage{position:absolute;left:50%;top:50%;width:calc(${SIZE} * 3.25);height:calc(${SIZE} * 2.8);transform:translate(-50%,-50%)}
-.shadow{position:absolute;left:50%;top:calc(62% + ${SIZE} * .5 + 6px);width:calc(${SIZE} * .94);height:9px;
-  border-radius:50%;background:var(--bounce-accent,#e50035);filter:blur(5px);
-  opacity:var(--bounce-shadow-opacity,.26);transform:translateX(-50%);animation:shadow ${DURATION} infinite}
-.position{position:absolute;left:50%;top:62%;width:${SIZE};height:${SIZE};transform:translate(-50%,-50%)}
-.motion{width:100%;height:100%;animation:bounce ${DURATION} infinite;will-change:transform}
-svg{display:block;width:100%;height:100%;transform-origin:center bottom;animation:squash ${DURATION} infinite}
+:host{display:block;position:relative;overflow:hidden;min-height:120px;background:var(--bounce-background,#111217);
+  --floor:var(--bounce-floor,calc(50% + ${SIZE} * .84))}
+.shadow{position:absolute;left:50%;top:calc(var(--floor) + 6px);width:calc(${SIZE} * .94);height:9px;
+  margin-left:calc(${SIZE} * -.47);opacity:var(--bounce-shadow-opacity,.26)}
+.shadow div{width:100%;height:100%;border-radius:50%;background:var(--bounce-accent,#e50035);filter:blur(5px);
+  animation:shadow ${DURATION} infinite;will-change:transform,opacity}
+.position{position:absolute;left:50%;top:calc(var(--floor) - ${SIZE});width:${SIZE};height:${SIZE};margin-left:calc(${SIZE} * -.5)}
+.motion,.squash{width:100%;height:100%;will-change:transform}
+.motion{animation:bounce ${DURATION} infinite}
+.squash{transform-origin:center bottom;animation:squash ${DURATION} infinite}
+svg{display:block;width:100%;height:100%}
 .disc{fill:var(--bounce-accent,#e50035)}
 .mark{fill:var(--bounce-mark,#fff)}
 @keyframes bounce{
   0%,100%{transform:translateY(0);animation-timing-function:cubic-bezier(.23,.05,.27,1)}
-  48%{transform:translateY(calc(${SIZE} * -.64));animation-timing-function:cubic-bezier(.65,0,.85,.48)}}
+  48%{transform:translateY(-64%);animation-timing-function:cubic-bezier(.65,0,.85,.48)}}
 @keyframes squash{
   0%,100%{transform:scale(1.17,.83)}
   16%{transform:scale(.92,1.08)}
   48%{transform:scale(1.025,.975)}
   82%{transform:scale(.94,1.06)}}
 @keyframes shadow{
-  0%,100%{transform:translateX(-50%) scaleX(1);opacity:var(--bounce-shadow-opacity,.26);animation-timing-function:ease-out}
-  48%{transform:translateX(-50%) scaleX(.42);opacity:calc(var(--bounce-shadow-opacity,.26) * .33);animation-timing-function:ease-in}}
+  0%,100%{transform:scaleX(1);opacity:1;animation-timing-function:ease-out}
+  48%{transform:scaleX(.42);opacity:.33;animation-timing-function:ease-in}}
 :host([paused]) *{animation-play-state:paused}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 `
@@ -53,8 +61,8 @@ svg{display:block;width:100%;height:100%;transform-origin:center bottom;animatio
     constructor() {
       super()
       this.attachShadow({ mode: 'open' }).innerHTML =
-        `<style>${STYLE}</style><div class="stage"><div class="shadow"></div>` +
-        `<div class="position"><div class="motion">${LOGO}</div></div></div>`
+        `<style>${STYLE}</style><div class="shadow"><div></div></div>` +
+        `<div class="position"><div class="motion"><div class="squash">${LOGO}</div></div></div>`
     }
   }
   customElements.define('bounce-loader', BounceLoader)

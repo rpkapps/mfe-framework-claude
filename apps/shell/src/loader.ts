@@ -57,8 +57,8 @@ export function failLoader(failure: LoaderFailure): void {
 
 /**
  * Idempotent, because StrictMode and hot reload both run the effect that calls it again. A loader
- * that asked for a minimum time on screen (`data-hold-until`, which index.html sets when it draws
- * one) keeps the shell hidden until that time has passed.
+ * with a minimum time on screen (`loaderMinDuration`; index.html sets `data-hold-until` when it
+ * draws one) keeps the shell hidden until that time has passed.
  */
 export function revealShell(): void {
   const root = document.documentElement

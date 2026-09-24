@@ -22,4 +22,17 @@ export default {
   // its file is. index.html reads it itself, before any script, and draws the default when the
   // runtime configuration cannot be read.
   loader: env('SHELL_LOADER', z.enum(['drill-bit', 'well-log', 'bounce']).default('drill-bit')),
+  // How long each loader stays on screen once drawn, in milliseconds, however soon the shell is
+  // ready, so a fast boot does not flash it; a loader left out goes at once. It names every loader
+  // above, and setting it replaces the whole map, for example {"drill-bit":1500}.
+  loaderMinDuration: env(
+    'SHELL_LOADER_MIN_DURATION',
+    z
+      .object({
+        'drill-bit': z.number().int().min(0).max(10000).optional(),
+        'well-log': z.number().int().min(0).max(10000).optional(),
+        bounce: z.number().int().min(0).max(10000).optional(),
+      })
+      .default({ 'drill-bit': 1000 }),
+  ),
 }

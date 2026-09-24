@@ -35,7 +35,11 @@ export default defineConfig({
     pluginReact(),
     pluginMfeHostConfig(),
     // The loading screens, minified into index.html, which draws the one SHELL_LOADER names.
-    pluginShellLoaders({ root: here, declaration: shellConfig.loader }),
+    pluginShellLoaders({
+      root: here,
+      loader: shellConfig.loader,
+      minDuration: shellConfig.loaderMinDuration,
+    }),
   ],
 
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.

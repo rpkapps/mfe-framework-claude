@@ -15,7 +15,6 @@
    The canvas is transparent, so the backdrop and its effects are CSS only: set the effects' opacity
    to 0 for an exact, flat --drill-background. The `paused` attribute stops the animation where it
    stands. Drag to turn the bit. Reduced motion stops the automatic turn and keeps the drag.
-   `DrillBitLoader.minimumDisplay` is how long, in milliseconds, the shell keeps it up once drawn.
 
    The shell's build emits this file on its own and index.html loads it when the deployment chose it
    (SHELL_LOADER); the loader's styles set each property from a Tecton token. The geometry is built
@@ -1130,8 +1129,6 @@ canvas:active{cursor:grabbing}
 
   class DrillBitLoader extends HTMLElement {
     static observedAttributes = ['paused']
-    // A turn of the bit takes ten seconds; less than a second of it reads as a flicker.
-    static minimumDisplay = 1000
 
     constructor() {
       super()

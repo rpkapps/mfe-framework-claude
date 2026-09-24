@@ -2,7 +2,8 @@
  * The loading screens the shell can draw while sign-in and boot run. Each one is a script in
  * `src/loaders/`, `<name>.js`, that defines the custom element `<name>-loader`; the deployment
  * chooses one with `SHELL_LOADER`, declared as `loader` in `src/mfe.config.ts`, whose `z.enum`
- * lists every name and whose default is the one drawn when nothing says otherwise.
+ * lists every name and whose default is the one drawn when nothing says otherwise. How long each
+ * stays on screen at least is `loaderMinDuration` there, a `z.object` with a key per loader.
  *
  * The build minifies every loader and inlines them all into index.html, each wrapped in a function
  * that only the chosen one's is called: the page draws without fetching a script, and a loader the
@@ -26,19 +27,33 @@ export interface ShellLoader {
 export interface ShellLoaders {
   /** The one drawn when the runtime configuration names none, or cannot be read. */
   readonly fallback: string
+  /** The declared minimum durations, used when the runtime configuration carries none. */
+  readonly minDuration: Readonly<Record<string, number>>
   readonly loaders: readonly ShellLoader[]
+}
+
+export interface ShellLoaderDeclarations {
+  /** `loader`: which loader draws. */
+  readonly loader: EnvVarDescriptor
+  /** `loaderMinDuration`: how long each stays on screen at least, in milliseconds. */
+  readonly minDuration: EnvVarDescriptor
 }
 
 /** A loader's name is also the start of its element's, so it is what a custom element allows. */
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
 /**
- * Reads the names and the default from the `loader` declaration, and every loader's source. The
- * two lists have to agree: a name with no file would leave the page with nothing to draw, and a
- * file no name reaches could never be chosen.
+ * Reads the names and the default from the `loader` declaration, the minimum durations from
+ * `loaderMinDuration`, and every loader's source. The lists have to agree: a name with no file
+ * would leave the page with nothing to draw, a file no name reaches could never be chosen, and a
+ * loader missing from the durations could never be given one.
  */
-export function readShellLoaders(root: string, declaration: EnvVarDescriptor): ShellLoaders {
+export function readShellLoaders(
+  root: string,
+  declarations: ShellLoaderDeclarations,
+): ShellLoaders {
   const where = 'src/mfe.config.ts'
+  const declaration = declarations.loader
   const schema = z.toJSONSchema(declaration.schema) as { enum?: unknown; default?: unknown }
   const names = schema.enum
   if (!Array.isArray(names) || names.length === 0 || !names.every(isName)) {
@@ -51,6 +66,8 @@ export function readShellLoaders(root: string, declaration: EnvVarDescriptor): S
       `${where}: give ${declaration.name} a .default() naming one of its loaders, which is drawn when the runtime configuration cannot be read.`,
     )
   }
+
+  const minDuration = readMinDuration(declarations.minDuration, names, where)
 
   const directory = join(root, 'src/loaders')
   const files = readdirSync(directory).filter(file => file.endsWith('.js'))
@@ -71,7 +88,37 @@ export function readShellLoaders(root: string, declaration: EnvVarDescriptor): S
     return { name, file: relative(root, file), source: readFileSync(file, 'utf8') }
   })
 
-  return { fallback: schema.default, loaders }
+  return { fallback: schema.default, minDuration, loaders }
+}
+
+function readMinDuration(
+  declaration: EnvVarDescriptor,
+  names: readonly string[],
+  where: string,
+): Record<string, number> {
+  const schema = z.toJSONSchema(declaration.schema) as { properties?: unknown; default?: unknown }
+  const keys =
+    schema.properties !== null && typeof schema.properties === 'object'
+      ? Object.keys(schema.properties)
+      : null
+  const missing = keys === null ? names : names.filter(name => !keys.includes(name))
+  const extra = keys === null ? [] : keys.filter(key => !names.includes(key))
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `${where}: declare ${declaration.name} as z.object({...}) with one optional number of milliseconds per loader, and no other key.${missing.length > 0 ? ` It has no key for ${missing.map(name => `'${name}'`).join(', ')}.` : ''}${extra.length > 0 ? ` ${extra.map(key => `'${key}'`).join(', ')} is not a loader.` : ''}`,
+    )
+  }
+  const value: unknown = schema.default ?? {}
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !Object.values(value).every(ms => typeof ms === 'number' && ms >= 0)
+  ) {
+    throw new Error(
+      `${where}: give ${declaration.name} a .default() of milliseconds per loader, for example .default({ 'drill-bit': 1000 }).`,
+    )
+  }
+  return value as Record<string, number>
 }
 
 function isName(value: unknown): value is string {
@@ -79,10 +126,14 @@ function isName(value: unknown): value is string {
 }
 
 /**
- * The object index.html is given, as JavaScript: the fallback's name, and each loader minified
- * into a function that defines its element when called.
+ * The object index.html is given, as JavaScript: the fallback's name, the declared minimum
+ * durations, and each loader minified into a function that defines its element when called.
  */
-export async function inlineShellLoaders({ fallback, loaders }: ShellLoaders): Promise<string> {
+export async function inlineShellLoaders({
+  fallback,
+  minDuration,
+  loaders,
+}: ShellLoaders): Promise<string> {
   const entries = await Promise.all(
     loaders.map(async loader => {
       const { code } = await rspack.experiments.swc.minify(loader.source, {
@@ -98,14 +149,13 @@ export async function inlineShellLoaders({ fallback, loaders }: ShellLoaders): P
       return `${JSON.stringify(loader.name)}:function(){${code}}`
     }),
   )
-  return `{fallback:${JSON.stringify(fallback)},draw:{${entries.join(',')}}}`
+  return `{fallback:${JSON.stringify(fallback)},minDuration:${JSON.stringify(minDuration)},draw:{${entries.join(',')}}}`
 }
 
 /** Gives the template `shellLoaders`, the object `inlineShellLoaders` writes. */
-export function pluginShellLoaders(options: {
-  readonly root: string
-  readonly declaration: EnvVarDescriptor
-}): RsbuildPlugin {
+export function pluginShellLoaders(
+  options: ShellLoaderDeclarations & { readonly root: string },
+): RsbuildPlugin {
   return {
     name: 'shell-loaders',
 
@@ -114,9 +164,7 @@ export function pluginShellLoaders(options: {
         mergeRsbuildConfig(config, {
           html: {
             templateParameters: {
-              shellLoaders: await inlineShellLoaders(
-                readShellLoaders(options.root, options.declaration),
-              ),
+              shellLoaders: await inlineShellLoaders(readShellLoaders(options.root, options)),
             },
           },
           // Read once, with the configuration, so a change to a loader restarts the server.
