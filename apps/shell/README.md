@@ -49,15 +49,14 @@ host validates without Zod ([decisions §37](../../docs/decisions.md)). The
 file is `/runtime-config.json`, which `index.html` preloads alongside the entry,
 and a deployment writes it from the environment when the image starts:
 
-| Variable                    | Field               | What it does                                                                         |
-| --------------------------- | ------------------- | ------------------------------------------------------------------------------------ |
-| `OIDC_AUTHORITY`            | `oidcAuthority`     | the issuer URL; https, or http on localhost                                          |
-| `OIDC_CLIENT_ID`            | `oidcClientId`      | the public client registered for the shell                                           |
-| `OIDC_SCOPE`                | `oidcScope`         | defaults to `openid profile email offline_access`                                    |
-| `OIDC_GROUPS_CLAIM`         | `oidcGroupsClaim`   | the claim read into `shellState.groups`; defaults to `groups`                        |
-| `OIDC_DISABLED`             | `oidcDisabled`      | `true` runs without sign-in, as the development user                                 |
-| `SHELL_LOADER`              | `loader`            | the loading screen, one of the loaders below; `drill-bit` by default                 |
-| `SHELL_LOADER_MIN_DURATION` | `loaderMinDuration` | milliseconds each loader stays up at least, as JSON; `{"drill-bit":1000}` by default |
+| Variable            | Field             | What it does                                                               |
+| ------------------- | ----------------- | -------------------------------------------------------------------------- |
+| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                                |
+| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                                 |
+| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`                          |
+| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups`              |
+| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                       |
+| `SHELL_LOADER`      | `loader`          | a loading screen other than the one the build chose, or `cycle`; see below |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -76,8 +75,8 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
-While sign-in and boot run, `index.html` shows a loading screen: the drawing
-`SHELL_LOADER` names, with the title and status over it. It fades out as the
+While sign-in and boot run, `index.html` shows a loading screen: a drawing,
+with the title and status over it. It fades out as the
 shell fades in; if sign-in fails the drawing stops and recedes behind the
 reason and a way forward.
 
@@ -127,19 +126,26 @@ them white, and draw above the title and status rather than behind them. Each
 loader also honours a `paused` attribute, which the page sets when loading
 fails.
 
-A loader can stay on screen for a minimum time once drawn, so a fast boot does
-not flash it: `loaderMinDuration` in `src/mfe.config.ts`, milliseconds per
-loader, which the deployment can replace with `SHELL_LOADER_MIN_DURATION` (for
-example `{"drill-bit":1500,"bounce":960}`). The drill bit and the five STRATUM
-models are held for 1000 by default and the others not at all. Until then the shell waits, hidden, behind
-it.
+Two plain exports in `src/mfe.config.ts` choose it, and the build writes both
+into the page:
+
+```ts
+export const loader = 'drill-bit' // or 'cycle': the next loader on each page load
+export const loaderMinDuration = 1000 // milliseconds it stays up at least, once drawn
+```
+
+`cycle` goes through every loader in the order `SHELL_LOADER`'s `z.enum` lists
+them, one per page load, remembering in the browser's `localStorage` which it
+showed last. A deployment can choose another loader, or `cycle`, with
+`SHELL_LOADER`, which has no default, so a development copy of the runtime
+configuration never pins one. The minimum duration keeps a fast boot from
+flashing the drawing: until it has passed, the shell waits, hidden, behind it.
 
 To add a loader, add `src/loaders/<name>.js` (or a scene to a family's
-directory), add `'<name>'` to the `z.enum`
-of `loader` and a key for it to `loaderMinDuration` in `src/mfe.config.ts`, and
-map its properties onto the loader's colours in `index.html`. The build refuses
-a name with no file, a file no name reaches, and a loader missing from the
-durations. Every loader adds its minified size to the document, whichever
+directory), add `'<name>'` to the `z.enum` of `SHELL_LOADER` in
+`src/mfe.config.ts`, and map its properties onto the loader's colours in
+`index.html`. The build refuses a name with no file, a file no name reaches,
+and a `loader` export `SHELL_LOADER` does not list. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
 well log, 3 kB for the bounce, 25 kB for all 39 oil-and-gas scenes and their
 kit, and 16 kB for the five STRATUM models and theirs: 60 kB for the page.

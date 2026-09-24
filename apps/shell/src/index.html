@@ -362,9 +362,10 @@
     </script>
     <!-- The drawing, after the theme so its first frame is in the right mode. Every loader in
          src/loaders/ is minified into this script by the build and only the chosen one runs, so
-         none waits for a download. Which one is in the runtime configuration, read here with a
-         request of its own: taking the preload above would send the entry's read back to the
-         network. A file that cannot be read draws the default, and the entry says why it failed. -->
+         none waits for a download. Which one is the `loader` src/mfe.config.ts built in, unless the
+         deployment's runtime configuration sets SHELL_LOADER, read here with a request of its own:
+         taking the preload above would send the entry's read back to the network. A file that
+         cannot be read draws the built-in one, and the entry says why it failed. -->
     <script>
       ;(function () {
         var loaders = <%= shellLoaders %>
@@ -372,19 +373,37 @@
         var art = screen && screen.querySelector('[data-part="art"]')
         if (!art) return
 
-        // How long the loader stays up once drawn: the deployment's value, or the declared one.
-        function minDuration(config, name) {
-          var durations = config && config.loaderMinDuration
-          if (!durations || typeof durations !== 'object') durations = loaders.minDuration
-          var ms = Number(durations[name])
-          return ms > 0 ? ms : 0
+        // Every loader, in the order src/mfe.config.ts lists them, which is the order 'cycle' takes.
+        var names = Object.keys(loaders.draw)
+        var CYCLE_KEY = 'shell.loader.cycle'
+
+        // The loader a choice names: itself, or for 'cycle' the one after the last this browser
+        // showed. Null for anything else.
+        function choose(choice) {
+          if (choice === 'cycle') {
+            var last = null
+            try {
+              last = window.localStorage.getItem(CYCLE_KEY)
+            } catch (error) {
+              // Storage blocked: every load starts from the first.
+            }
+            var next = names[(names.indexOf(last) + 1) % names.length]
+            try {
+              window.localStorage.setItem(CYCLE_KEY, next)
+            } catch (error) {
+              // Storage blocked or full: the next load shows the first again.
+            }
+            return next
+          }
+          return Object.prototype.hasOwnProperty.call(loaders.draw, choice) ? choice : null
         }
 
-        function draw(name, config) {
-          if (!Object.prototype.hasOwnProperty.call(loaders.draw, name)) name = loaders.fallback
-          // A shell that was ready first never shows a drawing only to take it away again.
+        function draw(choice) {
+          // A shell that was ready first never shows a drawing only to take it away again, and
+          // 'cycle' does not move on for a load that showed none.
           var state = screen.dataset.state
           if (!screen.isConnected || (state !== 'loading' && state !== 'error')) return
+          var name = choose(choice) || choose(loaders.fallback) || names[0]
           try {
             var entry = loaders.draw[name]
             entry.run(entry.kit ? loaders.kits[entry.kit]() : undefined)
@@ -405,22 +424,24 @@
           })
           screen.dataset.art = name
           art.appendChild(element)
-          // So a fast boot does not flash the drawing, `revealShell` waits until then.
-          var minimum = minDuration(config, name)
-          if (minimum > 0) screen.dataset.holdUntil = String(performance.now() + minimum)
+          // So a fast boot does not flash the drawing, `revealShell` waits until it has been up for
+          // loaderMinDuration (src/mfe.config.ts).
+          if (loaders.minDuration > 0) {
+            screen.dataset.holdUntil = String(performance.now() + loaders.minDuration)
+          }
         }
 
+        // The deployment's SHELL_LOADER, or the `loader` src/mfe.config.ts built in.
         fetch('/runtime-config.json?loader', { credentials: 'same-origin', cache: 'no-store' })
           .then(function (response) {
             return response.ok ? response.json() : null
           })
           .then(
             function (config) {
-              var name = config && typeof config.loader === 'string' ? config.loader : ''
-              draw(name, config)
+              draw(config && typeof config.loader === 'string' ? config.loader : '')
             },
             function () {
-              draw(loaders.fallback, null)
+              draw(loaders.fallback)
             },
           )
       })()

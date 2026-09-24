@@ -18,7 +18,7 @@ import {
   useWorkspaceModules,
 } from '../../tools/tecton/tecton-build.mjs'
 import { pluginShellLoaders } from './scripts/loaders.ts'
-import shellConfig from './src/mfe.config.ts'
+import shellConfig, { loader, loaderMinDuration } from './src/mfe.config.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -38,7 +38,8 @@ export default defineConfig({
     pluginShellLoaders({
       root: here,
       loader: shellConfig.loader,
-      minDuration: shellConfig.loaderMinDuration,
+      fallback: loader,
+      minDuration: loaderMinDuration,
     }),
   ],
 

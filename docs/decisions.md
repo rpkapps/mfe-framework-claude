@@ -959,15 +959,15 @@ user menu says "Sign-in is off" rather than hiding the sign-out entry.
 **The loading screen is in `index.html`**, painted before any stylesheet or script is
 fetched, so it cannot use Tecton's classes: each colour names the Tecton token first and
 falls back to that token's own value for the mode. Its drawing is a canvas custom element
-chosen per deployment by `SHELL_LOADER` (`loader` in `src/mfe.config.ts`), from the scripts
-in `src/loaders/`: the build minifies every one of them into the page, and an inline script
+from the scripts in `src/loaders/`, chosen by the `loader` export of `src/mfe.config.ts` (or
+`cycle`, the next one on each page load) unless a deployment sets `SHELL_LOADER`: the build minifies every one of them into the page, and an inline script
 reads the runtime configuration and runs only the one it names, or the declared default.
 A directory of loaders is a family that shares a `kit.js`, inlined once, so the 39 oil-and-gas scenes carry one worker and one set of helpers between them. Inlining all of them costs every load the bytes of the loaders it does not draw (about 60 kB gzipped for the page with 47 loaders in two families); fetching
 the chosen one instead would wait for a second download before anything moved. The
 configuration is read with a request of its own, because taking the preload would send the
 entry's read back to the network. Each loader draws in a worker through an `OffscreenCanvas`,
 so it keeps its frame rate while the entry parses and boots on the main thread, and the boot no longer shares that thread with it:
-under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it. A loader may stay up for a minimum time once drawn (`loaderMinDuration`, per loader; the drill bit's is a second), and a boot faster than that waits, hidden, until it has passed: a fast load is a moment slower rather than a flash of a drawing that is gone before it reads.
+under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it. The loading screen stays up for a minimum time once drawn (`loaderMinDuration`, a second), and a boot faster than that waits, hidden, until it has passed: a fast load is a moment slower rather than a flash of a drawing that is gone before it reads. The choice and the minimum are plain exports of `src/mfe.config.ts`, built into the page, rather than runtime settings with defaults: generating seeds a development copy of the runtime configuration with every declared default and never changes a value it seeded, so an edit to a default would never reach a developer's page. `SHELL_LOADER` stays, without a default, for a deployment to choose another.
 
 **Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
 running in the page could read it for that long rather than only use it; DPoP, where the

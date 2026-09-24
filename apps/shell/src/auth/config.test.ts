@@ -11,7 +11,6 @@ const UNSET: MfeConfig = {
   oidcGroupsClaim: 'groups',
   oidcDisabled: undefined,
   loader: 'drill-bit',
-  loaderMinDuration: { 'drill-bit': 1000 },
 }
 
 function config(values: Partial<MfeConfig>): MfeConfig {

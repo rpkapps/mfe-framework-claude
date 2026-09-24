@@ -1,9 +1,9 @@
 /**
  * The loading screens the shell can draw while sign-in and boot run. Each one is a script in
- * `src/loaders/`, `<name>.js`, that defines the custom element `<name>-loader`; the deployment
- * chooses one with `SHELL_LOADER`, declared as `loader` in `src/mfe.config.ts`, whose `z.enum`
- * lists every name and whose default is the one drawn when nothing says otherwise. How long each
- * stays on screen at least is `loaderMinDuration` there, a `z.object` with a key per loader.
+ * `src/loaders/`, `<name>.js`, that defines the custom element `<name>-loader`. `src/mfe.config.ts`
+ * chooses one with its `loader` export, which a deployment can replace with `SHELL_LOADER`, whose
+ * `z.enum` lists every name. `cycle` is not a loader but a choice: the next one on each page
+ * load. How long the loading screen stays up at least is `loaderMinDuration` there.
  *
  * A directory of loaders is a family that shares a kit: `src/loaders/<family>/kit.js` declares
  * `const kit`, and every other script there, `<name>.js`, is a loader that uses it, as `kit`.
@@ -35,30 +35,34 @@ export interface ShellLoaderKit {
   readonly source: string
 }
 
+/** The choice that shows the next loader on each page load, rather than a loader. */
+export const CYCLE = 'cycle'
+
 export interface ShellLoaders {
-  /** The one drawn when the runtime configuration names none, or cannot be read. */
+  /** What is drawn when the runtime configuration names nothing, or cannot be read. */
   readonly fallback: string
-  /** The declared minimum durations, used when the runtime configuration carries none. */
-  readonly minDuration: Readonly<Record<string, number>>
+  /** How long the loading screen stays up at least once drawn, in milliseconds. */
+  readonly minDuration: number
   readonly loaders: readonly ShellLoader[]
   readonly kits: readonly ShellLoaderKit[]
 }
 
 export interface ShellLoaderDeclarations {
-  /** `loader`: which loader draws. */
+  /** `SHELL_LOADER`: the names a deployment can choose from. */
   readonly loader: EnvVarDescriptor
-  /** `loaderMinDuration`: how long each stays on screen at least, in milliseconds. */
-  readonly minDuration: EnvVarDescriptor
+  /** The `loader` export: what is drawn unless a deployment chooses otherwise. */
+  readonly fallback: string
+  /** `loaderMinDuration`: how long the loading screen stays up at least, in milliseconds. */
+  readonly minDuration: number
 }
 
 /** A loader's name is also the start of its element's, so it is what a custom element allows. */
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
 /**
- * Reads the names and the default from the `loader` declaration, the minimum durations from
- * `loaderMinDuration`, and every loader's source. The lists have to agree: a name with no file
- * would leave the page with nothing to draw, a file no name reaches could never be chosen, and a
- * loader missing from the durations could never be given one.
+ * Reads the names and the default from the `loader` declaration, and every loader's source. The
+ * two lists have to agree: a name with no file would leave the page with nothing to draw, and a
+ * file no name reaches could never be chosen.
  */
 export function readShellLoaders(
   root: string,
@@ -66,20 +70,26 @@ export function readShellLoaders(
 ): ShellLoaders {
   const where = 'src/mfe.config.ts'
   const declaration = declarations.loader
-  const schema = z.toJSONSchema(declaration.schema) as { enum?: unknown; default?: unknown }
-  const names = schema.enum
-  if (!Array.isArray(names) || names.length === 0 || !names.every(isName)) {
+  const schema = z.toJSONSchema(declaration.schema) as { enum?: unknown }
+  const choices = schema.enum
+  if (!Array.isArray(choices) || choices.length === 0 || !choices.every(isName)) {
     throw new Error(
-      `${where}: declare ${declaration.name} with z.enum([...]) of loader names (lower-case words joined by hyphens), for example z.enum(['drill-bit', 'well-log']).`,
+      `${where}: declare ${declaration.name} with z.enum([...]) of loader names (lower-case words joined by hyphens), for example z.enum(['drill-bit', 'well-log', 'cycle']).`,
     )
   }
-  if (typeof schema.default !== 'string' || !names.includes(schema.default)) {
+  if (!choices.includes(declarations.fallback)) {
     throw new Error(
-      `${where}: give ${declaration.name} a .default() naming one of its loaders, which is drawn when the runtime configuration cannot be read.`,
+      `${where}: loader is '${declarations.fallback}', which ${declaration.name} does not list. Name one of its loaders, or 'cycle'.`,
     )
   }
+  const names = choices.filter(name => name !== CYCLE)
 
-  const minDuration = readMinDuration(declarations.minDuration, names, where)
+  const minDuration = declarations.minDuration
+  if (!Number.isFinite(minDuration) || minDuration < 0) {
+    throw new Error(
+      `${where}: loaderMinDuration is a number of milliseconds, 0 or more, for example 1000.`,
+    )
+  }
 
   const directory = join(root, 'src/loaders')
   const { found, kits } = findLoaders(root, directory)
@@ -105,7 +115,7 @@ export function readShellLoaders(
     }
   })
 
-  return { fallback: schema.default, minDuration, loaders, kits }
+  return { fallback: declarations.fallback, minDuration, loaders, kits }
 }
 
 /** Every loader's file by its name, and every family's kit. */
@@ -126,6 +136,11 @@ function findLoaders(
   }
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
+    if (entry.isFile() && entry.name === `${CYCLE}.js`) {
+      throw new Error(
+        `${relative(root, path)}: '${CYCLE}' is the choice of every loader in turn, so no loader can be called that.`,
+      )
+    }
     if (entry.isFile() && entry.name.endsWith('.js')) add(entry.name.slice(0, -3), path)
     if (!entry.isDirectory()) continue
     const kitFile = join(path, 'kit.js')
@@ -147,43 +162,13 @@ function findLoaders(
   return { found, kits }
 }
 
-function readMinDuration(
-  declaration: EnvVarDescriptor,
-  names: readonly string[],
-  where: string,
-): Record<string, number> {
-  const schema = z.toJSONSchema(declaration.schema) as { properties?: unknown; default?: unknown }
-  const keys =
-    schema.properties !== null && typeof schema.properties === 'object'
-      ? Object.keys(schema.properties)
-      : null
-  const missing = keys === null ? names : names.filter(name => !keys.includes(name))
-  const extra = keys === null ? [] : keys.filter(key => !names.includes(key))
-  if (missing.length > 0 || extra.length > 0) {
-    throw new Error(
-      `${where}: declare ${declaration.name} as z.object({...}) with one optional number of milliseconds per loader, and no other key.${missing.length > 0 ? ` It has no key for ${missing.map(name => `'${name}'`).join(', ')}.` : ''}${extra.length > 0 ? ` ${extra.map(key => `'${key}'`).join(', ')} is not a loader.` : ''}`,
-    )
-  }
-  const value: unknown = schema.default ?? {}
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    !Object.values(value).every(ms => typeof ms === 'number' && ms >= 0)
-  ) {
-    throw new Error(
-      `${where}: give ${declaration.name} a .default() of milliseconds per loader, for example .default({ 'drill-bit': 1000 }).`,
-    )
-  }
-  return value as Record<string, number>
-}
-
 function isName(value: unknown): value is string {
   return typeof value === 'string' && NAME.test(value)
 }
 
 /**
- * The object index.html is given, as JavaScript: the fallback's name, the declared minimum
- * durations, each family's kit minified into a function that returns it, and each loader
+ * The object index.html is given, as JavaScript: the fallback's name, the minimum duration, each
+ * family's kit minified into a function that returns it, and each loader
  * minified into `run`, which defines its element when called with its family's kit.
  */
 export async function inlineShellLoaders({

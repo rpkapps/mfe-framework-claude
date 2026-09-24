@@ -21,22 +21,17 @@ function root(files: Record<string, string>): string {
 }
 
 const LOADER = "customElements.define('a-loader', class extends HTMLElement {})"
-const loader = env('SHELL_LOADER', z.enum(['drill-bit', 'well-log']).default('drill-bit'))
-const ms = z.number().int().min(0).optional()
-const minDuration = env(
-  'SHELL_LOADER_MIN_DURATION',
-  z.object({ 'drill-bit': ms, 'well-log': ms }).default({ 'drill-bit': 1000 }),
-)
-const declarations = { loader, minDuration }
+const loader = env('SHELL_LOADER', z.enum(['drill-bit', 'well-log', 'cycle']).optional())
+const declarations = { loader, fallback: 'drill-bit', minDuration: 1000 }
 
 describe('readShellLoaders', () => {
-  it('reads every name the declaration lists, its default and the minimum durations', () => {
+  it('reads every loader the declaration lists, what draws by default and the minimum duration', () => {
     const loaders = readShellLoaders(
       root({ 'drill-bit.js': LOADER, 'well-log.js': LOADER }),
       declarations,
     )
     expect(loaders.fallback).toBe('drill-bit')
-    expect(loaders.minDuration).toEqual({ 'drill-bit': 1000 })
+    expect(loaders.minDuration).toBe(1000)
     expect(loaders.loaders.map(loader => loader.name)).toEqual(['drill-bit', 'well-log'])
   })
 
@@ -93,25 +88,35 @@ describe('readShellLoaders', () => {
     ).toThrow(/'well-log' is also/)
   })
 
-  it('refuses a declaration that is not an enum with a default', () => {
-    const files = root({ 'drill-bit.js': LOADER })
-    const only = (schema: z.ZodType) => ({ loader: env('SHELL_LOADER', schema), minDuration })
+  it('refuses a declaration that is not an enum, and a default it does not list', () => {
+    const files = root({ 'drill-bit.js': LOADER, 'well-log.js': LOADER })
+    const only = (schema: z.ZodType) => ({
+      loader: env('SHELL_LOADER', schema),
+      fallback: 'drill-bit',
+      minDuration: 0,
+    })
     expect(() => readShellLoaders(files, only(z.string()))).toThrow(/z\.enum/)
-    expect(() => readShellLoaders(files, only(z.enum(['drill-bit'])))).toThrow(/\.default\(\)/)
+    expect(() => readShellLoaders(files, { ...declarations, fallback: 'pumpjack' })).toThrow(
+      /loader is 'pumpjack', which SHELL_LOADER does not list/,
+    )
   })
 
-  it('refuses minimum durations that do not name every loader, and only loaders', () => {
-    const files = root({ 'drill-bit.js': LOADER, 'well-log.js': LOADER })
-    const durations = (shape: Record<string, z.ZodType>) => ({
-      loader,
-      minDuration: env('SHELL_LOADER_MIN_DURATION', z.object(shape).default({})),
-    })
-    expect(() => readShellLoaders(files, durations({ 'drill-bit': ms }))).toThrow(
-      /no key for 'well-log'/,
+  it("takes 'cycle' as a choice, not a loader, and refuses a loader of that name", () => {
+    const files = { 'drill-bit.js': LOADER, 'well-log.js': LOADER }
+    const loaders = readShellLoaders(root(files), { ...declarations, fallback: 'cycle' })
+    expect(loaders.fallback).toBe('cycle')
+    expect(loaders.loaders.map(loader => loader.name)).toEqual(['drill-bit', 'well-log'])
+    expect(() => readShellLoaders(root({ ...files, 'cycle.js': LOADER }), declarations)).toThrow(
+      /no loader can be called that/,
     )
-    expect(() =>
-      readShellLoaders(files, durations({ 'drill-bit': ms, 'well-log': ms, pumpjack: ms })),
-    ).toThrow(/'pumpjack' is not a loader/)
+  })
+
+  it('refuses a minimum duration that is not a number of milliseconds', () => {
+    const files = root({ 'drill-bit.js': LOADER, 'well-log.js': LOADER })
+    expect(() => readShellLoaders(files, { ...declarations, minDuration: -1 })).toThrow(/0 or more/)
+    expect(() => readShellLoaders(files, { ...declarations, minDuration: Number.NaN })).toThrow(
+      /0 or more/,
+    )
   })
 })
 
@@ -120,7 +125,7 @@ describe('inlineShellLoaders', () => {
     const source = `/* a long comment */\n;(() => {\n  const unused = 1\n  ${LOADER}\n})()\n`
     const inline = await inlineShellLoaders({
       fallback: 'drill-bit',
-      minDuration: { 'drill-bit': 1000 },
+      minDuration: 1000,
       loaders: [{ name: 'drill-bit', file: 'src/loaders/drill-bit.js', source }],
       kits: [],
     })
@@ -133,11 +138,11 @@ describe('inlineShellLoaders', () => {
       class {},
     ) as {
       fallback: string
-      minDuration: Record<string, number>
+      minDuration: number
       draw: Record<string, { run: () => void }>
     }
     expect(loaders.fallback).toBe('drill-bit')
-    expect(loaders.minDuration).toEqual({ 'drill-bit': 1000 })
+    expect(loaders.minDuration).toBe(1000)
     expect(defined).toEqual([])
     loaders.draw['drill-bit']?.run()
     expect(defined).toEqual(['a-loader'])
@@ -146,7 +151,7 @@ describe('inlineShellLoaders', () => {
   it('hands a family loader its kit, which is inlined once', async () => {
     const inline = await inlineShellLoaders({
       fallback: 'a',
-      minDuration: {},
+      minDuration: 0,
       loaders: [
         { name: 'a', file: 'a.js', source: "kit.define('a')", kit: 'scenes' },
         { name: 'b', file: 'b.js', source: "kit.define('b')", kit: 'scenes' },
@@ -173,7 +178,7 @@ describe('inlineShellLoaders', () => {
   it('never ends the script element it is inlined into', async () => {
     const inline = await inlineShellLoaders({
       fallback: 'x',
-      minDuration: {},
+      minDuration: 0,
       loaders: [{ name: 'x', file: 'src/loaders/x.js', source: "console.log('</script>')" }],
       kits: [],
     })
