@@ -112,10 +112,13 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
     const srt = p => p.sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]))
     S.sh = [drop, segS(der), segS(bar), segS(val)].map(srt)
   }
-  const P = 3,
-    k = Math.floor(t / P) % 4,
-    u = (t % P) / P,
-    m = u < 0.5 ? 0 : (u - 0.5) / 0.5
+  // Each form holds a moment and then morphs into the next; the loop starts just before the
+  // first morph, so one is under way while the page is still loading.
+  const P = 1.8,
+    at = t + P * 0.2,
+    k = Math.floor(at / P) % 4,
+    u = (at % P) / P,
+    m = u < 0.25 ? 0 : (u - 0.25) / 0.75
   const Aa = S.sh[k],
     Bb = S.sh[(k + 1) % 4]
   og.glow(c, cx, cy, s * 0.5, A, 0.1 + 0.12 * Math.sin(m * Math.PI))
@@ -134,7 +137,7 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       py = cy + Y * sc
     c.fillStyle =
       bu > 0.05
-        ? 'rgba(255,255,255,' + (0.4 + 0.5 * bu) + ')'
+        ? 'rgba(' + I + ',' + (0.4 + 0.5 * bu) + ')'
         : 'rgba(' + A + ',' + (0.55 + 0.35 * Math.sin(t * 3 + i)) + ')'
     c.fillRect(px - 0.8, py - 0.8, 1.6, 1.6)
   }

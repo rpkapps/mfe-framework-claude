@@ -426,7 +426,7 @@ const kit = (() => {
       blue: { color: [0.075, 0.165, 0.21], metal: 0.55, rough: 0.36 },
       ceramic: { color: [0.43, 0.49, 0.48], metal: 0.22, rough: 0.49 },
       stripe: { color: [0.65, 0.43, 0.14], metal: 0.45, rough: 0.37 },
-      oil: { color: [0.04, 0.026, 0.016], metal: 0.24, rough: 0.14, kind: 1 },
+      oil: { color: [0.012, 0.012, 0.014], metal: 0.24, rough: 0.14, kind: 1 },
       scanSteel: {
         color: [0.29, 0.345, 0.37],
         metal: 0.94,
@@ -637,7 +637,7 @@ void main(){
   float wave=sin(vScene.x*9.-uTime*2.1+sin(vScene.z*14.+uTime)*.45)*.5+.5;
   n=normalize(n+vec3(sin(vScene.x*11.-uTime*2.4+vScene.z*6.)*.060,0.,sin(vScene.x*7.-uTime*1.7+vScene.z*16.)*.10));rough=.19;
   float fill=1.-smoothstep(-2.1+4.2*uProgress-.08,-2.1+4.2*uProgress+.08,vScene.x);
-  base=mix(base,vec3(.09,.046,.012),fill*.65);
+  base=mix(base,vec3(.01,.01,.012),fill*.65);
  }
  vec3 f0=mix(vec3(.04),base,metal),color=vec3(0.);
  color+=light(n,v,normalize(vec3(-3.5,5.5,5.)-vWorld),vec3(3.7,4.65,5.25),base,rough,f0,metal);

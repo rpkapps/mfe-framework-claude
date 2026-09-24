@@ -86,19 +86,20 @@ reason and a way forward.
 | `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
 | `bounce`    | the logo bouncing on its shadow, with squash and stretch                    |
 
-The oil-and-gas family adds 39 more, each a scene from exploration, drilling,
+The oil-and-gas family adds 37 more, each a scene from exploration, drilling,
 production and refining, or one of five mascots that follow the pointer:
 `pipeline-bore`, `seismic-section`, `pdc-drill-bit`, `wellhead-pressure`,
 `benzene-ring`, `reservoir-anticline`, `crude-level`, `survey-sweep`,
 `manifold-flow`, `drilling-log`, `offshore-platform`, `cryogenic-sphere`,
 `seabed-lidar`, `carbon-injection`, `pore-network`, `smart-pig-scan`,
 `core-hologram`, `methane-plume`, `tanker-routes`, `horizontal-well`,
-`form-morph`, `compressor-stage`, `crude-emulsion`, `shot-gather`,
+`form-morph`, `compressor-stage`, `shot-gather`,
 `structure-map`, `wellhead-stack`, `saturation-voxels`, `gyro-survey`,
 `gas-chromatograph`, `pumpjack-rig`, `derrick-and-bore`, `tank-farm`,
-`pipe-rack`, `tri-cone-bit`, and the mascots `drip`, `flare-sprite`,
-`rov-scout`, `methane-pal` and `nodding-donkey`. The five 3D scenes
-(`pumpjack-rig` to `tri-cone-bit`) are drawn as wireframes.
+`pipe-rack`, and the mascots `drip`, `flare-sprite`,
+`rov-scout`, `methane-pal` and `nodding-donkey`. The four 3D scenes
+(`pumpjack-rig`, `derrick-and-bore`, `tank-farm` and `pipe-rack`) are drawn as
+wireframes.
 
 The STRATUM family adds five procedural WebGL models, shaded like the drill bit
 and turned under a scan ring with a frame and two callouts: `pumpjack-3d`,
@@ -151,7 +152,7 @@ directory), add `'<name>'` to the `z.enum` of `SHELL_LOADER` in
 `index.html`. The build refuses a name with no file, a file no name reaches,
 and a `loader` export `SHELL_LOADER` does not list. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
-well log, 3 kB for the bounce, 25 kB for all 39 oil-and-gas scenes and their
+well log, 3 kB for the bounce, 24 kB for all 37 oil-and-gas scenes and their
 kit, and 16 kB for the five STRATUM models and theirs: 60 kB for the page.
 
 ## The pages the shell owns

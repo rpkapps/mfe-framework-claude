@@ -28,7 +28,7 @@ kit.define('drip', (c, w, h, t, S, dt, og) => {
       S.tr.splice(i, 1)
       continue
     }
-    c.fillStyle = 'rgba(20,16,13,' + (1 - p.l / 0.9) + ')'
+    c.fillStyle = og.tint(-0.3, 1 - p.l / 0.9)
     c.strokeStyle = 'rgba(' + A + ',' + (1 - p.l / 0.9) * 0.5 + ')'
     c.lineWidth = 1
     c.beginPath()
@@ -62,9 +62,9 @@ kit.define('drip', (c, w, h, t, S, dt, og) => {
   c.bezierCurveTo(-R, -R * 0.7, -R * 0.35, -R * 1.2, 0, -R * 1.8)
   c.closePath()
   const g = c.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R * 1.3)
-  g.addColorStop(0, '#3e352d')
-  g.addColorStop(0.6, '#0f0c0a')
-  g.addColorStop(1, '#050404')
+  g.addColorStop(0, og.tint(0.35))
+  g.addColorStop(0.6, `rgb(${A})`)
+  g.addColorStop(1, og.tint(-0.45))
   c.fillStyle = g
   c.fill()
   c.strokeStyle = 'rgba(' + A + ',.55)'

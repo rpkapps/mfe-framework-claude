@@ -262,10 +262,11 @@
     const materials = {
       body: { color: [0.31, 0.345, 0.36], metal: 0.95, rough: 0.37, ao: 0.92 },
       machined: { color: [0.48, 0.515, 0.525], metal: 1, rough: 0.27, ao: 1 },
-      dark: { color: [0.16, 0.185, 0.195], metal: 0.88, rough: 0.37, ao: 0.78 },
-      cutter: { color: [0.57, 0.47, 0.32], metal: 0.9, rough: 0.31, ao: 1 },
-      socket: { color: [0.105, 0.12, 0.125], metal: 0.8, rough: 0.42, ao: 0.68 },
-      accent: { color: [0.56, 0.36, 0.17], metal: 0.88, rough: 0.29, ao: 1 },
+      // Steel greys throughout, none of them near black; the trim is the theme's accent.
+      dark: { color: [0.34, 0.37, 0.39], metal: 0.88, rough: 0.37, ao: 0.78 },
+      cutter: { color: [0.66, 0.68, 0.71], metal: 0.9, rough: 0.31, ao: 1 },
+      socket: { color: [0.26, 0.28, 0.3], metal: 0.8, rough: 0.42, ao: 0.68 },
+      accent: { color: null, metal: 0.88, rough: 0.29, ao: 1 },
     }
     const newBatches = () => {
       const b = {}
@@ -622,7 +623,7 @@ vec3 environment(vec3 r,float rough){
  float spread=mix(150.,9.,rough*rough);
  base+=vec3(1.85,2.10,2.22)*pow(max(dot(r,normalize(vec3(-.75,1.1,.8))),0.),spread*.34);
  base+=vec3(1.55,1.55,1.38)*pow(max(dot(r,normalize(vec3(.35,.75,-1.))),0.),spread*.5);
- base+=vec3(1.8,1.04,.47)*pow(max(dot(r,normalize(vec3(1.,.05,.8))),0.),spread*.6);
+ base+=vec3(1.25,1.25,1.3)*pow(max(dot(r,normalize(vec3(1.,.05,.8))),0.),spread*.6);
  base+=vec3(.50,.82,.95)*pow(max(dot(r,normalize(vec3(-1.,-.05,-.3))),0.),spread*.6);
  // Reflected vertical strip lights create long, machined edge highlights.
  float strip=exp(-pow((r.x+.47)/(rough*.32+.025),2.))*smoothstep(-.15,.3,r.y);
@@ -638,7 +639,7 @@ void main(){
  vec3 f0=mix(vec3(.04),base,uMetal);
  vec3 color=vec3(0.);
  color+=light(n,v,normalize(vec3(-3.5,5.,5.)-vWorld),vec3(4.2,5.1,5.8),base,rough,f0);
- color+=light(n,v,normalize(vec3(4.,2.,1.)-vWorld),vec3(3.6,2.45,1.35),base,rough,f0);
+ color+=light(n,v,normalize(vec3(4.,2.,1.)-vWorld),vec3(2.9,2.9,3.),base,rough,f0);
  color+=light(n,v,normalize(vec3(-2.,1.,-4.)-vWorld),vec3(1.7,2.9,3.5),base,rough,f0);
  vec3 refl=reflect(-v,n);float nv=max(dot(n,v),0.);
  vec3 F=fresnel(nv,f0);float ao=vAO*uAO;
@@ -821,7 +822,7 @@ void main(){
         gl.enableVertexAttribArray(program.a.aAO)
         gl.vertexAttribPointer(program.a.aAO, 1, gl.FLOAT, false, 28, 24)
         const mat = m.material
-        gl.uniform3fv(program.u.uColor, mat.color)
+        gl.uniform3fv(program.u.uColor, mat.color ?? accent.map(c => Math.pow(c, 2.2)))
         gl.uniform1f(program.u.uMetal, mat.metal)
         gl.uniform1f(program.u.uRough, mat.rough)
         gl.uniform1f(program.u.uAO, mat.ao)
@@ -880,12 +881,12 @@ void main(){
       c.rotate(-0.16)
       c.scale(size, size)
       const metal = c.createLinearGradient(-0.9, 0, 0.9, 0)
-      metal.addColorStop(0, '#111719')
+      metal.addColorStop(0, '#3b4347')
       metal.addColorStop(0.25, '#6d7b7d')
       metal.addColorStop(0.45, '#acb3ab')
       metal.addColorStop(0.56, '#536063')
-      metal.addColorStop(0.82, '#29363a')
-      metal.addColorStop(1, '#9b7852')
+      metal.addColorStop(0.82, '#4a5559')
+      metal.addColorStop(1, '#8e98a0')
       c.fillStyle = metal
       c.beginPath()
       c.moveTo(-0.75, -0.8)
@@ -899,7 +900,7 @@ void main(){
       c.fill()
       c.fillRect(-0.39, -2.55, 0.78, 1.2)
       c.fillRect(-0.54, -1.4, 1.08, 0.22)
-      c.strokeStyle = '#141c20'
+      c.strokeStyle = '#2f373b'
       c.lineWidth = 0.035
       for (let i = 0; i < 9; i++) {
         c.beginPath()
@@ -907,7 +908,7 @@ void main(){
         c.lineTo(0.4, -2.56 + i * 0.13)
         c.stroke()
       }
-      c.fillStyle = '#131a1d'
+      c.fillStyle = '#2f373b'
       c.beginPath()
       c.ellipse(0, -2.55, 0.39, 0.085, 0, 0, TAU)
       c.fill()
@@ -926,9 +927,9 @@ void main(){
             const y = (j - 2) * 0.24
             if ((x * x) / 0.26 + (y * y) / 0.55 > 0.9) continue
             const g = c.createLinearGradient(x - 0.07, y, x + 0.07, y + 0.1)
-            g.addColorStop(0, '#ccb681')
-            g.addColorStop(0.5, '#9a835d')
-            g.addColorStop(1, '#56432c')
+            g.addColorStop(0, '#eceef1')
+            g.addColorStop(0.5, '#b4bac1')
+            g.addColorStop(1, '#6f777f')
             c.fillStyle = g
             c.beginPath()
             c.ellipse(x, y, 0.075, 0.11, 0.15, 0, TAU)

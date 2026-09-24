@@ -69,8 +69,8 @@ kit.define('gyro-survey', (c, w, h, t, S, dt, og) => {
   c.lineCap = 'round'
   draw(false)
   const g = c.createRadialGradient(cx - R * 0.05, cy - R * 0.06, 0, cx, cy, R * 0.16)
-  g.addColorStop(0, '#6a625a')
-  g.addColorStop(0.7, '#1a1714')
+  g.addColorStop(0, og.tint(0.45))
+  g.addColorStop(0.7, og.tint(-0.2))
   g.addColorStop(1, 'rgba(' + A + ',.9)')
   c.fillStyle = g
   c.beginPath()

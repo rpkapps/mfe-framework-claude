@@ -32,6 +32,10 @@ html:not(.dark) .loader-theme {
   --drill-label-strong: var(--loader-text);
   --drill-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.loader-theme {
+  /* A faint glow of the accent under the bit, rather than a warm, brown one. */
+  --drill-ambient: color-mix(in srgb, var(--loader-accent) 10%, transparent);
+}
 html:not(.dark) .loader-theme {
   --drill-glow: color-mix(in srgb, var(--loader-accent) 7%, transparent);
   --drill-ambient: transparent;

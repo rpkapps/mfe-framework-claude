@@ -50,8 +50,8 @@ kit.define('methane-pal', (c, w, h, t, S, dt, og) => {
     c.lineTo(p.x, p.y)
     c.stroke()
     const g = c.createRadialGradient(p.x - r * 0.35, p.y - r * 0.4, r * 0.05, p.x, p.y, r)
-    g.addColorStop(0, '#fbf7f0')
-    g.addColorStop(0.7, '#a79f94')
+    g.addColorStop(0, '#ffffff')
+    g.addColorStop(0.7, '#c9c7d1')
     g.addColorStop(1, 'rgba(' + A + ',.9)')
     c.fillStyle = g
     c.beginPath()
@@ -60,8 +60,8 @@ kit.define('methane-pal', (c, w, h, t, S, dt, og) => {
   }
   Hs.filter(p => p.z > 0).forEach(drawH)
   const g = c.createRadialGradient(x - R * 0.35, y - R * 0.4, R * 0.05, x, y, R)
-  g.addColorStop(0, '#5a524a')
-  g.addColorStop(0.65, '#161311')
+  g.addColorStop(0, og.tint(0.4))
+  g.addColorStop(0.65, og.tint(-0.25))
   g.addColorStop(1, 'rgba(' + A + ',.95)')
   c.fillStyle = g
   c.beginPath()

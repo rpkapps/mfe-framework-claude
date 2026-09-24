@@ -31,8 +31,8 @@ kit.define('crude-level', (c, w, h, t, S, dt, og) => {
   wv(2.4, t * 2.1, R * 0.06)
   const g = c.createLinearGradient(0, ly - R * 0.07, 0, cy + R)
   g.addColorStop(0, `rgb(${A})`)
-  g.addColorStop(0.1, '#5c2f0f')
-  g.addColorStop(1, '#0c0604')
+  g.addColorStop(0.1, og.tint(-0.35))
+  g.addColorStop(1, og.tint(-0.7))
   c.fillStyle = g
   c.fill()
   S.b =

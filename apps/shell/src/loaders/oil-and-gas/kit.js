@@ -9,6 +9,8 @@
    background, `og.I` the ink, `og.A` the accent, as "r,g,b" strings. A surface that should sit
    just off the background, whichever the mode, is `og.tone(k, alpha)`: a fraction k of the way
    from the background to the ink, or past the background, away from the ink, for a negative k.
+   A shade of the accent is `og.tint(k, alpha)`: towards white for a positive k, towards black
+   for a negative one.
 
    Themable via CSS custom properties on the element or any ancestor:
    --og-background  the backdrop              (default #0a0908)
@@ -58,8 +60,15 @@ const kit = (() => {
         const at = j => Math.round(Math.min(255, Math.max(0, b[j] + (i[j] - b[j]) * k)))
         return `rgba(${at(0)},${at(1)},${at(2)},${a})`
       },
+      tint(k, a = 1) {
+        const to = k > 0 ? 255 : 0
+        const m = Math.min(1, Math.abs(k))
+        const [r, g, b] = this._a.map(v => Math.round(v + (to - v) * m))
+        return `rgba(${r},${g},${b},${a})`
+      },
       _b: [10, 9, 8],
       _i: [236, 228, 216],
+      _a: [242, 163, 58],
       _spr: {},
       /** A soft round glow of one colour, drawn once and scaled. */
       spr(rgb) {
@@ -261,6 +270,7 @@ const kit = (() => {
         og._spr = {}
         og._b = og.B.split(',').map(Number)
         og._i = og.I.split(',').map(Number)
+        og._a = og.A.split(',').map(Number)
         speed = data.speed
       } else if (data.type === 'state') {
         visible = data.visible
