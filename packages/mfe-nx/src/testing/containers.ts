@@ -1,7 +1,7 @@
 /**
  * Discovery, generation and the webpack build work on real files, so the tests give them a real
  * container: a manifest, sources, and a `node_modules` holding the adapter packages as small
- * stand-ins, beside links to the real packages a build resolves (Zod, Tailwind).
+ * stand-ins, beside links to real packages a build resolves (such as Zod).
  */
 
 import { mkdirSync, symlinkSync } from 'node:fs'

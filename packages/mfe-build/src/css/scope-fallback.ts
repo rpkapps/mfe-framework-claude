@@ -35,6 +35,7 @@ const ANIMATION_PROPERTY = /^(?:-[a-z]+-)?animation(?:-name)?$/i
 // scope matches nothing; `:root` and `:host` mean the container's root and are rewritten.
 const DOCUMENT_ELEMENT = /(^|[\s>+~(,])(html|body)(?=$|[\s>+~.#:[),])/i
 const ROOT_PSEUDO = /:(?:root|host)(?![\w(-])/g
+const ZERO_SPECIFICITY_ROOT = /:where\(\s*html\s*\)/gi
 
 /** Takes the same options as a design system's plugin, so either can scope a container. */
 export function scopeFallbackPlugin(options: ScopeOptions): Plugin {
@@ -82,8 +83,9 @@ function rewriteSelectors(rule: Rule): void {
   if (parent?.type === 'atrule' && KEYFRAMES_PATTERN.test((parent as AtRule).name)) return
 
   const selectors = rule.selectors.map(selector => {
-    if (DOCUMENT_ELEMENT.test(selector)) throw documentSelectorError(rule, selector)
-    return selector.replace(ROOT_PSEUDO, ':scope')
+    const scoped = selector.replace(ZERO_SPECIFICITY_ROOT, ':where(:scope)')
+    if (DOCUMENT_ELEMENT.test(scoped)) throw documentSelectorError(rule, selector)
+    return scoped.replace(ROOT_PSEUDO, ':scope')
   })
   // Reassigning re-joins the list, so an untouched rule keeps the author's formatting.
   if (selectors.some((selector, index) => selector !== rule.selectors[index])) {

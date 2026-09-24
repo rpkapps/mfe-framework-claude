@@ -2,7 +2,14 @@
 
 import { createBuildError } from '../diagnostics.ts'
 import { standaloneSources, type ContainerSources } from '../discovery/sources.ts'
-import { positionOf, ts, walk } from '../discovery/ts-ast.ts'
+import {
+  calleeName,
+  importedLocals,
+  positionOf,
+  propertyName,
+  ts,
+  walk,
+} from '../discovery/ts-ast.ts'
 
 /** Extensions that mean "this string names an asset", not "this is a route". */
 const ASSET_EXTENSIONS = [
@@ -42,6 +49,9 @@ export function findNonContainerAwareAssetReferences(
   if (!RELATIVE_ASSET_MENTION.test(sources.read(file))) return []
 
   const sourceFile = sources.parse(file)
+  const angularComponents = importedLocals(sourceFile, ['@angular/core'], ['Component'], {
+    namespaces: true,
+  })
   const errors: Error[] = []
 
   walk(sourceFile, node => {
@@ -50,7 +60,7 @@ export function findNonContainerAwareAssetReferences(
 
     const text = node.text
     if (!RELATIVE_ASSET_PATTERN.test(text)) return
-    if (isContainerAware(node)) return
+    if (isContainerAware(node) || isAngularComponentResource(node, angularComponents)) return
 
     const { line, column } = positionOf(sourceFile, node)
     errors.push(
@@ -68,6 +78,37 @@ export function findNonContainerAwareAssetReferences(
   })
 
   return errors
+}
+
+/** Angular's compiler rewrites component metadata URLs before the remote is deployed. */
+function isAngularComponentResource(
+  node: ts.StringLiteralLike,
+  angularComponents: ReadonlySet<string>,
+): boolean {
+  const parent = node.parent
+  const property = ts.isPropertyAssignment(parent)
+    ? parent
+    : ts.isArrayLiteralExpression(parent) && ts.isPropertyAssignment(parent.parent)
+      ? parent.parent
+      : null
+  if (property === null) return false
+
+  const name = propertyName(property)
+  if (
+    (parent === property && name !== 'templateUrl' && name !== 'styleUrl') ||
+    (parent !== property && name !== 'styleUrls')
+  )
+    return false
+
+  const metadata = property.parent
+  if (!ts.isObjectLiteralExpression(metadata)) return false
+  const call = metadata.parent
+  return (
+    ts.isCallExpression(call) &&
+    call.arguments[0] === metadata &&
+    ts.isDecorator(call.parent) &&
+    angularComponents.has(calleeName(call) ?? '')
+  )
 }
 
 /** True in a position the bundler rewrites: a specifier, `import()`, or `new URL`. */

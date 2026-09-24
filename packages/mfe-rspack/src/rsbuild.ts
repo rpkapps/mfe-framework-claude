@@ -68,6 +68,7 @@ export function pluginMfe(options: MfePluginOptions = {}): RsbuildPlugin {
                   scopes: plan.scopes,
                   containerRoot: plan.options.containerRoot,
                   loadScopePlugin,
+                  tailwind: plan.tailwind,
                   configured: postcss.postcssOptions,
                 }),
               )

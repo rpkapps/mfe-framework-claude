@@ -97,4 +97,15 @@ describe('containerPostcssPlugins', () => {
 
     expect(names(plugins)).toEqual(['mfe-scope-fallback'])
   })
+
+  it('resolves global CSS imports before scoping when Tailwind is absent', () => {
+    const plugins = containerPostcssPlugins({
+      scopes: ['ops'],
+      containerRoot: CONTAINER_ROOT,
+      loadScopePlugin: () => scopeFallbackPlugin,
+      tailwind: false,
+    })
+
+    expect(names(plugins)).toEqual(['postcss-import', 'postcss-url', 'mfe-scope-fallback'])
+  })
 })

@@ -1,6 +1,6 @@
 /**
  * What makes a container an Angular one, for the neutral build: where its definitions, route data
- * and `env` come from, what it shares, and which files Tailwind scans.
+ * and `env` come from, what it shares, and how its global CSS loads.
  */
 
 import type { ContainerProfile } from '@company/mfe-build'
@@ -31,10 +31,10 @@ export function angularProfile(): ContainerProfile {
     envModules: [ENV_MODULE],
     adapterModule: ANGULAR_ADAPTER,
     sharing: ANGULAR_SHARING_POLICY,
-    // Templates are inline in `.ts` or beside it in `.html`; Angular inlines component styles and
-    // encapsulates them itself, so they never reach this stylesheet.
+    // Angular containers write plain CSS. Angular inlines component styles and encapsulates them
+    // itself, so they never reach this stylesheet.
     stylesheet: {
-      sources: '**/*.{ts,html}',
+      tailwind: false,
       imports: globalStylesheetImports,
       query: GLOBAL_STYLE_QUERY,
     },

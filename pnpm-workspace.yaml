@@ -144,7 +144,14 @@ catalog:
   oidc-client-ts: 3.5.0
   picocolors: 1.1.1
   postcss: 8.5.28
+  # @company/mfe-build inlines a stylesheet's imports without Tailwind. 16 keeps
+  # `@import ... supports()`, which 14 turned into a media query that never matches, and still runs
+  # on Node 18 and 20, which the Angular workspaces that consume the published packages may be on.
+  # postcss-url rebases the relative url() references of an inlined file onto the stylesheet it now
+  # sits in.
+  postcss-import: 16.2.0
   postcss-loader: 8.2.1
+  postcss-url: 10.1.4
   prettier: 3.9.8
   primeng: 19.1.4
   react: 19.3.0

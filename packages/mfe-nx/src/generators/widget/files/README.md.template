@@ -15,9 +15,8 @@ way, through `ComponentRef.setInput` and `reflectComponentType`.
 
 ## Styles and PrimeNG
 
-`src/styles.css` is this container's global stylesheet. The build compiles it with Tailwind's
-utilities for the classes under `src/` and scopes every rule to this container's mount roots.
-Component styles stay in the components, where Angular encapsulates them.
+`src/styles.css` is this container's global stylesheet. The build scopes every rule to this
+container's mount roots. Component styles stay in the components, where Angular encapsulates them.
 
 PrimeNG is wired in `src/primeng.ts` and given to each mount through `createWidget`'s
 `providers`:

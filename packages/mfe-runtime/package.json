@@ -7,20 +7,24 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./testing": {
-      "types": "./src/testing/index.ts",
-      "default": "./src/testing/index.ts"
+      "mfe-source": "./src/testing/index.ts",
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     },
     "./testing/mfe-config": {
-      "types": "./src/testing/generated/config.ts",
-      "default": "./src/testing/generated/config.ts"
+      "mfe-source": "./src/testing/generated/config.ts",
+      "types": "./dist/testing/generated/config.d.ts",
+      "default": "./dist/testing/generated/config.js"
     },
     "./testing/mfe-fetch": {
-      "types": "./src/testing/generated/fetch.ts",
-      "default": "./src/testing/generated/fetch.ts"
+      "mfe-source": "./src/testing/generated/fetch.ts",
+      "types": "./dist/testing/generated/fetch.d.ts",
+      "default": "./dist/testing/generated/fetch.js"
     }
   },
   "files": [
@@ -29,6 +33,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "build:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

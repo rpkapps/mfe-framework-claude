@@ -1,17 +1,28 @@
 /**
- * Unlike the other framework packages, this one publishes compiled output: Nx loads a plugin's
+ * This package has only compiled output, not the source the others also name: Nx loads a plugin's
  * generators and executors with `require`, from the paths its manifests name, and every one of
- * them is under `dist/`, which is build output and never checked in. So a pack has to build
- * first — otherwise it ships whatever `dist/` a working tree happens to hold, stale or missing —
- * and every path the manifests name has to be one the build emits.
+ * them is under `dist/`, which is build output and never checked in. So a pack has to refuse a
+ * `dist/` that is missing or older than the source — otherwise it ships whatever a working tree
+ * happens to hold — and every path the manifests name has to be one the build emits.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 const packageRoot = join(__dirname, '..')
+const requireBuilt = join(packageRoot, '../../tools/workspace/require-built.mjs')
 
 function readManifest<T>(name: string): T {
   return JSON.parse(readFileSync(join(packageRoot, name), 'utf8')) as T
@@ -60,11 +71,11 @@ function sourceOf(published: string): string {
 }
 
 describe('the published manifest', () => {
-  it('builds before it is packed, so a pack never ships a stale or missing dist', () => {
+  it('checks its build before it is packed, so a pack never ships a stale or missing dist', () => {
     const pkg = readManifest<PackageManifest>('package.json')
 
     expect(pkg.files).toContain('dist')
-    expect(pkg.scripts['prepack']).toBe('pnpm run build')
+    expect(pkg.scripts['prepack']).toBe('node ../../tools/workspace/require-built.mjs')
     expect(pkg.scripts['build']).toContain('tsc -p tsconfig.build.json')
   })
 
@@ -78,5 +89,51 @@ describe('the published manifest', () => {
         true,
       )
     }
+  })
+})
+
+describe('the prepack check', () => {
+  const roots: string[] = []
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  })
+
+  /** A package whose source was last changed at `sourceTime` and built at `builtTime`, if ever. */
+  function prepack(sourceTime: number, builtTime: number | null): number | null {
+    const root = mkdtempSync(join(tmpdir(), 'mfe-prepack-'))
+    roots.push(root)
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({
+        name: '@company/fixture',
+        exports: {
+          '.': {
+            'mfe-source': './src/index.ts',
+            types: './dist/index.d.ts',
+            default: './dist/index.js',
+          },
+        },
+      }),
+    )
+    mkdirSync(join(root, 'src'))
+    writeFileSync(join(root, 'src/index.ts'), 'export {}\n')
+    utimesSync(join(root, 'src/index.ts'), sourceTime, sourceTime)
+    if (builtTime !== null) {
+      mkdirSync(join(root, 'dist'))
+      for (const file of ['index.js', 'index.d.ts']) {
+        writeFileSync(join(root, 'dist', file), 'export {}\n')
+        utimesSync(join(root, 'dist', file), builtTime, builtTime)
+      }
+    }
+    return spawnSync(process.execPath, [requireBuilt], { cwd: root, encoding: 'utf8' }).status
+  }
+
+  it('packs a build newer than its source', () => {
+    expect(prepack(1_000, 2_000)).toBe(0)
+  })
+
+  it('refuses a missing build, and one the source changed after', () => {
+    expect(prepack(1_000, null)).toBe(1)
+    expect(prepack(2_000, 1_000)).toBe(1)
   })
 })

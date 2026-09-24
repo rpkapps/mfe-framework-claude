@@ -61,10 +61,22 @@ export interface ContainerProfile {
   readonly containerRootOption: string
 }
 
-export interface StylesheetProfile {
+/** A stylesheet compiled with Tailwind, or one of plain CSS whose imports are inlined instead. */
+export type StylesheetProfile = TailwindStylesheetProfile | PlainStylesheetProfile
+
+export interface TailwindStylesheetProfile extends StylesheetProfileBase {
+  readonly tailwind?: true
   /** What Tailwind scans, as a glob under `src/`: the files this container writes classes in. */
   readonly sources: string
-  /** Lines added after the Tailwind imports, such as a UI library's scoped entry. */
+}
+
+/** For an integration whose containers never use Tailwind, such as Angular's. */
+export interface PlainStylesheetProfile extends StylesheetProfileBase {
+  readonly tailwind: false
+}
+
+interface StylesheetProfileBase {
+  /** Lines added after the Tailwind imports, if any, such as a UI library's scoped entry. */
   readonly imports?: (context: GenerateContext) => readonly string[]
   /**
    * Appended to the request every exposed entry imports the stylesheet with, for a bundler whose

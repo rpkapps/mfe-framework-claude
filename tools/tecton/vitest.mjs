@@ -6,6 +6,7 @@
 import { createRequire } from 'node:module'
 import { dirname, sep } from 'node:path'
 
+import { sourceResolveForTests } from '../workspace/conditions.mjs'
 import { tectonCheckoutDirectory } from './location.mjs'
 
 /** Resolved from the shell, the only package here that declares every one of these. */
@@ -59,6 +60,11 @@ export const singleCopyAliases = SINGLE_COPY.flatMap(name => {
   ]
 })
 
-export const tectonResolveForTests = { dedupe: SINGLE_COPY, alias: singleCopyAliases }
+/** With the framework packages' TypeScript source rather than their dist/ (tools/workspace). */
+export const tectonResolveForTests = {
+  ...sourceResolveForTests,
+  dedupe: SINGLE_COPY,
+  alias: singleCopyAliases,
+}
 
 export const tectonServerForTests = { deps: { inline: INLINE_DEPS } }

@@ -51,6 +51,8 @@ export interface ContainerPlan {
   readonly stylesheet: string
   /** The `data-mfe-scope` values this container's CSS is scoped to. */
   readonly scopes: readonly string[]
+  /** Whether the stylesheet is compiled with Tailwind, or has its plain CSS imports inlined. */
+  readonly tailwind: boolean
   readonly generated: GeneratedOutput
   /** Non-fatal findings the integration reports on the compilation. */
   readonly diagnostics: readonly Error[]
@@ -167,6 +169,7 @@ function planSources(
     aliases,
     stylesheet: stylesheetPath(context),
     scopes: discovery.definitions.map(definition => definition.id),
+    tailwind: profile.stylesheet.tailwind !== false,
     generated,
     diagnostics: [
       ...findStrayDefinitions(sourceRoot, {

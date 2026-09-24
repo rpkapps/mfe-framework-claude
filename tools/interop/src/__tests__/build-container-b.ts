@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url'
 import { build, type Plugin } from 'vite'
 import type { TestProject } from 'vitest/node'
 
+import { sourceResolveForTests } from '../../../workspace/conditions.mjs'
+
 declare module 'vitest' {
   interface ProvidedContext {
     /** The absolute path of the bundled `container-b.js`. */
@@ -143,6 +145,8 @@ async function buildContainer(): Promise<void> {
     root: interopRoot,
     plugins: [pageSingletonsExternal(externals)],
     resolve: {
+      // The framework packages as the test's own copy of the adapter resolves them.
+      conditions: sourceResolveForTests.conditions,
       alias: [
         { find: /^react$/, replacement: join(react, 'index.js') },
         { find: /^react\/(.*)$/, replacement: `${react}/$1` },
