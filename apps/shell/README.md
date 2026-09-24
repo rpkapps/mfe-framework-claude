@@ -85,7 +85,7 @@ reason and a way forward.
 | ----------- | --------------------------------------------------------------------------- |
 | `drill-bit` | a 3D tricone drill bit turning under a scan ring, in WebGL; drag to turn it |
 | `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
-| `bounce`    | the logo as a glossy ball, bouncing on its shadow with squash and stretch   |
+| `bounce`    | the logo bouncing on its shadow, with squash and stretch                    |
 
 Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
 custom element `<name>-loader`. The build minifies every loader into
