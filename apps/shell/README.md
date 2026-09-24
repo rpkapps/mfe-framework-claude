@@ -141,6 +141,10 @@ showed last. A deployment can choose another loader, or `cycle`, with
 configuration never pins one. The minimum duration keeps a fast boot from
 flashing the drawing: until it has passed, the shell waits, hidden, behind it.
 
+`examples/loaders` shows every one of them, one page each, in these colours and
+the current theme, with the line that chooses it; its build reads
+`src/loaders/` and `src/loaders/theme.css`, so a new loader appears there too.
+
 To add a loader, add `src/loaders/<name>.js` (or a scene to a family's
 directory), add `'<name>'` to the `z.enum` of `SHELL_LOADER` in
 `src/mfe.config.ts`, and map its properties onto the loader's colours in

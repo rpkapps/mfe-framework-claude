@@ -118,6 +118,22 @@ export function readShellLoaders(
   return { fallback: declarations.fallback, minDuration, loaders, kits }
 }
 
+/**
+ * Every loader there is, whatever `src/mfe.config.ts` lists: the ones of their own first, then each
+ * family's, by name. examples/loaders shows them all.
+ */
+export function readAllLoaders(root: string): { loaders: ShellLoader[]; kits: ShellLoaderKit[] } {
+  const { found, kits } = findLoaders(root, join(root, 'src/loaders'))
+  const loaders = [...found.entries()].map(([name, place]) => ({
+    name,
+    file: relative(root, place.file),
+    source: readFileSync(place.file, 'utf8'),
+    ...(place.kit === undefined ? {} : { kit: place.kit }),
+  }))
+  const rank = (loader: ShellLoader): string => `${loader.kit ?? ''}/${loader.name}`
+  return { loaders: loaders.sort((a, b) => (rank(a) < rank(b) ? -1 : 1)), kits }
+}
+
 /** Every loader's file by its name, and every family's kit. */
 function findLoaders(
   root: string,
@@ -167,6 +183,21 @@ function isName(value: unknown): value is string {
 }
 
 /**
+ * Every loader's colours, from Tecton's tokens: `src/loaders/theme.css`, which index.html writes
+ * into a `<style>` of its own, and examples/loaders shows every loader in.
+ */
+export function readLoaderTheme(root: string): string {
+  const file = join(root, 'src/loaders/theme.css')
+  const css = readFileSync(file, 'utf8')
+  if (/<\/style/i.test(css)) {
+    throw new Error(
+      `${relative(root, file)}: '</style' cannot appear in a stylesheet that is inlined.`,
+    )
+  }
+  return css
+}
+
+/**
  * The object index.html is given, as JavaScript: the fallback's name, the minimum duration, each
  * family's kit minified into a function that returns it, and each loader
  * minified into `run`, which defines its element when called with its family's kit.
@@ -211,7 +242,10 @@ async function minify(script: { readonly file: string; readonly source: string }
   return code
 }
 
-/** Gives the template `shellLoaders`, the object `inlineShellLoaders` writes. */
+/**
+ * Gives the template `shellLoaders`, the object `inlineShellLoaders` writes, and
+ * `shellLoaderTheme`, the loaders' colours.
+ */
 export function pluginShellLoaders(
   options: ShellLoaderDeclarations & { readonly root: string },
 ): RsbuildPlugin {
@@ -224,6 +258,7 @@ export function pluginShellLoaders(
           html: {
             templateParameters: {
               shellLoaders: await inlineShellLoaders(readShellLoaders(options.root, options)),
+              shellLoaderTheme: readLoaderTheme(options.root),
             },
           },
           // Read once, with the configuration, so a change to a loader restarts the server.

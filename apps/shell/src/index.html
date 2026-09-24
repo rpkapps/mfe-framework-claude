@@ -16,15 +16,11 @@
     <!-- The loading screen paints before any stylesheet or script arrives, so it cannot wait for
          Tecton's: each value names the Tecton token first and falls back to that token's own value
          for the mode, which is what it resolves to once globals.css loads (§36). -->
+    <!-- Every loader's colours, and the words', from src/loaders/theme.css. -->
+    <!-- prettier-ignore -->
+    <style><%= shellLoaderTheme %></style>
     <style>
       #shell-loader {
-        --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
-        --loader-text: var(--tecton-color-text-primary, #f6f5f8);
-        --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
-        /* Tecton's primary purple. In dark mode the primary is violet-220, a fill made to sit
-           behind white text, which vanishes as a line on this ground; a higher-contrast step of the
-           same ramp is the dark mode's foreground for it. */
-        --loader-accent: var(--tecton-palette-violet-460, #8e8199);
         --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
         --loader-ring: var(--tecton-color-focus-ring, #ff00aa);
@@ -48,11 +44,6 @@
         transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
       html:not(.dark) #shell-loader {
-        --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
-        --loader-text: var(--tecton-color-text-primary, #21172a);
-        --loader-muted: var(--tecton-color-text-secondary, #604e6e);
-        /* The primary itself: mauve-680, the colour of Tecton's primary actions. */
-        --loader-accent: var(--tecton-color-action-primary-bg, #644a78);
         --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
       }
@@ -61,8 +52,8 @@
         pointer-events: none;
       }
 
-      /* The drawing SHELL_LOADER chose fills the screen behind the words. Each loader below is
-         themed from the loader's colours, so from Tecton's once it loads. */
+      /* The drawing fills the screen behind the words. Its colours, and the words', are Tecton's,
+         from src/loaders/theme.css, which the build writes above. */
       .shell-loader__art,
       .shell-loader__art > * {
         position: absolute;
@@ -72,76 +63,10 @@
         transition: opacity 400ms ease;
       }
 
-      /* <drill-bit-loader>. On a light page a glow reads as a smudge, so it becomes a faint wash
-         of the accent, the grid darkens, and the grain and the warm pool go. */
+      /* Where the drawings leave room for the words: the oil-and-gas scenes draw above them, and
+         the bounce lands just above the middle with the words right under it. */
       .shell-loader__art {
-        --drill-background: var(--loader-bg);
-        --drill-accent: var(--loader-accent);
-        --drill-line-color: var(--loader-muted);
-        --drill-label-color: var(--loader-muted);
-        --drill-label-strong: var(--loader-text);
-        --drill-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-      html:not(.dark) .shell-loader__art {
-        --drill-glow: color-mix(in srgb, var(--loader-accent) 7%, transparent);
-        --drill-ambient: transparent;
-        --drill-grid-color: rgba(33, 23, 42, 0.035);
-        --drill-grain-opacity: 0;
-      }
-
-      /* <well-log-loader>. On a light page the texture and the vignette read as grey smudges, so
-         both nearly go. */
-      .shell-loader__art {
-        --well-log-bg: var(--loader-bg);
-        --well-log-ink: var(--loader-text);
-        --well-log-accent: var(--loader-accent);
-        --well-log-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --well-log-vignette: 0.7;
-      }
-      html:not(.dark) .shell-loader__art {
-        --well-log-vignette: 0.35;
-        --well-log-texture: 0.25;
-      }
-
-      /* The STRATUM loaders (src/loaders/stratum/), themed as the drill bit is. On a light page a
-         glow reads as a smudge, so it is a faint wash of the accent, and the grain and the warm
-         pool go. */
-      .shell-loader__art {
-        --stratum-bg: var(--loader-bg);
-        --stratum-glow: color-mix(in srgb, var(--loader-bg), #fff 6%);
-        --stratum-accent: var(--loader-accent);
-        --stratum-ring-color: var(--loader-muted);
-        --stratum-line-color: color-mix(in srgb, var(--loader-muted) 45%, transparent);
-        --stratum-label-color: var(--loader-muted);
-        --stratum-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-      html:not(.dark) .shell-loader__art {
-        --stratum-glow: color-mix(in srgb, var(--loader-accent) 7%, transparent);
-        --stratum-ambient: transparent;
-        --stratum-grid-color: rgba(33, 23, 42, 0.05);
-        --stratum-grain-opacity: 0;
-      }
-
-      /* The oil-and-gas loaders (src/loaders/oil-and-gas/). On a light page the edges would darken
-         to a grey smudge, so they do not. */
-      .shell-loader__art {
-        --og-background: var(--loader-bg);
-        --og-ink: var(--loader-text);
-        --og-accent: var(--loader-accent);
-        --og-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --og-vignette: rgba(0, 0, 0, 0.5);
-        /* The scene draws above the words, which sit this far up from the bottom. */
         --og-inset-bottom: calc(max(48px, 10vh) + 64px);
-      }
-      html:not(.dark) .shell-loader__art {
-        --og-vignette: transparent;
-      }
-
-      /* <bounce-loader>. The logo lands just above the middle, with the words right under it. It
-         keeps its own red in both modes; on a light page its shadow is lighter, since red blurred
-         on white reads as a pink smudge. */
-      .shell-loader__art {
-        --bounce-background: var(--loader-bg);
         --bounce-floor: calc(50% - 16px);
       }
       #shell-loader[data-art='bounce'] .shell-loader__scene {
@@ -151,9 +76,6 @@
       /* The words need no pool of the background here, and it would shade the logo above them. */
       #shell-loader[data-art='bounce'] .shell-loader__scene::before {
         display: none;
-      }
-      html:not(.dark) .shell-loader__art {
-        --bounce-shadow-opacity: 0.18;
       }
 
       /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
@@ -278,7 +200,7 @@
     <!-- The loading screen while sign-in and boot run: the drawing SHELL_LOADER chose, which the
          last script puts in `art`, and the words over it. `loader.ts` changes the words and removes
          it; it never needs React. -->
-    <div id="shell-loader" data-state="loading">
+    <div id="shell-loader" class="loader-theme" data-state="loading">
       <div class="shell-loader__art" data-part="art" aria-hidden="true"></div>
       <div class="shell-loader__scene">
         <p class="shell-loader__title">Discovery</p>
