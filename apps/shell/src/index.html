@@ -21,7 +21,6 @@
         --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
         --loader-text: var(--tecton-color-text-primary, #f6f5f8);
         --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
-        --loader-subtle: var(--tecton-color-text-subtlest, #89848e);
         --loader-accent: var(--tecton-palette-saffron-560, #cb8553);
         --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
@@ -49,7 +48,6 @@
         --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
         --loader-text: var(--tecton-color-text-primary, #21172a);
         --loader-muted: var(--tecton-color-text-secondary, #604e6e);
-        --loader-subtle: var(--tecton-color-text-subtlest, #7b668b);
         --loader-accent: var(--tecton-palette-saffron-310, #d1722e);
         --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
@@ -59,26 +57,28 @@
         pointer-events: none;
       }
 
-      /* A soft light behind the mark, as if from the prospect; decoration only. */
-      .shell-loader__glow {
+      /* The well log fills the screen; its colours are the loader's, so Tecton's once it loads. */
+      .shell-loader__log {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 520px;
-        height: 520px;
-        margin: -300px 0 0 -260px;
-        border-radius: 50%;
-        background: radial-gradient(closest-side, var(--loader-accent), transparent);
-        opacity: 0.07;
-        pointer-events: none;
+        inset: 0;
+        --well-log-bg: var(--loader-bg);
+        --well-log-ink: var(--loader-text);
+        --well-log-accent: var(--loader-accent);
+        --well-log-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --well-log-vignette: 0.7;
+        transition: opacity 400ms ease;
       }
-      html:not(.dark) .shell-loader__glow {
-        opacity: 0.05;
+      html:not(.dark) .shell-loader__log {
+        --well-log-vignette: 0.5;
       }
 
       /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
       .shell-loader__scene {
         position: relative;
+        isolation: isolate;
+        /* The undrilled hole below the bit, where the log has only its depth scale. */
+        align-self: end;
+        margin-bottom: max(48px, 10vh);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -89,45 +89,22 @@
           opacity 300ms ease,
           transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
+      /* A pool of the page's own background, so the words read over the depth scale. */
+      .shell-loader__scene::before {
+        content: '';
+        position: absolute;
+        inset: -72px -160px;
+        z-index: -1;
+        background: radial-gradient(closest-side, var(--loader-bg), transparent);
+        opacity: 0.8;
+      }
       #shell-loader[data-state='done'] .shell-loader__scene {
         opacity: 0;
         transform: scale(0.98);
       }
 
-      /* A structure map of the prospect: contour rings spread from it like a seismic wave, each
-         fading as it widens, around a point of light where the oil is. */
-      .shell-loader__art {
-        width: 176px;
-        height: 176px;
-        overflow: visible;
-      }
-      .shell-loader__art .contour {
-        fill: none;
-        stroke: var(--loader-text);
-        stroke-width: 1;
-        vector-effect: non-scaling-stroke;
-      }
-      /* At rest, and with reduced motion, the rings stand as a finished map. */
-      .shell-loader__art .ring {
-        transform-box: view-box;
-        transform-origin: 100px 100px;
-        transform: rotate(calc(var(--i) * 2.5deg - 10deg)) scale(calc((var(--i) + 1) / 9));
-        opacity: calc(0.5 - var(--i) * 0.05);
-        animation: shell-loader-ring 7.2s linear infinite;
-        animation-delay: calc(var(--i) * -0.8s);
-      }
-      .shell-loader__art .core,
-      .shell-loader__art .halo {
-        fill: var(--loader-accent);
-      }
-      .shell-loader__art .halo {
-        transform-box: view-box;
-        transform-origin: 100px 100px;
-        opacity: 0.16;
-        animation: shell-loader-halo 2.7s ease-in-out infinite;
-      }
       .shell-loader__title {
-        margin: 20px 0 0;
+        margin: 0;
         font-size: 15px;
         font-weight: 600;
         line-height: 20px;
@@ -172,16 +149,10 @@
         outline-offset: 2px;
       }
 
-      /* A failure stills the map: nothing moves until the user acts. */
-      #shell-loader[data-state='error'] .shell-loader__art * {
-        animation: none;
-      }
-      #shell-loader[data-state='error'] .shell-loader__art .core {
-        fill: var(--loader-subtle);
-      }
-      #shell-loader[data-state='error'] .shell-loader__art .halo,
-      #shell-loader[data-state='error'] .shell-loader__glow {
-        opacity: 0;
+      /* A failure stops the log where it stands, and lets it recede behind the reason. */
+      #shell-loader[data-state='error'] .shell-loader__log {
+        --well-log-speed: 0;
+        opacity: 0.45;
       }
       #shell-loader[data-state='error'] .shell-loader__status {
         color: var(--loader-text);
@@ -203,46 +174,12 @@
           filter: blur(3px);
         }
       }
-      /* Born at the prospect, brightest while close, gone by the edge of the map. */
-      /* Each ring turns a little as it widens, so the nested contours never quite align: the
-         irregular spacing of a real structure map rather than ripples on a pond. */
-      @keyframes shell-loader-ring {
-        0% {
-          transform: rotate(-12deg) scale(0.04);
-          opacity: 0;
-        }
-        10% {
-          opacity: 0.5;
-        }
-        60% {
-          opacity: 0.2;
-        }
-        92%,
-        100% {
-          opacity: 0;
-        }
-        100% {
-          transform: rotate(12deg) scale(1);
-          opacity: 0;
-        }
-      }
-      @keyframes shell-loader-halo {
-        0%,
-        100% {
-          transform: scale(0.85);
-          opacity: 0.12;
-        }
-        50% {
-          transform: scale(1.15);
-          opacity: 0.22;
-        }
-      }
-      /* Reduced motion: the finished map, standing still. */
+      /* Reduced motion: no fades; the log slows to a quarter speed on its own. */
       @media (prefers-reduced-motion: reduce) {
         #shell-loader,
         #root,
         .shell-loader__scene,
-        .shell-loader__art * {
+        .shell-loader__log {
           animation: none !important;
           transition: none !important;
         }
@@ -251,31 +188,11 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- The structure map of a prospect, its contours spreading like a seismic wave, while sign-in
-         and boot run. `loader.ts` changes its words and removes it; it never needs React. -->
+    <!-- A well log drilling down while sign-in and boot run: gamma ray and resistivity past the
+         bit, with its depth. `loader.ts` changes the words and removes it; it never needs React. -->
     <div id="shell-loader" data-state="loading">
-      <div class="shell-loader__glow"></div>
+      <well-log-loader class="shell-loader__log" aria-hidden="true"></well-log-loader>
       <div class="shell-loader__scene">
-        <svg class="shell-loader__art" viewBox="0 0 200 200" aria-hidden="true">
-          <defs>
-            <path
-              id="shell-loader-contour"
-              class="contour"
-              d="M87.5 28.9 C104.6 25.3 128.1 24.5 142.7 30.5 C157.2 36.5 167.4 52.3 175 65.2 C182.6 78 189.8 93.1 188.3 107.6 C186.7 122.1 178.6 142.1 165.9 152.4 C153.3 162.7 129.6 167.9 112.2 169.4 C94.9 171 77.4 167.3 62 161.9 C46.5 156.6 28.7 149 19.7 137.3 C10.6 125.7 4.5 106.3 7.8 92.1 C11.1 77.9 26.3 62.6 39.6 52 C52.9 41.5 70.3 32.5 87.5 28.9 Z"
-            />
-          </defs>
-          <use class="ring" href="#shell-loader-contour" style="--i: 0" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 1" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 2" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 3" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 4" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 5" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 6" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 7" />
-          <use class="ring" href="#shell-loader-contour" style="--i: 8" />
-          <circle class="halo" cx="100" cy="100" r="13" />
-          <circle class="core" cx="100" cy="100" r="3.5" />
-        </svg>
         <p class="shell-loader__title">Discovery</p>
         <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">
           Loading…
@@ -301,6 +218,10 @@
           // Storage blocked, or a value this build cannot read: the class in <html> already stands.
         }
       })()
+    </script>
+    <!-- After the theme, so the log's first frame is drawn in the right mode. -->
+    <script>
+      <%= wellLogLoader %>
     </script>
   </body>
 </html>

@@ -3,6 +3,7 @@
  * for its share scope instead of resolving a second one (§27).
  */
 
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -66,7 +67,13 @@ export default defineConfig({
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },
 
-  html: { template: './src/index.html' },
+  html: {
+    template: './src/index.html',
+    // Inlined rather than loaded, so the loading screen draws before any script is fetched.
+    templateParameters: {
+      wellLogLoader: readFileSync(join(here, 'src/loader/well-log-loader.js'), 'utf8'),
+    },
+  },
 
   moduleFederation: {
     options: {

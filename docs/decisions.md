@@ -948,10 +948,11 @@ with nothing configured does the same; a production build with nothing configure
 refuses to boot and says why, and one with only half a configuration always does. The
 user menu says "Sign-in is off" rather than hiding the sign-out entry.
 
-**The loading screen is static markup in `index.html`**, painted before any script or
-stylesheet, so it cannot use Tecton's classes: each colour names the Tecton token first
-and falls back to that token's own value for the mode. It fades out once React commits
-the first frame, as the shell fades in beneath it.
+**The loading screen is in `index.html`**, painted before any stylesheet or script is
+fetched, so it cannot use Tecton's classes: each colour names the Tecton token first and
+falls back to that token's own value for the mode. Its well log is a canvas custom
+element, `<well-log-loader>`, whose source the build inlines into the page rather than
+loads. It fades out once React commits the first frame, as the shell fades in beneath it.
 
 **Cost:** a reload always costs a round trip through the identity provider, and an
 identity provider that issues no refresh token sends the user through it again every

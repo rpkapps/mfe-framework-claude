@@ -66,10 +66,12 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
-While sign-in and boot run, `index.html` shows the structure map of a
-prospect, its contours spreading from a point of light like a seismic wave. It
-fades out as the shell fades in; if sign-in fails the map stands still, with
-the reason and a way forward.
+While sign-in and boot run, `index.html` shows a well log drilling down: gamma
+ray and resistivity scrolling past the bit, with its depth. It is the
+`<well-log-loader>` element in `src/loader/well-log-loader.js`, inlined into the
+page at build time so it draws before any script loads, and themed from Tecton's
+tokens. It fades out as the shell fades in; if sign-in fails the log stops and
+recedes behind the reason and a way forward.
 
 ## The pages the shell owns
 
