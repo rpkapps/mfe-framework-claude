@@ -61,19 +61,44 @@
         pointer-events: none;
       }
 
-      /* The well log fills the screen; its colours are the loader's, so Tecton's once it loads. */
-      .shell-loader__log {
+      /* The drawing SHELL_LOADER chose fills the screen behind the words. Each loader below is
+         themed from the loader's colours, so from Tecton's once it loads. */
+      .shell-loader__art,
+      .shell-loader__art > * {
         position: absolute;
         inset: 0;
+      }
+      .shell-loader__art {
+        transition: opacity 400ms ease;
+      }
+
+      /* <drill-bit-loader>. On a light page a glow reads as a smudge, so it becomes a faint wash
+         of the accent, the grid darkens, and the grain and the warm pool go. */
+      .shell-loader__art {
+        --drill-background: var(--loader-bg);
+        --drill-accent: var(--loader-accent);
+        --drill-line-color: var(--loader-muted);
+        --drill-label-color: var(--loader-muted);
+        --drill-label-strong: var(--loader-text);
+        --drill-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      html:not(.dark) .shell-loader__art {
+        --drill-glow: color-mix(in srgb, var(--loader-accent) 7%, transparent);
+        --drill-ambient: transparent;
+        --drill-grid-color: rgba(33, 23, 42, 0.035);
+        --drill-grain-opacity: 0;
+      }
+
+      /* <well-log-loader>. On a light page the texture and the vignette read as grey smudges, so
+         both nearly go. */
+      .shell-loader__art {
         --well-log-bg: var(--loader-bg);
         --well-log-ink: var(--loader-text);
         --well-log-accent: var(--loader-accent);
         --well-log-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
         --well-log-vignette: 0.7;
-        transition: opacity 400ms ease;
       }
-      /* On a light page the texture and the vignette read as grey smudges, so both nearly go. */
-      html:not(.dark) .shell-loader__log {
+      html:not(.dark) .shell-loader__art {
         --well-log-vignette: 0.35;
         --well-log-texture: 0.25;
       }
@@ -158,9 +183,9 @@
         outline-offset: 2px;
       }
 
-      /* A failure stops the log where it stands, and lets it recede behind the reason. */
-      #shell-loader[data-state='error'] .shell-loader__log {
-        --well-log-speed: 0;
+      /* A failure stops the drawing where it stands (the script below pauses it), and lets it
+         recede behind the reason. */
+      #shell-loader[data-state='error'] .shell-loader__art {
         opacity: 0.45;
       }
       #shell-loader[data-state='error'] .shell-loader__status {
@@ -188,7 +213,7 @@
         #shell-loader,
         #root,
         .shell-loader__scene,
-        .shell-loader__log {
+        .shell-loader__art {
           animation: none !important;
           transition: none !important;
         }
@@ -197,10 +222,11 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- A well log drilling down while sign-in and boot run: gamma ray and resistivity past the
-         bit, with its depth. `loader.ts` changes the words and removes it; it never needs React. -->
+    <!-- The loading screen while sign-in and boot run: the drawing SHELL_LOADER chose, which the
+         last script puts in `art`, and the words over it. `loader.ts` changes the words and removes
+         it; it never needs React. -->
     <div id="shell-loader" data-state="loading">
-      <well-log-loader class="shell-loader__log" aria-hidden="true"></well-log-loader>
+      <div class="shell-loader__art" data-part="art" aria-hidden="true"></div>
       <div class="shell-loader__scene">
         <p class="shell-loader__title">Discovery</p>
         <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">
@@ -281,9 +307,55 @@
         })
       })()
     </script>
-    <!-- After the theme, so the log's first frame is drawn in the right mode. -->
+    <!-- The drawing, after the theme so its first frame is in the right mode. Every loader in
+         src/loaders/ is minified into this script by the build and only the chosen one runs, so
+         none waits for a download. Which one is in the runtime configuration, read here with a
+         request of its own: taking the preload above would send the entry's read back to the
+         network. A file that cannot be read draws the default, and the entry says why it failed. -->
     <script>
-      <%= wellLogLoader %>
+      ;(function () {
+        var loaders = <%= shellLoaders %>
+        var screen = document.getElementById('shell-loader')
+        var art = screen && screen.querySelector('[data-part="art"]')
+        if (!art) return
+
+        function draw(name) {
+          if (!Object.prototype.hasOwnProperty.call(loaders.draw, name)) name = loaders.fallback
+          if (!screen.isConnected) return
+          try {
+            loaders.draw[name]()
+          } catch (error) {
+            // A drawing that fails leaves the backdrop and the words, which is still a loader.
+            console.warn('The loading screen could not draw ' + name + '.', error)
+            return
+          }
+          var element = document.createElement(name + '-loader')
+          // A failure pauses the drawing, whichever script reported it.
+          function sync() {
+            element.toggleAttribute('paused', screen.dataset.state === 'error')
+          }
+          sync()
+          new MutationObserver(sync).observe(screen, {
+            attributes: true,
+            attributeFilter: ['data-state'],
+          })
+          screen.dataset.art = name
+          art.appendChild(element)
+        }
+
+        fetch('/runtime-config.json?loader', { credentials: 'same-origin', cache: 'no-store' })
+          .then(function (response) {
+            return response.ok ? response.json() : null
+          })
+          .then(
+            function (config) {
+              draw(config && typeof config.loader === 'string' ? config.loader : loaders.fallback)
+            },
+            function () {
+              draw(loaders.fallback)
+            },
+          )
+      })()
     </script>
   </body>
 </html>

@@ -10,6 +10,7 @@ const UNSET: MfeConfig = {
   oidcScope: 'openid profile email offline_access',
   oidcGroupsClaim: 'groups',
   oidcDisabled: undefined,
+  loader: 'drill-bit',
 }
 
 function config(values: Partial<MfeConfig>): MfeConfig {

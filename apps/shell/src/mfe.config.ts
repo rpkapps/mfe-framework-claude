@@ -18,4 +18,8 @@ export default {
   ),
   oidcGroupsClaim: env('OIDC_GROUPS_CLAIM', z.string().trim().min(1).default('groups')),
   oidcDisabled: env('OIDC_DISABLED', z.boolean().optional()),
+  // The loading screen drawn while sign-in and boot run: one per script in src/loaders/, named as
+  // its file is. index.html reads it itself, before any script, and draws the default when the
+  // runtime configuration cannot be read.
+  loader: env('SHELL_LOADER', z.enum(['drill-bit', 'well-log']).default('drill-bit')),
 }

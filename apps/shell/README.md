@@ -56,6 +56,7 @@ and a deployment writes it from the environment when the image starts:
 | `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`             |
 | `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups` |
 | `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user          |
+| `SHELL_LOADER`      | `loader`          | the loading screen: `drill-bit` (the default) or `well-log`   |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -74,12 +75,36 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
-While sign-in and boot run, `index.html` shows a well log drilling down: gamma
-ray and resistivity scrolling past the bit, with its depth. It is the
-`<well-log-loader>` element in `src/loader/well-log-loader.js`, inlined into the
-page at build time so it draws before any script loads, and themed from Tecton's
-tokens. It fades out as the shell fades in; if sign-in fails the log stops and
-recedes behind the reason and a way forward.
+While sign-in and boot run, `index.html` shows a loading screen: the drawing
+`SHELL_LOADER` names, with the title and status over it. It fades out as the
+shell fades in; if sign-in fails the drawing stops and recedes behind the
+reason and a way forward.
+
+| Loader      | What it draws                                                               |
+| ----------- | --------------------------------------------------------------------------- |
+| `drill-bit` | a 3D tricone drill bit turning under a scan ring, in WebGL; drag to turn it |
+| `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
+
+Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
+custom element `<name>-loader`. The build minifies every loader into
+`index.html`, so none waits for a download, and the page runs only the one the
+runtime configuration names, or the declared default when it cannot read it.
+Both draw in a worker through an `OffscreenCanvas` where the browser has one,
+so they keep their frame rate while the entry boots.
+
+A loader is themed through CSS custom properties, which the loader's styles in
+`index.html` set from Tecton's tokens for each mode. `--drill-background` is
+the drill bit's backdrop (a colour, gradient, image or `transparent`), and its
+other properties are listed at the top of `src/loaders/drill-bit.js`. Each
+loader also honours a `paused` attribute, which the page sets when loading
+fails.
+
+To add a loader, add `src/loaders/<name>.js`, add `'<name>'` to the `z.enum`
+of `loader` in `src/mfe.config.ts`, and map its properties onto the loader's
+colours in `index.html`. The build refuses a name with no file, and a file no
+name reaches. Every loader adds its minified size to the document, whichever
+one a deployment chose: about 10 kB gzipped for the drill bit and 3 kB for the
+well log.
 
 ## The pages the shell owns
 
