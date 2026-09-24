@@ -21,9 +21,10 @@
         --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
         --loader-text: var(--tecton-color-text-primary, #f6f5f8);
         --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
-        /* Tecton's purple: orchid, one step for both modes. Violet is greyed toward the ink in
-           both, so the resistivity curve would read as a second gamma ray curve. */
-        --loader-accent: var(--tecton-palette-orchid-460, #b954fd);
+        /* Tecton's primary purple. In dark mode the primary is violet-220, a fill made to sit
+           behind white text, which vanishes as a line on this ground; a higher-contrast step of the
+           same ramp is the dark mode's foreground for it. */
+        --loader-accent: var(--tecton-palette-violet-460, #8e8199);
         --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
         --loader-ring: var(--tecton-color-focus-ring, #ff00aa);
@@ -50,7 +51,8 @@
         --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
         --loader-text: var(--tecton-color-text-primary, #21172a);
         --loader-muted: var(--tecton-color-text-secondary, #604e6e);
-        --loader-accent: var(--tecton-palette-orchid-460, #a63ad9);
+        /* The primary itself: mauve-680, the colour of Tecton's primary actions. */
+        --loader-accent: var(--tecton-color-action-primary-bg, #644a78);
         --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
       }
@@ -70,8 +72,10 @@
         --well-log-vignette: 0.7;
         transition: opacity 400ms ease;
       }
+      /* On a light page the texture and the vignette read as grey smudges, so both nearly go. */
       html:not(.dark) .shell-loader__log {
-        --well-log-vignette: 0.5;
+        --well-log-vignette: 0.35;
+        --well-log-texture: 0.25;
       }
 
       /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
@@ -99,6 +103,9 @@
         z-index: -1;
         background: radial-gradient(closest-side, var(--loader-bg), transparent);
         opacity: 0.8;
+      }
+      html:not(.dark) .shell-loader__scene::before {
+        display: none;
       }
       #shell-loader[data-state='done'] .shell-loader__scene {
         opacity: 0;
