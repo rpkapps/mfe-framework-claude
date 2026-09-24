@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    /*
+     * @tecton/react is a `link:`ed checkout, so TypeScript resolves the symlink to the checkout
+     * itself; the packages its files import bare are pointed back at this workspace's copies. This
+     * is the type-level counterpart of `tectonResolve` in the build.
+     */
+    "paths": {
+      "#mfe/config": ["./.mfe/config.ts"],
+      "#mfe/fetch": ["./.mfe/fetch.ts"],
+      "#mfe/meta": ["./.mfe/meta.ts"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"],
+      "react-aria": ["./node_modules/react-aria"],
+      "react-aria/*": ["./node_modules/react-aria/*"],
+      "react-aria-components": ["./node_modules/react-aria-components"],
+      "react-resizable-panels": ["./node_modules/react-resizable-panels"],
+      "class-variance-authority": ["./node_modules/class-variance-authority"],
+      "cn": ["./node_modules/cn"],
+      "lucide-react": ["./node_modules/lucide-react"]
+    }
+  },
+  "include": ["src/**/*", ".mfe/**/*", "scripts/**/*", "*.config.ts"]
+}

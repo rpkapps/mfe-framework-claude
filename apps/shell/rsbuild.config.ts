@@ -3,8 +3,7 @@
  * for its share scope instead of resolving a second one (§27).
  */
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
@@ -18,6 +17,8 @@ import {
   tectonResolve,
   useWorkspaceModules,
 } from '../../tools/tecton/tecton-build.mjs'
+import { pluginShellLoaders } from './scripts/loaders.ts'
+import shellConfig, { loader, loaderMinDuration } from './src/mfe.config.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -30,18 +31,22 @@ const DEV_PORT = 3000
 export default defineConfig({
   // `#mfe/config`, validated without Zod, and the runtime configuration's files, from
   // src/mfe.config.ts; it also serves .mfe/runtime-config.json in development (§37).
-  plugins: [pluginReact(), pluginMfeHostConfig()],
+  plugins: [
+    pluginReact(),
+    pluginMfeHostConfig(),
+    // The loading screens, minified into index.html, which draws the one SHELL_LOADER names.
+    pluginShellLoaders({
+      root: here,
+      loader: shellConfig.loader,
+      fallback: loader,
+      minDuration: loaderMinDuration,
+    }),
+  ],
 
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },
 
-  html: {
-    template: './src/index.html',
-    // Inlined rather than loaded, so the loading screen draws before any script is fetched.
-    templateParameters: {
-      wellLogLoader: readFileSync(join(here, 'src/loader/well-log-loader.js'), 'utf8'),
-    },
-  },
+  html: { template: './src/index.html' },
 
   moduleFederation: {
     options: {

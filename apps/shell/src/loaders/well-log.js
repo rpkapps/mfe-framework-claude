@@ -6,9 +6,10 @@
    --well-log-font     readout font family   (default 'JetBrains Mono', monospace)
    --well-log-vignette edge darkening 0–1    (default .6)
    --well-log-texture  strength of the banded texture 0–1 (default 1)
+   The `paused` attribute stops the log where it stands, as a speed of 0 does.
 
-   The shell inlines this into index.html at build time, so it paints before any script loads, and
-   sets each property from a Tecton token in the loader's styles. It draws in a worker through an
+   The shell's build emits this file on its own and index.html loads it when the deployment chose it
+   (SHELL_LOADER); the loader's styles set each property from a Tecton token. It draws in a worker through an
    OffscreenCanvas where the browser has one, so the animation keeps its frame rate while the page's
    own scripts load and boot on the main thread; elsewhere it draws on the main thread as before.
    On a light background the bit's glow is drawn normally, because additive blending turns it white.
@@ -262,6 +263,8 @@
   }
 
   class WellLogLoader extends HTMLElement {
+    static observedAttributes = ['paused']
+
     constructor() {
       super()
       const r = this.attachShadow({ mode: 'open' })
@@ -299,6 +302,9 @@
       // stopping it), so it is read again on a timer; nothing is sent unless it changed.
       this.poll = setInterval(() => this.readTheme(), 250)
     }
+    attributeChangedCallback() {
+      if (this.send) this.readTheme()
+    }
     disconnectedCallback() {
       clearInterval(this.poll)
       this.ro && this.ro.disconnect()
@@ -326,6 +332,7 @@
         '--well-log-texture',
       ]
         .map(g)
+        .concat(this.hasAttribute('paused'))
         .join('|')
       if (key === this.key) return
       this.key = key
@@ -340,7 +347,7 @@
           B,
           I: toRgb(g('--well-log-ink'), '#ece4d8'),
           A: toRgb(g('--well-log-accent'), '#f2a33a'),
-          speed: isFinite(sp) ? sp : 1,
+          speed: this.hasAttribute('paused') ? 0 : isFinite(sp) ? sp : 1,
           vig: isFinite(vg) ? vg : 0.6,
           texture: isFinite(tx) ? tx : 1,
           font: g('--well-log-font') || "'JetBrains Mono', ui-monospace, monospace",

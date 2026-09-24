@@ -1,0 +1,44 @@
+{
+  "name": "@example/loaders",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "mfe": {
+    "port": 3008,
+    "definitions": [
+      "loaders"
+    ]
+  },
+  "scripts": {
+    "dev": "pnpm run generate && rsbuild dev",
+    "build": "pnpm run generate && rsbuild build",
+    "generate": "mfe-generate && node scripts/generate-loaders.ts",
+    "typecheck": "pnpm run generate && node ../../tools/tecton/typecheck.mjs examples/loaders"
+  },
+  "dependencies": {
+    "@company/mfe-react": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@tecton/react": "*",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.2.6",
+    "lucide-react": "^1.45.0",
+    "react": "catalog:",
+    "react-aria": "3.52.1",
+    "react-aria-components": "^1.21.1",
+    "react-dom": "catalog:",
+    "react-resizable-panels": "^4.12.4",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@company/mfe-rspack": "workspace:*",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}

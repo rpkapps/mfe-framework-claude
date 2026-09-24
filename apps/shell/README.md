@@ -49,13 +49,14 @@ host validates without Zod ([decisions §37](../../docs/decisions.md)). The
 file is `/runtime-config.json`, which `index.html` preloads alongside the entry,
 and a deployment writes it from the environment when the image starts:
 
-| Variable            | Field             | What it does                                                  |
-| ------------------- | ----------------- | ------------------------------------------------------------- |
-| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                   |
-| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                    |
-| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`             |
-| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups` |
-| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user          |
+| Variable            | Field             | What it does                                                               |
+| ------------------- | ----------------- | -------------------------------------------------------------------------- |
+| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                                |
+| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                                 |
+| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`                          |
+| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups`              |
+| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                       |
+| `SHELL_LOADER`      | `loader`          | a loading screen other than the one the build chose, or `cycle`; see below |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -74,12 +75,85 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
-While sign-in and boot run, `index.html` shows a well log drilling down: gamma
-ray and resistivity scrolling past the bit, with its depth. It is the
-`<well-log-loader>` element in `src/loader/well-log-loader.js`, inlined into the
-page at build time so it draws before any script loads, and themed from Tecton's
-tokens. It fades out as the shell fades in; if sign-in fails the log stops and
-recedes behind the reason and a way forward.
+While sign-in and boot run, `index.html` shows a loading screen: a drawing,
+with the title and status over it. It fades out as the
+shell fades in; if sign-in fails the drawing stops and recedes behind the
+reason and a way forward.
+
+| Loader      | What it draws                                                               |
+| ----------- | --------------------------------------------------------------------------- |
+| `drill-bit` | a 3D tricone drill bit turning under a scan ring, in WebGL; drag to turn it |
+| `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
+| `bounce`    | the logo bouncing on its shadow, with squash and stretch                    |
+
+The oil-and-gas family adds 37 more, each a scene from exploration, drilling,
+production and refining, or one of five mascots that follow the pointer:
+`pipeline-bore`, `seismic-section`, `pdc-drill-bit`, `wellhead-pressure`,
+`benzene-ring`, `reservoir-anticline`, `crude-level`, `survey-sweep`,
+`manifold-flow`, `drilling-log`, `offshore-platform`, `cryogenic-sphere`,
+`seabed-lidar`, `carbon-injection`, `pore-network`, `smart-pig-scan`,
+`core-hologram`, `methane-plume`, `tanker-routes`, `horizontal-well`,
+`form-morph`, `compressor-stage`, `shot-gather`,
+`structure-map`, `wellhead-stack`, `saturation-voxels`, `gyro-survey`,
+`gas-chromatograph`, `pumpjack-rig`, `derrick-and-bore`, `tank-farm`,
+`pipe-rack`, and the mascots `drip`, `flare-sprite`,
+`rov-scout`, `methane-pal` and `nodding-donkey`. The four 3D scenes
+(`pumpjack-rig`, `derrick-and-bore`, `tank-farm` and `pipe-rack`) are drawn as
+wireframes.
+
+The STRATUM family adds five procedural WebGL models, shaded like the drill bit
+and turned under a scan ring with a frame and two callouts: `pumpjack-3d`,
+`subsea-tree-3d`, `pipeline-3d`, `offshore-3d` (whose platform assembles from a
+wireframe as it loops) and `rock-core-3d`.
+
+Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
+custom element `<name>-loader`. A directory there is a family: its `kit.js`
+holds what its loaders share (for the oil-and-gas scenes, the worker, the frame
+loop, the helpers and the theme), and each other script in it is a loader,
+`<name>.js`, that hands the kit one draw function. The build minifies every loader into
+`index.html`, so none waits for a download, and the page runs only the one the
+runtime configuration names, or the declared default when it cannot read it.
+Each draws in a worker through an `OffscreenCanvas` where the browser has one,
+so it keeps its frame rate while the page loads and boots on the main thread.
+
+A loader is themed through CSS custom properties, which the loader's styles in
+`index.html` set from Tecton's tokens for each mode. `--drill-background` is
+the drill bit's backdrop (a colour, gradient, image or `transparent`), and its
+other properties are listed at the top of `src/loaders/drill-bit.js`; the
+STRATUM models take the same kind (`--stratum-*`, in its `kit.js`). The
+oil-and-gas scenes take a background, ink and accent (`--og-*`, listed in its
+`kit.js`), draw their glows normally on a light page, where adding light turns
+them white, and draw above the title and status rather than behind them. Each
+loader also honours a `paused` attribute, which the page sets when loading
+fails.
+
+Two plain exports in `src/mfe.config.ts` choose it, and the build writes both
+into the page:
+
+```ts
+export const loader = 'drill-bit' // or 'cycle': the next loader on each page load
+export const loaderMinDuration = 1000 // milliseconds it stays up at least, once drawn
+```
+
+`cycle` goes through every loader in the order `SHELL_LOADER`'s `z.enum` lists
+them, one per page load, remembering in the browser's `localStorage` which it
+showed last. A deployment can choose another loader, or `cycle`, with
+`SHELL_LOADER`, which has no default, so a development copy of the runtime
+configuration never pins one. The minimum duration keeps a fast boot from
+flashing the drawing: until it has passed, the shell waits, hidden, behind it.
+
+`examples/loaders` shows every one of them, one page each, in these colours and
+the current theme, with the line that chooses it; its build reads
+`src/loaders/` and `src/loaders/theme.css`, so a new loader appears there too.
+
+To add a loader, add `src/loaders/<name>.js` (or a scene to a family's
+directory), add `'<name>'` to the `z.enum` of `SHELL_LOADER` in
+`src/mfe.config.ts`, and map its properties onto the loader's colours in
+`index.html`. The build refuses a name with no file, a file no name reaches,
+and a `loader` export `SHELL_LOADER` does not list. Every loader adds its minified size to the document, whichever
+one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
+well log, 3 kB for the bounce, 24 kB for all 37 oil-and-gas scenes and their
+kit, and 16 kB for the five STRATUM models and theirs: 60 kB for the page.
 
 ## The pages the shell owns
 

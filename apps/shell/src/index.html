@@ -16,15 +16,11 @@
     <!-- The loading screen paints before any stylesheet or script arrives, so it cannot wait for
          Tecton's: each value names the Tecton token first and falls back to that token's own value
          for the mode, which is what it resolves to once globals.css loads (§36). -->
+    <!-- Every loader's colours, and the words', from src/loaders/theme.css. -->
+    <!-- prettier-ignore -->
+    <style><%= shellLoaderTheme %></style>
     <style>
       #shell-loader {
-        --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
-        --loader-text: var(--tecton-color-text-primary, #f6f5f8);
-        --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
-        /* Tecton's primary purple. In dark mode the primary is violet-220, a fill made to sit
-           behind white text, which vanishes as a line on this ground; a higher-contrast step of the
-           same ramp is the dark mode's foreground for it. */
-        --loader-accent: var(--tecton-palette-violet-460, #8e8199);
         --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
         --loader-ring: var(--tecton-color-focus-ring, #ff00aa);
@@ -48,11 +44,6 @@
         transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
       html:not(.dark) #shell-loader {
-        --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
-        --loader-text: var(--tecton-color-text-primary, #21172a);
-        --loader-muted: var(--tecton-color-text-secondary, #604e6e);
-        /* The primary itself: mauve-680, the colour of Tecton's primary actions. */
-        --loader-accent: var(--tecton-color-action-primary-bg, #644a78);
         --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
         --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
       }
@@ -61,21 +52,30 @@
         pointer-events: none;
       }
 
-      /* The well log fills the screen; its colours are the loader's, so Tecton's once it loads. */
-      .shell-loader__log {
+      /* The drawing fills the screen behind the words. Its colours, and the words', are Tecton's,
+         from src/loaders/theme.css, which the build writes above. */
+      .shell-loader__art,
+      .shell-loader__art > * {
         position: absolute;
         inset: 0;
-        --well-log-bg: var(--loader-bg);
-        --well-log-ink: var(--loader-text);
-        --well-log-accent: var(--loader-accent);
-        --well-log-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-        --well-log-vignette: 0.7;
+      }
+      .shell-loader__art {
         transition: opacity 400ms ease;
       }
-      /* On a light page the texture and the vignette read as grey smudges, so both nearly go. */
-      html:not(.dark) .shell-loader__log {
-        --well-log-vignette: 0.35;
-        --well-log-texture: 0.25;
+
+      /* Where the drawings leave room for the words: the oil-and-gas scenes draw above them, and
+         the bounce lands just above the middle with the words right under it. */
+      .shell-loader__art {
+        --og-inset-bottom: calc(max(48px, 10vh) + 64px);
+        --bounce-floor: calc(50% - 16px);
+      }
+      #shell-loader[data-art='bounce'] .shell-loader__scene {
+        align-self: start;
+        margin: calc(50dvh - 4px) 0 0;
+      }
+      /* The words need no pool of the background here, and it would shade the logo above them. */
+      #shell-loader[data-art='bounce'] .shell-loader__scene::before {
+        display: none;
       }
 
       /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
@@ -158,9 +158,9 @@
         outline-offset: 2px;
       }
 
-      /* A failure stops the log where it stands, and lets it recede behind the reason. */
-      #shell-loader[data-state='error'] .shell-loader__log {
-        --well-log-speed: 0;
+      /* A failure stops the drawing where it stands (the script below pauses it), and lets it
+         recede behind the reason. */
+      #shell-loader[data-state='error'] .shell-loader__art {
         opacity: 0.45;
       }
       #shell-loader[data-state='error'] .shell-loader__status {
@@ -188,7 +188,7 @@
         #shell-loader,
         #root,
         .shell-loader__scene,
-        .shell-loader__log {
+        .shell-loader__art {
           animation: none !important;
           transition: none !important;
         }
@@ -197,10 +197,11 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- A well log drilling down while sign-in and boot run: gamma ray and resistivity past the
-         bit, with its depth. `loader.ts` changes the words and removes it; it never needs React. -->
-    <div id="shell-loader" data-state="loading">
-      <well-log-loader class="shell-loader__log" aria-hidden="true"></well-log-loader>
+    <!-- The loading screen while sign-in and boot run: the drawing SHELL_LOADER chose, which the
+         last script puts in `art`, and the words over it. `loader.ts` changes the words and removes
+         it; it never needs React. -->
+    <div id="shell-loader" class="loader-theme" data-state="loading">
+      <div class="shell-loader__art" data-part="art" aria-hidden="true"></div>
       <div class="shell-loader__scene">
         <p class="shell-loader__title">Discovery</p>
         <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">
@@ -281,9 +282,91 @@
         })
       })()
     </script>
-    <!-- After the theme, so the log's first frame is drawn in the right mode. -->
+    <!-- The drawing, after the theme so its first frame is in the right mode. Every loader in
+         src/loaders/ is minified into this script by the build and only the chosen one runs, so
+         none waits for a download. Which one is the `loader` src/mfe.config.ts built in, unless the
+         deployment's runtime configuration sets SHELL_LOADER, read here with a request of its own:
+         taking the preload above would send the entry's read back to the network. A file that
+         cannot be read draws the built-in one, and the entry says why it failed. -->
     <script>
-      <%= wellLogLoader %>
+      ;(function () {
+        var loaders = <%= shellLoaders %>
+        var screen = document.getElementById('shell-loader')
+        var art = screen && screen.querySelector('[data-part="art"]')
+        if (!art) return
+
+        // Every loader, in the order src/mfe.config.ts lists them, which is the order 'cycle' takes.
+        var names = Object.keys(loaders.draw)
+        var CYCLE_KEY = 'shell.loader.cycle'
+
+        // The loader a choice names: itself, or for 'cycle' the one after the last this browser
+        // showed. Null for anything else.
+        function choose(choice) {
+          if (choice === 'cycle') {
+            var last = null
+            try {
+              last = window.localStorage.getItem(CYCLE_KEY)
+            } catch (error) {
+              // Storage blocked: every load starts from the first.
+            }
+            var next = names[(names.indexOf(last) + 1) % names.length]
+            try {
+              window.localStorage.setItem(CYCLE_KEY, next)
+            } catch (error) {
+              // Storage blocked or full: the next load shows the first again.
+            }
+            return next
+          }
+          return Object.prototype.hasOwnProperty.call(loaders.draw, choice) ? choice : null
+        }
+
+        function draw(choice) {
+          // A shell that was ready first never shows a drawing only to take it away again, and
+          // 'cycle' does not move on for a load that showed none.
+          var state = screen.dataset.state
+          if (!screen.isConnected || (state !== 'loading' && state !== 'error')) return
+          var name = choose(choice) || choose(loaders.fallback) || names[0]
+          try {
+            var entry = loaders.draw[name]
+            entry.run(entry.kit ? loaders.kits[entry.kit]() : undefined)
+          } catch (error) {
+            // A drawing that fails leaves the backdrop and the words, which is still a loader.
+            console.warn('The loading screen could not draw ' + name + '.', error)
+            return
+          }
+          var element = document.createElement(name + '-loader')
+          // A failure pauses the drawing, whichever script reported it.
+          function sync() {
+            element.toggleAttribute('paused', screen.dataset.state === 'error')
+          }
+          sync()
+          new MutationObserver(sync).observe(screen, {
+            attributes: true,
+            attributeFilter: ['data-state'],
+          })
+          screen.dataset.art = name
+          art.appendChild(element)
+          // So a fast boot does not flash the drawing, `revealShell` waits until it has been up for
+          // loaderMinDuration (src/mfe.config.ts).
+          if (loaders.minDuration > 0) {
+            screen.dataset.holdUntil = String(performance.now() + loaders.minDuration)
+          }
+        }
+
+        // The deployment's SHELL_LOADER, or the `loader` src/mfe.config.ts built in.
+        fetch('/runtime-config.json?loader', { credentials: 'same-origin', cache: 'no-store' })
+          .then(function (response) {
+            return response.ok ? response.json() : null
+          })
+          .then(
+            function (config) {
+              draw(config && typeof config.loader === 'string' ? config.loader : '')
+            },
+            function () {
+              draw(loaders.fallback)
+            },
+          )
+      })()
     </script>
   </body>
 </html>
