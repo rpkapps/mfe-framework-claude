@@ -17,164 +17,223 @@
         --loader-bg: var(--tecton-color-bg-default, #1d1c1f);
         --loader-text: var(--tecton-color-text-primary, #f6f5f8);
         --loader-muted: var(--tecton-color-text-secondary, #a7a2ac);
-        --loader-line: var(--tecton-palette-graphite-370, #7a747f);
-        --loader-strata: var(--tecton-palette-graphite-160, #433d47);
-        --loader-oil: var(--tecton-palette-saffron-370, #a16941);
+        --loader-subtle: var(--tecton-color-text-subtlest, #89848e);
+        --loader-accent: var(--tecton-palette-saffron-560, #cb8553);
+        --loader-button: var(--tecton-color-action-secondary-bg, #3a343e);
+        --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #514659);
+        --loader-ring: var(--tecton-color-focus-ring, #ff00aa);
         position: fixed;
         inset: 0;
         z-index: 1000;
         display: grid;
         place-items: center;
         padding: 16px;
+        overflow: hidden;
         background: var(--loader-bg);
         color: var(--loader-text);
-        font-family: Figtree, ui-sans-serif, system-ui, sans-serif;
-        transition: opacity 450ms ease;
+        font-family:
+          Figtree,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
       html:not(.dark) #shell-loader {
         --loader-bg: var(--tecton-color-bg-default, #f6f4f7);
         --loader-text: var(--tecton-color-text-primary, #21172a);
         --loader-muted: var(--tecton-color-text-secondary, #604e6e);
-        --loader-line: var(--tecton-palette-graphite-370, #8c769a);
-        --loader-strata: var(--tecton-palette-graphite-160, #cbc0d1);
-        --loader-oil: var(--tecton-palette-saffron-370, #bd672a);
+        --loader-subtle: var(--tecton-color-text-subtlest, #7b668b);
+        --loader-accent: var(--tecton-palette-saffron-310, #d1722e);
+        --loader-button: var(--tecton-color-action-secondary-bg, #e4dde7);
+        --loader-button-hover: var(--tecton-color-action-secondary-bg-hover, #ece8f0);
       }
       #shell-loader[data-state='done'] {
         opacity: 0;
         pointer-events: none;
       }
-      /* A fast sign-in or boot never shows it: the backdrop is immediate, the scene waits a beat. */
+
+      /* A soft light behind the mark, as if from the prospect; decoration only. */
+      .shell-loader__glow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 520px;
+        height: 520px;
+        margin: -300px 0 0 -260px;
+        border-radius: 50%;
+        background: radial-gradient(closest-side, var(--loader-accent), transparent);
+        opacity: 0.07;
+        pointer-events: none;
+      }
+      html:not(.dark) .shell-loader__glow {
+        opacity: 0.05;
+      }
+
+      /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
       .shell-loader__scene {
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 12px;
-        max-width: 360px;
+        max-width: 340px;
         text-align: center;
-        animation: shell-loader-enter 400ms ease 150ms both;
+        animation: shell-loader-enter 700ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+        transition:
+          opacity 300ms ease,
+          transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
       }
+      #shell-loader[data-state='done'] .shell-loader__scene {
+        opacity: 0;
+        transform: scale(0.98);
+      }
+
+      /* A structure map of the prospect: contour rings spread from it like a seismic wave, each
+         fading as it widens, around a point of light where the oil is. */
       .shell-loader__art {
-        width: 240px;
-        height: 180px;
+        width: 176px;
+        height: 176px;
         overflow: visible;
       }
-      .shell-loader__art * {
+      .shell-loader__art .contour {
         fill: none;
-        stroke: var(--loader-line);
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+        stroke: var(--loader-text);
+        stroke-width: 1;
+        vector-effect: non-scaling-stroke;
       }
-      .shell-loader__art .strata {
-        stroke: var(--loader-strata);
-      }
-      .shell-loader__art .solid {
-        fill: var(--loader-line);
-      }
-      .shell-loader__art .reservoir {
-        fill: var(--loader-oil);
-        stroke: none;
-        opacity: 0.3;
-      }
-      .shell-loader__art .flow {
-        stroke: var(--loader-oil);
-        stroke-dasharray: 2 5;
-        animation: shell-loader-flow 700ms linear infinite;
-      }
-      .shell-loader__art .beam {
+      /* At rest, and with reduced motion, the rings stand as a finished map. */
+      .shell-loader__art .ring {
         transform-box: view-box;
-        transform-origin: 100px 50px;
-        animation: shell-loader-beam 2.6s ease-in-out infinite alternate;
+        transform-origin: 100px 100px;
+        transform: rotate(calc(var(--i) * 2.5deg - 10deg)) scale(calc((var(--i) + 1) / 9));
+        opacity: calc(0.5 - var(--i) * 0.05);
+        animation: shell-loader-ring 7.2s linear infinite;
+        animation-delay: calc(var(--i) * -0.8s);
       }
-      .shell-loader__art .rod {
-        animation: shell-loader-rod 2.6s ease-in-out infinite alternate;
+      .shell-loader__art .core,
+      .shell-loader__art .halo {
+        fill: var(--loader-accent);
       }
-      .shell-loader__art .crank {
+      .shell-loader__art .halo {
         transform-box: view-box;
-        transform-origin: 152px 90px;
-        animation: shell-loader-crank 5.2s linear infinite;
+        transform-origin: 100px 100px;
+        opacity: 0.16;
+        animation: shell-loader-halo 2.7s ease-in-out infinite;
       }
       .shell-loader__title {
-        margin: 4px 0 0;
-        font-size: 18px;
+        margin: 20px 0 0;
+        font-size: 15px;
         font-weight: 600;
-        letter-spacing: 0.01em;
+        line-height: 20px;
+        letter-spacing: -0.005em;
       }
       .shell-loader__status {
-        margin: 0;
-        font-size: 14px;
+        min-height: 18px;
+        margin: 6px 0 0;
+        font-size: 13px;
+        line-height: 18px;
         color: var(--loader-muted);
       }
       .shell-loader__detail {
-        margin: 0;
+        margin: 8px 0 0;
         font-size: 13px;
+        line-height: 18px;
         color: var(--loader-muted);
+        text-wrap: pretty;
       }
       .shell-loader__detail:empty {
         display: none;
       }
       .shell-loader__action {
-        margin-top: 4px;
-        padding: 6px 14px;
-        border: 1px solid var(--loader-line);
-        border-radius: 6px;
-        background: transparent;
+        height: 32px;
+        margin-top: 20px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--loader-button);
         color: var(--loader-text);
         font: inherit;
-        font-size: 14px;
+        font-size: 13px;
+        font-weight: 500;
         cursor: pointer;
+        transition: background-color 150ms ease;
+      }
+      .shell-loader__action:hover {
+        background: var(--loader-button-hover);
       }
       .shell-loader__action:focus-visible {
-        outline: 2px solid var(--loader-oil);
+        outline: 2px solid var(--loader-ring);
         outline-offset: 2px;
       }
-      /* A failure stops the pump: the page is not going anywhere until the user acts. */
+
+      /* A failure stills the map: nothing moves until the user acts. */
       #shell-loader[data-state='error'] .shell-loader__art * {
-        animation-play-state: paused;
+        animation: none;
+      }
+      #shell-loader[data-state='error'] .shell-loader__art .core {
+        fill: var(--loader-subtle);
+      }
+      #shell-loader[data-state='error'] .shell-loader__art .halo,
+      #shell-loader[data-state='error'] .shell-loader__glow {
+        opacity: 0;
       }
       #shell-loader[data-state='error'] .shell-loader__status {
         color: var(--loader-text);
-        font-weight: 600;
+        font-weight: 500;
       }
+
+      /* Opacity only: a transform here would capture the shell's fixed-position overlays. */
       #root {
-        transition: opacity 450ms ease;
+        transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1) 80ms;
       }
       html:not([data-shell='ready']) #root {
         opacity: 0;
       }
+
       @keyframes shell-loader-enter {
         from {
           opacity: 0;
-          transform: translateY(4px);
+          transform: translateY(6px);
+          filter: blur(3px);
         }
       }
-      @keyframes shell-loader-beam {
-        from {
-          transform: rotate(8deg);
+      /* Born at the prospect, brightest while close, gone by the edge of the map. */
+      /* Each ring turns a little as it widens, so the nested contours never quite align: the
+         irregular spacing of a real structure map rather than ripples on a pond. */
+      @keyframes shell-loader-ring {
+        0% {
+          transform: rotate(-12deg) scale(0.04);
+          opacity: 0;
         }
-        to {
-          transform: rotate(-8deg);
+        10% {
+          opacity: 0.5;
         }
-      }
-      /* The horsehead sits 56 units from the pivot, so ±8° moves the rod ±7.8. */
-      @keyframes shell-loader-rod {
-        from {
-          transform: translateY(-7.8px);
+        60% {
+          opacity: 0.2;
         }
-        to {
-          transform: translateY(7.8px);
+        92%,
+        100% {
+          opacity: 0;
         }
-      }
-      @keyframes shell-loader-crank {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      @keyframes shell-loader-flow {
-        to {
-          stroke-dashoffset: -14;
+        100% {
+          transform: rotate(12deg) scale(1);
+          opacity: 0;
         }
       }
+      @keyframes shell-loader-halo {
+        0%,
+        100% {
+          transform: scale(0.85);
+          opacity: 0.12;
+        }
+        50% {
+          transform: scale(1.15);
+          opacity: 0.22;
+        }
+      }
+      /* Reduced motion: the finished map, standing still. */
       @media (prefers-reduced-motion: reduce) {
         #shell-loader,
         #root,
@@ -188,31 +247,30 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- A pumpjack on its well, drawing oil up through the strata while sign-in and boot run.
-         `loader.ts` changes its words and removes it; it never needs React. -->
+    <!-- The structure map of a prospect, its contours spreading like a seismic wave, while sign-in
+         and boot run. `loader.ts` changes its words and removes it; it never needs React. -->
     <div id="shell-loader" data-state="loading">
+      <div class="shell-loader__glow"></div>
       <div class="shell-loader__scene">
-        <svg class="shell-loader__art" viewBox="0 0 200 150" aria-hidden="true">
-          <path class="strata" d="M10 122 Q60 117 110 121 T190 119" />
-          <path class="strata" d="M10 132 Q70 128 120 133 T190 130" />
-          <path class="reservoir" d="M14 146 Q44 136 86 141 T150 146 Z" />
-          <line class="flow" x1="44" y1="146" x2="44" y2="112" />
-          <line x1="10" y1="110" x2="190" y2="110" />
-          <line class="rod" x1="44" y1="66" x2="44" y2="112" />
-          <rect x="39" y="100" width="10" height="10" rx="1" />
-          <line x1="86" y1="110" x2="100" y2="52" />
-          <line x1="114" y1="110" x2="100" y2="52" />
-          <line x1="91" y1="90" x2="109" y2="90" />
-          <rect x="140" y="92" width="24" height="18" rx="2" />
-          <g class="crank">
-            <line x1="152" y1="90" x2="152" y2="80" />
-            <rect class="solid" x="145" y="72" width="14" height="8" rx="2" />
-          </g>
-          <g class="beam">
-            <rect x="52" y="47" width="98" height="6" rx="1" />
-            <path class="solid" d="M58 41 L48 41 Q38 53 44 66 L52 66 Q48 53 58 47 Z" />
-          </g>
-          <circle class="solid" cx="100" cy="50" r="3" />
+        <svg class="shell-loader__art" viewBox="0 0 200 200" aria-hidden="true">
+          <defs>
+            <path
+              id="shell-loader-contour"
+              class="contour"
+              d="M87.5 28.9 C104.6 25.3 128.1 24.5 142.7 30.5 C157.2 36.5 167.4 52.3 175 65.2 C182.6 78 189.8 93.1 188.3 107.6 C186.7 122.1 178.6 142.1 165.9 152.4 C153.3 162.7 129.6 167.9 112.2 169.4 C94.9 171 77.4 167.3 62 161.9 C46.5 156.6 28.7 149 19.7 137.3 C10.6 125.7 4.5 106.3 7.8 92.1 C11.1 77.9 26.3 62.6 39.6 52 C52.9 41.5 70.3 32.5 87.5 28.9 Z"
+            />
+          </defs>
+          <use class="ring" href="#shell-loader-contour" style="--i: 0" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 1" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 2" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 3" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 4" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 5" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 6" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 7" />
+          <use class="ring" href="#shell-loader-contour" style="--i: 8" />
+          <circle class="halo" cx="100" cy="100" r="13" />
+          <circle class="core" cx="100" cy="100" r="3.5" />
         </svg>
         <p class="shell-loader__title">Discovery</p>
         <p class="shell-loader__status" data-part="status" role="status" aria-live="polite">

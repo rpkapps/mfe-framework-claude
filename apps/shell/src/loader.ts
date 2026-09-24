@@ -10,9 +10,23 @@ function part(name: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`#${LOADER_ID} [data-part="${name}"]`)
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** A new line settles into place rather than snapping, so a quick succession of steps reads calmly. */
 export function setLoaderStatus(text: string): void {
   const status = part('status')
-  if (status !== null) status.textContent = text
+  if (status === null || status.textContent === text) return
+  status.textContent = text
+  if (prefersReducedMotion()) return
+  status.animate(
+    [
+      { opacity: 0, transform: 'translateY(3px)' },
+      { opacity: 1, transform: 'none' },
+    ],
+    { duration: 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+  )
 }
 
 export interface LoaderFailure {
@@ -54,7 +68,7 @@ export function revealShell(): void {
     loader.remove()
   }
   // A reduced-motion user gets no transition, and so no transitionend to wait for.
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) remove()
+  if (prefersReducedMotion()) remove()
   else {
     // Only the loader's own fade: a transition inside it bubbles the same event.
     loader.addEventListener('transitionend', event => {
