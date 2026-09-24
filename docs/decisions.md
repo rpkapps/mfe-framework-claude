@@ -967,7 +967,7 @@ the chosen one instead would wait for a second download before anything moved. T
 configuration is read with a request of its own, because taking the preload would send the
 entry's read back to the network. Each loader draws in a worker through an `OffscreenCanvas`,
 so it keeps its frame rate while the entry parses and boots on the main thread, and the boot no longer shares that thread with it:
-under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it.
+under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it. A loader may ask to stay up for a minimum time once drawn (the drill bit asks for a second), and a boot faster than that waits, hidden, until it has passed: a fast load is a moment slower rather than a flash of a drawing that is gone before it reads.
 
 **Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
 running in the page could read it for that long rather than only use it; DPoP, where the

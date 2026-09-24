@@ -21,5 +21,5 @@ export default {
   // The loading screen drawn while sign-in and boot run: one per script in src/loaders/, named as
   // its file is. index.html reads it itself, before any script, and draws the default when the
   // runtime configuration cannot be read.
-  loader: env('SHELL_LOADER', z.enum(['drill-bit', 'well-log']).default('drill-bit')),
+  loader: env('SHELL_LOADER', z.enum(['drill-bit', 'well-log', 'bounce']).default('drill-bit')),
 }

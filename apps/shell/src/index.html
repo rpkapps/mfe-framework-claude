@@ -103,6 +103,15 @@
         --well-log-texture: 0.25;
       }
 
+      /* <bounce-loader>. The logo keeps its own red in both modes; on a light page its shadow is
+         lighter, since red blurred on white reads as a pink smudge. */
+      .shell-loader__art {
+        --bounce-background: var(--loader-bg);
+      }
+      html:not(.dark) .shell-loader__art {
+        --bounce-shadow-opacity: 0.18;
+      }
+
       /* A fast sign-in or boot never shows the scene: the backdrop is immediate, the scene waits a beat. */
       .shell-loader__scene {
         position: relative;
@@ -321,7 +330,9 @@
 
         function draw(name) {
           if (!Object.prototype.hasOwnProperty.call(loaders.draw, name)) name = loaders.fallback
-          if (!screen.isConnected) return
+          // A shell that was ready first never shows a drawing only to take it away again.
+          var state = screen.dataset.state
+          if (!screen.isConnected || (state !== 'loading' && state !== 'error')) return
           try {
             loaders.draw[name]()
           } catch (error) {
@@ -341,6 +352,10 @@
           })
           screen.dataset.art = name
           art.appendChild(element)
+          // A loader may ask to stay up for a while once drawn (its element's `minimumDisplay`, in
+          // milliseconds), so a fast boot does not flash it; `revealShell` waits until then.
+          var minimum = Number(customElements.get(name + '-loader').minimumDisplay)
+          if (minimum > 0) screen.dataset.holdUntil = String(performance.now() + minimum)
         }
 
         fetch('/runtime-config.json?loader', { credentials: 'same-origin', cache: 'no-store' })

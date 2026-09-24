@@ -55,8 +55,27 @@ export function failLoader(failure: LoaderFailure): void {
   }
 }
 
-/** Idempotent, because StrictMode and hot reload both run the effect that calls it again. */
+/**
+ * Idempotent, because StrictMode and hot reload both run the effect that calls it again. A loader
+ * that asked for a minimum time on screen (`data-hold-until`, which index.html sets when it draws
+ * one) keeps the shell hidden until that time has passed.
+ */
 export function revealShell(): void {
+  const root = document.documentElement
+  const loader = document.getElementById(LOADER_ID)
+  if (root.dataset['shell'] === 'ready' || loader?.dataset['state'] === 'holding') return
+
+  const wait = Number(loader?.dataset['holdUntil'] ?? 0) - performance.now()
+  if (loader !== null && wait > 0) {
+    // Not loading any more: nothing draws a loader now, and a late error no longer stops it.
+    loader.dataset['state'] = 'holding'
+    window.setTimeout(reveal, wait)
+  } else {
+    reveal()
+  }
+}
+
+function reveal(): void {
   const root = document.documentElement
   if (root.dataset['shell'] === 'ready') return
   root.dataset['shell'] = 'ready'
