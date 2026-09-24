@@ -48,12 +48,12 @@ Each is its own commit, with the framework's tests green and no change in behavi
 `packages/mfe-runtime/src/commands/command-registry.ts` (697 lines) mixes shortcut matching and entry bookkeeping with execution.
 
 - Move execution into its own module (`action-executor.ts`); shortcut matching and entries stay in the registry.
-- `execute(id)` becomes `execute(id, { input, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
-- `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
+- `execute(id)` becomes `execute(id, { inputs, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
+- `#run` becomes ordered steps: decide (`canExecute`) → validate the inputs → approval → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
 
 ### 2. Share the build's schema extraction
 
-`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action inputs, and later route and search schemas, use the same code. Covered by the existing extraction tests.
+`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action inputs, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeEvents`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
 
 ### 3. Extend entry equality with the new fields
 
@@ -78,12 +78,14 @@ The command registry, the breadcrumb store and the navigator's blockers each col
 On `ActionRegistration`:
 
 - `description` — written for the model; `label` stays the menu text.
-- `input` — a Zod schema, published as JSON Schema through step 2; validated before `execute` runs.
-- `output` — optional schema for the returned value.
+- `inputs` — a Zod object schema, the same kind and the same name as a Widget's `inputs`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none.
+- `output` — optional schema for the one value a call returns.
 - `effect` — `'read' | 'write' | 'destructive'`. Undeclared counts as `'write'`.
-- `needsApproval` — `boolean` or `(input) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
+- `needsApproval` — `boolean` or `(inputs) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
 - `placements` — `'palette'`, `'agent'`, later `'webmcp'`, possibly `'toolbar'` and `'context-menu'`. The default includes `'agent'`: anything a user can reach from the palette, the agent can reach too.
 - `parallelSafe` — writes run one at a time unless this is set.
+
+Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. What comes out is not the same thing, so the names differ on purpose: an action's `output` is exactly one value, returned once per call, while a Widget's `events` are named payloads emitted any number of times, or never, while it is mounted. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
 
@@ -105,7 +107,7 @@ Modelled on Agent-Native's context layers (`context-awareness` in its docs):
 
 ### C. Who acted
 
-Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the input with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
+Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the inputs with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
 
 ### D. Published routes
 
@@ -115,7 +117,7 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
 - Consumes one event stream from the backend, preferably the AG-UI protocol rather than an invented one: message start and delta, tool start and end, approval requests, done.
-- Approval: the loop pauses with the action, its input and a key for that exact call. Approve re-sends the turn with the key; decline sends nothing. The prompt is a Tecton `Questionnaire` or dialog.
+- Approval: the loop pauses with the action, its inputs and a key for that exact call. Approve re-sends the turn with the key; decline sends nothing. The prompt is a Tecton `Questionnaire` or dialog.
 - Renders answers with the Tecton conversation components.
 - Replaces the two identical `ai-agent-panel` copies (`examples/operations`, `examples/insights`); the insights `agent-panel` Widget either goes or becomes something the chat renders.
 
