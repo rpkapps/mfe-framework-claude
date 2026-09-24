@@ -61,10 +61,6 @@ describe('the Angular profile', () => {
     expect(profile.containerRootOption).toBe('withMfe({ containerRoot })')
   })
 
-  it('has Tailwind scan the templates Angular components keep in .ts and .html files', () => {
-    expect(angularProfile().stylesheet.sources).toBe('**/*.{ts,html}')
-  })
-
   it("re-exports the author's definition unchanged, with no style root of its own", () => {
     expect(angularProfile().exposeDefinition).toBeUndefined()
   })
@@ -123,11 +119,19 @@ describe('planning an Angular container', () => {
     const stylesheet = generatedFile(root, 'styles.css')
 
     expect(stylesheet).toContain('@import "../src/styles.css";')
-    expect(stylesheet).toContain('@source "../src/**/*.{ts,html}";')
-    // After Tailwind's layers, so an author's unlayered rule wins over a utility.
-    expect(stylesheet.indexOf('../src/styles.css')).toBeGreaterThan(
-      stylesheet.indexOf('tailwindcss/utilities.css'),
+    expect(stylesheet).not.toContain('@source')
+  })
+
+  it('does not generate Tailwind even when a container declares it', () => {
+    const root = createContainer(
+      { 'src/mfe.ts': APP_ENTRY, 'src/app.routes.ts': APP_ROUTES, 'src/styles.css': '.panel {}' },
+      { manifest: { devDependencies: { tailwindcss: '^4.0.0' } } },
     )
+
+    const stylesheet = generatedFile(root, 'styles.css')
+    expect(stylesheet).toContain('@import "../src/styles.css";')
+    expect(stylesheet).not.toContain('tailwindcss')
+    expect(stylesheet).not.toContain('@source')
   })
 
   it('has every exposed entry import the stylesheet the way Angular compiles a global one', () => {

@@ -10,6 +10,11 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
+    // Inside this repository a framework package resolves to its TypeScript source, through its
+    // `mfe-source` export condition, so type checking needs nothing built; a published consumer,
+    // and each package's own tsconfig.build.json, get the compiled dist/ instead
+    // (tools/workspace/conditions.mjs).
+    "customConditions": ["mfe-source"],
     "allowImportingTsExtensions": true,
     "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,

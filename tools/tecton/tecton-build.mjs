@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs'
 import { delimiter, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { sourceConditionNames } from '../workspace/conditions.mjs'
 import { tectonCheckoutDirectory, tectonLinkPath } from './location.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -59,5 +60,7 @@ export function tectonResolve(packageRoot) {
       resolve(packageRoot, 'node_modules'),
       resolve(repoRoot, 'node_modules'),
     ],
+    // The framework packages' TypeScript source rather than their dist/ (tools/workspace).
+    conditionNames: sourceConditionNames,
   }
 }

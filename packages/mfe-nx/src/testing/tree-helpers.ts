@@ -1,6 +1,6 @@
 /** Small assertions shared by the generator tests; not part of the published package. */
 
-import { join } from 'node:path'
+import { posix } from 'node:path'
 
 import type { ProjectConfiguration, TargetConfiguration, Tree } from '@nx/devkit'
 
@@ -17,7 +17,7 @@ export function readTreeFiles(tree: Tree, root: string): ReadonlyMap<string, str
   const files = new Map<string, string>()
   const visit = (directory: string): void => {
     for (const child of tree.children(directory)) {
-      const path = join(directory, child)
+      const path = posix.join(directory, child)
       if (tree.isFile(path)) files.set(path, readTreeFile(tree, path))
       else visit(path)
     }

@@ -96,6 +96,7 @@ export { MfeWidgetComponent, type MfeWidgetEvent } from './host/widget.component
 export { MfeAppHostComponent } from './host/app-host.component.ts'
 export type { MountStatus } from './host/hosted-mount.ts'
 export { MfeDefinitionIconComponent } from './host/definition-icon.component.ts'
+export { createMfeHttpAuthInterceptor, type MfeHttpAuthOptions } from './http/auth-interceptor.ts'
 export {
   injectActiveDefinition,
   injectApps,

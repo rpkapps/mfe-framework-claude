@@ -132,6 +132,36 @@ into its children, which would otherwise label every child with the parent.
 signals. An identity or group change does not reload the router — Angular has no
 `invalidate` — so a resolver whose result depends on the user re-reads it itself.
 
+## Authenticated HttpClient calls
+
+The generated `#mfe/fetch` already uses the shell's session. Existing Angular
+`HttpClient` services can use the same token without an app-owned auth library:
+
+```ts
+import { provideHttpClient, withInterceptors } from '@angular/common/http'
+import { createMfeHttpAuthInterceptor } from '@company/mfe-angular'
+import { apiOrigins, getAccessToken } from '#mfe/fetch'
+import { config } from '#mfe/config'
+
+const providers = [
+  provideHttpClient(
+    withInterceptors([
+      createMfeHttpAuthInterceptor({ apiOrigins, apiBaseUrl: config.apiBaseUrl, getAccessToken }),
+    ]),
+  ),
+]
+```
+
+Declare API URLs with `env(…, { api: true })` so `apiOrigins` names the trusted
+origins. As with `#mfe/fetch`, a request gets the token when it goes to one of
+them. Pass `apiBaseUrl` to hold requests to that URL's origin to its path; other
+declared origins are unaffected. A relative URL is matched against the document,
+where `HttpClient` sends it, and is never redirected to the API, so a service that
+calls a relative path is authenticated only when the page's own origin is
+declared. The interceptor leaves caller-supplied authorization alone and
+refreshes once on a 401. The shell must install its session before mounting the
+container.
+
 ## A Widget
 
 ```ts
@@ -367,13 +397,18 @@ Everything here runs under Vitest in jsdom, with components compiled just in
 time. Angular's JIT pipeline has no transform for signal inputs, so this
 package's own components and its test components use `@Input()`/`@Output()`;
 the adapter drives both styles through `setInput` and `reflectComponentType`,
-but `input()`/`output()` are exercised only in a container's own AOT build and
-its tests. This package ships TypeScript source with decorated components, which
-a container compiles ahead of time with its application; a published build would
-need Angular's partial compilation. The container built against it in this
-repository is `examples/fieldwork`, an App in an Nx workspace of its own, which
-lists this package's sources in its tsconfig until the package ships compiled
-output.
+but `input()`/`output()` are exercised in a container's own AOT build and tests.
+`pnpm run build` uses `ngc` to emit partially compiled Angular components and
+declarations under `dist/`; the consuming Angular build links them. The neutral
+packages also export built JavaScript and declarations. Inside this repository
+the bundlers, the tests and the type checker resolve them to their TypeScript
+source instead, through the `mfe-source` export condition, so a change reaches
+them without a build. Two things read `dist/`: the build tooling Node loads, which
+the root scripts build first, and `examples/fieldwork`, which is built like a
+consumer. Its scripts build the packages it depends on where their `dist/` is out
+of date, and its `dev` script rebuilds this package and the runtime as they
+change. Packing refuses a missing or stale `dist/`; `pnpm release` builds every
+package before it publishes.
 
 ```sh
 pnpm --filter @company/mfe-angular test

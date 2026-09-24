@@ -92,9 +92,9 @@ PrimeNG.
 | Nx         | 20 to 22                                                   |
 | Node       | 20.19 or later, or 22.12 or later                          |
 
-The framework packages ship TypeScript source today. Until they ship compiled output, add their
-sources to the container's `tsconfig.app.json` and `tsconfig.spec.json` `include`, or the build
-succeeds with an adapter that does nothing.
+The framework packages export compiled JavaScript and declarations. Build them before using
+workspace links from a fresh checkout; published packages build in `prepack`. Do not add their
+sources to a container's `tsconfig` `include`.
 
 ## Related
 

@@ -1,6 +1,59 @@
 /*
  * Global styles for this container. The build imports this file into the container stylesheet it
- * generates, so it ships with every exposed entry, after Tailwind's theme and utilities, and every
- * rule is scoped to this container's mount roots. Component styles belong in the components:
- * Angular encapsulates those itself. PrimeNG injects its own theme at run time.
+ * generates, so it ships with every exposed entry and every rule is scoped to this container's
+ * mount roots. Component styles belong in the components: Angular encapsulates those itself.
+ * PrimeNG injects its own theme at run time.
  */
+
+.fieldwork-page {
+  display: flex;
+  max-width: 36rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.fieldwork-page--compact {
+  gap: 0.5rem;
+}
+
+.fieldwork-page--wide {
+  max-width: none;
+}
+
+.fieldwork-page h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.fieldwork-page h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.fieldwork-row,
+.fieldwork-list li {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.fieldwork-row {
+  align-items: center;
+}
+
+.fieldwork-list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fieldwork-list li {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fieldwork-page a {
+  text-decoration: underline;
+}

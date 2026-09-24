@@ -18,7 +18,7 @@ export const GLOBAL_STYLESHEET = 'src/styles.css'
  */
 export const GLOBAL_STYLE_QUERY = '?ngGlobalStyle'
 
-/** The lines the generated stylesheet adds after the Tailwind imports. */
+/** The lines the generated stylesheet adds for this Angular container's global CSS. */
 export function globalStylesheetImports(context: GenerateContext): readonly string[] {
   const stylesheet = join(context.options.containerRoot, GLOBAL_STYLESHEET)
   if (!existsSync(stylesheet)) return []

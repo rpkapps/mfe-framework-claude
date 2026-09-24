@@ -30,9 +30,6 @@ export const ZOD_VERSION = '4.6.5'
 export const PRIMENG_VERSION = '19.1.4'
 export const PRIMENG_THEMES_VERSION = '19.1.4'
 
-/** The container stylesheet's Tailwind; the build's own PostCSS plugin is the same line. */
-export const TAILWIND_VERSION = '^4.3.3'
-
 /**
  * `@analogjs/vitest-angular` peers `vitest ^1.3.1 || ^2 || ^3 || ^4` — not 5 — so the generated
  * project's own Vitest is pinned a major behind this repository's.

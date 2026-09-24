@@ -2,33 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist/out-tsc/app",
-    // @company/mfe-core's source reads process.env.NODE_ENV behind a typeof guard.
     "types": ["node"]
   },
-  // Entry points only: the Angular builder warns about any file it compiles but never bundles, and
-  // the generated modules an author does not import (#mfe/fetch, #mfe/meta) join the program
-  // through their imports when they are used.
-  //
-  // The framework packages below still publish TypeScript source, and TypeScript never emits a file
-  // it reached through node_modules, so without them the Angular compiler would hand webpack an
-  // empty module for each and the remote would build with an adapter that does nothing. Listing
-  // them makes them this program's own files; it goes once the packages ship compiled output.
-  "include": [
-    "src/**/*.ts",
-    ".mfe/entries/**/*.ts",
-    ".mfe/css.d.ts",
-    "../../packages/mfe-core/src/**/*.ts",
-    "../../packages/mfe-runtime/src/**/*.ts",
-    "../../packages/mfe-angular/src/**/*.ts",
-    "../../packages/mfe-build/src/config/env.ts"
-  ],
-  "exclude": [
-    "src/**/*.spec.ts",
-    "../../packages/*/src/**/*.test.ts",
-    "../../packages/*/src/**/__tests__/**",
-    "../../packages/*/src/testing/**",
-    // The adapter's /host and /registry entries are for a shell; an App never imports them.
-    "../../packages/mfe-angular/src/host/index.ts",
-    "../../packages/mfe-angular/src/registry/**"
-  ]
+  // Generated modules join the program through imports when used.
+  "include": ["src/**/*.ts", ".mfe/entries/**/*.ts", ".mfe/css.d.ts"],
+  "exclude": ["src/**/*.spec.ts"]
 }

@@ -178,6 +178,7 @@ describe('the app generator', () => {
     expect(overview).toContain('<p-select')
     expect(overview).toContain('<p-button')
     expect(overview).toContain('protected readonly user = injectUser()')
+    expect(overview).not.toContain('class="flex')
   })
 
   it('tells the author which overlays need an explicit appendTo, and why PrimeNG must agree across the page', async () => {
@@ -297,6 +298,7 @@ describe('the app generator', () => {
     expect(all).not.toHaveProperty('@company/mfe-core')
     expect(all).not.toHaveProperty('@company/mfe-runtime')
     expect(all).not.toHaveProperty('@company/mfe-host')
+    expect(all).not.toHaveProperty('tailwindcss')
     expect(Object.keys(all).filter(name => /rspack/.test(name))).toEqual([])
   })
 

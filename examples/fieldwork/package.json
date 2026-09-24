@@ -13,12 +13,13 @@
     "includedScripts": []
   },
   "scripts": {
-    "dev": "pnpm run build:nx-plugin && nx serve fieldwork",
-    "build": "pnpm run build:nx-plugin && nx build fieldwork --skip-nx-cache",
-    "generate": "pnpm run build:nx-plugin && nx run fieldwork:generate",
-    "typecheck": "pnpm run build:nx-plugin && nx typecheck fieldwork",
-    "test": "pnpm run build:nx-plugin && nx test fieldwork",
-    "build:nx-plugin": "pnpm --filter @company/mfe-nx run build"
+    "dev": "pnpm run build:framework && concurrently --kill-others --names framework,fieldwork \"pnpm run watch:framework\" \"nx serve fieldwork\"",
+    "build": "pnpm run build:framework && nx build fieldwork --skip-nx-cache",
+    "generate": "pnpm run build:framework && nx run fieldwork:generate",
+    "typecheck": "pnpm run build:framework && nx typecheck fieldwork",
+    "test": "pnpm run build:framework && nx test fieldwork",
+    "build:framework": "pnpm --filter \"@example/fieldwork^...\" run build:stale",
+    "watch:framework": "pnpm --filter \"@example/fieldwork^...\" --parallel run build:watch"
   },
   "dependencies": {
     "@angular/animations": "catalog:",
@@ -47,11 +48,11 @@
     "@company/mfe-nx": "workspace:*",
     "@nx/angular": "catalog:",
     "@types/node": "catalog:",
+    "concurrently": "catalog:",
     "eslint": "catalog:",
     "jiti": "catalog:",
     "jsdom": "catalog:angular",
     "nx": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:angular",
     "vite": "catalog:angular",
     "vitest": "catalog:angular"

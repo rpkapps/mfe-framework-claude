@@ -16,7 +16,9 @@ export type {
   CapabilityContext,
   ContainerProfile,
   ExposedDefinition,
+  PlainStylesheetProfile,
   StylesheetProfile,
+  TailwindStylesheetProfile,
 } from './profile.ts'
 export { localRuntimeConfigPath, resolveContainerPath } from './options.ts'
 export type { ContainerOptions, LocalRuntimeConfigOptions, ResolvedOptions } from './options.ts'

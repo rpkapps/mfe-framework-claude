@@ -2,6 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
+    // Emitted against the dist/ of the packages it depends on, which the build compiles first.
+    "customConditions": [],
     "emitDeclarationOnly": false,
     "outDir": "dist",
     "rootDir": "src",
