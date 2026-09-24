@@ -67,6 +67,11 @@ export default {
         'rov-scout',
         'methane-pal',
         'nodding-donkey',
+        'pumpjack-3d',
+        'subsea-tree-3d',
+        'pipeline-3d',
+        'offshore-3d',
+        'rock-core-3d',
       ])
       .default('drill-bit'),
   ),
@@ -120,7 +125,19 @@ export default {
         'rov-scout': z.number().int().min(0).max(10000).optional(),
         'methane-pal': z.number().int().min(0).max(10000).optional(),
         'nodding-donkey': z.number().int().min(0).max(10000).optional(),
+        'pumpjack-3d': z.number().int().min(0).max(10000).optional(),
+        'subsea-tree-3d': z.number().int().min(0).max(10000).optional(),
+        'pipeline-3d': z.number().int().min(0).max(10000).optional(),
+        'offshore-3d': z.number().int().min(0).max(10000).optional(),
+        'rock-core-3d': z.number().int().min(0).max(10000).optional(),
       })
-      .default({ 'drill-bit': 1000 }),
+      .default({
+        'drill-bit': 1000,
+        'pumpjack-3d': 1000,
+        'subsea-tree-3d': 1000,
+        'pipeline-3d': 1000,
+        'offshore-3d': 1000,
+        'rock-core-3d': 1000,
+      }),
   ),
 }

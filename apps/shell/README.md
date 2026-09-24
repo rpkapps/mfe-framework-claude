@@ -101,6 +101,11 @@ production and refining, or one of five mascots that follow the pointer:
 `rov-scout`, `methane-pal` and `nodding-donkey`. The five 3D scenes
 (`pumpjack-rig` to `tri-cone-bit`) are drawn as wireframes.
 
+The STRATUM family adds five procedural WebGL models, shaded like the drill bit
+and turned under a scan ring with a frame and two callouts: `pumpjack-3d`,
+`subsea-tree-3d`, `pipeline-3d`, `offshore-3d` (whose platform assembles from a
+wireframe as it loops) and `rock-core-3d`.
+
 Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
 custom element `<name>-loader`. A directory there is a family: its `kit.js`
 holds what its loaders share (for the oil-and-gas scenes, the worker, the frame
@@ -114,7 +119,8 @@ so it keeps its frame rate while the page loads and boots on the main thread.
 A loader is themed through CSS custom properties, which the loader's styles in
 `index.html` set from Tecton's tokens for each mode. `--drill-background` is
 the drill bit's backdrop (a colour, gradient, image or `transparent`), and its
-other properties are listed at the top of `src/loaders/drill-bit.js`. The
+other properties are listed at the top of `src/loaders/drill-bit.js`; the
+STRATUM models take the same kind (`--stratum-*`, in its `kit.js`). The
 oil-and-gas scenes take a background, ink and accent (`--og-*`, listed in its
 `kit.js`), draw their glows normally on a light page, where adding light turns
 them white, and draw above the title and status rather than behind them. Each
@@ -124,8 +130,8 @@ fails.
 A loader can stay on screen for a minimum time once drawn, so a fast boot does
 not flash it: `loaderMinDuration` in `src/mfe.config.ts`, milliseconds per
 loader, which the deployment can replace with `SHELL_LOADER_MIN_DURATION` (for
-example `{"drill-bit":1500,"bounce":960}`). The drill bit is held for 1000 by
-default and the others not at all. Until then the shell waits, hidden, behind
+example `{"drill-bit":1500,"bounce":960}`). The drill bit and the five STRATUM
+models are held for 1000 by default and the others not at all. Until then the shell waits, hidden, behind
 it.
 
 To add a loader, add `src/loaders/<name>.js` (or a scene to a family's
@@ -135,8 +141,8 @@ map its properties onto the loader's colours in `index.html`. The build refuses
 a name with no file, a file no name reaches, and a loader missing from the
 durations. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
-well log, 3 kB for the bounce, and 25 kB for all 39 oil-and-gas scenes and
-their kit.
+well log, 3 kB for the bounce, 25 kB for all 39 oil-and-gas scenes and their
+kit, and 16 kB for the five STRATUM models and theirs: 60 kB for the page.
 
 ## The pages the shell owns
 

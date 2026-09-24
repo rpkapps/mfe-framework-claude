@@ -103,6 +103,25 @@
         --well-log-texture: 0.25;
       }
 
+      /* The STRATUM loaders (src/loaders/stratum/), themed as the drill bit is. On a light page a
+         glow reads as a smudge, so it is a faint wash of the accent, and the grain and the warm
+         pool go. */
+      .shell-loader__art {
+        --stratum-bg: var(--loader-bg);
+        --stratum-glow: color-mix(in srgb, var(--loader-bg), #fff 6%);
+        --stratum-accent: var(--loader-accent);
+        --stratum-ring-color: var(--loader-muted);
+        --stratum-line-color: color-mix(in srgb, var(--loader-muted) 45%, transparent);
+        --stratum-label-color: var(--loader-muted);
+        --stratum-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      html:not(.dark) .shell-loader__art {
+        --stratum-glow: color-mix(in srgb, var(--loader-accent) 7%, transparent);
+        --stratum-ambient: transparent;
+        --stratum-grid-color: rgba(33, 23, 42, 0.05);
+        --stratum-grain-opacity: 0;
+      }
+
       /* The oil-and-gas loaders (src/loaders/oil-and-gas/). On a light page the edges would darken
          to a grey smudge, so they do not. */
       .shell-loader__art {
