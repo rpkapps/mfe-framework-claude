@@ -4,7 +4,6 @@
  * the author surface, and every member is frozen so it can be closed over safely.
  */
 
-import { DEV } from '@company/mfe-core'
 import type {
   MeasurementUnit,
   MfeTelemetry,
@@ -13,6 +12,7 @@ import type {
   TelemetryProvider,
 } from '@company/mfe-core'
 
+import { DEV } from '../dev.ts'
 import {
   MountTelemetryRuntime,
   type FrameworkRecordDetails,

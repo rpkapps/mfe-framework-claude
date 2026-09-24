@@ -8,7 +8,6 @@ import { RouterProvider, type AnyRouter } from '@tanstack/react-router'
 import {
   createMfeError,
   createMfeErrorFactory,
-  DEV,
   withoutUndefined,
   type BreadcrumbItem,
 } from '@company/mfe-core'
@@ -16,6 +15,7 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import { breadcrumbsFromMatches, type BreadcrumbMatch } from './breadcrumbs-from-matches.ts'
 import { createBoundaryHistory } from './boundary-history.ts'
+import { DEV } from './dev.ts'
 import { useRouterBlockerBridge } from './router-blockers.ts'
 import type { AppDefinition } from './definition.ts'
 import type { MfeContext, MfeRouterContext } from './router-contract.ts'
