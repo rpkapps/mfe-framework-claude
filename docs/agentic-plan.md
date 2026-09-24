@@ -53,7 +53,9 @@ Each is its own commit, with the framework's tests green and no change in behavi
 
 ### 2. Share the build's schema extraction
 
-`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action inputs, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeEvents`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
+`packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action inputs, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeOutputs`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
+
+In the same step, a Widget's `events` become `outputs`, as Angular names them: the contract field, the published registry field, the build's reader and the Angular adapter's check that every declared output is one of the component's `output()`s. `emit`, the `onX` props and `DynamicWidget`'s `onEvent` keep their names, as Angular keeps "emit" and event binding for its outputs. §16 and §28 get an amendment.
 
 ### 3. Extend entry equality with the new fields
 
@@ -79,13 +81,13 @@ On `ActionRegistration`:
 
 - `description` — written for the model; `label` stays the menu text.
 - `inputs` — a Zod object schema, the same kind and the same name as a Widget's `inputs`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none.
-- `output` — optional schema for the one value a call returns.
+- `result` — optional schema for the one value a call returns (MCP's `outputSchema` at that edge).
 - `effect` — `'read' | 'write' | 'destructive'`. Undeclared counts as `'write'`.
 - `needsApproval` — `boolean` or `(inputs) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
 - `placements` — `'palette'`, `'agent'`, later `'webmcp'`, possibly `'toolbar'` and `'context-menu'`. The default includes `'agent'`: anything a user can reach from the palette, the agent can reach too.
 - `parallelSafe` — writes run one at a time unless this is set.
 
-Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. What comes out is not the same thing, so the names differ on purpose: an action's `output` is exactly one value, returned once per call, while a Widget's `events` are named payloads emitted any number of times, or never, while it is mounted. Reporting progress over time is a Widget's job, not an action's.
+Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. A Widget's `outputs` are named payloads emitted any number of times, or never, while it is mounted, as Angular's outputs are, and wiring Widgets in sequence reads as one Widget's outputs feeding the next one's inputs. An action's return is not that, so it is not called `output`: it is exactly one value per call, its `result`. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
 
@@ -125,7 +127,7 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 - A tool result renders as a component only when the tool said it would. Never inferred from the shape of the data, and never HTML or script from a result.
 - **Widgets** — the agent calls the render tool with `{ widgetId, inputs }`; the chat mounts `<DynamicWidget>` inside a `Message`. The provider validates the inputs, as it always does.
-- **Widget events back to the agent** — two kinds. Passive: the latest value is readable in later turns. Explicit: a new turn, only from a user's action (an Apply or Submit), never from a timer or an error handler.
+- **Widget outputs back to the agent** — two kinds. Passive: the latest value is readable in later turns. Explicit: a new turn, only from a user's action (an Apply or Submit), never from a timer or an error handler.
 - **Built-in renderers** — a table, a chart and a summary card, in Tecton, for data the agent already fetched. The render tool is not a data source and must not be used to invent figures.
 
 ### G. External agents (later)
@@ -135,7 +137,7 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 ## Borrowed from Agent-Native
 
-[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native) (MIT) aims at the same thing, with a server it owns. Taken: one definition with every caller, exposure and approval fields on each operation, the pause-and-resume approval with a key per call, the context layers, renderers declared by the tool, the passive and explicit outputs of UI in the chat, the audit fields, and the event stream that keeps the model out of the framework.
+[BuilderIO/agent-native](https://github.com/BuilderIO/agent-native) (MIT) aims at the same thing, with a server it owns. Taken: one definition with every caller, exposure and approval fields on each operation, the pause-and-resume approval with a key per call, the context layers, renderers declared by the tool, the passive and explicit ways UI in the chat hands a value back, the audit fields, and the event stream that keeps the model out of the framework.
 
 Not taken: a dependency on it (it owns the server, the database, auth and the agent loop, and is at 0.x with a large dependency tree); agent context stored in SQL on the server (ours is an in-memory store in the shell whose snapshot goes along with each turn); agent-generated HTML in sandboxed frames (it breaks Tecton's rules; the Widget catalogue is the safer form); navigation by a state key the UI polls (we call the navigator).
 
