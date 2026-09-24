@@ -81,13 +81,13 @@ On `ActionRegistration`:
 
 - `description` — written for the model; `label` stays the menu text.
 - `inputs` — a Zod object schema, the same kind and the same name as a Widget's `inputs`; published as JSON Schema through step 2 and validated before `execute` runs. Absent means the action takes none.
-- `result` — optional schema for the one value a call returns (MCP's `outputSchema` at that edge).
+- `output` — optional schema for the one value a call returns (MCP's `outputSchema` at that edge).
 - `effect` — `'read' | 'write' | 'destructive'`. Undeclared counts as `'write'`.
 - `needsApproval` — `boolean` or `(inputs) => boolean`, for a call that is allowed but should be confirmed (an amount above a threshold, an external recipient).
 - `placements` — `'palette'`, `'agent'`, later `'webmcp'`, possibly `'toolbar'` and `'context-menu'`. The default includes `'agent'`: anything a user can reach from the palette, the agent can reach too.
 - `parallelSafe` — writes run one at a time unless this is set.
 
-Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. A Widget's `outputs` are named payloads emitted any number of times, or never, while it is mounted, as Angular's outputs are, and wiring Widgets in sequence reads as one Widget's outputs feeding the next one's inputs. An action's return is not that, so it is not called `output`: it is exactly one value per call, its `result`. Reporting progress over time is a Widget's job, not an action's.
+Names shared with Widgets: `inputs` is the same thing on both, an object schema of named values going in, so it has the same name, the same schema reader and the same published shape. A Widget's `outputs` are named payloads emitted any number of times, or never, while it is mounted, as Angular's outputs are, and wiring Widgets in sequence reads as one Widget's outputs feeding the next one's inputs. An action's `output` is exactly one value per call. The rule behind the names: a plural is a map of named schemas (`inputs`, a Widget's `outputs`), a singular is one schema (an action's `output`). The two field types differ, so passing one where the other belongs is a type error. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
 
