@@ -9,9 +9,13 @@ import { env } from '@company/mfe-rspack'
 import { z } from 'zod'
 
 export default {
-  oidcAuthority: env('OIDC_AUTHORITY', z.string().url().optional()),
-  oidcClientId: env('OIDC_CLIENT_ID', z.string().min(1).optional()),
-  oidcScope: env('OIDC_SCOPE', z.string().default('openid profile email offline_access')),
-  oidcGroupsClaim: env('OIDC_GROUPS_CLAIM', z.string().default('groups')),
+  oidcAuthority: env('OIDC_AUTHORITY', z.string().trim().url().optional()),
+  oidcClientId: env('OIDC_CLIENT_ID', z.string().trim().min(1).optional()),
+  // `offline_access` asks for a refresh token, so renewal never needs a round trip through the page.
+  oidcScope: env(
+    'OIDC_SCOPE',
+    z.string().trim().min(1).default('openid profile email offline_access'),
+  ),
+  oidcGroupsClaim: env('OIDC_GROUPS_CLAIM', z.string().trim().min(1).default('groups')),
   oidcDisabled: env('OIDC_DISABLED', z.boolean().optional()),
 }

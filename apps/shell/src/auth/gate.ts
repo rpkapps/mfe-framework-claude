@@ -9,12 +9,13 @@
  * arrives holding a copy of the original's tokens, drops them and signs in for itself.
  */
 
+import type { MfeConfig } from '#mfe/config'
 import type { AccessTokenSource } from '@company/mfe-react/host'
 import { InMemoryWebStorage, UserManager, WebStorageStateStore, type User } from 'oidc-client-ts'
 
 import { failLoader, setLoaderStatus } from '../loader.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
-import { resolveAuthConfig, type OidcConfig, type ShellRuntimeConfig } from './config.ts'
+import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
 import { claimTab, type TabClaim, type TabLocks } from './tab.ts'
 import { createOidcTokenSource, DEFAULT_SKEW_SECONDS } from './token-source.ts'
@@ -151,7 +152,7 @@ async function restoreSession(manager: UserManager, tab: TabClaim): Promise<User
  * provider, or the loader is showing why it cannot continue, and nothing else should load.
  */
 export async function authenticate(): Promise<boolean> {
-  let runtime: ShellRuntimeConfig
+  let runtime: MfeConfig
   try {
     // Eager, so it is bundled here rather than fetched as a chunk of its own; the module's
     // top-level await loads and validates runtime-config.json, which index.html preloads.

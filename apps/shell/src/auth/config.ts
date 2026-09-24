@@ -4,14 +4,7 @@
  * out (§36). The problems name the environment variables, because that is what an operator sets.
  */
 
-/** The fields of `#mfe/config` sign-in reads, declared in `src/mfe.config.ts`. */
-export interface ShellRuntimeConfig {
-  readonly oidcAuthority?: string | undefined
-  readonly oidcClientId?: string | undefined
-  readonly oidcScope?: string | undefined
-  readonly oidcGroupsClaim?: string | undefined
-  readonly oidcDisabled?: boolean | undefined
-}
+import type { MfeConfig } from '#mfe/config'
 
 export interface OidcConfig {
   readonly kind: 'oidc'
@@ -26,10 +19,6 @@ export type AuthConfig =
   /** `explicit` is `OIDC_DISABLED=true`; `unconfigured` is a development build with nothing set. */
   | { readonly kind: 'disabled'; readonly reason: 'explicit' | 'unconfigured' }
   | { readonly kind: 'misconfigured'; readonly problem: string }
-
-/** `offline_access` asks for a refresh token, so renewal never needs a round trip through the page. */
-export const DEFAULT_SCOPE = 'openid profile email offline_access'
-export const DEFAULT_GROUPS_CLAIM = 'groups'
 
 function setting(value: string | undefined): string | undefined {
   const trimmed = value?.trim()
@@ -49,7 +38,7 @@ function isAcceptableAuthority(authority: string): boolean {
 }
 
 /** `production` fails closed: sign-in off must be written down, never inferred. */
-export function resolveAuthConfig(config: ShellRuntimeConfig, production: boolean): AuthConfig {
+export function resolveAuthConfig(config: MfeConfig, production: boolean): AuthConfig {
   if (config.oidcDisabled === true) return { kind: 'disabled', reason: 'explicit' }
 
   const authority = setting(config.oidcAuthority)
@@ -76,7 +65,8 @@ export function resolveAuthConfig(config: ShellRuntimeConfig, production: boolea
     }
   }
 
-  const scope = setting(config.oidcScope) ?? DEFAULT_SCOPE
+  // Defaulted, trimmed and non-empty by its declaration in src/mfe.config.ts.
+  const scope = config.oidcScope
   if (!scope.split(/\s+/).includes('openid')) {
     return {
       kind: 'misconfigured',
@@ -89,6 +79,6 @@ export function resolveAuthConfig(config: ShellRuntimeConfig, production: boolea
     authority,
     clientId,
     scope,
-    groupsClaim: setting(config.oidcGroupsClaim) ?? DEFAULT_GROUPS_CLAIM,
+    groupsClaim: config.oidcGroupsClaim,
   }
 }
