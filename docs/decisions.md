@@ -911,14 +911,26 @@ considered and rejected: the micro-frontends are most of the page and mount in t
 browser regardless, and redirecting before the entry has done anything else is what
 makes sign-in fast.
 
-**Nothing that authenticates a request is written anywhere.** Tokens live in an
-in-memory user store, so a reload or a new tab has none and goes straight to the
-provider, which returns at once while its own session lasts. The one exception is the
-sign-in request's `state` and PKCE verifier, which must survive the redirect: they go
-to `sessionStorage` under `shell.oidc.` and are removed when the callback is handled,
-which is why `apps/shell/src/auth/gate.ts` is in `storageAllowedScopes`. Each tab signs
-in on its own and holds its own refresh token, so the rotation hazard §10 guards
-against never spans tabs; within a tab, `createOidcTokenSource` makes renewal
+**The session lives in `sessionStorage`, and dies with the tab.** Tokens were first
+held in memory only, which sent every reload back through the provider; `sessionStorage`
+lets a reload restore the session, renewing it through the refresh token when it is
+within 30 seconds of expiry, without that round trip. `localStorage` was weighed and
+left: it would spare a new tab and a restarted browser the round trip too, but it keeps
+a refresh token on disk for days, shares one across tabs, and hands a shared computer's
+next user the last one's session. The session sits under `shell.oidc.session.` and the
+sign-in request's `state` and PKCE verifier under `shell.oidc.request.`, apart because
+clearing stale requests removes every key under that prefix it cannot read; this is why
+`apps/shell/src/auth/gate.ts` is in `storageAllowedScopes`.
+
+**A duplicated tab signs in for itself.** Duplicating a tab copies its `sessionStorage`,
+refresh token included, and two tabs rotating one refresh token retire each other's,
+which a provider with reuse detection answers by ending the session for both. Each tab
+therefore holds a Web Lock named after an id in its own `sessionStorage` (`shell.tab`)
+for as long as it lives; a copy finds the lock taken, drops the copied tokens and signs
+in fresh, which the provider's own session makes immediate. Without Web Locks a copy
+cannot be told apart, and a refused rotation ends in a fresh sign-in. So each tab holds
+its own refresh token and the rotation hazard §10 guards against never spans tabs;
+within a tab, `createOidcTokenSource` makes renewal
 single-flight, renews a token within 30 seconds of expiry rather than sending it, and
 answers a caller whose rejected token was already replaced with the new one. Renewal is
 the refresh token grant only; when it fails the session is lost and the page navigates
@@ -956,9 +968,11 @@ loads. It draws in a worker through an `OffscreenCanvas`, so it keeps its frame 
 entry parses and boots on the main thread, and the boot no longer shares that thread with it:
 under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s. It fades out once React commits the first frame, as the shell fades in beneath it.
 
-**Cost:** a reload always costs a round trip through the identity provider, and an
-identity provider that issues no refresh token sends the user through it again every
-time the access token expires. Without a server-side session the shell cannot end a
+**Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
+running in the page could read it for that long rather than only use it; DPoP, where the
+provider supports it, would bind it to a key that cannot leave the browser. A new tab
+still costs a round trip through the identity provider, and one that issues no refresh
+token sends the user through it again every time the access token expires. Without a server-side session the shell cannot end a
 session early; revocation takes effect at the next renewal, so access tokens should be
 short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
 parallel with the entry.

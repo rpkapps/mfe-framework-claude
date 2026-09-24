@@ -27,7 +27,7 @@ export interface OidcTokenSourceOptions {
   readonly skewSeconds?: number
 }
 
-const DEFAULT_SKEW_SECONDS = 30
+export const DEFAULT_SKEW_SECONDS = 30
 
 function abortReason(signal: AbortSignal): Error {
   const reason: unknown = signal.reason

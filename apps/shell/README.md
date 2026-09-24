@@ -35,9 +35,12 @@ node apps/shell/scripts/screenshot.mjs /operations/wells
 The whole page is behind OIDC sign-in, and it runs before anything else: the
 entry chunk either leaves for the identity provider or boots the shell. There
 is no per-route authorization. It is the authorization code flow with PKCE
-(`oidc-client-ts`), and tokens are held in memory only, so a reload goes
-through the identity provider again and comes straight back while its session
-lasts ([decisions §36](../../docs/decisions.md)).
+(`oidc-client-ts`). The session is kept in `sessionStorage`, so a reload
+restores it without going back to the identity provider (renewing it through
+the refresh token when it is about to expire), and it ends with the tab. A new
+tab signs in for itself, which is immediate while the provider's own session
+lasts, and so does a duplicated one, which drops the tokens it copied
+([decisions §36](../../docs/decisions.md)).
 
 Sign-in is configured at run time, so one build serves every environment. The
 shell reads `/runtime-config.json`, which `index.html` preloads alongside the

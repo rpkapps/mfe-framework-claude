@@ -3,9 +3,10 @@
  * decides whether this page may boot at all, so nothing behind sign-in is ever fetched, rendered
  * or executed for someone who has not signed in (§36).
  *
- * Authorization code flow with PKCE. Tokens are held in memory only; the one thing written
- * anywhere is the sign-in request's `state` and PKCE verifier, which must survive the redirect,
- * so it goes to `sessionStorage` and is removed when the callback is handled.
+ * Authorization code flow with PKCE. The session is kept in `sessionStorage`, so a reload restores
+ * it without a round trip through the provider, and it dies with the tab. The sign-in request's
+ * `state` and PKCE verifier sit beside it until the callback removes them. A duplicated tab, which
+ * arrives holding a copy of the original's tokens, drops them and signs in for itself.
  */
 
 import type { AccessTokenSource } from '@company/mfe-react/host'
@@ -16,7 +17,8 @@ import { identityFromClaims, type ShellIdentity } from './claims.ts'
 import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
 import { fetchRuntimeConfig } from './runtime-config.ts'
-import { createOidcTokenSource } from './token-source.ts'
+import { claimTab, type TabClaim, type TabLocks } from './tab.ts'
+import { createOidcTokenSource, DEFAULT_SKEW_SECONDS } from './token-source.ts'
 
 export type ShellSession =
   | {
@@ -46,8 +48,11 @@ export function shellSession(): ShellSession {
   return session
 }
 
-/** `sessionStorage` throws outright when storage is blocked; the callback then fails and says so. */
-function signinStateStorage(): Storage {
+/**
+ * `sessionStorage` throws outright when storage is blocked: the session then lives in memory, and
+ * a sign-in callback, which needs the request's state, fails and says so.
+ */
+function sessionStorageOrMemory(): Storage {
   try {
     return window.sessionStorage
   } catch {
@@ -55,7 +60,7 @@ function signinStateStorage(): Storage {
   }
 }
 
-function createUserManager(config: OidcConfig): UserManager {
+function createUserManager(config: OidcConfig, storage: Storage): UserManager {
   const home = `${window.location.origin}/`
   return new UserManager({
     authority: config.authority,
@@ -65,8 +70,10 @@ function createUserManager(config: OidcConfig): UserManager {
     response_type: 'code',
     scope: config.scope,
     disablePKCE: false,
-    userStore: new WebStorageStateStore({ store: new InMemoryWebStorage() }),
-    stateStore: new WebStorageStateStore({ store: signinStateStorage(), prefix: 'shell.oidc.' }),
+    // Apart, because clearing stale sign-in requests removes every key under the request store's
+    // prefix that does not read as one.
+    userStore: new WebStorageStateStore({ store: storage, prefix: 'shell.oidc.session.' }),
+    stateStore: new WebStorageStateStore({ store: storage, prefix: 'shell.oidc.request.' }),
     // Renewal happens on demand, when a request needs a token, through the refresh token grant.
     automaticSilentRenew: false,
     monitorSession: false,
@@ -101,7 +108,9 @@ function oidcSession(manager: UserManager, config: OidcConfig, user: User): Shel
     // The session cannot continue without a new sign-in, which is a page navigation. Where the
     // user was is kept, so they come back to it.
     onSessionLost: () => {
-      void manager.signinRedirect({ state: currentReturnTo(window.location) })
+      void manager
+        .removeUser()
+        .finally(() => manager.signinRedirect({ state: currentReturnTo(window.location) }))
     },
   })
   return {
@@ -109,6 +118,32 @@ function oidcSession(manager: UserManager, config: OidcConfig, user: User): Shel
     identity: identityFromClaims(user.profile, config.groupsClaim),
     tokens,
     signOut: () => manager.signoutRedirect(),
+  }
+}
+
+/**
+ * The session this tab already has, renewed through the refresh token when it is about to expire,
+ * or nothing, in which case the page signs in. A copied tab's session is never used.
+ */
+async function restoreSession(manager: UserManager, tab: TabClaim): Promise<User | null> {
+  if (tab === 'copy') {
+    await manager.removeUser()
+    return null
+  }
+  const user = await manager.getUser()
+  if (user === null) return null
+  if ((user.expires_in ?? Infinity) > DEFAULT_SKEW_SECONDS) return user
+  if (user.refresh_token === undefined) {
+    await manager.removeUser()
+    return null
+  }
+  setLoaderStatus('Restoring your session…')
+  try {
+    return await manager.signinSilent()
+  } catch {
+    // An expired or revoked refresh token is an ordinary end of session, not an error to show.
+    await manager.removeUser()
+    return null
   }
 }
 
@@ -148,12 +183,18 @@ export async function authenticate(): Promise<boolean> {
     return true
   }
 
-  const manager = createUserManager(config)
+  const storage = sessionStorageOrMemory()
+  const manager = createUserManager(config, storage)
   const url = new URL(window.location.href)
+  const locks = (navigator as { locks?: TabLocks }).locks
+  const tab = await claimTab(storage, locks)
 
-  // Tokens live in memory, so a page that is not the callback has none and goes straight to the
-  // provider, which returns at once while its own session lasts.
   if (!isSigninCallback(url)) {
+    const restored = await restoreSession(manager, tab)
+    if (restored !== null) {
+      session = oidcSession(manager, config, restored)
+      return true
+    }
     redirectToSignIn(manager, currentReturnTo(window.location))
     return false
   }
