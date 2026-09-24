@@ -99,7 +99,19 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 | `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                         |
 | `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                        |
 
-`contract.events` has the same shape as `contract.inputs`: an object schema with one property per declared event, in declaration order, each the JSON Schema of that event's payload. A payload the build could not read is `{}`, which JSON Schema reads as "anything"; the Widget still validates it when it emits. A field the build could not read at all is absent, never empty, so a host can tell "emits nothing" from "unknown". A shell also accepts the list of event names that builds before this shape published, and reads it as those events with unknown payloads, so it can be deployed before the containers are rebuilt. Read both schemas through `describeWidgetInputs` and `describeWidgetEvents` rather than walking them yourself.
+`contract.events` has the same shape as `contract.inputs`. It is an object schema with one property per declared event, in declaration order. Each property holds the JSON Schema of that event's payload.
+
+| What the build could not read | What the entry carries                                   |
+| ----------------------------- | -------------------------------------------------------- |
+| the `inputs` schema           | no `contract.inputs`                                     |
+| one event's payload           | that event, with `{}` as its payload, meaning "anything" |
+| the event names               | no `contract.events`                                     |
+
+A missing field means "unknown". An empty schema means the Widget takes or emits nothing. The Widget still validates every input and payload itself.
+
+Builds from before this shape published `events` as a list of names. A shell still accepts that list, as those events with unknown payloads. Upgrade the shell first, then rebuild your containers in any order.
+
+Read both schemas with [`describeWidgetInputs` and `describeWidgetEvents`](/docs/reference/hooks-and-components#describewidgetinputs-and-describewidgetevents). Do not walk them yourself.
 
 A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`. A shell skips a capability whose name it does not know and keeps the rest of the entry, so an App built against a newer framework still loads in an older shell.
 

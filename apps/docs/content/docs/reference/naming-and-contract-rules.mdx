@@ -97,6 +97,16 @@ The build reads your entry module without running it, so anything published in t
 
 A computed value fails the build with the file, the line and the column. A schema imported from another package fails too, because the generated contract module copies the declaration and can only copy one it can see.
 
+The build also publishes `inputs` and `events` in the registry entry, as JSON Schema. There, a schema it cannot read does not fail the build. The build leaves it out instead:
+
+| What you wrote                                              | What the registry entry carries                           |
+| ----------------------------------------------------------- | --------------------------------------------------------- |
+| an `inputs` schema the build cannot read, like `.refine(…)` | no `contract.inputs`. A host asks for the inputs as JSON. |
+| a spread or a computed key in the `events` object           | no `contract.events`. A host cannot list your events.     |
+| an event payload the build cannot read, like `.refine(…)`   | that event with `{}`, shown as "payload not published".   |
+
+Your Widget still validates every input and payload in all three cases. Only a host reading the registry knows less.
+
 ## Where definitions may be declared
 
 `createApp` and `createWidget` calls are discovered in `src/mfe.ts` only, and every definition must be exported. A call in another module is never built into the container. A default export is accepted only when it is the container's only definition.

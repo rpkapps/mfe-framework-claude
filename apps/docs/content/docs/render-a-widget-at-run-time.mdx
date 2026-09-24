@@ -61,9 +61,8 @@ const onEvent = useCallback((name: string, payload: unknown) => {
 }, [])
 ```
 
-`onEvent` receives each declared event as a name and a payload. `contract.events` on the
-registry entry is a JSON Schema with one property per event, and `describeWidgetEvents` reads it
-into the names to expect and the fields each payload carries.
+`onEvent` receives each declared event as a name and a payload. Call
+`describeWidgetEvents(entry.contract)` to list the names and each payload's fields.
 
 </Step>
 
@@ -72,8 +71,8 @@ into the names to expect and the fields each payload carries.
 ## Check it works
 
 Run `pnpm dev` and open the shell at `http://localhost:3000`. Add a Widget from the dashboard
-catalogue, fill in its inputs, and watch the activity list record what it emits. The dialog that
-asks for those inputs is drawn from `contract.inputs`, which is a JSON Schema. Change `widgetId`
+catalogue, fill in its inputs, and watch the activity list record what it emits. The inputs dialog
+comes from `contract.inputs`, and each event's tooltip from `contract.events`. Change `widgetId`
 and the old mount is replaced rather than handed the new Widget's inputs.
 
 ## Errors
