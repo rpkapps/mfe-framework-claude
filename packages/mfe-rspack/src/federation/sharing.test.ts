@@ -78,11 +78,10 @@ describe('the React sharing policy', () => {
       'react/jsx-runtime',
       'react/compiler-runtime',
       'react-dom/client',
-      // Then `@tecton/react/federation/shared`, verbatim and in its own order.
+      // Then `@tecton/react/federation/shared` in its own order, less the design system itself.
       'react',
       'react-dom',
       'sonner',
-      '@tecton/react/',
       'react-aria-components',
       'recharts',
     ])
@@ -124,7 +123,6 @@ describe('the React sharing policy', () => {
       '@company/mfe-react': REACT_SCOPE,
       '@tanstack/react-query': REACT_SCOPE,
       '@tanstack/react-router': REACT_SCOPE,
-      '@tecton/react/': REACT_SCOPE,
       react: REACT_SCOPE,
       'react-aria-components': REACT_SCOPE,
       'react-dom': REACT_SCOPE,
@@ -136,7 +134,7 @@ describe('the React sharing policy', () => {
     })
   })
 
-  it('shares the design system, React Aria and recharts as non-singletons', () => {
+  it('shares React Aria and recharts as non-singletons', () => {
     const shared = resolveReactShared({
       dependencies: {
         '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
@@ -146,13 +144,6 @@ describe('the React sharing policy', () => {
       installedVersion: () => '0.1.0',
     })
 
-    expect(shared['@tecton/react/']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '0.1.0',
-      version: '0.1.0',
-      shareScope: REACT_SCOPE,
-    })
     expect(shared['react-aria-components']).toEqual({
       singleton: false,
       strictVersion: false,
@@ -168,32 +159,19 @@ describe('the React sharing policy', () => {
     })
   })
 
-  it('shares the design system under the prefix its subpath imports use', () => {
+  it('bundles the design system into each container rather than sharing it', () => {
     const shared = resolveReactShared({
-      dependencies: { '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react' },
-      installedVersion: () => '0.0.0',
+      dependencies: {
+        '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
+        sonner: '^2.0.8',
+      },
+      installedVersion: () => '0.1.0',
     })
 
-    expect(Object.keys(shared)).toEqual(['@tecton/react/'])
-    expect(shared['@tecton/react/']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '0.0.0',
-      version: '0.0.0',
-      shareScope: REACT_SCOPE,
-    })
-  })
-
-  it('omits the version on a prefix share when nothing is installed to read', () => {
-    const shared = resolveReactShared({ dependencies: { '@tecton/react': 'workspace:*' } })
-
-    expect(shared['@tecton/react/']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: false,
-      shareScope: REACT_SCOPE,
-    })
-    expect(shared['@tecton/react/']).not.toHaveProperty('version')
+    expect(Object.keys(shared)).toEqual(['sonner'])
+    expect(DEFAULT_SHARED_CANDIDATES.some(candidate => candidate.startsWith('@tecton/react'))).toBe(
+      false,
+    )
   })
 
   it('never moves the neutral core into the React scope when an author names it again', () => {
