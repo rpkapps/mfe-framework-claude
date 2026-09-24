@@ -56,7 +56,7 @@ and a deployment writes it from the environment when the image starts:
 | `OIDC_SCOPE`                | `oidcScope`         | defaults to `openid profile email offline_access`                                    |
 | `OIDC_GROUPS_CLAIM`         | `oidcGroupsClaim`   | the claim read into `shellState.groups`; defaults to `groups`                        |
 | `OIDC_DISABLED`             | `oidcDisabled`      | `true` runs without sign-in, as the development user                                 |
-| `SHELL_LOADER`              | `loader`            | the loading screen: `drill-bit` (the default), `well-log` or `bounce`                |
+| `SHELL_LOADER`              | `loader`            | the loading screen, one of the loaders below; `drill-bit` by default                 |
 | `SHELL_LOADER_MIN_DURATION` | `loaderMinDuration` | milliseconds each loader stays up at least, as JSON; `{"drill-bit":1000}` by default |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
@@ -87,8 +87,25 @@ reason and a way forward.
 | `well-log`  | a well log drilling down: gamma ray and resistivity past the bit            |
 | `bounce`    | the logo bouncing on its shadow, with squash and stretch                    |
 
+The oil-and-gas family adds 39 more, each a scene from exploration, drilling,
+production and refining, or one of five mascots that follow the pointer:
+`pipeline-bore`, `seismic-section`, `pdc-drill-bit`, `wellhead-pressure`,
+`benzene-ring`, `reservoir-anticline`, `crude-level`, `survey-sweep`,
+`manifold-flow`, `drilling-log`, `offshore-platform`, `cryogenic-sphere`,
+`seabed-lidar`, `carbon-injection`, `pore-network`, `smart-pig-scan`,
+`core-hologram`, `methane-plume`, `tanker-routes`, `horizontal-well`,
+`form-morph`, `compressor-stage`, `crude-emulsion`, `shot-gather`,
+`structure-map`, `wellhead-stack`, `saturation-voxels`, `gyro-survey`,
+`gas-chromatograph`, `pumpjack-rig`, `derrick-and-bore`, `tank-farm`,
+`pipe-rack`, `tri-cone-bit`, and the mascots `drip`, `flare-sprite`,
+`rov-scout`, `methane-pal` and `nodding-donkey`. The five 3D scenes
+(`pumpjack-rig` to `tri-cone-bit`) are drawn as wireframes.
+
 Each loader is one script in `src/loaders/`, `<name>.js`, which defines the
-custom element `<name>-loader`. The build minifies every loader into
+custom element `<name>-loader`. A directory there is a family: its `kit.js`
+holds what its loaders share (for the oil-and-gas scenes, the worker, the frame
+loop, the helpers and the theme), and each other script in it is a loader,
+`<name>.js`, that hands the kit one draw function. The build minifies every loader into
 `index.html`, so none waits for a download, and the page runs only the one the
 runtime configuration names, or the declared default when it cannot read it.
 Each draws in a worker through an `OffscreenCanvas` where the browser has one,
@@ -97,7 +114,10 @@ so it keeps its frame rate while the page loads and boots on the main thread.
 A loader is themed through CSS custom properties, which the loader's styles in
 `index.html` set from Tecton's tokens for each mode. `--drill-background` is
 the drill bit's backdrop (a colour, gradient, image or `transparent`), and its
-other properties are listed at the top of `src/loaders/drill-bit.js`. Each
+other properties are listed at the top of `src/loaders/drill-bit.js`. The
+oil-and-gas scenes take a background, ink and accent (`--og-*`, listed in its
+`kit.js`), draw their glows normally on a light page, where adding light turns
+them white, and draw above the title and status rather than behind them. Each
 loader also honours a `paused` attribute, which the page sets when loading
 fails.
 
@@ -108,13 +128,15 @@ example `{"drill-bit":1500,"bounce":960}`). The drill bit is held for 1000 by
 default and the others not at all. Until then the shell waits, hidden, behind
 it.
 
-To add a loader, add `src/loaders/<name>.js`, add `'<name>'` to the `z.enum`
+To add a loader, add `src/loaders/<name>.js` (or a scene to a family's
+directory), add `'<name>'` to the `z.enum`
 of `loader` and a key for it to `loaderMinDuration` in `src/mfe.config.ts`, and
 map its properties onto the loader's colours in `index.html`. The build refuses
 a name with no file, a file no name reaches, and a loader missing from the
 durations. Every loader adds its minified size to the document, whichever
 one a deployment chose: about 10 kB gzipped for the drill bit, 3 kB for the
-well log and 3 kB for the bounce.
+well log, 3 kB for the bounce, and 25 kB for all 39 oil-and-gas scenes and
+their kit.
 
 ## The pages the shell owns
 

@@ -13,7 +13,9 @@ function root(files: Record<string, string>): string {
   const directory = mkdtempSync(join(tmpdir(), 'shell-loaders-'))
   mkdirSync(join(directory, 'src/loaders'), { recursive: true })
   for (const [name, source] of Object.entries(files)) {
-    writeFileSync(join(directory, 'src/loaders', name), source)
+    const file = join(directory, 'src/loaders', name)
+    mkdirSync(join(file, '..'), { recursive: true })
+    writeFileSync(file, source)
   }
   return directory
 }
@@ -40,7 +42,7 @@ describe('readShellLoaders', () => {
 
   it('refuses a name with no file', () => {
     expect(() => readShellLoaders(root({ 'drill-bit.js': LOADER }), declarations)).toThrow(
-      /can name 'well-log', but src\/loaders\/well-log\.js does not exist/,
+      /can name 'well-log', but there is no src\/loaders\/well-log\.js/,
     )
   })
 
@@ -51,6 +53,44 @@ describe('readShellLoaders', () => {
         declarations,
       ),
     ).toThrow(/pumpjack\.js cannot be chosen/)
+  })
+
+  it('reads a directory of loaders as a family that shares its kit', () => {
+    const loaders = readShellLoaders(
+      root({
+        'drill-bit.js': LOADER,
+        'scenes/kit.js': 'const kit = {}',
+        'scenes/well-log.js': "kit.define('well-log')",
+      }),
+      declarations,
+    )
+    expect(loaders.kits).toEqual([
+      { name: 'scenes', file: 'src/loaders/scenes/kit.js', source: 'const kit = {}' },
+    ])
+    expect(loaders.loaders.map(loader => [loader.name, loader.kit])).toEqual([
+      ['drill-bit', undefined],
+      ['well-log', 'scenes'],
+    ])
+  })
+
+  it('refuses a directory of loaders without a kit, and a name used twice', () => {
+    expect(() =>
+      readShellLoaders(
+        root({ 'drill-bit.js': LOADER, 'scenes/well-log.js': LOADER }),
+        declarations,
+      ),
+    ).toThrow(/needs the kit\.js its loaders share/)
+    expect(() =>
+      readShellLoaders(
+        root({
+          'drill-bit.js': LOADER,
+          'well-log.js': LOADER,
+          'scenes/kit.js': 'const kit = {}',
+          'scenes/well-log.js': LOADER,
+        }),
+        declarations,
+      ),
+    ).toThrow(/'well-log' is also/)
   })
 
   it('refuses a declaration that is not an enum with a default', () => {
@@ -82,6 +122,7 @@ describe('inlineShellLoaders', () => {
       fallback: 'drill-bit',
       minDuration: { 'drill-bit': 1000 },
       loaders: [{ name: 'drill-bit', file: 'src/loaders/drill-bit.js', source }],
+      kits: [],
     })
     expect(inline).not.toContain('a long comment')
     expect(inline).not.toContain('unused')
@@ -93,13 +134,40 @@ describe('inlineShellLoaders', () => {
     ) as {
       fallback: string
       minDuration: Record<string, number>
-      draw: Record<string, () => void>
+      draw: Record<string, { run: () => void }>
     }
     expect(loaders.fallback).toBe('drill-bit')
     expect(loaders.minDuration).toEqual({ 'drill-bit': 1000 })
     expect(defined).toEqual([])
-    loaders.draw['drill-bit']?.()
+    loaders.draw['drill-bit']?.run()
     expect(defined).toEqual(['a-loader'])
+  })
+
+  it('hands a family loader its kit, which is inlined once', async () => {
+    const inline = await inlineShellLoaders({
+      fallback: 'a',
+      minDuration: {},
+      loaders: [
+        { name: 'a', file: 'a.js', source: "kit.define('a')", kit: 'scenes' },
+        { name: 'b', file: 'b.js', source: "kit.define('b')", kit: 'scenes' },
+      ],
+      kits: [
+        {
+          name: 'scenes',
+          file: 'kit.js',
+          source: 'const kit = { defined: [], define(name) { this.defined.push(name) } }',
+        },
+      ],
+    })
+    expect(inline.match(/defined:\[\]/g)).toHaveLength(1)
+    const loaders = new Function(`return ${inline}`)() as {
+      kits: Record<string, () => { defined: string[] }>
+      draw: Record<string, { kit?: string; run: (kit: unknown) => void }>
+    }
+    const entry = loaders.draw['b']
+    const kit = entry?.kit === undefined ? undefined : loaders.kits[entry.kit]?.()
+    entry?.run(kit)
+    expect(kit?.defined).toEqual(['b'])
   })
 
   it('never ends the script element it is inlined into', async () => {
@@ -107,6 +175,7 @@ describe('inlineShellLoaders', () => {
       fallback: 'x',
       minDuration: {},
       loaders: [{ name: 'x', file: 'src/loaders/x.js', source: "console.log('</script>')" }],
+      kits: [],
     })
     expect(inline).not.toMatch(/<\/script/i)
   })

@@ -103,6 +103,21 @@
         --well-log-texture: 0.25;
       }
 
+      /* The oil-and-gas loaders (src/loaders/oil-and-gas/). On a light page the edges would darken
+         to a grey smudge, so they do not. */
+      .shell-loader__art {
+        --og-background: var(--loader-bg);
+        --og-ink: var(--loader-text);
+        --og-accent: var(--loader-accent);
+        --og-font: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        --og-vignette: rgba(0, 0, 0, 0.5);
+        /* The scene draws above the words, which sit this far up from the bottom. */
+        --og-inset-bottom: calc(max(48px, 10vh) + 64px);
+      }
+      html:not(.dark) .shell-loader__art {
+        --og-vignette: transparent;
+      }
+
       /* <bounce-loader>. The logo lands just above the middle, with the words right under it. It
          keeps its own red in both modes; on a light page its shadow is lighter, since red blurred
          on white reads as a pink smudge. */
@@ -352,7 +367,8 @@
           var state = screen.dataset.state
           if (!screen.isConnected || (state !== 'loading' && state !== 'error')) return
           try {
-            loaders.draw[name]()
+            var entry = loaders.draw[name]
+            entry.run(entry.kit ? loaders.kits[entry.kit]() : undefined)
           } catch (error) {
             // A drawing that fails leaves the backdrop and the words, which is still a loader.
             console.warn('The loading screen could not draw ' + name + '.', error)

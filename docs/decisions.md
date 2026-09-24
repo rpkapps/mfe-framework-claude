@@ -962,7 +962,7 @@ falls back to that token's own value for the mode. Its drawing is a canvas custo
 chosen per deployment by `SHELL_LOADER` (`loader` in `src/mfe.config.ts`), from the scripts
 in `src/loaders/`: the build minifies every one of them into the page, and an inline script
 reads the runtime configuration and runs only the one it names, or the declared default.
-Inlining all of them costs every load the bytes of the loaders it does not draw; fetching
+A directory of loaders is a family that shares a `kit.js`, inlined once, so the 39 oil-and-gas scenes carry one worker and one set of helpers between them. Inlining all of them costs every load the bytes of the loaders it does not draw (about 44 kB gzipped for the page with 42 loaders); fetching
 the chosen one instead would wait for a second download before anything moved. The
 configuration is read with a request of its own, because taking the preload would send the
 entry's read back to the network. Each loader draws in a worker through an `OffscreenCanvas`,
