@@ -221,6 +221,59 @@
         }
       })()
     </script>
+    <!-- A failure before the shell paints must not leave the loader running forever. The entry's
+         own error handling cannot catch everything: the federation runtime starts before any shell
+         code, and a script that fails to download never runs at all. So until the shell is ready,
+         any uncaught error, unhandled rejection, or script or stylesheet that fails to load stops
+         the loader with the reason and a way to try again. A failure `loader.ts` already reported
+         keeps its own, more specific, words. -->
+    <script>
+      ;(function () {
+        function fail(detail) {
+          var loader = document.getElementById('shell-loader')
+          if (loader === null || loader.dataset.state !== 'loading') return
+          if (document.documentElement.dataset.shell === 'ready') return
+          loader.dataset.state = 'error'
+          var status = loader.querySelector('[data-part="status"]')
+          var text = loader.querySelector('[data-part="detail"]')
+          var action = loader.querySelector('[data-part="action"]')
+          if (status) status.textContent = 'The workspace failed to load'
+          if (text) text.textContent = detail
+          if (action) {
+            action.textContent = 'Try again'
+            action.hidden = false
+            action.onclick = function () {
+              window.location.reload()
+            }
+            action.focus()
+          }
+        }
+        function describe(reason) {
+          if (reason && typeof reason.message === 'string' && reason.message !== '') {
+            return reason.message
+          }
+          return typeof reason === 'string' && reason !== '' ? reason : 'An unexpected error.'
+        }
+        // Capturing, because a script or stylesheet that fails to load does not bubble its error.
+        window.addEventListener(
+          'error',
+          function (event) {
+            var target = event.target
+            if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+              var source = target.src || target.href
+              if (target instanceof HTMLLinkElement && target.rel !== 'stylesheet') return
+              fail('A file the workspace needs did not load: ' + source + '.')
+              return
+            }
+            if (target === window) fail(describe(event.error || event.message))
+          },
+          true,
+        )
+        window.addEventListener('unhandledrejection', function (event) {
+          fail(describe(event.reason))
+        })
+      })()
+    </script>
     <!-- After the theme, so the log's first frame is drawn in the right mode. -->
     <script>
       <%= wellLogLoader %>
