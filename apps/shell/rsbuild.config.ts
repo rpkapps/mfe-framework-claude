@@ -3,10 +3,11 @@
  * for its share scope instead of resolving a second one (§27).
  */
 
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { defineConfig, rspack } from '@rsbuild/core'
+import { defineConfig, rspack, type RsbuildPlugin } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
 import { hostFederation } from '@company/mfe-rspack/federation'
@@ -26,62 +27,46 @@ useWorkspaceModules(here)
 const DEV_PORT = 3000
 
 /**
- * Read at build time, so sign-in can start before any request of its own; every name is defined
- * even when unset, because the entry reads each one (§36).
+ * The developer's own runtime configuration, answered at the URL a deployment publishes
+ * `runtime-config.json` at, as a container's dev server does. It lives in `.mfe/`, which no build
+ * copies, and is read on every request, so an edit reaches the next page load (§36).
  */
-const DEFINED_ENV = [
-  'FARO_URL',
-  'OIDC_AUTHORITY',
-  'OIDC_CLIENT_ID',
-  'OIDC_SCOPE',
-  'OIDC_GROUPS_CLAIM',
-  'OIDC_DISABLED',
-] as const
-
-/** The origin the entry fetches discovery from and then navigates to, when sign-in is on. */
-function identityProviderOrigin(): string | undefined {
-  const authority = process.env['OIDC_AUTHORITY']?.trim()
-  if (authority === undefined || authority === '' || process.env['OIDC_DISABLED'] === 'true') {
-    return undefined
-  }
-  try {
-    return new URL(authority).origin
-  } catch {
-    // The entry reports a malformed authority on the page; the hint is simply left out.
-    return undefined
+function pluginLocalRuntimeConfig(): RsbuildPlugin {
+  const file = join(here, '.mfe', 'runtime-config.json')
+  return {
+    name: 'shell-local-runtime-config',
+    setup(api) {
+      api.onBeforeStartDevServer(({ server }) => {
+        server.middlewares.use((request, response, next) => {
+          const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+          if (request.method !== 'GET' || pathname !== '/runtime-config.json') {
+            next()
+            return
+          }
+          readFile(file).then(
+            body => {
+              response.setHeader('Content-Type', 'application/json; charset=utf-8')
+              response.setHeader('Cache-Control', 'no-store')
+              response.end(body)
+            },
+            // No file is a 404, which the page reports as a configuration it could not load.
+            () => {
+              next()
+            },
+          )
+        })
+      })
+    },
   }
 }
 
-const providerOrigin = identityProviderOrigin()
-
 export default defineConfig({
-  plugins: [pluginReact()],
+  plugins: [pluginReact(), pluginLocalRuntimeConfig()],
 
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },
 
-  html: {
-    template: './src/index.html',
-    // The connection to the identity provider opens while the entry downloads: once for the
-    // discovery fetch, which is CORS, and once for the navigation, which is not.
-    tags:
-      providerOrigin === undefined
-        ? []
-        : [
-            {
-              tag: 'link',
-              attrs: { rel: 'preconnect', href: providerOrigin, crossorigin: '' },
-              head: true,
-              append: false,
-            },
-            {
-              tag: 'link',
-              attrs: { rel: 'preconnect', href: providerOrigin },
-              head: true,
-              append: false,
-            },
-          ],
-  },
+  html: { template: './src/index.html' },
 
   moduleFederation: {
     options: {
@@ -114,13 +99,10 @@ export default defineConfig({
         // Both forms are defined because TypeScript's index-signature rule makes the source write the bracket one.
         new rspack.DefinePlugin(
           Object.fromEntries(
-            DEFINED_ENV.flatMap(name => {
-              const value = JSON.stringify(process.env[name] ?? '')
-              return [
-                [`process.env.${name}`, value],
-                [`process.env['${name}']`, value],
-              ]
-            }),
+            [['FARO_URL', process.env['FARO_URL'] ?? '']].flatMap(([name, value]) => [
+              [`process.env.${String(name)}`, JSON.stringify(value)],
+              [`process.env['${String(name)}']`, JSON.stringify(value)],
+            ]),
           ),
         ),
       ],

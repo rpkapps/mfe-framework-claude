@@ -39,20 +39,32 @@ is no per-route authorization. It is the authorization code flow with PKCE
 through the identity provider again and comes straight back while its session
 lasts ([decisions §36](../../docs/decisions.md)).
 
-| Variable            | What it does                                                  |
-| ------------------- | ------------------------------------------------------------- |
-| `OIDC_AUTHORITY`    | the issuer URL; https, or http on localhost                   |
-| `OIDC_CLIENT_ID`    | the public client registered for the shell                    |
-| `OIDC_SCOPE`        | defaults to `openid profile email offline_access`             |
-| `OIDC_GROUPS_CLAIM` | the claim read into `shellState.groups`; defaults to `groups` |
-| `OIDC_DISABLED`     | `true` runs without sign-in, as the development user          |
+Sign-in is configured at run time, so one build serves every environment. The
+shell reads `/runtime-config.json`, which `index.html` preloads alongside the
+entry, and a deployment writes it from the environment when the image starts,
+as it does a container's:
 
-They are read at build time, from the environment or an untracked
-`apps/shell/.env.local`. Register `<origin>/` as both the redirect URI and the
-post-logout redirect URI, and allow refresh tokens for the client (Entra ID and
-Okta issue them only with `offline_access`). With nothing set, a development
-build runs without sign-in and a production build refuses to boot until either
-the provider or `OIDC_DISABLED=true` is set.
+| Variable            | Field             | What it does                                                  |
+| ------------------- | ----------------- | ------------------------------------------------------------- |
+| `OIDC_AUTHORITY`    | `oidcAuthority`   | the issuer URL; https, or http on localhost                   |
+| `OIDC_CLIENT_ID`    | `oidcClientId`    | the public client registered for the shell                    |
+| `OIDC_SCOPE`        | `oidcScope`       | defaults to `openid profile email offline_access`             |
+| `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups` |
+| `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user          |
+
+`deploy/runtime-config.sh` writes the file, in POSIX `sh` and `awk` only: copy
+it into an nginx image's `/docker-entrypoint.d/` and it runs before nginx
+starts, writing to `/usr/share/nginx/html`, or pass it another directory. Serve
+the file with `Cache-Control: no-store`. A deployment without the file, or with
+one the shell cannot read, stops on the loading screen and says which.
+
+In development the dev server answers `/runtime-config.json` from
+`apps/shell/.mfe/runtime-config.json`, which ships with `"oidcDisabled": true`;
+put an `oidcAuthority` and `oidcClientId` there instead to sign in locally.
+Register `<origin>/` as both the redirect URI and the post-logout redirect URI,
+and allow refresh tokens for the client (Entra ID and Okta issue them only with
+`offline_access`). A production build with no provider configured refuses to
+boot until either the provider or `OIDC_DISABLED=true` is set.
 
 While sign-in and boot run, `index.html` shows the structure map of a
 prospect, its contours spreading from a point of light like a seismic wave. It

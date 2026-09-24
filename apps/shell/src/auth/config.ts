@@ -1,18 +1,10 @@
 /**
- * What the build says about sign-in, decided once and before anything renders. Pure, so every
- * combination is a unit test rather than a deployment that found out (§36).
+ * What the deployment's runtime configuration says about sign-in, decided once and before
+ * anything renders. Pure, so every combination is a unit test rather than a deployment that found
+ * out (§36). The problems name the environment variables, because that is what an operator sets.
  */
 
-/** Read from the build's environment by `readAuthEnvironment` in `gate.ts`. */
-export interface AuthEnvironment {
-  readonly OIDC_AUTHORITY?: string | undefined
-  readonly OIDC_CLIENT_ID?: string | undefined
-  readonly OIDC_SCOPE?: string | undefined
-  readonly OIDC_GROUPS_CLAIM?: string | undefined
-  readonly OIDC_DISABLED?: string | undefined
-  /** A production build fails closed: sign-in off must be written down, never inferred. */
-  readonly production: boolean
-}
+import type { ShellRuntimeConfig } from './runtime-config.ts'
 
 export interface OidcConfig {
   readonly kind: 'oidc'
@@ -49,18 +41,19 @@ function isAcceptableAuthority(authority: string): boolean {
   return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
 }
 
-export function resolveAuthConfig(env: AuthEnvironment): AuthConfig {
-  if (setting(env.OIDC_DISABLED) === 'true') return { kind: 'disabled', reason: 'explicit' }
+/** `production` fails closed: sign-in off must be written down, never inferred. */
+export function resolveAuthConfig(config: ShellRuntimeConfig, production: boolean): AuthConfig {
+  if (config.oidcDisabled === true) return { kind: 'disabled', reason: 'explicit' }
 
-  const authority = setting(env.OIDC_AUTHORITY)
-  const clientId = setting(env.OIDC_CLIENT_ID)
+  const authority = setting(config.oidcAuthority)
+  const clientId = setting(config.oidcClientId)
 
   if (authority === undefined && clientId === undefined) {
-    if (!env.production) return { kind: 'disabled', reason: 'unconfigured' }
+    if (!production) return { kind: 'disabled', reason: 'unconfigured' }
     return {
       kind: 'misconfigured',
       problem:
-        'This build has no identity provider. Set OIDC_AUTHORITY and OIDC_CLIENT_ID, or OIDC_DISABLED=true to run without sign-in.',
+        'This deployment has no identity provider. Set OIDC_AUTHORITY and OIDC_CLIENT_ID, or OIDC_DISABLED=true to run without sign-in.',
     }
   }
   if (authority === undefined || clientId === undefined) {
@@ -76,7 +69,7 @@ export function resolveAuthConfig(env: AuthEnvironment): AuthConfig {
     }
   }
 
-  const scope = setting(env.OIDC_SCOPE) ?? DEFAULT_SCOPE
+  const scope = setting(config.oidcScope) ?? DEFAULT_SCOPE
   if (!scope.split(/\s+/).includes('openid')) {
     return {
       kind: 'misconfigured',
@@ -89,6 +82,6 @@ export function resolveAuthConfig(env: AuthEnvironment): AuthConfig {
     authority,
     clientId,
     scope,
-    groupsClaim: setting(env.OIDC_GROUPS_CLAIM) ?? DEFAULT_GROUPS_CLAIM,
+    groupsClaim: setting(config.oidcGroupsClaim) ?? DEFAULT_GROUPS_CLAIM,
   }
 }

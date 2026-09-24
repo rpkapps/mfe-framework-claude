@@ -13,8 +13,9 @@ import { InMemoryWebStorage, UserManager, WebStorageStateStore, type User } from
 
 import { failLoader, setLoaderStatus } from '../loader.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
-import { resolveAuthConfig, type AuthEnvironment, type OidcConfig } from './config.ts'
+import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
+import { fetchRuntimeConfig } from './runtime-config.ts'
 import { createOidcTokenSource } from './token-source.ts'
 
 export type ShellSession =
@@ -43,18 +44,6 @@ export function shellSession(): ShellSession {
     throw new Error('The shell booted before authenticate() established a session.')
   }
   return session
-}
-
-/** Every name is defined by the Rsbuild config, set or not, so none reads `process` at run time. */
-function readAuthEnvironment(): AuthEnvironment {
-  return {
-    OIDC_AUTHORITY: process.env['OIDC_AUTHORITY'],
-    OIDC_CLIENT_ID: process.env['OIDC_CLIENT_ID'],
-    OIDC_SCOPE: process.env['OIDC_SCOPE'],
-    OIDC_GROUPS_CLAIM: process.env['OIDC_GROUPS_CLAIM'],
-    OIDC_DISABLED: process.env['OIDC_DISABLED'],
-    production: process.env['NODE_ENV'] === 'production',
-  }
 }
 
 /** `sessionStorage` throws outright when storage is blocked; the callback then fails and says so. */
@@ -128,7 +117,21 @@ function oidcSession(manager: UserManager, config: OidcConfig, user: User): Shel
  * provider, or the loader is showing why it cannot continue, and nothing else should load.
  */
 export async function authenticate(): Promise<boolean> {
-  const config = resolveAuthConfig(readAuthEnvironment())
+  const runtime = await fetchRuntimeConfig()
+  if (!runtime.ok) {
+    failLoader({
+      title: 'The configuration could not be loaded',
+      detail: runtime.problem,
+      actionLabel: 'Reload',
+      onAction: () => {
+        window.location.reload()
+      },
+    })
+    return false
+  }
+
+  const production = process.env['NODE_ENV'] === 'production'
+  const config = resolveAuthConfig(runtime.config, production)
 
   if (config.kind === 'misconfigured') {
     failLoader({ title: 'Sign-in is not configured', detail: config.problem })
@@ -136,7 +139,7 @@ export async function authenticate(): Promise<boolean> {
   }
 
   if (config.kind === 'disabled') {
-    if (config.reason === 'explicit' && process.env['NODE_ENV'] === 'production') {
+    if (config.reason === 'explicit' && production) {
       console.warn(
         '[shell] Sign-in is disabled by OIDC_DISABLED=true: every visitor is the development user.',
       )

@@ -929,6 +929,19 @@ recognised by `code` or `error` with `state` there. The return path travels as t
 request's state and only a path on this origin is honoured. The ID token's claims fill
 `shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
 
+**The configuration is read at run time, not built in.** One build serves every
+environment: the shell reads `/runtime-config.json`, which a deployment writes from the
+`OIDC_*` environment variables with `apps/shell/deploy/runtime-config.sh`, the same
+contract and the same POSIX-only approach as a container's generated script. It is not
+the framework's `#mfe/config`: that validates through the author's Zod schemas in the
+browser, and it runs before sign-in, so it would put Zod in the entry. The shell checks
+its five fields by hand in `parseRuntimeConfig`, refusing an unknown key so a misspelling
+is found at the first load, and `resolveAuthConfig` decides what they mean.
+`index.html` preloads the file, so it downloads beside the entry and the entry's fetch
+is answered from that one request. A missing file, which a single-page fallback serves
+as `index.html` with a 200, is reported as missing rather than as bad JSON. A Zod-free
+`#mfe/config` that a host could use as well is the natural follow-up.
+
 **Sign-in off is written down, never inferred.** `OIDC_DISABLED=true` turns it off and
 the shell runs as the development user with development tokens. A development build
 with nothing configured does the same; a production build with nothing configured

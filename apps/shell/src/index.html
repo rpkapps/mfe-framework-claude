@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Discovery</title>
+    <!-- Sign-in reads the deployment's runtime configuration before anything else, so it downloads
+         alongside the entry rather than after it (§36). `crossorigin` makes it the same request
+         the entry's fetch makes, which is then answered from this one. -->
+    <link rel="preload" href="/runtime-config.json" as="fetch" crossorigin="anonymous" />
     <!-- Inline, or a browser requests /favicon.ico on every load and the 404 buries a real failed request in the console. -->
     <link
       rel="icon"
