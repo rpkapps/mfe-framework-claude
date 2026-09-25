@@ -161,7 +161,13 @@ export class OverviewComponent {
 Call it from your own button, and the click goes through the same checks as the palette, the keys
 and the agent. It runs this injector's registration, even when another mount of your definition
 registered the same name. It resolves an `ActionExecutionResult`, never rejects, and resolves
-`unavailable` once the component is destroyed.
+`unavailable` once the component is destroyed, or as it is destroyed while the run goes on.
+
+`execute` receives the parsed input and `{ signal }`. The signal aborts when the run is given up:
+an agent's call passed its deadline (`timeoutMs`, 30 seconds by default), the injector was destroyed
+during the run, or the user pressed Stop in the chat. Pass it to `fetch`, or end an `HttpClient`
+request with `takeUntil(fromEvent(signal, 'abort'))`; whatever `execute` returns afterwards is
+dropped.
 
 This action declares no `effect`, so it counts as a write, and the agent asks the user before it
 logs an inspection. `ActionEffect`, `ActionInputSchema`, `ActionRun` and

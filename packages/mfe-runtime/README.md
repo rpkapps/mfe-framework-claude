@@ -102,21 +102,22 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `diagnostics`  | the hub every framework failure reaches                                    |
 | `deadlines`    | the budget every mount runs under                                          |
 
-`actions.execute(id, { caller, input, turn })` runs an action for whoever asked:
+`actions.execute(id, { caller, input, turn, signal })` runs an action for whoever asked:
 `'palette'`, `'shortcut'`, `'ui'`, `'agent'`, or `'system'` for the host's own
 code. Every caller goes through the
 same steps in `action-executor.ts`: `canExecute` decides, the input is parsed
 with the action's `inputSchema` (absent input is `{}`), and `execute` runs with
-the parsed value. The result is one of these:
+the parsed value and `{ signal }`. The result is one of these:
 
-| Status        | When                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------- |
-| `executed`    | `execute` ran; `value` is its return, parsed by `outputSchema` if any                   |
-| `denied`      | `canExecute`, the placements or the policy refused, or nothing could ask; with `reason` |
-| `declined`    | the user was asked about an agent's call and said no                                    |
-| `invalid`     | the input failed `inputSchema` (`contract/input-mismatch`); nothing ran                 |
-| `unavailable` | the action is gone, or its mount went while an agent's call waited                      |
-| `failed`      | `execute` threw, or its value failed `outputSchema` (`contract/output-mismatch`)        |
+| Status        | When                                                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `executed`    | `execute` ran; `value` is its return, parsed by `outputSchema` if any                                                      |
+| `denied`      | `canExecute`, the placements or the policy refused, or nothing could ask; with `reason`                                    |
+| `declined`    | the user was asked about an agent's call and said no                                                                       |
+| `cancelled`   | the call's `signal` aborted before the run ended; with `reason`                                                            |
+| `invalid`     | the input failed `inputSchema` (`contract/input-mismatch`); nothing ran                                                    |
+| `unavailable` | the action is gone, or went while the call waited, queued or ran                                                           |
+| `failed`      | `execute` threw or passed its deadline (`action/timeout`), or its value failed `outputSchema` (`contract/output-mismatch`) |
 
 The promise never rejects: a host hook or a schema's own check that throws fails
 the run (`mount/failure`), and the run is audited like any other.
@@ -143,6 +144,21 @@ then run one at a time unless `parallelSafe`, and a call that waited is looked a
 again first: a mount that went away returns `unavailable`, and a placement or a
 `canExecute` that changed denies. A user who runs an action is its approval, so the palette,
 a shortcut and the App's own UI never ask and never queue.
+
+A run that does not end cannot hold the others. An agent's call has a deadline,
+the action's `timeoutMs` or `DEFAULT_ACTION_TIMEOUT_MS` (30 seconds), counted
+from when `execute` starts, so neither the user's approval nor the wait behind
+another write uses it up, and a write behind a hung one waits at most that one's
+deadline. Once it passes, the run is `failed` with `action/timeout`, reported to
+the diagnostics and audited, and the next write runs. A user's run and the
+host's own have no deadline. A run is also given up when its registration goes
+away, with its mount or its component: every run of it still queued or running
+resolves `unavailable` at once. And a call's own `signal` gives it up when the
+caller stops waiting, as the chat's Stop does: nothing runs if it aborted
+before the run started, and a run queued or running resolves `cancelled`. In
+each case the `signal` `execute` received aborts, with the timeout's or the
+removal's error, or the caller's reason, and whatever `execute` returns or
+throws afterwards is dropped: the run already has its result, audited once.
 
 ```ts
 const { runtime } = createMfeRuntime({

@@ -85,14 +85,14 @@ return <Button onPress={() => void acknowledge()}>Acknowledge</Button>
 component's action, even when the Widget is mounted twice. It never rejects, and resolves to one
 result:
 
-| `status`      | What happened                                                                       |
-| ------------- | ----------------------------------------------------------------------------------- |
-| `executed`    | `execute` ran. `value` holds what it returned.                                      |
-| `denied`      | `canExecute` refused, with its `reason`. The shell also shows the user your reason. |
-| `declined`    | The user was asked about an agent's call and said no.                               |
-| `invalid`     | The input did not match `inputSchema`, so nothing ran.                              |
-| `unavailable` | The component that registered the action is gone.                                   |
-| `failed`      | `execute` threw, or its value did not match `outputSchema`. `error` says which.     |
+| `status`      | What happened                                                                         |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `executed`    | `execute` ran. `value` holds what it returned.                                        |
+| `denied`      | `canExecute` refused, with its `reason`. The shell also shows the user your reason.   |
+| `declined`    | The user was asked about an agent's call and said no.                                 |
+| `invalid`     | The input did not match `inputSchema`, so nothing ran.                                |
+| `unavailable` | The component that registered the action is gone, or unmounted while the run went on. |
+| `failed`      | `execute` threw, or its value did not match `outputSchema`. `error` says which.       |
 
 In an Angular component, `injectAction` returns the same function. See the
 [Angular adapter](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount).

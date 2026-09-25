@@ -134,7 +134,24 @@ declared at module scope, that every call's input is parsed with before
 `execute` receives it; `outputSchema` checks the value `execute` returns.
 `effect` is `'read'`, `'write'` or `'destructive'`, and an undeclared one counts
 as `'write'`, so the agent asks the user before each call. `needsApproval`,
-`parallelSafe` and `followUp` tune the agent's calls further.
+`parallelSafe`, `timeoutMs` and `followUp` tune the agent's calls further.
+
+`execute(input, { signal })` also receives a signal, which aborts when the run
+is given up: an agent's call ran past its deadline (`timeoutMs`, 30 seconds by
+default, counted from when `execute` starts; it then fails with
+`action/timeout`), the component unmounted while it ran (`unavailable`), or the
+user pressed Stop in the chat (`cancelled`). The run has its result by then, and
+whatever `execute` still returns is dropped, so hand the signal to the work it
+waits on:
+
+```tsx
+useAction({
+  name: 'save-plan',
+  label: 'Save the plan',
+  inputSchema: planInput,
+  execute: async (plan, { signal }) => await savePlan(plan, { signal }),
+})
+```
 
 It returns a stable `ActionRun` with the caller `'ui'`, for the App's own
 button: a click shares `canExecute`, validation and the denial notice with the
@@ -142,7 +159,8 @@ palette, the keys and the agent. The input is optional when the schema accepts
 `{}`. It runs this component's registration, even when another mount of the
 definition registered the same name; called before the component registered,
 from a child's effect, it waits for that registration. It never rejects, and
-resolves `unavailable` after the component unmounts. The package
+resolves `unavailable` after the component unmounts, or as it unmounts while
+the run is still going. The package
 exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
 `ActionExecutionResult` as types.
 

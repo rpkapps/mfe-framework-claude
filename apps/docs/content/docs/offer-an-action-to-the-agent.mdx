@@ -122,6 +122,40 @@ button still run it either way.
 
 </Step>
 
+<Step>
+
+### 5. Stop when the run is given up
+
+```tsx title="src/routes/plan.tsx"
+useAction({
+  name: 'save-plan',
+  label: 'Save the plan',
+  description: 'Saves the plan the user is editing.',
+  inputSchema: planInput,
+  // A save that waits on a slow approval service upstream.
+  timeoutMs: 60_000,
+  execute: async (plan, { signal }) => {
+    const response = await fetch('/api/plans', {
+      method: 'PUT',
+      body: JSON.stringify(plan),
+      signal,
+    })
+    return { saved: response.ok }
+  },
+})
+```
+
+The agent's writes run one at a time, so a save that never settles would hold every later one, and
+the chat's turn with them. An agent's call therefore has a deadline, 30 seconds unless `timeoutMs`
+says otherwise, counted from when `execute` starts. When it passes, the call fails with
+`action/timeout` and the next write runs. `execute` receives a `signal` that aborts then, when your
+component unmounts during the run (`unavailable`), and when the user presses Stop in the chat
+(`cancelled`). The run already has its result by then, and whatever `execute` still returns is
+dropped, so hand the signal to the request. A user's own run has no deadline, but the signal still
+aborts when the component unmounts.
+
+</Step>
+
 </Steps>
 
 ## Check it works
@@ -203,6 +237,20 @@ action’s outputSchema, received ✖ Invalid input: expected number, received s
 
 **Fix.** Return what `outputSchema` declares from `execute`, or change the schema. The action has
 already run, and the result is `failed` with the code `contract/output-mismatch`.
+
+</Callout>
+
+<Callout type="error" title="expected execute to settle">
+
+```text
+lab failed to execute action 'save-plan': expected execute to settle within 30000ms of starting,
+received an execute still running, so the run failed and its signal was aborted. Pass the signal
+execute receives to the work it waits on, and settle every promise it returns. If the work is slow
+by nature, give the action a longer timeoutMs.
+```
+
+**Fix.** Pass `signal` to the request, and make sure every path through `execute` settles. The code
+is `action/timeout`, and the agent is told the run failed.
 
 </Callout>
 

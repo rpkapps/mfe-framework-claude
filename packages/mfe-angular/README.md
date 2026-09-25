@@ -275,13 +275,20 @@ otherwise, to the shell's agent as a tool. `description` is written for the
 agent, `inputSchema` (one `z.object`, at module scope) parses every call's input
 before `execute` receives it, and `outputSchema` checks the returned value.
 `effect` is `'read'`, `'write'` or `'destructive'`; an undeclared one counts as
-`'write'`, so the agent asks the user before each call. It returns an
+`'write'`, so the agent asks the user before each call.
+`execute(input, { signal })` also receives a signal that aborts when the run is
+given up: an agent's call ran past its deadline (`timeoutMs`, 30 seconds by
+default, counted from when `execute` starts; it then fails with
+`action/timeout`), the injector was destroyed while it ran (`unavailable`), or
+the user pressed Stop in the chat (`cancelled`). Whatever `execute` returns
+after that is dropped, so pass the signal on: to `fetch`, or to an `HttpClient`
+request through `takeUntil(fromEvent(signal, 'abort'))`. It returns an
 `ActionRun` with the caller `'ui'`, for the component's own button, so a click
 shares `canExecute`, validation and the denial notice with every other caller.
 It runs this injector's registration, even when another mount of the
 definition registered the same name, and never rejects. After the component is
-destroyed the run resolves `unavailable`. The package
-exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+destroyed, or as it is destroyed mid-run, the run resolves `unavailable`. The
+package exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
 `ActionExecutionResult` as types.
 
 ```ts

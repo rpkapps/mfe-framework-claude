@@ -105,7 +105,10 @@ so the next turn's request is one a model API accepts; a call a backend's interr
 backend's. `sendMessage` rejects only if `onError` throws, and `error` stays the turn's own.
 
 Stopping a turn answers the page's open questions as declined, and answers any call that never
-ran as stopped. Every interrupt the last run ended on that nobody answered (the user stopped, or
+ran as stopped. A tool still running is told through the signal its `execute` receives, and
+`actionTools` passes that signal to the action pipeline: an action's call still queued or running
+resolves `cancelled` at once and the action's own signal aborts, so the turn ends even when the
+action's work never settles, and the agent's next write is not held behind it. Every interrupt the last run ended on that nobody answered (the user stopped, or
 the run carrying the answer failed) is resumed as cancelled by the next run, as the spec requires.
 `clear()` starts a new thread with nothing to resume.
 

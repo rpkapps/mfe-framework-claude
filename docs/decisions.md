@@ -1310,6 +1310,37 @@ them, so a changed description reaches the agent's tool list and an equal schema
 declared again inline publishes nothing. A schema JSON Schema cannot express is
 refused at registration and on an update, since the agent could not call the action.
 
+A queue is only as good as its slowest member: a write whose `execute` never settles
+(a forgotten promise, a request with no timeout, a component unmounting mid-save)
+held every later agent write, and the chat's turn with it, for good. So a run can be
+given up, three ways, and `execute(input, { signal })` receives a signal that aborts
+when it is:
+
+- **The deadline.** An agent's call fails with `action/timeout` once `execute` has run
+  for the action's `timeoutMs`, 30 seconds unless it says otherwise (a positive number
+  of milliseconds, checked at registration). It is reported to the diagnostics and
+  audited, and the queue moves on. The deadline starts when `execute` does, not when
+  the call was asked for: waiting on the user is not the App's time, and a write
+  behind a hung one then waits at most that one's deadline before its own full budget
+  starts. Only an agent's calls have one, reads and `parallelSafe` writes included,
+  since the turn waits on each. A user's run has none, as the user sees it and it
+  never queues, and the host's own code passes a signal when it wants a limit.
+- **Release on unmount.** When a registration goes (its component's cleanup, its
+  mount's `removeMount`, the registry's disposal), every run of it still queued or
+  running resolves `unavailable`, whoever called it, and the queue moves on. A call
+  still waiting on the user is looked at again when they answer, as before.
+- **The caller's signal.** `ActionCall` takes a `signal`; the chat's Stop already
+  aborts the one each page tool receives, and `actionTools` passes it on. A run
+  aborted before it starts runs nothing, and one queued or running resolves
+  `cancelled` with a reason: a seventh outcome, since the user chose it and it is
+  neither a refusal nor a failure. A stop while the user was asked is `cancelled`
+  too, although the chat answers its card as declined.
+
+Whichever comes first is the run's result, audited once. The action's signal aborts
+with the timeout's or the removal's error, or the caller's reason, and whatever
+`execute` returns or throws afterwards is dropped, never reported as a success, a
+failure or an output mismatch: the call has already been answered.
+
 Actions still live in the page and last as long as their mount: they are not server
 actions and cannot run headless, and `canExecute` is still a read of UI state, never
 an authorization boundary. The server authorizes.
@@ -1317,7 +1348,9 @@ an authorization boundary. The server authorizes.
 **Cost:** an action with no declared effect asks before the agent runs it, so the
 shell and the examples mark their panel openers and navigation `'read'`; a schema
 declared inline is converted again on every commit; and an action's type carries two
-parameters, erased where the registry stores it.
+parameters, erased where the registry stores it. A write given up at its deadline may
+still finish in the background, after the next one started, when its `execute`
+ignores the signal: the queue orders what the agent waits on, not what the App does.
 
 ---
 
@@ -1335,14 +1368,17 @@ branches on it. The union widens, deliberately:
 
 - `action/duplicate-name` — two registrations of one name in a scope, and nothing else.
 - `action/invalid-registration` — a field the registry cannot accept, thrown at
-  `register` or `update`: the name, the label, a placement, the effect, a shortcut it
-  cannot read, an `inputSchema` that is not a `z.object`, a schema JSON Schema cannot
+  `register` or `update`: the name, the label, a placement, the effect, a `timeoutMs`
+  (§42), a shortcut it cannot read, an `inputSchema` that is not a `z.object`, a schema JSON Schema cannot
   express, or `register` given the reserved host scope.
 - `action/shortcut-refused` — a warning that a shortcut will not fire: a Widget's, one
   the host page uses, or one another live action claims.
 - `action/unavailable` — a run of an action no longer registered, from `execute`, from
   its own handle once removed, or after an agent's call waited while its mount went away
-  (which reported `mount/failure`).
+  (which reported `mount/failure`), and a run still queued or running when it went (§42).
+- `action/timeout` — an agent's call whose `execute` ran past its deadline (§42), added
+  with the deadline rather than reusing `mount/timeout`, which names a mount that did
+  not come up.
 
 **Cost:** three more codes in the union, each with a row on the error codes page.
 
