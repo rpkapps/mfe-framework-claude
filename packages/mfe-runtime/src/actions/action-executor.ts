@@ -51,7 +51,7 @@ export interface ActionCall {
 }
 
 /** Who a caller acts for. */
-export function actorOf(caller: ActionCaller): ActionActor {
+function actorOf(caller: ActionCaller): ActionActor {
   return caller === 'agent' ? 'agent' : caller === 'system' ? 'system' : 'user'
 }
 
@@ -195,7 +195,19 @@ export class ActionExecutor<Action extends RunnableAction> {
    */
   async run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
     const startedAt = this.#now()
-    const result = await this.#run(action, call)
+    let result: ActionExecutionResult
+    try {
+      result = await this.#run(action, call)
+    } catch (error) {
+      // A host hook (the denial notifier) or a schema's own refinement threw: the run still ends in
+      // a result the caller can read, and is still audited.
+      result = {
+        status: 'failed',
+        error: this.#report(error, action, `run action '${action.registration.name}'`, {
+          repair: 'The host’s hooks and the action’s schemas must not throw.',
+        }),
+      }
+    }
     this.audit(action, call, result, startedAt)
     return result
   }
@@ -211,38 +223,50 @@ export class ActionExecutor<Action extends RunnableAction> {
     result: ActionExecutionResult,
     startedAt: number,
   ): void {
-    const { audit, readUserId, diagnostics } = this.#options
+    const { audit, readUserId } = this.#options
     if (!audit) return
 
-    const record: ActionAuditRecord = {
-      actionId: action.qualifiedId,
-      definitionId: action.definitionId,
-      definitionKind: action.definitionKind,
-      actor: actorOf(call.caller),
-      caller: call.caller,
-      ...withoutUndefined({
-        userId: readUserId?.(),
-        turn: call.turn,
-        reason: 'reason' in result ? result.reason : undefined,
-        errorCode: 'error' in result ? result.error.code : undefined,
-      }),
-      outcome: result.status,
-      input: redactInput(call.input ?? {}),
-      startedAt: new Date(startedAt).toISOString(),
-      durationMs: Math.max(0, this.#now() - startedAt),
-    }
     try {
+      const record: ActionAuditRecord = {
+        actionId: action.qualifiedId,
+        definitionId: action.definitionId,
+        definitionKind: action.definitionKind,
+        actor: actorOf(call.caller),
+        caller: call.caller,
+        ...withoutUndefined({
+          userId: readUserId?.(),
+          turn: call.turn,
+          reason: 'reason' in result ? result.reason : undefined,
+          errorCode: 'error' in result ? result.error.code : undefined,
+        }),
+        outcome: result.status,
+        input: redactInput(call.input ?? {}),
+        startedAt: new Date(startedAt).toISOString(),
+        durationMs: Math.max(0, this.#now() - startedAt),
+      }
       audit(record)
     } catch (error) {
-      diagnostics?.report(
-        toMfeError(error, {
-          code: 'mount/failure',
-          id: action.definitionId,
-          operation: `audit the run of '${action.qualifiedId}'`,
-          repair: 'The audit sink must not throw; queue the record and deliver it elsewhere.',
-        }),
-      )
+      this.#report(error, action, `audit the run of '${action.qualifiedId}'`, {
+        repair: 'The audit sink must not throw; queue the record and deliver it elsewhere.',
+      })
     }
+  }
+
+  /** Reports a throw from code the executor called, as the action's owner's failure. */
+  #report(
+    error: unknown,
+    action: Pick<RunnableAction, 'definitionId'>,
+    operation: string,
+    { repair }: { readonly repair: string },
+  ): MfeError {
+    const structured = toMfeError(error, {
+      code: 'mount/failure',
+      id: action.definitionId,
+      operation,
+      repair,
+    })
+    this.#options.diagnostics?.report(structured)
+    return structured
   }
 
   #now(): number {
@@ -252,10 +276,6 @@ export class ActionExecutor<Action extends RunnableAction> {
   async #run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
     const { registration } = action
     const agent = call.caller === 'agent'
-    if (agent && !(registration.placements ?? DEFAULT_ACTION_PLACEMENTS).includes('agent')) {
-      return { status: 'denied', reason: 'This action is not offered to the agent.' }
-    }
-
     const denied = this.#decide(action, call)
     if (denied) return denied
 
@@ -280,7 +300,19 @@ export class ActionExecutor<Action extends RunnableAction> {
     return await this.#serialize(() => this.#executeAfterWait(action, call, input.value))
   }
 
+  /**
+   * Whether the call may run now: an agent's only to an action placed for the agent, then
+   * `canExecute`. Asked again after any wait, since both may have changed.
+   */
   #decide(action: Action, call: ActionCall): ActionExecutionResult | undefined {
+    const { registration } = action
+    if (
+      call.caller === 'agent' &&
+      !(registration.placements ?? DEFAULT_ACTION_PLACEMENTS).includes('agent')
+    ) {
+      return { status: 'denied', reason: 'This action is not offered to the agent.' }
+    }
+
     const { diagnostics, notifyDenial, onDenied } = this.#options
     const decision = decide(action.definitionId, action.registration, diagnostics)
     if (decision.allowed) return undefined
@@ -318,11 +350,22 @@ export class ActionExecutor<Action extends RunnableAction> {
     return { ok: false, error }
   }
 
-  /** What the action declares, then what the host's policy makes of it. */
+  /**
+   * What the action declares, then what the host's policy makes of it. A policy that throws denies:
+   * it may exist to refuse what the user could otherwise approve.
+   */
   #rule(action: Action, input: Readonly<Record<string, unknown>>): ApprovalRuling {
     const declared = this.#declared(action, input)
     const policy = this.#options.approvalPolicy
-    return policy?.(this.#request(action, input), declared) ?? declared
+    if (!policy) return declared
+    try {
+      return policy(this.#request(action, input), declared) ?? declared
+    } catch (error) {
+      this.#report(error, action, `apply the approval policy to '${action.registration.name}'`, {
+        repair: 'The approval policy must return a ruling, or undefined to keep the declared one.',
+      })
+      return { deny: 'The host’s approval policy failed, so the call was not run.' }
+    }
   }
 
   /** A check that throws asks, since the call it was meant to catch may be this one. */
@@ -336,14 +379,9 @@ export class ActionExecutor<Action extends RunnableAction> {
     try {
       return needsApproval(input) ? 'ask' : 'approve'
     } catch (error) {
-      this.#options.diagnostics?.report(
-        toMfeError(error, {
-          code: 'mount/failure',
-          id: action.definitionId,
-          operation: `evaluate needsApproval for '${action.registration.name}'`,
-          repair: 'needsApproval must be a pure synchronous read of the input.',
-        }),
-      )
+      this.#report(error, action, `evaluate needsApproval for '${action.registration.name}'`, {
+        repair: 'needsApproval must be a pure synchronous read of the input.',
+      })
       return 'ask'
     }
   }
@@ -364,14 +402,9 @@ export class ActionExecutor<Action extends RunnableAction> {
     try {
       approved = await approver(this.#request(action, input))
     } catch (error) {
-      this.#options.diagnostics?.report(
-        toMfeError(error, {
-          code: 'mount/failure',
-          id: action.definitionId,
-          operation: `ask the user to approve '${action.registration.name}'`,
-          repair: 'The approver must resolve true or false; a rejection counts as declined.',
-        }),
-      )
+      this.#report(error, action, `ask the user to approve '${action.registration.name}'`, {
+        repair: 'The approver must resolve true or false; a rejection counts as declined.',
+      })
       approved = false
     }
     return approved ? undefined : { status: 'declined', reason: 'The user declined this call.' }
@@ -421,21 +454,18 @@ export class ActionExecutor<Action extends RunnableAction> {
     action: Action,
     input: Readonly<Record<string, unknown>>,
   ): Promise<ActionExecutionResult> {
-    const { diagnostics } = this.#options
     const { registration } = action
     let value: unknown
     try {
       value = await registration.execute(input)
     } catch (error) {
-      const structured = toMfeError(error, {
-        code: 'mount/failure',
-        id: action.definitionId,
-        operation: `execute action '${registration.name}'`,
-        repair:
-          'Handle the failure inside the action, or surface it through the App’s own error UI.',
-      })
-      diagnostics?.report(structured)
-      return { status: 'failed', error: structured }
+      return {
+        status: 'failed',
+        error: this.#report(error, action, `execute action '${registration.name}'`, {
+          repair:
+            'Handle the failure inside the action, or surface it through the App’s own error UI.',
+        }),
+      }
     }
 
     const { outputSchema } = registration
@@ -455,7 +485,7 @@ export class ActionExecutor<Action extends RunnableAction> {
       repair: 'Return what the outputSchema declares from execute, or change the outputSchema.',
       cause: result.error,
     })
-    diagnostics?.report(error)
+    this.#options.diagnostics?.report(error)
     return { status: 'failed', error }
   }
 }

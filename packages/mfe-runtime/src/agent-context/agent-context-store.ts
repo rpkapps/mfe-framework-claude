@@ -239,12 +239,7 @@ export class AgentContextStore {
     const handler = this.#promptHandler
     if (!handler) return false
 
-    const problem =
-      prompt.message.trim() === ''
-        ? 'an empty message'
-        : prompt.context === undefined
-          ? undefined
-          : describeProblem(prompt.context)
+    const problem = promptProblem(prompt)
     if (problem !== undefined) {
       this.#options.diagnostics?.report(
         createMfeError({
@@ -307,12 +302,7 @@ export class AgentContextStore {
     const kept: AgentSuggestionEntry[] = []
     const problems: string[] = []
     for (const suggestion of suggestions) {
-      const problem =
-        suggestion.message.trim() === ''
-          ? 'an empty message'
-          : suggestion.context === undefined
-            ? undefined
-            : describeProblem(suggestion.context)
+      const problem = promptProblem(suggestion)
       if (problem !== undefined) {
         problems.push(problem)
         continue
@@ -444,7 +434,6 @@ export class AgentContextStore {
   ):
     | { readonly problem: undefined; readonly json: string }
     | { readonly problem: string; readonly error: MfeError } {
-    const parsed = registration.schema.safeParse(registration.value)
     const refuse = (problem: string, expected: string, cause?: unknown) => ({
       problem,
       error: createMfeError({
@@ -459,18 +448,23 @@ export class AgentContextStore {
         ...(cause === undefined ? {} : { cause }),
       }),
     })
+    // `register` refuses an empty description outright; an update that brings one is left out.
+    if (registration.description.trim() === '') {
+      return refuse('an empty description', 'a description of what the value is')
+    }
+
+    const parsed = registration.schema.safeParse(registration.value)
     if (!parsed.success) {
       return refuse(z.prettifyError(parsed.error), 'a value its schema accepts', parsed.error)
     }
 
-    const problem = describeProblem(parsed.data)
-    if (problem !== undefined) {
-      return refuse(
-        problem,
-        `JSON data no longer than ${String(MAX_AGENT_CONTEXT_LENGTH)} characters`,
-      )
-    }
-    return { problem: undefined, json: JSON.stringify(parsed.data) }
+    const described = toJson(parsed.data)
+    return 'json' in described
+      ? { problem: undefined, json: described.json }
+      : refuse(
+          described.problem,
+          `JSON data no longer than ${String(MAX_AGENT_CONTEXT_LENGTH)} characters`,
+        )
   }
 
   #publish(): void {
@@ -483,17 +477,27 @@ export class AgentContextStore {
   }
 }
 
-/** Why a value cannot go to the agent: not JSON, or too large. */
-function describeProblem(value: unknown): string | undefined {
+/** The value as JSON, or why it cannot go to the agent: not JSON, or too large. */
+function toJson(value: unknown): { readonly json: string } | { readonly problem: string } {
   const offender = findNonSerializableValue(value)
   if (offender) {
     const at = offender.path.length > 0 ? ` at ${offender.path.join('.')}` : ''
-    return `${offender.description}${at}`
+    return { problem: `${offender.description}${at}` }
   }
-  const length = JSON.stringify(value).length
-  return length > MAX_AGENT_CONTEXT_LENGTH
-    ? `${String(length)} characters of JSON, over the ${String(MAX_AGENT_CONTEXT_LENGTH)} a selection may take`
-    : undefined
+  const json = JSON.stringify(value)
+  return json.length > MAX_AGENT_CONTEXT_LENGTH
+    ? {
+        problem: `${String(json.length)} characters of JSON, over the ${String(MAX_AGENT_CONTEXT_LENGTH)} a selection may take`,
+      }
+    : { json }
+}
+
+/** Why a prompt or a suggestion cannot go to the chat: no message, or context that is not JSON. */
+function promptProblem(prompt: AgentPrompt): string | undefined {
+  if (prompt.message.trim() === '') return 'an empty message'
+  if (prompt.context === undefined) return undefined
+  const described = toJson(prompt.context)
+  return 'problem' in described ? described.problem : undefined
 }
 
 /** A copy the author cannot mutate afterwards, which is also plain JSON. */

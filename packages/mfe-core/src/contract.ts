@@ -92,6 +92,52 @@ export function findOutputNameProblem(names: readonly string[]): OutputNameProbl
   return null
 }
 
+/**
+ * Why `createWidget` cannot accept an `outputSchema`: it is not an object schema, or one of its
+ * names is not lower camel case or maps to the same handler prop as another. Each adapter throws
+ * it, naming in `renameRepair` how its consumers see an output.
+ */
+export function outputSchemaError(
+  id: string,
+  outputSchema: OutputSchema | undefined,
+  renameRepair: string,
+): MfeError | undefined {
+  const shape: unknown = (outputSchema as Partial<OutputSchema> | undefined)?.shape
+  if (shape === null || typeof shape !== 'object') {
+    return createMfeError({
+      code: 'contract/output-mismatch',
+      id,
+      operation: 'declare the outputs',
+      expected: 'an outputSchema made with z.object, one property per output',
+      observed: outputSchema === undefined ? 'nothing' : 'a schema that is not an object schema',
+      repair:
+        'Declare outputSchema: z.object({ acknowledged: z.object({ … }) }), or z.object({}) when the Widget emits nothing.',
+    })
+  }
+
+  const problem = findOutputNameProblem(Object.keys(shape))
+  if (problem === null) return undefined
+
+  const declaration = {
+    code: 'contract/output-mismatch',
+    id,
+    operation: `declare output '${problem.name}'`,
+  } as const
+  return problem.kind === 'invalid'
+    ? createMfeError({
+        ...declaration,
+        expected: 'a lower-camel-case output name, for example "acknowledged"',
+        observed: JSON.stringify(problem.name),
+        repair: renameRepair,
+      })
+    : createMfeError({
+        ...declaration,
+        expected: 'output names that map to distinct handler props',
+        observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
+        repair: `Rename one of them, for example '${problem.name}Completed'.`,
+      })
+}
+
 /** Built-ins whose instances cannot survive JSON, by the name they report. */
 const UNSERIALIZABLE_CLASSES: readonly string[] = ['Date', 'Map', 'Set', 'RegExp', 'Error']
 

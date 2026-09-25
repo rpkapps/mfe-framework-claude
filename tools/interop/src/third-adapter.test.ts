@@ -222,7 +222,7 @@ const tally = createPlainDomWidget({
 
 /**
  * A plain-DOM App: a heading that follows the runtime's navigator, and a React Widget it places
- * with `mountDefinition` as its child, handing the Widget's own count back down on every event.
+ * with `mountDefinition` as its child, handing the Widget's own count back down on every output.
  */
 const notes = createPlainDomApp({
   id: 'notes',
@@ -250,9 +250,9 @@ const notes = createPlainDomApp({
       kind: 'widget',
       parent: context,
       inputs: { label: 'Nested', count: 1 },
-      onOutput: (event, payload) => {
+      onOutput: (name, payload) => {
         const { count } = counterContract.outputSchema.shape.bumped.parse(payload)
-        lastEvent.textContent = `${event} to ${String(count)}`
+        lastEvent.textContent = `${name} to ${String(count)}`
         nested.update({ label: 'Nested', count })
       },
     })
@@ -424,7 +424,7 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
     expect(seen.tallyMounts).toBe(1)
   })
 
-  it('delivers its events to the handler prop, and a changed input back into it', async () => {
+  it('delivers its outputs to the handler prop, and a changed input back into it', async () => {
     const { runtime } = createPage()
     const onBumped = vi.fn()
     const page = (count: number): ReactNode =>
@@ -513,7 +513,7 @@ describe.each(appHosts)('a plain-DOM App placed by %s', (_host, host) => {
     await within(container).findByRole('heading', { name: 'Notes at /yesterday (depth 1)' })
   })
 
-  it('hosts a React Widget through mountDefinition, one level deeper, with events both ways', async () => {
+  it('hosts a React Widget through mountDefinition, one level deeper, with outputs both ways', async () => {
     const { runtime, federation } = createPage(['/notes'])
     const { container } = await place(runtime)
 

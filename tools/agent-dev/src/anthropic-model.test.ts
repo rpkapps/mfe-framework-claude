@@ -1,4 +1,4 @@
-import type { AGUIEvent, RunAgentInput } from '@ag-ui/core'
+import { EventType, type AGUIEvent, type RunAgentInput } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
 import { anthropicModel, toAnthropic } from './anthropic-model.ts'
@@ -116,6 +116,57 @@ describe('anthropicModel', () => {
     expect(events.at(-1)).toMatchObject({
       outcome: { type: 'success', pendingToolCallIds: ['tu1'] },
     })
+  })
+
+  it('closes an open block before RUN_FINISHED when the stream ends early', async () => {
+    const model = anthropicModel({
+      apiKey: 'key',
+      model: 'test-model',
+      fetch: () =>
+        Promise.resolve(
+          stream([
+            {
+              type: 'content_block_start',
+              index: 0,
+              content_block: { type: 'tool_use', id: 'tu1', name: 'navigate', input: {} },
+            },
+            {
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'input_json_delta', partial_json: '{}' },
+            },
+          ]),
+        ),
+    })
+    const events: AGUIEvent[] = []
+    for await (const event of model(input, new AbortController().signal)) events.push(event)
+    expect(events.map(event => event.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('reports an error event in the stream as a run error, and stops there', async () => {
+    const model = anthropicModel({
+      apiKey: 'key',
+      model: 'test-model',
+      fetch: () =>
+        Promise.resolve(
+          stream([
+            { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+            { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Hi' } },
+            { type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } },
+            { type: 'content_block_stop', index: 0 },
+          ]),
+        ),
+    })
+    const events: AGUIEvent[] = []
+    for await (const event of model(input, new AbortController().signal)) events.push(event)
+    expect(events.at(-1)).toEqual({ type: 'RUN_ERROR', message: 'Overloaded' })
+    expect(events.filter(event => event.type === EventType.RUN_ERROR)).toHaveLength(1)
   })
 
   it('reports a refused request as a run error', async () => {

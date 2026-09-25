@@ -10,7 +10,6 @@ export {
   type DiscoveredTool,
   type ToolDiscoveryOptions,
 } from './discovery.ts'
-export { toUIMessages, type ToolCallProgress } from './message-view.ts'
 /** One entry of AG-UI `context`: what `agentContext` and a turn's own context are made of. */
 export type { Context as ChatContext } from '@ag-ui/core'
 export type {

@@ -1,6 +1,6 @@
 /**
  * The React `counter` Widget several scenarios place: a button showing `label: count` that emits
- * `bumped` with the next count, so a host handing the count back sees the event cross both ways.
+ * `bumped` with the next count, so a host handing the count back sees the output cross both ways.
  * It registers a `reset` action too, so a scenario can count what a Widget registers.
  */
 

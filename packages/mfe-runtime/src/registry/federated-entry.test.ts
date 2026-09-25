@@ -100,7 +100,7 @@ describe('share scopes', () => {
     ])
   })
 
-  it('leaves them absent for an entry built before framework scopes', () => {
+  it('leaves them absent for an entry written by hand that names none', () => {
     expect('shareScopes' in parse(entry())).toBe(false)
   })
 

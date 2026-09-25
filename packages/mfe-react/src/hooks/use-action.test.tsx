@@ -299,7 +299,6 @@ describe('the run useAction returns', () => {
   it('calls as the App’s own UI, so a denial reaches the user', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
-    const execute = vi.spyOn(created.runtime.actions, 'execute')
     const runs: ActionRun[] = []
 
     function Clear(): ReactNode {
@@ -319,7 +318,38 @@ describe('the run useAction returns', () => {
       status: 'denied',
       reason: 'Nothing to clear.',
     })
-    expect(execute).toHaveBeenCalledWith('@host:clear', { caller: 'ui', input: undefined })
+    expect(created.telemetry.frameworkRecords('run action')).toMatchObject([
+      {
+        attributes: {
+          'action.id': '@host:clear',
+          'action.caller': 'ui',
+          'action.outcome': 'denied',
+        },
+      },
+    ])
+  })
+
+  it('runs its own mount’s action when another mount of the definition has the same name', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    created.runtime.actions.register(
+      { definitionId: 'alerts', mountToken: 'other-mount', kind: 'widget', basePath: '' },
+      { name: 'acknowledge', label: 'Acknowledge', execute: () => 'other' },
+    )
+    const runs: ActionRun[] = []
+
+    function Acknowledge(): ReactNode {
+      runs.push(useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' }))
+      return null
+    }
+    render(
+      <Mounted>
+        <Acknowledge />
+      </Mounted>,
+    )
+
+    await expect(runs.at(-1)?.()).resolves.toEqual({ status: 'executed', value: 'mine' })
   })
 
   it('resolves unavailable once the component that registered it is gone', async () => {

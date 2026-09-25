@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net'
 
-import type { AGUIEvent, RunAgentInput } from '@ag-ui/core'
+import { EventType, type AGUIEvent, type RunAgentInput } from '@ag-ui/core'
 import { ChatClient, fetchServerSentEvents, type ChatTool } from '@company/mfe-agent'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -226,6 +226,95 @@ describe('openAiModel', () => {
       type: 'RUN_ERROR',
       message: expect.stringContaining('ECONNREFUSED') as unknown,
     })
+  })
+})
+
+describe('openAiModel, when the stream is not clean', () => {
+  const run = (response: Response | (() => Response)) =>
+    events(
+      openAiModel({
+        baseUrl: 'http://h/v1',
+        model: 'm',
+        fetch: () => Promise.resolve(typeof response === 'function' ? response() : response),
+      }),
+    )
+
+  it('closes what is open before RUN_FINISHED when a stream ends mid-reply', async () => {
+    const out = await run(stream([delta({ content: '<think>Hmm' })], false))
+    expect(out.map(event => event.type)).toEqual([
+      'RUN_STARTED',
+      'REASONING_START',
+      'REASONING_MESSAGE_START',
+      'REASONING_MESSAGE_CONTENT',
+      'REASONING_MESSAGE_END',
+      'REASONING_END',
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('skips a payload that is not JSON, and reads CRLF streams', async () => {
+    const body = [
+      'data: {not json\r\n\r\n',
+      `data: ${JSON.stringify(delta({ content: 'Hi' }))}\r\n\r\n`,
+    ]
+    const out = await run(new Response(body.join('')))
+    expect(out.filter(event => event.type === EventType.TEXT_MESSAGE_CONTENT)).toMatchObject([
+      { delta: 'Hi' },
+    ])
+    expect(out.at(-1)?.type).toBe('RUN_FINISHED')
+  })
+
+  it('takes an empty id on a later piece as the same call', async () => {
+    const out = await run(
+      stream([
+        delta({
+          tool_calls: [{ index: 0, id: 'c1', function: { name: 'ack', arguments: '{"a"' } }],
+        }),
+        delta({ tool_calls: [{ index: 0, id: '', function: { arguments: ':1}' } }] }),
+      ]),
+    )
+    expect(out.filter(event => event.type === EventType.TOOL_CALL_ARGS)).toMatchObject([
+      { toolCallId: 'c1', delta: '{"a"' },
+      { toolCallId: 'c1', delta: ':1}' },
+    ])
+    expect(out.at(-1)).toMatchObject({ outcome: { pendingToolCallIds: ['c1'] } })
+  })
+
+  it('reports a stream that breaks off as a run error', async () => {
+    const encoder = new TextEncoder()
+    const broken = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(delta({ content: 'Hi' }))}\n\n`))
+        controller.error(new Error('socket hang up'))
+      },
+    })
+    const out = await run(new Response(broken))
+    expect(out.at(-1)).toMatchObject({
+      type: 'RUN_ERROR',
+      message: expect.stringContaining('socket hang up') as unknown,
+    })
+  })
+
+  it('sends nothing more once the client has gone', async () => {
+    const controller = new AbortController()
+    const model = openAiModel({
+      baseUrl: 'http://h/v1',
+      model: 'm',
+      fetch: (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const abort = () => {
+            reject(new DOMException('aborted', 'AbortError'))
+          }
+          if (init?.signal?.aborted === true) abort()
+          init?.signal?.addEventListener('abort', abort)
+        }),
+    })
+    const out: AGUIEvent[] = []
+    for await (const event of model(input(), controller.signal)) {
+      out.push(event)
+      controller.abort()
+    }
+    expect(out.map(event => event.type)).toEqual(['RUN_STARTED'])
   })
 })
 

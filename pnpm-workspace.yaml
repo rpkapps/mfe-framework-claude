@@ -51,6 +51,10 @@ peerDependencyRules:
 # container, moving the React containers' federation runtime off the version the shell shares.
 overrides:
   '@module-federation/runtime-tools@2.9.1': 2.9.0
+  # @ag-ui/client asks for zod 3 but imports only `zod/v4`, which zod 4 exports too; on the
+  # catalog's zod the shell's chat ships one zod instead of two (about 237 kB minified).
+  '@ag-ui/client>zod': 4.6.5
+  '@ag-ui/proto>zod': 4.6.5
   # Where the Tecton design system is checked out. It is not published, so every package declares
   # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
   # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
@@ -60,8 +64,8 @@ overrides:
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.
 catalog:
-  # tools/agent-spike: the AG-UI client and TanStack AI, pinned for the spike that picks the
-  # shell's chat library (docs/agentic-plan.md, E). Nothing inside a container may import them.
+  # AG-UI: the client in @company/mfe-agent, the shell's chat (docs/decisions.md §49), and the
+  # event types in tools/agent-dev. Nothing inside a container may import them.
   '@ag-ui/client': 1.0.0
   '@ag-ui/core': 1.0.0
   # examples/fieldwork, the Angular container: the versions @company/mfe-nx's generator writes,
@@ -104,8 +108,6 @@ catalog:
   '@rspack/plugin-react-refresh': 2.0.2
   '@tailwindcss/postcss': 4.3.3
   '@tailwindcss/vite': 4.3.3
-  '@tanstack/ai': 0.58.0
-  '@tanstack/ai-client': 0.33.2
   '@tanstack/eslint-plugin-query': 5.103.1
   '@tanstack/eslint-plugin-router': 1.162.0
   '@tanstack/react-form': 1.33.5

@@ -5,12 +5,11 @@
  * so a run that calls tools ends with them pending for the page to answer, as the spec writes it.
  */
 
-import type { AGUIEvent, RunAgentInput } from '@ag-ui/core'
-import { EventType } from '@ag-ui/core'
+import type { RunAgentInput } from '@ag-ui/core'
 
-import { runError, runFinished, runStarted, type Model } from './events.ts'
+import type { Model } from './events.ts'
 import { parseInput, systemPrompt, textOf } from './prompt.ts'
-import { serverSentEvents } from './sse.ts'
+import { Reply, streamedRun, type StreamReader } from './reply.ts'
 
 export interface AnthropicModelOptions {
   readonly apiKey: string
@@ -90,45 +89,76 @@ export function toAnthropic(input: RunAgentInput): {
   return { system: system.join('\n'), messages }
 }
 
-type StreamEvent =
-  | { type: 'message_start'; message: { id: string } }
-  | {
-      type: 'content_block_start'
-      index: number
-      content_block:
-        { type: 'text' } | { type: 'tool_use'; id: string; name: string } | { type: string }
-    }
-  | {
-      type: 'content_block_delta'
-      index: number
-      delta:
-        | { type: 'text_delta'; text: string }
-        | { type: 'input_json_delta'; partial_json: string }
-        | { type: string }
-    }
-  | { type: 'content_block_stop'; index: number }
-  | { type: 'error'; error: { message: string } }
-  | { type: string }
+interface StreamEvent {
+  readonly type: string
+  readonly index?: number
+  readonly content_block?: { readonly type: string; readonly id?: string; readonly name?: string }
+  readonly delta?: {
+    readonly type: string
+    readonly text?: string
+    readonly partial_json?: string
+  }
+  readonly error?: { readonly message?: string }
+}
+
+/**
+ * Messages API stream events read into a reply. Content blocks come one at a time: a text block's
+ * deltas are text, a `tool_use` block's are its arguments, and each block's stop closes it.
+ */
+export function streamEventReader(runId: string): StreamReader {
+  const reply = new Reply(runId)
+  /** The call each `tool_use` block is. */
+  const calls = new Map<number, string>()
+
+  return {
+    read(payload) {
+      const event = payload as StreamEvent
+      const index = event.index ?? 0
+      switch (event.type) {
+        case 'content_block_start': {
+          const block = event.content_block
+          if (block?.type !== 'tool_use') return []
+          const { id, events } = reply.toolCall(block.id, block.name)
+          calls.set(index, id)
+          return events
+        }
+        case 'content_block_delta': {
+          const delta = event.delta
+          if (delta?.type === 'text_delta') return reply.text(delta.text ?? '')
+          const call = calls.get(index)
+          if (delta?.type === 'input_json_delta' && call !== undefined) {
+            return reply.toolArgs(call, delta.partial_json ?? '')
+          }
+          return []
+        }
+        case 'content_block_stop':
+          return reply.close()
+        case 'error':
+          return { error: event.error?.message ?? 'The model failed.' }
+        default:
+          return []
+      }
+    },
+    end() {
+      return reply.close()
+    },
+    pending: reply.pending,
+  }
+}
 
 export function anthropicModel(options: AnthropicModelOptions): Model {
-  const fetch = options.fetch ?? globalThis.fetch
-  const baseUrl = options.baseUrl ?? 'https://api.anthropic.com'
+  const baseUrl = (options.baseUrl ?? 'https://api.anthropic.com').replace(/\/+$/, '')
 
-  return async function* run(input, signal) {
-    yield runStarted(input)
+  return (input, signal) => {
     const { system, messages } = toAnthropic(input)
-
-    let response: Response
-    try {
-      response = await fetch(`${baseUrl}/v1/messages`, {
-        method: 'POST',
-        signal,
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': options.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
+    return streamedRun(
+      input,
+      signal,
+      {
+        url: `${baseUrl}/v1/messages`,
+        fetch: options.fetch ?? globalThis.fetch,
+        headers: { 'x-api-key': options.apiKey, 'anthropic-version': '2023-06-01' },
+        body: {
           model: options.model,
           max_tokens: options.maxTokens ?? 4096,
           stream: true,
@@ -139,68 +169,9 @@ export function anthropicModel(options: AnthropicModelOptions): Model {
             description: tool.description,
             input_schema: (tool.parameters as unknown) ?? { type: 'object', properties: {} },
           })),
-        }),
-      })
-    } catch (error) {
-      if (!signal.aborted) yield runError(error instanceof Error ? error.message : String(error))
-      return
-    }
-    if (!response.ok || response.body === null) {
-      yield runError(`The model answered ${String(response.status)}: ${await response.text()}`)
-      return
-    }
-
-    let messageId = `msg_${input.runId}`
-    /** What each content block became: a text message, or a tool call. */
-    const blocks = new Map<number, { readonly kind: 'text' | 'tool'; readonly id: string }>()
-    const pending: string[] = []
-
-    for await (const data of serverSentEvents(response.body)) {
-      const event = JSON.parse(data) as StreamEvent
-      const out: AGUIEvent[] = []
-      if (event.type === 'message_start' && 'message' in event) {
-        messageId = event.message.id
-      } else if (event.type === 'content_block_start' && 'content_block' in event) {
-        const block = event.content_block
-        if (block.type === 'text') {
-          const id = blocks.size === 0 ? messageId : `${messageId}_${String(event.index)}`
-          blocks.set(event.index, { kind: 'text', id })
-          out.push({ type: EventType.TEXT_MESSAGE_START, messageId: id, role: 'assistant' })
-        } else if (block.type === 'tool_use' && 'id' in block) {
-          blocks.set(event.index, { kind: 'tool', id: block.id })
-          pending.push(block.id)
-          out.push({
-            type: EventType.TOOL_CALL_START,
-            toolCallId: block.id,
-            toolCallName: block.name,
-            parentMessageId: messageId,
-          })
-        }
-      } else if (event.type === 'content_block_delta' && 'delta' in event) {
-        const block = blocks.get(event.index)
-        const { delta } = event
-        if (block?.kind === 'text' && 'text' in delta && delta.text !== '') {
-          out.push({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: block.id, delta: delta.text })
-        } else if (block?.kind === 'tool' && 'partial_json' in delta && delta.partial_json !== '') {
-          out.push({
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: block.id,
-            delta: delta.partial_json,
-          })
-        }
-      } else if (event.type === 'content_block_stop' && 'index' in event) {
-        const block = blocks.get(event.index)
-        if (block?.kind === 'text')
-          out.push({ type: EventType.TEXT_MESSAGE_END, messageId: block.id })
-        if (block?.kind === 'tool')
-          out.push({ type: EventType.TOOL_CALL_END, toolCallId: block.id })
-      } else if (event.type === 'error' && 'error' in event) {
-        yield runError(event.error.message)
-        return
-      }
-      yield* out
-    }
-
-    if (!signal.aborted) yield runFinished(input, pending)
+        },
+      },
+      streamEventReader(input.runId),
+    )
   }
 }

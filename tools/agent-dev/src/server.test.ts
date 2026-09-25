@@ -1,10 +1,14 @@
+import { request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
+
+import { EventType, type AGUIEvent } from '@ag-ui/core'
 
 import { ChatClient, fetchServerSentEvents, type ChatTool } from '@company/mfe-agent'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { demoModel } from './demo-model.ts'
-import { createAgentServer } from './server.ts'
+import type { Model } from './events.ts'
+import { createAgentServer, MAX_BODY_BYTES, readInput } from './server.ts'
 
 const server = createAgentServer(demoModel({ delayMs: 0 }))
 let url = ''
@@ -70,5 +74,126 @@ describe('the development agent, through the shell’s chat client', () => {
   it('refuses a body that is not a run', async () => {
     const response = await fetch(url, { method: 'POST', body: '{}' })
     expect(response.status).toBe(400)
+  })
+})
+
+const run = { threadId: 't', runId: 'r', messages: [{ id: 'u', role: 'user', content: 'Hi' }] }
+
+describe('readInput', () => {
+  it('takes a run without tools or context, as the spec allows', () => {
+    expect(readInput(JSON.stringify(run))).toMatchObject({ tools: [], context: [], state: null })
+  })
+
+  it('refuses what the models could not read', () => {
+    for (const body of [
+      'not json',
+      '[]',
+      JSON.stringify({ ...run, messages: undefined }),
+      JSON.stringify({ ...run, messages: [null] }),
+      JSON.stringify({ ...run, messages: [{ id: 'u', role: 'robot' }] }),
+      JSON.stringify({ ...run, tools: [{ name: 'a' }] }),
+      JSON.stringify({ ...run, context: [{ description: 'x', value: 1 }] }),
+      JSON.stringify({ ...run, resume: 'yes' }),
+    ]) {
+      expect(readInput(body), body).toBeUndefined()
+    }
+  })
+})
+
+describe('the development agent over HTTP', () => {
+  /** A server of its own, for a test's own model. */
+  async function serving(model: Model): Promise<{ url: string; close: () => Promise<void> }> {
+    const own = createAgentServer(model)
+    await new Promise<void>(resolve => own.listen(0, resolve))
+    return {
+      url: `http://127.0.0.1:${String((own.address() as AddressInfo).port)}`,
+      close: () =>
+        new Promise(resolve => {
+          own.closeAllConnections()
+          own.close(() => {
+            resolve()
+          })
+        }),
+    }
+  }
+
+  it('answers a preflight with the headers the page asked for, and other methods with 405', async () => {
+    const preflight = await fetch(url, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:3000',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type,traceparent',
+      },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-headers')).toBe(
+      'authorization,content-type,traceparent',
+    )
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('*')
+
+    expect((await fetch(url)).status).toBe(405)
+    expect((await fetch(url.replace(/\/agent$/, '/other'), { method: 'POST' })).status).toBe(404)
+  })
+
+  it('refuses a body over the limit', async () => {
+    const response = await fetch(url, { method: 'POST', body: 'x'.repeat(MAX_BODY_BYTES + 1) })
+    expect(response.status).toBe(413)
+  })
+
+  it('stops the model when the client goes away', async () => {
+    let stopped = false
+    const waiting: Model = async function* (input, signal) {
+      yield { type: EventType.RUN_STARTED, threadId: input.threadId, runId: input.runId }
+      await new Promise<void>(resolve => {
+        signal.addEventListener('abort', () => {
+          stopped = true
+          resolve()
+        })
+      })
+      yield { type: EventType.RUN_ERROR, message: 'never sent' } satisfies AGUIEvent
+    }
+    const { url: base, close } = await serving(waiting)
+    try {
+      const client = new AbortController()
+      const response = await fetch(`${base}/agent`, {
+        method: 'POST',
+        body: JSON.stringify(run),
+        signal: client.signal,
+      })
+      const reader = (response.body as ReadableStream<Uint8Array>).getReader()
+      const first = new TextDecoder().decode((await reader.read()).value)
+      expect(first).toContain('RUN_STARTED')
+      client.abort()
+      await vi.waitFor(() => {
+        expect(stopped).toBe(true)
+      })
+    } finally {
+      await close()
+    }
+  })
+
+  it('survives a request that breaks off while its body is sent', async () => {
+    const { url: base, close } = await serving(demoModel({ delayMs: 0 }))
+    try {
+      await new Promise<void>(resolve => {
+        const request = httpRequest(`${base}/agent`, {
+          method: 'POST',
+          headers: { 'content-length': '1000' },
+        })
+        request.on('error', () => {
+          resolve()
+        })
+        request.write('{"threadId":')
+        setTimeout(() => {
+          request.destroy()
+        }, 20)
+      })
+      const response = await fetch(`${base}/agent`, { method: 'POST', body: JSON.stringify(run) })
+      expect(response.status).toBe(200)
+      expect(await response.text()).toContain('RUN_FINISHED')
+    } finally {
+      await close()
+    }
   })
 })

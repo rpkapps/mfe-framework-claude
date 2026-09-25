@@ -552,3 +552,155 @@ describe('stopping and failing', () => {
     ])
   })
 })
+
+describe('turns that overlap', () => {
+  const shutIn = { id: 'call-9', name: 'shut_in_well', args: { wellId: 'W-1' } }
+  const approval = { id: 'approval-9', reason: 'tool_call', toolCallId: 'call-9' }
+
+  /** A tool that runs until the test releases it. */
+  function held() {
+    let release: (value: unknown) => void = () => undefined
+    const execute = vi.fn(
+      () =>
+        new Promise(resolve => {
+          release = resolve
+        }),
+    )
+    return { execute, release: (value: unknown) => release(value) }
+  }
+
+  it('runs a message sent while a turn is in flight after it, never beside it', async () => {
+    const backend = scriptedBackend(says('One.'), says('Two.'))
+    const client = new ChatClient({ connection: backend.connection })
+
+    await Promise.all([client.sendMessage('First'), client.sendMessage('Second')])
+
+    expect(backend.requests[1]?.messages.map(message => message.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+    ])
+  })
+
+  it('runs none of the run’s other calls once the user stops', async () => {
+    const backend = scriptedBackend(calls(acknowledge, { ...acknowledge, id: 'call-2' }))
+    const { execute, release } = held()
+    const client = new ChatClient({ connection: backend.connection, tools: [tool(execute)] })
+
+    const turn = client.sendMessage('Acknowledge both')
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+    })
+    client.stop()
+    release({ acknowledged: true })
+    await turn
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(client.getHistory().filter(message => message.role === 'tool')).toHaveLength(2)
+  })
+
+  it('keeps a tool that finishes after clear out of the new conversation', async () => {
+    const backend = scriptedBackend(calls(acknowledge))
+    const { execute, release } = held()
+    const client = new ChatClient({ connection: backend.connection, tools: [tool(execute)] })
+
+    const turn = client.sendMessage('Acknowledge A-7')
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+    })
+    client.clear()
+    release({ acknowledged: true })
+    await turn
+
+    expect(client.getHistory()).toEqual([])
+  })
+
+  it('starts the new conversation clean when cleared on a backend’s question', async () => {
+    const backend = scriptedBackend(interrupts([shutIn], approval), says('Hello.'))
+    const client = new ChatClient({ connection: backend.connection })
+
+    const turn = client.sendMessage('Shut in W-1')
+    await nextInterrupt(client)
+    client.clear()
+    await turn
+    await client.sendMessage('Hi')
+
+    expect(client.getError()).toBeUndefined()
+    expect(backend.requests[1]).not.toHaveProperty('resume')
+  })
+
+  it('resumes as cancelled the interrupt of a page tool the user stopped', async () => {
+    const raised = { id: 'client_tool_call-1', reason: 'tool_call', toolCallId: 'call-1' }
+    const backend = scriptedBackend(interrupts([acknowledge], raised), says('Hello.'))
+    const { execute, release } = held()
+    const client = new ChatClient({ connection: backend.connection, tools: [tool(execute)] })
+
+    const turn = client.sendMessage('Acknowledge A-7')
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+    })
+    client.stop()
+    release({ acknowledged: true })
+    await turn
+    await client.sendMessage('Hi')
+
+    expect(client.getError()).toBeUndefined()
+    expect(backend.requests[1]?.resume).toEqual([
+      { interruptId: 'client_tool_call-1', status: 'cancelled' },
+    ])
+  })
+
+  it('asks the pipeline’s questions for two calls of one tool on their own calls', async () => {
+    const backend = scriptedBackend(
+      interrupts(
+        [acknowledge, { ...acknowledge, id: 'call-2' }],
+        { id: 'client_tool_call-1', reason: 'tool_call', toolCallId: 'call-1' },
+        { id: 'client_tool_call-2', reason: 'tool_call', toolCallId: 'call-2' },
+      ),
+      says('Both acknowledged.'),
+    )
+    const client: ChatClient = new ChatClient({
+      connection: backend.connection,
+      tools: [
+        tool(async input => ({
+          acknowledged: await client.requestApproval({
+            toolName: 'operations__acknowledge-alert',
+            input,
+          }),
+        })),
+      ],
+    })
+
+    const turn = client.sendMessage('Acknowledge both')
+    const cards: (string | undefined)[] = []
+    for (let index = 0; index < 2; index += 1) {
+      const card = await nextInterrupt(client)
+      if (card.kind !== 'tool-approval') throw new Error('Not an approval')
+      cards.push(card.toolCallId)
+      card.resolveInterrupt(true)
+    }
+    await turn
+
+    expect(cards).toEqual(['call-1', 'call-2'])
+  })
+
+  it('fails the turn when a tool’s followUp throws, instead of rejecting', async () => {
+    const backend = scriptedBackend(calls(acknowledge))
+    const client = new ChatClient({
+      connection: backend.connection,
+      tools: [
+        {
+          ...tool(),
+          followUp: () => {
+            throw new Error('Bad result')
+          },
+        },
+      ],
+    })
+
+    await client.sendMessage('Acknowledge A-7')
+
+    expect(client.getStatus()).toBe('error')
+    expect(client.getError()?.message).toBe('Bad result')
+  })
+})

@@ -24,18 +24,18 @@ async function readJson(file) {
 
 /** One registry entry per definition the container exports. */
 function entriesFor(published, presentation, origin) {
+  // Every build names its framework and share scopes; nothing was deployed from before they did.
+  if (published.framework === undefined || published.shareScopes === undefined) {
+    throw new Error(
+      `${published.container}: its build names no framework or share scopes. Rebuild the container.`,
+    )
+  }
+
   return published.definitions.map(definition => {
     const expose = published.entries?.[definition.id]
     if (typeof expose !== 'string') {
       throw new Error(
         `${definition.id}: its container's build names no expose path. Rebuild the container.`,
-      )
-    }
-
-    // Every build names its framework and share scopes; nothing was deployed from before they did.
-    if (published.framework === undefined || published.shareScopes === undefined) {
-      throw new Error(
-        `${definition.id}: its container's build names no framework or share scopes. Rebuild the container.`,
       )
     }
 

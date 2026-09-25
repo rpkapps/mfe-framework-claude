@@ -437,6 +437,99 @@ describe('waiting', () => {
     await expect(running).resolves.toEqual({ status: 'denied', reason: 'The order was closed.' })
     expect(execute).not.toHaveBeenCalled()
   })
+
+  it('refuses a call that waited if the action stopped being offered to the agent', async () => {
+    const { register, registry } = setup()
+    const answer = deferred<boolean>()
+    registry.setApprover(async () => await answer.promise)
+    const execute = vi.fn()
+    const handle = register({ execute })
+
+    const running = registry.execute('orders:refund', { caller: 'agent' })
+    handle.update({ name: 'refund', label: 'Refund an order', placements: ['palette'], execute })
+    answer.resolve(true)
+
+    await expect(running).resolves.toEqual({
+      status: 'denied',
+      reason: 'This action is not offered to the agent.',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+})
+
+describe('host hooks that throw', () => {
+  it('denies an agent call when the approval policy throws, and reports it', async () => {
+    const { register, registry, records } = setup({
+      approvalPolicy: () => {
+        throw new Error('policy service down')
+      },
+    })
+    registry.setApprover(() => Promise.resolve(true))
+    const execute = vi.fn()
+    register({ effect: 'read', execute })
+
+    const result = await registry.execute('orders:refund', { caller: 'agent' })
+
+    expect(result.status).toBe('denied')
+    expect(execute).not.toHaveBeenCalled()
+    expect(codesOf(records)).toEqual(['mount/failure'])
+  })
+
+  it('ends a run whose denial notifier throws in a result, and audits it', async () => {
+    const audited = vi.fn()
+    const { register, registry } = setup({
+      notifyDenial: () => {
+        throw new Error('toast failed')
+      },
+      audit: audited,
+    })
+    register({ canExecute: () => deny('Closed.') })
+
+    await expect(registry.execute('orders:refund', { caller: 'palette' })).resolves.toMatchObject({
+      status: 'failed',
+      error: { code: 'mount/failure' },
+    })
+    expect(audited).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'failed' }))
+  })
+})
+
+describe('a registration’s own run', () => {
+  it('runs its own mount’s action when another mount of the definition has the same name', async () => {
+    const { registry } = setup()
+    const first = vi.fn(() => 'first')
+    const second = vi.fn(() => 'second')
+    registry.register(owner, { name: 'refund', label: 'Refund', execute: first })
+    const handle = registry.register(
+      { ...owner, mountToken: 'mount-2' },
+      { name: 'refund', label: 'Refund', execute: second },
+    )
+
+    await expect(handle.execute({ caller: 'ui' })).resolves.toEqual({
+      status: 'executed',
+      value: 'second',
+    })
+    expect(first).not.toHaveBeenCalled()
+  })
+
+  it('is unavailable once removed, or once its mount is gone', async () => {
+    const { register, registry } = setup()
+    const execute = vi.fn()
+    const removed = register({ execute })
+    removed.remove()
+    const disposed = registry.register(
+      { ...owner, mountToken: 'mount-2' },
+      { name: 'refund', label: 'Refund', execute },
+    )
+    registry.removeMount('mount-2')
+
+    await expect(removed.execute({ caller: 'ui' })).resolves.toMatchObject({
+      status: 'unavailable',
+    })
+    await expect(disposed.execute({ caller: 'ui' })).resolves.toMatchObject({
+      status: 'unavailable',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 describe('the published entry', () => {
@@ -541,6 +634,24 @@ describe('the published entry', () => {
     expect(() =>
       register({ effect: 'delete' as NonNullable<ActionRegistration['effect']> }),
     ).toThrow(/an effect \(read, write, destructive\)/)
+  })
+
+  it('refuses an update that brings a field it cannot accept, and keeps the action as it was', () => {
+    const { register, registry } = setup()
+    const handle = register({})
+    const before = registry.getSnapshot()
+    const base = { name: 'refund', label: 'Refund an order', execute: () => undefined }
+
+    expect(() => {
+      handle.update({ ...base, effect: 'delete' as NonNullable<ActionRegistration['effect']> })
+    }).toThrow(/an effect/)
+    expect(() => {
+      handle.update({ ...base, label: '' })
+    }).toThrow(/a non-empty label/)
+    expect(() => {
+      handle.update({ ...base, placements: ['menu' as 'palette'] })
+    }).toThrow(/a standardized placement/)
+    expect(registry.getSnapshot()).toBe(before)
   })
 
   it('gives a handle whose qualified id follows a rename', () => {

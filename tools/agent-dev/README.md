@@ -27,6 +27,7 @@ pnpm --filter @company/agent-dev start
   | `summarise the page`              | calls `show_summary` with the agent context                             |
   | `show the well design widget`     | calls `render_widget` with inputs its schema accepts                    |
   | `ask me something`                | calls `ask_user`                                                        |
+  | `show a form`                     | calls `render_a2ui` with a shift handover form, and answers its button  |
   | `shut in W-1`                     | calls its own `shut_in_well`, which asks for approval by an interrupt   |
   | the words of an action, `ack A-7` | calls the page action they match, filling an id-shaped input with `A-7` |
 
@@ -48,8 +49,10 @@ pnpm --filter @company/agent-dev start
 
 - **Anthropic's Messages API** when `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` are set.
 
-Either real model is streamed and translated to AG-UI through plain `fetch`, with no SDK. The agent
-context goes into the system prompt, and every tool is the page's, so a run that calls tools ends
-with them pending, as the spec writes it. The OpenAI-compatible server wins when both are set.
+Either real model is streamed and translated to AG-UI through plain `fetch`, with no SDK: each
+adapter reads its API's stream into the same reply (`src/reply.ts`), which keeps the event order
+AG-UI's client checks. The agent context goes into the system prompt, and every tool is the page's,
+so a run that calls tools ends with them pending, as the spec writes it. The OpenAI-compatible
+server wins when both are set. When the chat goes away mid-run, the model's request is cancelled.
 
 Neither stores anything: the conversation is what the shell sends with each run.

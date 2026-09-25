@@ -110,20 +110,6 @@ function reactContainer(name: string, react: string): ContainerBuild {
   }
 }
 
-/** A container built before framework scopes: every share in `default`. */
-function unscopedContainer(name: string, react: string): ContainerBuild {
-  const scoped = reactContainer(name, react)
-  return {
-    ...scoped,
-    shared: Object.fromEntries(
-      Object.entries(scoped.shared).map(([key, config]) => [
-        key,
-        { ...config, shareScope: 'default' },
-      ]),
-    ),
-  }
-}
-
 /**
  * The remote entry a build emits, reduced to what sharing needs: `init` links the scopes the host
  * registered it with, as the bundler runtime's `initContainerEntry` does for a container whose
@@ -283,15 +269,6 @@ describe('framework share scopes under the Module Federation runtime', () => {
 
     // A remote links only the scopes it is registered with, so the host's copy never reaches it.
     expect(copies['react']?.from).toMatch(/^unlinked/)
-    expect(copies['@company/mfe-core']).toMatchObject({ from: 'shell' })
-  })
-
-  it('runs a container built before framework scopes on its own React and the page’s core', async () => {
-    const page = createPage([unscopedContainer('legacy', '19.3.0')])
-
-    const copies = await page.copiesIn('legacy', 'omitted')
-
-    expect(copies['react']?.from).toMatch(/^legacy/)
     expect(copies['@company/mfe-core']).toMatchObject({ from: 'shell' })
   })
 })

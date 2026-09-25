@@ -21,11 +21,11 @@ import { z } from 'zod'
 import { ProjectTree, projectTree } from '../components/dashboard-01/page.tsx'
 import { wellDesigns } from '../components/well-design-card/page.tsx'
 
-/** The shell owns the header above this and renders nothing else, so everything below it is this
- * App's to lay out; `createApp` has no layout option because a root route already is one. */
 /** At module scope, as every inputSchema is. */
 const wellDesignInput = z.object({ id: z.string() })
 
+/** The shell owns the header above this and renders nothing else, so everything below it is this
+ * App's to lay out; `createApp` has no layout option because a root route already is one. */
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: OperationsLayout,
 })

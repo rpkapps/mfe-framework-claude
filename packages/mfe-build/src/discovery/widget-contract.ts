@@ -388,7 +388,13 @@ function readObjectKeys(expression: ts.Expression): readonly string[] {
   return node === undefined ? [] : literalKeys(node)
 }
 
-/** The literal passed to `z.object(…)`, looking through `.strict()` and friends. */
+/** The methods of an object schema whose result has other keys than the literal it started from. */
+const KEY_CHANGING_METHODS = new Set(['extend', 'safeExtend', 'merge', 'omit', 'pick', 'and', 'or'])
+
+/**
+ * The literal passed to `z.object(…)`, looking through `.strict()` and friends; none through a
+ * method that adds or drops keys, as the literal would then name the wrong ones.
+ */
 function objectShapeLiteral(expression: ts.Expression): ts.ObjectLiteralExpression | undefined {
   const node = unwrapExpression(expression)
   if (!ts.isCallExpression(node)) return undefined
@@ -399,9 +405,9 @@ function objectShapeLiteral(expression: ts.Expression): ts.ObjectLiteralExpressi
     const shape = first === undefined ? undefined : unwrapExpression(first)
     return shape !== undefined && ts.isObjectLiteralExpression(shape) ? shape : undefined
   }
-  // `z.object({ … }).strict()` and friends: look through the chain.
-  return ts.isPropertyAccessExpression(node.expression)
-    ? objectShapeLiteral(node.expression.expression)
+  const method = node.expression
+  return ts.isPropertyAccessExpression(method) && !KEY_CHANGING_METHODS.has(method.name.text)
+    ? objectShapeLiteral(method.expression)
     : undefined
 }
 

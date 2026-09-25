@@ -207,7 +207,6 @@ describe('injectAction with a shortcut', () => {
     const environment = createMfeTestEnvironment()
     const appRef = await createHostApplication(environment)
     const execute = vi.fn(({ amount }: { readonly amount: number }) => ({ refunded: amount }))
-    const calls = vi.spyOn(environment.runtime.actions, 'execute')
 
     const run = runInInjectionContext(appRef.injector, () =>
       injectAction({
@@ -226,10 +225,12 @@ describe('injectAction with a shortcut', () => {
       status: 'invalid',
     })
     expect(execute).toHaveBeenCalledOnce()
-    expect(calls).toHaveBeenCalledWith('@host:refund', {
-      caller: 'ui',
-      input: { orderId: 'A-1', amount: 5 },
-    })
+    expect(
+      environment.telemetry.frameworkRecords('run action').map(record => record.attributes),
+    ).toMatchObject([
+      { 'action.id': '@host:refund', 'action.caller': 'ui', 'action.outcome': 'executed' },
+      { 'action.id': '@host:refund', 'action.caller': 'ui', 'action.outcome': 'invalid' },
+    ])
     environment.dispose()
   })
 

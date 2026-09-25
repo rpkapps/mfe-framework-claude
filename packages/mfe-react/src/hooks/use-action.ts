@@ -20,8 +20,9 @@ import { useMfeRuntime } from '../runtime-context.tsx'
 
 /**
  * Returns a stable run with the caller `'ui'`, for the App's own button: a click then shares
- * validation, approval and audit with the palette, the keys and the agent. Called after the mount
- * has gone, it resolves `unavailable`.
+ * validation, approval and audit with the palette, the keys and the agent. It runs this
+ * component's registration, never another mount's of the same name; called after the component
+ * unmounted, it resolves `unavailable`.
  */
 export function useAction<Input extends ActionInputSchema = ActionInputSchema, Output = unknown>(
   registration: ActionRegistration<Input, Output>,
@@ -50,8 +51,9 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
         : actions.register({ definitionId, mountToken, kind, basePath }, committed.current)
     handle.current = registered
 
+    // The handle outlives its removal, so a run after unmount resolves `unavailable` rather than
+    // reaching another mount's action of the same name.
     return () => {
-      handle.current = null
       registered.remove()
     }
   }, [actions, definitionId, mountToken, kind, basePath])
@@ -62,18 +64,17 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
     handle.current?.update(registration)
   })
 
-  const run = useCallback(
+  return useCallback(
     async (input?: unknown): Promise<ActionExecutionResult<Output>> => {
-      const qualifiedId =
-        handle.current?.qualifiedId ?? `${definitionId ?? HOST_SCOPE}:${committed.current.name}`
+      const call = { caller: 'ui', input } as const
+      // Before the first registration, as from a child's effect, which runs before this one.
+      const result = handle.current
+        ? await handle.current.execute(call)
+        : await actions.execute(`${definitionId ?? HOST_SCOPE}:${committed.current.name}`, call)
       // The registry parsed the value with this registration's `outputSchema`, or it is what this
       // registration's `execute` returned.
-      return (await actions.execute(qualifiedId, {
-        caller: 'ui',
-        input,
-      })) as ActionExecutionResult<Output>
+      return result as ActionExecutionResult<Output>
     },
     [actions, definitionId],
   )
-  return run
 }

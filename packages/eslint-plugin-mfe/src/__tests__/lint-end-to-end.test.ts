@@ -270,9 +270,10 @@ export const Route = createFileRoute('/')({
 import type { UIMessage } from 'ai'
 import { streamText } from 'ai/rsc'
 import { HttpAgent } from '@ag-ui/client'
+import { actionTools } from '@company/mfe-agent/actions'
 import { local } from './ai'
 import { helper } from './ai/helper'
-export const hooks = [useChat, streamText, HttpAgent, local, helper]
+export const hooks = [useChat, streamText, HttpAgent, actionTools, local, helper]
 export type Message = UIMessage
 `,
     'src/ai.ts': `export const local = 1
@@ -323,7 +324,7 @@ export type Message = UIMessage
     const restricted = (agent?.messages ?? []).filter(
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
-    expect(restricted.map(message => message.line)).toEqual([1, 2, 3, 4])
+    expect(restricted.map(message => message.line)).toEqual([1, 2, 3, 4, 5])
     expect(restricted[0]?.message).toContain('useAction()')
   })
 

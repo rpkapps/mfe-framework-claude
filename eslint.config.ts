@@ -120,19 +120,8 @@ const config: Linter.Config[] = [
   }),
 
   /*
-   * The AG-UI spike stands where the shell's chat module will: host code, so it reaches the runtime
-   * through the React adapter only, and, like that module, it may import the agent libraries
-   * `framework()` bans everywhere else (docs/agentic-plan.md, E).
-   */
-  ...mfe.application({
-    files: ['tools/agent-spike/src/**/*.ts'],
-    adapterModules: ['@company/mfe-react'],
-    extraRestrictedPatterns: [TELEMETRY_BAN],
-  }),
-
-  /*
-   * The development agent backend is a backend, not host code, but like the spike it speaks AG-UI,
-   * which `framework()` bans everywhere else; it imports no adapter at all.
+   * The development agent backend is a backend, not host code, but like the shell's chat module
+   * it speaks AG-UI, which `framework()` bans everywhere else; it imports no adapter at all.
    */
   ...mfe.application({
     files: ['tools/agent-dev/src/**/*.ts'],
@@ -185,13 +174,21 @@ const config: Linter.Config[] = [
             {
               group: [
                 '@company/mfe-agent',
-                '@company/mfe-agent/*',
                 '@ag-ui/*',
                 '@tanstack/ai',
                 '@tanstack/ai-*',
                 'ai',
+                'ai/*',
                 '@ai-sdk/*',
                 '@copilotkit/*',
+                '@anthropic-ai/*',
+                'openai',
+                'openai/*',
+                '@google/genai',
+                'langchain',
+                'langchain/*',
+                '@langchain/*',
+                '@mastra/*',
               ],
               message:
                 'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.',

@@ -64,6 +64,24 @@ export const routes: Routes = [
     ).toEqual([{ path: '/home' }])
   })
 
+  it('leaves out a matcher route and a named outlet’s, which a path alone does not reach', () => {
+    expect(
+      routesOf(`
+const byExtension = () => null
+export const routes: Routes = [
+  {
+    path: 'wells',
+    children: [
+      { path: '', component: Page },
+      { matcher: byExtension, component: Page },
+      { path: 'map', outlet: 'side', component: Page },
+      { path: 'list', outlet: 'primary', component: Page },
+    ],
+  },
+]`),
+    ).toEqual([{ path: '/wells' }, { path: '/wells/list' }])
+  })
+
   it('publishes nothing when the routes array cannot be followed', () => {
     const root = createContainer({
       'src/mfe.ts': `

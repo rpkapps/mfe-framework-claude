@@ -8,18 +8,42 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ts from 'typescript'
+
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
 /**
+ * The AI and agent libraries and the model providers' SDKs, as the lint presets list them (§45):
+ * no framework package imports one, and `@company/mfe-agent` only AG-UI.
+ */
+const AGENT_LIBRARIES = [
+  '@company/mfe-agent',
+  '@ag-ui/',
+  'ai',
+  'openai',
+  'langchain',
+  '@tanstack/ai',
+  '@tanstack/ai-*',
+  '@ai-sdk/',
+  '@copilotkit/',
+  '@anthropic-ai/',
+  '@google/genai',
+  '@langchain/',
+  '@mastra/',
+]
+
+const AGENT_PACKAGE_OWN = new Set(['@company/mfe-agent', '@ag-ui/'])
+
+/**
  * Each rule names the package it guards and the specifiers it may not depend on, directly or
- * through its manifest.
+ * through its manifest: a name matches itself and its subpaths, one ending in `/` a scope, and
+ * one ending in `*` every name it starts.
  */
 const RULES = [
   {
     package: '@company/mfe-core',
     forbidden: [
-      '@company/mfe-agent',
-      '@ag-ui/',
+      ...AGENT_LIBRARIES,
       'react',
       'react-dom',
       '@tanstack/react-router',
@@ -41,13 +65,12 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The neutral core cannot import a framework, an adapter or a router, carries no OTel or Faro dependency, and uses no general state-management library.',
+      'The neutral core cannot import a framework, an adapter or a router, carries no OTel or Faro dependency, uses no general state-management library, and imports no agent library.',
   },
   {
     package: '@company/mfe-runtime',
     forbidden: [
-      '@company/mfe-agent',
-      '@ag-ui/',
+      ...AGENT_LIBRARIES,
       'react',
       'react-dom',
       '@tanstack/react-router',
@@ -68,13 +91,12 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The neutral runtime cannot import React, Angular, a router, single-spa or Module Federation, carries no OTel or Faro dependency, and uses no general state-management library.',
+      'The neutral runtime cannot import React, Angular, a router, single-spa or Module Federation, carries no OTel or Faro dependency, uses no general state-management library, and imports no agent library.',
   },
   {
     package: '@company/mfe-angular',
     forbidden: [
-      '@company/mfe-agent',
-      '@ag-ui/',
+      ...AGENT_LIBRARIES,
       'react',
       'react-dom',
       '@tanstack/',
@@ -91,7 +113,7 @@ const RULES = [
       '@primeuix/',
     ],
     reason:
-      'The Angular adapter stays UI-library agnostic and framework-pluggable: no React, no TanStack, no sibling adapter or its build integration, no zone.js, no Module Federation, no vendor telemetry, and no UI component library of its own — PrimeNG included.',
+      'The Angular adapter stays UI-library agnostic and framework-pluggable: no React, no TanStack, no sibling adapter or its build integration, no zone.js, no Module Federation, no vendor telemetry, no agent library, and no UI component library of its own — PrimeNG included.',
   },
   {
     package: '@company/mfe-build',
@@ -117,26 +139,27 @@ const RULES = [
   {
     package: '@company/mfe-react',
     forbidden: [
-      '@company/mfe-agent',
-      '@ag-ui/',
+      ...AGENT_LIBRARIES,
       'single-spa',
       '@opentelemetry/',
       '@grafana/faro',
       '@company/mfe-devtools',
     ],
     reason:
-      'The legacy adapter is the only package that knows the legacy single-spa contract, and vendor telemetry stays shell-owned.',
+      'The legacy adapter is the only package that knows the legacy single-spa contract, vendor telemetry stays shell-owned, and the agent is reached through actions, never an agent library.',
   },
   {
     package: '@company/mfe-legacy-angular',
     forbidden: [
+      ...AGENT_LIBRARIES,
       'react',
       'react-dom',
       '@tanstack/react-router',
       '@company/mfe-react',
       '@company/mfe-devtools',
     ],
-    reason: 'The legacy adapter is a sibling of the React adapter, not a consumer of it.',
+    reason:
+      'The legacy adapter is a sibling of the React adapter, not a consumer of it, and imports no agent library.',
   },
   {
     package: '@company/mfe-agent',
@@ -148,12 +171,7 @@ const RULES = [
       '@company/mfe-react',
       '@company/mfe-angular',
       '@company/mfe-build',
-      '@tanstack/ai',
-      '@tanstack/ai-client',
-      '@tanstack/ai-react',
-      'ai',
-      '@ai-sdk/',
-      '@copilotkit/',
+      ...AGENT_LIBRARIES.filter(library => !AGENT_PACKAGE_OWN.has(library)),
       'zustand',
       'redux',
       'mobx',
@@ -166,6 +184,7 @@ const RULES = [
   {
     package: '@company/mfe-devtools',
     forbidden: [
+      ...AGENT_LIBRARIES,
       'single-spa',
       '@opentelemetry/',
       '@grafana/faro',
@@ -177,15 +196,11 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'A developer tool reads the runtime and the design system, never the build integration or a vendor SDK, and it keeps its state in the framework subscription primitives like everything else.',
+      'A developer tool reads the runtime and the design system, never the build integration, a vendor SDK or an agent library, and it keeps its state in the framework subscription primitives like everything else.',
   },
 ]
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts'])
-
-/** Matches static imports, `export ... from`, and dynamic `import(...)`. */
-const SPECIFIER_PATTERN =
-  /(?:^|\n)\s*(?:import|export)\s[\s\S]*?from\s*['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\)|require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
 
 async function collectSourceFiles(dir, out = []) {
   let entries
@@ -212,7 +227,8 @@ function matchesForbidden(specifier, forbidden) {
     candidate =>
       specifier === candidate ||
       specifier.startsWith(`${candidate}/`) ||
-      (candidate.endsWith('/') && specifier.startsWith(candidate)),
+      (candidate.endsWith('/') && specifier.startsWith(candidate)) ||
+      (candidate.endsWith('*') && specifier.startsWith(candidate.slice(0, -1))),
   )
 }
 
@@ -254,12 +270,13 @@ for (const rule of RULES) {
 
   for (const file of await collectSourceFiles(join(packageDir, 'src'))) {
     const source = await readFile(file, 'utf8')
-    for (const match of source.matchAll(SPECIFIER_PATTERN)) {
-      const specifier = match[1] ?? match[2] ?? match[3]
-      if (!specifier) continue
+    // TypeScript's own scan: every import, `export … from`, `import(…)` and `require(…)`, a
+    // side-effect or type-only one included, and nothing inside a comment or a string.
+    for (const { fileName: specifier, pos } of ts.preProcessFile(source, true, true)
+      .importedFiles) {
       const hit = matchesForbidden(specifier, rule.forbidden)
       if (!hit) continue
-      const line = source.slice(0, match.index ?? 0).split('\n').length
+      const line = source.slice(0, pos).split('\n').length
       violations.push(
         `${relative(repoRoot, file)}:${line} imports forbidden "${specifier}" from ${rule.package}.\n  ${rule.reason}`,
       )

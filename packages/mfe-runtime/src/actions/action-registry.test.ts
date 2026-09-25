@@ -125,6 +125,23 @@ describe('registration', () => {
 })
 
 describe('duplicate names', () => {
+  it('gives the same name in two mounts of one definition two ids, each running its own', async () => {
+    const { register, registry } = setup()
+    const first = vi.fn(() => 'first')
+    const second = vi.fn(() => 'second')
+    register({ name: 'ack', execute: first }, 'mount-1')
+    register({ name: 'ack', execute: second }, 'mount-2')
+
+    expect(registry.getSnapshot().map(entry => entry.id)).toEqual(['reports:ack', 'reports:ack-2'])
+    await registry.execute('reports:ack-2', { caller: 'palette' })
+    expect(second).toHaveBeenCalledOnce()
+    expect(first).not.toHaveBeenCalled()
+
+    registry.removeMount('mount-1')
+    register({ name: 'ack', execute: first }, 'mount-3')
+    expect(registry.getSnapshot().map(entry => entry.id)).toEqual(['reports:ack-2', 'reports:ack'])
+  })
+
   it('rejects a second registration of the same name inside one mount', () => {
     const { register, registry } = setup()
     register({ name: 'refresh' })

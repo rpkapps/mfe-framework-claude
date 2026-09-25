@@ -93,6 +93,12 @@ export interface ActionRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
   update(registration: ActionRegistration): void
   remove(): void
+  /**
+   * Runs this registration through the executor's steps, as `execute` runs one by id. Another
+   * mount of the same definition may register the same name, so an owner runs its own action
+   * here; once it is removed, or its mount is gone, the run is `unavailable`.
+   */
+  execute(call: ActionCall): Promise<ActionExecutionResult>
   /** Follows a change of `name`. */
   readonly qualifiedId: string
 }
@@ -190,8 +196,7 @@ export class ActionRegistry {
       approver: () => this.#approver,
       audit: options.audit,
       readUserId: options.readUserId,
-      isLive: action =>
-        this.#byScope.get(action.scopeToken)?.get(action.registration.name) === action,
+      isLive: action => this.#isLive(action),
     })
   }
 
@@ -290,29 +295,10 @@ export class ActionRegistry {
   /** Runs through the executor's steps; `call` says who asked, which a key press does itself. */
   async execute(qualifiedId: string, call: ActionCall): Promise<ActionExecutionResult> {
     const action = this.#find(qualifiedId)
-    if (!action) {
-      const startedAt = Date.now()
-      const error = fail('action/unavailable', qualifiedId.split(':')[0] ?? qualifiedId, {
-        operation: `execute action '${qualifiedId}'`,
-        expected: 'a live registration, from a mount or from the host page',
-        observed: 'no registration, so whoever registered it has gone away',
-        repair:
-          'Re-open the surface that registers this action. A mount action goes with its mount, and a host action with the chrome that registered it.',
-      })
-      this.#options.diagnostics?.report(error, { severity: 'warning' })
-      const result: ActionExecutionResult = { status: 'unavailable', error }
-      // Its kind went with it; a missing action is filed under 'app', as a page-owned diagnostic is.
-      const definitionId = qualifiedId.split(':')[0] ?? qualifiedId
-      this.#executor.audit(
-        { qualifiedId, definitionId, definitionKind: 'app' },
-        call,
-        result,
-        startedAt,
-      )
-      return result
-    }
-
-    return await this.#executor.run(action, call)
+    if (action) return await this.#executor.run(action, call)
+    // Its kind went with it; a missing action is filed under 'app', as a page-owned diagnostic is.
+    const definitionId = qualifiedId.split(':', 1)[0] ?? qualifiedId
+    return this.#unavailable({ qualifiedId, definitionId, definitionKind: 'app' }, call)
   }
 
   /**
@@ -380,6 +366,28 @@ export class ActionRegistry {
     this.#snapshot.dispose()
   }
 
+  /** A run of an action that is no longer registered: reported, audited, and never run. */
+  #unavailable(
+    action: Pick<RegisteredAction, 'qualifiedId' | 'definitionId' | 'definitionKind'>,
+    call: ActionCall,
+  ): ActionExecutionResult {
+    const error = fail('action/unavailable', action.definitionId, {
+      operation: `execute action '${action.qualifiedId}'`,
+      expected: 'a live registration, from a mount or from the host page',
+      observed: 'no registration, so whoever registered it has gone away',
+      repair:
+        'Re-open the surface that registers this action. A mount action goes with its mount, and a host action with the chrome that registered it.',
+    })
+    this.#options.diagnostics?.report(error, { severity: 'warning' })
+    const result: ActionExecutionResult = { status: 'unavailable', error }
+    this.#executor.audit(action, call, result, Date.now())
+    return result
+  }
+
+  #isLive(action: RegisteredAction): boolean {
+    return this.#byScope.get(action.scopeToken)?.get(action.registration.name) === action
+  }
+
   #add(
     owner: Pick<
       RegisteredAction,
@@ -388,7 +396,8 @@ export class ActionRegistry {
     registration: ActionRegistration,
   ): ActionRegistrationHandle {
     const { definitionId, scopeToken } = owner
-    const declared = this.#assertValid(definitionId, registration)
+    assertFields(definitionId, registration)
+    const declared = this.#parseDeclared(definitionId, registration)
     const schemas = describeSchemas(definitionId, registration, undefined)
 
     const actions = this.#scopeActions(scopeToken)
@@ -396,7 +405,7 @@ export class ActionRegistry {
       throw this.#duplicateNameError(definitionId, registration.name)
     }
 
-    const qualifiedId = `${definitionId}:${registration.name}`
+    const qualifiedId = this.#freeId(definitionId, registration.name)
     const usable = this.#usableShortcut(owner.shortcutScope, declared)
     const unpublished = { ...owner, qualifiedId, registration, declared, usable, schemas }
     const action: RegisteredAction = { ...unpublished, entry: this.#buildEntry(unpublished) }
@@ -413,6 +422,10 @@ export class ActionRegistry {
       update: next => {
         if (active) this.#update(action, next)
       },
+      execute: async call =>
+        this.#isLive(action)
+          ? await this.#executor.run(action, call)
+          : this.#unavailable(action, call),
       remove: () => {
         if (!active) return
         active = false
@@ -434,22 +447,22 @@ export class ActionRegistry {
     const actions = this.#scopeActions(action.scopeToken)
     const shortcutChanged = next.shortcut !== action.registration.shortcut
 
-    // Changing `name` replaces the local registration, with the same validation as a fresh
-    // register. Otherwise the shortcut is parsed only when it changed, because this runs after
-    // every commit of the component that registered it.
-    let { declared } = action
-    // Before anything changes, so a schema that cannot be described leaves the action as it was.
+    // The same validation as a fresh register, before anything changes, so a field it cannot
+    // accept leaves the action as it was. The fields are cheap to check; the shortcut is parsed
+    // and the schemas described only when they changed, because this runs after every commit of
+    // the component that registered it. Changing `name` replaces the local registration.
+    assertFields(action.definitionId, next)
+    const declared = shortcutChanged
+      ? this.#parseDeclared(action.definitionId, next)
+      : action.declared
     const schemas = describeSchemas(action.definitionId, next, action.schemas)
     if (next.name !== action.registration.name) {
-      declared = this.#assertValid(action.definitionId, next)
       if (actions.has(next.name)) {
         throw this.#duplicateNameError(action.definitionId, next.name)
       }
       actions.delete(action.registration.name)
       actions.set(next.name, action)
-      action.qualifiedId = `${action.definitionId}:${next.name}`
-    } else if (shortcutChanged) {
-      declared = this.#parseDeclared(action.definitionId, next)
+      action.qualifiedId = this.#freeId(action.definitionId, next.name)
     }
     action.registration = next
     action.declared = declared
@@ -599,6 +612,18 @@ export class ActionRegistry {
     for (const actions of this.#byScope.values()) yield* actions.values()
   }
 
+  /**
+   * `<definitionId>:<name>`, unless another mount of the definition holds it: then `-2`, `-3`, …
+   * is added, so two mounts of one Widget are two actions to the palette and the agent, and a run
+   * by id reaches the mount it names. An id stays with its action until it is removed or renamed.
+   */
+  #freeId(definitionId: string, name: string): string {
+    const base = `${definitionId}:${name}`
+    let id = base
+    for (let n = 2; this.#find(id) !== undefined; n += 1) id = `${base}-${String(n)}`
+    return id
+  }
+
   #find(qualifiedId: string): RegisteredAction | undefined {
     for (const action of this.#allActions()) {
       if (action.qualifiedId === qualifiedId) return action
@@ -651,53 +676,6 @@ export class ActionRegistry {
     })
   }
 
-  /** Returns the parsed shortcut, so a valid registration is parsed exactly once. */
-  #assertValid(definitionId: string, registration: ActionRegistration): ParsedShortcut | undefined {
-    const { name, label } = registration
-    if (!ACTION_NAME_PATTERN.test(name)) {
-      throw fail('action/invalid-registration', definitionId, {
-        operation: 'register action',
-        expected:
-          'a name of letters, digits and hyphens starting with a letter (for example "refresh")',
-        observed: name === '' ? 'an empty string' : JSON.stringify(name),
-        repair:
-          'Rename the action. The runtime qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.',
-      })
-    }
-
-    if (label === '') {
-      throw fail('action/invalid-registration', definitionId, {
-        operation: `register action '${name}'`,
-        expected: 'a non-empty label',
-        observed: 'an empty string',
-        repair: 'Add a human-readable label; the palette has nothing to render without one.',
-      })
-    }
-
-    for (const placement of registration.placements ?? DEFAULT_ACTION_PLACEMENTS) {
-      if (VALID_PLACEMENTS.has(placement)) continue
-      throw fail('action/invalid-registration', definitionId, {
-        operation: `register action '${name}'`,
-        expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
-        observed: JSON.stringify(placement),
-        repair:
-          'Use one of the standardized placements. Future placements add placement records to this model.',
-      })
-    }
-
-    const { effect } = registration
-    if (effect !== undefined && !VALID_EFFECTS.has(effect)) {
-      throw fail('action/invalid-registration', definitionId, {
-        operation: `register action '${name}'`,
-        expected: `an effect (${[...VALID_EFFECTS].join(', ')})`,
-        observed: JSON.stringify(effect),
-        repair: 'Declare what a run can change, or leave effect out to count it as a write.',
-      })
-    }
-
-    return this.#parseDeclared(definitionId, registration)
-  }
-
   #parseDeclared(
     definitionId: string,
     registration: ActionRegistration,
@@ -712,6 +690,51 @@ export class ActionRegistry {
         'a shortcut such as "mod+s" — modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated by spaces, such as "g r"',
       observed: `${JSON.stringify(registration.shortcut)}: ${parsed.problem}`,
       repair: 'Fix the shortcut, or remove it; the action works from the palette without one.',
+    })
+  }
+}
+
+/** The fields `register` and `update` refuse; the shortcut and the schemas are read apart. */
+function assertFields(definitionId: string, registration: ActionRegistration): void {
+  const { name, label } = registration
+  if (!ACTION_NAME_PATTERN.test(name)) {
+    throw fail('action/invalid-registration', definitionId, {
+      operation: 'register action',
+      expected:
+        'a name of letters, digits and hyphens starting with a letter (for example "refresh")',
+      observed: name === '' ? 'an empty string' : JSON.stringify(name),
+      repair:
+        'Rename the action. The runtime qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.',
+    })
+  }
+
+  if (label === '') {
+    throw fail('action/invalid-registration', definitionId, {
+      operation: `register action '${name}'`,
+      expected: 'a non-empty label',
+      observed: 'an empty string',
+      repair: 'Add a human-readable label; the palette has nothing to render without one.',
+    })
+  }
+
+  for (const placement of registration.placements ?? DEFAULT_ACTION_PLACEMENTS) {
+    if (VALID_PLACEMENTS.has(placement)) continue
+    throw fail('action/invalid-registration', definitionId, {
+      operation: `register action '${name}'`,
+      expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
+      observed: JSON.stringify(placement),
+      repair:
+        'Use one of the standardized placements. Future placements add placement records to this model.',
+    })
+  }
+
+  const { effect } = registration
+  if (effect !== undefined && !VALID_EFFECTS.has(effect)) {
+    throw fail('action/invalid-registration', definitionId, {
+      operation: `register action '${name}'`,
+      expected: `an effect (${[...VALID_EFFECTS].join(', ')})`,
+      observed: JSON.stringify(effect),
+      repair: 'Declare what a run can change, or leave effect out to count it as a write.',
     })
   }
 }

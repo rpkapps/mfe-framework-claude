@@ -9,7 +9,7 @@
  * made-up figures, as the render tools require of a real model too.
  */
 
-import type { AGUIEvent, Context, Message, RunAgentInput, Tool } from '@ag-ui/core'
+import type { AGUIEvent, Context, RunAgentInput, Tool } from '@ag-ui/core'
 
 import {
   runFinished,
@@ -20,6 +20,7 @@ import {
   toolResult,
   type Model,
 } from './events.ts'
+import { textOf } from './prompt.ts'
 
 /** The backend's own tool, which asks the user through an interrupt before it runs. */
 export const SHUT_IN_WELL = 'shut_in_well'
@@ -58,16 +59,6 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function textOf(message: Message | undefined): string {
-  if (message === undefined || !('content' in message)) return ''
-  const { content } = message
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .map(part => (isObject(part) && typeof part['text'] === 'string' ? part['text'] : ''))
-    .join(' ')
-}
-
 function parse(text: string): unknown {
   try {
     return JSON.parse(text) as unknown
@@ -76,43 +67,44 @@ function parse(text: string): unknown {
   }
 }
 
-/** Lower-case words of three letters or more, for matching a message against a tool. */
+/** Words a request shares with everything, which say nothing about the tool it means. */
+const STOP_WORDS = new Set(
+  (
+    'the this that these those and for with from into about please can could would should will ' +
+    'you your our are was were has have does did not any all some now then here there what where ' +
+    'when why how who which show give get let make want need tool'
+  ).split(' '),
+)
+
+/**
+ * The words that say what a text is about, for matching a message against a tool: lower case,
+ * three letters or more, stop words left out, and a plural's `s` dropped, so "alerts" finds
+ * "alert".
+ */
 function words(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
       .split(/[^a-z0-9]+/)
-      .filter(word => word.length >= 3),
+      .filter(word => word.length >= 3)
+      .map(word =>
+        word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word,
+      )
+      .filter(word => !STOP_WORDS.has(word)),
   )
 }
 
-/** Words a request shares with everything, which say nothing about the tool it means. */
-const STOP_WORDS = new Set([
-  'the',
-  'this',
-  'that',
-  'and',
-  'for',
-  'with',
-  'please',
-  'can',
-  'you',
-  'what',
-  'where',
-  'when',
-  'why',
-  'how',
-  'who',
-  'does',
-  'about',
-  'here',
-  'there',
-])
-
+/** How many of a text's words the request has. */
 function overlap(request: ReadonlySet<string>, text: string): number {
   let score = 0
-  for (const word of words(text)) if (request.has(word) && !STOP_WORDS.has(word)) score += 1
+  for (const word of words(text)) if (request.has(word)) score += 1
   return score
+}
+
+/** Whether a text has a phrase as whole words, so the App `ops` is not found in "stops". */
+function mentions(text: string, phrase: string): boolean {
+  const escaped = phrase.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`).test(text)
 }
 
 /** An id such as `A-7` or `W-1042` in the message, to fill an id-shaped input with. */
@@ -196,7 +188,8 @@ const HELP = [
   'Try "go to operations", "show a table of your tools", "chart the tools", "summarise the page",',
   '"show the well design widget", "ask me something", "show a form", "shut in W-1", or the name of an action',
   'on the page, such as "acknowledge alert A-7".',
-  'Set ANTHROPIC_API_KEY and AGENT_DEV_MODEL to talk to a real model instead.',
+  'Set AGENT_DEV_OPENAI_URL (an OpenAI-compatible server) or ANTHROPIC_API_KEY, with AGENT_DEV_MODEL,',
+  'to talk to a real model instead.',
 ].join(' ')
 
 /** The reply to a run whose last message is the user's. A quoted selection is context, not the request. */
@@ -210,7 +203,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
   const { tools } = input
   const has = (name: string): boolean => toolNamed(tools, name) !== undefined
 
-  if (/^\s*(help|hi|hello|hey|\?)\b/.test(text) || text.trim() === '') return [{ say: HELP }]
+  if (/^\s*(?:(?:help|hi|hello|hey)\b|\?)/.test(text) || text.trim() === '') return [{ say: HELP }]
 
   if (/\bshut[\s-]?in\b/.test(text)) {
     const wellId = idIn(request) ?? 'W-1'
@@ -229,8 +222,8 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
   if (/\b(go to|open|navigate|take me)\b/.test(text) && has(SHELL.navigate)) {
     const apps = enumOf(toolNamed(tools, SHELL.navigate), 'app')
     const app =
-      apps.find(candidate => text.includes(candidate.replace(/-/g, ' '))) ??
-      apps.find(candidate => text.includes(candidate))
+      apps.find(candidate => mentions(text, candidate.replace(/-/g, ' '))) ??
+      apps.find(candidate => mentions(text, candidate))
     if (app !== undefined) {
       const id = idIn(request)
       return [
@@ -240,7 +233,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
     }
   }
 
-  if (/\btable\b/.test(text) && has(SHELL.table)) {
+  if (/\btables?\b/.test(text) && has(SHELL.table)) {
     return [
       { say: 'Here are the tools the page gives me now.' },
       {
@@ -259,7 +252,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
     ]
   }
 
-  if (/\bchart\b/.test(text) && has(SHELL.chart)) {
+  if (/\bcharts?\b/.test(text) && has(SHELL.chart)) {
     const counts = new Map<string, number>()
     for (const tool of tools) {
       const owner = tool.name.includes('__') ? (tool.name.split('__')[0] ?? 'shell') : 'shell'
@@ -303,7 +296,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
     ]
   }
 
-  if (/\b(ask me|question)\b/.test(text) && has(SHELL.askUser)) {
+  if (/\b(ask me|questions?)\b/.test(text) && has(SHELL.askUser)) {
     return [
       {
         call: {
@@ -329,7 +322,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
     ]
   }
 
-  if (/\bform\b/.test(text) && has(SHELL.a2ui)) {
+  if (/\bforms?\b/.test(text) && has(SHELL.a2ui)) {
     return [
       { say: 'Fill this in and I will take it from there.' },
       {
@@ -400,7 +393,7 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
   }
 
   const renderWidget = toolNamed(tools, SHELL.renderWidget)
-  if (/\bwidget\b/.test(text) && renderWidget !== undefined) {
+  if (/\bwidgets?\b/.test(text) && renderWidget !== undefined) {
     const widgets = enumOf(renderWidget, 'widgetId')
     const widgetId =
       widgets

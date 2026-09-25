@@ -22,8 +22,9 @@ const DESTINATION_PROPERTIES = ['component', 'loadComponent', 'loadChildren'] as
 /**
  * Every route with a component, reached from the array `createApp` receives through inline
  * `children: [ … ]`. A route whose path is not a literal is left out with everything below it, as
- * are redirects and the `**` catch-all; routes behind `loadChildren` are the lazy module's, which
- * the build does not follow, so only the route that loads them is published.
+ * are redirects, `matcher` routes, named outlets' routes and the `**` catch-all; routes behind
+ * `loadChildren` are the lazy module's, which the build does not follow, so only the route that
+ * loads them is published.
  */
 export const readAngularRoutes: NonNullable<ContainerProfile['readRoutes']> = context => {
   const appRoutes = resolveAppRoutes(context.entryFile, context.sources)
@@ -47,6 +48,17 @@ export const readAngularRoutes: NonNullable<ContainerProfile['readRoutes']> = co
   return routes
 }
 
+/**
+ * A redirect is no destination, a `matcher` decides in code which URLs a route takes, and a
+ * named outlet's route is reached through the outlet's URL syntax, not a path of its own.
+ */
+function isPrimaryPath(route: ts.ObjectLiteralExpression): boolean {
+  if (objectProperty(route, 'redirectTo') !== undefined) return false
+  if (objectProperty(route, 'matcher') !== undefined) return false
+  const outlet = objectProperty(route, 'outlet')
+  return outlet === undefined || stringLiteralValue(outlet.initializer) === 'primary'
+}
+
 function collect(
   array: ts.ArrayLiteralExpression,
   parents: readonly string[],
@@ -58,9 +70,7 @@ function collect(
 
     const pathProperty = objectProperty(route, 'path')
     const path = pathProperty === undefined ? '' : stringLiteralValue(pathProperty.initializer)
-    if (path === null || path === '**' || objectProperty(route, 'redirectTo') !== undefined) {
-      continue
-    }
+    if (path === null || path === '**' || !isPrimaryPath(route)) continue
 
     const segments = [...parents, ...path.split('/').filter(segment => segment !== '')]
     if (DESTINATION_PROPERTIES.some(name => objectProperty(route, name) !== undefined)) {

@@ -25,7 +25,7 @@ function routesOf(files: Readonly<Record<string, string>>) {
 }
 
 describe('extractRoutes', () => {
-  it('writes the router’s path syntax in the neutral one', () => {
+  it('writes the router’s path syntax in the neutral one, leaving out a parameter within a segment', () => {
     const routes = routesOf({
       'src/routes/index.tsx': fileRoute('/'),
       'src/routes/wells.index.tsx': fileRoute('/wells/'),
@@ -35,11 +35,17 @@ describe('extractRoutes', () => {
       'src/routes/_auth.account.tsx': fileRoute('/_auth/account'),
       'src/routes/(admin)/users.tsx': fileRoute('/(admin)/users'),
       'src/routes/posts_.$postId.edit.tsx': fileRoute('/posts_/$postId/edit'),
+      'src/routes/logs.{$logId}.tsx': fileRoute('/logs/{$logId}'),
+      'src/routes/files.{$}.tsx': fileRoute('/files/{$}'),
+      'src/routes/exports.{$exportId}.json.tsx': fileRoute('/exports/{$exportId}.json'),
+      'src/routes/sheets.v{-$version}.tsx': fileRoute('/sheets/v{-$version}'),
     })
 
     expect(routes.map(route => route.path).sort()).toEqual([
       '/',
       '/account',
+      '/files/*',
+      '/logs/:logId',
       '/posts/:postId/edit',
       '/reports/*',
       '/sites/:site?',
@@ -47,6 +53,27 @@ describe('extractRoutes', () => {
       '/wells',
       '/wells/:wellId',
     ])
+  })
+
+  it('publishes an index route inside a pathless layout or a group, at its parent’s path', () => {
+    const routes = routesOf({
+      'src/routes/_auth.tsx': fileRoute('/_auth'),
+      'src/routes/_auth.index.tsx': fileRoute('/_auth/'),
+      'src/routes/(admin)/route.tsx': fileRoute('/(admin)'),
+      'src/routes/(admin)/settings/index.tsx': fileRoute('/(admin)/settings/'),
+    })
+
+    expect(routes.map(route => route.path).sort()).toEqual(['/', '/settings'])
+  })
+
+  it('reads no route out of a colocated test or a `-` directory, as the route tree does not', () => {
+    const routes = routesOf({
+      'src/routes/wells.tsx': fileRoute('/wells'),
+      'src/routes/wells.test.tsx': fileRoute('/wells-under-test'),
+      'src/routes/-components/card.tsx': fileRoute('/card'),
+    })
+
+    expect(routes.map(route => route.path)).toEqual(['/wells'])
   })
 
   it('leaves out a layout that adds no segment of its own', () => {
@@ -90,6 +117,25 @@ export const Route = createRootRouteWithContext<object>()({
       // Zod strips a param a route does not declare, so the merged schema stays closed.
       additionalProperties: false,
     })
+  })
+
+  it('merges a layout’s search params into its index route, and an index route’s into none', () => {
+    const routes = routesOf({
+      'src/routes/_auth.tsx': fileRoute(
+        '/_auth',
+        'validateSearch: z.object({ token: z.string() }),',
+      ),
+      'src/routes/_auth.index.tsx': fileRoute(
+        '/_auth/',
+        'validateSearch: z.object({ tab: z.string() }),',
+      ),
+      'src/routes/_auth.account.tsx': fileRoute('/_auth/account'),
+    })
+
+    const properties = (path: string) =>
+      Object.keys(routes.find(route => route.path === path)?.search?.['properties'] ?? {})
+    expect(properties('/')).toEqual(['token', 'tab'])
+    expect(properties('/account')).toEqual(['token'])
   })
 
   it('reads a schema through a module-level const and a validator adapter', () => {

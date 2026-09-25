@@ -151,32 +151,20 @@ function prefixOutput(stream, label, colour) {
 }
 
 /**
- * The stand-in API the examples fetch from, started here rather than left to the developer
- * because a container whose requests all fail looks like a broken example.
+ * A stand-in started from here rather than left to the developer: the API the examples fetch
+ * from, as a container whose requests all fail looks like a broken example, and the agent backend
+ * the shell's chat talks to (tools/agent-dev), the demo agent or a real model when the environment
+ * names one.
  */
-function startDevApi() {
-  const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/api.mjs')], {
+function startStandIn(script, label, colour) {
+  const child = spawn(process.execPath, [join(repoRoot, script)], {
     cwd: repoRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: detachedForGroupKill,
   })
-  prefixOutput(child.stdout, 'dev api', COLOURS[5] ?? '')
-  prefixOutput(child.stderr, 'dev api', COLOURS[5] ?? '')
-  return child
-}
-
-/**
- * The stand-in agent backend the shell's chat talks to (tools/agent-dev): the demo agent, or a
- * real model when the environment names one.
- */
-function startDevAgent() {
-  const child = spawn(process.execPath, [join(repoRoot, 'tools/agent-dev/src/server.ts')], {
-    cwd: repoRoot,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: detachedForGroupKill,
-  })
-  prefixOutput(child.stdout, 'dev agent', COLOURS[4] ?? '')
-  prefixOutput(child.stderr, 'dev agent', COLOURS[4] ?? '')
+  prefixOutput(child.stdout, label, colour)
+  prefixOutput(child.stderr, label, colour)
+  reportUnexpectedExit(child, label, colour)
   return child
 }
 
@@ -236,12 +224,15 @@ function start(service, colour) {
   prefixOutput(child.stdout, service.name, colour)
   prefixOutput(child.stderr, service.name, colour)
 
+  reportUnexpectedExit(child, service.name, colour)
+  return child
+}
+
+function reportUnexpectedExit(child, label, colour) {
   child.on('exit', code => {
     if (stopping || code === 0 || code === null) return
-    console.error(`${colour}${service.name.padEnd(14)}${RESET} exited with code ${code}`)
+    console.error(`${colour}${label.padEnd(14)}${RESET} exited with code ${code}`)
   })
-
-  return child
 }
 
 async function main() {
@@ -262,11 +253,11 @@ async function main() {
   // bundler's fallback and another's crash. The stand-in API is in the list because it is
   // started from here too, and its `listen` would otherwise throw into one prefixed line; the
   // agent backend likewise, when the shell is started.
-  const includesShell = services.some(service => service.isShell)
+  const startsShell = services.some(service => service.isShell)
   const ports = [
     ...services.map(service => service.port),
     DEV_API_PORT,
-    ...(includesShell ? [DEV_AGENT_PORT] : []),
+    ...(startsShell ? [DEV_AGENT_PORT] : []),
   ]
   const busy = await findBusyPorts(ports)
   if (busy.length > 0) {
@@ -290,8 +281,10 @@ async function main() {
   printConnectionInstructions(services)
 
   const children = services.map((service, index) => start(service, COLOURS[index % COLOURS.length]))
-  children.push(startDevApi())
-  if (includesShell) children.push(startDevAgent())
+  children.push(startStandIn('tools/dev/api.mjs', 'dev api', COLOURS[5] ?? ''))
+  if (startsShell) {
+    children.push(startStandIn('tools/agent-dev/src/server.ts', 'dev agent', COLOURS[4] ?? ''))
+  }
 
   /**
    * One Ctrl-C stops everything and waits for the ports to come back, because returning to the

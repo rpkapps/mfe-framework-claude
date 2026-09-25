@@ -78,6 +78,14 @@ agent to talk over. The answers still reach the backend, with the next run.
 `sendMessage(text, { context })` sends extra AG-UI `context` with that turn's runs only, unseen in
 the transcript: what a page attached to a prompt, or the text the user selected.
 
+A message sent while a turn runs waits for it to end, so one run is in flight at a time; a
+backend's question still open is abandoned first. The page's tools run one at a time.
+
+Stopping a turn answers the page's open questions as declined, and answers any call that never
+ran as stopped. Every interrupt the last run ended on that nobody answered (the user stopped, or
+the run carrying the answer failed) is resumed as cancelled by the next run, as the spec requires.
+`clear()` starts a new thread with nothing to resume.
+
 ## Many tools
 
 `withToolDiscovery(tools, { threshold, eager })` follows TanStack AI's lazy tool discovery. Up to
@@ -91,7 +99,3 @@ tools: withToolDiscovery(() => [...shellTools, ...actionTools(runtime.actions)],
   eager: tool => shellToolNames.has(tool.name),
 }),
 ```
-
-Stopping a turn answers the page's open questions as declined, and answers any call that never
-ran as stopped. A backend question left open is resumed as cancelled by the next run, as the spec
-requires.

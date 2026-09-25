@@ -22,9 +22,11 @@ export function AlertPanel({
   const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
   const { label, variant, Icon } = SEVERITY[inputs.severity]
 
-  // In the palette while this Widget is mounted, and the button below runs the same action.
+  // In the palette while this Widget is mounted, and the button below runs the same action. The
+  // palette and the agent run an action by `<definitionId>:<name>`, so a page that shows two
+  // alerts needs a name per alert, or both entries would run the first one's.
   const acknowledge = useAction({
-    name: 'acknowledge-alert',
+    name: `acknowledge-${inputs.alertId.replace(/[^a-zA-Z0-9-]/g, '-')}`,
     label: `Acknowledge alert ${inputs.alertId}`,
     description: 'Marks this alert as seen by the user, and tells the App that placed it.',
     canExecute: () =>

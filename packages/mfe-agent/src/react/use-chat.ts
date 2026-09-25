@@ -1,10 +1,11 @@
 /**
  * `useChat`, following TanStack AI's React binding (`useChat` in `@tanstack/ai-react`,
- * https://github.com/TanStack/ai): the chat client for one component, its
- * snapshot as state, and its methods. The client lives as long as the component; options passed on
- * a later render are taken without rebuilding it.
+ * https://github.com/TanStack/ai): the chat client for one component, its snapshot as state, and
+ * its methods. The client lives as long as the component; options passed on a later render are
+ * taken without rebuilding it.
  */
 
+import type { Message } from '@ag-ui/core'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { ChatClient } from '../chat-client.ts'
@@ -14,7 +15,6 @@ import type {
   ChatSnapshot,
   SendMessageOptions,
 } from '../types.ts'
-import type { Message } from '@ag-ui/core'
 
 export interface UseChatReturn extends ChatSnapshot {
   sendMessage(content: string, options?: SendMessageOptions): Promise<void>

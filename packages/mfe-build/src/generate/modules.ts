@@ -488,17 +488,14 @@ function widgetContractModule(
   const zod = zodBinding(source.imports, boundNames)
   if (zod.importLine !== null) importLines.unshift(zod.importLine)
 
-  const outputsType =
-    widget.outputNames.length === 0
-      ? 'export type Outputs = Record<never, never>'
-      : [
-          'export type Outputs = {',
-          ...widget.outputNames.map(
-            name =>
-              `  readonly ${name}: ${zod.local}.infer<(typeof outputSchema)['shape'][${quote(name)}]>`,
-          ),
-          '}',
-        ].join('\n')
+  // Mapped over the shape rather than listing the names the build read, so an output declared
+  // through a spread or `.extend(…)` is typed too.
+  const shape = "(typeof outputSchema)['shape']"
+  const outputsType = [
+    'export type Outputs = {',
+    `  readonly [Name in keyof ${shape}]: ${zod.local}.infer<${shape}[Name]>`,
+    '}',
+  ].join('\n')
 
   return {
     path: file,

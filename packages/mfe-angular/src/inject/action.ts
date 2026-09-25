@@ -30,8 +30,9 @@ function answeredOnce(decision: Decision, canExecute: () => Decision): () => Dec
 
 /**
  * Returns a run with the caller `'ui'`, for the component's own button: a click then shares
- * validation, approval and audit with the palette, the keys and the agent. Called after the
- * component is destroyed, it resolves `unavailable`.
+ * validation, approval and audit with the palette, the keys and the agent. It runs this
+ * injector's registration, never another mount's of the same name; called after the component
+ * is destroyed, it resolves `unavailable`.
  */
 export function injectAction<Input extends ActionInputSchema = ActionInputSchema, Output = unknown>(
   registration: ActionRegistration<Input, Output> | (() => ActionRegistration<Input, Output>),
@@ -51,10 +52,7 @@ export function injectAction<Input extends ActionInputSchema = ActionInputSchema
   const run = async (input?: unknown): Promise<ActionExecutionResult<Output>> =>
     // The registry parsed the value with this registration's `outputSchema`, or it is what this
     // registration's `execute` returned.
-    (await actions.execute(handle.qualifiedId, {
-      caller: 'ui',
-      input,
-    })) as ActionExecutionResult<Output>
+    (await handle.execute({ caller: 'ui', input })) as ActionExecutionResult<Output>
 
   if (typeof registration !== 'function') return run
 

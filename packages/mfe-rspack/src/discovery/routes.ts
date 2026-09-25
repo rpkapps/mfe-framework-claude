@@ -1,12 +1,10 @@
 /**
  * An App's file routes, read out of its routes directory so the shell knows every path the App
  * serves, and the search params each one reads, before the App is loaded. TanStack Router's own
- * path syntax is written in the neutral one on the way out: `$id` is `:id`, `{-$id}` is `:id?`, a
- * bare `$` is `*`, and a pathless layout (`_auth`) or a group (`(admin)`) adds no segment.
+ * path syntax is written in the neutral one on the way out: `$id` and `{$id}` are `:id`, `{-$id}`
+ * is `:id?`, a bare `$` is `*`, and a pathless layout (`_auth`) or a group (`(admin)`) adds no
+ * segment.
  */
-
-import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
 
 import type { JsonSchemaObject, PublishedRoute } from '@company/mfe-core'
 
@@ -24,7 +22,7 @@ import {
   type ContainerSources,
 } from '@company/mfe-build'
 
-const ROUTE_EXTENSIONS = ['.ts', '.tsx'] as const
+import { routeFiles } from './route-files.ts'
 
 /** The validator adapters a route may wrap its schema in; the schema is their one argument. */
 const SEARCH_VALIDATOR_WRAPPERS = new Set(['zodValidator', 'zodSearchValidator'])
@@ -39,6 +37,8 @@ export interface ExtractRoutesOptions {
 interface FileRoute {
   /** The path as the route file writes it, trailing slash dropped: the router's own syntax. */
   readonly segments: readonly string[]
+  /** Written with a trailing slash: the route rendered at its parent's own path. */
+  readonly index: boolean
   readonly search: JsonSchemaObject | undefined
 }
 
@@ -64,42 +64,28 @@ export function extractRoutes(options: ExtractRoutesOptions): readonly Published
           ? undefined
           : readSearchSchema(resolveSchema(sourceFile, found.validateSearch), { file, sourceFile })
       if (found.path === null) rootSearch = search
-      else routes.push({ segments: segmentsOf(found.path), search })
+      else
+        routes.push({ segments: segmentsOf(found.path), index: found.path.endsWith('/'), search })
     })
   }
 
   const published: PublishedRoute[] = []
   for (const route of routes) {
     const last = route.segments.at(-1)
-    if (last !== undefined && addsNoSegment(last)) continue
+    if (!route.index && last !== undefined && addsNoSegment(last)) continue
 
     let search = rootSearch
     const ancestors = routes
-      .filter(other => other !== route && isPrefix(other.segments, route.segments))
+      .filter(other => isAncestor(other, route))
       .sort((a, b) => a.segments.length - b.segments.length)
     for (const ancestor of ancestors) search = mergeSearch(search, ancestor.search)
     search = mergeSearch(search, route.search)
 
     const path = neutralPath(route.segments)
+    if (path === null) continue
     published.push(search === undefined ? { path } : { path, search })
   }
   return published
-}
-
-/** Every route source file, in a stable order. */
-function routeFiles(routesDirectory: string): readonly string[] {
-  let entries: readonly string[]
-  try {
-    entries = readdirSync(routesDirectory, { recursive: true, encoding: 'utf8' })
-  } catch {
-    return []
-  }
-
-  return entries
-    .filter(entry => ROUTE_EXTENSIONS.some(extension => entry.endsWith(extension)))
-    .filter(entry => !entry.endsWith('.d.ts'))
-    .map(entry => join(routesDirectory, entry))
-    .sort()
 }
 
 /**
@@ -159,8 +145,17 @@ function segmentsOf(path: string): readonly string[] {
   return path.split('/').filter(segment => segment !== '')
 }
 
-function isPrefix(outer: readonly string[], inner: readonly string[]): boolean {
-  return outer.length < inner.length && outer.every((segment, index) => segment === inner[index])
+/**
+ * A route is nested in every route whose path is a prefix of its own, TanStack Router's rule, and
+ * an index route also in the route of its own path. No route is nested in an index route.
+ */
+function isAncestor(outer: FileRoute, inner: FileRoute): boolean {
+  if (outer.index) return false
+  const longest = inner.index ? inner.segments.length : inner.segments.length - 1
+  return (
+    outer.segments.length <= longest &&
+    outer.segments.every((segment, position) => segment === inner.segments[position])
+  )
 }
 
 /** A pathless layout (`_auth`) or a group (`(admin)`). */
@@ -168,19 +163,28 @@ function addsNoSegment(segment: string): boolean {
   return segment.startsWith('_') || (segment.startsWith('(') && segment.endsWith(')'))
 }
 
-function neutralPath(segments: readonly string[]): string {
-  const neutral = segments.filter(segment => !addsNoSegment(segment)).map(neutralSegment)
+/** `null` when a segment has no neutral spelling. */
+function neutralPath(segments: readonly string[]): string | null {
+  const neutral: string[] = []
+  for (const segment of segments) {
+    if (addsNoSegment(segment)) continue
+    const written = neutralSegment(segment)
+    if (written === null) return null
+    neutral.push(written)
+  }
   return `/${neutral.join('/')}`
 }
 
-function neutralSegment(segment: string): string {
-  if (segment === '$') return '*'
-  const optional = /^\{-\$(\w+)\}$/.exec(segment)
-  if (optional) return `:${optional[1] ?? ''}?`
+/**
+ * A parameter that is the whole segment. One with a prefix or a suffix (`{$id}.json`) has no
+ * spelling in the neutral syntax, so its route is left out, as one whose path is computed is.
+ */
+function neutralSegment(segment: string): string | null {
   // A trailing `_` takes a route out of its parent's layout; it is not part of the URL.
   const plain = segment.endsWith('_') ? segment.slice(0, -1) : segment
-  const parameter = /^\$(\w+)$/.exec(plain)
-  if (parameter) return `:${parameter[1] ?? ''}`
-  // `[.]` escapes a character the router would otherwise read as syntax.
-  return plain.replace(/\[(.)\]/g, '$1')
+  if (plain === '$' || plain === '{$}') return '*'
+  const whole = /^(?:\$(\w+)|\{\$(\w+)\}|\{-\$(\w+)\})$/.exec(plain)
+  if (whole === null) return /[{}$]/.test(plain) ? null : plain
+  const [, short, braced, optional] = whole
+  return optional === undefined ? `:${short ?? braced ?? ''}` : `:${optional}?`
 }

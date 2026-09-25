@@ -10,7 +10,7 @@ import {
   createMfeError,
   DEFINITION_BRAND,
   outputNameToHandlerProp,
-  findOutputNameProblem,
+  outputSchemaError,
   withoutUndefined,
   type ContractOutputs,
   type OutputSchema,
@@ -166,41 +166,10 @@ export type MfeDefinition = AppDefinition | WidgetDefinition
 
 /** Two outputs mapping to one `on`-prefixed prop would make a subscription ambiguous. */
 function assertUsableOutputNames(id: string, outputSchema: OutputSchema): void {
-  const shape = (outputSchema as Partial<OutputSchema> | undefined)?.shape
-  if (shape === null || typeof shape !== 'object') {
-    throw createMfeError({
-      code: 'contract/output-mismatch',
-      id,
-      operation: 'declare the outputs',
-      expected: 'an outputSchema made with z.object, one property per output',
-      observed: outputSchema === undefined ? 'nothing' : 'a schema that is not an object schema',
-      repair:
-        'Declare outputSchema: z.object({ acknowledged: z.object({ … }) }), or z.object({}) when the Widget emits nothing.',
-    })
-  }
-
-  const problem = findOutputNameProblem(Object.keys(shape))
-  if (problem === null) return
-
-  const declaration = {
-    code: 'contract/output-mismatch',
+  const error = outputSchemaError(
     id,
-    operation: `declare output '${problem.name}'`,
-  } as const
-
-  if (problem.kind === 'invalid') {
-    throw createMfeError({
-      ...declaration,
-      expected: 'a lower-camel-case output name, for example "acknowledged"',
-      observed: JSON.stringify(problem.name),
-      repair: `Rename the output; consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}.`,
-    })
-  }
-
-  throw createMfeError({
-    ...declaration,
-    expected: 'output names that map to distinct handler props',
-    observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
-    repair: `Rename one of them, for example '${problem.name}Completed'.`,
-  })
+    outputSchema,
+    `Rename the output; consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}.`,
+  )
+  if (error) throw error
 }

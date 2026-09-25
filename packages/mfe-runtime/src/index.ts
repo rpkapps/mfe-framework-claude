@@ -120,7 +120,6 @@ export {
   type ShortcutDispatchResult,
 } from './actions/action-registry.ts'
 export {
-  auditTelemetryRecord,
   redactInput,
   REDACTED,
   type ActionActor,
@@ -130,7 +129,6 @@ export {
   type ActionTurn,
 } from './actions/action-audit.ts'
 export {
-  actorOf,
   type ActionApprovalPolicy,
   type ActionApprover,
   type ActionCall,

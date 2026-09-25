@@ -47,8 +47,15 @@ describe('redactInput', () => {
         jwt: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl',
         pem: '-----BEGIN RSA PRIVATE KEY-----\nMII…',
         plain: 'Refund order A-1',
+        prose: 'Basic support is included',
       }),
-    ).toEqual({ note: REDACTED, jwt: REDACTED, pem: REDACTED, plain: 'Refund order A-1' })
+    ).toEqual({
+      note: REDACTED,
+      jwt: REDACTED,
+      pem: REDACTED,
+      plain: 'Refund order A-1',
+      prose: 'Basic support is included',
+    })
   })
 
   it('names what JSON cannot hold, and stops at a depth no input needs', () => {

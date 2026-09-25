@@ -750,6 +750,29 @@ export const oddPanel = createWidget({
 
     expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
   })
+
+  it('publishes no outputSchema when a method adds outputs to the literal', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ picked: z.object({}) }).extend({ cleared: z.object({}) }).strict(),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: Record<string, unknown> }[]
+    }
+
+    // The literal names `picked` alone, so a schema read from it would close out `cleared`.
+    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
+  })
 })
 
 describe('runtime-config JSON Schema', () => {
@@ -839,7 +862,7 @@ export const orderRow = createWidget({
     )
     expect(source).toContain('export type Inputs = z.infer<typeof inputSchema>')
     expect(source).toContain(
-      "readonly acknowledged: z.infer<(typeof outputSchema)['shape']['acknowledged']>",
+      "readonly [Name in keyof (typeof outputSchema)['shape']]: z.infer<(typeof outputSchema)['shape'][Name]>",
     )
   })
 

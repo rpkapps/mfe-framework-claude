@@ -20,9 +20,9 @@ export function systemPrompt(input: RunAgentInput): string {
   ].join('\n')
 }
 
-/** A message's text, whether its content is a string or a list of parts. */
-export function textOf(message: Message): string {
-  if (!('content' in message)) return ''
+/** A message's text, whether its content is a string or a list of parts (one line each). */
+export function textOf(message: Message | undefined): string {
+  if (message === undefined || !('content' in message)) return ''
   const { content } = message
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
@@ -32,7 +32,8 @@ export function textOf(message: Message): string {
         ? part.text
         : '',
     )
-    .join('')
+    .filter(text => text !== '')
+    .join('\n')
 }
 
 /** A tool call's arguments, parsed; `{}` when empty or not JSON. */

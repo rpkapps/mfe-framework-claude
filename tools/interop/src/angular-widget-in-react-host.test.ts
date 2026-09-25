@@ -187,7 +187,7 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
   })
 })
 
-describe('an Angular Widget’s events in a React host', () => {
+describe('an Angular Widget’s outputs in a React host', () => {
   /** The mismatch is the consumer's to fix, so it is reported and never thrown at the Widget. */
   it('are reported, not delivered, when the consumer’s own contract rejects them', async () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })

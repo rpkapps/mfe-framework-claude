@@ -13,6 +13,8 @@ import {
   type TelemetryFrameworkRecord,
 } from '@company/mfe-core'
 
+import type { ActionCaller } from './action-executor.ts'
+
 /** Who the run is for: a person, the agent working for one, or the host's own code. */
 export type ActionActor = 'user' | 'agent' | 'system'
 
@@ -31,7 +33,7 @@ export interface ActionAuditRecord {
   readonly definitionKind: DefinitionKind
   readonly actor: ActionActor
   /** The palette, a shortcut, the App's own UI, the agent, or the host's code. */
-  readonly caller: string
+  readonly caller: ActionCaller
   /** The signed-in user: the one who acted, or on whose behalf the agent did. */
   readonly userId?: string
   readonly turn?: ActionTurn
@@ -92,11 +94,11 @@ function isSecretKey(key: string): boolean {
 }
 
 /**
- * A value that is a credential whatever its key: a bearer or basic header, a JWT, or a PEM
- * private key.
+ * A value that is a credential whatever its key: a bearer or basic header (the scheme and one
+ * token, so a sentence that starts with "Basic" is kept), a JWT, or a PEM private key.
  */
 const SECRET_VALUE =
-  /^(bearer|basic)\s+\S+|^ey[\w-]+\.ey[\w-]+\.[\w-]+$|-----BEGIN [A-Z ]*PRIVATE KEY-----/i
+  /^(bearer|basic)\s+[\w.~+/=-]+$|^ey[\w-]+\.ey[\w-]+\.[\w-]+$|-----BEGIN [A-Z ]*PRIVATE KEY-----/i
 
 /** How deep the redaction walks; deeper input is not what an action takes. */
 const MAX_DEPTH = 8

@@ -1,6 +1,6 @@
 /**
  * Three levels on one page: a React host places an Angular App, and that App places a React Widget
- * with `<mfe-widget>`. Each level mounts the next through the neutral contract, so depth, events
+ * with `<mfe-widget>`. Each level mounts the next through the neutral contract, so depth, outputs
  * and teardown have to carry across both framework boundaries, and disposing the outermost host
  * has to leave nothing of any level behind.
  */
@@ -100,7 +100,7 @@ describe('a React Widget inside an Angular App inside a React host', () => {
     ])
   })
 
-  it('delivers the React Widget’s events to the Angular App, and the App’s answer back down', async () => {
+  it('delivers the React Widget’s outputs to the Angular App, and the App’s answer back down', async () => {
     await renderThreeLevels()
 
     fireEvent.click(screen.getByRole('button', { name: 'Nested: 1' }))

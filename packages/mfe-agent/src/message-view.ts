@@ -1,8 +1,8 @@
 /**
  * The transcript's view of the stored AG-UI messages, in TanStack AI's `UIMessage` shape: each
- * message with `parts`, a tool's result
- * folded into the message that called it, and each call's state from what the client has seen of
- * it. A pure function of the history and that state, so the view never drifts from what is kept.
+ * message with `parts`, a tool's result folded into the message that called it, and each call's
+ * state from what the client has seen of it. A pure function of the history and that state, so the
+ * view never drifts from what is kept.
  */
 
 import { contentToText, type Message } from '@ag-ui/core'
@@ -56,16 +56,13 @@ export function toUIMessages(
     switch (message.role) {
       case 'user':
       case 'system':
-      case 'developer': {
-        const content =
-          typeof message.content === 'string' ? message.content : contentToText(message.content)
+      case 'developer':
         view.push({
           id: message.id,
           role: message.role === 'user' ? 'user' : 'system',
-          parts: [{ type: 'text', content }],
+          parts: [{ type: 'text', content: contentToText(message.content) }],
         })
         break
-      }
       case 'reasoning':
         view.push({
           id: message.id,

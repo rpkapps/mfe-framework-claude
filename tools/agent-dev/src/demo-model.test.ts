@@ -58,6 +58,44 @@ describe('decide', () => {
     ])
   })
 
+  it('matches whole words: an App inside a longer word is not named, a plural is', () => {
+    const toOps: Tool = {
+      ...navigate,
+      parameters: {
+        type: 'object',
+        properties: { app: { type: 'string', enum: ['ops', 'well-design'] } },
+      },
+    }
+    expect(decide(input([user('Go to the page that stops the pump')], [toOps]))).not.toContainEqual(
+      expect.objectContaining({ call: expect.anything() as unknown }),
+    )
+    expect(decide(input([user('Open well design')], [toOps]))).toContainEqual({
+      call: { name: 'navigate', args: { app: 'well-design', path: '/' } },
+    })
+    expect(decide(input([user('Acknowledge the alerts')], [acknowledge]))).toEqual([
+      { call: { name: 'operations__acknowledge-alert', args: { alertId: '' } } },
+    ])
+  })
+
+  it('does not take a word every request has for the action it means', () => {
+    const showLog: Tool = {
+      name: 'wells__show-log',
+      description: 'Show the log of a well.',
+      parameters: { type: 'object' },
+    }
+    expect(decide(input([user('Show me what you can do')], [showLog]))).toEqual([
+      { say: expect.stringContaining('development agent') as unknown },
+    ])
+  })
+
+  it('answers help, a greeting and a bare question mark with what it can do', () => {
+    for (const message of ['help', 'Hi there', '?', '']) {
+      expect(decide(input([user(message)], [acknowledge])), message).toEqual([
+        { say: expect.stringContaining('AGENT_DEV_OPENAI_URL') as unknown },
+      ])
+    }
+  })
+
   it('asks for tools it was not given by name, and carries on once it has them', () => {
     const discover: Tool = {
       name: 'discover_tools',

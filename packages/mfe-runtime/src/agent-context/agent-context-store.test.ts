@@ -126,6 +126,16 @@ describe('selections', () => {
     )
   })
 
+  it('leaves out a selection an update takes the description from, and reports it', () => {
+    const { store, records } = setup()
+    const handle = store.register(owner, wells(['W-1']))
+
+    handle.update({ ...wells(['W-1']), description: '' })
+
+    expect(store.getSnapshot()).toEqual([])
+    expect(codesOf(records)).toEqual(['contract/input-mismatch'])
+  })
+
   it('goes with its mount, and leaves another mount’s and the host page’s', () => {
     const { store } = setup()
     const late = store.register(owner, wells(['W-1']))
