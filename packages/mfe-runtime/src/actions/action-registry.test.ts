@@ -475,7 +475,7 @@ describe('execution', () => {
     const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('unavailable')
-    expect(codesOf(records)).toEqual(['action/duplicate-name'])
+    expect(codesOf(records)).toEqual(['action/unavailable'])
   })
 
   it('denies and diagnoses when the availability check itself throws', async () => {

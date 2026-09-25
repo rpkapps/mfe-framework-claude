@@ -1267,3 +1267,29 @@ an authorization boundary. The server authorizes.
 shell and the examples mark their panel openers and navigation `'read'`; a schema
 declared inline is converted again on every commit; and an action's type carries two
 parameters, erased where the registry stores it.
+
+---
+
+## 43. An action's failures each have a code of their own
+
+**Status:** decided; amends §35's cost.
+
+Every failure the action registry raised carried `action/duplicate-name`: a duplicate
+name, an invalid name, label, placement, effect, shortcut or schema, a shortcut it
+refused, and a run of an action that had gone away. §35 reused the code rather than
+widen the closed union (§7), when shortcuts were its only addition. §42 added the
+effect and the schemas, and an agent reads `unavailable` as "list the tools again", so
+a code that names a fifth of its cases now misleads both the reader and the code that
+branches on it. The union widens, deliberately:
+
+- `action/duplicate-name` — two registrations of one name in a scope, and nothing else.
+- `action/invalid-registration` — a field the registry cannot accept, thrown at
+  `register` or `update`: the name, the label, a placement, the effect, a shortcut it
+  cannot read, an `inputSchema` that is not a `z.object`, a schema JSON Schema cannot
+  express, or `register` given the reserved host scope.
+- `action/shortcut-refused` — a warning that a shortcut will not fire: a Widget's, one
+  the host page uses, or one another live action claims.
+- `action/unavailable` — a run of an action no longer registered, from `execute` or
+  after an agent's call waited while its mount went away (which reported `mount/failure`).
+
+**Cost:** three more codes in the union, each with a row on the error codes page.

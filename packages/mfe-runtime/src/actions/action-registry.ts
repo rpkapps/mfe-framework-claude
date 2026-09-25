@@ -25,6 +25,7 @@ import {
   type DefinitionKind,
   type JsonSchemaObject,
   type MfeError,
+  type MfeErrorCode,
   type MfeErrorDetails,
   type Unsubscribe,
 } from '@company/mfe-core'
@@ -68,13 +69,14 @@ const VALID_EFFECTS = new Set<string>(ACTION_EFFECTS)
 /** Restricted so `<definitionId>:<name>` stays unambiguous. */
 const ACTION_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
 
-/** Every registration failure this module raises carries the same code. */
-function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id'>): MfeError {
-  return createMfeError({
-    code: 'action/duplicate-name',
-    id,
-    ...details,
-  })
+type ActionErrorCode = Extract<MfeErrorCode, `action/${string}`>
+
+function fail(
+  code: ActionErrorCode,
+  id: string,
+  details: Omit<MfeErrorDetails, 'code' | 'id'>,
+): MfeError {
+  return createMfeError({ code, id, ...details })
 }
 
 /** Who registered an action; a mount's context already carries every field. */
@@ -205,7 +207,7 @@ export class ActionRegistry {
   ): ActionRegistrationHandle {
     const { definitionId, mountToken } = owner
     if (definitionId === HOST_SCOPE || mountToken === HOST_SCOPE) {
-      throw fail(definitionId, {
+      throw fail('action/invalid-registration', definitionId, {
         operation: `register action '${registration.name}'`,
         expected: 'a definition id and the mount token the runtime issued for it',
         observed: `the reserved host scope ${HOST_SCOPE}`,
@@ -275,7 +277,7 @@ export class ActionRegistry {
   async execute(qualifiedId: string, call: ActionCall): Promise<ActionExecutionResult> {
     const action = this.#find(qualifiedId)
     if (!action) {
-      const error = fail(qualifiedId.split(':')[0] ?? qualifiedId, {
+      const error = fail('action/unavailable', qualifiedId.split(':')[0] ?? qualifiedId, {
         operation: `execute action '${qualifiedId}'`,
         expected: 'a live registration, from a mount or from the host page',
         observed: 'no registration, so whoever registered it has gone away',
@@ -521,7 +523,7 @@ export class ActionRegistry {
     if (rivals.length === 0) return
 
     this.#options.diagnostics?.report(
-      fail(action.definitionId, {
+      fail('action/shortcut-refused', action.definitionId, {
         operation: `register the shortcut '${declared.source}' for action '${action.registration.name}'`,
         expected: 'keys no other live action can be pressed for at the same time',
         observed: `${rivals.map(rival => `'${rival.qualifiedId}' (${rival.registration.shortcut ?? ''})`).join(', ')} already claims them`,
@@ -540,14 +542,14 @@ export class ActionRegistry {
     const operation = `register the shortcut '${declared.source}' for action '${action.registration.name}'`
     const error =
       refusal.reason === 'widget'
-        ? fail(action.definitionId, {
+        ? fail('action/shortcut-refused', action.definitionId, {
             operation,
             expected: 'a shortcut from an App or the host page',
             observed: 'a shortcut from a Widget, which does not own the page’s keys',
             repair:
-              'Drop the shortcut; the action stays in the palette without it. If the keys matter, emit an event and let the App that places the Widget register the shortcut.',
+              'Drop the shortcut; the action stays in the palette without it. If the keys matter, emit an output and let the App that places the Widget register the shortcut.',
           })
-        : fail(action.definitionId, {
+        : fail('action/shortcut-refused', action.definitionId, {
             operation,
             expected: 'keys the host page does not use',
             observed: `the host page’s '${refusal.by.qualifiedId}' (${refusal.by.declared?.source ?? ''}) uses them`,
@@ -613,7 +615,7 @@ export class ActionRegistry {
   }
 
   #duplicateNameError(definitionId: string, name: string): MfeError {
-    return fail(definitionId, {
+    return fail('action/duplicate-name', definitionId, {
       operation: `register action '${name}'`,
       expected: 'one registration per action name within a mount',
       observed: `a second registration of '${name}' in the same mount`,
@@ -626,7 +628,7 @@ export class ActionRegistry {
   #assertValid(definitionId: string, registration: ActionRegistration): ParsedShortcut | undefined {
     const { name, label } = registration
     if (!ACTION_NAME_PATTERN.test(name)) {
-      throw fail(definitionId, {
+      throw fail('action/invalid-registration', definitionId, {
         operation: 'register action',
         expected:
           'a name of letters, digits and hyphens starting with a letter (for example "refresh")',
@@ -637,7 +639,7 @@ export class ActionRegistry {
     }
 
     if (label === '') {
-      throw fail(definitionId, {
+      throw fail('action/invalid-registration', definitionId, {
         operation: `register action '${name}'`,
         expected: 'a non-empty label',
         observed: 'an empty string',
@@ -647,7 +649,7 @@ export class ActionRegistry {
 
     for (const placement of registration.placements ?? DEFAULT_ACTION_PLACEMENTS) {
       if (VALID_PLACEMENTS.has(placement)) continue
-      throw fail(definitionId, {
+      throw fail('action/invalid-registration', definitionId, {
         operation: `register action '${name}'`,
         expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
         observed: JSON.stringify(placement),
@@ -658,7 +660,7 @@ export class ActionRegistry {
 
     const { effect } = registration
     if (effect !== undefined && !VALID_EFFECTS.has(effect)) {
-      throw fail(definitionId, {
+      throw fail('action/invalid-registration', definitionId, {
         operation: `register action '${name}'`,
         expected: `an effect (${[...VALID_EFFECTS].join(', ')})`,
         observed: JSON.stringify(effect),
@@ -677,7 +679,7 @@ export class ActionRegistry {
     const parsed = parseShortcut(registration.shortcut)
     if (parsed.ok) return parsed.shortcut
 
-    throw fail(definitionId, {
+    throw fail('action/invalid-registration', definitionId, {
       operation: `register action '${registration.name}'`,
       expected:
         'a shortcut such as "mod+s" — modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated by spaces, such as "g r"',
@@ -702,7 +704,7 @@ function describeSchemas(
   if (previous && previous.input === input && previous.output === output) return previous
 
   if (input !== undefined && !isRecord(input.shape)) {
-    throw fail(definitionId, {
+    throw fail('action/invalid-registration', definitionId, {
       operation: `register action '${registration.name}'`,
       expected: 'an inputSchema made with z.object',
       observed: 'a schema that is not an object schema',
@@ -722,7 +724,7 @@ function describeSchemas(
       return described
     } catch (error) {
       throw toMfeError(error, {
-        code: 'action/duplicate-name',
+        code: 'action/invalid-registration',
         id: definitionId,
         operation: `describe the ${field} of action '${registration.name}' as JSON Schema`,
         repair: `Use only what JSON Schema can express in the ${field}: no dates, functions or transforms.`,

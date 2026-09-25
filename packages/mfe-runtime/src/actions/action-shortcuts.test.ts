@@ -98,7 +98,7 @@ describe('declaring a shortcut', () => {
 
     expect(isMfeError(thrown)).toBe(true)
     if (!isMfeError(thrown)) return
-    expect(thrown.code).toBe('action/duplicate-name')
+    expect(thrown.code).toBe('action/invalid-registration')
     expect(thrown.message).toContain("reports failed to register action 'refresh'")
     expect(thrown.message).toContain('"mod+shift" is only modifiers')
     expect(registry.size).toBe(0)
@@ -435,6 +435,7 @@ describe('whose shortcuts are live', () => {
     expect(records).toHaveLength(1)
     expect(records[0]?.severity).toBe('warning')
     expect(records[0]?.error.message).toContain('a shortcut from a Widget')
+    expect(records[0]?.error.code).toBe('action/shortcut-refused')
   })
 
   it('stops reading a mount’s shortcuts when the mount is disposed', async () => {
@@ -477,6 +478,7 @@ describe('the host page’s reserved keys', () => {
       'shortcut',
     )
     expect(records[0]?.error.message).toContain("the host page’s '@host:registry' (g r) uses them")
+    expect(records[0]?.error.code).toBe('action/shortcut-refused')
   })
 
   it('refuses a container shortcut that begins one of the host page’s', () => {
@@ -537,6 +539,7 @@ describe('two registrations with the same keys', () => {
     expect(event.defaultPrevented).toBe(false)
     expect(records).toHaveLength(1)
     expect(records[0]?.error.message).toContain("'reports:refresh' (mod+r) already claims them")
+    expect(records[0]?.error.code).toBe('action/shortcut-refused')
   })
 
   it('runs neither of two host shortcuts where one begins the other', () => {

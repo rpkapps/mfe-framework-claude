@@ -415,7 +415,10 @@ describe('waiting', () => {
     registry.removeMount('mount-1')
     answer.resolve(true)
 
-    await expect(running).resolves.toMatchObject({ status: 'unavailable' })
+    await expect(running).resolves.toMatchObject({
+      status: 'unavailable',
+      error: { code: 'action/unavailable' },
+    })
     expect(execute).not.toHaveBeenCalled()
   })
 
@@ -510,6 +513,9 @@ describe('the published entry', () => {
 
     expect(() => register({ inputSchema: z.object({ at: z.date() }) })).toThrow(
       /describe the inputSchema of action 'refund' as JSON Schema/,
+    )
+    expect(() => register({ inputSchema: z.object({ at: z.date() }) })).toThrow(
+      expect.objectContaining({ code: 'action/invalid-registration' }),
     )
   })
 

@@ -323,7 +323,7 @@ export class ActionExecutor<Action extends RunnableAction> {
       return {
         status: 'unavailable',
         error: createMfeError({
-          code: 'mount/failure',
+          code: 'action/unavailable',
           id: action.definitionId,
           operation: `execute action '${action.registration.name}'`,
           expected: 'the registration the call was approved against',
