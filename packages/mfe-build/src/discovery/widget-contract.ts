@@ -9,7 +9,6 @@ import { findExportedExpression, resolveRelativeModule } from './local-modules.t
 import type { ContainerSources } from './sources.ts'
 import {
   calleeName,
-  objectProperty,
   positionOf,
   propertyName,
   ts,
@@ -226,7 +225,7 @@ function readSchemaProperty(context: Ctx, field: 'inputSchema' | 'outputSchema')
           }
         }
       }
-      const { line, column } = positionOf(sourceFile, property)
+      const { line, column } = positionOf(sourceFile, property.node)
       throw createBuildError({
         code: 'contract/input-mismatch',
         file: entryFile,
@@ -264,13 +263,22 @@ function readSchemaProperty(context: Ctx, field: 'inputSchema' | 'outputSchema')
   }
 }
 
-/** A Widget's options may spread a contract object declared beside them, so both are resolved. */
+interface OptionProperty {
+  readonly node: ts.ObjectLiteralElementLike
+  readonly initializer: ts.Expression
+}
+
+/**
+ * A Widget's options may spread a contract object declared beside them, so both are resolved. A
+ * shorthand `{ inputSchema }` is read as the identifier it abbreviates, since that is how an author
+ * passes a schema imported from its own module.
+ */
 function optionProperty(
   options: ts.ObjectLiteralExpression,
   field: string,
   topLevel: ReadonlyMap<string, ts.Expression>,
-): ts.PropertyAssignment | undefined {
-  const direct = objectProperty(options, field)
+): OptionProperty | undefined {
+  const direct = namedProperty(options, field)
   if (direct !== undefined) return direct
 
   for (const property of [...options.properties].reverse()) {
@@ -280,8 +288,24 @@ function optionProperty(
     if (target === undefined) continue
     const object = unwrapExpression(target)
     if (!ts.isObjectLiteralExpression(object)) continue
-    const found = objectProperty(object, field)
+    const found = namedProperty(object, field)
     if (found !== undefined) return found
+  }
+  return undefined
+}
+
+function namedProperty(
+  object: ts.ObjectLiteralExpression,
+  field: string,
+): OptionProperty | undefined {
+  for (const property of object.properties) {
+    if (propertyName(property) !== field) continue
+    if (ts.isPropertyAssignment(property)) {
+      return { node: property, initializer: property.initializer }
+    }
+    if (ts.isShorthandPropertyAssignment(property)) {
+      return { node: property, initializer: property.name }
+    }
   }
   return undefined
 }

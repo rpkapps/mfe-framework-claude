@@ -94,6 +94,60 @@ export const orderTotal = createWidget({
     expect(result.widgets.map(widget => widget.id)).toEqual(['order-row'])
   })
 
+  it('reads shorthand schemas imported from their own module', () => {
+    const root = createContainer({
+      'src/contracts/row.ts': `
+import { z } from 'zod'
+
+export const inputSchema = z.object({ orderId: z.string() })
+export const outputSchema = z.object({ acknowledged: z.object({}) })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+
+import { inputSchema, outputSchema } from './contracts/row.ts'
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, outputSchema, render: () => null })
+`,
+    })
+    const [widget] = discoverDefinitions(entryOf(root), SYNTAX).widgets
+
+    expect(widget?.inputNames).toEqual(['orderId'])
+    expect(widget?.outputNames).toEqual(['acknowledged'])
+    expect(widget?.contractSource?.inputSchema).toMatchObject({
+      kind: 'reexport',
+      exported: 'inputSchema',
+    })
+    expect(widget?.contractSource?.outputSchema.kind).toBe('reexport')
+  })
+
+  it('reads shorthand schemas declared as top-level consts, directly or through a spread', () => {
+    const root = createContainer({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const inputSchema = z.object({ orderId: z.string() })
+const outputSchema = z.object({ acknowledged: z.object({}) })
+const contract = { outputSchema }
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, ...contract, render: () => null })
+`,
+    })
+    const [widget] = discoverDefinitions(entryOf(root), SYNTAX).widgets
+
+    expect(widget?.inputNames).toEqual(['orderId'])
+    expect(widget?.outputNames).toEqual(['acknowledged'])
+    expect(widget?.contractSource?.inputSchema).toEqual({
+      kind: 'inline',
+      expression: 'inputSchema',
+    })
+    expect(widget?.contractSource?.outputSchema).toEqual({
+      kind: 'inline',
+      expression: 'outputSchema',
+    })
+  })
+
   it('accepts a default export when it is the only definition', () => {
     const root = createContainer({
       'src/mfe.ts': `

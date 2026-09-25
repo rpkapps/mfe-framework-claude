@@ -3,6 +3,7 @@ import { join, sep } from 'node:path'
 
 import tailwindcss from '@tailwindcss/postcss'
 import postcss from 'postcss'
+import ts from 'typescript'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
@@ -69,6 +70,33 @@ function planFixture(
     return generated.contents
   }
   return { root, plan, fileFor }
+}
+
+/**
+ * Typechecks the generated Widget contract entries against the fixture's sources, with the zod
+ * this package is tested with, the way a consumer importing `/contracts` compiles them.
+ */
+function typeErrors(root: string, plan: ContainerPlan): readonly string[] {
+  writeGeneratedFiles(plan.generated.files)
+  mkdirSync(join(root, 'node_modules'), { recursive: true })
+  symlinkSync(join(INSTALLED, 'zod'), join(root, 'node_modules/zod'), 'dir')
+
+  const program = ts.createProgram(
+    plan.generated.files.map(file => file.path).filter(path => path.endsWith('.contract.ts')),
+    {
+      strict: true,
+      noEmit: true,
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      allowImportingTsExtensions: true,
+      skipLibCheck: true,
+      types: [],
+    },
+  )
+  return ts
+    .getPreEmitDiagnostics(program)
+    .map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
 }
 
 describe('generated inventory', () => {
@@ -930,6 +958,57 @@ export const orderRow = createWidget({
 
     expect(source).toContain('const orderId = z.string().min(1)')
     expect(source).toContain('export const inputSchema = z.object({ orderId })')
+  })
+
+  it('re-exports shorthand schemas imported from their own module, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/contracts/row.ts': `
+import { z } from 'zod'
+
+export const inputSchema = z.object({ orderId: z.string() })
+export const outputSchema = z.object({ acknowledged: z.object({ at: z.string() }) })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+
+import { inputSchema, outputSchema } from './contracts/row.ts'
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, outputSchema, render: () => null })
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import { inputSchema } from '../../src/contracts/row.ts'")
+    expect(source).toContain('export { inputSchema }')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('exports a top-level const named like the field without declaring it twice', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const inputSchema = z.object({ orderId: z.string() })
+const outputSchema = z.object({ acknowledged: z.object({ at: z.string() }) })
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: inputSchema,
+  outputSchema,
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain('const inputSchema = z.object({ orderId: z.string() })')
+    expect(source).toContain('export { inputSchema }')
+    expect(source).toContain('export { outputSchema }')
+    expect(source).not.toContain('export const inputSchema')
+    expect(typeErrors(root, plan)).toEqual([])
   })
 })
 

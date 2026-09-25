@@ -482,6 +482,12 @@ function widgetContractModule(
       exportLines.push(`export { ${field} }`)
       continue
     }
+    // A schema already bound under the field's own name, as `{ inputSchema }` over a top-level
+    // const is, is declared by the prelude; binding it again would redeclare it.
+    if (binding.expression === field) {
+      exportLines.push(`export { ${field} }`)
+      continue
+    }
     schemaLines.push(`export const ${field} = ${binding.expression}`)
   }
 
