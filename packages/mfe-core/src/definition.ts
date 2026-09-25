@@ -31,6 +31,20 @@ export interface CapabilityDescriptor extends CapabilityDeclaration {
   readonly path: string
 }
 
+/**
+ * One route of an App, published so a host can navigate to it, or offer an agent the way there,
+ * before the App is loaded. `path` is App-relative in one syntax whatever the router: a parameter
+ * is `:name` (`:name?` when optional) and a catch-all is `*`, as `URLPattern` writes them.
+ */
+export interface PublishedRoute {
+  readonly path: string
+  /**
+   * The search params the route reads, as an object schema, its parent routes' included. Absent
+   * when the router declares none, or the build could not read them.
+   */
+  readonly search?: JsonSchemaObject
+}
+
 /** Never gates loading: a container that names no build still mounts (§29). */
 export interface BuildProvenance {
   readonly hash?: string
@@ -102,6 +116,8 @@ export interface ContainerDescriptor {
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]
+  /** App-only; every route the build could read, sorted by path. */
+  readonly routes?: readonly PublishedRoute[]
   /** Widget-only; read statically at build time (§16). */
   readonly contract?: PublishedContract
   /** Presentation the author declares, so a host can catalogue the definition unloaded (§16). */

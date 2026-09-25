@@ -1414,3 +1414,40 @@ keeps nothing. A sink that throws is reported and the run's result stands.
 **Cost:** a telemetry record per action run, palette and keys included; a host whose
 telemetry volume matters filters `run action` records by level. Redaction by pattern
 lets a credential under an unremarkable key through; an action should not take one.
+
+---
+
+## 48. An App's build publishes its routes, in one path syntax for every router
+
+**Status:** decided; feature D of the agentic plan.
+
+The agent navigates, and a host cannot generate a navigate tool from Apps it has not
+loaded, so the build publishes each App's routes into its registry entry, as it
+publishes capability routes (§16): `routes: [{ path, search? }]`, App-only, sorted by
+path. A container profile finds them (`readRoutes`, beside `readCapabilities`), and the
+neutral build dedupes and sorts them. The registry refuses routes on a Widget, which
+owns no URL, and a path that is not App-relative.
+
+`path` is written one way whatever the router: `:name`, `:name?` and `*`, as
+`URLPattern` writes them, so a host and an agent read one syntax. The React integration
+reads every `createFileRoute('<path>')` in the routes directory and writes TanStack
+Router's own syntax in that one (`$id`, `{-$id}`, `$`), dropping the segments a
+pathless layout (`_auth`) or a group (`(admin)`) adds nothing for; such a layout is not
+a destination, so it is not listed itself. The Angular integration walks the array
+`createApp` receives through inline `children`, publishing each route with a component,
+and leaves out redirects, `**`, and what a lazy `loadChildren` declares.
+
+`search` is the JSON Schema of the params a route reads, merged over those of the
+routes it is nested in and of the root route, since TanStack Router validates them all:
+read with the static reader (§37, §41) from `validateSearch`, through a module-level
+`const` or `zodValidator(…)`. A schema the build cannot read leaves the route published
+without `search` rather than failing the build, as it only helps the agent fill params
+in. Angular's router declares no search params, so its routes carry none.
+
+The legacy Angular adapter's own `routes` (shell paths from a legacy config) became
+`legacyRoutes`, so the neutral field means one thing. The developer tools list an
+entry's route paths.
+
+**Cost:** code-based routes (`createRoute`) and routes behind `loadChildren` are not
+published, and the navigate tool cannot offer them; a route whose path is computed is
+not either.

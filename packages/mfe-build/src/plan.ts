@@ -2,13 +2,14 @@
 
 import { join } from 'node:path'
 
-import type { CapabilityDescriptor } from '@company/mfe-core'
+import type { CapabilityDescriptor, PublishedRoute } from '@company/mfe-core'
 
 import { findNonContainerAwareAssetReferences } from './assets/relative-references.ts'
 import { readConfigSource, type ConfigSource } from './config/config-source.ts'
 import type { CapabilityOwner } from './discovery/capabilities.ts'
 import { discoverDefinitions, type DiscoveryResult } from './discovery/definitions.ts'
 import { resolveEntryModule } from './discovery/entry.ts'
+import { collectRoutes } from './discovery/routes.ts'
 import { createSourceCache, type ContainerSources } from './discovery/sources.ts'
 import { containerSourceFiles, findStrayDefinitions } from './discovery/stray-definitions.ts'
 import { adapterCarriedShares, resolveFrameworkScope } from './federation/framework-scope.ts'
@@ -39,6 +40,8 @@ export interface ContainerPlan {
   readonly entryFile: string
   readonly discovery: DiscoveryResult
   readonly capabilities: readonly CapabilityDescriptor[]
+  /** The App's routes, sorted by path; empty for a Widget-only container. */
+  readonly routes: readonly PublishedRoute[]
   readonly configSource: ConfigSource | undefined
   readonly shared: Readonly<Record<string, SharedModuleConfig>>
   /** Module Federation exposes: generated names, not public API. */
@@ -120,15 +123,18 @@ function planSources(
     hasApp: discovery.app !== undefined,
     ...(discovery.app === undefined ? {} : { appId: discovery.app.id }),
   }
-  const capabilities =
-    profile.readCapabilities?.({
-      containerRoot: resolved.containerRoot,
-      entryFile,
-      discovery,
-      owner,
-      sourceFiles,
-      sources,
-    }) ?? []
+  const readContext = {
+    containerRoot: resolved.containerRoot,
+    entryFile,
+    discovery,
+    owner,
+    sourceFiles,
+    sources,
+  }
+  const capabilities = profile.readCapabilities?.(readContext) ?? []
+  // A Widget owns no URL, so a container without an App publishes no routes.
+  const routes =
+    discovery.app === undefined ? [] : collectRoutes(profile.readRoutes?.(readContext) ?? [])
 
   const { shared, shareScopes } = shares()
 
@@ -141,7 +147,7 @@ function planSources(
     shareScopes,
   }
 
-  const generated = generateContainerFiles(context, capabilities)
+  const generated = generateContainerFiles(context, capabilities, routes)
 
   const exposes: Record<string, string> = {}
   for (const definition of discovery.definitions) {
@@ -162,6 +168,7 @@ function planSources(
     entryFile,
     discovery,
     capabilities,
+    routes,
     configSource,
     shared,
     exposes,

@@ -6,6 +6,7 @@
 import type { ContainerProfile } from '@company/mfe-build'
 
 import { extractCapabilities } from './discovery/capabilities.ts'
+import { extractRoutes } from './discovery/routes.ts'
 import {
   REACT_ADAPTER,
   REACT_ANCHOR,
@@ -46,6 +47,8 @@ export function reactProfile(options: ReactOptions): ContainerProfile {
         ...context.owner,
         sources: context.sources,
       }),
+    readRoutes: context =>
+      extractRoutes({ routesDirectory: options.routesDirectory, sources: context.sources }),
     containerRootOption: 'pluginMfe({ containerRoot })',
   }
 }

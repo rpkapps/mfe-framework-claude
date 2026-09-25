@@ -19,6 +19,7 @@ import {
   type MfeAdapter,
   type MfeError,
   type PublishedContract,
+  type PublishedRoute,
   type RegistryEntry,
 } from '@company/mfe-core'
 import { z } from 'zod'
@@ -122,6 +123,23 @@ const jsonSchema = z.custom<JsonSchemaObject>(isRecord, {
   error: 'a JSON Schema object, or nothing when the build could not read one',
 })
 
+/** An App-relative path in the neutral syntax (`:name`, `*`), and the search params it reads. */
+const route = z
+  .object(
+    {
+      path: z
+        .string({ error: 'an App-relative path starting with /' })
+        .startsWith('/', { error: 'an App-relative path starting with /' }),
+      search: jsonSchema.optional(),
+    },
+    { error: 'a route object such as { "path": "/wells/:wellId" }' },
+  )
+  .transform((value): PublishedRoute =>
+    withoutUndefined({ path: value.path, search: value.search }),
+  )
+
+const routes = z.array(route, { error: 'an array of route objects' })
+
 /**
  * Both fields are optional on purpose: a build that could not read a schema statically leaves it
  * out, which must not collapse into the empty schema a Widget that genuinely takes or emits
@@ -166,6 +184,7 @@ const entrySchema = z
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
     capabilities: capabilities.optional(),
+    routes: routes.optional(),
     contract: publishedContract.optional(),
     hidden: z.unknown().optional(),
     title: z.string({ error: 'a title string' }).optional(),
@@ -186,6 +205,11 @@ const entrySchema = z
     path: ['capabilities'],
     error:
       'no capabilities on a Widget. Move the capability routes into an App, or drop them from the Widget.',
+  })
+  // A Widget owns no URL, so it has no routes to publish.
+  .refine(value => !(value.routes !== undefined && value.kind === 'widget'), {
+    path: ['routes'],
+    error: 'no routes on a Widget. A Widget owns no URL; routes belong to an App.',
   })
 
 /** The first issue is the one a reader acts on, so it is the one the error names. */
@@ -262,6 +286,7 @@ export function parseFederatedEntry<K extends string>(
       shareScopes: parsed.shareScopes,
       version: parsed.version,
       capabilities: parsed.capabilities,
+      routes: parsed.routes,
       contract: parsed.contract,
       build: parsed.build,
       hidden: parsed.hidden === true ? true : undefined,

@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A, B and C have landed (§39–§47), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -135,7 +135,9 @@ As landed: `ActionAuditRecord` from the executor's last step, for every run and 
 
 Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the input with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
 
-### D. Published routes
+### D. Published routes (done, §48)
+
+As landed: `routes: [{ path, search? }]` on an App's registry entry, paths in one syntax (`:name`, `:name?`, `*`), from TanStack file routes (with `validateSearch`, merged down the tree) and from Angular's routes array (paths only). The navigate tool itself is the shell's, in E.
 
 The build publishes each App's route paths and search-param schemas into the registry, with the reader from step 2, as it publishes Widget contracts (§16). The host generates the navigate tool from them. Capability pages (`settings`, `help`, `releaseNotes`) stay as they are.
 

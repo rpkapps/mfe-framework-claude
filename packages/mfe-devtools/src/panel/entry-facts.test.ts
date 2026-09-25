@@ -39,6 +39,17 @@ describe('the facts an entry states about itself', () => {
     expect(facts).toEqual([{ label: 'opens', values: ['settings → /settings'] }, readByReact])
   })
 
+  it('lists the paths of an App’s published routes', () => {
+    const facts = factsOf(
+      entry({
+        definitionKind: 'app',
+        routes: [{ path: '/wells' }, { path: '/wells/:wellId', search: { type: 'object' } }],
+      }),
+    )
+
+    expect(facts).toEqual([{ label: 'routes', values: ['/wells', '/wells/:wellId'] }, readByReact])
+  })
+
   it('marks an optional input, and leaves a required one bare', () => {
     const facts = factsOf(
       entry({

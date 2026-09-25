@@ -28,6 +28,7 @@ export {
   isValidDefinitionId,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
+  type PublishedRoute,
   type CapabilityIconRef,
   type CapabilityName,
   type ContainerDescriptor,

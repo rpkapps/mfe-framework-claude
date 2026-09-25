@@ -6,6 +6,7 @@ import type {
   DefinitionKind,
   IconData,
   PublishedContract,
+  PublishedRoute,
 } from './definition.ts'
 
 /**
@@ -21,6 +22,8 @@ export interface RegistryEntry {
   readonly version?: string
   /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
+  /** App-only; the routes a host can navigate to, extracted statically at build time. */
+  readonly routes?: readonly PublishedRoute[]
   /** Widget-only; a host offers the Widget in a catalogue before its container is fetched (§16). */
   readonly contract?: PublishedContract
   /** Which build the entry came from, readable without loading the container (§29). */

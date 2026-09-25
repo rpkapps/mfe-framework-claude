@@ -3,7 +3,7 @@
  * build is the same whichever framework its definitions render with.
  */
 
-import type { CapabilityDescriptor } from '@company/mfe-core'
+import type { CapabilityDescriptor, PublishedRoute } from '@company/mfe-core'
 
 import type { CapabilityOwner } from './discovery/capabilities.ts'
 import type {
@@ -57,6 +57,11 @@ export interface ContainerProfile {
   readonly generatedFiles?: (context: GenerateContext) => readonly GeneratedFile[]
   /** Finds the App's capability routes; without one, a container declares none. */
   readonly readCapabilities?: (context: CapabilityContext) => readonly CapabilityDescriptor[]
+  /**
+   * Finds the App's routes, paths in the neutral syntax (`:name`, `:name?`, `*`); without one, a
+   * container publishes none. Read only when the container exports an App.
+   */
+  readonly readRoutes?: (context: CapabilityContext) => readonly PublishedRoute[]
   /** How an author points the integration at a container: `pluginMfe({ containerRoot })`. */
   readonly containerRootOption: string
 }

@@ -60,7 +60,7 @@ Your build writes one record per container. A shell turns each definition in it 
 | `entries`       | definition id to path | The generated path each definition is published at.               |
 | `build`         | `{ hash?, time? }`    | Which build this came from. It never gates loading.               |
 
-Each record in `definitions` holds `id` and `kind`, plus the optional `version`, `capabilities` (Apps), `contract` (Widgets), `title`, `description`, `tags` and `icon`.
+Each record in `definitions` holds `id` and `kind`, plus the optional `version`, `capabilities` and `routes` (Apps), `contract` (Widgets), `title`, `description`, `tags` and `icon`.
 
 ## The entry a shell reads
 
@@ -94,6 +94,7 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 | `shareScopes`                          | no       | The share scopes the loader registers the remote with. Without it, only `default`.                    |
 | `version`                              | no       | Recorded in diagnostics.                                                                              |
 | `capabilities`                         | no       | App-only. One record per marked route.                                                                |
+| `routes`                               | no       | App-only. Every route the build could read, sorted by path. See below.                                |
 | `contract`                             | no       | Widget-only. The `inputSchema` and `outputSchema`, each when the build could read it. See below.      |
 | `build`                                | no       | Repeated from the build's own record onto every entry it produced.                                    |
 | `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                         |
@@ -113,6 +114,15 @@ Read both schemas with [`describeInputs` and `describeOutputs`](/docs/reference/
 
 A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `help` or `releaseNotes`. A shell skips a capability whose name it does not know and keeps the rest of the entry, so an App built against a newer framework still loads in an older shell.
 
+A route is `{ path, search? }`. `path` is App-relative and written the same way for every router: a parameter is `:name`, an optional one `:name?`, and a catch-all `*`. `search` is the JSON Schema of the search params the route reads, its parent routes' included. It is absent when the router declares none, as Angular's does not, or when the build could not read the schema. The shell uses `routes` to navigate, and to offer its agent the way to each page, before the App is loaded.
+
+| Router          | What the build reads                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| TanStack Router | every `createFileRoute('<path>')` in the routes directory, and each route's and the root's `validateSearch` |
+| Angular         | every route with a component in the array `createApp` receives, through inline `children`                   |
+
+A layout that adds no URL segment, a redirect and the `**` catch-all are not listed. Nor are the routes a lazy `loadChildren` module declares; the route that loads them is.
+
 ## How the build's record becomes an entry
 
 In this repository `tools/dev/build-registry.mjs` does the assembly. It reads what every container published and writes `apps/shell/public/registry.json`. For each definition it:
@@ -120,7 +130,7 @@ In this repository `tools/dev/build-registry.mjs` does the assembly. It reads wh
 1. resolves `manifestUrl` against the container's own origin,
 2. copies the `expose` path out of `entries`, and `framework` and `shareScopes` from the record,
 3. repeats the `build` block onto every entry,
-4. carries `version`, `capabilities`, `contract` and the four presentation fields across,
+4. carries `version`, `capabilities`, `routes`, `contract` and the four presentation fields across,
 5. applies the shell's own presentation last, so a deployment's wording wins.
 
 A definition whose build names no `expose` path fails the assembly. Rebuild the container.

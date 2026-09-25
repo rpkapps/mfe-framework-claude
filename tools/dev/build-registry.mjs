@@ -48,6 +48,7 @@ function entriesFor(published, presentation, origin) {
       ...(published.shareScopes === undefined ? {} : { shareScopes: published.shareScopes }),
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
+      ...(definition.routes === undefined ? {} : { routes: definition.routes }),
       // The widget catalogue renders a form from this before anything is loaded, so it has to
       // be in the registry rather than behind a container fetch (§16).
       ...(definition.contract === undefined ? {} : { contract: definition.contract }),

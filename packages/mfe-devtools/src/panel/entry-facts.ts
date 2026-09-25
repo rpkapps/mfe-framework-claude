@@ -24,6 +24,10 @@ export function factsOf(entry: RegistryEntry): readonly EntryFact[] {
     })
   }
 
+  // The paths alone: a route's search params are for the agent, and a row cannot hold a schema.
+  const routes = entry.routes ?? []
+  if (routes.length > 0) facts.push({ label: 'routes', values: routes.map(route => route.path) })
+
   const inputs = inputNames(entry)
   if (inputs.length > 0) facts.push({ label: 'inputs', values: inputs })
 

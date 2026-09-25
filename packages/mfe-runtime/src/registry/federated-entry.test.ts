@@ -204,6 +204,27 @@ describe('published Widget contract', () => {
   })
 })
 
+describe('routes', () => {
+  it('carries an App’s routes, with their search params, through to the entry', () => {
+    const search = { type: 'object', properties: { site: { type: 'string' } } }
+    const parsed = parse(entry({ routes: [{ path: '/' }, { path: '/wells/:wellId', search }] }))
+
+    expect(parsed.routes).toEqual([{ path: '/' }, { path: '/wells/:wellId', search }])
+  })
+
+  it('rejects a Widget that publishes routes, since it owns no URL', () => {
+    const error = rejection(entry({ id: 'alert-panel', kind: 'widget', routes: [{ path: '/' }] }))
+
+    expect(error.message).toContain('no routes on a Widget')
+  })
+
+  it('rejects a path that is not App-relative', () => {
+    expect(rejection(entry({ routes: [{ path: 'wells' }] })).message).toContain(
+      'an App-relative path starting with /',
+    )
+  })
+})
+
 describe('capabilities', () => {
   it('carries App capabilities through to the entry', () => {
     const parsed = parse(
