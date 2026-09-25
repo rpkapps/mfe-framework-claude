@@ -1625,7 +1625,10 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   `ShellChat` with its tools, `@company/mfe-agent` and `@ag-ui/client`, and the panel's UI load on
   first use: the panel opening, a mount's prompt (the panel opens at once), an approval, or the
   pointer or focus reaching the Assistant button. `recharts` loads with the first chart. A load
-  that fails says so in the panel, with Try again. The same lint rule keeps the rest of the chat
+  that fails says so in the panel, with Try again. A part of the conversation that throws as it
+  renders says, in its place, that it could not be shown, and the rest carries on; since the
+  conversation outlives the panel, trying again would throw again. Anything else below the header
+  that throws offers a new conversation instead. The same lint rule keeps the rest of the chat
   out of the shell's other modules, so nothing puts it back on the boot path.
 
 `@company/mfe-agent` grew what the chat needed: `sendMessage(text, { context, forwardedProps })`

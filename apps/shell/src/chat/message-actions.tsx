@@ -6,6 +6,7 @@
  */
 
 import { useRef, useState, type ReactNode } from 'react'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { Textarea } from '@tecton/react/components/textarea'
 import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
@@ -73,6 +74,37 @@ export function ReplyActions({
         </TooltipTrigger>
       )}
     </Row>
+  )
+}
+
+/**
+ * Says the reply failed, with a way to ask for it again. Asking again, here or on the last reply, is
+ * the client's `reload`, which sends the question with what went with it the first time: a page's
+ * context, a chip's tool, an A2UI event.
+ */
+export function ReplyFailed({
+  chat,
+  error,
+}: {
+  readonly chat: ShellChat
+  readonly error: Error
+}): ReactNode {
+  return (
+    <Alert variant="destructive" appearance="outline">
+      <AlertTitle>The assistant could not answer</AlertTitle>
+      <AlertDescription>{error.message}</AlertDescription>
+      <AlertAction>
+        <Button
+          variant="outline"
+          size="xs"
+          onPress={() => {
+            void chat.client.reload()
+          }}
+        >
+          Try again
+        </Button>
+      </AlertAction>
+    </Alert>
   )
 }
 

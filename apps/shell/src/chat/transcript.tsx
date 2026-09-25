@@ -30,12 +30,14 @@ import {
 import { Spinner } from '@tecton/react/components/spinner'
 import { BotIcon, ChevronDownIcon } from 'lucide-react'
 
+import { NotShown, PartBoundary, RenderBoundary } from './boundary.tsx'
 import { useStopped } from './hooks.ts'
 import { Markdown } from './markdown.tsx'
 import { EditQuestion, QuestionActions, ReplyActions, StoppedNote } from './message-actions.tsx'
 import { splitQuote } from './quote.ts'
 import type { ShellChat } from './shell-chat.ts'
 import { DISCLOSURE_MOTION, ToolCallView } from './tool-call.tsx'
+import { stageOf } from './tool-stage.ts'
 
 function textOf(message: UIMessage): string {
   return message.parts.flatMap(part => (part.type === 'text' ? [part.content] : [])).join('\n')
@@ -127,11 +129,13 @@ function AssistantMessage({
             switch (part.type) {
               case 'text':
                 return part.content === '' ? null : (
-                  <Bubble key={index} variant="ghost">
-                    <BubbleContent>
-                      <Markdown go={chat.go}>{part.content}</Markdown>
-                    </BubbleContent>
-                  </Bubble>
+                  <PartBoundary key={index} resetKey={part.content}>
+                    <Bubble variant="ghost">
+                      <BubbleContent>
+                        <Markdown go={chat.go}>{part.content}</Markdown>
+                      </BubbleContent>
+                    </Bubble>
+                  </PartBoundary>
                 )
               case 'thinking':
                 return (
@@ -149,7 +153,12 @@ function AssistantMessage({
                   </Collapsible>
                 )
               case 'tool-call':
-                return <ToolCallView key={part.id} chat={chat} part={part} />
+                return (
+                  // Tried again as the call moves on: arguments that were half there are whole.
+                  <PartBoundary key={part.id} resetKey={stageOf(part)}>
+                    <ToolCallView chat={chat} part={part} />
+                  </PartBoundary>
+                )
               case 'tool-result':
                 // Folded into the call that asked for it.
                 return null
@@ -259,19 +268,27 @@ export function Transcript({
                 {turn.messages.map(message =>
                   message.role === 'user' ? (
                     <Fragment key={message.id}>
-                      <UserMessage chat={chat} message={message} />
+                      <RenderBoundary
+                        fallback={<NotShown>This message could not be shown.</NotShown>}
+                      >
+                        <UserMessage chat={chat} message={message} />
+                      </RenderBoundary>
                       {/* Stopped before any reply arrived: said under the question. */}
                       {stopped.has(message.id) && message.id === lastId && <StoppedNote />}
                     </Fragment>
                   ) : message.role === 'assistant' ? (
-                    <AssistantMessage
+                    <RenderBoundary
                       key={message.id}
-                      chat={chat}
-                      message={message}
-                      last={message.id === lastId}
-                      idle={idle}
-                      stopped={stopped.has(message.id)}
-                    />
+                      fallback={<NotShown>This reply could not be shown.</NotShown>}
+                    >
+                      <AssistantMessage
+                        chat={chat}
+                        message={message}
+                        last={message.id === lastId}
+                        idle={idle}
+                        stopped={stopped.has(message.id)}
+                      />
+                    </RenderBoundary>
                   ) : null,
                 )}
                 {waiting && index === turns.length - 1 && (

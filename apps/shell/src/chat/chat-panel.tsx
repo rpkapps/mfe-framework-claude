@@ -7,10 +7,10 @@
 
 import { useEffect, useMemo, type ReactNode } from 'react'
 import { HOST_SCOPE, type AgentSuggestionEntry } from '@company/mfe-react'
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -52,6 +52,7 @@ import {
 } from 'lucide-react'
 
 import { Interrupts } from './approvals.tsx'
+import { RenderBoundary } from './boundary.tsx'
 import { actionAttachment, chatCommands, NEW_CONVERSATION } from './commands.ts'
 import {
   useAgentActions,
@@ -60,6 +61,7 @@ import {
   useOfferedSuggestions,
 } from './hooks.ts'
 import type { ChatWidth } from './lazy-panel.tsx'
+import { ReplyFailed } from './message-actions.tsx'
 import { useChatPanel } from './panel-hooks.ts'
 import type { ChatAttachment } from './panel.ts'
 import type { ShellChat } from './shell-chat.ts'
@@ -203,6 +205,32 @@ function StartHere(): ReactNode {
   )
 }
 
+/**
+ * What the panel shows below its header when a part outside the transcript, such as the composer
+ * or a card, throws as it renders: the conversation holds what threw, so only a new one clears it.
+ */
+function ConversationNotShown({ chat }: { readonly chat: ShellChat }): ReactNode {
+  return (
+    <Empty className="flex-1 border-0">
+      <EmptyHeader>
+        <EmptyTitle>The conversation could not be shown</EmptyTitle>
+        <EmptyDescription>Start a new conversation to carry on.</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => {
+            chat.newConversation()
+          }}
+        >
+          New conversation
+        </Button>
+      </EmptyContent>
+    </Empty>
+  )
+}
+
 /** The chat itself, loaded on first use into the aside or the sheet (`lazy-panel.tsx`). */
 export function ChatPanel({
   chat,
@@ -262,30 +290,17 @@ export function ChatPanel({
         </PanelActions>
       </PanelHeader>
 
-      <Transcript chat={chat} snapshot={snapshot} empty={<StartHere />} />
+      {/* A new conversation, from the header or the fallback, is a new thread: drawn afresh. */}
+      <RenderBoundary resetKey={snapshot.threadId} fallback={<ConversationNotShown chat={chat} />}>
+        <Transcript chat={chat} snapshot={snapshot} empty={<StartHere />} />
 
-      <PanelFooter className="flex-col items-stretch gap-2 border-t-0">
-        <Interrupts chat={chat} interrupts={snapshot.interrupts} />
-        <Announcements chat={chat} />
-        {snapshot.error !== undefined && (
-          <Alert variant="destructive" appearance="outline">
-            <AlertTitle>The assistant could not answer</AlertTitle>
-            <AlertDescription>{snapshot.error.message}</AlertDescription>
-            <AlertAction>
-              <Button
-                variant="outline"
-                size="xs"
-                onPress={() => {
-                  void chat.client.reload()
-                }}
-              >
-                Try again
-              </Button>
-            </AlertAction>
-          </Alert>
-        )}
-        <ChatComposer chat={chat} />
-      </PanelFooter>
+        <PanelFooter className="flex-col items-stretch gap-2 border-t-0">
+          <Interrupts chat={chat} interrupts={snapshot.interrupts} />
+          <Announcements chat={chat} />
+          {snapshot.error !== undefined && <ReplyFailed chat={chat} error={snapshot.error} />}
+          <ChatComposer chat={chat} />
+        </PanelFooter>
+      </RenderBoundary>
     </Panel>
   )
 }
