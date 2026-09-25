@@ -39,6 +39,7 @@ const groups = useGroups()
 useAction({
   name: 'export-results',
   label: 'Export results',
+  description: 'Exports the simulation results to a file the user downloads.',
   canExecute: () =>
     groups.includes('well-planning.read')
       ? allow()
@@ -147,21 +148,59 @@ Recipe: [Log an event](/docs/log-an-event).
 ### useAction
 
 ```ts
-useAction(registration: ActionRegistration): void
+useAction<Input extends ActionInputSchema, Output>(
+  registration: ActionRegistration<Input, Output>,
+): ActionRun<Input, Output>
 ```
 
-Publishes one action into the shell's palette for as long as the component is rendered. `ActionRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the action for it while the page is inside your App, and ignores one from a Widget.
+Publishes one action for as long as the component is rendered. The shell lists it in the command palette and offers it to its agent as a tool. It returns a stable function that runs the action with the caller `'ui'`, for your own button.
 
-```ts title="examples/lab/src/routes/actions.tsx"
-useAction({
+| Field           | Type                                           | What it does                                                                                                                |
+| --------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `name`          | `string`                                       | Letters, digits and hyphens, starting with a letter. Unique within the mount.                                               |
+| `label`         | `string`                                       | The menu text. It must not be empty.                                                                                        |
+| `description`   | `string`, optional                             | For the agent: what the action does and when to use it.                                                                     |
+| `execute`       | `(input) => Output \| Promise<Output>`         | Does the work. It receives the parsed input, and what it returns is the result's `value`.                                   |
+| `canExecute`    | `() => Decision`, optional                     | Returns `allow()` or `deny(reason)`. A pure synchronous read of UI state, never an authorization check.                     |
+| `inputSchema`   | a `z.object`, optional                         | The values a call takes, checked before `execute` runs. Absent means the action takes none. Declare it at module scope.     |
+| `outputSchema`  | `z.ZodType<Output>`, optional                  | The value `execute` returns, checked after it runs.                                                                         |
+| `effect`        | `'read' \| 'write' \| 'destructive'`, optional | What a run can change. Undeclared counts as `'write'`.                                                                      |
+| `needsApproval` | `boolean \| (input) => boolean`, optional      | Whether an agent's call waits for the user's approval. Absent, a `'read'` runs and anything else asks.                      |
+| `parallelSafe`  | `boolean`, optional                            | Lets an agent's write run beside another. Without it, an agent's writes run one at a time.                                  |
+| `followUp`      | `boolean`, optional                            | Whether the agent carries on once it has the result. Defaults to `true`.                                                    |
+| `placements`    | `('palette' \| 'agent')[]`, optional           | Where the action is offered. Absent is `['palette', 'agent']`, and `[]` lists it nowhere.                                   |
+| `shortcut`      | `string`, optional                             | A chord such as `'mod+s'` or a sequence such as `'g r'`. It fires while the page is inside your App. A Widget's is ignored. |
+
+```ts title="examples/lab/src/routes/actions.tsx (trimmed)"
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
+
+const runSimulation = useAction({
   name: 'run-simulation',
   label: 'Run the simulation',
+  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+  inputSchema: simulationInput,
+  effect: 'read',
   canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
-  execute: () => {
-    record('Ran the simulation')
+  execute: ({ runs }) => {
+    record(`Ran the simulation ${runs} times`)
   },
 })
+
+void runSimulation({ runs: 10 })
 ```
+
+The returned run takes the input, which is optional when the schema accepts `{}`. It goes through the same steps as the palette, a shortcut and the agent: `canExecute`, then the input check, then `execute`. It resolves to an `ActionExecutionResult<Output>`:
+
+| `status`      | Carries  | When                                                                                                                                                           |
+| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executed`    | `value`  | `execute` ran. `value` is what it returned, parsed by `outputSchema` when there is one.                                                                        |
+| `denied`      | `reason` | `canExecute` refused. An agent's call is also denied when it is not placed for the agent, by the host's policy, or when it needs approval and nothing can ask. |
+| `declined`    | `reason` | The user was asked about an agent's call and said no.                                                                                                          |
+| `invalid`     | `error`  | The input did not match `inputSchema`, so nothing ran. The code is `contract/input-mismatch`.                                                                  |
+| `unavailable` | `error`  | The component that registered the action is gone, or went while an agent's call waited.                                                                        |
+| `failed`      | `error`  | `execute` threw, or its value did not match `outputSchema` (`contract/output-mismatch`).                                                                       |
+
+Approval applies to an agent's calls only. A user who runs the action from the palette, a shortcut or your button is its approval, so none of those asks. `ActionEffect`, `ActionInputSchema`, `ActionRun` and `ActionExecutionResult` are exported as types.
 
 Recipe: [Add an action to the palette](/docs/add-an-action).
 
@@ -172,7 +211,7 @@ allow(): Decision
 deny(reason: string): Decision
 ```
 
-Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user.
+Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user. An agent is told the same sentence.
 
 Recipe: [Add an action to the palette](/docs/add-an-action).
 

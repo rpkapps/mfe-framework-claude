@@ -101,13 +101,56 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `diagnostics` | the hub every framework failure reaches                                    |
 | `deadlines`   | the budget every mount runs under                                          |
 
-`actions.execute(id, { caller })` runs an action for whoever asked: `'palette'`,
-`'shortcut'`, `'ui'` or `'agent'`. Every caller goes through the same steps in
-`action-executor.ts` — `canExecute` decides, then `execute` runs — and gets back
-`executed` with the `value` `execute` returned, `denied` with the reason,
-`unavailable` when the action is gone, or `failed`. A denial reaches
-`notifyActionDenial` only when a user asked; an agent hears the reason in the
-result.
+`actions.execute(id, { caller, input })` runs an action for whoever asked:
+`'palette'`, `'shortcut'`, `'ui'` or `'agent'`. Every caller goes through the
+same steps in `action-executor.ts`: `canExecute` decides, the input is parsed
+with the action's `inputSchema` (absent input is `{}`), and `execute` runs with
+the parsed value. The result is one of these:
+
+| Status        | When                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `executed`    | `execute` ran; `value` is its return, parsed by `outputSchema` if any                   |
+| `denied`      | `canExecute`, the placements or the policy refused, or nothing could ask; with `reason` |
+| `declined`    | the user was asked about an agent's call and said no                                    |
+| `invalid`     | the input failed `inputSchema` (`contract/input-mismatch`); nothing ran                 |
+| `unavailable` | the action is gone, or its mount went while an agent's call waited                      |
+| `failed`      | `execute` threw, or its value failed `outputSchema` (`contract/output-mismatch`)        |
+
+A denial reaches `notifyActionDenial` only when a user asked; an agent hears the
+reason in the result.
+
+An agent's call takes two more steps. An action not placed for `'agent'` is
+denied. Then approval: a `'read'` runs, anything else asks, unless the action's
+`needsApproval` says otherwise. The host's `actionApprovalPolicy` sees each call
+with that declared ruling and may return `'approve'`, `'ask'`,
+`{ deny: reason }`, or `undefined` to keep it. Asking goes to the approver set
+with `actions.setApprover(fn)`, the chat's card, which resolves whether the user
+approved; with none set, the call is denied rather than run. An agent's writes
+then run one at a time unless `parallelSafe`, and a call that waited is looked at
+again first: a mount that went away returns `unavailable`, and a `canExecute`
+that changed denies. A user who runs an action is its approval, so the palette,
+a shortcut and the App's own UI never ask and never queue.
+
+```ts
+const { runtime } = createMfeRuntime({
+  // …
+  notifyActionDenial: notice => toast.warning(notice.label, { description: notice.reason }),
+  // `undefined` keeps what the action declared.
+  actionApprovalPolicy: request =>
+    request.effect === 'destructive' ? { deny: 'Ask a person to do this.' } : undefined,
+})
+
+// `confirmInChat` is the host's own: it resolves true when the user approves.
+const removeApprover = runtime.actions.setApprover(request => confirmInChat(request))
+```
+
+Each `ActionEntry` in `actions.getSnapshot()` carries what an agent's tool list
+needs: `description`, `effect` (undeclared is `'write'`), `followUp`,
+`placements` (absent is `['palette', 'agent']`), and `inputSchema` and
+`outputSchema` as JSON Schema. The registry converts a schema with its own
+`toJSONSchema` only when the schema's identity changes, and refuses one JSON
+Schema cannot express at registration. `actionEntryEqual` compares all of them,
+so a changed description is published and a closure's new identity is not.
 
 A host listens for `keydown` once and calls `actions.handleKeyDown(event)`,
 which runs the action whose `shortcut` the keys complete. The host page's

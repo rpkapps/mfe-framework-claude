@@ -114,7 +114,7 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 | `useUser()`, `useGroups()`, `useTheme()`            | one shell-state field each                               |
 | `useStoredState(name, schema, options)`             | validated state under the definition's storage scope     |
 | `useMfeStorage()`                                   | the imperative storage handle                            |
-| `useAction(registration)`                           | an action in the shell's palette                         |
+| `useAction(registration)`                           | an action for the palette and the agent, and its run     |
 | `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                      |
 | `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                       |
 | `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal            |
@@ -123,6 +123,37 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 
 Shell-state, storage, action and breadcrumb hooks also work outside a mount,
 in the reserved `@host` scope, given an `MfeProvider` above them.
+
+`useAction` publishes an action to the palette and, unless its `placements` say
+otherwise, to the shell's agent as a tool. `description` is written for the
+agent, while `label` stays the menu text. `inputSchema` is one `z.object`,
+declared at module scope, that every call's input is parsed with before
+`execute` receives it; `outputSchema` checks the value `execute` returns.
+`effect` is `'read'`, `'write'` or `'destructive'`, and an undeclared one counts
+as `'write'`, so the agent asks the user before each call. `needsApproval`,
+`parallelSafe` and `followUp` tune the agent's calls further.
+
+It returns a stable `ActionRun` with the caller `'ui'`, for the App's own
+button: a click shares `canExecute`, validation and the denial notice with the
+palette, the keys and the agent. The input is optional when the schema accepts
+`{}`, and a run after the mount has gone resolves `unavailable`. The package
+exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+`ActionExecutionResult` as types.
+
+```tsx
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
+
+const runSimulation = useAction({
+  name: 'run-simulation',
+  label: 'Run the simulation',
+  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+  inputSchema: simulationInput,
+  effect: 'read',
+  execute: ({ runs }) => simulate(runs),
+})
+
+return <Button onPress={() => void runSimulation({ runs: 10 })}>Run 10 times</Button>
+```
 
 An action can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such
 as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. `useAction` passes it
@@ -135,6 +166,7 @@ host page already uses, each with a diagnostic.
 useAction({
   name: 'open-wells',
   label: 'Operations: open the wells inventory',
+  effect: 'read',
   shortcut: 'o w',
   execute: () => void navigate({ to: '/wells' }),
 })

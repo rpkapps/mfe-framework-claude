@@ -254,17 +254,51 @@ use, throws at the call site.
 All of them are called in an injection context — a constructor or a field
 initialiser — and clean up with the injector that created them.
 
-| Function                                          | Gives                                                                 | Outside a mount   |
-| ------------------------------------------------- | --------------------------------------------------------------------- | ----------------- |
-| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                              | host scope        |
-| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws       | host scope        |
-| `injectAction(registration \| () => …)`           | a palette action; a factory re-publishes when the signals it reads do | host scope        |
-| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override       | host crumbs, at 0 |
-| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`    | throws            |
-| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                         | throws            |
-| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle    | throws            |
-| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                          | throws            |
-| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)    | runtime only      |
+| Function                                          | Gives                                                               | Outside a mount   |
+| ------------------------------------------------- | ------------------------------------------------------------------- | ----------------- |
+| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                            | host scope        |
+| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws     | host scope        |
+| `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
+| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override     | host crumbs, at 0 |
+| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
+| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
+| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle  | throws            |
+| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                        | throws            |
+| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)  | runtime only      |
+
+**An action and its run.** `injectAction` takes the registration `useAction`
+takes. It publishes the action to the palette and, unless its `placements` say
+otherwise, to the shell's agent as a tool. `description` is written for the
+agent, `inputSchema` (one `z.object`, at module scope) parses every call's input
+before `execute` receives it, and `outputSchema` checks the returned value.
+`effect` is `'read'`, `'write'` or `'destructive'`; an undeclared one counts as
+`'write'`, so the agent asks the user before each call. It returns an
+`ActionRun` with the caller `'ui'`, for the component's own button, so a click
+shares `canExecute`, validation and the denial notice with every other caller.
+After the component is destroyed the run resolves `unavailable`. The package
+exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+`ActionExecutionResult` as types.
+
+```ts
+@Component({
+  selector: 'fieldwork-overview',
+  template: `<p-button label="Log inspection" (onClick)="logInspectionAction()" />`,
+})
+export class OverviewComponent {
+  protected readonly padId = signal<string | null>(null)
+  protected readonly logInspectionAction: ActionRun
+
+  constructor() {
+    this.logInspectionAction = injectAction(() => ({
+      name: 'log-inspection',
+      label: 'Fieldwork: log an inspection at the chosen pad',
+      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
+      canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
+      execute: () => this.logInspection(),
+    }))
+  }
+}
+```
 
 **An action's shortcut.** `injectAction` passes the registration through as it
 is, so `shortcut` works as in any adapter: a chord such as `'mod+s'` or a

@@ -115,13 +115,53 @@ cleans up with the injector that created it.
 | ------------------------------------------------- | ------------------------------------------------------------------ |
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                           |
 | `injectStoredState(name, schema, options)`        | `{ value, set, remove }`, stored under the definition's scope      |
-| `injectAction(registration)`                      | an action in the shell's palette                                   |
+| `injectAction(registration \| () => …)`           | an action for the palette and the agent, and a run for your button |
 | `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
 | `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
 | `injectBasePath()`, `injectMfeStorage(area)`      | the boundary, `''` for a Widget, and the imperative storage handle |
 | `injectWidgetEmit()`                              | the Widget's validating emit                                       |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
+
+`injectAction` takes the registration `useAction` takes, or a factory that returns one. A factory
+runs again when a signal it reads changes, so the palette sees a new `canExecute` decision. The
+fields are listed under [useAction](/docs/reference/hooks-and-components#useaction).
+
+```ts title="examples/fieldwork/src/overview.component.ts (trimmed)"
+import { allow, deny, injectAction, type ActionRun } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-overview',
+  imports: [Button],
+  template: `<p-button label="Log inspection" (onClick)="logInspectionAction()" />`,
+})
+export class OverviewComponent {
+  protected readonly padId = signal<string | null>(null)
+  protected readonly logInspectionAction: ActionRun
+
+  constructor() {
+    this.logInspectionAction = injectAction(() => ({
+      name: 'log-inspection',
+      label: 'Fieldwork: log an inspection at the chosen pad',
+      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
+      shortcut: 'f l',
+      canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
+      execute: () => {
+        this.logInspection()
+      },
+    }))
+  }
+}
+```
+
+`injectAction` returns an `ActionRun`, a function that runs the action with the caller `'ui'`.
+Call it from your own button, and the click goes through the same checks as the palette, the keys
+and the agent. It resolves an `ActionExecutionResult`, and `unavailable` once the component is
+destroyed.
+
+This action declares no `effect`, so it counts as a write, and the agent asks the user before it
+logs an inspection. `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+`ActionExecutionResult` are exported as types.
 
 A registration passed to `injectAction` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
 shell runs the action for it while the page is inside your App, the same way the palette runs it.

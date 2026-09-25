@@ -58,7 +58,7 @@ The build checks the declared keys, and the mount boundary checks the parsed one
 
 ## Action names
 
-An action name is letters, digits and hyphens, starting with a letter, for example `refresh`. The runtime qualifies it internally, so the local name has to be unambiguous on its own. One mount may not register two actions with one name. `label` must not be empty, and `palette` is the only standard placement.
+An action name is letters, digits and hyphens, starting with a letter, for example `refresh`. The runtime qualifies it internally, so the local name has to be unambiguous on its own. One mount may not register two actions with one name. `label` must not be empty. The standard placements are `palette` and `agent`, and the effects are `read`, `write` and `destructive`. An action's `inputSchema` is a `z.object`, and both its schemas must be expressible as JSON Schema: no dates, functions or transforms.
 
 ## JSON-only payloads
 
