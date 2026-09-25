@@ -118,6 +118,16 @@ the parsed value. The result is one of these:
 | `unavailable` | the action is gone, or its mount went while an agent's call waited                      |
 | `failed`      | `execute` threw, or its value failed `outputSchema` (`contract/output-mismatch`)        |
 
+The promise never rejects: a host hook or a schema's own check that throws fails
+the run (`mount/failure`), and the run is audited like any other.
+
+`register` returns an `ActionRegistrationHandle`: `update(registration)` after
+each commit, validated as `register` is, `remove()`, `qualifiedId`, and
+`execute(call)`, which runs this registration and no other. Two mounts of one
+definition may each register a name: the first is `<definitionId>:<name>`, the
+second `<definitionId>:<name>-2`, then `-3`, so running by id reaches the mount
+the id names. Once removed, the handle's run is `unavailable`.
+
 A denial reaches `notifyActionDenial` only when a user asked; an agent hears the
 reason in the result, and the host's own code reads it there.
 
@@ -125,12 +135,13 @@ An agent's call takes two more steps. An action not placed for `'agent'` is
 denied. Then approval: a `'read'` runs, anything else asks, unless the action's
 `needsApproval` says otherwise. The host's `actionApprovalPolicy` sees each call
 with that declared ruling and may return `'approve'`, `'ask'`,
-`{ deny: reason }`, or `undefined` to keep it. Asking goes to the approver set
+`{ deny: reason }`, or `undefined` to keep it; a policy that throws denies.
+Asking goes to the approver set
 with `actions.setApprover(fn)`, the chat's card, which resolves whether the user
 approved; with none set, the call is denied rather than run. An agent's writes
 then run one at a time unless `parallelSafe`, and a call that waited is looked at
-again first: a mount that went away returns `unavailable`, and a `canExecute`
-that changed denies. A user who runs an action is its approval, so the palette,
+again first: a mount that went away returns `unavailable`, and a placement or a
+`canExecute` that changed denies. A user who runs an action is its approval, so the palette,
 a shortcut and the App's own UI never ask and never queue.
 
 ```ts
@@ -152,7 +163,7 @@ included. The record (`ActionAuditRecord`) says who acted (`actor`: `'user'`,
 `userId`, the chat `turn` an agent's call passed, the `outcome` with its
 `reason` or `errorCode`, the `input` with credentials redacted (`redactInput`:
 values under keys such as `password`, `apiKey` or `token`, and any string that
-is a bearer header, a JWT or a private key), `startedAt` and `durationMs`. The
+is a bearer or basic header of one token, a JWT or a private key), `startedAt` and `durationMs`. The
 runtime reports it to the telemetry provider as a `framework` record, operation
 `run action`, at `info` when it ran and `warn` otherwise, and hands it to the
 host's `auditAction`, whose backend stores it:
@@ -191,8 +202,9 @@ mounts publish with `register(owner, registration)`, or the host page with
 `registerHost(registration)`, and `getSnapshot`/`subscribe` expose them alone.
 A value is parsed by its schema and must be JSON of at most
 `MAX_AGENT_CONTEXT_LENGTH` (4096) characters; one that is not is left out and
-reported once as a `contract/input-mismatch` warning, and an empty description
-throws that code. An equal value publishes nothing, and `capturedAt` moves only
+reported once as a `contract/input-mismatch` warning. An empty description
+throws that code at registration; an update that empties it is left out and
+reported the same way. An equal value publishes nothing, and `capturedAt` moves only
 when the value changes. `removeMount(token)` takes a mount's selections and
 boundary with it, as `mountScopedStores` does on disposal.
 

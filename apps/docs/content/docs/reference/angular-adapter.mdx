@@ -159,8 +159,9 @@ export class OverviewComponent {
 
 `injectAction` returns an `ActionRun`, a function that runs the action with the caller `'ui'`.
 Call it from your own button, and the click goes through the same checks as the palette, the keys
-and the agent. It resolves an `ActionExecutionResult`, and `unavailable` once the component is
-destroyed.
+and the agent. It runs this injector's registration, even when another mount of your definition
+registered the same name. It resolves an `ActionExecutionResult`, never rejects, and resolves
+`unavailable` once the component is destroyed.
 
 This action declares no `effect`, so it counts as a write, and the agent asks the user before it
 logs an inspection. `ActionEffect`, `ActionInputSchema`, `ActionRun` and

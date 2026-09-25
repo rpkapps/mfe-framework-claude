@@ -7,3 +7,5 @@ New package: the shell's connection to the agent (§49): a chat client with TanS
 - `ChatClient`, `fetchServerSentEvents` and `useChat` (`/react`), with messages as `parts` and approvals as `interrupts`.
 - `actionTools`, `approvalsIn` and `agentContextOf` (`/actions`) connect the action registry and agent context.
 - The client talks to any AG-UI backend.
+- Sends queue: one run is in flight at a time, and a turn runs the page's tools one at a time. Every interrupt the last run ended on that nobody answered is resumed as cancelled by the next run; `clear()` starts a thread with none to resume.
+- A throw from `tools`, a tool's `followUp` or the connection's headers function fails the turn (`error`, `status: 'error'`, `onError`) rather than rejecting `sendMessage`. The connection, thread and initial messages are fixed when the client is made; `updateOptions` takes the rest.

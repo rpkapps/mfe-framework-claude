@@ -12,6 +12,10 @@ development configuration points its chat at `http://localhost:3011/agent`. On i
 pnpm --filter @company/agent-dev start
 ```
 
+It answers `POST /agent` and the browser's preflight: another path is 404 and another method 405.
+A body over 8 MB is 413, and one that is not an AG-UI `RunAgentInput` is 400, before any model is
+called.
+
 ## Three models
 
 - **The demo agent** (the default) is a script, not a model: no key, no network. It reads the

@@ -58,7 +58,7 @@ The build checks the declared keys, and the mount boundary checks the parsed one
 
 ## Action names
 
-An action name is letters, digits and hyphens, starting with a letter, for example `refresh`. The runtime qualifies it internally, so the local name has to be unambiguous on its own. One mount may not register two actions with one name. `label` must not be empty. The standard placements are `palette` and `agent`, and the effects are `read`, `write` and `destructive`. An action's `inputSchema` is a `z.object`, and both its schemas must be expressible as JSON Schema: no dates, functions or transforms.
+An action name is letters, digits and hyphens, starting with a letter, for example `refresh`. The runtime qualifies it as `<definitionId>:<name>`, so the local name has to be unambiguous on its own. One mount may not register two actions with one name. Two mounts of one definition may: the second mount's action gets the id `<definitionId>:<name>-2`, so the palette and the agent see two actions, and each runs its own mount's. `label` must not be empty. The standard placements are `palette` and `agent`, and the effects are `read`, `write` and `destructive`. An action's `inputSchema` is a `z.object`, and both its schemas must be expressible as JSON Schema: no dates, functions or transforms.
 
 ## JSON-only payloads
 
@@ -99,11 +99,11 @@ A computed value fails the build with the file, the line and the column. A schem
 
 The build also publishes `inputSchema` and `outputSchema` in the registry entry, as JSON Schema. There, a schema it cannot read does not fail the build. The build leaves it out instead:
 
-| What you wrote                                             | What the registry entry carries                                |
-| ---------------------------------------------------------- | -------------------------------------------------------------- |
-| an `inputSchema` the build cannot read, like `.refine(…)`  | no `contract.inputSchema`. A host asks for the inputs as JSON. |
-| a spread or a computed key in the `outputSchema` object    | no `contract.outputSchema`. A host cannot list your outputs.   |
-| an output payload the build cannot read, like `.refine(…)` | that output with `{}`, shown as "payload not published".       |
+| What you wrote                                                                                                              | What the registry entry carries                                |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| an `inputSchema` the build cannot read, like `.refine(…)`                                                                   | no `contract.inputSchema`. A host asks for the inputs as JSON. |
+| a spread or a computed key in the `outputSchema` object, or a method that changes its keys, like `.extend(…)` or `.omit(…)` | no `contract.outputSchema`. A host cannot list your outputs.   |
+| an output payload the build cannot read, like `.refine(…)`                                                                  | that output with `{}`, shown as "payload not published".       |
 
 Your Widget still validates every input and payload in all three cases. Only a host reading the registry knows less.
 

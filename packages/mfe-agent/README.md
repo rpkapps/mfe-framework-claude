@@ -28,6 +28,10 @@ In React, `useChat(options)` from `@company/mfe-agent/react` returns the snapsho
 `status`, `isLoading`, `error`, `interrupts`) and the methods (`sendMessage`, `reload`, `stop`,
 `clear`, `setMessages`, `requestApproval`).
 
+The connection (its URL, `fetch` and headers function), the thread and the initial messages are
+fixed when the client is made. `updateOptions`, which `useChat` calls on every render, takes the
+rest. The headers function is called before each run.
+
 ## The API is TanStack AI's
 
 The names and shapes follow [TanStack AI](https://github.com/TanStack/ai)'s client (`@tanstack/ai-client`, `@tanstack/ai-react`), so its documentation reads across. Only the API is copied, not the code. The source comments say which TanStack AI name each piece follows.
@@ -53,8 +57,9 @@ Where it differs, it is because our design does:
   `source: 'backend'`. Both are `tool-approval` interrupts, so one card renders both.
 - **`agentContext`** is sent as AG-UI `context`. TanStack AI's `context` is something else: a value
   handed to tools.
-- **Not copied:** queued sends, persistence adapters, subagents, structured output and
-  `addToolResult`.
+- **Not copied:** the send queue's API (`queue`, `cancelQueued`, `whenBusy`; a message sent
+  here simply waits for the turn before it), persistence adapters, subagents, structured output
+  and `addToolResult`.
 
 ## What a turn does
 
@@ -79,7 +84,9 @@ agent to talk over. The answers still reach the backend, with the next run.
 the transcript: what a page attached to a prompt, or the text the user selected.
 
 A message sent while a turn runs waits for it to end, so one run is in flight at a time; a
-backend's question still open is abandoned first. The page's tools run one at a time.
+backend's question still open is abandoned first. The page's tools run one at a time. A throw from
+`tools`, a tool's `followUp` or the headers function fails the turn, as a failed run does: it sets
+`error` and `status: 'error'` and calls `onError`. `sendMessage` rejects only if `onError` throws.
 
 Stopping a turn answers the page's open questions as declined, and answers any call that never
 ran as stopped. Every interrupt the last run ended on that nobody answered (the user stopped, or

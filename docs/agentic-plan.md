@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** all but G has landed. Steps 0 to 7 and features A to F (§39–§53); the AG-UI spike ran (`tools/agent-spike`) and picked the agent package, `@company/mfe-agent` (§49). G, external agents, is next. Each step that landed has its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** all but G has landed. Steps 0 to 7 and features A to F (§39–§53); the AG-UI spike ran and picked the agent package, `@company/mfe-agent` (§49); its findings are in `agent-spike.md`, and its code is gone. G, external agents, is next. Each step that landed has its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -143,13 +143,13 @@ The build publishes each App's route paths and search-param schemas into the reg
 
 ### E. The chat host in the shell (done, §50, §52)
 
-As landed: `apps/shell/src/chat`, one conversation for the page (`ShellChat`) in an aside beside the mounted App or a sheet, with Tecton's conversation components and its new `Composer`; the navigate tool through the router; approvals, prompts, ⌘I and tool discovery as below; suggestions through `useAgentSuggestions` / `injectAgentSuggestions`; the agent libraries confined to the chat module by lint; `tools/agent-dev` as the development backend. The selected text is quoted into the message rather than sent unseen, so it stays in the conversation.
+As landed: `apps/shell/src/chat`, one conversation for the page (`ShellChat`) in an aside beside the mounted App or a sheet, with Tecton's conversation components and its new `Composer`; the navigate tool through the router; approvals, prompts, ⌘I and tool discovery as below; suggestions through `useAgentSuggestions` / `injectAgentSuggestions`; the agent libraries confined to the chat module by lint; `tools/agent-dev` as the development backend. The selected text is quoted into the message rather than sent unseen, so it stays in the conversation. The tools are read again before every run, not every write, and a call to an action whose mount has gone since is answered `unavailable`, never retried. The examples' `ai-agent-panel` is gone. The chat loads on first use, so the shell's boot path carries only the panel's state (§50).
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
 - Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), through `@company/mfe-agent` (§49): the plain `@ag-ui/client` underneath, with TanStack AI's client API (`ChatClient`, `useChat`, `parts`, the tool-call stages, interrupts) copied on top. It was first expected to be TanStack AI's client itself; the spike below showed that client works against TanStack AI's own backend only.
 - A one-day spike comes first. It proves one page action called by a backend agent, executed through the pipeline and its result returned; one approval and one interrupt; that approval happens once, deciding whether TanStack AI's `needsApproval` interrupt or the pipeline's approval step drives the card; and that the shell's chat works against an AG-UI server that is not TanStack AI, ideally a minimal .NET one on Microsoft's Agent Framework host.
 
-  Spike result (`tools/agent-spike`, its README has the findings), against a TanStack AI backend, a spec-only one and Agent Framework's .NET host:
+  Spike result (`agent-spike.md` has the findings), against a TanStack AI backend, a spec-only one and Agent Framework's .NET host:
   - A page action called by the agent runs through the pipeline with every backend, and its result returns as the tool message.
   - Approval happens once. The pipeline's step drives the card for a page action, because page tools cross as plain AG-UI tools with no approval flag, so `needsApproval` stays on the backend's own tools. The backend's interrupt drives the same card for a domain tool. One resume payload, `{ approved, toolCall }`, answers both backends.
   - TanStack AI's client runs a page tool only when it arrives as TanStack's own interrupt. It leaves a spec backend's pending call unrun, never sends AG-UI `context`, and can answer another backend's interrupt only through an unsafe escape hatch.

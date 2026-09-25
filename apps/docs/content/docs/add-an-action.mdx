@@ -81,8 +81,9 @@ const acknowledge = useAction({
 return <Button onPress={() => void acknowledge()}>Acknowledge</Button>
 ```
 
-`useAction` returns a function that runs the action through the palette's checks. It resolves to
-one result:
+`useAction` returns a function that runs the action through the palette's checks. It runs this
+component's action, even when the Widget is mounted twice. It never rejects, and resolves to one
+result:
 
 | `status`      | What happened                                                                       |
 | ------------- | ----------------------------------------------------------------------------------- |

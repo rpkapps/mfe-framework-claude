@@ -297,7 +297,7 @@ with an arrow labelled **registry.json** into a panel **The neutral runtime**
 **Shared services** ("storage, actions, navigation, diagnostics"), **Federation loader**
 (`createFederationContainerLoader`) and **One mount path** (`mountDefinition`). An arrow
 labelled **detect, parse** drops into a dashed panel **The adapters** ("exactly one recognises
-each entry; any order"), holding **The React adapter** (`mfe.framework 'react', or none`),
+each entry; any order"), holding **The React adapter** (`mfe.framework 'react'`),
 **The Angular adapter** (`mfe.framework 'angular'`) and **The legacy Angular adapter** ("no mfe
 key; removable"). An arrow labelled **defines, mounts** drops from each of the first two to a
 blue container: `operations` ("a React App, with its own root") and **an Nx container** ("an

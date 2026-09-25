@@ -1345,7 +1345,7 @@ async function adapters() {
     caption: 'exactly one recognises each entry; any order',
   })
   const adapterTiles = [
-    ['The React adapter', "mfe.framework 'react', or none", true],
+    ['The React adapter', "mfe.framework 'react'", true],
     ['The Angular adapter', "mfe.framework 'angular'", true],
     ['The legacy Angular adapter', 'no mfe key; removable', false],
   ].map(([name, subtitle, subtitleMono], position) =>

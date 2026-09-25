@@ -278,7 +278,9 @@ before `execute` receives it, and `outputSchema` checks the returned value.
 `'write'`, so the agent asks the user before each call. It returns an
 `ActionRun` with the caller `'ui'`, for the component's own button, so a click
 shares `canExecute`, validation and the denial notice with every other caller.
-After the component is destroyed the run resolves `unavailable`. The package
+It runs this injector's registration, even when another mount of the
+definition registered the same name, and never rejects. After the component is
+destroyed the run resolves `unavailable`. The package
 exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
 `ActionExecutionResult` as types.
 

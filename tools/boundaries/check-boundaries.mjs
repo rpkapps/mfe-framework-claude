@@ -118,6 +118,7 @@ const RULES = [
   {
     package: '@company/mfe-build',
     forbidden: [
+      ...AGENT_LIBRARIES,
       'react',
       'react-dom',
       '@tanstack/',
@@ -134,7 +135,19 @@ const RULES = [
       '@tecton/react',
     ],
     reason:
-      'The neutral build layer is shared by every build integration, so it imports no UI framework, router, bundler, design system or integration: what differs between them reaches it through the profile each integration passes in.',
+      'The neutral build layer is shared by every build integration, so it imports no UI framework, router, bundler, design system, integration or agent library: what differs between them reaches it through the profile each integration passes in.',
+  },
+  {
+    package: '@company/mfe-rspack',
+    forbidden: [...AGENT_LIBRARIES],
+    reason:
+      'A build integration builds containers; the agent is reached at run time, through actions.',
+  },
+  {
+    package: '@company/mfe-nx',
+    forbidden: [...AGENT_LIBRARIES],
+    reason:
+      'A build integration builds containers; the agent is reached at run time, through actions.',
   },
   {
     package: '@company/mfe-react',

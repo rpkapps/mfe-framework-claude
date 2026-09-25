@@ -5,7 +5,7 @@
 
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { allow, deny, HOST_SCOPE, type ActionRegistration } from '@company/mfe-core'
 import type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 import { z } from 'zod'
@@ -350,6 +350,35 @@ describe('the run useAction returns', () => {
     )
 
     await expect(runs.at(-1)?.()).resolves.toEqual({ status: 'executed', value: 'mine' })
+  })
+
+  it('runs its own mount’s action when a child calls it from an effect, before it registered', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    created.runtime.actions.register(
+      { definitionId: 'alerts', mountToken: 'other-mount', kind: 'widget', basePath: '' },
+      { name: 'acknowledge', label: 'Acknowledge', execute: () => 'other' },
+    )
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function Parent(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' })
+      return <Child run={run} />
+    }
+    render(
+      <Mounted>
+        <Parent />
+      </Mounted>,
+    )
+
+    await expect(result).resolves.toEqual({ status: 'executed', value: 'mine' })
   })
 
   it('resolves unavailable once the component that registered it is gone', async () => {

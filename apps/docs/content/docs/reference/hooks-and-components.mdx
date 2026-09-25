@@ -153,7 +153,7 @@ useAction<Input extends ActionInputSchema, Output>(
 ): ActionRun<Input, Output>
 ```
 
-Publishes one action for as long as the component is rendered. The shell lists it in the command palette and offers it to its agent as a tool. It returns a stable function that runs the action with the caller `'ui'`, for your own button.
+Publishes one action for as long as the component is rendered. The shell lists it in the command palette and offers it to its agent as a tool. It returns a stable function that runs the action with the caller `'ui'`, for your own button. The function runs this component's registration, even when another mount of your definition registered the same name.
 
 | Field           | Type                                           | What it does                                                                                                                |
 | --------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -189,18 +189,18 @@ const runSimulation = useAction({
 void runSimulation({ runs: 10 })
 ```
 
-The returned run takes the input, which is optional when the schema accepts `{}`. It goes through the same steps as the palette, a shortcut and the agent: `canExecute`, then the input check, then `execute`. It resolves to an `ActionExecutionResult<Output>`:
+A field changed on a later render is checked as it was at registration, and one the registry cannot accept throws. The returned run takes the input, which is optional when the schema accepts `{}`. It goes through the same steps as the palette, a shortcut and the agent: `canExecute`, then the input check, then `execute`. It resolves to an `ActionExecutionResult<Output>`:
 
-| `status`      | Carries  | When                                                                                                                                                           |
-| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `executed`    | `value`  | `execute` ran. `value` is what it returned, parsed by `outputSchema` when there is one.                                                                        |
-| `denied`      | `reason` | `canExecute` refused. An agent's call is also denied when it is not placed for the agent, by the host's policy, or when it needs approval and nothing can ask. |
-| `declined`    | `reason` | The user was asked about an agent's call and said no.                                                                                                          |
-| `invalid`     | `error`  | The input did not match `inputSchema`, so nothing ran. The code is `contract/input-mismatch`.                                                                  |
-| `unavailable` | `error`  | The component that registered the action is gone, or went while an agent's call waited.                                                                        |
-| `failed`      | `error`  | `execute` threw, or its value did not match `outputSchema` (`contract/output-mismatch`).                                                                       |
+| `status`      | Carries  | When                                                                                                                                                                                   |
+| ------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executed`    | `value`  | `execute` ran. `value` is what it returned, parsed by `outputSchema` when there is one.                                                                                                |
+| `denied`      | `reason` | `canExecute` refused. An agent's call is also denied when it is not placed for the agent, by the host's policy or a policy that throws, or when it needs approval and nothing can ask. |
+| `declined`    | `reason` | The user was asked about an agent's call and said no.                                                                                                                                  |
+| `invalid`     | `error`  | The input did not match `inputSchema`, so nothing ran. The code is `contract/input-mismatch`.                                                                                          |
+| `unavailable` | `error`  | The component that registered the action is gone, or went while an agent's call waited.                                                                                                |
+| `failed`      | `error`  | `execute` threw, its value did not match `outputSchema` (`contract/output-mismatch`), or a schema's own check or a host hook threw (`mount/failure`).                                  |
 
-Approval applies to an agent's calls only. A user who runs the action from the palette, a shortcut or your button is its approval, so none of those asks. `ActionEffect`, `ActionInputSchema`, `ActionRun` and `ActionExecutionResult` are exported as types.
+The promise never rejects: every outcome is one of these results, and every run is audited. Approval applies to an agent's calls only. A user who runs the action from the palette, a shortcut or your button is its approval, so none of those asks. `ActionEffect`, `ActionInputSchema`, `ActionRun` and `ActionExecutionResult` are exported as types.
 
 Recipe: [Add an action to the palette](/docs/add-an-action).
 
@@ -239,7 +239,7 @@ useAgentContext({
 })
 ```
 
-The agent receives an `AgentContextEntry`: `{ definitionId, description, value, capturedAt }`, where `capturedAt` is the ISO time the value last changed. A value that fails its schema, is not JSON or is too long is left out, and reported once as a warning with `contract/input-mismatch`. An empty `description` throws the same code. The entry goes when the component unmounts or the mount is disposed. Outside a mount, it belongs to the host page. Never publish whole records or secrets: offer a read action that takes the id instead.
+The agent receives an `AgentContextEntry`: `{ definitionId, description, value, capturedAt }`, where `capturedAt` is the ISO time the value last changed. A value that fails its schema, is not JSON or is too long is left out, and reported once as a warning with `contract/input-mismatch`. An empty `description` throws the same code on the first render. One that becomes empty later is left out and reported, as a bad value is. The entry goes when the component unmounts or the mount is disposed. Outside a mount, it belongs to the host page. Never publish whole records or secrets: offer a read action that takes the id instead.
 
 Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
 

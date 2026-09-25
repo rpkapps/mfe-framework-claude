@@ -187,8 +187,9 @@ operations failed to publish agent context: expected a description of what the v
 an empty string.
 ```
 
-**Fix.** Say what the value is, such as "The wells the user has selected". The hook throws, and
-the code is `contract/input-mismatch`.
+**Fix.** Say what the value is, such as "The wells the user has selected". On the first render the
+hook throws. A description that becomes empty later is left out and reported as a warning. The code
+is `contract/input-mismatch`.
 
 </Callout>
 

@@ -50,7 +50,8 @@ Versions tested: `@ag-ui/client` and `@ag-ui/core` 1.0.0, `@tanstack/ai` 0.58.0,
 4. **Library.** The plain AG-UI client, not TanStack AI's: it speaks the spec both ways, so a backend
    swap stays a backend change; it sends AG-UI `context`; it keeps history as AG-UI messages; and
    TanStack AI's client needs private paths against any other backend (findings 1 to 3). It costs
-   `rxjs`, `zod` 3, `uuid` and `fast-json-patch` in the shell, never in a container. TanStack AI
+   `rxjs`, `zod` 3, `uuid` and `fast-json-patch` in the shell, never in a container. (Since then an
+   override gives it the catalog's zod 4, so the shell ships one zod: docs/decisions.md §49.) TanStack AI
    stays a good choice for a TypeScript backend's loop. The AI SDK was not tried: it does not speak
    AG-UI.
 

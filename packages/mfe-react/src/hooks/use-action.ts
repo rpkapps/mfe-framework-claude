@@ -67,7 +67,9 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
   return useCallback(
     async (input?: unknown): Promise<ActionExecutionResult<Output>> => {
       const call = { caller: 'ui', input } as const
-      // Before the first registration, as from a child's effect, which runs before this one.
+      // Called from a child's effect, which runs before this one: the commit's effects all run
+      // before a microtask does, so by then this component has registered.
+      if (!handle.current) await Promise.resolve()
       const result = handle.current
         ? await handle.current.execute(call)
         : await actions.execute(`${definitionId ?? HOST_SCOPE}:${committed.current.name}`, call)

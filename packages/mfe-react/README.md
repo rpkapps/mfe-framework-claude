@@ -139,7 +139,9 @@ as `'write'`, so the agent asks the user before each call. `needsApproval`,
 It returns a stable `ActionRun` with the caller `'ui'`, for the App's own
 button: a click shares `canExecute`, validation and the denial notice with the
 palette, the keys and the agent. The input is optional when the schema accepts
-`{}`, and a run after the mount has gone resolves `unavailable`. The package
+`{}`. It runs this component's registration, even when another mount of the
+definition registered the same name, never rejects, and resolves `unavailable`
+after the component unmounts. The package
 exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
 `ActionExecutionResult` as types.
 

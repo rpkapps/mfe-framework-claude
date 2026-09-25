@@ -116,12 +116,12 @@ A capability is `{ name, label, path, icon? }`, where `name` is `settings`, `hel
 
 A route is `{ path, search? }`. `path` is App-relative and written the same way for every router: a parameter is `:name`, an optional one `:name?`, and a catch-all `*`. `search` is the JSON Schema of the search params the route reads, its parent routes' included. It is absent when the router declares none, as Angular's does not, or when the build could not read the schema. The shell uses `routes` to navigate, and to offer its agent the way to each page, before the App is loaded.
 
-| Router          | What the build reads                                                                                        |
-| --------------- | ----------------------------------------------------------------------------------------------------------- |
-| TanStack Router | every `createFileRoute('<path>')` in the routes directory, and each route's and the root's `validateSearch` |
-| Angular         | every route with a component in the array `createApp` receives, through inline `children`                   |
+| Router          | What the build reads                                                                                                                                                                                       |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TanStack Router | every `createFileRoute('<path>')` in the routes directory, and each route's and the root's `validateSearch`. Files the router's generator skips are skipped: a `-` prefix, a `*.test.*` or `*.spec.*` file |
+| Angular         | every route with a component in the array `createApp` receives, through inline `children`                                                                                                                  |
 
-A layout that adds no URL segment, a redirect and the `**` catch-all are not listed. Nor are the routes a lazy `loadChildren` module declares; the route that loads them is.
+A layout that adds no URL segment, a redirect and the `**` catch-all are not listed. The index route inside such a layout is. A parameter with a prefix or a suffix in its segment, such as `{$id}.json`, has no neutral spelling, so its route is not listed. Angular routes with a `matcher` or on a named outlet are not listed. Nor are the routes a lazy `loadChildren` module declares; the route that loads them is.
 
 ## How the build's record becomes an entry
 

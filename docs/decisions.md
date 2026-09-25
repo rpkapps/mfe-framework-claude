@@ -1235,29 +1235,35 @@ agent can reach too, and an action that should not be offered lists its placemen
 
 The executor's steps (§40) gain what they read. Every caller's input is parsed with
 the `inputSchema` (absent is `z.object({})`), and a mismatch returns `invalid`,
-reported with `contract/input-mismatch`, without running; `execute` receives what
-was parsed. A value that fails the `outputSchema` fails the run with
-`contract/output-mismatch`. For an agent's call alone, the executor refuses an
-action not placed for the agent, then rules on approval: a read runs, anything else
-asks, unless `needsApproval` says otherwise, and the host's `actionApprovalPolicy`
-may approve, deny with a reason, or ask instead. Asking goes to the approver the
+reported with `contract/input-mismatch`, without running; `execute` receives what was
+parsed. A value that fails the `outputSchema` fails the run with
+`contract/output-mismatch`. For an agent's call alone, the executor refuses an action
+not placed for the agent, then rules on approval: a read runs, anything else asks,
+unless `needsApproval` says otherwise, and the host's `actionApprovalPolicy` may
+approve, deny with a reason, or ask instead. A policy that throws denies, since it may
+exist to refuse what the user could otherwise approve. Asking goes to the approver the
 chat sets with `actions.setApprover`; with none, the call is denied rather than run,
 and a user who says no returns `declined`. An agent's writes then run one at a time,
-unless `parallelSafe`, and a call that waited is looked at again before it runs, so
-a mount that went away returns `unavailable` and a `canExecute` that changed denies.
-A user who runs an action is its approval, and a user's run may itself run another
-action, which a queue would deadlock, so neither step applies to the palette, a
-shortcut or the App's own UI.
+unless `parallelSafe`, and a call that waited is looked at again before it runs, so a
+mount that went away returns `unavailable`, and a placement or a `canExecute` that
+changed denies. A user who runs an action is its approval, and a user's run may itself
+run another action, which a queue would deadlock, so neither step applies to the
+palette, a shortcut or the App's own UI.
 
 `useAction` and `injectAction` return a run with the caller `'ui'`, so the App's own
 button shares validation, approval and audit with every other caller, and the result
-is typed by the action's schemas. The published entry carries `description`,
-`effect`, `followUp` and both schemas as JSON Schema, converted by the schema's own
-`toJSONSchema` (the container's Zod, not the runtime's) only when its identity
-changes, and `actionEntryEqual` compares all of them, so a changed description
-reaches the agent's tool list and an equal schema declared again inline publishes
-nothing. A schema JSON Schema cannot express is refused at registration, since the
-agent could not call the action.
+is typed by the action's schemas. The run goes through the registration's own handle
+(`ActionRegistrationHandle.execute`), not its id: two mounts of one definition may
+each register a name, and the second is `<definitionId>:<name>-2` (then `-3`), so the
+palette and the agent see two actions and a run by id reaches the mount it names. A
+removed handle runs nothing and returns `unavailable`. A run's promise never rejects:
+a hook or a schema that throws makes it `failed`, audited like any other. The
+published entry carries `description`, `effect`, `followUp` and both schemas as JSON
+Schema, converted by the schema's own `toJSONSchema` (the container's Zod, not the
+runtime's) only when its identity changes, and `actionEntryEqual` compares all of
+them, so a changed description reaches the agent's tool list and an equal schema
+declared again inline publishes nothing. A schema JSON Schema cannot express is
+refused at registration and on an update, since the agent could not call the action.
 
 Actions still live in the page and last as long as their mount: they are not server
 actions and cannot run headless, and `canExecute` is still a read of UI state, never
@@ -1289,8 +1295,9 @@ branches on it. The union widens, deliberately:
   express, or `register` given the reserved host scope.
 - `action/shortcut-refused` — a warning that a shortcut will not fire: a Widget's, one
   the host page uses, or one another live action claims.
-- `action/unavailable` — a run of an action no longer registered, from `execute` or
-  after an agent's call waited while its mount went away (which reported `mount/failure`).
+- `action/unavailable` — a run of an action no longer registered, from `execute`, from
+  its own handle once removed, or after an agent's call waited while its mount went away
+  (which reported `mount/failure`).
 
 **Cost:** three more codes in the union, each with a row on the error codes page.
 
@@ -1337,8 +1344,10 @@ imports included: `ai`, `openai` and `langchain` as exact paths, and `@tanstack/
 `@mastra/*` as patterns. The bare names are paths because, as a pattern, `ai` would
 match any import whose last segment is `ai`, `./ai` included. The `application()`
 preset, which the shell uses, leaves them allowed: E confines the library to the
-chat module there. A team's own backend is not linted by these presets and may use
-whatever it likes.
+chat module there. `pnpm boundaries` checks the same list in the manifests and sources
+of the core, the runtime, the adapters and the developer tools, and every one but
+`@ag-ui/*` in `@company/mfe-agent`. A team's own backend is not linted by these presets
+and may use whatever it likes.
 
 **Cost:** a list of package names to keep current as libraries appear; one that is
 missing is let through, not refused.
@@ -1364,7 +1373,9 @@ holds them, and `read()` assembles them when a turn is sent:
   is, the schema parses it, and what it parsed is what the agent gets, with a
   `capturedAt` that changes when the value does. It must be JSON of at most 4096
   characters: ids and a label, never whole records and never secrets. A value that is
-  not is left out and reported once, as a warning with `contract/input-mismatch`. The
+  not is left out and reported once, as a warning with `contract/input-mismatch`. An
+  empty `description` throws at registration; an update that empties it is left out and
+  reported the same way. The
   agent reads the records themselves through the App's read actions (§42), so it acts
   on live data rather than on a copy taken at render.
 - **Prompt handoff.** `useAgentPrompt()` and `injectAgentPrompt()` return a function
@@ -1401,8 +1412,9 @@ included.
 The input is recorded as the caller sent it, which is what an audit asks about, with
 credentials replaced by `[redacted]`: every value under a key whose words name one
 (`password`, `apiKey`, `x-api-key`, `client_secret`, `sessionId`; `author` and
-`compass` are not caught), and every string that is a bearer or basic header, a JWT or
-a PEM private key, whatever its key. Matching on the key's words rather than on
+`compass` are not caught), and every string that is a bearer or basic header (the
+scheme and one token, so a sentence that starts with "Basic" is kept), a JWT or a PEM
+private key, whatever its key. Matching on the key's words rather than on
 substrings keeps redaction from eating ordinary fields.
 
 The runtime reports each record to the telemetry provider as a `framework` record
@@ -1435,15 +1447,19 @@ owns no URL, and a path that is not App-relative.
 
 `path` is written one way whatever the router: `:name`, `:name?` and `*`, as
 `URLPattern` writes them, so a host and an agent read one syntax. The React integration
-reads every `createFileRoute('<path>')` in the routes directory and writes TanStack
-Router's own syntax in that one (`$id`, `{-$id}`, `$`), dropping the segments a
-pathless layout (`_auth`) or a group (`(admin)`) adds nothing for; such a layout is not
-a destination, so it is not listed itself. The Angular integration walks the array
-`createApp` receives through inline `children`, publishing each route with a component,
-and leaves out redirects, `**`, and what a lazy `loadChildren` declares.
+reads every `createFileRoute('<path>')` in the routes directory, skipping the files
+TanStack Router's generator skips (a `-` prefix, a colocated `*.test.*` or `*.spec.*`),
+and writes TanStack Router's own syntax in that one (`$id` and `{$id}`, `{-$id}`, `$`
+and `{$}`), dropping the segments a pathless layout (`_auth`) or a group (`(admin)`)
+adds nothing for. Such a layout is not a destination, so it is not listed itself, but
+the index route inside it is (`/_auth/` is `/`). The Angular integration walks the
+array `createApp` receives through inline `children`, publishing each route with a
+component, and leaves out redirects, `**`, routes with a `matcher` or on a named outlet,
+and what a lazy `loadChildren` declares.
 
 `search` is the JSON Schema of the params a route reads, merged over those of the
-routes it is nested in and of the root route, since TanStack Router validates them all:
+routes it is nested in and of the root route, since TanStack Router validates them all
+(an index route is nested in the route of its own path, and nothing is nested in it):
 read with the static reader (§37, §41) from `validateSearch`, through a module-level
 `const` or `zodValidator(…)`. A schema the build cannot read leaves the route published
 without `search` rather than failing the build, as it only helps the agent fill params
@@ -1455,7 +1471,9 @@ entry's route paths.
 
 **Cost:** code-based routes (`createRoute`) and routes behind `loadChildren` are not
 published, and the navigate tool cannot offer them; a route whose path is computed is
-not either.
+not either, nor one with a parameter that shares its segment with a prefix or a suffix
+(`{$id}.json`), which the neutral syntax cannot write, nor an Angular route with a
+`matcher` or on a named outlet.
 
 ---
 
@@ -1463,8 +1481,9 @@ not either.
 
 **Status:** decided; the first part of E in the agentic plan, after the AG-UI spike.
 
-The spike (`tools/agent-spike`) ran TanStack AI's client and the plain AG-UI client against a
-TanStack AI backend, a backend that speaks only the spec, and Agent Framework's .NET host.
+The spike (`docs/agent-spike.md`; its code is removed) ran TanStack AI's client and the plain
+AG-UI client against a TanStack AI backend, a backend that speaks only the spec, and Agent
+Framework's .NET host.
 TanStack AI's client worked with its own backend only. Against the others it left a page tool's
 call unrun, it never sent AG-UI `context`, and it could answer another backend's interrupt only
 through an escape hatch it calls unsafe. The plain client (`@ag-ui/client` 1.0) worked against
@@ -1495,11 +1514,13 @@ swappable. The author presets reject `@company/mfe-agent` in containers, and the
 runtime and the adapters may not depend on it. TanStack AI remains a good choice for a
 TypeScript backend's loop.
 
-**Cost:** the shell carries `@ag-ui/client` and its dependencies (`rxjs`, `zod` 3, `uuid`,
-`fast-json-patch`). We own the chat's state instead of taking TanStack AI's; the part of its
+**Cost:** the shell carries `@ag-ui/client` and its dependencies (`rxjs`, `uuid`,
+`fast-json-patch`). It asks for `zod` 3 but imports only `zod/v4`, which zod 4 exports too, so
+a pnpm override gives it the catalog's zod 4 and the shell ships one zod, not two (about 237 kB
+minified). We own the chat's state instead of taking TanStack AI's; the part of its
 API we copied is what we maintain. Agent Framework 1.22-preview raises no approval interrupt for
 its own tool while the page declares tools, so a .NET backend's domain tools cannot ask for
-approval until that is fixed upstream (`tools/agent-spike/README.md`, finding 10).
+approval until that is fixed upstream (`docs/agent-spike.md`, finding 10).
 
 ---
 
@@ -1511,14 +1532,15 @@ approval until that is fixed upstream (`tools/agent-spike/README.md`, finding 10
 and for as long as the runtime, over `@company/mfe-agent` (§49), so closing the panel or crossing
 the breakpoint loses nothing. On a wide screen it is an aside after the main area, a sibling, so
 opening it never remounts the App mounted there; on a narrow one, a sheet. The header's Assistant
-button and ⌘/Ctrl+I open it. Its backend is `AGENT_URL` in the shell's runtime configuration;
+button and ⌘/Ctrl+I open it, and closing the aside returns focus to the button. Its backend is `AGENT_URL` in the shell's runtime configuration;
 without one the panel says the assistant is not configured. Its requests go through the request
 boundary (`createAuthenticatedFetch`), so the backend alone receives the user's token.
 
 - **Tools.** The page's actions (read again before every run), and the shell's own: a navigate
-  tool from the published routes (§48), which goes through the router so an App's blockers hold
-  the page for the agent too and says so when the page stayed; the render tools of §51; and
-  `ask_user`. Above 24 tools the client declares the shell's own, those discovered in the
+  tool from the published routes (§48), which asks the mounted Apps' blockers first, as a link
+  does (§20), then moves the router past them and answers with where the page landed, or that an
+  App held it (a path with `?`, `#` or `..` is refused; search params go in `search`); the render
+  tools of §51; and `ask_user`. Above 24 tools the client declares the shell's own, those discovered in the
   conversation and `discover_tools`, which names the rest (`withToolDiscovery`, after TanStack AI's
   lazy tool discovery).
 - **Approvals.** The pipeline's approver opens the chat and asks there, in the one card that also
@@ -1536,12 +1558,23 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   chat (§51).
 - **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`
   (`repo/shell-chat-module`), so a backend or client swap touches that directory alone.
+- **Loading.** Only the panel's state is on the boot path: `chat/instance.ts` (which sets the
+  prompt handler and the approver at boot), `panel.ts`, `panel-hooks.ts` and `lazy-panel.tsx`.
+  `ShellChat` with its tools, `@company/mfe-agent` and `@ag-ui/client`, and the panel's UI load on
+  first use: the panel opening, a mount's prompt (the panel opens at once), an approval, or the
+  pointer or focus reaching the Assistant button. `recharts` loads with the first chart. A load
+  that fails says so in the panel, with Try again. The same lint rule keeps the rest of the chat
+  out of the shell's other modules, so nothing puts it back on the boot path.
 
 `@company/mfe-agent` grew what the chat needed: `sendMessage(text, { context, forwardedProps })`
 for a turn's own context; `followUp` on a tool, `false` or a function of the result, which ends
 the turn once every call is answered by a tool that does not follow up, and sends the answers with
 the next run; an abort signal for a tool that waits, such as `ask_user`, so stopping a turn never
-hangs; and `withToolDiscovery`.
+hangs; and `withToolDiscovery`. Turns queue, so one run is in flight at a time, and a turn runs the
+page's tools one at a time, so a pipeline approval belongs to the one call running. Every interrupt
+the last run ended on that nobody answered is resumed as cancelled by the next run, as the spec
+requires; `clear()` starts a thread with none. A throw from `tools`, a `followUp` function or the
+connection's headers fails the turn, as a failed run does, rather than rejecting `sendMessage`.
 
 The backend's owner is still open. `tools/agent-dev`, which `pnpm dev` starts, stands in: a
 spec-only AG-UI server with a scripted demo agent that exercises every path of the chat with no key
@@ -1556,7 +1589,9 @@ nothing sends while an IME composes, Escape stops a reply, ArrowUp in an empty b
 message, the textarea stays enabled while a reply streams, and Send and Stop are two named buttons
 that swap with focus following.
 
-**Cost:** the shell bundles `@ag-ui/client` and `recharts`. A navigate call is refused for a path
+**Cost:** the chat is a download on first use, about 103 kB compressed, and the first chart about
+140 kB more; loading them lazily took about 238 kB compressed off the boot path. A navigate call is
+refused for a path
 no published route matches, so an App's code-based routes are out of the agent's reach (§48). The
 conversation lives in memory: a reload starts a new one.
 
@@ -1585,14 +1620,16 @@ from one. A tool the shell declares for the purpose is what draws:
   Divider, Button, TextField, CheckBox, ChoicePicker, Image, Icon). Its input is the AG-UI A2UI
   middleware's, `{ surfaceId, components, data? }`, or raw messages; the host stamps the catalogue
   id. Only data crosses: values are literals, paths into the surface's data model, or calls of the
-  few functions the client implements, and a link opens over http(s) only.
+  few functions the client implements, and a link opens over http(s) only. A path reads only the
+  data's own members, and a write to `__proto__` or past the end of an array changes nothing.
 
 Each of these ends the turn once shown (`followUp` as a function): the result is for the user. One
 the chat refused (an unknown Widget, inputs its schema rejects, a component outside the catalogue)
 lets the agent hear why and correct the call.
 
 A Widget in the chat hands values back two ways. Passively: the latest payload of each output of
-each Widget shown is agent context for later turns, cut to 4096 characters, newest first.
+each Widget shown is agent context for later turns, newest first, in at most 4096 characters of
+JSON: a payload that is not JSON, or does not fit, is left out.
 Explicitly: from the user's own press, through `useAgentPrompt`, as the well-design Widget's "Ask
 the assistant" does; never from a timer or an error handler. An A2UI Button's event is the same
 kind: a new turn, sent unseen as context and as the middleware's `forwardedProps.a2uiAction`.
