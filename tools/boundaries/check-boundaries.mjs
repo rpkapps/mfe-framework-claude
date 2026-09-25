@@ -183,7 +183,12 @@ const RULES = [
       '@grafana/faro',
       '@company/mfe-react',
       '@company/mfe-angular',
+      '@company/mfe-legacy-angular',
+      '@company/mfe-devtools',
       '@company/mfe-build',
+      '@company/mfe-rspack',
+      '@company/mfe-nx',
+      '@company/create-mfe',
       ...AGENT_LIBRARIES.filter(library => !AGENT_PACKAGE_OWN.has(library)),
       'zustand',
       'redux',
@@ -192,7 +197,7 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The agent package speaks AG-UI and nothing else, so any backend that speaks it will do (docs/decisions.md §49); it is adapter-neutral, and the shell hands it the runtime.',
+      'The agent package speaks AG-UI and nothing else, so any backend that speaks it will do (docs/decisions.md §49); it imports no adapter, developer tool or build package, and the shell hands it the runtime.',
   },
   {
     package: '@company/mfe-devtools',
@@ -271,10 +276,68 @@ const SHARED_CORE_CONSUMERS = [
   '@company/mfe-angular',
   '@company/mfe-legacy-angular',
   '@company/mfe-devtools',
+  '@company/mfe-agent',
 ]
 
-/** A value import or re-export of `DEV` from core; `type DEV` would not reach the bundle. */
-const CORE_DEV_IMPORT = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]@company\/mfe-core['"]/g
+const CORE = '@company/mfe-core'
+
+/**
+ * Where a file reaches core's `DEV` as a value: a named import or re-export under any alias, or a
+ * `DEV` read off a namespace import. A type-only import is left alone, since it never reaches the
+ * bundle.
+ */
+function coreDevReferences(file, source) {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.ESNext, true)
+  const references = []
+  const namespaces = new Set()
+  const fromCore = node =>
+    node.moduleSpecifier !== undefined &&
+    ts.isStringLiteral(node.moduleSpecifier) &&
+    node.moduleSpecifier.text === CORE
+  const isDev = element => (element.propertyName ?? element.name).text === 'DEV'
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && fromCore(statement)) {
+      const clause = statement.importClause
+      if (clause === undefined || clause.isTypeOnly) continue
+      const bindings = clause.namedBindings
+      if (bindings === undefined) continue
+      if (ts.isNamespaceImport(bindings)) {
+        namespaces.add(bindings.name.text)
+        continue
+      }
+      for (const element of bindings.elements) {
+        if (!element.isTypeOnly && isDev(element)) references.push(element)
+      }
+    }
+    if (ts.isExportDeclaration(statement) && fromCore(statement) && !statement.isTypeOnly) {
+      const clause = statement.exportClause
+      if (clause === undefined || !ts.isNamedExports(clause)) continue
+      for (const element of clause.elements) {
+        if (!element.isTypeOnly && isDev(element)) references.push(element)
+      }
+    }
+  }
+
+  if (namespaces.size > 0) {
+    const visit = node => {
+      if (
+        ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        namespaces.has(node.expression.text) &&
+        node.name.text === 'DEV'
+      ) {
+        references.push(node)
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(sourceFile)
+  }
+
+  return references.map(
+    node => sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1,
+  )
+}
 
 const violations = []
 
@@ -321,12 +384,9 @@ for (const packageName of SHARED_CORE_CONSUMERS) {
   }
   for (const file of await collectSourceFiles(join(packageDir, 'src'))) {
     const source = await readFile(file, 'utf8')
-    for (const match of source.matchAll(CORE_DEV_IMPORT)) {
-      const names = match[1].split(',').map(name => name.trim())
-      if (!names.some(name => name === 'DEV' || name.startsWith('DEV '))) continue
-      const line = source.slice(0, match.index).split('\n').length
+    for (const line of coreDevReferences(file, source)) {
       violations.push(
-        `${relative(repoRoot, file)}:${line} imports DEV from @company/mfe-core.\n  Core is shared, so the flag cannot fold across the share boundary and the code it guards ships to production. Import DEV from this package's own src/dev.ts instead.`,
+        `${relative(repoRoot, file)}:${line} imports DEV from ${CORE}.\n  Core is shared, so the flag cannot fold across the share boundary and the code it guards ships to production. Import DEV from this package's own src/dev.ts instead.`,
       )
     }
   }
