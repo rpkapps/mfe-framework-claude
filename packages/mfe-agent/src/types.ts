@@ -9,6 +9,7 @@
 import type { Context, Message } from '@ag-ui/core'
 
 import type { ChatConnection } from './connection.ts'
+import type { HistoryLimit } from './history.ts'
 
 /** TanStack AI's `ChatClientState`: `submitted` until a run's first event, then `streaming`. */
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
@@ -170,6 +171,18 @@ export interface ChatClientOptions {
   readonly threadId?: string
   /** A stored conversation to continue: AG-UI messages, the format history is kept in. */
   readonly initialMessages?: readonly Message[]
+  /**
+   * What each run sends of the conversation, read when the run is sent. The transcript always
+   * keeps every message; only the copy in the run's input changes.
+   *
+   * - A `HistoryLimit`, or nothing, applies `limitHistory`: the last 6 user turns go whole, and in
+   *   older ones a tool result over 2000 characters becomes a stand-in and reasoning is left out.
+   * - A function takes the messages the run would send and returns those it sends instead. It
+   *   replaces the policy; call `limitHistory` in it to build on the policy. A tool call and its
+   *   result must stay together, as backends and model APIs reject either one alone.
+   * - `false` sends the whole conversation.
+   */
+  readonly history?: HistoryLimit | false | ((messages: readonly Message[]) => readonly Message[])
   /** A turn that keeps asking for tools is stopped after this many runs. Defaults to 12. */
   readonly maxRunsPerTurn?: number
   /** A turn ended: every run finished and nothing waits on the user. */

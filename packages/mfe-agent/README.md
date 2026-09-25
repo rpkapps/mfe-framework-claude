@@ -25,8 +25,8 @@ await chat.sendMessage('Acknowledge alert A-7')
 ```
 
 In React, `useChat(options)` from `@company/mfe-agent/react` returns the snapshot (`messages`,
-`status`, `isLoading`, `error`, `interrupts`) and the methods (`sendMessage`, `reload`, `stop`,
-`clear`, `setMessages`, `requestApproval`).
+`status`, `isLoading`, `error`, `interrupts`) and the methods (`sendMessage`, `editMessage`,
+`reload`, `stop`, `clear`, `setMessages`, `requestApproval`).
 
 The connection (its URL, `fetch` and headers function), the thread and the initial messages are
 fixed when the client is made. `updateOptions`, which `useChat` calls on every render, takes the
@@ -57,6 +57,9 @@ Where it differs, it is because our design does:
   `source: 'backend'`. Both are `tool-approval` interrupts, so one card renders both.
 - **`agentContext`** is sent as AG-UI `context`. TanStack AI's `context` is something else: a value
   handed to tools.
+- **Added:** `editMessage(id, text, options)` edits a user message and runs from there, and
+  `history` limits what each run sends (see below), because a long session with the page's tools
+  needs both.
 - **Not copied:** the send queue's API (`queue`, `cancelQueued`, `whenBusy`; a message sent
   here simply waits for the turn before it), persistence adapters, subagents, structured output
   and `addToolResult`.
@@ -92,6 +95,34 @@ Stopping a turn answers the page's open questions as declined, and answers any c
 ran as stopped. Every interrupt the last run ended on that nobody answered (the user stopped, or
 the run carrying the answer failed) is resumed as cancelled by the next run, as the spec requires.
 `clear()` starts a new thread with nothing to resume.
+
+`editMessage(id, text, { context })` replaces the user message `id` and runs the conversation
+again from there. Every message after it is dropped, the agent's included, and `text` is sent as a
+new turn (with a new message id), as `sendMessage` sends it. Like `reload`, it stops a turn in flight
+first and then waits its place in the queue. The dropped runs take their answers with them: a
+result that a stopped tool gives late is cut with its call, and an interrupt they ended on is
+resumed as cancelled by the edited turn's first run, since the thread is the same. An id that is not
+a user message in the history, or an empty text, does nothing.
+
+## What a run sends
+
+AG-UI sends the whole conversation with every run, and a long session with big tool results
+(tables, rendered UI, widget outputs) outgrows the model's context. The `history` option shrinks
+the copy a run sends; the transcript (`messages`, `getHistory()`) always keeps every message whole.
+
+- **By default** (`limitHistory`), the last 6 user turns are sent whole, the one running included.
+  In older turns, a tool result longer than 2000 characters is replaced by a stand-in
+  (`[Result omitted from this request: 12,345 characters. Call the tool again if it is needed.]`),
+  and reasoning is left out. Nothing else is dropped, so every tool call keeps its result: backends
+  and model APIs reject either one alone. `history: { keepTurns, maxToolResultChars }` changes the
+  two numbers.
+- **A function** takes the messages the run would send and returns those it sends instead. It
+  replaces the default, and can call `limitHistory` (exported) to build on it. It must keep calls
+  and results together. A throw fails the turn.
+- **`false`** (or `keepTurns: Infinity`) sends the whole conversation.
+
+`history` is read before each run, so `updateOptions` changes it. A resume names interrupts, not
+messages, so it is unaffected.
 
 ## Many tools
 

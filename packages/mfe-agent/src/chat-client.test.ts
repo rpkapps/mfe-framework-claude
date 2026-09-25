@@ -1,7 +1,9 @@
+import { EventType, type Message, type RunAgentInput } from '@ag-ui/core'
 import { describe, expect, it, vi } from 'vitest'
 
-import { calls, fails, interrupts, says, scriptedBackend } from './__tests__/backend.ts'
+import { calls, fails, interrupts, says, scriptedBackend, type Reply } from './__tests__/backend.ts'
 import { ChatClient } from './chat-client.ts'
+import { fetchServerSentEvents } from './connection.ts'
 import type { ChatTool, ToolCallPart, ToolExecutionContext } from './types.ts'
 
 const acknowledge = {
@@ -702,5 +704,336 @@ describe('turns that overlap', () => {
 
     expect(client.getStatus()).toBe('error')
     expect(client.getError()?.message).toBe('Bad result')
+  })
+})
+
+/** The id of the `index`-th user message in the history. */
+function userMessageId(client: ChatClient, index: number): string {
+  const id = client.getHistory().filter(message => message.role === 'user')[index]?.id
+  if (id === undefined) throw new Error(`No user message ${String(index)}`)
+  return id
+}
+
+/**
+ * A backend whose first run starts streaming and goes on until the client aborts it; the runs
+ * after it are answered by `then`.
+ */
+function streamsUntilAborted(then: Reply) {
+  const requests: RunAgentInput[] = []
+  const encoder = new TextEncoder()
+  const headers = { 'Content-Type': 'text/event-stream' }
+  const connection = fetchServerSentEvents('http://agent.test/run', {
+    fetch: (_url, init) => {
+      const input = JSON.parse(typeof init.body === 'string' ? init.body : '{}') as RunAgentInput
+      requests.push(input)
+      if (requests.length > 1) {
+        const events = then(input, requests.length - 1)
+        const body = events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+        return Promise.resolve(new Response(body, { headers }))
+      }
+      const started = { type: EventType.RUN_STARTED, threadId: input.threadId, runId: input.runId }
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(started)}\n\n`))
+          init.signal?.addEventListener('abort', () => {
+            controller.error(new DOMException('The run was aborted.', 'AbortError'))
+          })
+        },
+      })
+      return Promise.resolve(new Response(stream, { headers }))
+    },
+  })
+  return { connection, requests }
+}
+
+describe('editing a message', () => {
+  it('replaces the last user message and runs it as a new turn, with its own context', async () => {
+    const backend = scriptedBackend(says('First.'), says('Second.'))
+    const client = new ChatClient({ connection: backend.connection })
+    await client.sendMessage('Hi')
+    const selected = { description: 'Text the user selected', value: '"A-7"' }
+
+    await client.editMessage(userMessageId(client, 0), 'Hello', { context: [selected] })
+
+    expect(client.getMessages().map(message => message.parts)).toEqual([
+      [{ type: 'text', content: 'Hello' }],
+      [{ type: 'text', content: 'Second.' }],
+    ])
+    expect(backend.requests[1]?.messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'Hello' }),
+    ])
+    expect(backend.requests[1]?.context).toEqual([selected])
+    expect(client.getStatus()).toBe('ready')
+  })
+
+  it('drops every turn after an earlier message it edits', async () => {
+    const backend = scriptedBackend(says('One.'), says('Two.'), says('Three.'), says('Edited.'))
+    const client = new ChatClient({ connection: backend.connection })
+    await client.sendMessage('First')
+    await client.sendMessage('Second')
+    await client.sendMessage('Third')
+
+    await client.editMessage(userMessageId(client, 1), 'Second, edited')
+
+    expect(client.getHistory().map(message => message.content)).toEqual([
+      'First',
+      'One.',
+      'Second, edited',
+      'Edited.',
+    ])
+    expect(backend.requests[3]?.messages.map(message => message.content)).toEqual([
+      'First',
+      'One.',
+      'Second, edited',
+    ])
+  })
+
+  it('stops the run in flight, then runs the edited message', async () => {
+    const backend = streamsUntilAborted(says('Edited.'))
+    const client = new ChatClient({ connection: backend.connection })
+
+    const turn = client.sendMessage('Hi')
+    await vi.waitFor(() => {
+      expect(client.getStatus()).toBe('streaming')
+    })
+    await client.editMessage(userMessageId(client, 0), 'Hello')
+    await turn
+
+    expect(backend.requests).toHaveLength(2)
+    expect(backend.requests[1]?.messages.map(message => message.content)).toEqual(['Hello'])
+    expect(client.getHistory().map(message => message.content)).toEqual(['Hello', 'Edited.'])
+    expect(client.getError()).toBeUndefined()
+    expect(client.getStatus()).toBe('ready')
+  })
+
+  it('keeps the late result of a tool from a dropped turn out of the history and the next run', async () => {
+    const backend = scriptedBackend(calls(acknowledge), says('Edited.'))
+    let release: (value: unknown) => void = () => undefined
+    let signal: AbortSignal | undefined
+    const execute = vi.fn(
+      (_input: unknown, context: ToolExecutionContext) =>
+        new Promise(resolve => {
+          signal = context.signal
+          release = resolve
+        }),
+    )
+    const client = new ChatClient({ connection: backend.connection, tools: [tool(execute)] })
+
+    const turn = client.sendMessage('Acknowledge A-7')
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+    })
+    const edit = client.editMessage(userMessageId(client, 0), 'What is A-7?')
+    expect(signal?.aborted).toBe(true)
+    release({ acknowledged: true })
+    await Promise.all([turn, edit])
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(backend.requests[1]?.messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'What is A-7?' }),
+    ])
+    expect(client.getHistory().map(message => message.role)).toEqual(['user', 'assistant'])
+    expect(toolCalls(client)).toEqual([])
+  })
+
+  it('resumes as cancelled the backend’s question from a dropped turn, so the next run is accepted', async () => {
+    const shutIn = { id: 'call-9', name: 'shut_in_well', args: { wellId: 'W-1' } }
+    const approval = { id: 'approval-9', reason: 'tool_call', toolCallId: 'call-9' }
+    const backend = scriptedBackend(interrupts([shutIn], approval), says('Which well?'))
+    const client = new ChatClient({ connection: backend.connection })
+
+    const turn = client.sendMessage('Shut in W-1')
+    await nextInterrupt(client)
+    await client.editMessage(userMessageId(client, 0), 'Shut in W-2')
+    await turn
+
+    expect(client.getError()).toBeUndefined()
+    expect(client.getInterrupts()).toEqual([])
+    expect(backend.requests[1]).toMatchObject({
+      parentRunId: backend.requests[0]?.runId,
+      resume: [{ interruptId: 'approval-9', status: 'cancelled' }],
+    })
+    expect(backend.requests[1]?.messages.map(message => message.content)).toEqual(['Shut in W-2'])
+    expect(toolCalls(client)).toEqual([])
+  })
+
+  it('owes the backend nothing from a dropped turn: its answer is resumed as cancelled', async () => {
+    const show = { id: 'call-2', name: 'show_summary', args: { title: 'A-7' } }
+    const raised = { id: 'client_tool_call-2', reason: 'tool_call', toolCallId: 'call-2' }
+    const backend = scriptedBackend(interrupts([show], raised), says('Anything else?'))
+    const summary: ChatTool = {
+      name: 'show_summary',
+      description: 'Show a summary card',
+      followUp: false,
+      execute: () => ({ shown: true }),
+    }
+    const client = new ChatClient({ connection: backend.connection, tools: [summary] })
+    await client.sendMessage('Summarise A-7')
+
+    await client.editMessage(userMessageId(client, 0), 'Summarise A-8')
+
+    expect(client.getError()).toBeUndefined()
+    expect(backend.requests[1]?.resume).toEqual([
+      { interruptId: 'client_tool_call-2', status: 'cancelled' },
+    ])
+    expect(backend.requests[1]?.messages.map(message => message.role)).toEqual(['user'])
+  })
+
+  it('does nothing for an id that is not a user message, or an empty text', async () => {
+    const backend = scriptedBackend(says('Hello.'))
+    const client = new ChatClient({ connection: backend.connection })
+    await client.sendMessage('Hi')
+    const answer = client.getHistory()[1]?.id ?? ''
+
+    await client.editMessage(answer, 'Hello')
+    await client.editMessage('no-such-message', 'Hello')
+    await client.editMessage(userMessageId(client, 0), '  ')
+
+    expect(backend.requests).toHaveLength(1)
+    expect(client.getHistory().map(message => message.content)).toEqual(['Hi', 'Hello.'])
+  })
+})
+
+describe('what a run sends of the conversation', () => {
+  /** `turns` earlier turns, each with a query whose result is `size` characters and reasoning. */
+  function earlier(turns: number, size: number): Message[] {
+    return Array.from({ length: turns }, (_, index): Message[] => {
+      const n = String(index)
+      return [
+        { id: `u${n}`, role: 'user', content: `Question ${n}` },
+        { id: `r${n}`, role: 'reasoning', content: 'Thinking it over.' },
+        {
+          id: `a${n}`,
+          role: 'assistant',
+          toolCalls: [
+            { id: `c${n}`, type: 'function', function: { name: 'query_wells', arguments: '{}' } },
+          ],
+        },
+        { id: `t${n}`, role: 'tool', toolCallId: `c${n}`, content: 'x'.repeat(size) },
+        { id: `m${n}`, role: 'assistant', content: `Answer ${n}` },
+      ]
+    }).flat()
+  }
+
+  const sentContent = (request: RunAgentInput | undefined, id: string) =>
+    request?.messages.find(message => message.id === id)?.content
+
+  it('shortens old tool results and drops old reasoning, and the transcript keeps them', async () => {
+    const backend = scriptedBackend(says('Done.'))
+    const initialMessages = earlier(8, 12_345)
+    const client = new ChatClient({ connection: backend.connection, initialMessages })
+
+    await client.sendMessage('And now?')
+
+    const [request] = backend.requests
+    // The new turn and the five before it go whole; the three before those are shortened.
+    expect(sentContent(request, 't2')).toBe(
+      '[Result omitted from this request: 12,345 characters. Call the tool again if it is needed.]',
+    )
+    expect(sentContent(request, 't3')).toHaveLength(12_345)
+    expect(sentContent(request, 'r2')).toBeUndefined()
+    expect(sentContent(request, 'r3')).toBe('Thinking it over.')
+    const callIds = request?.messages.flatMap(message =>
+      message.role === 'assistant' ? (message.toolCalls ?? []).map(call => call.id) : [],
+    )
+    const resultIds = request?.messages.flatMap(message =>
+      message.role === 'tool' ? [message.toolCallId] : [],
+    )
+    expect(resultIds).toEqual(callIds)
+    expect(callIds).toHaveLength(8)
+
+    expect(client.getHistory().slice(0, 40)).toEqual(initialMessages)
+    const outputs = toolCalls(client).map(part => part.output)
+    expect(outputs).toEqual(Array.from({ length: 8 }, () => 'x'.repeat(12_345)))
+    expect(
+      client.getMessages().filter(message => message.parts[0]?.type === 'thinking'),
+    ).toHaveLength(8)
+  })
+
+  it('takes the limits from the history option, and from updateOptions', async () => {
+    const backend = scriptedBackend(says('Done.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      initialMessages: earlier(3, 500),
+      history: { keepTurns: 2, maxToolResultChars: 100 },
+    })
+
+    await client.sendMessage('And now?')
+    client.updateOptions({ history: false })
+    await client.sendMessage('And then?')
+
+    expect(sentContent(backend.requests[0], 't1')).toMatch(/^\[Result omitted/)
+    expect(sentContent(backend.requests[0], 't2')).toHaveLength(500)
+    expect(backend.requests[1]?.messages).toHaveLength(client.getHistory().length - 1)
+    expect(sentContent(backend.requests[1], 't0')).toHaveLength(500)
+  })
+
+  it.each([
+    ['history: false', false as const],
+    ['keepTurns: Infinity', { keepTurns: Infinity }],
+  ])('sends the whole conversation with %s', async (_, history) => {
+    const backend = scriptedBackend(says('Done.'))
+    const initialMessages = earlier(10, 5000)
+    const client = new ChatClient({ connection: backend.connection, initialMessages, history })
+
+    await client.sendMessage('And now?')
+
+    expect(backend.requests[0]?.messages.slice(0, -1)).toEqual(initialMessages)
+  })
+
+  it('sends what a history function returns, given the whole conversation', async () => {
+    const backend = scriptedBackend(says('Done.'))
+    const initialMessages = earlier(10, 5000)
+    const history = vi.fn((messages: readonly Message[]) => messages.slice(-1))
+    const client = new ChatClient({ connection: backend.connection, initialMessages, history })
+
+    await client.sendMessage('And now?')
+
+    expect(history).toHaveBeenCalledOnce()
+    expect(history.mock.calls[0]?.[0]).toHaveLength(51)
+    expect(backend.requests[0]?.messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'And now?' }),
+    ])
+    expect(client.getHistory()).toHaveLength(52)
+  })
+
+  it('fails the turn when the history function throws, instead of rejecting', async () => {
+    const backend = scriptedBackend(says('Done.'))
+    const onError = vi.fn()
+    const client = new ChatClient({
+      connection: backend.connection,
+      onError,
+      history: () => {
+        throw new Error('Bad history')
+      },
+    })
+
+    await client.sendMessage('Hi')
+
+    expect(backend.requests).toHaveLength(0)
+    expect(client.getStatus()).toBe('error')
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'Bad history' }))
+  })
+
+  it('still resumes a backend’s question, which names the interrupt and not the messages', async () => {
+    const shutIn = { id: 'call-9', name: 'shut_in_well', args: { wellId: 'W-1' } }
+    const approval = { id: 'approval-9', reason: 'tool_call', toolCallId: 'call-9' }
+    const backend = scriptedBackend(interrupts([shutIn], approval), says('Done.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      initialMessages: earlier(8, 5000),
+    })
+
+    const turn = client.sendMessage('Shut in W-1')
+    const interrupt = await nextInterrupt(client)
+    if (interrupt.kind === 'tool-approval') interrupt.resolveInterrupt(true)
+    await turn
+
+    expect(client.getError()).toBeUndefined()
+    expect(backend.requests[1]?.resume).toEqual([
+      expect.objectContaining({ interruptId: 'approval-9', status: 'resolved' }),
+    ])
+    expect(sentContent(backend.requests[1], 't2')).toMatch(/^\[Result omitted/)
+    expect(backend.requests[1]?.messages.at(-1)).toMatchObject({ toolCalls: [{ id: 'call-9' }] })
   })
 })

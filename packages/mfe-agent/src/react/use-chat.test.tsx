@@ -31,4 +31,18 @@ describe('useChat', () => {
     expect(result.current.messages).toHaveLength(2)
     expect(result.current.error).toBeUndefined()
   })
+
+  it('edits a message through the client', async () => {
+    const backend = scriptedBackend(says('First.'), says('Second.'))
+    const { result } = renderHook(() => useChat({ connection: backend.connection }))
+    await act(() => result.current.sendMessage('Hi'))
+    const id = result.current.messages[0]?.id ?? ''
+
+    await act(() => result.current.editMessage(id, 'Hello'))
+
+    expect(result.current.messages.map(message => message.parts)).toEqual([
+      [{ type: 'text', content: 'Hello' }],
+      [{ type: 'text', content: 'Second.' }],
+    ])
+  })
 })

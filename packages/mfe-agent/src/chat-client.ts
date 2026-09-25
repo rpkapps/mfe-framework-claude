@@ -13,10 +13,19 @@
  * resumed with the answer. History is kept as AG-UI messages; `messages` is the view of it.
  */
 
-import { HttpAgent } from '@ag-ui/client'
-import type { Context, Interrupt, Message, ResumeEntry, Tool, ToolCall } from '@ag-ui/core'
+import { HttpAgent, type HttpAgentConfig, type RunAgentParameters } from '@ag-ui/client'
+import type {
+  Context,
+  Interrupt,
+  Message,
+  ResumeEntry,
+  RunAgentInput,
+  Tool,
+  ToolCall,
+} from '@ag-ui/core'
 
 import type { ChatConnection } from './connection.ts'
+import { limitHistory } from './history.ts'
 import { toUIMessages, type ToolCallProgress } from './message-view.ts'
 import type {
   ApprovalQuestion,
@@ -81,10 +90,30 @@ function parseArguments(call: ToolCall): { readonly input: unknown } | { readonl
   }
 }
 
+/**
+ * The AG-UI client, sending the messages the chat chooses. `prepareRunAgentInput` is where it
+ * copies its history into a run's input, so what is left out there is left out of the request
+ * only: the run's events are applied to `messages`, which stays whole, and a throw there fails the
+ * run before anything is sent.
+ */
+class ChatAgent extends HttpAgent {
+  readonly #outgoing: (messages: Message[]) => Message[]
+
+  constructor(config: HttpAgentConfig, outgoing: (messages: Message[]) => Message[]) {
+    super(config)
+    this.#outgoing = outgoing
+  }
+
+  protected override prepareRunAgentInput(parameters?: RunAgentParameters): RunAgentInput {
+    const input = super.prepareRunAgentInput(parameters)
+    return { ...input, messages: this.#outgoing(input.messages) }
+  }
+}
+
 /** TanStack AI's `ChatClient`, on the plain AG-UI client; see the module comment. */
 export class ChatClient {
   #options: ChatClientOptions
-  readonly #agent: HttpAgent
+  readonly #agent: ChatAgent
   readonly #headers: ChatConnection['headers']
   readonly #unsubscribeAgent: () => void
   /** What the client has seen of each call in the history; pruned when the history is replaced. */
@@ -118,14 +147,17 @@ export class ChatClient {
     this.#options = options
     const { connection } = options
     this.#headers = connection.headers
-    this.#agent = new HttpAgent({
-      url: connection.url,
-      ...(connection.fetch === undefined ? {} : { fetch: connection.fetch }),
-      ...(options.threadId === undefined ? {} : { threadId: options.threadId }),
-      ...(options.initialMessages === undefined
-        ? {}
-        : { initialMessages: [...options.initialMessages] }),
-    })
+    this.#agent = new ChatAgent(
+      {
+        url: connection.url,
+        ...(connection.fetch === undefined ? {} : { fetch: connection.fetch }),
+        ...(options.threadId === undefined ? {} : { threadId: options.threadId }),
+        ...(options.initialMessages === undefined
+          ? {}
+          : { initialMessages: [...options.initialMessages] }),
+      },
+      messages => this.#outgoing(messages),
+    )
 
     // A resume names the run it continues: the spec allows it, and TanStack AI's backend needs it.
     this.#agent.use((input, next) =>
@@ -223,14 +255,40 @@ export class ChatClient {
     this.stop()
     return this.#enqueue(
       () => {
-        const history = this.#agent.messages
-        const lastUser = history.findLastIndex(message => message.role === 'user')
+        const lastUser = this.#agent.messages.findLastIndex(message => message.role === 'user')
         if (lastUser === -1) return false
-        this.#agent.setMessages(history.slice(0, lastUser + 1))
-        this.#pruneProgress()
+        this.#truncate(lastUser + 1)
         return true
       },
       { context: [], forwardedProps: undefined },
+    )
+  }
+
+  /**
+   * Replaces the user message `messageId` with `text` and runs the conversation again from there:
+   * every message after it, the agent's included, is dropped, and `text` is sent as a new turn,
+   * with `options`, as `sendMessage` sends it. A turn in flight is stopped first, as `reload`
+   * stops it. An id that is not a user message in the history, or an empty text, changes nothing:
+   * an edit can race a `clear` or `setMessages`, and there is nothing left to edit then.
+   */
+  readonly editMessage = (
+    messageId: string,
+    text: string,
+    options: SendMessageOptions = {},
+  ): Promise<void> => {
+    if (text.trim() === '' || this.#indexOfUserMessage(messageId) === -1) return Promise.resolve()
+    this.stop()
+    return this.#enqueue(
+      () => {
+        // Found again: the history may have been cleared or replaced while the turn before ran.
+        const index = this.#indexOfUserMessage(messageId)
+        if (index === -1) return false
+        this.#truncate(index)
+        // A new id: to a backend that keeps what it was sent, this is a message it has not seen.
+        this.#agent.addMessage({ id: crypto.randomUUID(), role: 'user', content: text })
+        return true
+      },
+      { context: options.context ?? [], forwardedProps: options.forwardedProps },
     )
   }
 
@@ -598,6 +656,14 @@ export class ChatClient {
 
   // ─── State ────────────────────────────────────────────────────────────────
 
+  /** The messages a run sends: those the AG-UI client would send, through `history`. */
+  #outgoing(messages: Message[]): Message[] {
+    const { history } = this.#options
+    if (history === false) return messages
+    if (typeof history === 'function') return [...history(messages)]
+    return limitHistory(messages, history)
+  }
+
   #tools(): readonly ChatTool[] {
     const { tools } = this.#options
     return typeof tools === 'function' ? tools({ threadId: this.#agent.threadId }) : (tools ?? [])
@@ -647,6 +713,23 @@ export class ChatClient {
     for (const interrupt of this.#interrupts) {
       if (interrupt.kind === 'generic' || interrupt.source === 'backend') interrupt.cancel()
     }
+  }
+
+  #indexOfUserMessage(id: string): number {
+    return this.#agent.messages.findIndex(message => message.id === id && message.role === 'user')
+  }
+
+  /**
+   * Cuts the history back to its first `length` messages, for a turn run again from there. The
+   * runs after the cut go with it, and so does any answer owed to their interrupts: the call it
+   * answered is gone. The interrupts stay pending, and the next run resumes them as cancelled,
+   * since the backend may still hold them open on this thread. It runs in the turn queue, after
+   * the turn before has ended, so a result a stopped tool gave late is cut with its call.
+   */
+  #truncate(length: number): void {
+    this.#agent.setMessages(this.#agent.messages.slice(0, length))
+    this.#owed = []
+    this.#pruneProgress()
   }
 
   /** Drops what the client knows of calls the history no longer holds. */

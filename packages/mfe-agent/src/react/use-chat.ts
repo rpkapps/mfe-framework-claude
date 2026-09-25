@@ -19,6 +19,7 @@ import type {
 export interface UseChatReturn extends ChatSnapshot {
   sendMessage(content: string, options?: SendMessageOptions): Promise<void>
   reload(): Promise<void>
+  editMessage(messageId: string, text: string, options?: SendMessageOptions): Promise<void>
   stop(): void
   clear(): void
   setMessages(messages: readonly Message[]): void
@@ -48,6 +49,7 @@ export function useChat(options: ChatClientOptions): UseChatReturn {
       ...snapshot,
       sendMessage: client.sendMessage,
       reload: client.reload,
+      editMessage: client.editMessage,
       stop: client.stop,
       clear: client.clear,
       setMessages: client.setMessages,
