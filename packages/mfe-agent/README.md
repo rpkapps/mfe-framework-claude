@@ -24,21 +24,21 @@ runtime.actions.setApprover(approvalsIn(chat.requestApproval))
 await chat.sendMessage('Acknowledge alert A-7')
 ```
 
-In React, `useChat(options)` from `@company/mfe-agent/react` returns the snapshot (`messages`,
-`status`, `isLoading`, `error`, `interrupts`) and the methods (`sendMessage`, `editMessage`,
-`reload`, `stop`, `clear`, `setMessages`, `requestApproval`).
+`subscribe` and `getSnapshot` are what React's `useSyncExternalStore` takes: the snapshot
+(`messages`, `status`, `isLoading`, `error`, `interrupts`) changes identity on every change. The
+package has no React binding; the shell reads the client this way.
 
 The connection (its URL, `fetch` and headers function), the thread and the initial messages are
-fixed when the client is made. `updateOptions`, which `useChat` calls on every render, takes the
-rest. The headers function is called before each run.
+fixed when the client is made. `updateOptions` takes the rest. The headers function is called
+before each run.
 
 ## The API is TanStack AI's
 
-The names and shapes follow [TanStack AI](https://github.com/TanStack/ai)'s client (`@tanstack/ai-client`, `@tanstack/ai-react`), so its documentation reads across. Only the API is copied, not the code. The source comments say which TanStack AI name each piece follows.
+The names and shapes follow [TanStack AI](https://github.com/TanStack/ai)'s client (`@tanstack/ai-client`), so its documentation reads across. Only the API is copied, not the code. The source comments say which TanStack AI name each piece follows.
 
 | TanStack AI                                                               | Here                                          |
 | ------------------------------------------------------------------------- | --------------------------------------------- |
-| `new ChatClient(options)`, `useChat(options)`                             | the same                                      |
+| `new ChatClient(options)`                                                 | the same                                      |
 | `connection: fetchServerSentEvents(url, …)`                               | the same                                      |
 | `UIMessage` with `parts` (`text`, `tool-call`, `tool-result`, `thinking`) | the same                                      |
 | tool-call states, `awaiting-input` to `complete`                          | the same                                      |
@@ -62,7 +62,8 @@ Where it differs, it is because our design does:
 - **Added:** `editMessage(id, text, options)` edits a user message and runs from there, and
   `history` limits what each run sends (see below), because a long session with the page's tools
   needs both.
-- **Not copied:** the send queue's API (`queue`, `cancelQueued`, `whenBusy`; a message sent
+- **Not copied:** `useChat` and the other framework bindings (the shell subscribes to the client
+  itself), the send queue's API (`queue`, `cancelQueued`, `whenBusy`; a message sent
   here simply waits for the turn before it), persistence adapters, subagents, structured output
   and `addToolResult`.
 

@@ -1525,10 +1525,13 @@ all three. It sends `context` and keeps history as AG-UI messages, the format th
 So the chat runs on the plain client, in a package of its own. It is named for the agent, not the
 chat, because its job is the page's connection to the agent: the chat UI lives in the shell, and
 exposing the same actions to browser agents (WebMCP, G) belongs beside it. `@company/mfe-agent` copies TanStack
-AI's public API, not its code: `ChatClient`, `useChat`, `UIMessage` with `parts`, the tool-call
+AI's public API, not its code: `ChatClient`, `UIMessage` with `parts`, the tool-call
 states from `awaiting-input` to `complete`, and interrupts resolved with `resolveInterrupt`. That
 API is well designed, and its documentation reads across. It differs where our design does:
 
+- **No React binding.** TanStack AI's `useChat` is not copied: the shell, its one consumer, holds
+  the client outside React and reads it with `useSyncExternalStore`, so a binding would be a
+  second way in that nothing uses, and a React dependency for a package that needs none.
 - **Tools** come from the action registry through `actionTools(runtime.actions)`, and are read
   again before every run.
 - **History** is AG-UI messages; `parts` is the view of them.

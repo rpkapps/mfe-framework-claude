@@ -15,11 +15,6 @@
       "mfe-source": "./src/actions.ts",
       "types": "./dist/actions.d.ts",
       "default": "./dist/actions.js"
-    },
-    "./react": {
-      "mfe-source": "./src/react/index.ts",
-      "types": "./dist/react/index.d.ts",
-      "default": "./dist/react/index.js"
     }
   },
   "files": [
@@ -40,18 +35,9 @@
     "@company/mfe-runtime": "workspace:*"
   },
   "peerDependencies": {
-    "react": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@testing-library/react": "catalog:",
-    "@types/react": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"

@@ -88,8 +88,8 @@ export default defineConfig({
         test: {
           name: 'agent',
           root: './packages/mfe-agent',
-          environment: 'jsdom',
-          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
         },
       },
       {

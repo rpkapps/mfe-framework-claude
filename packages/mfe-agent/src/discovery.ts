@@ -25,7 +25,7 @@ export interface ToolDiscoveryOptions {
 }
 
 /** What the discovery tool returns for one name. */
-export interface DiscoveredTool {
+interface DiscoveredTool {
   readonly name: string
   readonly description: string
   readonly inputSchema: Readonly<Record<string, unknown>>

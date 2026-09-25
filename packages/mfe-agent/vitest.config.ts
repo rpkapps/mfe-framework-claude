@@ -2,11 +2,11 @@ import { defineConfig } from 'vitest/config'
 
 /**
  * The same project the repository's root config runs, so this package's suite behaves identically
- * from inside it. `useChat` renders, so the suite needs a document.
+ * from inside it. Nothing here renders, so the suite runs in Node, which has `fetch` and streams.
  */
 export default defineConfig({
   test: {
-    environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
   },
 })
