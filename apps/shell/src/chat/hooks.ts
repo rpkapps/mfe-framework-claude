@@ -3,24 +3,40 @@
  * components so React Refresh can replace those in place (§18).
  */
 
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import type { ChatSnapshot } from '@company/mfe-agent'
 import { toolNameOf } from '@company/mfe-agent/actions'
 import { useMfeRuntime, type AgentSuggestionEntry } from '@company/mfe-react'
+import type { MfeRuntime } from '@company/mfe-react/host'
 
 import type { ShellChat } from './shell-chat.ts'
 import type { PendingQuestion } from './tools/ask-user.ts'
 
 const NO_QUESTIONS: ReadonlyMap<string, PendingQuestion> = new Map()
-/** What the page calls an action the agent can call, by tool name: its label, while it offers it. */
-export function useActionLabel(toolName: string): string | undefined {
+/** One action as the registry publishes it. */
+export type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
+
+function useActions(): readonly ActionEntry[] {
   const runtime = useMfeRuntime('the chat')
-  const actions = useSyncExternalStore(
+  return useSyncExternalStore(
     runtime.actions.subscribe,
     runtime.actions.getSnapshot,
     runtime.actions.getSnapshot,
   )
-  return actions.find(entry => toolNameOf(entry.id) === toolName)?.label
+}
+
+/** What the page calls an action the agent can call, by tool name: its label, while it offers it. */
+export function useActionLabel(toolName: string): string | undefined {
+  return useActions().find(entry => toolNameOf(entry.id) === toolName)?.label
+}
+
+/** The actions the page offers the agent now, as its tools are chosen (`@company/mfe-agent`). */
+export function useAgentActions(): readonly ActionEntry[] {
+  const actions = useActions()
+  return useMemo(
+    () => actions.filter(entry => entry.placements.includes('agent') && entry.decision.allowed),
+    [actions],
+  )
 }
 
 export function useChatSnapshot(chat: ShellChat): ChatSnapshot {

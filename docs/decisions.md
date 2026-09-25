@@ -1554,6 +1554,12 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
 - **Selected text.** ⌘/Ctrl+I quotes the page's selection into the next message, as Markdown
   (`> `), rather than sending it unseen: the user sees what they asked about, and it stays in the
   conversation for later turns.
+- **Slash commands.** A `/` at the start of the composer lists `/new` (a new conversation), then the
+  actions the page offers the agent, the mounted Apps' first and the shell's after, one word each.
+  Picking an action does not run it: it becomes a chip that sends the tool's name as the turn's
+  context, with the action's label as the text, so the model fills the inputs, the approval card
+  still asks, and the conversation keeps the result. Running an action straight away is the
+  palette's (§26), so the chat does not become a second palette.
 - **Agent context** is the runtime's (§46), plus the latest output of each Widget shown in the
   chat (§51).
 - **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`

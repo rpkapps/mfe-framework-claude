@@ -180,6 +180,7 @@ export class ShellChat {
     if (context !== undefined) {
       this.panel.attach({
         id: 'prompt-context',
+        kind: 'context',
         label: `From ${who}`,
         description: 'Page context',
         context,

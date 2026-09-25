@@ -5,7 +5,7 @@
  * (`lazy-panel.tsx`).
  */
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { HOST_SCOPE, type AgentSuggestionEntry } from '@company/mfe-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
@@ -20,6 +20,7 @@ import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   Composer,
   ComposerAttachments,
+  ComposerCommands,
   ComposerField,
   ComposerHint,
   ComposerInput,
@@ -37,11 +38,21 @@ import {
   PanelHeader,
   PanelTitle,
 } from '@tecton/react/tecton/panel'
-import { BotIcon, SquarePenIcon, TextQuoteIcon, XIcon } from 'lucide-react'
+import {
+  BotIcon,
+  InfoIcon,
+  SquarePenIcon,
+  TextQuoteIcon,
+  XIcon,
+  ZapIcon,
+  type LucideIcon,
+} from 'lucide-react'
 
 import { Interrupts } from './approvals.tsx'
-import { useChatSnapshot, useOfferedSuggestions } from './hooks.ts'
+import { actionAttachment, chatCommands } from './commands.ts'
+import { useAgentActions, useChatSnapshot, useOfferedSuggestions } from './hooks.ts'
 import { useChatPanel } from './panel-hooks.ts'
+import type { ChatAttachment } from './panel.ts'
 import type { ShellChat } from './shell-chat.ts'
 import { Transcript } from './transcript.tsx'
 
@@ -62,10 +73,18 @@ function FocusOnRequest({ chat }: { readonly chat: ShellChat }): null {
   return null
 }
 
+const ATTACHMENT_ICONS: Readonly<Record<ChatAttachment['kind'], LucideIcon>> = {
+  quote: TextQuoteIcon,
+  action: ZapIcon,
+  context: InfoIcon,
+}
+
 function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
   const snapshot = useChatSnapshot(chat)
   const panel = useChatPanel(chat)
   const offered = useOfferedSuggestions()
+  const actions = useAgentActions()
+  const commands = useMemo(() => chatCommands(actions), [actions])
   // Before the first message, and after each answer while nothing waits on the user.
   const idle = snapshot.status === 'ready' && snapshot.interrupts.length === 0
   const suggestions =
@@ -101,17 +120,33 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       )}
       <ComposerField>
         <ComposerAttachments
-          items={panel.attachments.map(attachment => ({
-            id: attachment.id,
-            label: attachment.label,
-            description: attachment.description,
-            icon: <TextQuoteIcon aria-hidden />,
-          }))}
+          items={panel.attachments.map(attachment => {
+            const Icon = ATTACHMENT_ICONS[attachment.kind]
+            return {
+              id: attachment.id,
+              label: attachment.label,
+              description: attachment.description,
+              icon: <Icon aria-hidden />,
+            }
+          })}
           onRemove={id => {
             chat.panel.detach(String(id))
           }}
         />
-        <ComposerInput placeholder="Ask the assistant…" />
+        <ComposerCommands
+          items={commands}
+          onCommand={(item, composer) => {
+            const command = commands.find(candidate => candidate.id === item.id)
+            if (command?.action === undefined) {
+              chat.newConversation()
+              return
+            }
+            chat.panel.attach(actionAttachment(command.action))
+            // Enter sends it as it is; the user may add what the action should act on.
+            composer.setValue(`${command.label} `)
+          }}
+        />
+        <ComposerInput placeholder="Ask the assistant, or type / for commands…" />
         <ComposerToolbar>
           <ComposerSubmit />
         </ComposerToolbar>

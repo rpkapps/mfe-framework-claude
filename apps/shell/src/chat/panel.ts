@@ -14,6 +14,8 @@ export const ASSISTANT_BUTTON_ID = 'shell-assistant'
 /** What goes with the next message besides its text, shown as a chip the user can remove. */
 export interface ChatAttachment {
   readonly id: string
+  /** What the chip shows it is: quoted text, an action the user chose, or a page's context. */
+  readonly kind: 'quote' | 'action' | 'context'
   readonly label: string
   readonly description: string
   /** Quoted in the message itself, so it stays in the conversation: the text the user selected. */
@@ -130,6 +132,7 @@ export class ChatPanel extends Store<ChatPanelState> {
     if (text !== '') {
       this.attach({
         id: 'selection',
+        kind: 'quote',
         label: 'Selected text',
         description: text.length > 80 ? `${text.slice(0, 80)}…` : text,
         quote: quote(text),

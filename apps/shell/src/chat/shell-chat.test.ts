@@ -102,6 +102,7 @@ describe('the shell chat', () => {
     client.panel.askAbout('A-7 is flaring')
     client.panel.attach({
       id: 'prompt-context',
+      kind: 'context',
       label: 'From Operations',
       description: 'Page context',
       context: { description: 'The alert', value: '{"alertId":"A-7"}' },
