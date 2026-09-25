@@ -115,6 +115,13 @@ function useToolLabel(part: ToolCallPart): string {
   return actionLabel ?? humanize(part.name)
 }
 
+/**
+ * A disclosure that opens and closes by its height, which React Aria sets as
+ * `--disclosure-panel-height` for the length of the change, rather than in one step.
+ */
+export const DISCLOSURE_MOTION =
+  'h-(--disclosure-panel-height) overflow-clip transition-[height] duration-200 ease-out motion-reduce:transition-none'
+
 function json(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2)
@@ -150,7 +157,7 @@ export function ToolCard({
         />
       </CollapsibleTrigger>
       {reason !== undefined && <p className="px-3 pb-2 text-muted-foreground">{reason}</p>}
-      <CollapsibleContent>
+      <CollapsibleContent className={DISCLOSURE_MOTION}>
         <div className="flex flex-col gap-2 border-t border-border-subtle px-3 py-2">
           <div>
             <p className="mb-1 font-medium text-muted-foreground">Inputs</p>

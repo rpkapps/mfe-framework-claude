@@ -4,7 +4,7 @@
  * composer announces only its own changes.
  */
 
-import type { ReactNode } from 'react'
+import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { ChatSnapshot, UIMessage } from '@company/mfe-agent'
 import { Bubble, BubbleContent } from '@tecton/react/components/bubble'
 import {
@@ -32,7 +32,7 @@ import { BotIcon, ChevronDownIcon } from 'lucide-react'
 
 import { splitQuote } from './quote.ts'
 import type { ShellChat } from './shell-chat.ts'
-import { ToolCallView } from './tool-call.tsx'
+import { DISCLOSURE_MOTION, ToolCallView } from './tool-call.tsx'
 
 function textOf(message: UIMessage): string {
   return message.parts.flatMap(part => (part.type === 'text' ? [part.content] : [])).join('\n')
@@ -90,7 +90,7 @@ function AssistantMessage({
                         aria-hidden
                       />
                     </CollapsibleTrigger>
-                    <CollapsibleContent>
+                    <CollapsibleContent className={DISCLOSURE_MOTION}>
                       <p className="mt-1 border-s-2 ps-2 whitespace-pre-wrap">{part.content}</p>
                     </CollapsibleContent>
                   </Collapsible>
@@ -108,6 +108,60 @@ function AssistantMessage({
   )
 }
 
+/** One question and everything that answered it; messages before the first question are a turn too. */
+interface Turn {
+  readonly id: string
+  readonly asked: boolean
+  readonly messages: readonly UIMessage[]
+}
+
+export function turnsOf(messages: readonly UIMessage[]): Turn[] {
+  const turns: { id: string; asked: boolean; messages: UIMessage[] }[] = []
+  for (const message of messages) {
+    const current = turns.at(-1)
+    if (message.role === 'user' || current === undefined) {
+      turns.push({ id: message.id, asked: message.role === 'user', messages: [message] })
+    } else {
+      current.messages.push(message)
+    }
+  }
+  return turns
+}
+
+/**
+ * How much of the previous turn the scroller keeps in view above a new question: its
+ * `scrollPreviousItemPeek`, which the provider leaves at its default.
+ */
+const PREVIOUS_TURN_PEEK = 64
+
+/**
+ * The viewport's inner height, less the peek: the least the last turn takes up. A turn that fills
+ * the view to the bottom never needs the scroller's filler below it, which the scroller sizes a
+ * frame after a change. Without this, collapsing a card in the last turn shrank the page, the
+ * browser pulled it down, and a frame later the filler pushed it back up.
+ */
+function useLastTurnHeight(): {
+  readonly viewportRef: (element: HTMLDivElement | null) => void
+  readonly minHeight: number | undefined
+} {
+  const [minHeight, setMinHeight] = useState<number>()
+  const observer = useRef<ResizeObserver | null>(null)
+  const viewportRef = useCallback((element: HTMLDivElement | null) => {
+    observer.current?.disconnect()
+    observer.current = null
+    if (element === null || typeof ResizeObserver === 'undefined') return
+    const measure = (): void => {
+      const style = window.getComputedStyle(element)
+      const padding = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom)
+      setMinHeight(Math.max(0, element.clientHeight - padding - PREVIOUS_TURN_PEEK))
+    }
+    observer.current = new ResizeObserver(measure)
+    observer.current.observe(element)
+    measure()
+  }, [])
+  return { viewportRef, minHeight }
+}
+
 export function Transcript({
   chat,
   snapshot,
@@ -120,38 +174,47 @@ export function Transcript({
 }): ReactNode {
   const { messages, status } = snapshot
   const waiting = status === 'submitted' && messages.at(-1)?.role === 'user'
+  const turns = turnsOf(messages)
+  const { viewportRef, minHeight } = useLastTurnHeight()
 
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <MessageScroller data-slot="chat-transcript" className="min-h-0 flex-1">
-        <MessageScrollerViewport className="px-4 py-3">
+        <MessageScrollerViewport ref={viewportRef} className="px-4 py-3">
           <MessageScrollerContent className="gap-4" aria-busy={status === 'streaming'}>
             {messages.length === 0 && (
               <MessageScrollerItem messageId="empty">{empty}</MessageScrollerItem>
             )}
-            {messages.map(message => (
+            {turns.map((turn, index) => (
               <MessageScrollerItem
-                key={message.id}
-                messageId={message.id}
-                scrollAnchor={message.role === 'user'}
+                key={turn.id}
+                messageId={turn.id}
+                scrollAnchor={turn.asked}
+                data-slot="chat-turn"
+                className="flex flex-col gap-4"
+                style={
+                  index === turns.length - 1 && minHeight !== undefined
+                    ? ({ minHeight } satisfies CSSProperties)
+                    : undefined
+                }
               >
-                {message.role === 'user' ? (
-                  <UserMessage message={message} />
-                ) : message.role === 'assistant' ? (
-                  <AssistantMessage chat={chat} message={message} />
-                ) : null}
+                {turn.messages.map(message =>
+                  message.role === 'user' ? (
+                    <UserMessage key={message.id} message={message} />
+                  ) : message.role === 'assistant' ? (
+                    <AssistantMessage key={message.id} chat={chat} message={message} />
+                  ) : null,
+                )}
+                {waiting && index === turns.length - 1 && (
+                  <Marker role="status">
+                    <MarkerIcon>
+                      <Spinner />
+                    </MarkerIcon>
+                    <MarkerContent>Thinking…</MarkerContent>
+                  </Marker>
+                )}
               </MessageScrollerItem>
             ))}
-            {waiting && (
-              <MessageScrollerItem messageId="waiting">
-                <Marker role="status">
-                  <MarkerIcon>
-                    <Spinner />
-                  </MarkerIcon>
-                  <MarkerContent>Thinking…</MarkerContent>
-                </Marker>
-              </MessageScrollerItem>
-            )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton />
