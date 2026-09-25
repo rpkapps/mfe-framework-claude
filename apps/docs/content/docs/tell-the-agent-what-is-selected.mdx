@@ -1,0 +1,202 @@
+---
+title: 'Tell the agent what is selected'
+description: "Publish the id and name of what the user has open, so the shell's agent knows what they mean by this one, and hand a click to the chat."
+---
+
+Apps and Widgets. Publish a small snapshot of what the user has open or selected, and the shell's
+agent receives it with every chat turn. When the user asks about "this well", the agent knows which
+one.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Publish what is open
+
+```tsx title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
+import { useAgentContext } from '@company/mfe-react'
+import { z } from 'zod'
+
+/** Ids and a name only: the agent reads the design itself through an action, fresh. */
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+function WellDetail(): ReactNode {
+  const { wellId } = Route.useParams()
+  const design = wellDesigns.find(candidate => candidate.id === wellId)
+
+  // Sent with each of the agent's turns while this page is open, and gone when it closes.
+  useAgentContext({
+    description: 'The well design the user has open, or null when its id is unknown',
+    schema: openWell,
+    value: design === undefined ? null : { id: design.id, name: design.name },
+  })
+  // …
+}
+```
+
+Call it on every render with the current value. `description` tells the model what the value is,
+and the agent gets what `schema` parsed. An equal value publishes nothing. The snapshot goes when
+the component unmounts or the mount is disposed.
+
+</Step>
+
+<Step>
+
+### 2. Send ids and a label, not the record
+
+```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
+/** At module scope, as every inputSchema is. */
+const wellDesignInput = z.object({ id: z.string() })
+
+useAction({
+  name: 'read-well-design',
+  label: 'Operations: read a well design',
+  description:
+    'Returns the well design with this id: depths, inclination, phase and AFE cost, or null.',
+  inputSchema: wellDesignInput,
+  effect: 'read',
+  placements: ['agent'],
+  execute: ({ id }) => wellDesigns.find(design => design.id === id) ?? null,
+})
+```
+
+A value must be JSON, at most 4096 characters of it. Never publish a
+secret. For the rest of the record, offer a read action that takes the id, so the agent reads it
+fresh before it acts. [Offer an action to the agent](/docs/offer-an-action-to-the-agent) has every
+field.
+
+</Step>
+
+<Step>
+
+### 3. Hand a click to the chat
+
+```tsx title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
+import { useAgentContext, useAgentPrompt } from '@company/mfe-react'
+
+const prompt = useAgentPrompt()
+const [unanswered, setUnanswered] = useState(false)
+
+<Button
+  variant="outline"
+  size="sm"
+  onPress={() => {
+    // Whether a chat took it: the shell may have none.
+    setUnanswered(
+      !prompt({ message: `What stands out in ${design.name}?`, context: { wellId: design.id } }),
+    )
+  }}
+>
+  Ask the agent
+</Button>
+```
+
+The chat shows `message` and sends `context` unseen, under the same size limit. Pass
+`submit: false` to fill the chat's input box for the user to review and send. The function returns
+whether a chat took the prompt. Until the shell has a chat, it returns `false`.
+
+</Step>
+
+<Step>
+
+### 4. Keep shareable filters in the URL
+
+```tsx title="examples/operations/src/routes/assets.tsx (trimmed)"
+export const Route = createFileRoute('/assets')({
+  validateSearch: z.object({ site: z.enum(['north', 'south', 'central']).default('north') }),
+  component: Assets,
+})
+```
+
+The URL goes with every turn, and you write no code for it. The agent gets the page's path and
+search params, and each App's own path below its boundary. It sees a filter in the search params,
+and changes it by navigating.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Render the component in a test, then read the published snapshots. There is one entry per
+published value, and none once the component unmounts.
+
+```tsx title="src/routes/wells.test.tsx"
+import { useAgentContext } from '@company/mfe-react'
+import { createMfeTestEnvironment } from '@company/mfe-react/testing'
+import { renderHook } from '@testing-library/react'
+import { expect, it } from 'vitest'
+import { z } from 'zod'
+
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+it('tells the agent which well is open, until the page closes', async () => {
+  const environment = createMfeTestEnvironment({ definitionId: 'operations' })
+  const view = renderHook(
+    () =>
+      useAgentContext({
+        description: 'The well design the user has open',
+        schema: openWell,
+        value: { id: 'W-1', name: 'Alpha 1' },
+      }),
+    { wrapper: environment.wrapper },
+  )
+
+  expect(environment.runtime.agentContext.getSnapshot()).toMatchObject([
+    { definitionId: 'operations', value: { id: 'W-1', name: 'Alpha 1' } },
+  ])
+
+  view.unmount()
+  expect(environment.runtime.agentContext.getSnapshot()).toEqual([])
+  await environment.dispose()
+})
+```
+
+## Errors
+
+<Callout type="error" title="expected a description of what the value is">
+
+```text
+operations failed to publish agent context: expected a description of what the value is, received
+an empty string.
+```
+
+**Fix.** Say what the value is, such as "The wells the user has selected". The hook throws, and
+the code is `contract/input-mismatch`.
+
+</Callout>
+
+<Callout type="error" title="expected a value its schema accepts">
+
+```text
+operations failed to publish agent context 'The well design the user has open': expected a value
+its schema accepts, received ✖ Invalid input: expected string, received number → at id.
+```
+
+**Fix.** Publish a value the schema accepts. Until you do, the agent gets no snapshot from this
+call. The warning is reported once, with the code `contract/input-mismatch`.
+
+</Callout>
+
+<Callout type="error" title="expected JSON data no longer than 4096 characters">
+
+```text
+operations failed to publish agent context 'The wells the user has selected': expected JSON data
+no longer than 4096 characters, received 4691 characters of JSON, over the 4096 a selection may
+take.
+```
+
+**Fix.** Publish ids and a short label, and offer a read action for the rest. A value that is not
+JSON, such as a `Date`, gets the same message, naming it: `received a Date at openedAt`.
+
+</Callout>
+
+## Related
+
+- [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — the read action behind the ids.
+- [Hooks and components](/docs/reference/hooks-and-components#useagentcontext) — both hooks, every field.
+- [The Angular adapter](/docs/reference/angular-adapter) — `injectAgentContext` and `injectAgentPrompt`.
+- [Add a route](/docs/add-a-route) — search params the agent reads and changes.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

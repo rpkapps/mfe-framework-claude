@@ -109,19 +109,21 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 
 ## Hooks
 
-| Hook                                                | Gives                                                    |
-| --------------------------------------------------- | -------------------------------------------------------- |
-| `useUser()`, `useGroups()`, `useTheme()`            | one shell-state field each                               |
-| `useStoredState(name, schema, options)`             | validated state under the definition's storage scope     |
-| `useMfeStorage()`                                   | the imperative storage handle                            |
-| `useAction(registration)`                           | an action for the palette and the agent, and its run     |
-| `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                      |
-| `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                       |
-| `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal            |
-| `useBasePath()`, `useScopeRoot()`                   | the boundary, and the runtime's scope root for the mount |
-| `useRegistryEntries()`, `useApps()`, `useWidgets()` | registry views for a host                                |
+| Hook                                                | Gives                                                     |
+| --------------------------------------------------- | --------------------------------------------------------- |
+| `useUser()`, `useGroups()`, `useTheme()`            | one shell-state field each                                |
+| `useStoredState(name, schema, options)`             | validated state under the definition's storage scope      |
+| `useMfeStorage()`                                   | the imperative storage handle                             |
+| `useAction(registration)`                           | an action for the palette and the agent, and its run      |
+| `useAgentContext(registration)`                     | a snapshot of what is selected, sent with each agent turn |
+| `useAgentPrompt()`                                  | a function that hands a click to the shell's chat         |
+| `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                       |
+| `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                        |
+| `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal             |
+| `useBasePath()`, `useScopeRoot()`                   | the boundary, and the runtime's scope root for the mount  |
+| `useRegistryEntries()`, `useApps()`, `useWidgets()` | registry views for a host                                 |
 
-Shell-state, storage, action and breadcrumb hooks also work outside a mount,
+Shell-state, storage, action, agent-context and breadcrumb hooks also work outside a mount,
 in the reserved `@host` scope, given an `MfeProvider` above them.
 
 `useAction` publishes an action to the palette and, unless its `placements` say
@@ -170,6 +172,35 @@ useAction({
   shortcut: 'o w',
   execute: () => void navigate({ to: '/wells' }),
 })
+```
+
+`useAgentContext({ description, schema, value })` publishes a small, typed
+snapshot of what is selected or open, which the shell's agent receives with each
+turn. `description` tells the model what the value is, and the agent receives
+what `schema` parsed: ids and a short label, JSON of at most 4096 characters,
+never whole records and never secrets. The agent reads records through the
+App's read actions. Call it on every render; an equal value publishes nothing.
+An invalid value is left out and reported once as a warning. The snapshot goes
+when the component unmounts or the mount is disposed. The URL goes with each
+turn without a hook, so a filter the agent should see belongs in search params.
+
+`useAgentPrompt()` returns a stable function that hands
+`{ message, context?, submit? }` to the shell's chat: `message` is shown,
+`context` is sent unseen, and `submit: false` fills the input box for the user
+to review. It returns whether a chat took the prompt. Until the shell has a
+chat, it returns `false`. The package exports `AgentContextEntry`,
+`AgentContextRegistration` and `AgentPrompt` as types.
+
+```tsx
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+useAgentContext({
+  description: 'The well design the user has open, or null when its id is unknown',
+  schema: openWell,
+  value: design === undefined ? null : { id: design.id, name: design.name },
+})
+
+const prompt = useAgentPrompt()
 ```
 
 ## Building a container

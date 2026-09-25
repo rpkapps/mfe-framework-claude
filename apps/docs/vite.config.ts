@@ -53,6 +53,7 @@ const RECIPES = [
   'publish-release-notes',
   'add-an-action',
   'offer-an-action-to-the-agent',
+  'tell-the-agent-what-is-selected',
   'block-navigation-when-unsaved',
   'show-an-icon',
   'set-breadcrumbs',

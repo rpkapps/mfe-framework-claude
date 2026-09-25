@@ -215,6 +215,52 @@ Build the answer `canExecute` returns. `deny` takes the sentence the palette sho
 
 Recipe: [Add an action to the palette](/docs/add-an-action).
 
+### useAgentContext
+
+```ts
+useAgentContext<Schema extends z.ZodType>(registration: AgentContextRegistration<Schema>): void
+```
+
+Publishes a small snapshot of what is selected or open, for as long as the component is rendered. The shell's agent receives it with each chat turn. Call it on every render with the current value. An equal value publishes nothing.
+
+| Field         | Type               | What it does                                                                                          |
+| ------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `description` | `string`           | Tells the model what the value is, such as `'The wells the user has selected'`. It must not be empty. |
+| `schema`      | `z.ZodType`        | Parses `value`. What it parsed is what the agent receives.                                            |
+| `value`       | the schema's input | Ids and a short label: JSON, at most 4096 characters of it.                                           |
+
+```ts title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+useAgentContext({
+  description: 'The well design the user has open, or null when its id is unknown',
+  schema: openWell,
+  value: design === undefined ? null : { id: design.id, name: design.name },
+})
+```
+
+The agent receives an `AgentContextEntry`: `{ definitionId, description, value, capturedAt }`, where `capturedAt` is the ISO time the value last changed. A value that fails its schema, is not JSON or is too long is left out, and reported once as a warning with `contract/input-mismatch`. An empty `description` throws the same code. The entry goes when the component unmounts or the mount is disposed. Outside a mount, it belongs to the host page. Never publish whole records or secrets: offer a read action that takes the id instead.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
+
+### useAgentPrompt
+
+```ts
+useAgentPrompt(): (prompt: AgentPrompt) => boolean
+```
+
+Returns a stable function that hands a click to the shell's chat as a turn. An `AgentPrompt` is `{ message, context?, submit? }`. The chat shows `message` and sends `context` unseen, under the same JSON size limit. `submit: false` fills the chat's input box for the user to review. `submit` defaults to `true`.
+
+```tsx
+const prompt = useAgentPrompt()
+
+prompt({ message: `Why is ${design.name} behind plan?`, context: { wellId: design.id } })
+```
+
+The function returns whether a chat took the prompt. The runtime refuses an empty message, or a context that is not JSON or is too long. The function then returns `false` and reports a warning with `contract/input-mismatch`. Until the shell has a chat, it returns `false`. `AgentContextEntry`, `AgentContextRegistration` and `AgentPrompt` are exported as types.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
+
 ### useBreadcrumbs
 
 ```ts
@@ -384,10 +430,10 @@ A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime su
 
 ## Where each hook may be called
 
-| Hook                                                                                                 | Inside a mount | On the host page |
-| ---------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useAction`, `useBreadcrumbs`, `useStoredState`                  | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
+| Hook                                                                                                                     | Inside a mount | On the host page |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                     | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 

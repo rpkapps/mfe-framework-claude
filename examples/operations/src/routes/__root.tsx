@@ -16,11 +16,16 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { z } from 'zod'
 
 import { ProjectTree, projectTree } from '../components/dashboard-01/page.tsx'
+import { wellDesigns } from '../components/well-design-card/page.tsx'
 
 /** The shell owns the header above this and renders nothing else, so everything below it is this
  * App's to lay out; `createApp` has no layout option because a root route already is one. */
+/** At module scope, as every inputSchema is. */
+const wellDesignInput = z.object({ id: z.string() })
+
 export const Route = createRootRouteWithContext<MfeRouterContext>()({
   component: OperationsLayout,
 })
@@ -85,6 +90,19 @@ function OperationsLayout(): ReactNode {
     execute: () => {
       void navigate({ to: '/settings' })
     },
+  })
+
+  // For the agent alone: the well page publishes only the id and name of the design it shows, and
+  // the agent reads the design itself here, fresh, before it acts on it.
+  useAction({
+    name: 'read-well-design',
+    label: 'Operations: read a well design',
+    description:
+      'Returns the well design with this id: depths, inclination, phase and AFE cost, or null.',
+    inputSchema: wellDesignInput,
+    effect: 'read',
+    placements: ['agent'],
+    execute: ({ id }) => wellDesigns.find(design => design.id === id) ?? null,
   })
 
   useAction({

@@ -259,6 +259,8 @@ initialiser — and clean up with the injector that created them.
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                            | host scope        |
 | `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws     | host scope        |
 | `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
+| `injectAgentContext(registration \| () => …)`     | nothing; a factory re-publishes when the signals it reads do        | host scope        |
+| `injectAgentPrompt()`                             | a function that hands a prompt to the shell's chat                  | host scope        |
 | `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override     | host crumbs, at 0 |
 | `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
@@ -315,6 +317,29 @@ injectAction({
   shortcut: 'mod+e',
   execute: () => this.export(),
 })
+```
+
+**What the agent is told.** `injectAgentContext` takes the registration
+`useAgentContext` takes, or a factory that returns one: `description`, `schema`
+and `value`. It publishes a small snapshot of what is selected or open, which
+the shell's agent receives with each turn: ids and a short label, JSON of at
+most 4096 characters, never whole records or secrets. A factory runs again when
+a signal it reads changes, and an equal value publishes nothing. An invalid
+value is left out and reported once as a warning. The snapshot goes when the
+injector is destroyed or the mount is disposed. `injectAgentPrompt()` returns a
+function that hands `{ message, context?, submit? }` to the shell's chat and
+returns whether a chat took it. Until the shell has a chat, it returns `false`.
+The package exports `AgentContextEntry`, `AgentContextRegistration` and
+`AgentPrompt` as types.
+
+```ts
+const selectedPad = z.object({ id: z.string(), name: z.string() }).nullable()
+
+injectAgentContext(() => ({
+  description: 'The well pad the user has chosen, or null before they choose one',
+  schema: selectedPad,
+  value: this.pad(),
+}))
 ```
 
 **The mount's elements.** `injectMfeMount()` carries the two elements the

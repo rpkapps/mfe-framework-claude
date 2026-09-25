@@ -89,17 +89,18 @@ with, so an entry without `shareScopes` shares in `default` alone.
 
 ## The page's services
 
-| On `runtime`  | What it is                                                                 |
-| ------------- | -------------------------------------------------------------------------- |
-| `registry`    | the accepted entries by id, and the rejected ones with their reasons       |
-| `loader`      | the shared loader, with each adapter's `aroundLoad` applied                |
-| `shellState`  | user, groups and theme, with the session transitions that retire user data |
-| `storage`     | validated storage, scoped by definition id, with `@host` for the page      |
-| `actions`     | the action registry the palette and the key listener read                  |
-| `breadcrumbs` | the breadcrumb store the header reads                                      |
-| `navigator`   | the `BoundaryNavigator` over the navigation bridge                         |
-| `diagnostics` | the hub every framework failure reaches                                    |
-| `deadlines`   | the budget every mount runs under                                          |
+| On `runtime`   | What it is                                                                 |
+| -------------- | -------------------------------------------------------------------------- |
+| `registry`     | the accepted entries by id, and the rejected ones with their reasons       |
+| `loader`       | the shared loader, with each adapter's `aroundLoad` applied                |
+| `shellState`   | user, groups and theme, with the session transitions that retire user data |
+| `storage`      | validated storage, scoped by definition id, with `@host` for the page      |
+| `actions`      | the action registry the palette and the key listener read                  |
+| `breadcrumbs`  | the breadcrumb store the header reads                                      |
+| `agentContext` | what the agent is told with each turn: the URL, the Apps, the selections   |
+| `navigator`    | the `BoundaryNavigator` over the navigation bridge                         |
+| `diagnostics`  | the hub every framework failure reaches                                    |
+| `deadlines`    | the budget every mount runs under                                          |
 
 `actions.execute(id, { caller, input })` runs an action for whoever asked:
 `'palette'`, `'shortcut'`, `'ui'` or `'agent'`. Every caller goes through the
@@ -159,6 +160,39 @@ pathname is inside its boundary; a Widget's are ignored. A key two live
 registrations claim runs neither, and the collision was already reported when
 the second was declared. `parseShortcut` is the same reading, for a host that
 draws or checks one.
+
+`agentContext` is the `AgentContextStore`: what the shell's chat sends with
+each turn. `read()` returns `{ url: { pathname, search }, apps, selections }` at
+the moment it is called. `apps` lists every mounted App whose boundary holds the
+page, outermost first, each with `definitionId`, `basePath` and its own `path`
+below it; the mount context calls `trackBoundary` for every App it creates, so
+no author writes anything for the URL layer. `selections` are the snapshots
+mounts publish with `register(owner, registration)`, or the host page with
+`registerHost(registration)`, and `getSnapshot`/`subscribe` expose them alone.
+A value is parsed by its schema and must be JSON of at most
+`MAX_AGENT_CONTEXT_LENGTH` (4096) characters; one that is not is left out and
+reported once as a `contract/input-mismatch` warning, and an empty description
+throws that code. An equal value publishes nothing, and `capturedAt` moves only
+when the value changes. `removeMount(token)` takes a mount's selections and
+boundary with it, as `mountScopedStores` does on disposal.
+
+`prompt(prompt, definitionId?)` hands `{ message, context?, submit? }` to the
+chat set with `setPromptHandler(handler)`, with `submit` settled to `true` when
+absent, and returns whether a chat took it. With no handler it returns `false`;
+the unsubscribe `setPromptHandler` returns removes only that handler. The store
+exports `AgentAppLocation`, `AgentContextHandle`, `AgentContextOwner`,
+`AgentContextStoreOptions`, `AgentPromptHandler`, `AgentPromptRequest` and
+`AgentTurnContext` as types.
+
+```ts
+// The chat, when it sends a turn.
+const turn = runtime.agentContext.read()
+
+// The chat, to receive a click from a mount.
+const removePromptHandler = runtime.agentContext.setPromptHandler(request =>
+  request.submit ? sendTurn(request) : fillComposer(request),
+)
+```
 
 The browser bridge hears only `popstate`. A host whose own router writes the
 page's history calls `navigator.announce()` after each navigation, and mounted

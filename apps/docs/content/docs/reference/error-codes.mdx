@@ -9,13 +9,13 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 
 ## Registry and contract codes
 
-| Code                         | When it happens                                                                                                                                                                             | Fix                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                               | Rebuild the container. Registry JSON is generated, never hand-written.                                               |
-| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                                                                                                      | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                      |
-| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                                                                                               | Rebuild against the shell's major, or upgrade the shell.                                                             |
-| `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning.      | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts.                   |
-| `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`. | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares. |
+| Code                         | When it happens                                                                                                                                                                                                                                                                                 | Fix                                                                                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                                                                                                                                   | Rebuild the container. Registry JSON is generated, never hand-written.                                                                               |
+| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                                                                                                                                                                                                          | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                                                      |
+| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                                                                                                                                                                                                   | Rebuild against the shell's major, or upgrade the shell.                                                                                             |
+| `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
+| `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
 
 <Callout type="error" title="contract/input-mismatch">
 
@@ -44,6 +44,16 @@ lab failed to accept input for action 'run-simulation' runs: expected input matc
 ```
 
 **Fix.** Call the action with input its `inputSchema` accepts. Nothing ran, and the caller gets the result `invalid` with this error. An action's `outputSchema` mismatch reads the same way and fails the run.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch, from agent context">
+
+```text
+operations failed to publish agent context 'The well design the user has open': expected a value its schema accepts, received ✖ Invalid input: expected string, received number → at id. Publish ids and a short label that match the schema; the agent reads the records themselves through your actions. The context is left out until it is valid.
+```
+
+**Fix.** Publish a value the schema accepts, as JSON of at most 4096 characters. The agent gets no snapshot from that call until you do, and the warning is reported once. An empty `description` throws the same code instead.
 
 </Callout>
 

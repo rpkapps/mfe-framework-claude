@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { useAgentContext } from '@company/mfe-react'
+import { useAgentContext, useAgentPrompt } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -21,7 +21,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tect
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { z } from 'zod'
 
 import {
@@ -51,6 +51,8 @@ function WellDetail(): ReactNode {
     schema: openWell,
     value: design === undefined ? null : { id: design.id, name: design.name },
   })
+  const prompt = useAgentPrompt()
+  const [unanswered, setUnanswered] = useState(false)
 
   if (design === undefined) {
     return (
@@ -108,6 +110,21 @@ function WellDetail(): ReactNode {
           </PageHeaderDescription>
         </PageHeaderContent>
         <PageHeaderActions>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => {
+              // Whether a chat took it: the shell may have none.
+              setUnanswered(
+                !prompt({
+                  message: `What stands out in ${design.name}?`,
+                  context: { wellId: design.id },
+                }),
+              )
+            }}
+          >
+            Ask the agent
+          </Button>
           <CopyButton variant="ghost" size="sm" value={window.location.href}>
             Copy link
           </CopyButton>
@@ -122,6 +139,11 @@ function WellDetail(): ReactNode {
           </Button>
         </PageHeaderActions>
       </PageHeader>
+      {unanswered ? (
+        <p className="text-sm text-muted-foreground">
+          This shell has no chat to take the question.
+        </p>
+      ) : null}
 
       <StatGroup>
         <Stat>
