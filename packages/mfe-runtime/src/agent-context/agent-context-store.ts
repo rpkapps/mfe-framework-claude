@@ -311,9 +311,13 @@ export class AgentContextStore {
         problems.push(`more than ${String(MAX_AGENT_SUGGESTIONS)} suggestions`)
         break
       }
+      const { context } = suggestion
       kept.push(
         Object.freeze({
           ...suggestion,
+          // A copy, as a selection's value is, so the author mutating its object later changes
+          // nothing the chat was offered.
+          ...(context === undefined ? {} : { context: parseJson(JSON.stringify(context)) }),
           submit: suggestion.submit ?? true,
           definitionId: record.definitionId,
         }),

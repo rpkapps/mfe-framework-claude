@@ -205,16 +205,29 @@ A value is parsed by its schema and must be JSON of at most
 reported once as a `contract/input-mismatch` warning. An empty description
 throws that code at registration; an update that empties it is left out and
 reported the same way. An equal value publishes nothing, and `capturedAt` moves only
-when the value changes. `removeMount(token)` takes a mount's selections and
-boundary with it, as `mountScopedStores` does on disposal.
+when the value changes. `removeMount(token)` takes a mount's selections,
+suggestions and boundary with it; a mount's disposal calls it.
+
+Suggestions are the prompts a mount offers as ways to start or carry on the
+conversation, which the chat shows as chips while the mount lives.
+`suggest(owner, suggestions)` offers a mount's, and `suggestHost(suggestions)`
+the host page's; each returns an `AgentSuggestionsHandle` whose `update`
+replaces the list and whose `remove` withdraws it. An `AgentSuggestion` is a
+prompt with an optional `label` for the chip. At most three per owner are kept;
+one with an empty message or a `context` that is not JSON of at most
+`MAX_AGENT_CONTEXT_LENGTH` characters is left out, and what was left out is
+reported once as a `contract/input-mismatch` warning. `getSuggestions()`
+returns every owner's, in registration order, each an `AgentSuggestionEntry`
+with its `definitionId`, `submit` settled and a copy of its `context`, and
+`subscribeSuggestions` follows them; an equal list publishes nothing.
 
 `prompt(prompt, definitionId?)` hands `{ message, context?, submit? }` to the
 chat set with `setPromptHandler(handler)`, with `submit` settled to `true` when
 absent, and returns whether a chat took it. With no handler it returns `false`;
 the unsubscribe `setPromptHandler` returns removes only that handler. The store
 exports `AgentAppLocation`, `AgentContextHandle`, `AgentContextOwner`,
-`AgentContextStoreOptions`, `AgentPromptHandler`, `AgentPromptRequest` and
-`AgentTurnContext` as types.
+`AgentContextStoreOptions`, `AgentPromptHandler`, `AgentPromptRequest`,
+`AgentSuggestionsHandle` and `AgentTurnContext` as types.
 
 ```ts
 // The chat, when it sends a turn.
@@ -224,6 +237,11 @@ const turn = runtime.agentContext.read()
 const removePromptHandler = runtime.agentContext.setPromptHandler(request =>
   request.submit ? sendTurn(request) : fillComposer(request),
 )
+
+// The host page, offering a way in; the chat renders `getSuggestions()` as chips.
+const suggestions = runtime.agentContext.suggestHost([
+  { message: 'What changed since yesterday?', label: 'Recent changes' },
+])
 ```
 
 The browser bridge hears only `popstate`. A host whose own router writes the

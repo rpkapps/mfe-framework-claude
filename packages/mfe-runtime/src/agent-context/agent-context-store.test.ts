@@ -321,4 +321,15 @@ describe('suggestions', () => {
     expect(store.getSuggestions().map(entry => entry.message)).toEqual(['A', 'C', 'D'])
     expect(codesOf(records)).toEqual(['contract/input-mismatch'])
   })
+
+  it('keeps the context it was offered when the author mutates its object afterwards', () => {
+    const { store } = setup()
+    const context = { ids: ['W-1'], label: '1 well' }
+    store.suggest(owner, [{ message: 'Why is it down?', context }])
+
+    context.ids.push('W-2')
+    context.label = '2 wells'
+
+    expect(store.getSuggestions()[0]?.context).toEqual({ ids: ['W-1'], label: '1 well' })
+  })
 })
