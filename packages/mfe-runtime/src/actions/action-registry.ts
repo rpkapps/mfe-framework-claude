@@ -11,13 +11,19 @@
  */
 
 import {
+  ACTION_EFFECTS,
   actionEntryEqual,
   createMfeError,
+  DEFAULT_ACTION_PLACEMENTS,
   HOST_SCOPE,
+  isRecord,
+  toMfeError,
+  withoutUndefined,
   type ActionEntry,
-  type ActionPlacement,
+  type ActionInputSchema,
   type ActionRegistration,
   type DefinitionKind,
+  type JsonSchemaObject,
   type MfeError,
   type MfeErrorDetails,
   type Unsubscribe,
@@ -28,6 +34,9 @@ import { SnapshotSource } from '../observable.ts'
 import {
   ActionExecutor,
   decide,
+  effectOf,
+  type ActionApprovalPolicy,
+  type ActionApprover,
   type ActionCall,
   type ActionDenialNotifier,
   type ActionExecutionResult,
@@ -53,8 +62,8 @@ import {
   type ShortcutScope,
 } from './shortcut-scope.ts'
 
-const DEFAULT_PLACEMENTS: readonly ActionPlacement[] = Object.freeze(['palette'])
-const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)
+const VALID_PLACEMENTS = new Set<string>(DEFAULT_ACTION_PLACEMENTS)
+const VALID_EFFECTS = new Set<string>(ACTION_EFFECTS)
 
 /** Restricted so `<definitionId>:<name>` stays unambiguous. */
 const ACTION_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
@@ -81,6 +90,7 @@ export interface ActionRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
   update(registration: ActionRegistration): void
   remove(): void
+  /** Follows a change of `name`. */
   readonly qualifiedId: string
 }
 
@@ -113,8 +123,17 @@ interface RegisteredAction {
    * `declared` or the host page's shortcuts do, and both paths recompute it.
    */
   usable: ParsedShortcut | undefined
+  /** The registration's schemas as JSON Schema, converted only when either one's identity changes. */
+  schemas: ActionSchemas
   /** The last published entry; reused when nothing visible changed. */
   entry: ActionEntry
+}
+
+interface ActionSchemas {
+  readonly input: ActionRegistration['inputSchema']
+  readonly output: ActionRegistration['outputSchema']
+  readonly inputSchema?: JsonSchemaObject
+  readonly outputSchema?: JsonSchemaObject
 }
 
 /** An action before its first entry is built from it. */
@@ -128,6 +147,8 @@ export interface ActionRegistryOptions {
    * inside its boundary. Omitted, only the host page's shortcuts fire.
    */
   readonly readPathname?: () => string
+  /** The host's rule over every agent call, on top of what each action declares. */
+  readonly approvalPolicy?: ActionApprovalPolicy
 }
 
 const UNMATCHED: ShortcutDispatchResult = Object.freeze({ status: 'unmatched' })
@@ -146,6 +167,7 @@ export class ActionRegistry {
   /** The chords of a sequence typed so far, dropped when the next one is too late. */
   #pressed: readonly PressedChord[] = []
   #pressedAt = 0
+  #approver: ActionApprover | undefined
 
   constructor(options: ActionRegistryOptions = {}) {
     this.#options = options
@@ -156,6 +178,10 @@ export class ActionRegistry {
       onDenied: action => {
         if (this.#refreshEntry(action)) this.#publish()
       },
+      approvalPolicy: options.approvalPolicy,
+      approver: () => this.#approver,
+      isLive: action =>
+        this.#byScope.get(action.scopeToken)?.get(action.registration.name) === action,
     })
   }
 
@@ -173,7 +199,10 @@ export class ActionRegistry {
    * Duplicate local names within a mount are rejected rather than overwritten; the same name in
    * another mount is fine because the runtime qualifies it.
    */
-  register(owner: ActionOwner, registration: ActionRegistration): ActionRegistrationHandle {
+  register<Input extends ActionInputSchema, Output>(
+    owner: ActionOwner,
+    registration: ActionRegistration<Input, Output>,
+  ): ActionRegistrationHandle {
     const { definitionId, mountToken } = owner
     if (definitionId === HOST_SCOPE || mountToken === HOST_SCOPE) {
       throw fail(definitionId, {
@@ -200,7 +229,9 @@ export class ActionRegistry {
    * from a real mount's, which would put the host's actions at the mercy of
    * `removeMount`.
    */
-  registerHost(registration: ActionRegistration): ActionRegistrationHandle {
+  registerHost<Input extends ActionInputSchema, Output>(
+    registration: ActionRegistration<Input, Output>,
+  ): ActionRegistrationHandle {
     return this.#add(
       { definitionId: HOST_SCOPE, scopeToken: HOST_SCOPE, shortcutScope: HOST_PAGE_SCOPE },
       registration,
@@ -226,6 +257,18 @@ export class ActionRegistry {
       if (this.#refreshEntry(action)) changed = true
     }
     if (changed) this.#publish()
+  }
+
+  /**
+   * The surface that asks the user about an agent's call: the chat's card. One at a time; the
+   * returned function removes it only while it is still the one set. Without one, a call that
+   * needs approval is denied rather than run.
+   */
+  setApprover(approver: ActionApprover): Unsubscribe {
+    this.#approver = approver
+    return () => {
+      if (this.#approver === approver) this.#approver = undefined
+    }
   }
 
   /** Runs through the executor's steps; `call` says who asked, which a key press does itself. */
@@ -307,6 +350,7 @@ export class ActionRegistry {
   dispose(): void {
     this.#byScope.clear()
     this.#pressed = []
+    this.#approver = undefined
     this.#snapshot.dispose()
   }
 
@@ -316,6 +360,7 @@ export class ActionRegistry {
   ): ActionRegistrationHandle {
     const { definitionId, scopeToken } = owner
     const declared = this.#assertValid(definitionId, registration)
+    const schemas = describeSchemas(definitionId, registration, undefined)
 
     const actions = this.#scopeActions(scopeToken)
     if (actions.has(registration.name)) {
@@ -324,7 +369,7 @@ export class ActionRegistry {
 
     const qualifiedId = `${definitionId}:${registration.name}`
     const usable = this.#usableShortcut(owner.shortcutScope, declared)
-    const unpublished = { ...owner, qualifiedId, registration, declared, usable }
+    const unpublished = { ...owner, qualifiedId, registration, declared, usable, schemas }
     const action: RegisteredAction = { ...unpublished, entry: this.#buildEntry(unpublished) }
 
     actions.set(registration.name, action)
@@ -333,7 +378,9 @@ export class ActionRegistry {
 
     let active = true
     return {
-      qualifiedId,
+      get qualifiedId() {
+        return action.qualifiedId
+      },
       update: next => {
         if (active) this.#update(action, next)
       },
@@ -362,6 +409,8 @@ export class ActionRegistry {
     // register. Otherwise the shortcut is parsed only when it changed, because this runs after
     // every commit of the component that registered it.
     let { declared } = action
+    // Before anything changes, so a schema that cannot be described leaves the action as it was.
+    const schemas = describeSchemas(action.definitionId, next, action.schemas)
     if (next.name !== action.registration.name) {
       declared = this.#assertValid(action.definitionId, next)
       if (actions.has(next.name)) {
@@ -375,6 +424,7 @@ export class ActionRegistry {
     }
     action.registration = next
     action.declared = declared
+    action.schemas = schemas
     if (shortcutChanged) action.usable = this.#usableShortcut(action.shortcutScope, declared)
 
     let changed = this.#refreshEntry(action)
@@ -528,15 +578,22 @@ export class ActionRegistry {
   }
 
   #buildEntry(action: ActionShape): ActionEntry {
-    const { definitionId, registration, usable } = action
+    const { definitionId, registration, usable, schemas } = action
     return Object.freeze({
       id: action.qualifiedId,
       definitionId,
       name: registration.name,
       label: registration.label,
-      placements: registration.placements ?? DEFAULT_PLACEMENTS,
+      placements: registration.placements ?? DEFAULT_ACTION_PLACEMENTS,
+      effect: effectOf(registration),
+      followUp: registration.followUp ?? true,
       decision: decide(definitionId, registration, this.#options.diagnostics),
-      ...(usable === undefined ? {} : { shortcut: usable.source }),
+      ...withoutUndefined({
+        description: registration.description,
+        inputSchema: schemas.inputSchema,
+        outputSchema: schemas.outputSchema,
+        shortcut: usable?.source,
+      }),
     })
   }
 
@@ -588,14 +645,24 @@ export class ActionRegistry {
       })
     }
 
-    for (const placement of registration.placements ?? DEFAULT_PLACEMENTS) {
+    for (const placement of registration.placements ?? DEFAULT_ACTION_PLACEMENTS) {
       if (VALID_PLACEMENTS.has(placement)) continue
       throw fail(definitionId, {
         operation: `register action '${name}'`,
         expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
         observed: JSON.stringify(placement),
         repair:
-          'Only palette is standardized. Future placements add placement records to this model.',
+          'Use one of the standardized placements. Future placements add placement records to this model.',
+      })
+    }
+
+    const { effect } = registration
+    if (effect !== undefined && !VALID_EFFECTS.has(effect)) {
+      throw fail(definitionId, {
+        operation: `register action '${name}'`,
+        expected: `an effect (${[...VALID_EFFECTS].join(', ')})`,
+        observed: JSON.stringify(effect),
+        repair: 'Declare what a run can change, or leave effect out to count it as a write.',
       })
     }
 
@@ -618,6 +685,60 @@ export class ActionRegistry {
       repair: 'Fix the shortcut, or remove it; the action works from the palette without one.',
     })
   }
+}
+
+/**
+ * The registration's schemas as JSON Schema, which is what an agent's tool list sends. Converted
+ * by each schema's own `toJSONSchema`, so a container's schema is read by the Zod that made it,
+ * and only when its identity changed since `previous`. A schema JSON Schema cannot express (a
+ * date, a transform's output) is refused at registration, since the agent could not call it.
+ */
+function describeSchemas(
+  definitionId: string,
+  registration: ActionRegistration,
+  previous: ActionSchemas | undefined,
+): ActionSchemas {
+  const { inputSchema: input, outputSchema: output } = registration
+  if (previous && previous.input === input && previous.output === output) return previous
+
+  if (input !== undefined && !isRecord(input.shape)) {
+    throw fail(definitionId, {
+      operation: `register action '${registration.name}'`,
+      expected: 'an inputSchema made with z.object',
+      observed: 'a schema that is not an object schema',
+      repair:
+        'Wrap the values in z.object({ … }). A call takes named values, as a tool’s arguments are.',
+    })
+  }
+
+  const describe = (
+    schema: NonNullable<ActionRegistration['outputSchema']>,
+    field: 'inputSchema' | 'outputSchema',
+  ): JsonSchemaObject => {
+    try {
+      const { $schema: _dialect, ...described } = schema.toJSONSchema({
+        io: field === 'inputSchema' ? 'input' : 'output',
+      }) as JsonSchemaObject
+      return described
+    } catch (error) {
+      throw toMfeError(error, {
+        code: 'action/duplicate-name',
+        id: definitionId,
+        operation: `describe the ${field} of action '${registration.name}' as JSON Schema`,
+        repair: `Use only what JSON Schema can express in the ${field}: no dates, functions or transforms.`,
+      })
+    }
+  }
+
+  const inputSchema =
+    previous && previous.input === input
+      ? previous.inputSchema
+      : input && describe(input, 'inputSchema')
+  const outputSchema =
+    previous && previous.output === output
+      ? previous.outputSchema
+      : output && describe(output, 'outputSchema')
+  return { input, output, ...withoutUndefined({ inputSchema, outputSchema }) }
 }
 
 type ShortcutRefusal =

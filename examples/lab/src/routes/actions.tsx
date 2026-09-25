@@ -1,12 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { allow, deny, useAction, useGroups, useUser } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
+import { Button } from '@tecton/react/components/button'
 import { Kbd } from '@tecton/react/components/kbd'
 import { Switch } from '@tecton/react/components/switch'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { useId, useState, type ReactNode } from 'react'
+import { z } from 'zod'
 
 import { EventLog, LabPage, LabSection, Tags } from '../lab-page.tsx'
+
+/** At module scope: the registry converts it to JSON Schema whenever its identity changes. */
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
 
 export const Route = createFileRoute('/actions')({
   staticData: { breadcrumb: 'Actions' },
@@ -25,18 +30,24 @@ function Actions(): ReactNode {
   }
 
   // Registration is a hook, so leaving this route takes the action out of the shell's palette.
-  useAction({
+  // What it returns runs the same action as this page's own button.
+  const runSimulation = useAction({
     name: 'run-simulation',
     label: 'Run the simulation',
+    description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+    inputSchema: simulationInput,
+    // It changes nothing the user keeps, so the agent may run it without asking.
+    effect: 'read',
     canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
-    execute: () => {
-      record('Ran the simulation')
+    execute: ({ runs }) => {
+      record(`Ran the simulation ${runs} times`)
     },
   })
 
   useAction({
     name: 'export-results',
     label: 'Export results',
+    description: 'Exports the simulation results to a file the user downloads.',
     canExecute: () =>
       groups.includes('well-planning.read')
         ? allow()
@@ -69,6 +80,25 @@ function Actions(): ReactNode {
           </FieldContent>
           <Switch id={`${id}-armed`} isSelected={armed} onChange={setArmed} />
         </Field>
+      </LabSection>
+
+      <LabSection title="The page's own button" note="useAction's run">
+        <p className="text-sm text-muted-foreground">
+          This button calls what <code className="font-mono">useAction</code> returned, so it goes
+          through the same check as the palette: turn the switch off and it is denied with the same
+          reason, and its input is validated against the same schema.
+        </p>
+        <Button
+          variant="outline"
+          className="self-start"
+          onPress={() => {
+            void runSimulation({ runs: 10 }).then(result => {
+              if (result.status !== 'executed') record(`Not run: ${result.status}`)
+            })
+          }}
+        >
+          Run the simulation 10 times
+        </Button>
       </LabSection>
 
       <LabSection title="An action the session decides" note="groups">

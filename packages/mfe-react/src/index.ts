@@ -50,6 +50,9 @@ export {
   useTelemetry,
 } from './hooks/services.ts'
 export { useAction } from './hooks/use-action.ts'
+
+/** What the run `useAction` returns resolves to, and its type. */
+export type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
   useNavigationBlock,
@@ -79,6 +82,8 @@ export {
 export {
   allow,
   deny,
+  type ActionEffect,
+  type ActionInputSchema,
   type ActionPlacement,
   type ActionRegistration,
   type BreadcrumbItem,

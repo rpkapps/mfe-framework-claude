@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core'
 import { RouterLink } from '@angular/router'
-import { allow, deny, injectAction, injectUser } from '@company/mfe-angular'
+import { allow, deny, injectAction, injectUser, type ActionRun } from '@company/mfe-angular'
 import { Button } from 'primeng/button'
 import { Select, type SelectChangeEvent } from 'primeng/select'
 
@@ -26,7 +26,7 @@ import { InspectionLog, PADS } from './inspections'
         <p-button
           label="Log inspection"
           [disabled]="padId() === null"
-          (onClick)="logInspection()"
+          (onClick)="logInspectionAction()"
         />
       </div>
       @if (padId() !== null) {
@@ -53,6 +53,7 @@ export class OverviewComponent {
 
   // Zoneless: state that renders lives in signals.
   protected readonly padId = signal<string | null>(null)
+  protected readonly logInspectionAction: ActionRun
   protected readonly inspections = computed(() =>
     this.#log.inspections().filter(inspection => inspection.padId === this.padId()),
   )
@@ -60,9 +61,12 @@ export class OverviewComponent {
   constructor() {
     // The factory re-publishes the action whenever a signal it reads changes, so the palette
     // and the shortcut see the pad being chosen.
-    injectAction(() => ({
+    // What it returns runs the action from this component's own button, through the same check
+    // as the palette and the shortcut.
+    this.logInspectionAction = injectAction(() => ({
       name: 'log-inspection',
       label: 'Fieldwork: log an inspection at the chosen pad',
+      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
       // The shell reserves its own keys, so an App's sequence starts with a letter it leaves free.
       shortcut: 'f l',
       canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),

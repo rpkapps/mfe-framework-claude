@@ -14,7 +14,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import type { ActionDenialNotifier } from '../actions/action-executor.ts'
+import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import { ActionRegistry } from '../actions/action-registry.ts'
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { DEFAULT_DEADLINES } from '../deadline.ts'
@@ -54,6 +54,7 @@ export interface RuntimeParts {
   /** Merged over `DEFAULT_DEADLINES`. */
   readonly deadlines?: Partial<DeadlineConfig> | undefined
   readonly notifyActionDenial?: ActionDenialNotifier | undefined
+  readonly actionApprovalPolicy?: ActionApprovalPolicy | undefined
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration: () => string
 }
@@ -73,7 +74,10 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     // An App's shortcuts fire while the page is inside its boundary, read where it is read for
     // navigation.
     readPathname: () => navigator.read().pathname,
-    ...withoutUndefined({ notifyDenial: parts.notifyActionDenial }),
+    ...withoutUndefined({
+      notifyDenial: parts.notifyActionDenial,
+      approvalPolicy: parts.actionApprovalPolicy,
+    }),
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
 

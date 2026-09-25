@@ -1,23 +1,29 @@
 /**
  * Running an action, whoever asks: the palette, a shortcut, the App's own UI or an agent. Every
- * caller goes through the same ordered steps, so they share one decision, one failure report
- * and, as actions gain the fields for them, one input check, one approval and one audit record:
+ * caller goes through the same ordered steps, so they share one decision, one input check, one
+ * failure report and, as it lands, one audit record:
  *
  *   decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit
  *
- * Only deciding and executing exist yet. The steps between them need an action to declare its
- * input schema, its effect and whether it needs approval, and audit needs a record of who acted;
- * each lands in this module, in that order, with the field it reads (`agentic-plan.md`, A and C).
- * The registry owns everything else about an action: its scope, its entry and its keys.
+ * Approval and serializing apply to an agent's calls alone: a user who runs an action is its
+ * approval, and a user's run may itself run another action, which a queue would deadlock. Audit
+ * needs a record of who acted and lands with it (`agentic-plan.md`, C). The registry owns
+ * everything else about an action: its scope, its entry and its keys.
  */
 
 import {
   allow,
+  createMfeError,
+  DEFAULT_ACTION_PLACEMENTS,
   toMfeError,
+  withoutUndefined,
+  type ActionEffect,
+  type ActionInputSchema,
   type ActionRegistration,
   type Decision,
   type MfeError,
 } from '@company/mfe-core'
+import { z } from 'zod'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 
@@ -27,14 +33,31 @@ export type ActionCaller = 'palette' | 'shortcut' | 'ui' | 'agent'
 /** One request to run an action. */
 export interface ActionCall {
   readonly caller: ActionCaller
+  /** Validated against the action's `inputSchema`; absent is an empty object. */
+  readonly input?: unknown
 }
 
-export type ActionExecutionResult =
-  /** `value` is what the action's `execute` returned, once awaited. */
-  | { readonly status: 'executed'; readonly value: unknown }
+export type ActionExecutionResult<Value = unknown> =
+  /** `value` is what the action's `execute` returned, once awaited and checked. */
+  | { readonly status: 'executed'; readonly value: Value }
+  /** `canExecute`, the host's approval policy, or a placement that does not offer it, refused. */
   | { readonly status: 'denied'; readonly reason: string }
+  /** The user was asked and said no. */
+  | { readonly status: 'declined'; readonly reason: string }
+  /** The input did not match the action's `inputSchema`, so nothing ran. */
+  | { readonly status: 'invalid'; readonly error: MfeError }
   | { readonly status: 'unavailable'; readonly error: MfeError }
   | { readonly status: 'failed'; readonly error: MfeError }
+
+/**
+ * What an action's own `useAction` or `injectAction` returns: a run with the caller `'ui'`, so the
+ * App's button shares validation, approval and audit with every other caller. The input is
+ * optional when the schema accepts an empty object.
+ */
+export type ActionRun<Input extends ActionInputSchema = ActionInputSchema, Output = unknown> =
+  Record<string, never> extends z.input<Input>
+    ? (input?: z.input<Input>) => Promise<ActionExecutionResult<Output>>
+    : (input: z.input<Input>) => Promise<ActionExecutionResult<Output>>
 
 /** How a denial reaches the user: the shell's normal notification surface. */
 export type ActionDenialNotifier = (notice: {
@@ -43,6 +66,32 @@ export type ActionDenialNotifier = (notice: {
   readonly reason: string
   readonly caller: ActionCaller
 }) => void
+
+/** One agent call waiting on a ruling, with the input it would run with. */
+export interface ApprovalRequest {
+  readonly actionId: string
+  readonly definitionId: string
+  readonly label: string
+  readonly description?: string
+  readonly effect: ActionEffect
+  readonly input: Readonly<Record<string, unknown>>
+}
+
+/** Run it, ask the user, or refuse it with a reason the agent is told. */
+export type ApprovalRuling = 'approve' | 'ask' | { readonly deny: string }
+
+/**
+ * The host's rule over every agent call, on top of what the action declares (`declared`, from its
+ * `effect` and `needsApproval`). `undefined` keeps the declared ruling. It is data the organization
+ * owns, so it can tighten or relax one action without touching the App that registers it.
+ */
+export type ActionApprovalPolicy = (
+  request: ApprovalRequest,
+  declared: 'approve' | 'ask',
+) => ApprovalRuling | undefined
+
+/** Asks the user about one call and resolves whether they approved it: the chat's card. */
+export type ActionApprover = (request: ApprovalRequest) => Promise<boolean>
 
 /** What running an action reads of it; the registry keeps the rest. */
 export interface RunnableAction {
@@ -56,6 +105,17 @@ export interface ActionExecutorOptions<Action extends RunnableAction> {
   readonly notifyDenial?: ActionDenialNotifier | undefined
   /** Runs before the user is told of a denial, so what the palette shows agrees with the notice. */
   readonly onDenied?: ((action: Action) => void) | undefined
+  readonly approvalPolicy?: ActionApprovalPolicy | undefined
+  /** Read at each call that asks, because the surface that asks comes and goes. */
+  readonly approver?: (() => ActionApprover | undefined) | undefined
+  /** Whether the action is still registered, read after a wait: its mount may have gone. */
+  readonly isLive?: ((action: Action) => boolean) | undefined
+}
+
+const NO_INPUT: ActionInputSchema = z.object({})
+
+export function effectOf(registration: ActionRegistration): ActionEffect {
+  return registration.effect ?? 'write'
 }
 
 /**
@@ -89,8 +149,14 @@ export function decide(
   }
 }
 
+type Parsed =
+  | { readonly ok: true; readonly value: Readonly<Record<string, unknown>> }
+  | { readonly ok: false; readonly error: MfeError }
+
 export class ActionExecutor<Action extends RunnableAction> {
   readonly #options: ActionExecutorOptions<Action>
+  /** The last queued agent write, settled either way; the next one waits for it. */
+  #writes: Promise<unknown> = Promise.resolve()
 
   constructor(options: ActionExecutorOptions<Action> = {}) {
     this.#options = options
@@ -102,34 +168,219 @@ export class ActionExecutor<Action extends RunnableAction> {
    * back to the agent alone, which tells the user in its own words.
    */
   async run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
-    const { diagnostics, notifyDenial, onDenied } = this.#options
-    const decision = decide(action.definitionId, action.registration, diagnostics)
-    if (!decision.allowed) {
-      onDenied?.(action)
-      if (call.caller !== 'agent') {
-        notifyDenial?.({
-          actionId: action.qualifiedId,
-          label: action.registration.label,
-          reason: decision.reason,
-          caller: call.caller,
-        })
-      }
-      return { status: 'denied', reason: decision.reason }
+    const { registration } = action
+    const agent = call.caller === 'agent'
+    if (agent && !(registration.placements ?? DEFAULT_ACTION_PLACEMENTS).includes('agent')) {
+      return { status: 'denied', reason: 'This action is not offered to the agent.' }
     }
 
+    const denied = this.#decide(action, call)
+    if (denied) return denied
+
+    const input = this.#parseInput(action, call.input)
+    if (!input.ok) return { status: 'invalid', error: input.error }
+    if (!agent) return await this.#execute(action, input.value)
+
+    const ruling = this.#rule(action, input.value)
+    if (typeof ruling === 'object') return { status: 'denied', reason: ruling.deny }
+    if (ruling === 'ask') {
+      const refused = await this.#ask(action, input.value)
+      if (refused) return refused
+    }
+
+    // Anything awaited gave the page time to change, so the action is looked at again first.
+    const waited = ruling === 'ask'
+    if (effectOf(registration) === 'read' || registration.parallelSafe === true) {
+      return waited
+        ? await this.#executeAfterWait(action, call, input.value)
+        : await this.#execute(action, input.value)
+    }
+    return await this.#serialize(() => this.#executeAfterWait(action, call, input.value))
+  }
+
+  #decide(action: Action, call: ActionCall): ActionExecutionResult | undefined {
+    const { diagnostics, notifyDenial, onDenied } = this.#options
+    const decision = decide(action.definitionId, action.registration, diagnostics)
+    if (decision.allowed) return undefined
+
+    onDenied?.(action)
+    if (call.caller !== 'agent') {
+      notifyDenial?.({
+        actionId: action.qualifiedId,
+        label: action.registration.label,
+        reason: decision.reason,
+        caller: call.caller,
+      })
+    }
+    return { status: 'denied', reason: decision.reason }
+  }
+
+  /** A mismatch is the caller's to fix; it is reported as a warning, since an agent may retry. */
+  #parseInput(action: Action, input: unknown): Parsed {
+    const schema = action.registration.inputSchema ?? NO_INPUT
+    const result = schema.safeParse(input ?? {})
+    if (result.success) return { ok: true, value: result.data }
+
+    const error = createMfeError({
+      code: 'contract/input-mismatch',
+      id: action.definitionId,
+      operation: `accept input for action '${action.registration.name}'`,
+      direction: 'input',
+      ...pathOf(result.error),
+      expected: 'input matching the action’s inputSchema',
+      observed: z.prettifyError(result.error),
+      repair: 'Call the action with input its inputSchema accepts.',
+      cause: result.error,
+    })
+    this.#options.diagnostics?.report(error, { severity: 'warning' })
+    return { ok: false, error }
+  }
+
+  /** What the action declares, then what the host's policy makes of it. */
+  #rule(action: Action, input: Readonly<Record<string, unknown>>): ApprovalRuling {
+    const declared = this.#declared(action, input)
+    const policy = this.#options.approvalPolicy
+    return policy?.(this.#request(action, input), declared) ?? declared
+  }
+
+  /** A check that throws asks, since the call it was meant to catch may be this one. */
+  #declared(action: Action, input: Readonly<Record<string, unknown>>): 'approve' | 'ask' {
+    const { needsApproval } = action.registration
+    if (needsApproval === undefined) {
+      return effectOf(action.registration) === 'read' ? 'approve' : 'ask'
+    }
+    if (typeof needsApproval === 'boolean') return needsApproval ? 'ask' : 'approve'
+
     try {
-      const value: unknown = await action.registration.execute()
-      return { status: 'executed', value }
+      return needsApproval(input) ? 'ask' : 'approve'
+    } catch (error) {
+      this.#options.diagnostics?.report(
+        toMfeError(error, {
+          code: 'mount/failure',
+          id: action.definitionId,
+          operation: `evaluate needsApproval for '${action.registration.name}'`,
+          repair: 'needsApproval must be a pure synchronous read of the input.',
+        }),
+      )
+      return 'ask'
+    }
+  }
+
+  async #ask(
+    action: Action,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<ActionExecutionResult | undefined> {
+    const approver = this.#options.approver?.()
+    if (!approver) {
+      return {
+        status: 'denied',
+        reason: 'It needs the user’s approval, and this page has nowhere to ask for it.',
+      }
+    }
+
+    let approved: boolean
+    try {
+      approved = await approver(this.#request(action, input))
+    } catch (error) {
+      this.#options.diagnostics?.report(
+        toMfeError(error, {
+          code: 'mount/failure',
+          id: action.definitionId,
+          operation: `ask the user to approve '${action.registration.name}'`,
+          repair: 'The approver must resolve true or false; a rejection counts as declined.',
+        }),
+      )
+      approved = false
+    }
+    return approved ? undefined : { status: 'declined', reason: 'The user declined this call.' }
+  }
+
+  #request(action: Action, input: Readonly<Record<string, unknown>>): ApprovalRequest {
+    const { registration } = action
+    return {
+      actionId: action.qualifiedId,
+      definitionId: action.definitionId,
+      label: registration.label,
+      ...withoutUndefined({ description: registration.description }),
+      effect: effectOf(registration),
+      input,
+    }
+  }
+
+  /** One agent write at a time, in the order they were asked for; a failure does not stop the next. */
+  #serialize(run: () => Promise<ActionExecutionResult>): Promise<ActionExecutionResult> {
+    const next = this.#writes.then(run)
+    this.#writes = next.catch(() => undefined)
+    return next
+  }
+
+  async #executeAfterWait(
+    action: Action,
+    call: ActionCall,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<ActionExecutionResult> {
+    if (this.#options.isLive?.(action) === false) {
+      return {
+        status: 'unavailable',
+        error: createMfeError({
+          code: 'mount/failure',
+          id: action.definitionId,
+          operation: `execute action '${action.registration.name}'`,
+          expected: 'the registration the call was approved against',
+          observed: 'no registration, because its mount went away while the call waited',
+          repair: 'List the actions again and call one that is registered now.',
+        }),
+      }
+    }
+    return this.#decide(action, call) ?? (await this.#execute(action, input))
+  }
+
+  async #execute(
+    action: Action,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<ActionExecutionResult> {
+    const { diagnostics } = this.#options
+    const { registration } = action
+    let value: unknown
+    try {
+      value = await registration.execute(input)
     } catch (error) {
       const structured = toMfeError(error, {
         code: 'mount/failure',
         id: action.definitionId,
-        operation: `execute action '${action.registration.name}'`,
+        operation: `execute action '${registration.name}'`,
         repair:
           'Handle the failure inside the action, or surface it through the App’s own error UI.',
       })
       diagnostics?.report(structured)
       return { status: 'failed', error: structured }
     }
+
+    const { outputSchema } = registration
+    if (!outputSchema) return { status: 'executed', value }
+
+    const result = outputSchema.safeParse(value)
+    if (result.success) return { status: 'executed', value: result.data }
+
+    const error = createMfeError({
+      code: 'contract/output-mismatch',
+      id: action.definitionId,
+      operation: `return a value from action '${registration.name}'`,
+      direction: 'output',
+      ...pathOf(result.error),
+      expected: 'a value matching the action’s outputSchema',
+      observed: z.prettifyError(result.error),
+      repair: 'Return what the outputSchema declares from execute, or change the outputSchema.',
+      cause: result.error,
+    })
+    diagnostics?.report(error)
+    return { status: 'failed', error }
   }
+}
+
+function pathOf(error: z.ZodError): { readonly path?: readonly (string | number)[] } {
+  const path = (error.issues[0]?.path ?? []).filter(
+    (segment): segment is string | number => typeof segment !== 'symbol',
+  )
+  return path.length > 0 ? { path } : {}
 }

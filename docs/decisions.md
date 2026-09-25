@@ -1215,3 +1215,55 @@ writes `z.object({})` where it wrote `{}`, and `createWidget` refuses anything
 without a `shape`. Typing an output's payload reads through the shape
 (`z.infer<(typeof outputSchema)['shape']['acknowledged']>`), which the generated
 `Outputs` type spells out so a consumer never has to.
+
+---
+
+## 42. An action declares what the agent needs, and the executor checks it for every caller
+
+**Status:** decided; step 3 and feature A of the agentic plan.
+
+An action becomes a tool the shell's agent can call, so it declares what a tool
+definition holds, in the names one uses: `description` (for the model; `label`
+stays the menu text), `inputSchema` (one `z.object`, the field a Widget's contract
+has) and `outputSchema` (the one value a call returns). It also declares its risk:
+`effect` is `'read'`, `'write'` or `'destructive'`, undeclared counting as
+`'write'`, and `needsApproval` is a boolean or a check of the input. `parallelSafe`
+lets an agent's write run beside another, and `followUp: false` tells the agent to
+stop once it has the result. `'agent'` is a placement, and one of the defaults, for
+a Widget's actions as for an App's: anything a user can reach from the palette, the
+agent can reach too, and an action that should not be offered lists its placements.
+
+The executor's steps (§40) gain what they read. Every caller's input is parsed with
+the `inputSchema` (absent is `z.object({})`), and a mismatch returns `invalid`,
+reported with `contract/input-mismatch`, without running; `execute` receives what
+was parsed. A value that fails the `outputSchema` fails the run with
+`contract/output-mismatch`. For an agent's call alone, the executor refuses an
+action not placed for the agent, then rules on approval: a read runs, anything else
+asks, unless `needsApproval` says otherwise, and the host's `actionApprovalPolicy`
+may approve, deny with a reason, or ask instead. Asking goes to the approver the
+chat sets with `actions.setApprover`; with none, the call is denied rather than run,
+and a user who says no returns `declined`. An agent's writes then run one at a time,
+unless `parallelSafe`, and a call that waited is looked at again before it runs, so
+a mount that went away returns `unavailable` and a `canExecute` that changed denies.
+A user who runs an action is its approval, and a user's run may itself run another
+action, which a queue would deadlock, so neither step applies to the palette, a
+shortcut or the App's own UI.
+
+`useAction` and `injectAction` return a run with the caller `'ui'`, so the App's own
+button shares validation, approval and audit with every other caller, and the result
+is typed by the action's schemas. The published entry carries `description`,
+`effect`, `followUp` and both schemas as JSON Schema, converted by the schema's own
+`toJSONSchema` (the container's Zod, not the runtime's) only when its identity
+changes, and `actionEntryEqual` compares all of them, so a changed description
+reaches the agent's tool list and an equal schema declared again inline publishes
+nothing. A schema JSON Schema cannot express is refused at registration, since the
+agent could not call the action.
+
+Actions still live in the page and last as long as their mount: they are not server
+actions and cannot run headless, and `canExecute` is still a read of UI state, never
+an authorization boundary. The server authorizes.
+
+**Cost:** an action with no declared effect asks before the agent runs it, so the
+shell and the examples mark their panel openers and navigation `'read'`; a schema
+declared inline is converted again on every commit; and an action's type carries two
+parameters, erased where the registry stores it.

@@ -202,4 +202,48 @@ describe('injectAction with a shortcut', () => {
       'a shortcut from a Widget',
     )
   })
+
+  it('returns a run that calls as the component’s own UI, through the same validation', async () => {
+    const environment = createMfeTestEnvironment()
+    const appRef = await createHostApplication(environment)
+    const execute = vi.fn(({ amount }: { readonly amount: number }) => ({ refunded: amount }))
+    const calls = vi.spyOn(environment.runtime.actions, 'execute')
+
+    const run = runInInjectionContext(appRef.injector, () =>
+      injectAction({
+        name: 'refund',
+        label: 'Refund an order',
+        inputSchema: z.object({ orderId: z.string(), amount: z.number().positive() }),
+        execute,
+      }),
+    )
+
+    await expect(run({ orderId: 'A-1', amount: 5 })).resolves.toEqual({
+      status: 'executed',
+      value: { refunded: 5 },
+    })
+    await expect(run({ orderId: 'A-1', amount: -5 })).resolves.toMatchObject({
+      status: 'invalid',
+    })
+    expect(execute).toHaveBeenCalledOnce()
+    expect(calls).toHaveBeenCalledWith('@host:refund', {
+      caller: 'ui',
+      input: { orderId: 'A-1', amount: 5 },
+    })
+    environment.dispose()
+  })
+
+  it('returns a run that resolves unavailable once its injector is destroyed', async () => {
+    const environment = createMfeTestEnvironment()
+    const appRef = await createHostApplication(environment)
+    const injector = createEnvironmentInjector([], appRef.injector)
+
+    const run = runInInjectionContext(injector, () =>
+      injectAction(() => ({ name: 'help', label: 'Help', execute: () => undefined })),
+    )
+    injector.destroy()
+
+    await expect(run()).resolves.toMatchObject({ status: 'unavailable' })
+    environment.dispose()
+  })
 })

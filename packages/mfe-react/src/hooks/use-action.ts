@@ -7,20 +7,31 @@
  * through the palette's path, while this mount's App is where the page is. A Widget's is ignored.
  */
 
-import { useEffect, useRef } from 'react'
-import type { ActionRegistration } from '@company/mfe-core'
-import type { ActionRegistrationHandle } from '@company/mfe-runtime'
+import { useCallback, useEffect, useRef } from 'react'
+import { HOST_SCOPE, type ActionInputSchema, type ActionRegistration } from '@company/mfe-core'
+import type {
+  ActionExecutionResult,
+  ActionRegistrationHandle,
+  ActionRun,
+} from '@company/mfe-runtime'
 
 import { useOptionalMfeMount } from '../mount-context.tsx'
 import { useMfeRuntime } from '../runtime-context.tsx'
 
-export function useAction(registration: ActionRegistration): void {
+/**
+ * Returns a stable run with the caller `'ui'`, for the App's own button: a click then shares
+ * validation, approval and audit with the palette, the keys and the agent. Called after the mount
+ * has gone, it resolves `unavailable`.
+ */
+export function useAction<Input extends ActionInputSchema = ActionInputSchema, Output = unknown>(
+  registration: ActionRegistration<Input, Output>,
+): ActionRun<Input, Output> {
   const mount = useOptionalMfeMount()
   const { actions } = useMfeRuntime('useAction()')
   const handle = useRef<ActionRegistrationHandle | null>(null)
 
   // The newest committed registration, so a re-registration picks it up after a remount.
-  const committed = useRef(registration)
+  const committed = useRef<ActionRegistration<Input, Output>>(registration)
 
   // Keyed by what identifies the owner rather than by the context object, so a provider that
   // hands down a fresh object with the same mount does not re-register.
@@ -50,4 +61,19 @@ export function useAction(registration: ActionRegistration): void {
     committed.current = registration
     handle.current?.update(registration)
   })
+
+  const run = useCallback(
+    async (input?: unknown): Promise<ActionExecutionResult<Output>> => {
+      const qualifiedId =
+        handle.current?.qualifiedId ?? `${definitionId ?? HOST_SCOPE}:${committed.current.name}`
+      // The registry parsed the value with this registration's `outputSchema`, or it is what this
+      // registration's `execute` returned.
+      return (await actions.execute(qualifiedId, {
+        caller: 'ui',
+        input,
+      })) as ActionExecutionResult<Output>
+    },
+    [actions, definitionId],
+  )
+  return run
 }

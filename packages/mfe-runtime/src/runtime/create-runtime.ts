@@ -15,7 +15,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import type { ActionDenialNotifier } from '../actions/action-executor.ts'
+import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import type { ActionRegistry } from '../actions/action-registry.ts'
 import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
@@ -68,6 +68,11 @@ export interface CreateMfeRuntimeOptions {
   /** Merged over `DEFAULT_DEADLINES`, so a shell names only the phases it tunes. */
   readonly deadlines?: Partial<DeadlineConfig>
   readonly notifyActionDenial?: ActionDenialNotifier
+  /**
+   * The organization's rule over the agent's calls, on top of what each action declares: it can
+   * approve, ask the user, or deny one call without touching the App that registers the action.
+   */
+  readonly actionApprovalPolicy?: ActionApprovalPolicy
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
@@ -149,6 +154,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     diagnostics,
     deadlines: options.deadlines,
     notifyActionDenial: options.notifyActionDenial,
+    actionApprovalPolicy: options.actionApprovalPolicy,
     nextSessionGeneration,
   })
 

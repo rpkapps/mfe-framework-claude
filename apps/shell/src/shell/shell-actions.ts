@@ -55,6 +55,8 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       name: 'help',
       label: 'Help and keyboard shortcuts',
       shortcut: '?',
+      // Opening a panel changes nothing the user keeps, so the agent may do it without asking.
+      effect: 'read',
       execute: () => {
         shellUi.toggle('help')
       },
@@ -63,6 +65,7 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       name: 'registry',
       label: 'Open the registry',
       shortcut: 'g r',
+      effect: 'read',
       execute: () => {
         devtools.open('registry')
       },
@@ -81,6 +84,7 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       name: 'settings',
       label: 'Open settings',
       shortcut: 'g s',
+      effect: 'read',
       execute: () => {
         shellUi.toggle('settings')
       },
@@ -104,6 +108,7 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
     {
       name: 'releases',
       label: 'What’s new',
+      effect: 'read',
       execute: () => {
         shellUi.show('releases')
       },
@@ -111,6 +116,7 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
     {
       name: 'bug',
       label: 'Report a bug',
+      effect: 'read',
       execute: () => {
         shellUi.show('bug')
       },
@@ -118,11 +124,14 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
     {
       name: 'copy-url',
       label: 'Copy a link to this page',
+      // The clipboard is the user's, so only they are offered it.
+      placements: ['palette'],
       execute: () => copyToClipboard(window.location.href, 'Link copied to the clipboard.'),
     },
     {
       name: 'copy-diagnostics',
       label: 'Copy diagnostics',
+      placements: ['palette'],
       execute: () => {
         const detail = 'Copied from the command palette.'
         const report = formatReport('Shell diagnostics', detail, collectDiagnostics(runtime))
@@ -132,6 +141,8 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
     {
       name: 'clear-dashboard',
       label: 'Clear the dashboard canvas',
+      description: 'Removes every Widget from the dashboard canvas. It cannot be undone.',
+      effect: 'destructive',
       // Listed and denied rather than hidden: a control that disappears reads as a lost feature.
       canExecute: () =>
         layout.tiles.length === 0 ? deny('The dashboard canvas is already empty.') : allow(),

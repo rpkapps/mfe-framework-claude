@@ -60,6 +60,8 @@ export {
 export {
   allow,
   deny,
+  type ActionEffect,
+  type ActionInputSchema,
   type ActionPlacement,
   type ActionRegistration,
   type BreadcrumbItem,
@@ -110,6 +112,9 @@ export {
 
 /** What `injectMfeRuntime()` and `injectMfeMount()` return. */
 export type { MfeRuntime, MountContext } from '@company/mfe-runtime'
+
+/** What the run `injectAction` returns resolves to, and its type. */
+export type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 
 /** The generated `#mfe/fetch` module is why `createContainerTransport` is named here too. */
 export {

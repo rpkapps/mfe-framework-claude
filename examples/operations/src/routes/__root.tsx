@@ -55,6 +55,8 @@ function OperationsLayout(): ReactNode {
   useAction({
     name: 'open-wells',
     label: 'Operations: open the wells inventory',
+    // Opening a page changes nothing the user keeps, so the agent may do it without asking.
+    effect: 'read',
     // Fires while the page is inside this App; the shell's own keys are reserved, so an App's
     // sequences start with a letter the shell leaves free.
     shortcut: 'o w',
@@ -67,6 +69,7 @@ function OperationsLayout(): ReactNode {
   useAction({
     name: 'open-assets',
     label: 'Operations: open the asset list',
+    effect: 'read',
     shortcut: 'o a',
     canExecute: () => allow(),
     execute: () => {
@@ -77,6 +80,7 @@ function OperationsLayout(): ReactNode {
   useAction({
     name: 'open-settings',
     label: 'Operations: open settings',
+    effect: 'read',
     canExecute: () => allow(),
     execute: () => {
       void navigate({ to: '/settings' })
@@ -86,6 +90,7 @@ function OperationsLayout(): ReactNode {
   useAction({
     name: 'open-reports',
     label: 'Operations: open the alternatives ranking',
+    effect: 'read',
     // The one surface in this App that a group actually gates.
     canExecute: () =>
       groups.includes('well-planning.read')

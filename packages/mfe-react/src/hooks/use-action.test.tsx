@@ -7,6 +7,8 @@ import { render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactNode } from 'react'
 import { allow, deny, HOST_SCOPE, type ActionRegistration } from '@company/mfe-core'
+import type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
+import { z } from 'zod'
 
 import { MfeProvider } from '../runtime-context.tsx'
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
@@ -236,5 +238,102 @@ describe('useAction with a shortcut', () => {
     expect(created.diagnostics.map(record => record.error.message).join('\n')).toContain(
       'a shortcut from a Widget',
     )
+  })
+})
+
+describe('the run useAction returns', () => {
+  const refundInput = z.object({ orderId: z.string(), amount: z.number().positive() })
+
+  it('runs the action as the App’s own UI, through the same validation', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders' })
+    const created = environment
+    const Mounted = created.wrapper
+    const execute = vi.fn(({ amount }: { readonly amount: number }) => ({ refunded: amount }))
+    const runs: ActionRun<typeof refundInput, { refunded: number }>[] = []
+
+    function Refund(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'refund',
+          label: 'Refund an order',
+          inputSchema: refundInput,
+          execute,
+        }),
+      )
+      return null
+    }
+    render(
+      <Mounted>
+        <Refund />
+      </Mounted>,
+    )
+
+    const run = runs.at(-1)
+    const executed: ActionExecutionResult<{ refunded: number }> | undefined = await run?.({
+      orderId: 'A-1',
+      amount: 5,
+    })
+    expect(executed).toEqual({ status: 'executed', value: { refunded: 5 } })
+
+    const invalid = await run?.({ orderId: 'A-1', amount: -5 })
+    expect(invalid?.status).toBe('invalid')
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('keeps its identity across renders, so it can be a dependency', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const runs: unknown[] = []
+
+    function Chrome2(): ReactNode {
+      runs.push(useAction({ name: 'help', label: 'Help', execute: () => {} }))
+      return null
+    }
+    const view = render(hostOnly(created, <Chrome2 />))
+    view.rerender(hostOnly(created, <Chrome2 />))
+
+    expect(runs).toHaveLength(2)
+    expect(runs[0]).toBe(runs[1])
+  })
+
+  it('calls as the App’s own UI, so a denial reaches the user', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const execute = vi.spyOn(created.runtime.actions, 'execute')
+    const runs: ActionRun[] = []
+
+    function Clear(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'clear',
+          label: 'Clear',
+          canExecute: () => deny('Nothing to clear.'),
+          execute: () => {},
+        }),
+      )
+      return null
+    }
+    render(hostOnly(created, <Clear />))
+
+    await expect(runs.at(-1)?.()).resolves.toEqual({
+      status: 'denied',
+      reason: 'Nothing to clear.',
+    })
+    expect(execute).toHaveBeenCalledWith('@host:clear', { caller: 'ui', input: undefined })
+  })
+
+  it('resolves unavailable once the component that registered it is gone', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const runs: ActionRun[] = []
+
+    function Help(): ReactNode {
+      runs.push(useAction({ name: 'help', label: 'Help', execute: () => {} }))
+      return null
+    }
+    const view = render(hostOnly(created, <Help />))
+    view.unmount()
+
+    await expect(runs.at(-1)?.()).resolves.toMatchObject({ status: 'unavailable' })
   })
 })

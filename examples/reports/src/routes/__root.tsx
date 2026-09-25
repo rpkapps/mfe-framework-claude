@@ -18,6 +18,7 @@ function ReportsLayout(): ReactNode {
   useAction({
     name: 'open-top-ranked',
     label: 'Reports: open the top-ranked alternative',
+    effect: 'read',
     canExecute: () => (top === undefined ? deny('Nothing is ranked yet.') : allow()),
     execute: () => {
       if (top !== undefined)
@@ -28,6 +29,8 @@ function ReportsLayout(): ReactNode {
   useAction({
     name: 'copy-ranking',
     label: 'Reports: copy the ranking',
+    // The clipboard is the user's, so only they are offered it.
+    placements: ['palette'],
     canExecute: () => (alternatives.length === 0 ? deny('There is nothing to copy.') : allow()),
     execute: () => {
       // Tab-separated, so it pastes into a spreadsheet as columns rather than one cell.

@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1 and 2 have landed (§39, §40, §41), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2 and 3 and feature A have landed (§39–§42), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -62,7 +62,7 @@ As landed: the renames, and no move. The reader is already neutral (`config/zod-
 
 In the same step, the Widget contract takes the names actions use: `inputs` becomes `inputSchema`, and `events` becomes `outputSchema`, one object schema with a property per output, whose value is that output's payload schema. That is the shape the registry already publishes (§16's amendment), so the authored and the published contract become the same thing. The rename covers the contract field, the published registry field, the build's reader and the Angular adapter's check that every property is one of the component's `output()`s. The values keep their names: `render` still receives `inputs`, and `emit(name, payload)` validates against the property of that name; `emit` and the `onX` props stay, as Angular keeps "emit" and event binding for its outputs. `DynamicWidget`'s `onEvent(name, payload)` becomes `onOutput`, so no "event" is left in the vocabulary. The readers of a Widget's `outputSchema` (`describeOutputs`, the Angular check) ignore whether a property is required: every output may never be emitted. §16 and §28 get an amendment.
 
-### 3. Extend entry equality with the new fields
+### 3. Extend entry equality with the new fields (done, §42)
 
 `actionEntryEqual` (`packages/mfe-core/src/records.ts`) compares only what the palette displays. Once entries carry a description, an input schema, an effect and more placements, it must compare them, or a changed description never reaches the agent's tool list. Lands in the commit that adds the fields.
 
@@ -84,7 +84,9 @@ The action registry, the breadcrumb store and the navigator's blockers each coll
 
 ## Features
 
-### A. Action fields
+### A. Action fields (done, §42)
+
+As landed: the fields below, and the executor's input, approval and serializing steps; audit waits for C. Beyond the plan: approval and serializing apply to an agent's calls only (a user who runs an action is its approval, and a user's run may itself run another action, which a queue would deadlock); a call that waited is looked at again before it runs; the policy is `actionApprovalPolicy` on `createMfeRuntime`, and the surface that asks is set with `actions.setApprover`, without which a call that needs approval is denied. The entry carries both schemas as JSON Schema, converted by the schema's own `toJSONSchema`. `'agent'` is a default placement for a Widget's actions as for an App's.
 
 On `ActionRegistration`:
 
@@ -189,7 +191,6 @@ Not taken as the first choice: it has its own stream protocol rather than AG-UI,
 
 ## Open questions
 
-- Is `'agent'` a default placement for Widget actions as well as App actions?
 - Where the backend runs and who owns it. The loop is likely TanStack AI's `chat()`; a .NET backend stays possible through the portability rule.
 - Is the chat composer a Tecton component, or does upstream shadcn have one to sync first?
 - Where the audit trail is stored and for how long.

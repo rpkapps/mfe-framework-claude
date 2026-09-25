@@ -55,7 +55,9 @@ describe('registration', () => {
         definitionId: 'reports',
         name: 'refresh',
         label: 'Refresh data',
-        placements: ['palette'],
+        placements: ['palette', 'agent'],
+        effect: 'write',
+        followUp: true,
         decision: { allowed: true },
       },
     ])
@@ -347,7 +349,7 @@ describe('registration validation', () => {
         owner('reports', 'mount-1'),
         registration({ placements: ['toolbar' as ActionPlacement] }),
       ),
-    ).toThrow(/standardized placement \(palette\)/)
+    ).toThrow(/standardized placement \(palette, agent\)/)
   })
 
   it('accepts an explicit palette placement', () => {
@@ -390,7 +392,7 @@ describe('execution', () => {
     const { register, registry } = setup()
     register({ execute: async () => await Promise.resolve({ rows: 3 }) })
 
-    await expect(registry.execute('reports:refresh', { caller: 'agent' })).resolves.toEqual({
+    await expect(registry.execute('reports:refresh', { caller: 'palette' })).resolves.toEqual({
       status: 'executed',
       value: { rows: 3 },
     })
@@ -579,7 +581,9 @@ describe('the host scope', () => {
         definitionId: HOST_SCOPE,
         name: 'open-settings',
         label: 'Open settings',
-        placements: ['palette'],
+        placements: ['palette', 'agent'],
+        effect: 'write',
+        followUp: true,
         decision: { allowed: true },
       },
     ])

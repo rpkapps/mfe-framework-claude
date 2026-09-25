@@ -8,7 +8,8 @@
  */
 
 import { assertInInjectionContext, DestroyRef, effect, inject, untracked } from '@angular/core'
-import type { ActionRegistration, Decision } from '@company/mfe-core'
+import type { ActionInputSchema, ActionRegistration, Decision } from '@company/mfe-core'
+import type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
 
@@ -27,7 +28,14 @@ function answeredOnce(decision: Decision, canExecute: () => Decision): () => Dec
   }
 }
 
-export function injectAction(registration: ActionRegistration | (() => ActionRegistration)): void {
+/**
+ * Returns a run with the caller `'ui'`, for the component's own button: a click then shares
+ * validation, approval and audit with the palette, the keys and the agent. Called after the
+ * component is destroyed, it resolves `unavailable`.
+ */
+export function injectAction<Input extends ActionInputSchema = ActionInputSchema, Output = unknown>(
+  registration: ActionRegistration<Input, Output> | (() => ActionRegistration<Input, Output>),
+): ActionRun<Input, Output> {
   assertInInjectionContext(injectAction)
 
   const mount = injectOptionalMfeMount()
@@ -40,7 +48,15 @@ export function injectAction(registration: ActionRegistration | (() => ActionReg
     handle.remove()
   })
 
-  if (typeof registration !== 'function') return
+  const run = async (input?: unknown): Promise<ActionExecutionResult<Output>> =>
+    // The registry parsed the value with this registration's `outputSchema`, or it is what this
+    // registration's `execute` returned.
+    (await actions.execute(handle.qualifiedId, {
+      caller: 'ui',
+      input,
+    })) as ActionExecutionResult<Output>
+
+  if (typeof registration !== 'function') return run
 
   const factory = registration
   effect(() => {
@@ -54,4 +70,5 @@ export function injectAction(registration: ActionRegistration | (() => ActionReg
       handle.update(decided)
     })
   })
+  return run
 }

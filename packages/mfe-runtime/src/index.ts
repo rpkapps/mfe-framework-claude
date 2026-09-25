@@ -120,10 +120,15 @@ export {
   type ShortcutDispatchResult,
 } from './actions/action-registry.ts'
 export {
+  type ActionApprovalPolicy,
+  type ActionApprover,
   type ActionCall,
   type ActionCaller,
   type ActionDenialNotifier,
   type ActionExecutionResult,
+  type ActionRun,
+  type ApprovalRequest,
+  type ApprovalRuling,
 } from './actions/action-executor.ts'
 
 /** The one reading of an action's `shortcut`, for a host that draws or checks one. */
