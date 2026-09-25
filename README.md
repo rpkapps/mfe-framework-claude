@@ -208,11 +208,13 @@ The containers, all mounted by one shell, each on its own dev server:
     tecton-ui-1/               git clone of the design system
   ```
 
-  It has to be on a revision that ships `@tecton/react` 0.1.0 or newer, whose
-  `styles/scoped.css`, `tecton/theme-root`, `postcss/scope` and
-  `federation/shared` this framework composes (`main`, or its
-  `claude/dazzling-hamilton-cq73dq` branch until that lands), and it has to be
-  built:
+  It has to be on a revision that ships what this framework composes:
+  `styles/scoped.css`, `tecton/theme-root`, `postcss/scope`,
+  `federation/shared` and, for the shell's chat, `tecton/composer`. Until the
+  Composer lands on `main` (#33), that is the
+  `claude/agentic-framework-capabilities-uyzqdp` branch; on `main` the shell
+  fails with "resolving fallback for shared module
+  @tecton/react/tecton/composer". It also has to be built:
 
   ```sh
   cd ../tecton-ui-1 && pnpm install && pnpm --filter @tecton/react build
