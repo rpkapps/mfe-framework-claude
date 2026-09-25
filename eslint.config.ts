@@ -118,6 +118,17 @@ const config: Linter.Config[] = [
     extraRestrictedPatterns: [TELEMETRY_BAN],
   }),
 
+  /*
+   * The AG-UI spike stands where the shell's chat module will: host code, so it reaches the runtime
+   * through the React adapter only, and, like that module, it may import the agent libraries
+   * `framework()` bans everywhere else (docs/agentic-plan.md, E).
+   */
+  ...mfe.application({
+    files: ['tools/agent-spike/src/**/*.ts'],
+    adapterModules: ['@company/mfe-react'],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
+  }),
+
   ...mfe.application({
     files: ['tools/interop/src/**/*.ts'],
     // A cross-adapter harness, so it may import both adapters.

@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the AG-UI spike has run (`tools/agent-spike`) and its library recommendation awaits a decision; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -146,6 +146,14 @@ The build publishes each App's route paths and search-param schemas into the reg
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
 - Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), from one module of the shell with its library pinned. The likely library is TanStack AI's client (`@tanstack/ai-client`, with its React binding): its wire is AG-UI, a tool with a `.client()` implementation runs in the page, the page can declare its tools with each request (`mergeAgentTools` on the server), and it has the tool-call stages, `needsApproval` and interrupts. Fallbacks, in order: the AI SDK (mature, but its own protocol instead of AG-UI, and no built-in path for tools the page declares), then plain `@ag-ui/client`.
 - A one-day spike comes first. It proves one page action called by a backend agent, executed through the pipeline and its result returned; one approval and one interrupt; that approval happens once, deciding whether TanStack AI's `needsApproval` interrupt or the pipeline's approval step drives the card; and that the shell's chat works against an AG-UI server that is not TanStack AI, ideally a minimal .NET one on Microsoft's Agent Framework host.
+
+  Spike result (`tools/agent-spike`, its README has the findings), against a TanStack AI backend, a spec-only one and Agent Framework's .NET host:
+  - A page action called by the agent runs through the pipeline with every backend, and its result returns as the tool message.
+  - Approval happens once. The pipeline's step drives the card for a page action, because page tools cross as plain AG-UI tools with no approval flag, so `needsApproval` stays on the backend's own tools. The backend's interrupt drives the same card for a domain tool. One resume payload, `{ approved, toolCall }`, answers both backends.
+  - TanStack AI's client runs a page tool only when it arrives as TanStack's own interrupt. It leaves a spec backend's pending call unrun, never sends AG-UI `context`, and can answer another backend's interrupt only through an unsafe escape hatch.
+  - The recommendation, pending a decision: build the chat module on the plain `@ag-ui/client`, and keep TanStack AI as a backend option. The AG-UI client works against all three backends.
+  - Agent Framework 1.22-preview sends no approval interrupt for a domain tool while the page declares tools. Until that is fixed, .NET domain tools cannot ask for approval in our design.
+
 - Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its return value goes back as the tool result. Tools the page declares come from the browser: the backend lets the model call them, but never trusts them for work on the server.
 - Lazy tool discovery: with many Apps publishing actions, the model is given the tools relevant to the task, not the whole list (TanStack AI has this built in).
 - Approval, two paths, one card. For a page action, the pipeline's approval step renders a card in the chat and waits for the user's answer before `execute` runs; decline returns a declined result to the agent. For a backend (domain) tool, the backend stops the run with an AG-UI interrupt carrying that call's id; the same card resumes it or declines it.
