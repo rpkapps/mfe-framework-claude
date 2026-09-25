@@ -37,6 +37,12 @@ const TELEMETRY_BAN = {
   allowTypeImports: false,
 } as const
 
+/** The agent libraries published without a scope, which the shell's chat module alone imports. */
+const UNSCOPED_AGENT_LIBRARIES = ['ai', 'openai', 'langchain']
+
+const CHAT_MODULE_MESSAGE =
+  'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.'
+
 const config: Linter.Config[] = [
   {
     ignores: [
@@ -170,6 +176,9 @@ const config: Linter.Config[] = [
       'no-restricted-imports': [
         'error',
         {
+          // The unscoped names are matched as package names, not gitignore patterns, which would
+          // also match a relative path such as `./ai/index.ts`.
+          paths: UNSCOPED_AGENT_LIBRARIES.map(name => ({ name, message: CHAT_MODULE_MESSAGE })),
           patterns: [
             {
               group: [
@@ -177,21 +186,18 @@ const config: Linter.Config[] = [
                 '@ag-ui/*',
                 '@tanstack/ai',
                 '@tanstack/ai-*',
-                'ai',
-                'ai/*',
                 '@ai-sdk/*',
                 '@copilotkit/*',
                 '@anthropic-ai/*',
-                'openai',
-                'openai/*',
                 '@google/genai',
-                'langchain',
-                'langchain/*',
                 '@langchain/*',
                 '@mastra/*',
               ],
-              message:
-                'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.',
+              message: CHAT_MODULE_MESSAGE,
+            },
+            {
+              regex: `^(?:${UNSCOPED_AGENT_LIBRARIES.join('|')})/`,
+              message: CHAT_MODULE_MESSAGE,
             },
             {
               // The rest of the chat loads on first use; importing it here would put the AG-UI
