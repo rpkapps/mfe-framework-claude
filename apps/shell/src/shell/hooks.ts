@@ -14,6 +14,7 @@ import {
   type StoredStateSetter,
 } from '@company/mfe-react'
 import type { ActionRegistrationHandle } from '@company/mfe-react/host'
+import { z } from 'zod'
 
 import {
   DashboardLayoutSchema,
@@ -156,6 +157,17 @@ export function useDashboardPanels(): readonly [PanelLayout, StoredStateSetter<P
     defaultValue: DEFAULT_PANELS,
     retention: 'browser',
     migrate: migratePanels,
+  })
+}
+
+/** One object for every reader: the store binds a key to the schema object it was first given. */
+const AssistantWidthSchema = z.number().positive().nullable()
+
+/** The width, in pixels, the user last dragged the assistant to; null until they do. */
+export function useAssistantWidth(): readonly [number | null, StoredStateSetter<number | null>] {
+  return useStoredState('assistant-width', AssistantWidthSchema, {
+    defaultValue: null,
+    retention: 'browser',
   })
 }
 

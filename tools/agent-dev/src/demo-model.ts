@@ -183,14 +183,19 @@ function whereabouts(context: readonly Context[]): {
   return { pathname, apps, others }
 }
 
+/** In Markdown, as a model would write it, so the chat's formatting can be seen without one. */
 const HELP = [
-  'I am the development agent: a script that reads a few words, not a model.',
-  'Try "go to operations", "show a table of your tools", "chart the tools", "summarise the page",',
-  '"show the well design widget", "ask me something", "show a form", "shut in W-1", or the name of an action',
-  'on the page, such as "acknowledge alert A-7".',
-  'Set AGENT_DEV_OPENAI_URL (an OpenAI-compatible server) or ANTHROPIC_API_KEY, with AGENT_DEV_MODEL,',
-  'to talk to a real model instead.',
-].join(' ')
+  'I am the **development agent**: a script that reads a few words, not a model. Try:',
+  '',
+  '- `go to operations`',
+  '- `show a table of your tools`, `chart the tools` or `summarise the page`',
+  '- `show the well design widget`, `ask me something` or `show a form`',
+  '- `shut in W-1`, which asks for your approval',
+  '- the name of an action on the page, such as `acknowledge alert A-7`',
+  '',
+  'To talk to a real model, set `AGENT_DEV_OPENAI_URL` (an OpenAI-compatible server) or',
+  '`ANTHROPIC_API_KEY`, with `AGENT_DEV_MODEL`.',
+].join('\n')
 
 /** The reply to a run whose last message is the user's. A quoted selection is context, not the request. */
 function answerRequest(input: RunAgentInput, message: string): Step[] {

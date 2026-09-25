@@ -60,3 +60,10 @@ export function useOfferedSuggestions(): readonly AgentSuggestionEntry[] {
     agentContext.getSuggestions,
   )
 }
+
+const NONE_STOPPED: ReadonlySet<string> = new Set()
+
+/** The messages a reply was stopped after. */
+export function useStopped(chat: ShellChat): ReadonlySet<string> {
+  return useSyncExternalStore(chat.stopped.subscribe, chat.stopped.getSnapshot, () => NONE_STOPPED)
+}

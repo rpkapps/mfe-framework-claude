@@ -29,7 +29,7 @@ import {
 } from '@company/mfe-react/host'
 
 import { A2uiSurfaces } from './a2ui/surfaces.ts'
-import type { ChatPanel } from './panel.ts'
+import { Store, type ChatPanel } from './panel.ts'
 import { askUserTool, Questions } from './tools/ask-user.ts'
 import { isShellTool } from './tools/names.ts'
 import { navigateTool, type Go } from './tools/navigate.ts'
@@ -63,17 +63,23 @@ export class ShellChat {
   readonly questions = new Questions()
   readonly outputs = new WidgetOutputs()
   readonly a2ui = new A2uiSurfaces()
+  /** The messages a reply was stopped after, so the transcript can say it did not finish. */
+  readonly stopped = new Store<ReadonlySet<string>>(new Set())
   readonly panel: ChatPanel
+  /** The router's navigation, asked of the Apps first: the navigate tool's, and a link's in a reply. */
+  readonly go: Go
   /** The pipeline's approval step, asked in the chat, which opens to show the card. */
   readonly approve: ActionApprover
 
   readonly #runtime: MfeRuntime
-  readonly #sent: string[] = []
+  /** Replaced, not pushed to, so the composer sees a new list after each send. */
+  #sent: readonly string[] = []
 
   constructor(options: ShellChatOptions) {
     const { runtime, panel } = options
     this.#runtime = runtime
     this.panel = panel
+    this.go = options.go
 
     // The registry is read once at boot, so the shell's own tools are built once too.
     const shellTools = [
@@ -111,14 +117,34 @@ export class ShellChat {
     const message = [...quotes, text].join('\n\n')
     if (message.trim() === '') return
 
-    this.#sent.push(text)
+    this.#sent = [...this.#sent, text]
     this.panel.clearComposer()
     await this.client.sendMessage(message, { context })
   }
 
-  /** The last message the user typed, for ArrowUp in an empty composer. */
-  lastSent(): string | undefined {
-    return this.#sent.at(-1)
+  /**
+   * Stops the reply that is arriving, noting where: its last message, the reply itself or, when
+   * nothing had arrived yet, the question.
+   */
+  readonly stop = (): void => {
+    const last = this.client.getSnapshot().messages.at(-1)
+    this.client.stop()
+    if (last !== undefined) this.stopped.update(ids => new Set([...ids, last.id]))
+  }
+
+  /**
+   * Replaces a question the user asked with `text` and asks again from there: the replies after it
+   * go. A quote the question began with stays; what a page attached to it went with the first run.
+   */
+  async edit(messageId: string, quoted: string, text: string): Promise<void> {
+    if (text.trim() === '') return
+    this.#sent = [...this.#sent, text]
+    await this.client.editMessage(messageId, quoted === '' ? text : `${quoted}\n\n${text}`)
+  }
+
+  /** What the user typed, oldest first, for the composer's ArrowUp and ArrowDown; kept across `/new`. */
+  sent(): readonly string[] {
+    return this.#sent
   }
 
   /** Starts over: a new thread, and nothing the old one showed stays in the agent context. */
@@ -126,6 +152,7 @@ export class ShellChat {
     this.client.clear()
     this.outputs.clear()
     this.a2ui.clear()
+    this.stopped.update(() => new Set())
     this.panel.clearComposer()
   }
 

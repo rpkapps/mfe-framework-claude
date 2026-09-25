@@ -47,7 +47,6 @@ import {
   AppShellCommandTrigger,
   AppShellDivider,
   AppShellHeader,
-  AppShellMain,
   AppShellNav,
   AppShellOverflow,
   AppShellUserMenu,
@@ -68,7 +67,7 @@ import { toast } from 'sonner'
 
 import { shellSession } from '../auth/gate.ts'
 import { useChatPanel, useShellChat } from '../chat/panel-hooks.ts'
-import { ChatAside, ChatSheet, ChatUnavailableSheet } from '../chat/lazy-panel.tsx'
+import { ChatSheet, ChatSplit, ChatUnavailableSheet } from '../chat/lazy-panel.tsx'
 import { ASSISTANT_BUTTON_ID } from '../chat/panel.ts'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
@@ -161,9 +160,8 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
           <Header />
         </AriaRouterProvider>
         <AppShellBody>
-          <AppShellMain className="flex">{children}</AppShellMain>
-          {/* After the main area, so opening it never remounts the App mounted there. */}
-          <ChatAside />
+          {/* The page is the split's first panel and the chat is added after it, so opening it never remounts the App mounted there. */}
+          <ChatSplit>{children}</ChatSplit>
         </AppShellBody>
       </AppShell>
 

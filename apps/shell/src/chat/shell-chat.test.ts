@@ -118,7 +118,36 @@ describe('the shell chat', () => {
     })
     expect(run?.context.at(-1)).toEqual({ description: 'The alert', value: '{"alertId":"A-7"}' })
     expect(client.panel.getSnapshot().attachments).toEqual([])
-    expect(client.lastSent()).toBe('Why?')
+    expect(client.sent().at(-1)).toBe('Why?')
+  })
+
+  it('edits a question, keeping its quote, and asks again from there', async () => {
+    const { chat: client, server } = await create()
+    client.panel.askAbout('A-7 is flaring')
+    await client.send('Why?')
+    await client.send('And A-8?')
+    const first = client.client.getSnapshot().messages.find(message => message.role === 'user')
+    expect(first).toBeDefined()
+
+    await client.edit(first?.id ?? '', '> A-7 is flaring', 'Since when?')
+
+    const run = server.runs.at(-1)
+    expect(run?.messages.filter(message => message.role === 'user')).toEqual([
+      expect.objectContaining({ content: '> A-7 is flaring\n\nSince when?' }),
+    ])
+    expect(client.sent()).toEqual(['Why?', 'And A-8?', 'Since when?'])
+  })
+
+  it('notes where a reply was stopped, until the conversation starts over', async () => {
+    const { chat: client } = await create()
+    await client.send('Hi')
+    const last = client.client.getSnapshot().messages.at(-1)
+
+    client.stop()
+    expect(client.stopped.getSnapshot()).toEqual(new Set([last?.id]))
+
+    client.newConversation()
+    expect(client.stopped.getSnapshot().size).toBe(0)
   })
 
   it('turns a mount’s prompt into a turn, with its context unseen', async () => {

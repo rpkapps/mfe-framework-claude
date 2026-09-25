@@ -1530,8 +1530,12 @@ approval until that is fixed upstream (`docs/agent-spike.md`, finding 10).
 
 `apps/shell/src/chat` is the chat. `ShellChat` holds one conversation for the page, outside React
 and for as long as the runtime, over `@company/mfe-agent` (§49), so closing the panel or crossing
-the breakpoint loses nothing. On a wide screen it is an aside after the main area, a sibling, so
-opening it never remounts the App mounted there; on a narrow one, a sheet. The header's Assistant
+the breakpoint loses nothing. On a wide screen it is an aside beside the main area, in a split
+whose first panel is always the page, so opening, closing and resizing it never remounts the App
+mounted there; on a narrow one, a sheet. The aside is dragged, or moved with the arrow keys on its
+handle, between 20rem and whatever leaves the page 30rem; Enter or a double-click on the handle
+returns it to 26rem, and the width the user last chose is remembered in the browser (`@host`
+stored state). A full-width button widens it as far as the page allows, and back. The header's Assistant
 button and ⌘/Ctrl+I open it, and closing the aside returns focus to the button. Its backend is `AGENT_URL` in the shell's runtime configuration;
 without one the panel says the assistant is not configured. Its requests go through the request
 boundary (`createAuthenticatedFetch`), so the backend alone receives the user's token.
@@ -1560,6 +1564,13 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   context, with the action's label as the text, so the model fills the inputs, the approval card
   still asks, and the conversation keeps the result. Running an action straight away is the
   palette's (§26), so the chat does not become a second palette.
+- **Replies** are Markdown, GitHub's flavour, with no raw HTML. A link to a page of the application
+  goes through the router and the Apps' blockers, as a link on the page does (§20); any other opens
+  in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
+  URL the model chose (#31).
+- **Messages.** A reply can be copied, and the last one asked for again. A question can be edited:
+  the replies after it go and it is asked again, its quote kept. A reply the user stopped says
+  Stopped. ArrowUp and ArrowDown in the composer step through what the user sent in this tab.
 - **Agent context** is the runtime's (§46), plus the latest output of each Widget shown in the
   chat (§51).
 - **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`
@@ -1581,6 +1592,10 @@ page's tools one at a time, so a pipeline approval belongs to the one call runni
 the last run ended on that nobody answered is resumed as cancelled by the next run, as the spec
 requires; `clear()` starts a thread with none. A throw from `tools`, a `followUp` function or the
 connection's headers fails the turn, as a failed run does, rather than rejecting `sendMessage`.
+`editMessage(id, text)` cuts the history back to a question and asks it again, on the same thread.
+What a run sends is limited, the transcript is not: the last six turns go whole, and in older ones
+a tool result over 2,000 characters is replaced by a note of its size and reasoning is left out, so
+a long conversation stays within a model's context (`history`, or a function of the messages).
 
 The backend's owner is still open. `tools/agent-dev`, which `pnpm dev` starts, stands in: a
 spec-only AG-UI server with a scripted demo agent that exercises every path of the chat with no key
@@ -1591,15 +1606,16 @@ It is not what a deployment runs.
 The message box is Tecton's `Composer` (tecton-ui-1, `src/tecton/composer.tsx`): upstream shadcn
 has the conversation components but no composer. It follows the survey in tecton-ui-1's
 `docs/research/composer.md`: Enter sends, Shift+Enter is a new line, ⌘/Ctrl+Enter always sends,
-nothing sends while an IME composes, Escape stops a reply, ArrowUp in an empty box recalls the last
-message, the textarea stays enabled while a reply streams, and Send and Stop are two named buttons
+nothing sends while an IME composes, Escape stops a reply, ArrowUp and ArrowDown step through the
+prompts sent, keeping the draft, `/` lists commands, the textarea stays enabled while a reply streams, and Send and Stop are two named buttons
 that swap with focus following.
 
 **Cost:** the chat is a download on first use, about 103 kB compressed, and the first chart about
 140 kB more; loading them lazily took about 238 kB compressed off the boot path. A navigate call is
 refused for a path
 no published route matches, so an App's code-based routes are out of the agent's reach (§48). The
-conversation lives in memory: a reload starts a new one.
+conversation lives in memory: a reload starts a new one. Formatting replies adds react-markdown and remark-gfm, about 45 kB compressed, to the chat's
+download, not to the boot path.
 
 ---
 

@@ -4,7 +4,7 @@
  * composer announces only its own changes.
  */
 
-import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { ChatSnapshot, UIMessage } from '@company/mfe-agent'
 import { Bubble, BubbleContent } from '@tecton/react/components/bubble'
 import {
@@ -30,6 +30,9 @@ import {
 import { Spinner } from '@tecton/react/components/spinner'
 import { BotIcon, ChevronDownIcon } from 'lucide-react'
 
+import { useStopped } from './hooks.ts'
+import { Markdown } from './markdown.tsx'
+import { EditQuestion, QuestionActions, ReplyActions, StoppedNote } from './message-actions.tsx'
 import { splitQuote } from './quote.ts'
 import type { ShellChat } from './shell-chat.ts'
 import { DISCLOSURE_MOTION, ToolCallView } from './tool-call.tsx'
@@ -38,20 +41,61 @@ function textOf(message: UIMessage): string {
   return message.parts.flatMap(part => (part.type === 'text' ? [part.content] : [])).join('\n')
 }
 
-function UserMessage({ message }: { readonly message: UIMessage }): ReactNode {
+function UserMessage({
+  chat,
+  message,
+}: {
+  readonly chat: ShellChat
+  readonly message: UIMessage
+}): ReactNode {
   const { quoted, rest } = splitQuote(textOf(message))
+  const [editing, setEditing] = useState(false)
+  const editButton = useRef<HTMLDivElement>(null)
   return (
-    <Message align="end" data-slot="chat-user-message">
+    <Message align="end" data-slot="chat-user-message" className="group/message">
       <MessageContent>
         {quoted !== '' && (
           <blockquote className="max-w-[80%] self-end border-s-2 border-border ps-2 text-xs whitespace-pre-wrap text-muted-foreground">
             {quoted}
           </blockquote>
         )}
-        {rest !== '' && (
-          <Bubble variant="secondary" align="end">
-            <BubbleContent className="whitespace-pre-wrap">{rest}</BubbleContent>
-          </Bubble>
+        {editing ? (
+          <EditQuestion
+            chat={chat}
+            messageId={message.id}
+            quoted={quoted}
+            text={rest}
+            onDone={sent => {
+              setEditing(false)
+              // A sent edit replaces this message, so the next message is written in the composer.
+              if (sent) {
+                chat.panel.focus()
+                return
+              }
+              // Back to where the edit began, as a dialog closing would.
+              requestAnimationFrame(() => {
+                editButton.current
+                  ?.querySelector<HTMLElement>('[aria-label="Edit your message"]')
+                  ?.focus()
+              })
+            }}
+          />
+        ) : (
+          <>
+            {rest !== '' && (
+              <Bubble variant="secondary" align="end">
+                <BubbleContent className="whitespace-pre-wrap">{rest}</BubbleContent>
+              </Bubble>
+            )}
+            <div ref={editButton} className="contents">
+              <QuestionActions
+                text={rest}
+                onEdit={() => {
+                  setEditing(true)
+                }}
+              />
+            </div>
+          </>
         )}
       </MessageContent>
     </Message>
@@ -61,12 +105,19 @@ function UserMessage({ message }: { readonly message: UIMessage }): ReactNode {
 function AssistantMessage({
   chat,
   message,
+  last,
+  idle,
+  stopped,
 }: {
   readonly chat: ShellChat
   readonly message: UIMessage
+  /** The conversation's last message, which can be asked for again. */
+  readonly last: boolean
+  readonly idle: boolean
+  readonly stopped: boolean
 }): ReactNode {
   return (
-    <Message data-slot="chat-assistant-message">
+    <Message data-slot="chat-assistant-message" className="group/message">
       <MessageAvatar className="size-6 min-w-6 self-start bg-primary/15 text-primary">
         <BotIcon className="size-3.5" aria-hidden />
       </MessageAvatar>
@@ -77,7 +128,9 @@ function AssistantMessage({
               case 'text':
                 return part.content === '' ? null : (
                   <Bubble key={index} variant="ghost">
-                    <BubbleContent className="whitespace-pre-wrap">{part.content}</BubbleContent>
+                    <BubbleContent>
+                      <Markdown go={chat.go}>{part.content}</Markdown>
+                    </BubbleContent>
                   </Bubble>
                 )
               case 'thinking':
@@ -103,6 +156,8 @@ function AssistantMessage({
             }
           })}
         </MessageGroup>
+        {stopped && <StoppedNote />}
+        <ReplyActions chat={chat} text={textOf(message)} last={last} idle={idle} />
       </MessageContent>
     </Message>
   )
@@ -176,6 +231,9 @@ export function Transcript({
   const waiting = status === 'submitted' && messages.at(-1)?.role === 'user'
   const turns = turnsOf(messages)
   const { viewportRef, minHeight } = useLastTurnHeight()
+  const stopped = useStopped(chat)
+  const idle = status === 'ready' || status === 'error'
+  const lastId = messages.at(-1)?.id
 
   return (
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
@@ -200,9 +258,20 @@ export function Transcript({
               >
                 {turn.messages.map(message =>
                   message.role === 'user' ? (
-                    <UserMessage key={message.id} message={message} />
+                    <Fragment key={message.id}>
+                      <UserMessage chat={chat} message={message} />
+                      {/* Stopped before any reply arrived: said under the question. */}
+                      {stopped.has(message.id) && message.id === lastId && <StoppedNote />}
+                    </Fragment>
                   ) : message.role === 'assistant' ? (
-                    <AssistantMessage key={message.id} chat={chat} message={message} />
+                    <AssistantMessage
+                      key={message.id}
+                      chat={chat}
+                      message={message}
+                      last={message.id === lastId}
+                      idle={idle}
+                      stopped={stopped.has(message.id)}
+                    />
                   ) : null,
                 )}
                 {waiting && index === turns.length - 1 && (

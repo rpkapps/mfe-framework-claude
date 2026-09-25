@@ -16,6 +16,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@tecton/react/components/empty'
+import { Toggle as ToggleButton } from '@tecton/react/components/toggle'
 import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   Composer,
@@ -41,6 +42,8 @@ import {
 import {
   BotIcon,
   InfoIcon,
+  Maximize2Icon,
+  Minimize2Icon,
   SquarePenIcon,
   TextQuoteIcon,
   XIcon,
@@ -51,6 +54,7 @@ import {
 import { Interrupts } from './approvals.tsx'
 import { actionAttachment, chatCommands } from './commands.ts'
 import { useAgentActions, useChatSnapshot, useOfferedSuggestions } from './hooks.ts'
+import type { ChatWidth } from './lazy-panel.tsx'
 import { useChatPanel } from './panel-hooks.ts'
 import type { ChatAttachment } from './panel.ts'
 import type { ShellChat } from './shell-chat.ts'
@@ -100,8 +104,8 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       onSubmit={({ text }) => {
         void chat.send(text)
       }}
-      onStop={chat.client.stop}
-      onRecallLast={() => chat.lastSent()}
+      onStop={chat.stop}
+      history={chat.sent()}
     >
       {suggestions.length > 0 && (
         <ComposerSuggestions
@@ -179,9 +183,12 @@ function StartHere(): ReactNode {
 export function ChatPanel({
   chat,
   onClose,
+  width,
 }: {
   readonly chat: ShellChat
   readonly onClose: () => void
+  /** The aside's full-width button; the sheet is full width already. */
+  readonly width?: ChatWidth | undefined
 }): ReactNode {
   const snapshot = useChatSnapshot(chat)
 
@@ -204,6 +211,19 @@ export function ChatPanel({
             </Button>
             <Tooltip>New conversation</Tooltip>
           </TooltipTrigger>
+          {width !== undefined && (
+            <TooltipTrigger>
+              <ToggleButton
+                size="sm"
+                aria-label="Full width"
+                isSelected={width.wide}
+                onChange={width.toggleWide}
+              >
+                {width.wide ? <Minimize2Icon /> : <Maximize2Icon />}
+              </ToggleButton>
+              <Tooltip>{width.wide ? 'Back to the side' : 'Full width'}</Tooltip>
+            </TooltipTrigger>
+          )}
           <TooltipTrigger>
             <Button
               variant="ghost"

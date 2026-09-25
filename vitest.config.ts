@@ -177,7 +177,10 @@ export default defineConfig({
           root: './apps/shell',
           environment: 'node',
           include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
+          // The chat's Markdown is rendered with Tecton parts, which must share the shell's React.
+          server: tectonServerForTests,
         },
+        resolve: tectonResolveForTests,
       },
       {
         test: {
