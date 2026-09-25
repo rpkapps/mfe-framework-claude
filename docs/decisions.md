@@ -599,8 +599,9 @@ React-bound candidate goes in `react@<the React the host installed>`, and
 `@company/mfe-core` and `@company/mfe-runtime` stay in `default`. Those two are read
 beside `@company/mfe-react`, where the adapter's own imports resolve, and installed
 versions are read by walking `node_modules` rather than through whatever `NODE_PATH`
-the bundler runs with — which is also why `recharts`, held only by the design
-system's own install, is no longer shared by the shell. The policy is still written
+the bundler runs with, so a design-system dependency the shell does not install itself
+is not shared by it (`recharts` was not, until the chat's charts made it a dependency of
+the shell). The policy is still written
 once and applied to both sides. What is new is the other half of the handshake: a
 container's build publishes the scopes its shares live in as `shareScopes`, the
 registry entry carries them, and the federation loader registers the remote with
@@ -856,8 +857,9 @@ measured. A React container slower than the load deadline now fails with
 `load/timeout` where it used to wait. A container on another React version brings
 its own `sonner`, so its toasts never reach the shell's `Toaster`. `strictVersion`
 inside a scope still rejects a container whose version of a scoped package the
-loaded copy does not satisfy, a minor apart included. `recharts` is no longer shared
-by the shell. And `shareScopes` couples the registry to the build: an entry without
+loaded copy does not satisfy, a minor apart included. The shell shares only what it
+installs, so the design system's `recharts` was not shared until the chat's charts made
+it a dependency of the shell. And `shareScopes` couples the registry to the build: an entry without
 it shares in `default` alone and runs on its own React.
 
 ---

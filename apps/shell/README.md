@@ -57,6 +57,7 @@ and a deployment writes it from the environment when the image starts:
 | `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups`              |
 | `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                       |
 | `SHELL_LOADER`      | `loader`          | a loading screen other than the one the build chose, or `cycle`; see below |
+| `AGENT_URL`         | `agentUrl`        | where the assistant's agent backend takes AG-UI runs; see below            |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -189,6 +190,7 @@ wherever you already are and dismissed back to it.
 | Surface         | Opened by                  | What it is                                                                                 |
 | --------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
 | Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered action, host or mount       |
+| Assistant       | the bot, `⌘I` / `Ctrl+I`   | the chat with the agent, beside the App; without `AGENT_URL`, a sheet saying so            |
 | Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the entry as published         |
 | Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
 | Help            | the question mark, `?`     | what the pieces of the page are, and every shortcut that can fire right now                |
@@ -215,6 +217,34 @@ to `runtime.actions.handleKeyDown`. A shortcut is a field on an action, the
 shell's and a mounted App's alike, so the palette shows the keys beside each
 action and the help sheet lists them from the same snapshot. The shell's keys
 are reserved: an App asking for one of them is refused with a diagnostic.
+
+### The assistant
+
+The Assistant button and `⌘I` / `Ctrl+I` (also "Ask the assistant" in the
+palette) open a chat with an agent that can use the page's actions: an aside
+beside the mounted App on a wide screen, a sheet on a narrow one, holding one
+conversation for the page. `⌘I` / `Ctrl+I` quotes the text selected on the page
+into the next message. The chat's code loads the first time it opens, not with
+the shell ([decisions §49–§53](../../docs/decisions.md)).
+
+It talks AG-UI to the backend at `AGENT_URL`, through the request boundary, so
+the backend receives the user's token. A deployment without `AGENT_URL` has no
+chat: the button opens a sheet saying the assistant is not configured. The
+development configuration points it at `http://localhost:3011/agent`, the
+stand-in backend in [`tools/agent-dev`](../../tools/agent-dev/README.md): a demo
+agent with no key and no network, or a real model. `pnpm dev` starts it with the
+shell; `pnpm run dev:shell` and `pnpm --filter @company/shell dev` start the
+shell alone, so run it beside them:
+
+```sh
+pnpm --filter @company/agent-dev start
+```
+
+The build replaces `@ag-ui/proto`, the AG-UI client's protobuf codec, with the
+three names the client reads (`build/ag-ui-proto.ts`): the shell always asks for
+`text/event-stream`, so the codec never ran, and it was 100 kB of the chat's
+chunk. A backend that answers in protobuf regardless fails the run with an error
+that names that file.
 
 ### The theme
 
@@ -399,8 +429,9 @@ link work:
    (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`). pnpm does not
    install a linked package's own dependencies, so each consumer has to.
 2. **`tools/tecton/tecton-build.mjs`** supplies the resolution: this
-   workspace's `node_modules` named by absolute path, because walking up from
-   the design system's real location finds a second copy of React; and
+   workspace's `node_modules` named by absolute path, ahead of each module's
+   own, because walking up from the design system's real location finds a
+   second copy of React, React DOM and recharts; and
    `NODE_PATH` for Tailwind, which resolves `@import`s from the stylesheet's
    own directory; the shell and every container import the same helper, so the
    two cannot drift. `requireTecton` fails the config when the checkout is
@@ -505,8 +536,10 @@ key, and without them every container downloaded its own react-dom client. The
 shell is not built with the React Compiler, so `@company/mfe-react/host` imports
 `react/compiler-runtime` for it to provide. The rest of
 `@tecton/react/federation/shared` joins that scope with the design system's
-flags: `react-aria-components`, without `singleton`, and `recharts`, which the
-shell does not install; the host shares only what its own `node_modules` hold.
+flags: `react-aria-components`, without `singleton`, and `recharts`, without
+`singleton` and never eager, which the shell installs for the assistant's
+charts and which loads with the first one; the host shares only what its own
+`node_modules` hold.
 The design system itself is not shared, although that list offers it: every
 container bundles the Tecton components it imports, which measured faster on
 every page than a shared copy split into a chunk per component.
