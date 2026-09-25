@@ -147,6 +147,23 @@ describe('createMountContext', () => {
 })
 
 describe('disposing a mount context', () => {
+  it('names an App’s boundary to the agent, and not a Widget’s', async () => {
+    memory = createMemoryRuntime({ initialEntries: ['/reports/q3'] })
+    const host = memory.runtime
+    const app = createMountContext({
+      runtime: host,
+      definitionId: 'reports',
+      kind: 'app',
+      basePath: '/reports',
+    })
+    createMountContext({ runtime: host, definitionId: 'alert-panel', kind: 'widget' })
+
+    expect(host.agentContext.read().apps.map(located => located.definitionId)).toEqual(['reports'])
+
+    await app.dispose()
+    expect(host.agentContext.read().apps).toEqual([])
+  })
+
   it('aborts the signal and removes the overlay root', async () => {
     const handle = createMountContext({ runtime: runtime(), definitionId: 'reports', kind: 'app' })
 
@@ -199,7 +216,12 @@ describe('disposing a mount context', () => {
 
     await handle.dispose()
 
-    expect(perMount.map(([name]) => name).sort()).toEqual(['actions', 'breadcrumbs', 'navigator'])
+    expect(perMount.map(([name]) => name).sort()).toEqual([
+      'actions',
+      'agentContext',
+      'breadcrumbs',
+      'navigator',
+    ])
     expect(mountScopedStores(host)).toHaveLength(perMount.length)
     for (const [name, spy] of spies) {
       expect(spy, name).toHaveBeenCalledWith(handle.context.mountToken)

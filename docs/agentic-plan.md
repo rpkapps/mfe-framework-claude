@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and feature A have landed (§39–§45), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A and B have landed (§39–§46), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -117,7 +117,9 @@ Actions still live in the page and last as long as their mount; they are not ser
 
 Angular Apps are first-class, so every author API in this plan ships for both adapters in the same change: `useAction` and `injectAction`, `useAgentContext` and `injectAgentContext`.
 
-### B. Agent context
+### B. Agent context (done, §46, but for selected text)
+
+As landed: `runtime.agentContext` reads the URL layer when a turn is sent and holds the selections; `useAgentContext`/`injectAgentContext` and `useAgentPrompt`/`injectAgentPrompt` in both adapters. A value is parsed by its schema and limited to 4096 characters of JSON. Selected text with ⌘I is the chat's own input and moves to E.
 
 Modelled on Agent-Native's context layers (`context-awareness` in its docs):
 

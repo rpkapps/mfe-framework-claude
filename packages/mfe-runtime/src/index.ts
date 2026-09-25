@@ -140,6 +140,18 @@ export {
 } from './actions/shortcut.ts'
 
 export {
+  AgentContextStore,
+  MAX_AGENT_CONTEXT_LENGTH,
+  type AgentAppLocation,
+  type AgentContextHandle,
+  type AgentContextOwner,
+  type AgentContextStoreOptions,
+  type AgentPromptHandler,
+  type AgentPromptRequest,
+  type AgentTurnContext,
+} from './agent-context/agent-context-store.ts'
+
+export {
   BreadcrumbStore,
   type BreadcrumbContributionHandle,
   type BreadcrumbStoreOptions,

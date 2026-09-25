@@ -55,7 +55,7 @@ export interface MountScopedStore {
  * is missing from it.
  */
 export function mountScopedStores(runtime: MfeRuntime): readonly MountScopedStore[] {
-  return [runtime.actions, runtime.navigator, runtime.breadcrumbs]
+  return [runtime.actions, runtime.navigator, runtime.breadcrumbs, runtime.agentContext]
 }
 
 export interface CreateMountContextOptions {
@@ -119,6 +119,11 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     signal: disposal.signal,
     scopeRoot,
     overlayRoot: overlay.element,
+  }
+
+  // The agent's URL layer names every App the page is inside, which only the mount knows of.
+  if (kind === 'app') {
+    runtime.agentContext.trackBoundary({ definitionId, mountToken, basePath: context.basePath })
   }
 
   return {

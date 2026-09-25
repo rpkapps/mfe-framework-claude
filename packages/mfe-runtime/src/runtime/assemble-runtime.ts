@@ -16,6 +16,7 @@ import {
 
 import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import { ActionRegistry } from '../actions/action-registry.ts'
+import { AgentContextStore } from '../agent-context/agent-context-store.ts'
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
@@ -80,6 +81,10 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     }),
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
+  const agentContext = new AgentContextStore({
+    diagnostics,
+    readLocation: () => navigator.read(),
+  })
 
   // The new generation fences records written under the old one, so it is minted, not reused.
   const stopWatchingSession = shellState.observeTransitions(change => {
@@ -101,6 +106,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     storage,
     actions,
     breadcrumbs,
+    agentContext,
     navigator,
     telemetryProvider: parts.telemetryProvider,
     diagnostics,
@@ -113,6 +119,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
       stopWatchingSession()
       actions.dispose()
       breadcrumbs.dispose()
+      agentContext.dispose()
       navigator.clearBlockers()
       storage.dispose()
       shellState.dispose()

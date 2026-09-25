@@ -17,6 +17,7 @@ import {
 
 import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import type { ActionRegistry } from '../actions/action-registry.ts'
+import type { AgentContextStore } from '../agent-context/agent-context-store.ts'
 import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import type { ContainerLoader } from '../loader/container-loader.ts'
@@ -40,6 +41,8 @@ export interface MfeRuntime {
   readonly storage: MfeStorageStore
   readonly actions: ActionRegistry
   readonly breadcrumbs: BreadcrumbStore
+  /** What the agent knows of the page with each turn: the URL, selections, prompt handoff. */
+  readonly agentContext: AgentContextStore
   readonly navigator: BoundaryNavigator
   readonly telemetryProvider: TelemetryProvider
   readonly diagnostics: DiagnosticsHub

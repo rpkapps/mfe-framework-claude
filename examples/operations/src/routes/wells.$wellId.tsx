@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useAgentContext } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -21,6 +22,7 @@ import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { z } from 'zod'
 
 import {
   WellDesignCard,
@@ -28,6 +30,9 @@ import {
   trajectoryMeta,
   wellDesigns,
 } from '../components/well-design-card/page.tsx'
+
+/** Ids and a name only: the agent reads the design itself through an action, fresh. */
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
 
 /** Per-instance data arrives through this App's own URL; nothing in here parses the mount prefix to
  * find the well id. */
@@ -39,6 +44,13 @@ function WellDetail(): ReactNode {
   const { wellId } = Route.useParams()
   const navigate = useNavigate()
   const design = wellDesigns.find(candidate => candidate.id === wellId)
+
+  // Sent with each of the agent's turns while this page is open, and gone when it closes.
+  useAgentContext({
+    description: 'The well design the user has open, or null when its id is unknown',
+    schema: openWell,
+    value: design === undefined ? null : { id: design.id, name: design.name },
+  })
 
   if (design === undefined) {
     return (

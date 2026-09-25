@@ -1342,3 +1342,42 @@ whatever it likes.
 
 **Cost:** a list of package names to keep current as libraries appear; one that is
 missing is let through, not refused.
+
+---
+
+## 46. What the agent knows of the page travels with each turn, and goes with its mount
+
+**Status:** decided; feature B of the agentic plan.
+
+The agent acts on what the user is looking at, so each turn carries it, in the layers
+Agent-Native's context awareness uses. `runtime.agentContext` (`AgentContextStore`)
+holds them, and `read()` assembles them when a turn is sent:
+
+- **The URL.** The page's path and search params, and every mounted App whose boundary
+  holds the page with its own path below it, outermost first. The mount context records
+  each App's boundary as it creates it, so no author does anything, and filters worth
+  sharing belong in the search params, where the agent sees them and changes them by
+  navigating.
+- **Selections.** `useAgentContext({ description, schema, value })` and
+  `injectAgentContext` publish a small snapshot of what is selected or focused, as
+  CopilotKit's hook of the same name does: `description` tells the model what the value
+  is, the schema parses it, and what it parsed is what the agent gets, with a
+  `capturedAt` that changes when the value does. It must be JSON of at most 4096
+  characters: ids and a label, never whole records and never secrets. A value that is
+  not is left out and reported once, as a warning with `contract/input-mismatch`. The
+  agent reads the records themselves through the App's read actions (§42), so it acts
+  on live data rather than on a copy taken at render.
+- **Prompt handoff.** `useAgentPrompt()` and `injectAgentPrompt()` return a function
+  that hands `{ message, context, submit }` to the chat, so a click becomes a turn:
+  `message` is shown, `context` is sent but not shown, and `submit: false` fills the
+  composer for the user to review. It answers whether a chat took it; until the shell
+  has one (E), none does.
+
+A selection belongs to its mount, as an action does, and the store is on the list of
+mount-scoped stores (§44), so disposing a mount takes its selections and its boundary
+with it, and the agent never acts on what a gone mount had selected. Outside a mount it
+is the host page's own. Sending the page's selected text with ⌘I is the chat's own
+input, and lands with it in E.
+
+**Cost:** a mount states its selection twice, in its own state and in the snapshot,
+and the size limit refuses a large value where truncating it would have sent something.

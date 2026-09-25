@@ -191,6 +191,38 @@ export function jsonEqual(a: JsonSchemaValue | undefined, b: JsonSchemaValue | u
   return keys.every(key => Object.hasOwn(right, key) && jsonEqual(left[key], right[key]))
 }
 
+/**
+ * A small, typed snapshot of what a mount has selected or focused, sent with each of the agent's
+ * turns: stable ids and a short label, never whole records and never secrets. The agent reads the
+ * records themselves through the App's read actions, so it acts on live data.
+ */
+export interface AgentContextRegistration<Schema extends z.ZodType = z.ZodType> {
+  /** Tells the model what the value is, such as "The wells the user has selected". */
+  readonly description: string
+  /** Parses `value`; what it parsed is what the agent receives. */
+  readonly schema: Schema
+  readonly value: z.input<Schema>
+}
+
+/** One published snapshot. `definitionId` is the reserved host scope for the host page's own. */
+export interface AgentContextEntry {
+  readonly definitionId: string
+  readonly description: string
+  readonly value: JsonSchemaValue
+  /** When the value last changed, as an ISO timestamp, so the agent can tell a stale one. */
+  readonly capturedAt: string
+}
+
+/** A click that becomes a chat turn. */
+export interface AgentPrompt {
+  /** What the user sees in the chat. */
+  readonly message: string
+  /** Sent with the turn but not shown: ids and labels, as agent context holds. */
+  readonly context?: JsonSchemaValue
+  /** `false` fills the composer for the user to review and send. Defaults to `true`. */
+  readonly submit?: boolean
+}
+
 /** `Array.isArray` narrows to `any[]`; a JSON value's array holds JSON values. */
 function isJsonArray(value: JsonSchemaValue): value is readonly JsonSchemaValue[] {
   return Array.isArray(value)
