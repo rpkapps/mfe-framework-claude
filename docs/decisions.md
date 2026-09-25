@@ -1549,6 +1549,13 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   lazy tool discovery).
 - **Approvals.** The pipeline's approver opens the chat and asks there, in the one card that also
   answers a backend's approval interrupt.
+- **Focus.** When the assistant stops to ask (an approval, a backend's question, `ask_user`), focus
+  moves to the question only if the user is waiting on it: in the chat's empty message box, on one
+  of its buttons, or nowhere. The card takes focus, not its first button, so a stray Enter
+  approves nothing. A user writing the next message or working in the App keeps their focus and
+  hears the question announced with the way to it (Shift+Tab from the message box). Once it is
+  answered, focus moves to the next question waiting or back to the message box. An error is a
+  `role="alert"` and leaves focus where it is.
 - **Tool calls** render in three stages: inputs arriving, running (or waiting on approval), done
   with the result. The shell's own tools render as what they show; any other call is one generic
   card with the action's label, its stage, and its inputs and result behind a disclosure.

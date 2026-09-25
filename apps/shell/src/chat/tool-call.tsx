@@ -4,7 +4,7 @@
  * generic card with its label and its stage, and its inputs and result behind a disclosure.
  */
 
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, useId, useRef, type ReactNode } from 'react'
 import type { ToolCallPart } from '@company/mfe-agent'
 import { DynamicWidget } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
@@ -45,10 +45,11 @@ import { useActionLabel, useQuestions } from './hooks.ts'
 import { SummaryView, TableView } from './renderers.tsx'
 import type { ShellChat } from './shell-chat.ts'
 import { humanize, reasonOf, stageOf, STAGE_TEXT, type ToolStage } from './tool-stage.ts'
-import type { Answers, AskUserInput } from './tools/ask-user.ts'
+import type { Answers, AskUserInput, PendingQuestion } from './tools/ask-user.ts'
 import { SHELL_TOOLS } from './tools/names.ts'
 import { readRenderWidgetInput } from './tools/render-widget.ts'
 import { ChartInput, SummaryInput, TableInput } from './tools/renderers.ts'
+import { focusAfterAnswer, useFocusWhenWaiting, WAITING } from './waiting-focus.ts'
 
 export function ToolCallView({
   chat,
@@ -376,6 +377,27 @@ function AskUserCall({
     return <ToolCard part={part} label="A question for you" />
   }
 
+  return <QuestionForm chat={chat} pending={pending} />
+}
+
+/**
+ * The question the agent asked, answered here. It takes focus when the user is waiting on the
+ * assistant, and is announced otherwise (`waiting-focus.ts`).
+ */
+function QuestionForm({
+  chat,
+  pending,
+}: {
+  readonly chat: ShellChat
+  readonly pending: PendingQuestion
+}): ReactNode {
+  const card = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useFocusWhenWaiting(
+    chat,
+    card,
+    `The assistant asks: ${pending.input.title ?? pending.input.questions[0]?.question ?? 'a question'}`,
+  )
   const { input } = pending
   const items = input.questions.map(question => ({
     name: question.name,
@@ -386,13 +408,27 @@ function AskUserCall({
   }))
 
   return (
-    <div data-slot="chat-question" className="rounded-lg border border-border bg-card p-3">
-      {input.title !== undefined && <p className="mb-3 text-sm font-medium">{input.title}</p>}
+    <div
+      ref={card}
+      role="group"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      {...{ [WAITING]: '' }}
+      data-slot="chat-question"
+      className="rounded-lg border border-border bg-card p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <p
+        id={titleId}
+        className={input.title === undefined ? 'sr-only' : 'mb-3 text-sm font-medium'}
+      >
+        {input.title ?? 'A question from the assistant'}
+      </p>
       <Questionnaire
         items={items}
         shortcuts="letters"
         onSubmit={event => {
           event.preventDefault()
+          focusAfterAnswer(chat, card.current)
           pending.answer(answersFrom(event.currentTarget, input))
         }}
       >
@@ -431,6 +467,7 @@ function AskUserCall({
             size="sm"
             className="col-start-2 row-start-1 justify-self-end"
             onPress={() => {
+              focusAfterAnswer(chat, card.current)
               pending.decline()
             }}
           >

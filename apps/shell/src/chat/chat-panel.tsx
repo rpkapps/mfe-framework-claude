@@ -53,7 +53,12 @@ import {
 
 import { Interrupts } from './approvals.tsx'
 import { actionAttachment, chatCommands } from './commands.ts'
-import { useAgentActions, useChatSnapshot, useOfferedSuggestions } from './hooks.ts'
+import {
+  useAgentActions,
+  useAnnouncement,
+  useChatSnapshot,
+  useOfferedSuggestions,
+} from './hooks.ts'
 import type { ChatWidth } from './lazy-panel.tsx'
 import { useChatPanel } from './panel-hooks.ts'
 import type { ChatAttachment } from './panel.ts'
@@ -162,6 +167,19 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
   )
 }
 
+/**
+ * The chat's one polite status region, always rendered so a screen reader is listening before
+ * anything is said in it; each announcement is a new node, so the same one twice is heard twice.
+ */
+function Announcements({ chat }: { readonly chat: ShellChat }): ReactNode {
+  const { text, key } = useAnnouncement(chat)
+  return (
+    <div role="status" data-slot="chat-announcements" className="sr-only">
+      <span key={key}>{text}</span>
+    </div>
+  )
+}
+
 function StartHere(): ReactNode {
   return (
     <Empty className="border-0 p-4">
@@ -241,7 +259,8 @@ export function ChatPanel({
       <Transcript chat={chat} snapshot={snapshot} empty={<StartHere />} />
 
       <PanelFooter className="flex-col items-stretch gap-2 border-t-0">
-        <Interrupts interrupts={snapshot.interrupts} />
+        <Interrupts chat={chat} interrupts={snapshot.interrupts} />
+        <Announcements chat={chat} />
         {snapshot.error !== undefined && (
           <Alert variant="destructive" appearance="outline">
             <AlertTitle>The assistant could not answer</AlertTitle>

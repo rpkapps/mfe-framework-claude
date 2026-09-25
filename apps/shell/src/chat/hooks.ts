@@ -67,3 +67,12 @@ const NONE_STOPPED: ReadonlySet<string> = new Set()
 export function useStopped(chat: ShellChat): ReadonlySet<string> {
   return useSyncExternalStore(chat.stopped.subscribe, chat.stopped.getSnapshot, () => NONE_STOPPED)
 }
+
+/** What the chat's status region says now. */
+export function useAnnouncement(chat: ShellChat): { readonly text: string; readonly key: number } {
+  return useSyncExternalStore(
+    chat.announcement.subscribe,
+    chat.announcement.getSnapshot,
+    chat.announcement.getSnapshot,
+  )
+}

@@ -63,6 +63,11 @@ export class ShellChat {
   readonly questions = new Questions()
   readonly outputs = new WidgetOutputs()
   readonly a2ui = new A2uiSurfaces()
+  /** What the chat's one polite status region says; the key makes each a new announcement. */
+  readonly announcement = new Store<{ readonly text: string; readonly key: number }>({
+    text: '',
+    key: 0,
+  })
   /** The messages a reply was stopped after, so the transcript can say it did not finish. */
   readonly stopped = new Store<ReadonlySet<string>>(new Set())
   readonly panel: ChatPanel
@@ -120,6 +125,11 @@ export class ShellChat {
     this.#sent = [...this.#sent, text]
     this.panel.clearComposer()
     await this.client.sendMessage(message, { context })
+  }
+
+  /** Says `text` in the chat's status region, once, even when it is what was said last. */
+  announce(text: string): void {
+    this.announcement.update(({ key }) => ({ text, key: key + 1 }))
   }
 
   /**
