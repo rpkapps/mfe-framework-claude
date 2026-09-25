@@ -21,7 +21,7 @@ Ten boxes, read top to bottom.
 - **The shell** sits at the top. Its subtitle is the list it passes the runtime:
   `adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`.
 - An arrow **registry.json** enters **The neutral runtime**, `@company/mfe-runtime`, which imports
-  no framework and no federation. It holds **Shared services** (storage, commands, navigation,
+  no framework and no federation. It holds **Shared services** (storage, actions, navigation,
   diagnostics), **Federation loader** (`createFederationContainerLoader`) and **One mount path**
   (`mountDefinition`).
 - An arrow **detect, parse** drops into **The adapters**, where exactly one recognises each entry,
@@ -121,7 +121,7 @@ tested without single-spa, Angular or a bundler.
 ## What every adapter shares
 
 Shared services come from the runtime and are the same for every adapter. One storage store, one
-command registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per
+action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per
 runtime.
 
 Removal is the point of the legacy adapter. When the last legacy application is migrated, delete the

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { allow, deny, useCommand, useGroups, useUser } from '@company/mfe-react'
+import { allow, deny, useAction, useGroups, useUser } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Kbd } from '@tecton/react/components/kbd'
 import { Switch } from '@tecton/react/components/switch'
@@ -8,12 +8,12 @@ import { useId, useState, type ReactNode } from 'react'
 
 import { EventLog, LabPage, LabSection, Tags } from '../lab-page.tsx'
 
-export const Route = createFileRoute('/commands')({
-  staticData: { breadcrumb: 'Commands' },
-  component: Commands,
+export const Route = createFileRoute('/actions')({
+  staticData: { breadcrumb: 'Actions' },
+  component: Actions,
 })
 
-function Commands(): ReactNode {
+function Actions(): ReactNode {
   const id = useId()
   const user = useUser()
   const groups = useGroups()
@@ -24,8 +24,8 @@ function Commands(): ReactNode {
     setLog(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
   }
 
-  // Registration is a hook, so leaving this route takes the command out of the shell's palette.
-  useCommand({
+  // Registration is a hook, so leaving this route takes the action out of the shell's palette.
+  useAction({
     name: 'run-simulation',
     label: 'Run the simulation',
     canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
@@ -34,7 +34,7 @@ function Commands(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'export-results',
     label: 'Export results',
     canExecute: () =>
@@ -48,18 +48,18 @@ function Commands(): ReactNode {
 
   return (
     <LabPage
-      eyebrow="Commands"
+      eyebrow="Actions"
       title="This App puts actions in the shell's palette"
-      description="A command is registered by the mount that owns it and evaluated by its own code. The shell lists it and runs it; it never decides whether it is allowed."
+      description="An action is registered by the mount that owns it and evaluated by its own code. The shell lists it and runs it; it never decides whether it is allowed."
       tryThis={
         <>
           Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> and look under &ldquo;From the mounted application&rdquo;.
-          Turn the switch below off and open the palette again — the command is still listed, greyed
+          Turn the switch below off and open the palette again — the action is still listed, greyed
           out, with the reason this App gave. Hiding it would leave the user guessing.
         </>
       }
     >
-      <LabSection title="A command this page can deny" note="canExecute">
+      <LabSection title="An action this page can deny" note="canExecute">
         <Field orientation="horizontal" className="justify-between">
           <FieldContent>
             <FieldLabel htmlFor={`${id}-armed`}>Simulation armed</FieldLabel>
@@ -71,7 +71,7 @@ function Commands(): ReactNode {
         </Field>
       </LabSection>
 
-      <LabSection title="A command the session decides" note="groups">
+      <LabSection title="An action the session decides" note="groups">
         <p className="text-sm text-muted-foreground">
           &ldquo;Export results&rdquo; is allowed only for the{' '}
           <code className="font-mono">well-planning.read</code> group.{' '}
@@ -96,7 +96,7 @@ function Commands(): ReactNode {
           entries={log}
           empty={
             <>
-              Nothing yet. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> and run one of this page&apos;s commands
+              Nothing yet. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> and run one of this page&apos;s actions
               from the palette.
             </>
           }

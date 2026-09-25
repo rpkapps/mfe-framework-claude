@@ -1,16 +1,16 @@
 /**
- * A React App and an Angular App on one page, each registering a command with the same shortcut
+ * A React App and an Angular App on one page, each registering an action with the same shortcut
  * through its own adapter. Each renders in its own root, so neither can reach a registry the host
- * provides through framework context; the runtime's command registry is the one both reach, and
+ * provides through framework context; the runtime's action registry is the one both reach, and
  * the host's single listener has to run only the App the page is inside.
  */
 
 import { ChangeDetectionStrategy, Component, provideEnvironmentInitializer } from '@angular/core'
-import { createApp as createAngularApp, injectCommand } from '@company/mfe-angular'
+import { createApp as createAngularApp, injectAction } from '@company/mfe-angular'
 import {
   AppHost,
   createApp as createReactApp,
-  useCommand,
+  useAction,
   type MfeRouterContext,
 } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createPageRuntime, expectReleased, reactHostPage } from './__tests__/harness.ts'
 
-/** How many times each App's command ran, reset before every test. */
+/** How many times each App's action ran, reset before every test. */
 const ran = { ledger: 0, insights: 0 }
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ afterEach(() => {
 
 const ledgerRoot = createRootRouteWithContext<MfeRouterContext>()({
   component: function Ledger(): ReactNode {
-    useCommand({
+    useAction({
       name: 'export',
       label: 'Export the ledger',
       shortcut: 'mod+e',
@@ -62,13 +62,13 @@ const ledgerApp = createReactApp({
 })
 class InsightsComponent {}
 
-/** Registered for the App's whole life, as an App-wide command is, whatever route is showing. */
+/** Registered for the App's whole life, as an App-wide action is, whatever route is showing. */
 const insightsApp = createAngularApp({
   id: 'insights',
   routes: [{ path: '**', component: InsightsComponent }],
   providers: [
     provideEnvironmentInitializer(() => {
-      injectCommand({
+      injectAction({
         name: 'export',
         label: 'Export the insights',
         shortcut: 'mod+e',
@@ -97,9 +97,9 @@ describe('shortcuts registered by a React App and an Angular App', () => {
       definitions: [ledgerApp, insightsApp],
       initialEntries: ['/ledger'],
     })
-    const { commands } = memory.runtime
+    const { actions } = memory.runtime
     const listener = (event: KeyboardEvent): void => {
-      commands.handleKeyDown(event)
+      actions.handleKeyDown(event)
     }
     document.addEventListener('keydown', listener)
     const view = await renderSuspending(
@@ -115,7 +115,7 @@ describe('shortcuts registered by a React App and an Angular App', () => {
     )
     await screen.findByRole('heading', { name: 'Ledger' })
     await waitFor(() => {
-      expect(commands.getSnapshot().map(entry => [entry.id, entry.shortcut])).toEqual(
+      expect(actions.getSnapshot().map(entry => [entry.id, entry.shortcut])).toEqual(
         expect.arrayContaining([
           ['ledger:export', 'mod+e'],
           ['insights:export', 'mod+e'],
@@ -138,7 +138,7 @@ describe('shortcuts registered by a React App and an Angular App', () => {
 
     view.unmount()
     await waitFor(() => {
-      expect(commands.size).toBe(0)
+      expect(actions.size).toBe(0)
     })
     expectReleased(memory.runtime)
     memory.navigation.push('/ledger')

@@ -13,7 +13,7 @@ import {
   type ActiveDefinition,
   type StoredStateSetter,
 } from '@company/mfe-react'
-import type { CommandRegistrationHandle } from '@company/mfe-react/host'
+import type { ActionRegistrationHandle } from '@company/mfe-react/host'
 
 import {
   DashboardLayoutSchema,
@@ -29,7 +29,7 @@ import {
   SnapToTopSchema,
   type PanelLayout,
 } from './dashboard/panels-store.ts'
-import { shellCommands } from './shell-commands.ts'
+import { shellActions } from './shell-actions.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
 
 /**
@@ -58,16 +58,16 @@ export function useAnnounceShellNavigation(): void {
 }
 
 /**
- * The page's one key listener. Every shortcut is a command's, the shell's and a mounted App's
+ * The page's one key listener. Every shortcut is an action's, the shell's and a mounted App's
  * alike, and the runtime decides which of them the key means; an App renders in a React root of
  * its own, so a listener or a registry provided through the shell's tree would never reach it.
  */
-export function useCommandShortcuts(): void {
+export function useActionShortcuts(): void {
   const runtime = useMfeRuntime('the shell keyboard')
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      runtime.commands.handleKeyDown(event)
+      runtime.actions.handleKeyDown(event)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => {
@@ -77,16 +77,16 @@ export function useCommandShortcuts(): void {
 }
 
 /**
- * Registers the shell's own commands in the host page's scope for as long as the runtime lives,
+ * Registers the shell's own actions in the host page's scope for as long as the runtime lives,
  * then re-applies them after every commit: the registry publishes only what visibly changed, so a
  * label that follows the theme updates and a new closure alone does not.
  */
-export function useShellCommands(): void {
-  const runtime = useMfeRuntime('the shell commands')
+export function useShellActions(): void {
+  const runtime = useMfeRuntime('the shell actions')
   const navigate = useNavigate()
   const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
-  const registrations = shellCommands({
+  const registrations = shellActions({
     runtime,
     theme,
     layout,
@@ -95,11 +95,11 @@ export function useShellCommands(): void {
   })
 
   const latest = useRef(registrations)
-  const handles = useRef<readonly CommandRegistrationHandle[]>([])
+  const handles = useRef<readonly ActionRegistrationHandle[]>([])
 
   useEffect(() => {
     const registered = latest.current.map(registration =>
-      runtime.commands.registerHost(registration),
+      runtime.actions.registerHost(registration),
     )
     handles.current = registered
     return () => {

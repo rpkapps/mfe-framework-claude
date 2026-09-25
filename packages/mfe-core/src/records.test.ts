@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { allow, arrayEqual, commandEntryEqual, shallowEqual, type CommandEntry } from './records.ts'
+import { allow, arrayEqual, actionEntryEqual, shallowEqual, type ActionEntry } from './records.ts'
 
 describe('equality helpers', () => {
   it('shallowEqual compares own enumerable keys with Object.is', () => {
@@ -19,22 +19,22 @@ describe('equality helpers', () => {
   })
 })
 
-describe('commandEntryEqual', () => {
-  const entry: CommandEntry = {
+describe('actionEntryEqual', () => {
+  const entry: ActionEntry = {
     id: 'reports:refresh',
     definitionId: 'reports',
     name: 'refresh',
     label: 'Refresh',
-    placements: ['command-palette'],
+    placements: ['palette'],
     decision: allow(),
     shortcut: 'mod+r',
   }
 
   it('sees a changed shortcut, because the palette draws it', () => {
-    expect(commandEntryEqual(entry, { ...entry })).toBe(true)
-    expect(commandEntryEqual(entry, { ...entry, shortcut: 'g r' })).toBe(false)
+    expect(actionEntryEqual(entry, { ...entry })).toBe(true)
+    expect(actionEntryEqual(entry, { ...entry, shortcut: 'g r' })).toBe(false)
 
     const { shortcut: _dropped, ...withoutShortcut } = entry
-    expect(commandEntryEqual(entry, withoutShortcut)).toBe(false)
+    expect(actionEntryEqual(entry, withoutShortcut)).toBe(false)
   })
 })

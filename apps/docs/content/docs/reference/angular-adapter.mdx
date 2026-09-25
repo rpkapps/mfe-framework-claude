@@ -115,7 +115,7 @@ cleans up with the injector that created it.
 | ------------------------------------------------- | ------------------------------------------------------------------ |
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                           |
 | `injectStoredState(name, schema, options)`        | `{ value, set, remove }`, stored under the definition's scope      |
-| `injectCommand(registration)`                     | a command in the shell's palette                                   |
+| `injectAction(registration)`                      | an action in the shell's palette                                   |
 | `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
 | `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
@@ -123,9 +123,9 @@ cleans up with the injector that created it.
 | `injectWidgetEmit()`                              | the Widget's validating emit                                       |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
 
-A registration passed to `injectCommand` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
-shell runs the command for it while the page is inside your App, the same way the palette runs it.
-A Widget's shortcut is ignored. [Add a command to the palette](/docs/add-a-command) has the rules.
+A registration passed to `injectAction` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
+shell runs the action for it while the page is inside your App, the same way the palette runs it.
+A Widget's shortcut is ignored. [Add an action to the palette](/docs/add-an-action) has the rules.
 
 Inside an App, a route's `canDeactivate` guards also answer a shell navigation that would leave the
 App.

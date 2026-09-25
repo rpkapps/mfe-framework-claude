@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** proposed, not started. Nothing here is decided yet; each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0 and 4 have landed (§39); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -39,7 +39,7 @@ The backend is replaceable, including by a .NET one (Microsoft's Agent Framework
 
 Each is its own commit, with the framework's tests green and no change in behaviour except where stated.
 
-### 0. Rename commands to actions
+### 0. Rename commands to actions (done, §39)
 
 - `CommandRegistration` → `ActionRegistration`, `CommandEntry` → `ActionEntry`, `CommandRegistry` → `ActionRegistry`, `useCommand` → `useAction`, `runtime.commands` → `runtime.actions`, across core, runtime, the adapters, the shell and the examples.
 - The placement `'command-palette'` → `'palette'`; the error codes `command/*` → `action/*`.
@@ -48,7 +48,7 @@ Each is its own commit, with the framework's tests green and no change in behavi
 
 ### 1. Split execution into a pipeline
 
-`packages/mfe-runtime/src/commands/command-registry.ts` (697 lines) mixes shortcut matching and entry bookkeeping with execution.
+`packages/mfe-runtime/src/actions/action-registry.ts` (about 700 lines) mixes shortcut matching and entry bookkeeping with execution.
 
 - Move execution into its own module (`action-executor.ts`); shortcut matching and entries stay in the registry.
 - `execute(id)` becomes `execute(id, { input, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
@@ -62,11 +62,11 @@ In the same step, the Widget contract takes the names actions use: `inputs` beco
 
 ### 3. Extend entry equality with the new fields
 
-`commandEntryEqual` (`packages/mfe-core/src/records.ts:76`) compares only what the palette displays. Once entries carry a description, an input schema, an effect and more placements, it must compare them, or a changed description never reaches the agent's tool list. Lands in the commit that adds the fields.
+`actionEntryEqual` (`packages/mfe-core/src/records.ts`) compares only what the palette displays. Once entries carry a description, an input schema, an effect and more placements, it must compare them, or a changed description never reaches the agent's tool list. Lands in the commit that adds the fields.
 
-### 4. Separate shortcuts from placements
+### 4. Separate shortcuts from placements (done, §39)
 
-The shell uses `placements: []` (`KEYS_ONLY` in `apps/shell/src/shell/shell-commands.ts`) to mean "keys only". Once `'agent'` is a placement, an empty list would also hide those actions from the agent without anyone noticing. Document that a shortcut fires whatever the placements are, and give those shell actions an explicit placement list.
+The shell used `placements: []` (a `KEYS_ONLY` constant, now gone from `apps/shell/src/shell/shell-actions.ts`) to mean "keys only". Once `'agent'` is a placement, an empty list would also hide those actions from the agent without anyone noticing. Document that a shortcut fires whatever the placements are, and give those shell actions an explicit placement list.
 
 ### 5. Remove compatibility code for deployments that never happened (optional)
 
@@ -74,7 +74,7 @@ For example, §16's amendment still accepts the old event-name list "so a shell 
 
 ### 6. Clear every mount-scoped store from one place
 
-The command registry, the breadcrumb store and the navigator's blockers each collect records per mount, and the agent-context store will be the fourth. They share `SnapshotSource` and `HOST_SCOPE` already; what is left in each is its own logic, so there is no generic store to extract. Their teardown differs, though: `mount/mount-context.ts` clears commands and blockers on dispose, while breadcrumbs rely on their hook's cleanup. Give each store a `removeMount(token)` and clear them all from one list on dispose, so a disposed mount cannot leave context behind that the agent would act on.
+The action registry, the breadcrumb store and the navigator's blockers each collect records per mount, and the agent-context store will be the fourth. They share `SnapshotSource` and `HOST_SCOPE` already; what is left in each is its own logic, so there is no generic store to extract. Their teardown differs, though: `mount/mount-context.ts` clears actions and blockers on dispose, while breadcrumbs rely on their hook's cleanup. Give each store a `removeMount(token)` and clear them all from one list on dispose, so a disposed mount cannot leave context behind that the agent would act on.
 
 ### 7. Keep agent libraries out of containers
 

@@ -18,7 +18,7 @@ export type MfeErrorCode =
   | 'load/timeout'
   | 'mount/failure'
   | 'mount/timeout'
-  | 'command/duplicate-name'
+  | 'action/duplicate-name'
   | 'app/invalid-base-path'
   | 'app/invalid-router'
   | 'storage/failure'

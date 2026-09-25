@@ -33,7 +33,7 @@ export {
   type StoredState,
   type StoredStateOptions,
 } from './inject/stored-state.ts'
-export { injectCommand } from './inject/command.ts'
+export { injectAction } from './inject/action.ts'
 export { injectBreadcrumbs } from './inject/breadcrumbs.ts'
 export {
   injectNavigationBlock,
@@ -63,8 +63,8 @@ export {
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionPlacement,
+  type ActionRegistration,
   type Decision,
   type MfeError,
   type MfeErrorCode,

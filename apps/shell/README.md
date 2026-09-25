@@ -176,7 +176,7 @@ wherever you already are and dismissed back to it.
 
 | Surface         | Opened by                  | What it is                                                                                 |
 | --------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
-| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered command, host or mount      |
+| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered action, host or mount       |
 | Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the entry as published         |
 | Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
 | Help            | the question mark, `?`     | what the pieces of the page are, and every shortcut that can fire right now                |
@@ -192,16 +192,16 @@ callbacks threaded down from the layout, which is what lets the palette open
 settings and settings open the registry without either knowing where the other
 lives.
 
-The shell's own commands are registered through `runtime.commands.registerHost`,
+The shell's own actions are registered through `runtime.actions.registerHost`,
 so the palette renders one snapshot that holds the mounted App's as well.
-`shell-commands.ts` says what each of the shell's commands is called, its
+`shell-actions.ts` says what each of the shell's actions is called, its
 shortcut, whether it may run and what it does; `palette.tsx` says what is drawn
 beside it.
 
 Every key goes through one `keydown` listener on the document, which hands it
-to `runtime.commands.handleKeyDown`. A shortcut is a field on a command, the
+to `runtime.actions.handleKeyDown`. A shortcut is a field on an action, the
 shell's and a mounted App's alike, so the palette shows the keys beside each
-command and the help sheet lists them from the same snapshot. The shell's keys
+action and the help sheet lists them from the same snapshot. The shell's keys
 are reserved: an App asking for one of them is refused with a diagnostic.
 
 ### The theme

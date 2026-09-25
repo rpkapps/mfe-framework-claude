@@ -11,7 +11,7 @@ import {
   mountWidget,
   type MountedTestDefinition,
 } from '../testing/index.ts'
-import { injectCommand } from './command.ts'
+import { injectAction } from './action.ts'
 
 @Component({ selector: 'test-empty', template: '' })
 class EmptyComponent {}
@@ -28,18 +28,18 @@ const ordersWidget = createWidget({
   component: EmptyComponent,
 })
 
-describe('injectCommand', () => {
+describe('injectAction', () => {
   it('registers in the host scope outside a mount and runs through the palette’s path', async () => {
     const environment = createMfeTestEnvironment()
     const appRef = await createHostApplication(environment)
     const execute = vi.fn()
 
     runInInjectionContext(appRef.injector, () => {
-      injectCommand({ name: 'refresh', label: 'Refresh', execute })
+      injectAction({ name: 'refresh', label: 'Refresh', execute })
     })
-    const result = await environment.runtime.commands.execute('@host:refresh')
+    const result = await environment.runtime.actions.execute('@host:refresh')
 
-    expect(environment.runtime.commands.getSnapshot().map(entry => entry.id)).toEqual([
+    expect(environment.runtime.actions.getSnapshot().map(entry => entry.id)).toEqual([
       '@host:refresh',
     ])
     expect(result).toEqual({ status: 'executed' })
@@ -51,10 +51,10 @@ describe('injectCommand', () => {
     const widget = await mountWidget(ordersWidget)
 
     runInInjectionContext(widget.injector, () => {
-      injectCommand({ name: 'export', label: 'Export', execute: () => undefined })
+      injectAction({ name: 'export', label: 'Export', execute: () => undefined })
     })
 
-    expect(widget.environment.runtime.commands.getSnapshot().map(entry => entry.id)).toEqual([
+    expect(widget.environment.runtime.actions.getSnapshot().map(entry => entry.id)).toEqual([
       'orders:export',
     ])
   })
@@ -65,7 +65,7 @@ describe('injectCommand', () => {
     const canExport = signal(false)
 
     runInInjectionContext(appRef.injector, () => {
-      injectCommand(() => ({
+      injectAction(() => ({
         name: 'export',
         label: 'Export',
         execute: () => undefined,
@@ -73,8 +73,8 @@ describe('injectCommand', () => {
       }))
     })
     await appRef.whenStable()
-    const { commands } = environment.runtime
-    expect(commands.getSnapshot()[0]?.decision).toEqual({
+    const { actions } = environment.runtime
+    expect(actions.getSnapshot()[0]?.decision).toEqual({
       allowed: false,
       reason: 'Nothing selected',
     })
@@ -82,7 +82,7 @@ describe('injectCommand', () => {
     canExport.set(true)
     await appRef.whenStable()
 
-    expect(commands.getSnapshot()[0]?.decision).toEqual({ allowed: true })
+    expect(actions.getSnapshot()[0]?.decision).toEqual({ allowed: true })
     environment.dispose()
   })
 
@@ -94,7 +94,7 @@ describe('injectCommand', () => {
     const calls = { factory: 0, canExecute: 0 }
 
     runInInjectionContext(appRef.injector, () => {
-      injectCommand(() => {
+      injectAction(() => {
         calls.factory += 1
         return {
           name: 'export',
@@ -114,11 +114,11 @@ describe('injectCommand', () => {
     await appRef.whenStable()
 
     expect(calls).toEqual({ factory: settled.factory + 1, canExecute: settled.canExecute + 1 })
-    expect(environment.runtime.commands.getSnapshot()[0]?.decision).toEqual({ allowed: true })
+    expect(environment.runtime.actions.getSnapshot()[0]?.decision).toEqual({ allowed: true })
 
     // What `execute` asks is still asked afresh, never answered from an earlier change.
     canExport.set(false)
-    const result = await environment.runtime.commands.execute('@host:export')
+    const result = await environment.runtime.actions.execute('@host:export')
     expect(result).toMatchObject({ status: 'denied' })
     environment.dispose()
   })
@@ -129,35 +129,35 @@ describe('injectCommand', () => {
     const chrome = createEnvironmentInjector([], appRef.injector)
 
     runInInjectionContext(chrome, () => {
-      injectCommand({ name: 'refresh', label: 'Refresh', execute: () => undefined })
+      injectAction({ name: 'refresh', label: 'Refresh', execute: () => undefined })
     })
     chrome.destroy()
 
-    expect(environment.runtime.commands.size).toBe(0)
+    expect(environment.runtime.actions.size).toBe(0)
     environment.dispose()
   })
 })
 
-describe('injectCommand with a shortcut', () => {
+describe('injectAction with a shortcut', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
   function press(init: KeyboardEventInit & { key: string }, target: MountedTestDefinition) {
     const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
-    return target.environment.runtime.commands.handleKeyDown(event)
+    return target.environment.runtime.actions.handleKeyDown(event)
   }
 
-  it('passes the shortcut through, and the host’s key press runs the App’s command', async () => {
+  it('passes the shortcut through, and the host’s key press runs the App’s action', async () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32')
     const app = await mountApp(reportsApp, { basePath: '/reports' })
     const execute = vi.fn()
 
     runInInjectionContext(app.injector, () => {
-      injectCommand({ name: 'export', label: 'Export', shortcut: 'Mod+E', execute })
+      injectAction({ name: 'export', label: 'Export', shortcut: 'Mod+E', execute })
     })
 
-    expect(app.environment.runtime.commands.getSnapshot()).toMatchObject([
+    expect(app.environment.runtime.actions.getSnapshot()).toMatchObject([
       { id: 'reports:export', shortcut: 'mod+e' },
     ])
     expect(press({ key: 'e', ctrlKey: true }, app).status).toBe('matched')
@@ -170,7 +170,7 @@ describe('injectCommand with a shortcut', () => {
     const keys = signal('g r')
 
     runInInjectionContext(appRef.injector, () => {
-      injectCommand(() => ({
+      injectAction(() => ({
         name: 'open',
         label: 'Open',
         shortcut: keys(),
@@ -181,15 +181,15 @@ describe('injectCommand with a shortcut', () => {
     keys.set('g o')
     await appRef.whenStable()
 
-    expect(environment.runtime.commands.getSnapshot()[0]?.shortcut).toBe('g o')
+    expect(environment.runtime.actions.getSnapshot()[0]?.shortcut).toBe('g o')
     environment.dispose()
   })
 
-  it('keeps a Widget’s command but not its shortcut', async () => {
+  it('keeps a Widget’s action but not its shortcut', async () => {
     const widget = await mountWidget(ordersWidget)
 
     runInInjectionContext(widget.injector, () => {
-      injectCommand({
+      injectAction({
         name: 'export',
         label: 'Export',
         shortcut: 'mod+e',
@@ -197,7 +197,7 @@ describe('injectCommand with a shortcut', () => {
       })
     })
 
-    expect(widget.environment.runtime.commands.getSnapshot()[0]).not.toHaveProperty('shortcut')
+    expect(widget.environment.runtime.actions.getSnapshot()[0]).not.toHaveProperty('shortcut')
     expect(widget.environment.diagnostics.map(record => record.error.message).join('\n')).toContain(
       'a shortcut from a Widget',
     )

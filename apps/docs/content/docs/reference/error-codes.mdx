@@ -30,7 +30,7 @@ alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected
 <Callout type="error" title="registry/duplicate-id">
 
 ```text
-orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.
+orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, action attribution and <id>:<key> storage.
 ```
 
 **Fix.** Rename one definition and rebuild. The shell sets aside every entry that claimed the id.
@@ -74,7 +74,7 @@ operations failed to attach the access token for https://reports.example.test: e
 | `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                         | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
 | `load/share-conflict`   | Declared, and never raised.                                                                               | A second copy inside one share scope reaches you as a hook reported outside any mount.             |
 | `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                | Check the network panel for the request that never settled, then retry.                            |
-| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or a command threw. | See the two messages below, or fix what the message names.                                         |
+| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or an action threw. | See the two messages below, or fix what the message names.                                         |
 | `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                 | Check what the first render waits on, then retry.                                                  |
 | `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                 | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
 | `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                | Check the diagnostics for the cleanup step that did not finish.                                    |
@@ -99,14 +99,14 @@ operations failed to attach the access token for https://reports.example.test: e
 
 </Callout>
 
-## Router, command and storage codes
+## Router, action and storage codes
 
-| Code                     | When it happens                                                                                                                                                                   | Fix                                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `app/invalid-base-path`  | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.                                                                         | Pass `basepath: basePath` to `createRouter`.                                                        |
-| `app/invalid-router`     | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                                                                                                  | Forward the history, and spread the context you were given.                                         |
-| `command/duplicate-name` | Two commands in one mount share a name, a registration is invalid, or a command ran after its owner went away. A warning with this code means a shortcut was ignored or collides. | Rename one command, or fix the field the message names. For a shortcut, choose other keys.          |
-| `storage/failure`        | A stored record could not be read, written or removed.                                                                                                                            | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
+| Code                    | When it happens                                                                                                                                                                  | Fix                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `app/invalid-base-path` | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.                                                                        | Pass `basepath: basePath` to `createRouter`.                                                        |
+| `app/invalid-router`    | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                                                                                                 | Forward the history, and spread the context you were given.                                         |
+| `action/duplicate-name` | Two actions in one mount share a name, a registration is invalid, or an action ran after its owner went away. A warning with this code means a shortcut was ignored or collides. | Rename one action, or fix the field the message names. For a shortcut, choose other keys.           |
+| `storage/failure`       | A stored record could not be read, written or removed.                                                                                                                           | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
 
 <Callout type="error" title="app/invalid-base-path">
 

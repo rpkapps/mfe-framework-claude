@@ -1,24 +1,24 @@
 /**
- * Scoped command registration, where the host page is one more scope so a palette renders
+ * Scoped action registration, where the host page is one more scope so a palette renders
  * one list instead of merging a snapshot with a hard-coded one. The performance
  * contract is the interesting part: replacing `execute`/`canExecute` closure identity must
- * not change the public snapshot, and updating one command must not re-evaluate any other.
+ * not change the public snapshot, and updating one action must not re-evaluate any other.
  *
- * A command's keyboard shortcut lives here too rather than in a registry of its own, because
+ * An action's keyboard shortcut lives here too rather than in a registry of its own, because
  * a mounted App renders in its own root and cannot reach a registry the host provides through
  * its framework's context; the host listens for keys once and hands each one to
- * `handleKeyDown`, which runs the command through the same path the palette does.
+ * `handleKeyDown`, which runs the action through the same path the palette does.
  */
 
 import {
   allow,
-  commandEntryEqual,
+  actionEntryEqual,
   createMfeError,
   HOST_SCOPE,
   toMfeError,
-  type CommandEntry,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionEntry,
+  type ActionPlacement,
+  type ActionRegistration,
   type Decision,
   type DefinitionKind,
   type MfeError,
@@ -49,23 +49,23 @@ import {
   type ShortcutScope,
 } from './shortcut-scope.ts'
 
-const DEFAULT_PLACEMENTS: readonly CommandPlacement[] = Object.freeze(['command-palette'])
+const DEFAULT_PLACEMENTS: readonly ActionPlacement[] = Object.freeze(['palette'])
 const VALID_PLACEMENTS = new Set<string>(DEFAULT_PLACEMENTS)
 
 /** Restricted so `<definitionId>:<name>` stays unambiguous. */
-const COMMAND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
+const ACTION_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
 
 /** Every registration failure this module raises carries the same code. */
 function fail(id: string, details: Omit<MfeErrorDetails, 'code' | 'id'>): MfeError {
   return createMfeError({
-    code: 'command/duplicate-name',
+    code: 'action/duplicate-name',
     id,
     ...details,
   })
 }
 
-/** Who registered a command; a mount's context already carries every field. */
-export interface CommandOwner {
+/** Who registered an action; a mount's context already carries every field. */
+export interface ActionOwner {
   readonly definitionId: string
   readonly mountToken: string
   readonly kind: DefinitionKind
@@ -73,14 +73,14 @@ export interface CommandOwner {
   readonly basePath: string
 }
 
-export interface CommandRegistrationHandle {
+export interface ActionRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
-  update(registration: CommandRegistration): void
+  update(registration: ActionRegistration): void
   remove(): void
   readonly qualifiedId: string
 }
 
-export type CommandExecutionResult =
+export type ActionExecutionResult =
   | { readonly status: 'executed' }
   | { readonly status: 'denied'; readonly reason: string }
   | { readonly status: 'unavailable'; readonly error: MfeError }
@@ -92,28 +92,28 @@ export type ShortcutDispatchResult =
   /** The keys so far begin a sequence; the next one decides. */
   | { readonly status: 'pending' }
   /** More than one live registration claims these keys, so none of them ran. */
-  | { readonly status: 'ambiguous'; readonly commandIds: readonly string[] }
+  | { readonly status: 'ambiguous'; readonly actionIds: readonly string[] }
   | {
       readonly status: 'matched'
-      readonly commandId: string
-      readonly execution: Promise<CommandExecutionResult>
+      readonly actionId: string
+      readonly execution: Promise<ActionExecutionResult>
     }
 
 /** How a denial reaches the user: the shell's normal notification surface. */
-export type CommandDenialNotifier = (notice: {
-  readonly commandId: string
+export type ActionDenialNotifier = (notice: {
+  readonly actionId: string
   readonly label: string
   readonly reason: string
 }) => void
 
-interface RegisteredCommand {
+interface RegisteredAction {
   qualifiedId: string
   readonly definitionId: string
   /** The mount token that owns it, or the reserved host scope. */
   readonly scopeToken: string
   /** Where its shortcut may fire, resolved once from its owner. */
   readonly shortcutScope: ShortcutScope
-  registration: CommandRegistration
+  registration: ActionRegistration
   /** The registration's validated shortcut, whether or not it may fire. */
   declared: ParsedShortcut | undefined
   /**
@@ -123,15 +123,15 @@ interface RegisteredCommand {
    */
   usable: ParsedShortcut | undefined
   /** The last published entry; reused when nothing visible changed. */
-  entry: CommandEntry
+  entry: ActionEntry
 }
 
-/** A command before its first entry is built from it. */
-type CommandShape = Omit<RegisteredCommand, 'entry'>
+/** An action before its first entry is built from it. */
+type ActionShape = Omit<RegisteredAction, 'entry'>
 
-export interface CommandRegistryOptions {
+export interface ActionRegistryOptions {
   readonly diagnostics?: DiagnosticsHub
-  readonly notifyDenial?: CommandDenialNotifier
+  readonly notifyDenial?: ActionDenialNotifier
   /**
    * Where the page is, which decides whose shortcuts fire: an App's only while this pathname is
    * inside its boundary. Omitted, only the host page's shortcuts fire.
@@ -142,30 +142,30 @@ export interface CommandRegistryOptions {
 const UNMATCHED: ShortcutDispatchResult = Object.freeze({ status: 'unmatched' })
 
 /**
- * Commands are stored per scope, so a name may repeat across mounts but never inside one
+ * Actions are stored per scope, so a name may repeat across mounts but never inside one
  * and a mount's disposal cannot take the host page's with it.
  */
-export class CommandRegistry {
-  readonly #byScope = new Map<string, Map<string, RegisteredCommand>>()
-  readonly #snapshot = new SnapshotSource<readonly CommandEntry[]>(Object.freeze([]))
-  readonly #options: CommandRegistryOptions
+export class ActionRegistry {
+  readonly #byScope = new Map<string, Map<string, RegisteredAction>>()
+  readonly #snapshot = new SnapshotSource<readonly ActionEntry[]>(Object.freeze([]))
+  readonly #options: ActionRegistryOptions
   /** Read once: what `mod` means cannot change while the page is open. */
   readonly #apple = isApplePlatform()
   /** The chords of a sequence typed so far, dropped when the next one is too late. */
   #pressed: readonly PressedChord[] = []
   #pressedAt = 0
 
-  constructor(options: CommandRegistryOptions = {}) {
+  constructor(options: ActionRegistryOptions = {}) {
     this.#options = options
   }
 
   /** Stable references for `useSyncExternalStore`. */
-  readonly getSnapshot = (): readonly CommandEntry[] => this.#snapshot.getSnapshot()
+  readonly getSnapshot = (): readonly ActionEntry[] => this.#snapshot.getSnapshot()
   readonly subscribe = (listener: () => void): Unsubscribe => this.#snapshot.subscribe(listener)
 
   get size(): number {
     let total = 0
-    for (const commands of this.#byScope.values()) total += commands.size
+    for (const actions of this.#byScope.values()) total += actions.size
     return total
   }
 
@@ -173,15 +173,15 @@ export class CommandRegistry {
    * Duplicate local names within a mount are rejected rather than overwritten; the same name in
    * another mount is fine because the runtime qualifies it.
    */
-  register(owner: CommandOwner, registration: CommandRegistration): CommandRegistrationHandle {
+  register(owner: ActionOwner, registration: ActionRegistration): ActionRegistrationHandle {
     const { definitionId, mountToken } = owner
     if (definitionId === HOST_SCOPE || mountToken === HOST_SCOPE) {
       throw fail(definitionId, {
-        operation: `register command '${registration.name}'`,
+        operation: `register action '${registration.name}'`,
         expected: 'a definition id and the mount token the runtime issued for it',
         observed: `the reserved host scope ${HOST_SCOPE}`,
         repair:
-          'Call registerHost instead. It is the one way into the host scope, so a host command and a mount command can never be confused for each other.',
+          'Call registerHost instead. It is the one way into the host scope, so a host action and a mount action can never be confused for each other.',
       })
     }
 
@@ -197,17 +197,17 @@ export class CommandRegistry {
 
   /**
    * A host has no definition id and no mount token, and a made-up token cannot be told
-   * from a real mount's, which would put the host's commands at the mercy of
+   * from a real mount's, which would put the host's actions at the mercy of
    * `removeMount`.
    */
-  registerHost(registration: CommandRegistration): CommandRegistrationHandle {
+  registerHost(registration: ActionRegistration): ActionRegistrationHandle {
     return this.#add(
       { definitionId: HOST_SCOPE, scopeToken: HOST_SCOPE, shortcutScope: HOST_PAGE_SCOPE },
       registration,
     )
   }
 
-  /** A mount's commands, and so its shortcuts, go with it. */
+  /** A mount's actions, and so its shortcuts, go with it. */
   removeMount(mountToken: string): void {
     if (!this.#byScope.delete(mountToken)) return
     // Handed the host scope's token, the host page's shortcuts went too, which frees any keys a
@@ -217,36 +217,36 @@ export class CommandRegistry {
   }
 
   /**
-   * The palette calls this when it opens; no other path evaluates all commands, because updating
+   * The palette calls this when it opens; no other path evaluates all actions, because updating
    * one must not re-evaluate the rest.
    */
   evaluateAll(): void {
     let changed = false
-    for (const command of this.#allCommands()) {
-      if (this.#refreshEntry(command)) changed = true
+    for (const action of this.#allActions()) {
+      if (this.#refreshEntry(action)) changed = true
     }
     if (changed) this.#publish()
   }
 
   /**
-   * A denial does not run the command and does not fail silently: the reason reaches the
+   * A denial does not run the action and does not fail silently: the reason reaches the
    * shell's notification surface and the entry's state updates.
    */
-  async execute(qualifiedId: string): Promise<CommandExecutionResult> {
-    const command = this.#find(qualifiedId)
-    if (!command) {
+  async execute(qualifiedId: string): Promise<ActionExecutionResult> {
+    const action = this.#find(qualifiedId)
+    if (!action) {
       const error = fail(qualifiedId.split(':')[0] ?? qualifiedId, {
-        operation: `execute command '${qualifiedId}'`,
+        operation: `execute action '${qualifiedId}'`,
         expected: 'a live registration, from a mount or from the host page',
         observed: 'no registration, so whoever registered it has gone away',
         repair:
-          'Re-open the surface that registers this command. A mount command goes with its mount, and a host command with the chrome that registered it.',
+          'Re-open the surface that registers this action. A mount action goes with its mount, and a host action with the chrome that registered it.',
       })
       this.#options.diagnostics?.report(error, { severity: 'warning' })
       return { status: 'unavailable', error }
     }
 
-    return await this.#run(command)
+    return await this.#run(action)
   }
 
   /**
@@ -295,41 +295,41 @@ export class CommandRegistry {
       case 'ambiguous':
         return {
           status: 'ambiguous',
-          commandIds: match.targets.map(command => command.qualifiedId),
+          actionIds: match.targets.map(action => action.qualifiedId),
         }
       case 'complete':
         event.preventDefault()
         return {
           status: 'matched',
-          commandId: match.target.qualifiedId,
+          actionId: match.target.qualifiedId,
           execution: this.#run(match.target),
         }
     }
   }
 
-  async #run(command: RegisteredCommand): Promise<CommandExecutionResult> {
-    const decision = this.#decide(command.definitionId, command.registration)
+  async #run(action: RegisteredAction): Promise<ActionExecutionResult> {
+    const decision = this.#decide(action.definitionId, action.registration)
     if (!decision.allowed) {
       // Refresh this entry so the palette shows the current denial state.
-      if (this.#refreshEntry(command)) this.#publish()
+      if (this.#refreshEntry(action)) this.#publish()
       this.#options.notifyDenial?.({
-        commandId: command.qualifiedId,
-        label: command.registration.label,
+        actionId: action.qualifiedId,
+        label: action.registration.label,
         reason: decision.reason,
       })
       return { status: 'denied', reason: decision.reason }
     }
 
     try {
-      await command.registration.execute()
+      await action.registration.execute()
       return { status: 'executed' }
     } catch (error) {
       const structured = toMfeError(error, {
         code: 'mount/failure',
-        id: command.definitionId,
-        operation: `execute command '${command.registration.name}'`,
+        id: action.definitionId,
+        operation: `execute action '${action.registration.name}'`,
         repair:
-          'Handle the failure inside the command, or surface it through the App’s own error UI.',
+          'Handle the failure inside the action, or surface it through the App’s own error UI.',
       })
       this.#options.diagnostics?.report(structured)
       return { status: 'failed', error: structured }
@@ -343,42 +343,42 @@ export class CommandRegistry {
   }
 
   #add(
-    owner: Pick<RegisteredCommand, 'definitionId' | 'scopeToken' | 'shortcutScope'>,
-    registration: CommandRegistration,
-  ): CommandRegistrationHandle {
+    owner: Pick<RegisteredAction, 'definitionId' | 'scopeToken' | 'shortcutScope'>,
+    registration: ActionRegistration,
+  ): ActionRegistrationHandle {
     const { definitionId, scopeToken } = owner
     const declared = this.#assertValid(definitionId, registration)
 
-    const commands = this.#scopeCommands(scopeToken)
-    if (commands.has(registration.name)) {
+    const actions = this.#scopeActions(scopeToken)
+    if (actions.has(registration.name)) {
       throw this.#duplicateNameError(definitionId, registration.name)
     }
 
     const qualifiedId = `${definitionId}:${registration.name}`
     const usable = this.#usableShortcut(owner.shortcutScope, declared)
     const unpublished = { ...owner, qualifiedId, registration, declared, usable }
-    const command: RegisteredCommand = { ...unpublished, entry: this.#buildEntry(unpublished) }
+    const action: RegisteredAction = { ...unpublished, entry: this.#buildEntry(unpublished) }
 
-    commands.set(registration.name, command)
-    if (declared) this.#afterShortcutChange(command)
+    actions.set(registration.name, action)
+    if (declared) this.#afterShortcutChange(action)
     this.#publish()
 
     let active = true
     return {
       qualifiedId,
       update: next => {
-        if (active) this.#update(command, next)
+        if (active) this.#update(action, next)
       },
       remove: () => {
         if (!active) return
         active = false
         const owned = this.#byScope.get(scopeToken)
         if (owned) {
-          owned.delete(command.registration.name)
+          owned.delete(action.registration.name)
           if (owned.size === 0) this.#byScope.delete(scopeToken)
         }
         // A host shortcut going away frees the keys for a container that was refused them.
-        if (command.shortcutScope.kind === 'reserved' && command.declared) {
+        if (action.shortcutScope.kind === 'reserved' && action.declared) {
           this.#refreshContainerShortcuts()
         }
         this.#publish()
@@ -386,31 +386,31 @@ export class CommandRegistry {
     }
   }
 
-  #update(command: RegisteredCommand, next: CommandRegistration): void {
-    const commands = this.#scopeCommands(command.scopeToken)
-    const shortcutChanged = next.shortcut !== command.registration.shortcut
+  #update(action: RegisteredAction, next: ActionRegistration): void {
+    const actions = this.#scopeActions(action.scopeToken)
+    const shortcutChanged = next.shortcut !== action.registration.shortcut
 
     // Changing `name` replaces the local registration, with the same validation as a fresh
     // register. Otherwise the shortcut is parsed only when it changed, because this runs after
     // every commit of the component that registered it.
-    let { declared } = command
-    if (next.name !== command.registration.name) {
-      declared = this.#assertValid(command.definitionId, next)
-      if (commands.has(next.name)) {
-        throw this.#duplicateNameError(command.definitionId, next.name)
+    let { declared } = action
+    if (next.name !== action.registration.name) {
+      declared = this.#assertValid(action.definitionId, next)
+      if (actions.has(next.name)) {
+        throw this.#duplicateNameError(action.definitionId, next.name)
       }
-      commands.delete(command.registration.name)
-      commands.set(next.name, command)
-      command.qualifiedId = `${command.definitionId}:${next.name}`
+      actions.delete(action.registration.name)
+      actions.set(next.name, action)
+      action.qualifiedId = `${action.definitionId}:${next.name}`
     } else if (shortcutChanged) {
-      declared = this.#parseDeclared(command.definitionId, next)
+      declared = this.#parseDeclared(action.definitionId, next)
     }
-    command.registration = next
-    command.declared = declared
-    if (shortcutChanged) command.usable = this.#usableShortcut(command.shortcutScope, declared)
+    action.registration = next
+    action.declared = declared
+    if (shortcutChanged) action.usable = this.#usableShortcut(action.shortcutScope, declared)
 
-    let changed = this.#refreshEntry(command)
-    if (shortcutChanged && this.#afterShortcutChange(command)) changed = true
+    let changed = this.#refreshEntry(action)
+    if (shortcutChanged && this.#afterShortcutChange(action)) changed = true
     if (changed) this.#publish()
   }
 
@@ -421,12 +421,12 @@ export class CommandRegistry {
    * host page's shortcuts can claim or free a container's keys; returns whether that changed an
    * entry, so the caller publishes once.
    */
-  #afterShortcutChange(command: RegisteredCommand): boolean {
-    const { declared, shortcutScope } = command
+  #afterShortcutChange(action: RegisteredAction): boolean {
+    const { declared, shortcutScope } = action
     if (declared) {
       const refusal = this.#shortcutRefusal(shortcutScope, declared)
-      if (refusal === undefined) this.#reportCollisions(command, declared)
-      else this.#reportRefusal(command, declared, refusal)
+      if (refusal === undefined) this.#reportCollisions(action, declared)
+      else this.#reportRefusal(action, declared, refusal)
     }
     return shortcutScope.kind === 'reserved' && this.#refreshContainerShortcuts()
   }
@@ -437,16 +437,16 @@ export class CommandRegistry {
    */
   #refreshContainerShortcuts(): boolean {
     let changed = false
-    for (const command of this.#allCommands()) {
-      const { declared, shortcutScope } = command
+    for (const action of this.#allActions()) {
+      const { declared, shortcutScope } = action
       if (shortcutScope.kind === 'reserved' || !declared) continue
       const refusal = this.#shortcutRefusal(shortcutScope, declared)
-      const had = command.usable
-      command.usable = refusal === undefined ? declared : undefined
-      if (!this.#refreshEntry(command)) continue
+      const had = action.usable
+      action.usable = refusal === undefined ? declared : undefined
+      if (!this.#refreshEntry(action)) continue
       changed = true
       if (had !== undefined && refusal !== undefined) {
-        this.#reportRefusal(command, declared, refusal)
+        this.#reportRefusal(action, declared, refusal)
       }
     }
     return changed
@@ -456,7 +456,7 @@ export class CommandRegistry {
    * Why a declared shortcut may not fire. A Widget is an embedded fragment and does not own the
    * page's keys, as it does not own its URL; the host page's keys are the one set every page
    * has, so a container cannot take them, nor begin or extend one of them. The host scope's own
-   * commands are the only ones read, so a check costs the host page's count, not everyone's.
+   * actions are the only ones read, so a check costs the host page's count, not everyone's.
    */
   #shortcutRefusal(scope: ShortcutScope, declared: ParsedShortcut): ShortcutRefusal | undefined {
     if (scope.kind === 'reserved') return undefined
@@ -478,34 +478,34 @@ export class CommandRegistry {
     return this.#shortcutRefusal(scope, declared) === undefined ? declared : undefined
   }
 
-  /** Commands whose shortcut can fire right now, from the host page and from every active App. */
-  #liveShortcuts(inField: boolean): ShortcutCandidate<RegisteredCommand>[] {
+  /** Actions whose shortcut can fire right now, from the host page and from every active App. */
+  #liveShortcuts(inField: boolean): ShortcutCandidate<RegisteredAction>[] {
     const pathname = readOnce(() => this.#options.readPathname?.())
-    const live: ShortcutCandidate<RegisteredCommand>[] = []
+    const live: ShortcutCandidate<RegisteredAction>[] = []
 
-    for (const command of this.#allCommands()) {
-      const shortcut = command.usable
+    for (const action of this.#allActions()) {
+      const shortcut = action.usable
       // A chord typed into a field is text, unless every step of it holds a modifier.
       if (!shortcut || (inField && !firesInsideFields(shortcut))) continue
-      if (isLive(command.shortcutScope, pathname)) live.push({ shortcut, target: command })
+      if (isLive(action.shortcutScope, pathname)) live.push({ shortcut, target: action })
     }
     return live
   }
 
-  #reportCollisions(command: RegisteredCommand, declared: ParsedShortcut): void {
-    const rivals: RegisteredCommand[] = []
-    for (const other of this.#allCommands()) {
+  #reportCollisions(action: RegisteredAction, declared: ParsedShortcut): void {
+    const rivals: RegisteredAction[] = []
+    for (const other of this.#allActions()) {
       const theirs = other.usable
-      if (other === command || !theirs) continue
-      if (!canCoexist(command.shortcutScope, other.shortcutScope)) continue
+      if (other === action || !theirs) continue
+      if (!canCoexist(action.shortcutScope, other.shortcutScope)) continue
       if (shortcutsOverlap(declared, theirs, this.#apple)) rivals.push(other)
     }
     if (rivals.length === 0) return
 
     this.#options.diagnostics?.report(
-      fail(command.definitionId, {
-        operation: `register the shortcut '${declared.source}' for command '${command.registration.name}'`,
-        expected: 'keys no other live command can be pressed for at the same time',
+      fail(action.definitionId, {
+        operation: `register the shortcut '${declared.source}' for action '${action.registration.name}'`,
+        expected: 'keys no other live action can be pressed for at the same time',
         observed: `${rivals.map(rival => `'${rival.qualifiedId}' (${rival.registration.shortcut ?? ''})`).join(', ')} already claims them`,
         repair:
           'Give one of them different keys. Neither runs while both are registered, because letting whichever registered first win would depend on mount order.',
@@ -515,58 +515,58 @@ export class CommandRegistry {
   }
 
   #reportRefusal(
-    command: RegisteredCommand,
+    action: RegisteredAction,
     declared: ParsedShortcut,
     refusal: ShortcutRefusal,
   ): void {
-    const operation = `register the shortcut '${declared.source}' for command '${command.registration.name}'`
+    const operation = `register the shortcut '${declared.source}' for action '${action.registration.name}'`
     const error =
       refusal.reason === 'widget'
-        ? fail(command.definitionId, {
+        ? fail(action.definitionId, {
             operation,
             expected: 'a shortcut from an App or the host page',
             observed: 'a shortcut from a Widget, which does not own the page’s keys',
             repair:
-              'Drop the shortcut; the command stays in the palette without it. If the keys matter, emit an event and let the App that places the Widget register the shortcut.',
+              'Drop the shortcut; the action stays in the palette without it. If the keys matter, emit an event and let the App that places the Widget register the shortcut.',
           })
-        : fail(command.definitionId, {
+        : fail(action.definitionId, {
             operation,
             expected: 'keys the host page does not use',
             observed: `the host page’s '${refusal.by.qualifiedId}' (${refusal.by.declared?.source ?? ''}) uses them`,
             repair:
-              'Choose other keys. The command stays in the palette, but its shortcut is ignored while the host page reserves these.',
+              'Choose other keys. The action stays in the palette, but its shortcut is ignored while the host page reserves these.',
           })
     this.#options.diagnostics?.report(error, { severity: 'warning' })
   }
 
-  #scopeCommands(scopeToken: string): Map<string, RegisteredCommand> {
-    let commands = this.#byScope.get(scopeToken)
-    if (!commands) {
-      commands = new Map()
-      this.#byScope.set(scopeToken, commands)
+  #scopeActions(scopeToken: string): Map<string, RegisteredAction> {
+    let actions = this.#byScope.get(scopeToken)
+    if (!actions) {
+      actions = new Map()
+      this.#byScope.set(scopeToken, actions)
     }
-    return commands
+    return actions
   }
 
-  *#allCommands(): Generator<RegisteredCommand> {
-    for (const commands of this.#byScope.values()) yield* commands.values()
+  *#allActions(): Generator<RegisteredAction> {
+    for (const actions of this.#byScope.values()) yield* actions.values()
   }
 
-  #find(qualifiedId: string): RegisteredCommand | undefined {
-    for (const command of this.#allCommands()) {
-      if (command.qualifiedId === qualifiedId) return command
+  #find(qualifiedId: string): RegisteredAction | undefined {
+    for (const action of this.#allActions()) {
+      if (action.qualifiedId === qualifiedId) return action
     }
     return undefined
   }
 
-  #decide(definitionId: string, registration: CommandRegistration): Decision {
+  #decide(definitionId: string, registration: ActionRegistration): Decision {
     const { canExecute } = registration
     if (!canExecute) return allow()
 
     try {
       return canExecute()
     } catch (error) {
-      // Treating a throwing availability check as allowed would run a command whose
+      // Treating a throwing availability check as allowed would run an action whose
       // preconditions are unknown, so it denies and reports instead.
       this.#options.diagnostics?.report(
         toMfeError(error, {
@@ -579,15 +579,15 @@ export class CommandRegistry {
       )
       return {
         allowed: false,
-        reason: 'This command is unavailable because its availability check failed.',
+        reason: 'This action is unavailable because its availability check failed.',
       }
     }
   }
 
-  #buildEntry(command: CommandShape): CommandEntry {
-    const { definitionId, registration, usable } = command
+  #buildEntry(action: ActionShape): ActionEntry {
+    const { definitionId, registration, usable } = action
     return Object.freeze({
-      id: command.qualifiedId,
+      id: action.qualifiedId,
       definitionId,
       name: registration.name,
       label: registration.label,
@@ -601,47 +601,44 @@ export class CommandRegistry {
    * An identical visible result keeps the existing entry reference, so the palette's snapshot does
    * not change and no subscriber re-renders. Returns whether the entry changed.
    */
-  #refreshEntry(command: RegisteredCommand): boolean {
-    const next = this.#buildEntry(command)
-    if (commandEntryEqual(command.entry, next)) return false
-    command.entry = next
+  #refreshEntry(action: RegisteredAction): boolean {
+    const next = this.#buildEntry(action)
+    if (actionEntryEqual(action.entry, next)) return false
+    action.entry = next
     return true
   }
 
   #publish(): void {
-    this.#snapshot.set(Object.freeze([...this.#allCommands()].map(command => command.entry)))
+    this.#snapshot.set(Object.freeze([...this.#allActions()].map(action => action.entry)))
   }
 
   #duplicateNameError(definitionId: string, name: string): MfeError {
     return fail(definitionId, {
-      operation: `register command '${name}'`,
-      expected: 'one registration per command name within a mount',
+      operation: `register action '${name}'`,
+      expected: 'one registration per action name within a mount',
       observed: `a second registration of '${name}' in the same mount`,
       repair:
-        'Rename one of the commands. Duplicate local names are rejected rather than overwritten, so neither registration silently wins.',
+        'Rename one of the actions. Duplicate local names are rejected rather than overwritten, so neither registration silently wins.',
     })
   }
 
   /** Returns the parsed shortcut, so a valid registration is parsed exactly once. */
-  #assertValid(
-    definitionId: string,
-    registration: CommandRegistration,
-  ): ParsedShortcut | undefined {
+  #assertValid(definitionId: string, registration: ActionRegistration): ParsedShortcut | undefined {
     const { name, label } = registration
-    if (!COMMAND_NAME_PATTERN.test(name)) {
+    if (!ACTION_NAME_PATTERN.test(name)) {
       throw fail(definitionId, {
-        operation: 'register command',
+        operation: 'register action',
         expected:
           'a name of letters, digits and hyphens starting with a letter (for example "refresh")',
         observed: name === '' ? 'an empty string' : JSON.stringify(name),
         repair:
-          'Rename the command. The runtime qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.',
+          'Rename the action. The runtime qualifies it internally as <definitionId>:<name>, which needs an unambiguous local name.',
       })
     }
 
     if (label === '') {
       throw fail(definitionId, {
-        operation: `register command '${name}'`,
+        operation: `register action '${name}'`,
         expected: 'a non-empty label',
         observed: 'an empty string',
         repair: 'Add a human-readable label; the palette has nothing to render without one.',
@@ -651,11 +648,11 @@ export class CommandRegistry {
     for (const placement of registration.placements ?? DEFAULT_PLACEMENTS) {
       if (VALID_PLACEMENTS.has(placement)) continue
       throw fail(definitionId, {
-        operation: `register command '${name}'`,
+        operation: `register action '${name}'`,
         expected: `a standardized placement (${[...VALID_PLACEMENTS].join(', ')})`,
         observed: JSON.stringify(placement),
         repair:
-          'Only command-palette is standardized. Future placements add placement records to this model.',
+          'Only palette is standardized. Future placements add placement records to this model.',
       })
     }
 
@@ -664,24 +661,24 @@ export class CommandRegistry {
 
   #parseDeclared(
     definitionId: string,
-    registration: CommandRegistration,
+    registration: ActionRegistration,
   ): ParsedShortcut | undefined {
     if (registration.shortcut === undefined) return undefined
     const parsed = parseShortcut(registration.shortcut)
     if (parsed.ok) return parsed.shortcut
 
     throw fail(definitionId, {
-      operation: `register command '${registration.name}'`,
+      operation: `register action '${registration.name}'`,
       expected:
         'a shortcut such as "mod+s" — modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated by spaces, such as "g r"',
       observed: `${JSON.stringify(registration.shortcut)}: ${parsed.problem}`,
-      repair: 'Fix the shortcut, or remove it; the command works from the palette without one.',
+      repair: 'Fix the shortcut, or remove it; the action works from the palette without one.',
     })
   }
 }
 
 type ShortcutRefusal =
-  { readonly reason: 'widget' } | { readonly reason: 'reserved'; readonly by: RegisteredCommand }
+  { readonly reason: 'widget' } | { readonly reason: 'reserved'; readonly by: RegisteredAction }
 
 /** Reads on the first call only, so a key press that meets no App never asks where the page is. */
 function readOnce<T>(read: () => T): () => T {

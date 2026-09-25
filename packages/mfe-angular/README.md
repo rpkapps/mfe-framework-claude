@@ -252,28 +252,28 @@ use, throws at the call site.
 All of them are called in an injection context — a constructor or a field
 initialiser — and clean up with the injector that created them.
 
-| Function                                          | Gives                                                                  | Outside a mount   |
-| ------------------------------------------------- | ---------------------------------------------------------------------- | ----------------- |
-| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                               | host scope        |
-| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws        | host scope        |
-| `injectCommand(registration \| () => …)`          | a palette command; a factory re-publishes when the signals it reads do | host scope        |
-| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override        | host crumbs, at 0 |
-| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`     | throws            |
-| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                          | throws            |
-| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle     | throws            |
-| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                           | throws            |
-| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)     | runtime only      |
+| Function                                          | Gives                                                                 | Outside a mount   |
+| ------------------------------------------------- | --------------------------------------------------------------------- | ----------------- |
+| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                              | host scope        |
+| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws       | host scope        |
+| `injectAction(registration \| () => …)`           | a palette action; a factory re-publishes when the signals it reads do | host scope        |
+| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override       | host crumbs, at 0 |
+| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`    | throws            |
+| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                         | throws            |
+| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle    | throws            |
+| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                          | throws            |
+| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)    | runtime only      |
 
-**A command's shortcut.** `injectCommand` passes the registration through as it
+**An action's shortcut.** `injectAction` passes the registration through as it
 is, so `shortcut` works as in any adapter: a chord such as `'mod+s'` or a
 sequence such as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. The host
-reads every key once and runs the command through the palette's path, so
+reads every key once and runs the action through the palette's path, so
 `canExecute` still decides. An App's shortcut fires while the page is inside the
 App's boundary; a Widget's is ignored, and so is one the host page already uses,
 each with a diagnostic.
 
 ```ts
-injectCommand({
+injectAction({
   name: 'export',
   label: 'Export the insights',
   shortcut: 'mod+e',

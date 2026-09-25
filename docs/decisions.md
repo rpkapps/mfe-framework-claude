@@ -1101,3 +1101,31 @@ placeholder tokens) and the font (373 kB) even when its container uses neither.
 `pnpm verify:page` checks that the tokens and the font were in place when PrimeNG's
 first button was inserted, that the tokens follow the dark class, and that a page
 with no Angular container never loads them.
+
+---
+
+## 39. Commands are actions, and placements do not decide an action's keys
+
+**Status:** decided; the first step of the agentic plan (`agentic-plan.md`).
+
+A registration is a typed operation that any caller runs: the palette, a shortcut, the
+App's own button and, next, an agent. "Command" read as a palette entry, and in CQRS as
+a write only, where reads (fetch the selected records) matter as much. So
+`CommandRegistration`, `CommandEntry`, `CommandRegistry`, `useCommand`, `injectCommand`
+and `runtime.commands` are `ActionRegistration`, `ActionEntry`, `ActionRegistry`,
+`useAction`, `injectAction` and `runtime.actions`; the placement `'command-palette'` is
+`'palette'`, and the error code `command/duplicate-name` is `action/duplicate-name`.
+Nothing is deployed, so there is no alias. The surface keeps its name: the shell's
+command palette lists applications, pages and actions, and is built from the design
+system's `Command` component. §26 and §35 are unchanged but for the names.
+
+`placements` says which surfaces list an action, and nothing else. An action's keys
+work whatever it lists, `[]` included: the shell's actions that open the palette, the
+developer tools and the dashboard list nowhere, since the palette is the one or
+reaches the others as destinations, and each says why beside its empty list. Once
+`'agent'` is a placement that "listed nowhere" is a decision each action states,
+rather than a keys-only constant that would also hide it from the agent unnoticed.
+
+**Cost:** "action" is taken twice nearby: React 19 calls an async transition an
+Action (`useActionState`, `<form action>`), and the design system has an `ActionBar`.
+The docs say "action" for ours and name the others in full where both appear.

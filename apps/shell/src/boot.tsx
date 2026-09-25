@@ -109,7 +109,7 @@ const { runtime, activeOverrides } = createMfeRuntime({
   navigationBridge: createBrowserNavigationBridge(),
   diagnostics,
   ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
-  notifyCommandDenial: notice => toast.warning(notice.label, { description: notice.reason }),
+  notifyActionDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })
 
 notices.overrides = activeOverrides

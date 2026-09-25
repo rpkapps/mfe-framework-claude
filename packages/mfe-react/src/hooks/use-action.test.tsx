@@ -1,16 +1,16 @@
 /**
- * Registering a command from the host's own chrome, which used to be impossible: the registry is
+ * Registering an action from the host's own chrome, which used to be impossible: the registry is
  * keyed by a mount token and the host has none (§26).
  */
 
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactNode } from 'react'
-import { allow, deny, HOST_SCOPE, type CommandRegistration } from '@company/mfe-core'
+import { allow, deny, HOST_SCOPE, type ActionRegistration } from '@company/mfe-core'
 
 import { MfeProvider } from '../runtime-context.tsx'
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
-import { useCommand } from './use-command.ts'
+import { useAction } from './use-action.ts'
 
 let environment: MfeTestEnvironment | null = null
 
@@ -21,8 +21,8 @@ afterEach(async () => {
   await current?.dispose()
 })
 
-function Chrome({ registration }: { readonly registration: CommandRegistration }): ReactNode {
-  useCommand(registration)
+function Chrome({ registration }: { readonly registration: ActionRegistration }): ReactNode {
+  useAction(registration)
   return null
 }
 
@@ -30,7 +30,7 @@ function hostOnly(created: MfeTestEnvironment, children: ReactNode): ReactNode {
   return <MfeProvider runtime={created.runtime}>{children}</MfeProvider>
 }
 
-describe('useCommand outside a mount', () => {
+describe('useAction outside a mount', () => {
   it('registers in the reserved host scope', () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
@@ -42,12 +42,12 @@ describe('useCommand outside a mount', () => {
       ),
     )
 
-    expect(created.runtime.commands.getSnapshot()).toMatchObject([
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
       { id: '@host:settings', definitionId: HOST_SCOPE, label: 'Open settings' },
     ])
   })
 
-  it('runs the host command through the same execute the palette calls', async () => {
+  it('runs the host action through the same execute the palette calls', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
     const execute = vi.fn()
@@ -56,13 +56,13 @@ describe('useCommand outside a mount', () => {
       hostOnly(created, <Chrome registration={{ name: 'settings', label: 'Settings', execute }} />),
     )
 
-    await expect(created.runtime.commands.execute('@host:settings')).resolves.toEqual({
+    await expect(created.runtime.actions.execute('@host:settings')).resolves.toEqual({
       status: 'executed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  /** A denied command is shown with its owner's reason rather than hidden, whoever owns it. */
+  /** A denied action is shown with its owner's reason rather than hidden, whoever owns it. */
   it('publishes the host’s own denial, and refuses to run', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
@@ -82,11 +82,11 @@ describe('useCommand outside a mount', () => {
       ),
     )
 
-    expect(created.runtime.commands.getSnapshot()[0]?.decision).toEqual({
+    expect(created.runtime.actions.getSnapshot()[0]?.decision).toEqual({
       allowed: false,
       reason: 'The dashboard canvas is already empty.',
     })
-    await expect(created.runtime.commands.execute('@host:clear-dashboard')).resolves.toMatchObject({
+    await expect(created.runtime.actions.execute('@host:clear-dashboard')).resolves.toMatchObject({
       status: 'denied',
     })
     expect(execute).not.toHaveBeenCalled()
@@ -98,7 +98,7 @@ describe('useCommand outside a mount', () => {
 
     function Canvas(): ReactNode {
       const [tiles, setTiles] = useState(0)
-      useCommand({
+      useAction({
         name: 'clear-dashboard',
         label: 'Clear the dashboard canvas',
         canExecute: () => (tiles === 0 ? deny('Nothing on the canvas.') : allow()),
@@ -118,17 +118,17 @@ describe('useCommand outside a mount', () => {
     }
 
     const view = render(hostOnly(created, <Canvas />))
-    expect(created.runtime.commands.getSnapshot()[0]?.decision.allowed).toBe(false)
+    expect(created.runtime.actions.getSnapshot()[0]?.decision.allowed).toBe(false)
 
     view.getByRole('button').click()
 
     // Published from the effect that runs after every commit, so the palette's snapshot follows.
     await waitFor(() => {
-      expect(created.runtime.commands.getSnapshot()[0]?.decision.allowed).toBe(true)
+      expect(created.runtime.actions.getSnapshot()[0]?.decision.allowed).toBe(true)
     })
   })
 
-  it('removes the host command when the chrome that registered it unmounts', () => {
+  it('removes the host action when the chrome that registered it unmounts', () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell' })
     const created = environment
 
@@ -138,11 +138,11 @@ describe('useCommand outside a mount', () => {
         <Chrome registration={{ name: 'help', label: 'Help', execute: () => {} }} />,
       ),
     )
-    expect(created.runtime.commands.size).toBe(1)
+    expect(created.runtime.actions.size).toBe(1)
 
     view.unmount()
 
-    expect(created.runtime.commands.size).toBe(0)
+    expect(created.runtime.actions.size).toBe(0)
   })
 
   /** A mount keeps registering exactly as it did; the scope is what differs. */
@@ -157,19 +157,19 @@ describe('useCommand outside a mount', () => {
       </Mounted>,
     )
 
-    expect(created.runtime.commands.getSnapshot()).toMatchObject([
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
       { id: 'reports:refresh', definitionId: 'reports' },
     ])
   })
 })
 
-describe('useCommand with a shortcut', () => {
+describe('useAction with a shortcut', () => {
   function press(init: KeyboardEventInit & { key: string }, created: MfeTestEnvironment) {
     const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
-    return created.runtime.commands.handleKeyDown(event)
+    return created.runtime.actions.handleKeyDown(event)
   }
 
-  it('passes the shortcut through, and the host’s key press runs the App’s command', () => {
+  it('passes the shortcut through, and the host’s key press runs the App’s action', () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32')
     environment = createMfeTestEnvironment({
       definitionId: 'reports',
@@ -186,7 +186,7 @@ describe('useCommand with a shortcut', () => {
       </Mounted>,
     )
 
-    expect(created.runtime.commands.getSnapshot()).toMatchObject([
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
       { id: 'reports:export', shortcut: 'mod+e' },
     ])
     expect(press({ key: 'e', ctrlKey: true }, created).status).toBe('matched')
@@ -212,10 +212,10 @@ describe('useCommand with a shortcut', () => {
       ),
     )
 
-    expect(created.runtime.commands.getSnapshot()[0]?.shortcut).toBe('f1')
+    expect(created.runtime.actions.getSnapshot()[0]?.shortcut).toBe('f1')
   })
 
-  it('keeps a Widget’s command but not its shortcut', () => {
+  it('keeps a Widget’s action but not its shortcut', () => {
     environment = createMfeTestEnvironment({ definitionId: 'orders', kind: 'widget' })
     const created = environment
     const Mounted = created.wrapper
@@ -228,7 +228,7 @@ describe('useCommand with a shortcut', () => {
       </Mounted>,
     )
 
-    expect(created.runtime.commands.getSnapshot()[0]).not.toHaveProperty('shortcut')
+    expect(created.runtime.actions.getSnapshot()[0]).not.toHaveProperty('shortcut')
     expect(created.diagnostics.map(record => record.error.message).join('\n')).toContain(
       'a shortcut from a Widget',
     )

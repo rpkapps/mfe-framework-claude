@@ -6,7 +6,7 @@ it builds the way a generated container does: Nx's Angular webpack builder with 
 `customWebpackConfig` (`webpack.config.ts`).
 
 - `/` lists the inspections at the well pad chosen in a PrimeNG select. The PrimeNG button, and the
-  `f l` shortcut on the palette command the page registers, log a walkdown as the user
+  `f l` shortcut on the palette action the page registers, log a walkdown as the user
   `injectUser()` reads from the shell.
 - `/inspections/:inspectionId` shows one inspection; the router binds the parameter to an input.
 - `/settings` is the App's settings capability, which the shell lists in its own settings.

@@ -294,7 +294,7 @@ export function overlayRootCount(): number {
 /**
  * The release contract every teardown asserts: nothing a mount put on the page is left, neither
  * a scope root in `within` nor an overlay root, and nothing it registered with the runtime is
- * either — no navigation blocker, breadcrumb, command or shell-state listener. Checked as one
+ * either — no navigation blocker, breadcrumb, action or shell-state listener. Checked as one
  * value, so a failure shows every count at once.
  */
 export function expectReleased(runtime: MfeRuntime, within: ParentNode = document.body): void {
@@ -305,7 +305,7 @@ export function expectReleased(runtime: MfeRuntime, within: ParentNode = documen
     blockers: runtime.navigator.blockerCount,
     breadcrumbContributions: runtime.breadcrumbs.contributionCount,
     breadcrumbs: runtime.breadcrumbs.getSnapshot(),
-    commands: runtime.commands.size,
+    actions: runtime.actions.size,
     shellStateListeners: {
       user: shellState.fieldListenerCount('user'),
       groups: shellState.fieldListenerCount('groups'),
@@ -317,7 +317,7 @@ export function expectReleased(runtime: MfeRuntime, within: ParentNode = documen
     blockers: 0,
     breadcrumbContributions: 0,
     breadcrumbs: [],
-    commands: 0,
+    actions: 0,
     shellStateListeners: { user: 0, groups: 0, theme: 0 },
   })
 }

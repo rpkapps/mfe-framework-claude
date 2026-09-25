@@ -77,8 +77,8 @@ import { HelpSheet } from './help-sheet.tsx'
 import {
   useActiveApp,
   useAnnounceShellNavigation,
-  useCommandShortcuts,
-  useShellCommands,
+  useActionShortcuts,
+  useShellActions,
   useShellSurface,
 } from './hooks.ts'
 import { CommandPalette } from './palette.tsx'
@@ -128,10 +128,10 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // through the same hook.
   const theme = useTheme()
   useAnnounceShellNavigation()
-  // The shell's own commands and their keys, and the one listener every command's keys go
+  // The shell's own actions and their keys, and the one listener every action's keys go
   // through — a mounted App's included, which renders in a React root of its own.
-  useShellCommands()
-  useCommandShortcuts()
+  useShellActions()
+  useActionShortcuts()
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.

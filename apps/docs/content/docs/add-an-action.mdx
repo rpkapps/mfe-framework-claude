@@ -1,9 +1,9 @@
 ---
-title: 'Add a command to the palette'
-description: 'Register an action with useCommand, and the shell lists it in the command palette for as long as your component is on the page.'
+title: 'Add an action to the palette'
+description: 'Register an action with useAction, and the shell lists it in the command palette for as long as your component is on the page.'
 ---
 
-Apps and Widgets. Call `useCommand` and your action appears in the shell's command palette. You
+Apps and Widgets. Call `useAction` and your action appears in the shell's command palette. You
 decide what it does and whether it may run right now.
 
 ## Steps
@@ -12,15 +12,15 @@ decide what it does and whether it may run right now.
 
 <Step>
 
-### 1. Register the command
+### 1. Register the action
 
 ```tsx title="examples/alert-panel/src/alert-panel.tsx"
-import { useCommand } from '@company/mfe-react'
+import { useAction } from '@company/mfe-react'
 
 export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
   const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
 
-  useCommand({
+  useAction({
     name: 'acknowledge-alert',
     label: 'Acknowledge this alert',
     execute: () => {
@@ -33,7 +33,7 @@ export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanel
 }
 ```
 
-`name` is letters, digits and hyphens, starting with a letter. The command lives as long as the
+`name` is letters, digits and hyphens, starting with a letter. The action lives as long as the
 component renders, so leaving the page takes it out of the palette.
 
 </Step>
@@ -43,9 +43,9 @@ component renders, so leaving the page takes it out of the palette.
 ### 2. Say when it may run
 
 ```tsx title="examples/alert-panel/src/alert-panel.tsx"
-import { allow, deny, useCommand } from '@company/mfe-react'
+import { allow, deny, useAction } from '@company/mfe-react'
 
-useCommand({
+useAction({
   name: 'acknowledge-alert',
   label: 'Acknowledge this alert',
   canExecute: () => (state === 'open' ? allow() : deny('This alert was already acknowledged.')),
@@ -55,17 +55,17 @@ useCommand({
 })
 ```
 
-A denied command stays in the list, greyed out, with your reason beside it. Keep `canExecute` a
+A denied action stays in the list, greyed out, with your reason beside it. Keep `canExecute` a
 plain read of state you already have, and do the work in `execute`.
 
 </Step>
 
 <Step>
 
-### 3. Register App-wide commands from your layout
+### 3. Register App-wide actions from your layout
 
 ```tsx title="examples/operations/src/routes/__root.tsx"
-useCommand({
+useAction({
   name: 'open-wells',
   label: 'Operations: open the wells inventory',
   canExecute: () => allow(),
@@ -75,7 +75,7 @@ useCommand({
 })
 ```
 
-A command registered by a layout route lasts as long as the App is mounted. A command registered
+An action registered by a layout route lasts as long as the App is mounted. An action registered
 by a page lasts as long as that page.
 
 </Step>
@@ -85,7 +85,7 @@ by a page lasts as long as that page.
 ### 4. Give it a shortcut
 
 ```tsx title="examples/operations/src/routes/__root.tsx"
-useCommand({
+useAction({
   name: 'open-wells',
   label: 'Operations: open the wells inventory',
   shortcut: 'o w',
@@ -100,8 +100,8 @@ A chord joins modifiers and one key with `+`: `mod+s`, `shift+?`, `alt+enter`. A
 chords separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
 Spell a named key out: `escape`, `enter`, `space`, `plus`, `arrowup`, `f1`.
 
-The shell runs the command when the keys are pressed, the same way the palette runs it, so
-`canExecute` still decides. The palette shows the keys beside the command, and the help sheet
+The shell runs the action when the keys are pressed, the same way the palette runs it, so
+`canExecute` still decides. The palette shows the keys beside the action, and the help sheet
 lists them.
 
 - **When it fires.** An App's shortcut works while the page is inside that App. A Widget's is
@@ -122,25 +122,25 @@ Run `pnpm dev` and open the shell at `http://localhost:3000`. Add the Alert pane
 from the palette, under "Add to the dashboard". Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd>
 
 <Kbd>K</Kbd> again and look under "From the mounted application". The right-hand column names the
-App or Widget that owns the command, and a denied one shows your reason there instead.
+App or Widget that owns the action, and a denied one shows your reason there instead.
 
 ## Errors
 
 <Callout type="error" title="expected a name of letters, digits and hyphens">
 
 ```text
-alert-panel failed to register command: expected a name of letters, digits and hyphens starting
+alert-panel failed to register action: expected a name of letters, digits and hyphens starting
 with a letter (for example "refresh"), received "acknowledge alert".
 ```
 
-**Fix.** Rename the command to `acknowledge-alert`. Spaces, dots and colons are not allowed.
+**Fix.** Rename the action to `acknowledge-alert`. Spaces, dots and colons are not allowed.
 
 </Callout>
 
-<Callout type="error" title="expected one registration per command name within a mount">
+<Callout type="error" title="expected one registration per action name within a mount">
 
 ```text
-alert-panel failed to register command 'refresh': expected one registration per command name
+alert-panel failed to register action 'refresh': expected one registration per action name
 within a mount, received a second registration of 'refresh' in the same mount.
 ```
 
@@ -152,18 +152,18 @@ throws instead.
 <Callout type="error" title="expected a non-empty label">
 
 ```text
-alert-panel failed to register command 'refresh': expected a non-empty label, received an empty
+alert-panel failed to register action 'refresh': expected a non-empty label, received an empty
 string.
 ```
 
-**Fix.** Give the command the words you want in the palette. It is the only text the reader sees.
+**Fix.** Give the action the words you want in the palette. It is the only text the reader sees.
 
 </Callout>
 
 <Callout type="error" title="expected a shortcut such as 'mod+s'">
 
 ```text
-operations failed to register command 'open-wells': expected a shortcut such as "mod+s" —
+operations failed to register action 'open-wells': expected a shortcut such as "mod+s" —
 modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated
 by spaces, such as "g r", received "mod+shift": "mod+shift" is only modifiers, with no key to
 press.
@@ -177,19 +177,19 @@ could not read.
 <Callout type="error" title="expected keys the host page does not use">
 
 ```text
-operations failed to register the shortcut 'g w' for command 'open-wells': expected keys the host
+operations failed to register the shortcut 'g w' for action 'open-wells': expected keys the host
 page does not use, received the host page’s '@host:dashboard' (g w) uses them.
 ```
 
-**Fix.** Choose other keys. The command stays in the palette; only the shortcut is ignored.
+**Fix.** Choose other keys. The action stays in the palette; only the shortcut is ignored.
 
 </Callout>
 
-<Callout type="error" title="expected keys no other live command can be pressed for at the same time">
+<Callout type="error" title="expected keys no other live action can be pressed for at the same time">
 
 ```text
-operations failed to register the shortcut 'mod+e' for command 'export': expected keys no other
-live command can be pressed for at the same time, received 'operations:print' (mod+e) already
+operations failed to register the shortcut 'mod+e' for action 'export': expected keys no other
+live action can be pressed for at the same time, received 'operations:print' (mod+e) already
 claims them.
 ```
 
@@ -201,7 +201,7 @@ different URLs may use the same keys, because only one of them is live at a time
 <Callout type="error" title="expected a shortcut from an App or the host page">
 
 ```text
-alert-panel failed to register the shortcut 'mod+e' for command 'acknowledge-alert': expected a
+alert-panel failed to register the shortcut 'mod+e' for action 'acknowledge-alert': expected a
 shortcut from an App or the host page, received a shortcut from a Widget, which does not own the
 page’s keys.
 ```
@@ -216,7 +216,7 @@ Widget register the shortcut.
 - [Create a Widget](/docs/create-a-widget) — the container this example lives in.
 - [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — a Widget must
   not move the page itself.
-- [Hooks and components](/docs/reference/hooks-and-components) — the full `useCommand` signature.
+- [Hooks and components](/docs/reference/hooks-and-components) — the full `useAction` signature.
 - [Run the shell with your container](/docs/run-the-shell-locally) — how to get the palette on
   screen.
 - [Error codes](/docs/reference/error-codes) — every message, with its fix.

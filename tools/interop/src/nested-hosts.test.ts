@@ -8,7 +8,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core'
 import {
   createApp,
-  injectCommand,
+  injectAction,
   injectMfeMount,
   MfeWidgetComponent,
   type MfeWidgetEvent,
@@ -46,7 +46,7 @@ class WorkbenchComponent {
   readonly lastEvent = signal('no event yet')
 
   constructor() {
-    injectCommand({ name: 'refresh', label: 'Refresh the workbench', execute: () => undefined })
+    injectAction({ name: 'refresh', label: 'Refresh the workbench', execute: () => undefined })
   }
 
   /** Hands the Widget's own count back to it, so the event crosses down as well as up. */
@@ -116,7 +116,7 @@ describe('a React Widget inside an Angular App inside a React host', () => {
     expect(counterRoots.live).toBe(1)
     expect(overlayRootCount()).toBe(2)
     await waitFor(() => {
-      expect(runtime.commands.size).toBe(2)
+      expect(runtime.actions.size).toBe(2)
     })
     expect(runtime.navigator.blockerCount).toBe(1)
     expect(runtime.breadcrumbs.contributionCount).toBe(1)

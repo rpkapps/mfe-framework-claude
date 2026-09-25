@@ -11,7 +11,7 @@ pnpm check
 ```
 
 runs, in order: required generation, format check, lint, strict typecheck,
-package-boundary checks and the test suites. CI runs the same command and never
+package-boundary checks and the test suites. CI runs the same action and never
 silently rewrites authored files.
 
 Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,
@@ -20,7 +20,7 @@ Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,
 ## File and export conventions
 
 - **File names** are kebab-case and describe the thing, not its category:
-  `command-registry.ts`, not `commands/index-impl.ts`. A file whose only job is
+  `action-registry.ts`, not `actions/index-impl.ts`. A file whose only job is
   to re-export is `index.ts`.
 - **Local imports carry their extension** (`./errors.ts`, `./mount-context.tsx`).
   The TypeScript configuration rewrites them on emit.

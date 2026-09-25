@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { allow, deny, useCommand, useStoredState, useTheme, useUser } from '@company/mfe-react'
+import { allow, deny, useAction, useStoredState, useTheme, useUser } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Separator } from '@tecton/react/components/separator'
@@ -43,9 +43,9 @@ function Overview(): ReactNode {
     retention: 'browser',
   })
 
-  // Registration is a hook, so this command is in the shell's palette while this route is on screen
+  // Registration is a hook, so this action is in the shell's palette while this route is on screen
   // and gone with it.
-  useCommand({
+  useAction({
     name: 'toggle-density',
     label: `Switch to ${density === 'compact' ? 'comfortable' : 'compact'} density`,
     canExecute: () => (user ? allow() : deny('Sign in to change display preferences.')),

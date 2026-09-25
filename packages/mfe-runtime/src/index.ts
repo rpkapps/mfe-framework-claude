@@ -113,22 +113,22 @@ export {
 } from './shell-state/shell-state-store.ts'
 
 export {
-  CommandRegistry,
-  type CommandDenialNotifier,
-  type CommandExecutionResult,
-  type CommandOwner,
-  type CommandRegistrationHandle,
-  type CommandRegistryOptions,
+  ActionRegistry,
+  type ActionDenialNotifier,
+  type ActionExecutionResult,
+  type ActionOwner,
+  type ActionRegistrationHandle,
+  type ActionRegistryOptions,
   type ShortcutDispatchResult,
-} from './commands/command-registry.ts'
+} from './actions/action-registry.ts'
 
-/** The one reading of a command's `shortcut`, for a host that draws or checks one. */
+/** The one reading of an action's `shortcut`, for a host that draws or checks one. */
 export {
   parseShortcut,
   type ParsedShortcut,
   type ShortcutChord,
   type ShortcutParseResult,
-} from './commands/shortcut.ts'
+} from './actions/shortcut.ts'
 
 export {
   BreadcrumbStore,

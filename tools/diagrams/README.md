@@ -294,7 +294,7 @@ Subtitle: "One neutral runtime; the adapters the shell lists." Ten boxes, read t
 the top, a yellow **The shell** (`adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`),
 with an arrow labelled **registry.json** into a panel **The neutral runtime**
 ("@company/mfe-runtime — no framework, no federation import"). That panel holds three grey boxes:
-**Shared services** ("storage, commands, navigation, diagnostics"), **Federation loader**
+**Shared services** ("storage, actions, navigation, diagnostics"), **Federation loader**
 (`createFederationContainerLoader`) and **One mount path** (`mountDefinition`). An arrow
 labelled **detect, parse** drops into a dashed panel **The adapters** ("exactly one recognises
 each entry; any order"), holding **The React adapter** (`mfe.framework 'react', or none`),

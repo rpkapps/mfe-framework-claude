@@ -1,17 +1,16 @@
 /**
- * The shell's own commands, registered in the host page's scope exactly as a mounted App
+ * The shell's own actions, registered in the host page's scope exactly as a mounted App
  * registers its own, so the palette, the help sheet and the key listener read one list (§26).
  * A shortcut here is the host page's, which the runtime reserves: a container cannot take it.
  *
- * What a command looks like in the palette lives beside the palette; this module is what it
+ * What an action looks like in the palette lives beside the palette; this module is what it
  * does, so it can be registered and pressed without rendering anything.
  */
 
 import {
   allow,
   deny,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionRegistration,
   type MfeRuntime,
   type StoredStateSetter,
 } from '@company/mfe-react'
@@ -23,8 +22,8 @@ import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import type { ShellTheme } from './preferences.ts'
 import { shellUi } from './ui-store.ts'
 
-/** What a shell command reads at the render it was built in. */
-export interface ShellCommandContext {
+/** What a shell action reads at the render it was built in. */
+export interface ShellActionContext {
   readonly runtime: MfeRuntime
   readonly theme: ShellTheme
   readonly layout: DashboardLayout
@@ -32,15 +31,12 @@ export interface ShellCommandContext {
   readonly goToDashboard: () => void
 }
 
-/** Kept out of the palette: it is the palette, or the palette reaches it as a destination. */
-const KEYS_ONLY: readonly CommandPlacement[] = []
-
 /**
  * Built afresh every render and re-applied after every commit, so a label that follows the theme
  * and a closure that reads the layout are always current. The order is the help sheet's, and it
  * never changes, because the registrations are matched to their handles by position.
  */
-export function shellCommands(context: ShellCommandContext): readonly CommandRegistration[] {
+export function shellActions(context: ShellActionContext): readonly ActionRegistration[] {
   const { runtime, theme, layout, setLayout } = context
   const otherTheme = theme === 'dark' ? 'light' : 'dark'
 
@@ -49,7 +45,8 @@ export function shellCommands(context: ShellCommandContext): readonly CommandReg
       name: 'palette',
       label: 'Search or jump to…',
       shortcut: 'mod+k',
-      placements: KEYS_ONLY,
+      // Listed nowhere: it opens the palette. The keys work whatever the placements say.
+      placements: [],
       execute: () => {
         shellUi.toggle('palette')
       },
@@ -74,7 +71,8 @@ export function shellCommands(context: ShellCommandContext): readonly CommandReg
       name: 'devtools',
       label: 'Open the developer tools',
       shortcut: 'g d',
-      placements: KEYS_ONLY,
+      // Listed nowhere: the palette reaches the developer tools as a destination.
+      placements: [],
       execute: () => {
         devtools.open('overrides')
       },
@@ -91,7 +89,8 @@ export function shellCommands(context: ShellCommandContext): readonly CommandReg
       name: 'dashboard',
       label: 'Go to the Widget dashboard',
       shortcut: 'g w',
-      placements: KEYS_ONLY,
+      // Listed nowhere: the palette reaches the dashboard as a destination.
+      placements: [],
       execute: context.goToDashboard,
     },
     {

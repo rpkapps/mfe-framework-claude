@@ -15,7 +15,7 @@ import {
 } from '@company/mfe-core'
 
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import { CommandRegistry, type CommandDenialNotifier } from '../commands/command-registry.ts'
+import { ActionRegistry, type ActionDenialNotifier } from '../actions/action-registry.ts'
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
@@ -52,7 +52,7 @@ export interface RuntimeParts {
   readonly diagnostics: DiagnosticsHub
   /** Merged over `DEFAULT_DEADLINES`. */
   readonly deadlines?: Partial<DeadlineConfig> | undefined
-  readonly notifyCommandDenial?: CommandDenialNotifier | undefined
+  readonly notifyActionDenial?: ActionDenialNotifier | undefined
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration: () => string
 }
@@ -67,12 +67,12 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   const { diagnostics, shellState, storage } = parts
 
   const navigator = new BoundaryNavigator({ bridge: parts.navigationBridge, diagnostics })
-  const commands = new CommandRegistry({
+  const actions = new ActionRegistry({
     diagnostics,
     // An App's shortcuts fire while the page is inside its boundary, read where it is read for
     // navigation.
     readPathname: () => navigator.read().pathname,
-    ...withoutUndefined({ notifyDenial: parts.notifyCommandDenial }),
+    ...withoutUndefined({ notifyDenial: parts.notifyActionDenial }),
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
 
@@ -94,7 +94,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     loader: new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters)),
     shellState,
     storage,
-    commands,
+    actions,
     breadcrumbs,
     navigator,
     telemetryProvider: parts.telemetryProvider,
@@ -106,7 +106,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     runtime,
     dispose: () => {
       stopWatchingSession()
-      commands.dispose()
+      actions.dispose()
       breadcrumbs.dispose()
       navigator.clearBlockers()
       storage.dispose()

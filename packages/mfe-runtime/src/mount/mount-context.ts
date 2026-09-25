@@ -110,7 +110,7 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     context,
     dispose: async () => {
       // Registrations go first, so a disposed mount cannot appear in the palette mid-teardown.
-      runtime.commands.removeMount(mountToken)
+      runtime.actions.removeMount(mountToken)
       runtime.navigator.removeMount(mountToken)
 
       // Synchronous, so work an adapter stops on abort ends before telemetry is closed below.

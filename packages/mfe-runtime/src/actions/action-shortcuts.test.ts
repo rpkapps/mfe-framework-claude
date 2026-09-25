@@ -1,40 +1,40 @@
 /**
- * A command's shortcut, read by the registry from one host listener: whose keys are live, what a
+ * An action's shortcut, read by the registry from one host listener: whose keys are live, what a
  * field keeps, and what happens when two registrations want the same keys.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { deny, isMfeError, type CommandRegistration } from '@company/mfe-core'
+import { deny, isMfeError, type ActionRegistration } from '@company/mfe-core'
 
 import { createMountContext } from '../mount/mount-context.ts'
 import { createMemoryRuntime } from '../testing/memory-runtime.ts'
 import {
-  CommandRegistry,
-  type CommandExecutionResult,
-  type CommandOwner,
-  type CommandRegistryOptions,
+  ActionRegistry,
+  type ActionExecutionResult,
+  type ActionOwner,
+  type ActionRegistryOptions,
   type ShortcutDispatchResult,
-} from './command-registry.ts'
+} from './action-registry.ts'
 import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
-function command(overrides: Partial<CommandRegistration> = {}): CommandRegistration {
+function action(overrides: Partial<ActionRegistration> = {}): ActionRegistration {
   return { name: 'refresh', label: 'Refresh', execute: () => undefined, ...overrides }
 }
 
-function app(definitionId: string, basePath = `/${definitionId}`): CommandOwner {
+function app(definitionId: string, basePath = `/${definitionId}`): ActionOwner {
   return { definitionId, mountToken: `${definitionId}#1`, kind: 'app', basePath }
 }
 
-function widget(definitionId: string): CommandOwner {
+function widget(definitionId: string): ActionOwner {
   return { definitionId, mountToken: `${definitionId}#1`, kind: 'widget', basePath: '' }
 }
 
 /** A registry on a page whose pathname the test moves. */
-function setup(options: CommandRegistryOptions = {}) {
+function setup(options: ActionRegistryOptions = {}) {
   const { hub, records } = recordingDiagnostics()
   const page = { pathname: '/' }
-  const registry = new CommandRegistry({
+  const registry = new ActionRegistry({
     diagnostics: hub,
     readPathname: () => page.pathname,
     ...options,
@@ -44,7 +44,7 @@ function setup(options: CommandRegistryOptions = {}) {
 
 /** A keydown the way a browser delivers it, aimed at `target`. */
 function keydown(
-  registry: CommandRegistry,
+  registry: ActionRegistry,
   init: KeyboardEventInit & { key: string },
   target: EventTarget = document.body,
 ): { readonly result: ShortcutDispatchResult; readonly event: KeyboardEvent } {
@@ -53,7 +53,7 @@ function keydown(
   return { result: registry.handleKeyDown(event), event }
 }
 
-function executionOf(result: ShortcutDispatchResult): Promise<CommandExecutionResult> {
+function executionOf(result: ShortcutDispatchResult): Promise<ActionExecutionResult> {
   if (result.status !== 'matched') throw new Error(`expected a match, got ${result.status}`)
   return result.execution
 }
@@ -73,7 +73,7 @@ describe('declaring a shortcut', () => {
   it('publishes the normalized spelling on the entry', () => {
     const { registry } = setup()
 
-    registry.registerHost(command({ shortcut: 'Shift+Mod+K' }))
+    registry.registerHost(action({ shortcut: 'Shift+Mod+K' }))
 
     expect(registry.getSnapshot()[0]?.shortcut).toBe('mod+shift+k')
   })
@@ -81,7 +81,7 @@ describe('declaring a shortcut', () => {
   it('leaves the entry without one when none was declared', () => {
     const { registry } = setup()
 
-    registry.registerHost(command())
+    registry.registerHost(action())
 
     expect(registry.getSnapshot()[0]).not.toHaveProperty('shortcut')
   })
@@ -91,61 +91,72 @@ describe('declaring a shortcut', () => {
 
     let thrown: unknown
     try {
-      registry.register(app('reports'), command({ shortcut: 'mod+shift' }))
+      registry.register(app('reports'), action({ shortcut: 'mod+shift' }))
     } catch (error) {
       thrown = error
     }
 
     expect(isMfeError(thrown)).toBe(true)
     if (!isMfeError(thrown)) return
-    expect(thrown.code).toBe('command/duplicate-name')
-    expect(thrown.message).toContain("reports failed to register command 'refresh'")
+    expect(thrown.code).toBe('action/duplicate-name')
+    expect(thrown.message).toContain("reports failed to register action 'refresh'")
     expect(thrown.message).toContain('"mod+shift" is only modifiers')
     expect(registry.size).toBe(0)
   })
 
   it('rejects an unreadable shortcut arriving through update, and keeps the last good one', () => {
     const { registry } = setup()
-    const handle = registry.registerHost(command({ shortcut: 'g r' }))
+    const handle = registry.registerHost(action({ shortcut: 'g r' }))
 
     expect(() => {
-      handle.update(command({ shortcut: 'g+' }))
+      handle.update(action({ shortcut: 'g+' }))
     }).toThrow(/empty part/)
     expect(registry.getSnapshot()[0]?.shortcut).toBe('g r')
   })
 
   it('follows an update to the shortcut, and reports only when it changes', () => {
     const { registry, records } = setup()
-    const handle = registry.register(widget('orders'), command({ shortcut: 'e' }))
+    const handle = registry.register(widget('orders'), action({ shortcut: 'e' }))
     expect(codesOf(records)).toHaveLength(1)
 
-    handle.update(command({ shortcut: 'e', label: 'Refresh the orders' }))
-    handle.update(command({ shortcut: 'e', label: 'Refresh the orders' }))
+    handle.update(action({ shortcut: 'e', label: 'Refresh the orders' }))
+    handle.update(action({ shortcut: 'e', label: 'Refresh the orders' }))
     expect(codesOf(records)).toHaveLength(1)
 
-    handle.update(command({ shortcut: 'x' }))
+    handle.update(action({ shortcut: 'x' }))
     expect(codesOf(records)).toHaveLength(2)
   })
 })
 
 describe('reading a key press', () => {
-  it('runs a host command and claims the event', async () => {
+  it('runs a host action and claims the event', async () => {
     const { registry } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ name: 'palette', shortcut: 'mod+k', execute }))
+    registry.registerHost(action({ name: 'palette', shortcut: 'mod+k', execute }))
 
     const { result, event } = keydown(registry, { key: 'k', ctrlKey: true })
 
-    expect(result).toMatchObject({ status: 'matched', commandId: '@host:palette' })
+    expect(result).toMatchObject({ status: 'matched', actionId: '@host:palette' })
     await expect(executionOf(result)).resolves.toEqual({ status: 'executed' })
     expect(execute).toHaveBeenCalledOnce()
     expect(event.defaultPrevented).toBe(true)
   })
 
+  it('runs an action no surface lists, because placements do not decide the keys', async () => {
+    const { registry } = setup()
+    const execute = vi.fn()
+    registry.registerHost(action({ shortcut: 'mod+k', placements: [], execute }))
+
+    const { result } = keydown(registry, { key: 'k', ctrlKey: true })
+
+    await expect(executionOf(result)).resolves.toEqual({ status: 'executed' })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it('reads mod as ⌘ on an Apple platform', () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
     const { registry } = setup()
-    registry.registerHost(command({ name: 'palette', shortcut: 'mod+k' }))
+    registry.registerHost(action({ name: 'palette', shortcut: 'mod+k' }))
 
     expect(keydown(registry, { key: 'k', ctrlKey: true }).result.status).toBe('unmatched')
     expect(keydown(registry, { key: 'k', metaKey: true }).result.status).toBe('matched')
@@ -153,7 +164,7 @@ describe('reading a key press', () => {
 
   it('leaves an unclaimed key alone', () => {
     const { registry } = setup()
-    registry.registerHost(command({ shortcut: 'mod+k' }))
+    registry.registerHost(action({ shortcut: 'mod+k' }))
 
     const { result, event } = keydown(registry, { key: 'j', ctrlKey: true })
 
@@ -164,7 +175,7 @@ describe('reading a key press', () => {
   it('ignores an event something else already handled, and a modifier pressed alone', () => {
     const { registry } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ shortcut: 'mod+k', execute }))
+    registry.registerHost(action({ shortcut: 'mod+k', execute }))
 
     const handled = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true })
     handled.preventDefault()
@@ -174,12 +185,12 @@ describe('reading a key press', () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
-  it('runs a denied command through the palette’s path, so the denial is announced', async () => {
+  it('runs a denied action through the palette’s path, so the denial is announced', async () => {
     const notifyDenial = vi.fn()
     const { registry } = setup({ notifyDenial })
     const execute = vi.fn()
     registry.registerHost(
-      command({
+      action({
         name: 'clear',
         label: 'Clear the canvas',
         shortcut: 'mod+backspace',
@@ -196,11 +207,11 @@ describe('reading a key press', () => {
     })
     expect(execute).not.toHaveBeenCalled()
     expect(notifyDenial).toHaveBeenCalledWith({
-      commandId: '@host:clear',
+      actionId: '@host:clear',
       label: 'Clear the canvas',
       reason: 'The canvas is already empty.',
     })
-    // The key was the command's: the browser does not also act on it.
+    // The key was the action's: the browser does not also act on it.
     expect(event.defaultPrevented).toBe(true)
   })
 })
@@ -209,7 +220,7 @@ describe('sequences', () => {
   it('holds the first key of a sequence and runs on the second', () => {
     const { registry } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ shortcut: 'g r', execute }))
+    registry.registerHost(action({ shortcut: 'g r', execute }))
 
     const first = keydown(registry, { key: 'g' })
     expect(first.result).toEqual({ status: 'pending' })
@@ -224,7 +235,7 @@ describe('sequences', () => {
     vi.useFakeTimers()
     const { registry } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ shortcut: 'g r', execute }))
+    registry.registerHost(action({ shortcut: 'g r', execute }))
 
     keydown(registry, { key: 'g' })
     vi.advanceTimersByTime(1001)
@@ -236,7 +247,7 @@ describe('sequences', () => {
   it('starts again from a key that breaks a sequence', () => {
     const { registry } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ shortcut: 'g r', execute }))
+    registry.registerHost(action({ shortcut: 'g r', execute }))
 
     keydown(registry, { key: 'g' })
     expect(keydown(registry, { key: 'g' }).result.status).toBe('pending')
@@ -261,9 +272,9 @@ describe('keys typed into a field', () => {
     const onRegistry = vi.fn()
     const onHelp = vi.fn()
     const onPalette = vi.fn()
-    registry.registerHost(command({ name: 'registry', shortcut: 'g r', execute: onRegistry }))
-    registry.registerHost(command({ name: 'help', shortcut: '?', execute: onHelp }))
-    registry.registerHost(command({ name: 'palette', shortcut: 'mod+k', execute: onPalette }))
+    registry.registerHost(action({ name: 'registry', shortcut: 'g r', execute: onRegistry }))
+    registry.registerHost(action({ name: 'help', shortcut: '?', execute: onHelp }))
+    registry.registerHost(action({ name: 'palette', shortcut: 'mod+k', execute: onPalette }))
     return { registry, onRegistry, onHelp, onPalette }
   }
 
@@ -351,8 +362,8 @@ describe('whose shortcuts are live', () => {
     const { registry, page } = setup()
     const reports = vi.fn()
     const operations = vi.fn()
-    registry.register(app('reports'), command({ shortcut: 'mod+e', execute: reports }))
-    registry.register(app('operations'), command({ shortcut: 'mod+e', execute: operations }))
+    registry.register(app('reports'), action({ shortcut: 'mod+e', execute: reports }))
+    registry.register(app('operations'), action({ shortcut: 'mod+e', execute: operations }))
 
     page.pathname = '/reports/accounts/42'
     keydown(registry, { key: 'e', ctrlKey: true })
@@ -370,7 +381,7 @@ describe('whose shortcuts are live', () => {
   it('does not read a boundary as a mere prefix of the path', () => {
     const { registry, page } = setup()
     const execute = vi.fn()
-    registry.register(app('reports'), command({ shortcut: 'mod+e', execute }))
+    registry.register(app('reports'), action({ shortcut: 'mod+e', execute }))
 
     page.pathname = '/reports-archive'
     keydown(registry, { key: 'e', ctrlKey: true })
@@ -381,7 +392,7 @@ describe('whose shortcuts are live', () => {
   it('runs the host page’s shortcuts wherever the page is', () => {
     const { registry, page } = setup()
     const execute = vi.fn()
-    registry.registerHost(command({ shortcut: '?', execute }))
+    registry.registerHost(action({ shortcut: '?', execute }))
 
     page.pathname = '/reports/accounts'
     keydown(registry, { key: '?' })
@@ -393,10 +404,10 @@ describe('whose shortcuts are live', () => {
     const { registry, page } = setup()
     const outer = vi.fn()
     const inner = vi.fn()
-    registry.register(app('workbench'), command({ shortcut: 'mod+o', execute: outer }))
+    registry.register(app('workbench'), action({ shortcut: 'mod+o', execute: outer }))
     registry.register(
       app('counter', '/workbench/counter'),
-      command({ shortcut: 'mod+i', execute: inner }),
+      action({ shortcut: 'mod+i', execute: inner }),
     )
 
     page.pathname = '/workbench/counter/3'
@@ -409,12 +420,12 @@ describe('whose shortcuts are live', () => {
     expect(inner).toHaveBeenCalledOnce()
   })
 
-  it('refuses a Widget’s shortcut, keeps its command, and says why', () => {
+  it('refuses a Widget’s shortcut, keeps its action, and says why', () => {
     const { registry, records, page } = setup()
     const execute = vi.fn()
     page.pathname = '/'
 
-    registry.register(widget('orders'), command({ shortcut: 'mod+e', execute }))
+    registry.register(widget('orders'), action({ shortcut: 'mod+e', execute }))
     keydown(registry, { key: 'e', ctrlKey: true })
 
     expect(registry.getSnapshot()).toMatchObject([{ id: 'orders:refresh' }])
@@ -435,13 +446,13 @@ describe('whose shortcuts are live', () => {
       basePath: '/reports',
     })
     const execute = vi.fn()
-    runtime.commands.register(mount.context, command({ shortcut: 'mod+e', execute }))
-    expect(keydown(runtime.commands, { key: 'e', ctrlKey: true }).result.status).toBe('matched')
+    runtime.actions.register(mount.context, action({ shortcut: 'mod+e', execute }))
+    expect(keydown(runtime.actions, { key: 'e', ctrlKey: true }).result.status).toBe('matched')
 
     await mount.dispose()
 
-    expect(runtime.commands.getSnapshot()).toEqual([])
-    expect(keydown(runtime.commands, { key: 'e', ctrlKey: true }).result.status).toBe('unmatched')
+    expect(runtime.actions.getSnapshot()).toEqual([])
+    expect(keydown(runtime.actions, { key: 'e', ctrlKey: true }).result.status).toBe('unmatched')
     expect(execute).toHaveBeenCalledOnce()
     memory.dispose()
   })
@@ -452,9 +463,9 @@ describe('the host page’s reserved keys', () => {
     const { registry, records, page } = setup()
     const host = vi.fn()
     const container = vi.fn()
-    registry.registerHost(command({ name: 'registry', shortcut: 'g r', execute: host }))
+    registry.registerHost(action({ name: 'registry', shortcut: 'g r', execute: host }))
 
-    registry.register(app('reports'), command({ shortcut: 'g r', execute: container }))
+    registry.register(app('reports'), action({ shortcut: 'g r', execute: container }))
     page.pathname = '/reports'
     keydown(registry, { key: 'g' })
     keydown(registry, { key: 'r' })
@@ -470,9 +481,9 @@ describe('the host page’s reserved keys', () => {
   it('refuses a container shortcut that begins one of the host page’s', () => {
     const { registry, records, page } = setup()
     const host = vi.fn()
-    registry.registerHost(command({ name: 'registry', shortcut: 'g r', execute: host }))
+    registry.registerHost(action({ name: 'registry', shortcut: 'g r', execute: host }))
 
-    registry.register(app('reports'), command({ shortcut: 'g' }))
+    registry.register(app('reports'), action({ shortcut: 'g' }))
     page.pathname = '/reports'
     keydown(registry, { key: 'g' })
     keydown(registry, { key: 'r' })
@@ -485,10 +496,10 @@ describe('the host page’s reserved keys', () => {
     const { registry, records, page } = setup()
     const container = vi.fn()
     page.pathname = '/reports'
-    registry.register(app('reports'), command({ shortcut: 'mod+e', execute: container }))
+    registry.register(app('reports'), action({ shortcut: 'mod+e', execute: container }))
     expect(registry.getSnapshot()[0]?.shortcut).toBe('mod+e')
 
-    const host = registry.registerHost(command({ name: 'export', shortcut: 'ctrl+e' }))
+    const host = registry.registerHost(action({ name: 'export', shortcut: 'ctrl+e' }))
     expect(registry.getSnapshot()[0]).not.toHaveProperty('shortcut')
     expect(records).toHaveLength(1)
 
@@ -507,18 +518,18 @@ describe('two registrations with the same keys', () => {
     page.pathname = '/reports'
     registry.register(
       app('reports'),
-      command({ name: 'refresh', shortcut: 'mod+r', execute: refresh }),
+      action({ name: 'refresh', shortcut: 'mod+r', execute: refresh }),
     )
     registry.register(
       app('reports'),
-      command({ name: 'reload', shortcut: 'ctrl+r', execute: reload }),
+      action({ name: 'reload', shortcut: 'ctrl+r', execute: reload }),
     )
 
     const { result, event } = keydown(registry, { key: 'r', ctrlKey: true })
 
     expect(result).toEqual({
       status: 'ambiguous',
-      commandIds: ['reports:refresh', 'reports:reload'],
+      actionIds: ['reports:refresh', 'reports:reload'],
     })
     expect(refresh).not.toHaveBeenCalled()
     expect(reload).not.toHaveBeenCalled()
@@ -530,8 +541,8 @@ describe('two registrations with the same keys', () => {
   it('runs neither of two host shortcuts where one begins the other', () => {
     const { registry, records } = setup()
     const go = vi.fn()
-    registry.registerHost(command({ name: 'go', shortcut: 'g', execute: go }))
-    registry.registerHost(command({ name: 'registry', shortcut: 'g r' }))
+    registry.registerHost(action({ name: 'go', shortcut: 'g', execute: go }))
+    registry.registerHost(action({ name: 'registry', shortcut: 'g r' }))
 
     expect(keydown(registry, { key: 'g' }).result.status).toBe('ambiguous')
     expect(go).not.toHaveBeenCalled()
@@ -540,16 +551,16 @@ describe('two registrations with the same keys', () => {
 
   it('reports nested Apps that claim the same keys', () => {
     const { registry, records } = setup()
-    registry.register(app('workbench'), command({ shortcut: 'mod+s' }))
-    registry.register(app('counter', '/workbench/counter'), command({ shortcut: 'mod+s' }))
+    registry.register(app('workbench'), action({ shortcut: 'mod+s' }))
+    registry.register(app('counter', '/workbench/counter'), action({ shortcut: 'mod+s' }))
 
     expect(records).toHaveLength(1)
   })
 
   it('lets two Apps that are never live together use the same keys', () => {
     const { registry, records } = setup()
-    registry.register(app('reports'), command({ shortcut: 'mod+s' }))
-    registry.register(app('operations'), command({ shortcut: 'mod+s' }))
+    registry.register(app('reports'), action({ shortcut: 'mod+s' }))
+    registry.register(app('operations'), action({ shortcut: 'mod+s' }))
 
     expect(records).toEqual([])
   })
@@ -560,9 +571,9 @@ describe('two registrations with the same keys', () => {
     page.pathname = '/reports'
     registry.register(
       app('reports'),
-      command({ name: 'refresh', shortcut: 'mod+r', execute: refresh }),
+      action({ name: 'refresh', shortcut: 'mod+r', execute: refresh }),
     )
-    const reload = registry.register(app('reports'), command({ name: 'reload', shortcut: 'mod+r' }))
+    const reload = registry.register(app('reports'), action({ name: 'reload', shortcut: 'mod+r' }))
 
     reload.remove()
     keydown(registry, { key: 'r', ctrlKey: true })

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core'
 import { RouterLink } from '@angular/router'
-import { allow, deny, injectCommand, injectUser } from '@company/mfe-angular'
+import { allow, deny, injectAction, injectUser } from '@company/mfe-angular'
 import { Button } from 'primeng/button'
 import { Select, type SelectChangeEvent } from 'primeng/select'
 
@@ -58,9 +58,9 @@ export class OverviewComponent {
   )
 
   constructor() {
-    // The factory re-publishes the command whenever a signal it reads changes, so the palette
+    // The factory re-publishes the action whenever a signal it reads changes, so the palette
     // and the shortcut see the pad being chosen.
-    injectCommand(() => ({
+    injectAction(() => ({
       name: 'log-inspection',
       label: 'Fieldwork: log an inspection at the chosen pad',
       // The shell reserves its own keys, so an App's sequence starts with a letter it leaves free.

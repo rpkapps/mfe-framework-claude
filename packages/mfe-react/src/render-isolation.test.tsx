@@ -10,7 +10,7 @@ import { useState, type ReactNode } from 'react'
 
 import { createMfeTestEnvironment, type MfeTestEnvironment } from './testing/index.tsx'
 import { createWidget } from './definition.ts'
-import { useCommand } from './hooks/use-command.ts'
+import { useAction } from './hooks/use-action.ts'
 import { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 import { useStoredState } from './hooks/use-stored-state.ts'
 import { WidgetMount } from './widget-mount.tsx'
@@ -212,7 +212,7 @@ describe('storage fans out per key', () => {
   })
 })
 
-describe('commands publish only when visible state changes', () => {
+describe('actions publish only when visible state changes', () => {
   it('a rerender with equivalent visible state publishes no palette snapshot', () => {
     const env = setup()
     let bump: (() => void) | null = null
@@ -222,7 +222,7 @@ describe('commands publish only when visible state changes', () => {
       bump = () => setTick(current => current + 1)
 
       // Inline callbacks, new closures on every render, as an author would write.
-      useCommand({
+      useAction({
         name: 'refresh',
         label: 'Refresh data',
         canExecute: () => allow(),
@@ -232,7 +232,7 @@ describe('commands publish only when visible state changes', () => {
       return null
     }
 
-    const palette = makeProbe('palette', () => env.runtime.commands.getSnapshot().length)
+    const palette = makeProbe('palette', () => env.runtime.actions.getSnapshot().length)
 
     render(
       <env.wrapper>
@@ -241,18 +241,18 @@ describe('commands publish only when visible state changes', () => {
       </env.wrapper>,
     )
 
-    const snapshot = env.runtime.commands.getSnapshot()
+    const snapshot = env.runtime.actions.getSnapshot()
     const paletteBaseline = palette.commits.count
 
     act(() => bump?.())
     act(() => bump?.())
 
     // The snapshot keeps its identity, so a subscriber sees no change at all.
-    expect(env.runtime.commands.getSnapshot()).toBe(snapshot)
+    expect(env.runtime.actions.getSnapshot()).toBe(snapshot)
     expect(palette.commits.count).toBe(paletteBaseline)
   })
 
-  it('updating one command does not re-evaluate a command owned by another component', () => {
+  it('updating one action does not re-evaluate an action owned by another component', () => {
     const env = setup()
     const otherCanExecute = vi.fn(() => allow())
     let setLabel: ((next: string) => void) | null = null
@@ -261,12 +261,12 @@ describe('commands publish only when visible state changes', () => {
     function RefreshOwner(): ReactNode {
       const [label, setter] = useState('Refresh data')
       setLabel = setter
-      useCommand({ name: 'refresh', label, execute: () => {} })
+      useAction({ name: 'refresh', label, execute: () => {} })
       return null
     }
 
     function ExportOwner(): ReactNode {
-      useCommand({
+      useAction({
         name: 'export',
         label: 'Export',
         canExecute: otherCanExecute,
@@ -286,17 +286,17 @@ describe('commands publish only when visible state changes', () => {
     act(() => setLabel?.('Reload data'))
 
     expect(otherCanExecute.mock.calls.length).toBe(baseline)
-    expect(env.runtime.commands.getSnapshot().find(entry => entry.name === 'refresh')?.label).toBe(
+    expect(env.runtime.actions.getSnapshot().find(entry => entry.name === 'refresh')?.label).toBe(
       'Reload data',
     )
   })
 
-  it('opening the palette is the only path that re-evaluates every command', () => {
+  it('opening the palette is the only path that re-evaluates every action', () => {
     const env = setup()
     const canExecute = vi.fn(() => allow())
 
     function Owner(): ReactNode {
-      useCommand({ name: 'export', label: 'Export', canExecute, execute: () => {} })
+      useAction({ name: 'export', label: 'Export', canExecute, execute: () => {} })
       return null
     }
 
@@ -307,7 +307,7 @@ describe('commands publish only when visible state changes', () => {
     )
 
     const baseline = canExecute.mock.calls.length
-    env.runtime.commands.evaluateAll()
+    env.runtime.actions.evaluateAll()
 
     expect(canExecute.mock.calls.length).toBeGreaterThan(baseline)
   })
@@ -316,7 +316,7 @@ describe('commands publish only when visible state changes', () => {
     const env = setup()
 
     function Owner(): ReactNode {
-      useCommand({ name: 'refresh', label: 'Refresh data', execute: () => {} })
+      useAction({ name: 'refresh', label: 'Refresh data', execute: () => {} })
       return null
     }
 
@@ -326,9 +326,9 @@ describe('commands publish only when visible state changes', () => {
       </env.wrapper>,
     )
 
-    expect(env.runtime.commands.size).toBe(1)
+    expect(env.runtime.actions.size).toBe(1)
     unmount()
-    expect(env.runtime.commands.size).toBe(0)
+    expect(env.runtime.actions.size).toBe(0)
   })
 })
 
@@ -404,7 +404,7 @@ describe('Widget inputs and handlers', () => {
 })
 
 describe('teardown returns resources to baseline', () => {
-  it('repeated mount and dispose leaves no commands, subscriptions or overlay roots behind', async () => {
+  it('repeated mount and dispose leaves no actions, subscriptions or overlay roots behind', async () => {
     const overlayCount = (): number => document.querySelectorAll('[data-mfe-overlay-root]').length
     const baselineOverlays = overlayCount()
 
@@ -412,7 +412,7 @@ describe('teardown returns resources to baseline', () => {
       const env = createMfeTestEnvironment({ definitionId: 'probe-app' })
 
       function Owner(): ReactNode {
-        useCommand({ name: 'refresh', label: 'Refresh', execute: () => {} })
+        useAction({ name: 'refresh', label: 'Refresh', execute: () => {} })
         useTheme()
         return null
       }
@@ -423,13 +423,13 @@ describe('teardown returns resources to baseline', () => {
         </env.wrapper>,
       )
 
-      expect(env.runtime.commands.size).toBe(1)
+      expect(env.runtime.actions.size).toBe(1)
       expect(env.runtime.shellState.fieldListenerCount('theme')).toBe(1)
 
       unmount()
       await env.dispose()
 
-      expect(env.runtime.commands.size).toBe(0)
+      expect(env.runtime.actions.size).toBe(0)
       expect(env.runtime.shellState.fieldListenerCount('theme')).toBe(0)
     }
 

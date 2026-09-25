@@ -5,7 +5,7 @@ import {
   useMatchRoute,
   useNavigate,
 } from '@tanstack/react-router'
-import { allow, deny, useCommand, useGroups, type MfeRouterContext } from '@company/mfe-react'
+import { allow, deny, useAction, useGroups, type MfeRouterContext } from '@company/mfe-react'
 import { ScrollArea } from '@tecton/react/components/scroll-area'
 import {
   BoxesIcon,
@@ -50,9 +50,9 @@ function OperationsLayout(): ReactNode {
 
   /*
    * Registered by the layout rather than by a page, so they live as long as this application is
-   * mounted; a page's own command is scoped to that page instead.
+   * mounted; a page's own action is scoped to that page instead.
    */
-  useCommand({
+  useAction({
     name: 'open-wells',
     label: 'Operations: open the wells inventory',
     // Fires while the page is inside this App; the shell's own keys are reserved, so an App's
@@ -64,7 +64,7 @@ function OperationsLayout(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'open-assets',
     label: 'Operations: open the asset list',
     shortcut: 'o a',
@@ -74,7 +74,7 @@ function OperationsLayout(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'open-settings',
     label: 'Operations: open settings',
     canExecute: () => allow(),
@@ -83,7 +83,7 @@ function OperationsLayout(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'open-reports',
     label: 'Operations: open the alternatives ranking',
     // The one surface in this App that a group actually gates.

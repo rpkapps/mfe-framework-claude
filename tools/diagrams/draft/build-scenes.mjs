@@ -1319,7 +1319,7 @@ async function adapters() {
     caption: '@company/mfe-runtime — no framework, no federation import',
   })
   const runtimeTiles = [
-    ['Shared services', 'storage, commands, navigation, diagnostics', false],
+    ['Shared services', 'storage, actions, navigation, diagnostics', false],
     ['Federation loader', 'createFederationContainerLoader', true],
     ['One mount path', 'mountDefinition', true],
   ].map(([name, subtitle, subtitleMono], position) =>

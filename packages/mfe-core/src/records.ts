@@ -25,8 +25,8 @@ export function withoutUndefined<T extends Record<string, unknown>>(value: T): C
   return result as Compacted<T>
 }
 
-/** Only `command-palette` is standardized. */
-export type CommandPlacement = 'command-palette'
+/** Only `palette` is standardized. */
+export type ActionPlacement = 'palette'
 
 export type Decision =
   { readonly allowed: true } | { readonly allowed: false; readonly reason: string }
@@ -41,29 +41,34 @@ export function deny(reason: string): Decision {
   return { allowed: false, reason }
 }
 
-export interface CommandRegistration {
+export interface ActionRegistration {
   readonly name: string
   readonly label: string
   readonly execute: () => void | Promise<void>
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
-  readonly placements?: readonly CommandPlacement[]
+  /**
+   * The surfaces that list the action; `[]` lists it nowhere. Absent means every standardized
+   * placement. They say nothing about `shortcut`: an action's keys work whatever its placements.
+   */
+  readonly placements?: readonly ActionPlacement[]
   /**
    * A key chord such as `'mod+s'`, or a sequence of chords separated by spaces such as `'g r'`.
-   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The command runs through the same path the
-   * palette uses, so `canExecute` still decides. Only an App's commands and the host page's get
-   * one: a Widget's is ignored, as is one the host page already uses.
+   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The action runs through the same path the
+   * palette uses, so `canExecute` still decides, and it runs whatever `placements` lists. Only an
+   * App's actions and the host page's get one: a Widget's is ignored, as is one the host page
+   * already uses.
    */
   readonly shortcut?: string
 }
 
 /** `id` is the runtime-qualified `<definitionId>:<name>`; authors provide only the local `name`. */
-export interface CommandEntry {
+export interface ActionEntry {
   readonly id: string
   readonly definitionId: string
   readonly name: string
   readonly label: string
-  readonly placements: readonly CommandPlacement[]
+  readonly placements: readonly ActionPlacement[]
   readonly decision: Decision
   /**
    * The registration's shortcut in its normalized spelling (`'mod+shift+k'`, `'g r'`), present
@@ -73,7 +78,7 @@ export interface CommandEntry {
 }
 
 /** Compares only what the palette displays, so closure identity changes are invisible. */
-export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
+export function actionEntryEqual(a: ActionEntry, b: ActionEntry): boolean {
   if (a === b) return true
   if (a.id !== b.id || a.label !== b.label || a.shortcut !== b.shortcut) return false
   if (a.decision.allowed !== b.decision.allowed) return false
@@ -144,7 +149,7 @@ export interface BoundaryLocation {
 
 /**
  * Whether `pathname` is an App's own boundary or a path below it; `basePath` may carry a trailing
- * slash. The one containment test every navigator, router and boundary-aware command shares.
+ * slash. The one containment test every navigator, router and boundary-aware action shares.
  */
 export function isWithinBoundary(basePath: string, pathname: string): boolean {
   const boundary = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath

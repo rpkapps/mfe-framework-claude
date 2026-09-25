@@ -157,11 +157,11 @@ describe('disposing a mount context', () => {
   })
 
   /** Anything listening for the abort must find the mount already gone from the palette. */
-  it('removes the mount’s commands and blockers before it aborts', async () => {
+  it('removes the mount’s actions and blockers before it aborts', async () => {
     const host = runtime()
     const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const { mountToken } = handle.context
-    host.commands.register(handle.context, {
+    host.actions.register(handle.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,
@@ -172,22 +172,22 @@ describe('disposing a mount context', () => {
       confirm: () => Promise.resolve('proceed'),
     })
 
-    const atAbort: { commands?: number; blockers?: number } = {}
+    const atAbort: { actions?: number; blockers?: number } = {}
     handle.context.signal.addEventListener('abort', () => {
-      atAbort.commands = host.commands.getSnapshot().length
+      atAbort.actions = host.actions.getSnapshot().length
       atAbort.blockers = host.navigator.blockerCount
     })
 
     await handle.dispose()
 
-    expect(atAbort).toEqual({ commands: 0, blockers: 0 })
+    expect(atAbort).toEqual({ actions: 0, blockers: 0 })
   })
 
   it('leaves another mount of the same definition untouched', async () => {
     const host = runtime()
     const first = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const second = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
-    host.commands.register(second.context, {
+    host.actions.register(second.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,
@@ -197,6 +197,6 @@ describe('disposing a mount context', () => {
 
     expect(second.context.signal.aborted).toBe(false)
     expect(second.context.overlayRoot.isConnected).toBe(true)
-    expect(host.commands.getSnapshot()).toHaveLength(1)
+    expect(host.actions.getSnapshot()).toHaveLength(1)
   })
 })

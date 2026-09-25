@@ -1,5 +1,5 @@
 /**
- * Where a command's shortcut may fire, resolved once from whoever registered it, so the registry
+ * Where an action's shortcut may fire, resolved once from whoever registered it, so the registry
  * asks the scope rather than branching on the owner's kind wherever it reads keys.
  */
 

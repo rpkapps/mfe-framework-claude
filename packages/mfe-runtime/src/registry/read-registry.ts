@@ -139,7 +139,7 @@ export function readRegistry(raw: readonly unknown[], options: ReadRegistryOptio
       expected: 'one registry entry per definition id',
       observed: `${String(claims.length)} entries using "${id}" (at indexes ${claims.map(claim => claim.index).join(', ')})`,
       repair:
-        'Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.',
+        'Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, action attribution and <id>:<key> storage.',
     })
 
     for (const claim of claims) {

@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createApp } from '../definition.ts'
-import { injectCommand } from '../inject/command.ts'
+import { injectAction } from '../inject/action.ts'
 import { injectNavigationBlock, type NavigationBlock } from '../inject/navigation-block.ts'
 import { injectTheme } from '../inject/shell-state.ts'
 import { injectStoredState } from '../inject/stored-state.ts'
@@ -186,7 +186,7 @@ describe('mounting an App', () => {
     class BusyComponent {
       readonly theme = injectTheme()
       constructor() {
-        injectCommand({ name: 'refresh', label: 'Refresh', execute: () => undefined })
+        injectAction({ name: 'refresh', label: 'Refresh', execute: () => undefined })
         injectNavigationBlock(false)
         injectStoredState('density', z.enum(['compact', 'comfortable']), {
           defaultValue: 'compact',
@@ -206,7 +206,7 @@ describe('mounting an App', () => {
       await app.dispose()
     }
 
-    expect(runtime.commands.size).toBe(0)
+    expect(runtime.actions.size).toBe(0)
     expect(runtime.navigator.blockerCount).toBe(0)
     expect(runtime.breadcrumbs.contributionCount).toBe(0)
     expect(runtime.shellState.fieldListenerCount('theme')).toBe(0)

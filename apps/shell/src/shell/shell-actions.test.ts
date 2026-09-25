@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * The shell's keys are its own commands' shortcuts, read by the runtime from the one listener the
+ * The shell's keys are its own actions' shortcuts, read by the runtime from the one listener the
  * shell installs; nothing of the design system's shortcut registry is left. These press the keys
  * the shell has always had and check they still do what they did, and that a mounted App cannot
  * take one of them.
@@ -12,7 +12,7 @@ import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-react/test
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
-import { shellCommands } from './shell-commands.ts'
+import { shellActions } from './shell-actions.ts'
 import { shellUi } from './ui-store.ts'
 
 const opened = vi.hoisted(() => ({ panels: [] as string[] }))
@@ -43,14 +43,14 @@ afterEach(() => {
 
 function registerShell(goToDashboard = vi.fn()) {
   const { runtime } = memory
-  for (const registration of shellCommands({
+  for (const registration of shellActions({
     runtime,
     theme: 'dark',
     layout: EMPTY_LAYOUT,
     setLayout: () => undefined,
     goToDashboard,
   })) {
-    runtime.commands.registerHost(registration)
+    runtime.actions.registerHost(registration)
   }
   return { goToDashboard }
 }
@@ -59,7 +59,7 @@ function registerShell(goToDashboard = vi.fn()) {
 function press(init: KeyboardEventInit & { key: string }, target: EventTarget = document.body) {
   const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
   Object.defineProperty(event, 'target', { value: target })
-  return memory.runtime.commands.handleKeyDown(event)
+  return memory.runtime.actions.handleKeyDown(event)
 }
 
 describe('the shell’s keys', () => {
@@ -67,7 +67,7 @@ describe('the shell’s keys', () => {
     registerShell()
 
     const keys = Object.fromEntries(
-      memory.runtime.commands.getSnapshot().map(entry => [entry.name, entry.shortcut]),
+      memory.runtime.actions.getSnapshot().map(entry => [entry.name, entry.shortcut]),
     )
 
     expect(keys).toMatchObject({
@@ -133,9 +133,9 @@ describe('the shell’s keys', () => {
   it('keep the palette and the dashboard out of the palette’s own list', () => {
     registerShell()
 
-    const listed = memory.runtime.commands
+    const listed = memory.runtime.actions
       .getSnapshot()
-      .filter(entry => entry.placements.includes('command-palette'))
+      .filter(entry => entry.placements.includes('palette'))
       .map(entry => entry.name)
 
     expect(listed).not.toContain('palette')
@@ -148,7 +148,7 @@ describe('the shell’s keys', () => {
     memory.navigation.push('/reports')
     const execute = vi.fn()
 
-    memory.runtime.commands.register(
+    memory.runtime.actions.register(
       { definitionId: 'reports', mountToken: 'reports#1', kind: 'app', basePath: '/reports' },
       { name: 'search', label: 'Search the reports', shortcut: 'mod+k', execute },
     )
@@ -157,7 +157,7 @@ describe('the shell’s keys', () => {
     expect(execute).not.toHaveBeenCalled()
     expect(shellUi.getSnapshot()).toBe('palette')
     expect(
-      memory.runtime.commands.getSnapshot().find(entry => entry.definitionId !== HOST_SCOPE),
+      memory.runtime.actions.getSnapshot().find(entry => entry.definitionId !== HOST_SCOPE),
     ).not.toHaveProperty('shortcut')
     expect(memory.diagnostics.map(record => record.error.message).join('\n')).toContain(
       "the host page’s '@host:palette' (mod+k) uses them",

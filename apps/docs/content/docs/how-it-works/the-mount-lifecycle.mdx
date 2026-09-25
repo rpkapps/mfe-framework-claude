@@ -112,7 +112,7 @@ Disposal runs from the host's `dispose()`, or when the parent mount is disposed.
 leaves the page at once, and teardown follows in this order.
 
 1. The definition's own `dispose` empties its element. A React definition unmounts its root.
-2. Command and navigator registrations are removed, so a disposed mount cannot appear in the palette
+2. Action and navigator registrations are removed, so a disposed mount cannot appear in the palette
    mid-teardown.
 3. The abort signal aborts. In React that cancels the mount's queries and clears its cache, without
    waiting on them.

@@ -33,10 +33,10 @@ useGroups<T>(selector: (groups: readonly string[]) => T): T
 
 Returns the group names the shell reports for the signed-in user.
 
-```ts title="examples/lab/src/routes/commands.tsx"
+```ts title="examples/lab/src/routes/actions.tsx"
 const groups = useGroups()
 
-useCommand({
+useAction({
   name: 'export-results',
   label: 'Export results',
   canExecute: () =>
@@ -49,7 +49,7 @@ useCommand({
 })
 ```
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+Recipe: [Add an action to the palette](/docs/add-an-action).
 
 ### useTheme
 
@@ -144,16 +144,16 @@ Recipe: [Log an event](/docs/log-an-event).
 
 ## Shell features
 
-### useCommand
+### useAction
 
 ```ts
-useCommand(registration: CommandRegistration): void
+useAction(registration: ActionRegistration): void
 ```
 
-Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the command for it while the page is inside your App, and ignores one from a Widget.
+Publishes one action into the shell's palette for as long as the component is rendered. `ActionRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the action for it while the page is inside your App, and ignores one from a Widget.
 
-```ts title="examples/lab/src/routes/commands.tsx"
-useCommand({
+```ts title="examples/lab/src/routes/actions.tsx"
+useAction({
   name: 'run-simulation',
   label: 'Run the simulation',
   canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
@@ -163,7 +163,7 @@ useCommand({
 })
 ```
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+Recipe: [Add an action to the palette](/docs/add-an-action).
 
 ### allow and deny
 
@@ -174,7 +174,7 @@ deny(reason: string): Decision
 
 Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user.
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+Recipe: [Add an action to the palette](/docs/add-an-action).
 
 ### useBreadcrumbs
 
@@ -347,7 +347,7 @@ A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime su
 
 | Hook                                                                                                 | Inside a mount | On the host page |
 | ---------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs`, `useStoredState`                 | yes            | yes              |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useBreadcrumbs`, `useStoredState`                  | yes            | yes              |
 | `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.

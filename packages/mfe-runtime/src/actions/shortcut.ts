@@ -1,6 +1,6 @@
 /**
  * Keyboard shortcut syntax and matching, with no framework and no design system behind it, so
- * every host and every adapter reads a command's `shortcut` the same way.
+ * every host and every adapter reads an action's `shortcut` the same way.
  *
  * A chord is modifiers and one key joined by `+` (`mod+k`, `shift+?`, `alt+enter`); a sequence is
  * chords separated by spaces (`g r`). `mod` is kept unresolved until a key event is read, because

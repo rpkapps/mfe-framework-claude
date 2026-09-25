@@ -49,7 +49,7 @@ export {
   useScopeRoot,
   useTelemetry,
 } from './hooks/services.ts'
-export { useCommand } from './hooks/use-command.ts'
+export { useAction } from './hooks/use-action.ts'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
   useNavigationBlock,
@@ -82,8 +82,8 @@ export {
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionPlacement,
+  type ActionRegistration,
   type Decision,
   type MfeError,
   type MfeErrorCode,

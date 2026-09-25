@@ -5,18 +5,14 @@ import {
   deny,
   HOST_SCOPE,
   isMfeError,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionPlacement,
+  type ActionRegistration,
 } from '@company/mfe-core'
 
-import {
-  CommandRegistry,
-  type CommandOwner,
-  type CommandRegistryOptions,
-} from './command-registry.ts'
+import { ActionRegistry, type ActionOwner, type ActionRegistryOptions } from './action-registry.ts'
 import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
-function registration(overrides: Partial<CommandRegistration> = {}): CommandRegistration {
+function registration(overrides: Partial<ActionRegistration> = {}): ActionRegistration {
   return {
     name: 'refresh',
     label: 'Refresh data',
@@ -29,25 +25,25 @@ function registration(overrides: Partial<CommandRegistration> = {}): CommandRegi
 function owner(
   definitionId: string,
   mountToken: string,
-  overrides: Partial<CommandOwner> = {},
-): CommandOwner {
+  overrides: Partial<ActionOwner> = {},
+): ActionOwner {
   return { definitionId, mountToken, kind: 'app', basePath: `/${definitionId}`, ...overrides }
 }
 
 /** A registry plus the diagnostics it reported, and a shorthand register. */
-function setup(options: CommandRegistryOptions = {}) {
+function setup(options: ActionRegistryOptions = {}) {
   const { hub, records } = recordingDiagnostics()
-  const registry = new CommandRegistry({ diagnostics: hub, ...options })
+  const registry = new ActionRegistry({ diagnostics: hub, ...options })
   return {
     registry,
     records,
-    register: (overrides?: Partial<CommandRegistration>, mountToken = 'mount-1') =>
+    register: (overrides?: Partial<ActionRegistration>, mountToken = 'mount-1') =>
       registry.register(owner('reports', mountToken), registration(overrides)),
   }
 }
 
 describe('registration', () => {
-  it('publishes a qualified entry for a registered command', () => {
+  it('publishes a qualified entry for a registered action', () => {
     const { register, registry } = setup()
 
     register()
@@ -59,13 +55,13 @@ describe('registration', () => {
         definitionId: 'reports',
         name: 'refresh',
         label: 'Refresh data',
-        placements: ['command-palette'],
+        placements: ['palette'],
         decision: { allowed: true },
       },
     ])
   })
 
-  it('notifies subscribers when a command is registered and again when it is removed', () => {
+  it('notifies subscribers when an action is registered and again when it is removed', () => {
     const { register, registry } = setup()
     const subscriber = vi.fn()
     registry.subscribe(subscriber)
@@ -91,7 +87,7 @@ describe('registration', () => {
     expect(subscriber).toHaveBeenCalledTimes(1)
   })
 
-  it('ignores an update from a handle whose command was already removed', () => {
+  it('ignores an update from a handle whose action was already removed', () => {
     const { register, registry } = setup()
     const handle = register()
     handle.remove()
@@ -101,7 +97,7 @@ describe('registration', () => {
     expect(registry.getSnapshot()).toEqual([])
   })
 
-  it('clears every command owned by a mount in one call', () => {
+  it('clears every action owned by a mount in one call', () => {
     const { register, registry } = setup()
     register({ name: 'refresh' })
     register({ name: 'export' })
@@ -132,7 +128,7 @@ describe('duplicate names', () => {
     register({ name: 'refresh' })
 
     expect(() => register({ name: 'refresh' })).toThrow(
-      /one registration per command name within a mount/,
+      /one registration per action name within a mount/,
     )
 
     expect(registry.size).toBe(1)
@@ -148,9 +144,9 @@ describe('duplicate names', () => {
     } catch (error) {
       expect(isMfeError(error)).toBe(true)
       if (!isMfeError(error)) return
-      expect(error.code).toBe('command/duplicate-name')
+      expect(error.code).toBe('action/duplicate-name')
       expect(error.id).toBe('reports')
-      expect(error.message).toContain('Rename one of the commands')
+      expect(error.message).toContain('Rename one of the actions')
     }
   })
 
@@ -169,7 +165,7 @@ describe('duplicate names', () => {
 
 describe('update performance contract', () => {
   it('does not republish when only the execute and canExecute closures changed', () => {
-    // a command whose visible state is stable across renders, but whose callbacks are new
+    // an action whose visible state is stable across renders, but whose callbacks are new
     // closures each time.
     const { register, registry } = setup()
     const handle = register({ execute: () => undefined, canExecute: () => allow() })
@@ -212,7 +208,7 @@ describe('update performance contract', () => {
     expect(subscriber).toHaveBeenCalledTimes(1)
   })
 
-  it('does not re-evaluate another command while one command updates', () => {
+  it('does not re-evaluate another action while one action updates', () => {
     const { register } = setup()
     const refreshCanExecute = vi.fn(allow)
     const exportCanExecute = vi.fn(allow)
@@ -227,7 +223,7 @@ describe('update performance contract', () => {
     expect(exportCanExecute).toHaveBeenCalledTimes(0)
   })
 
-  it('re-evaluates every command when the palette opens', () => {
+  it('re-evaluates every action when the palette opens', () => {
     const { register, registry } = setup()
     let hasSelection = false
     const refreshCanExecute = vi.fn(() =>
@@ -275,13 +271,13 @@ describe('renaming through update', () => {
     expect(registry.getSnapshot().map(entry => entry.id)).toEqual(['reports:reload'])
   })
 
-  it('rejects a rename that would collide with another command in the same mount', () => {
+  it('rejects a rename that would collide with another action in the same mount', () => {
     const { register, registry } = setup()
     const refresh = register({ name: 'refresh' })
     register({ name: 'export' })
 
     expect(() => refresh.update(registration({ name: 'export' }))).toThrow(
-      /one registration per command name within a mount/,
+      /one registration per action name within a mount/,
     )
     expect(registry.getSnapshot().map(entry => entry.id)).toEqual([
       'reports:refresh',
@@ -345,22 +341,22 @@ describe('registration validation', () => {
     expect(() =>
       registry.register(
         owner('reports', 'mount-1'),
-        registration({ placements: ['toolbar' as CommandPlacement] }),
+        registration({ placements: ['toolbar' as ActionPlacement] }),
       ),
-    ).toThrow(/standardized placement \(command-palette\)/)
+    ).toThrow(/standardized placement \(palette\)/)
   })
 
-  it('accepts an explicit command-palette placement', () => {
+  it('accepts an explicit palette placement', () => {
     const { register, registry } = setup()
 
-    register({ placements: ['command-palette'] })
+    register({ placements: ['palette'] })
 
-    expect(registry.getSnapshot()[0]?.placements).toEqual(['command-palette'])
+    expect(registry.getSnapshot()[0]?.placements).toEqual(['palette'])
   })
 })
 
 describe('execution', () => {
-  it('runs a command whose availability check allows it', async () => {
+  it('runs an action whose availability check allows it', async () => {
     const execute = vi.fn()
     const { register, registry } = setup()
     register({ execute, canExecute: allow })
@@ -369,7 +365,7 @@ describe('execution', () => {
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  it('awaits an asynchronous command before reporting success', async () => {
+  it('awaits an asynchronous action before reporting success', async () => {
     let finished = false
     const { register, registry } = setup()
     register({
@@ -403,7 +399,7 @@ describe('execution', () => {
     expect(result).toEqual({ status: 'denied', reason: 'Select a report before refreshing.' })
     expect(execute).not.toHaveBeenCalled()
     expect(notifyDenial).toHaveBeenCalledWith({
-      commandId: 'reports:refresh',
+      actionId: 'reports:refresh',
       label: 'Refresh data',
       reason: 'Select a report before refreshing.',
     })
@@ -424,7 +420,7 @@ describe('execution', () => {
     expect(subscriber).toHaveBeenCalledTimes(1)
   })
 
-  it('reports an unknown command as unavailable and diagnoses it', async () => {
+  it('reports an unknown action as unavailable and diagnoses it', async () => {
     const { registry, records } = setup()
 
     const result = await registry.execute('reports:refresh')
@@ -432,12 +428,12 @@ describe('execution', () => {
     expect(result.status).toBe('unavailable')
     expect(records).toHaveLength(1)
     expect(records[0]?.severity).toBe('warning')
-    // The text has to fit a host command as well as a mount's: either owner can go away
+    // The text has to fit a host action as well as a mount's: either owner can go away
     // between the palette's snapshot and the execute call.
     expect(records[0]?.error.message).toContain('from a mount or from the host page')
   })
 
-  it('reports a command from a disposed mount as unavailable', async () => {
+  it('reports an action from a disposed mount as unavailable', async () => {
     const { register, registry, records } = setup()
     register()
     registry.removeMount('mount-1')
@@ -445,7 +441,7 @@ describe('execution', () => {
     const result = await registry.execute('reports:refresh')
 
     expect(result.status).toBe('unavailable')
-    expect(codesOf(records)).toEqual(['command/duplicate-name'])
+    expect(codesOf(records)).toEqual(['action/duplicate-name'])
   })
 
   it('denies and diagnoses when the availability check itself throws', async () => {
@@ -464,7 +460,7 @@ describe('execution', () => {
 
     expect(result).toEqual({
       status: 'denied',
-      reason: 'This command is unavailable because its availability check failed.',
+      reason: 'This action is unavailable because its availability check failed.',
     })
     expect(execute).not.toHaveBeenCalled()
     expect(notifyDenial).toHaveBeenCalledTimes(1)
@@ -472,7 +468,7 @@ describe('execution', () => {
     expect(records[0]?.error.message).toContain('pure synchronous read')
   })
 
-  it('returns a structured failure when the command throws', async () => {
+  it('returns a structured failure when the action throws', async () => {
     const { register, registry, records } = setup()
     register({
       execute: () => {
@@ -492,7 +488,7 @@ describe('execution', () => {
     expect(records[0]?.error).toBe(result.error)
   })
 
-  it('returns a structured failure when the command rejects', async () => {
+  it('returns a structured failure when the action rejects', async () => {
     const { register, registry, records } = setup()
     register({ execute: () => Promise.reject(new Error('network down')) })
 
@@ -502,11 +498,11 @@ describe('execution', () => {
     expect(codesOf(records)).toEqual(['mount/failure'])
   })
 
-  it('structures a command that threw a non-Error value', async () => {
+  it('structures an action that threw a non-Error value', async () => {
     const { register, registry } = setup()
     register({
       execute: () => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- a command that throws a non-Error is exactly what this test covers, so the value has to stay a bare string
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- an action that throws a non-Error is exactly what this test covers, so the value has to stay a bare string
         throw 'just a string'
       },
     })
@@ -521,7 +517,7 @@ describe('execution', () => {
 })
 
 describe('disposal', () => {
-  it('drops every command and stops notifying subscribers', async () => {
+  it('drops every action and stops notifying subscribers', async () => {
     const { register, registry } = setup()
     register()
     const subscriber = vi.fn()
@@ -538,7 +534,7 @@ describe('disposal', () => {
 })
 
 describe('the host scope', () => {
-  it('publishes a host command qualified by the reserved scope', () => {
+  it('publishes a host action qualified by the reserved scope', () => {
     const { registry } = setup()
 
     registry.registerHost(registration({ name: 'open-settings', label: 'Open settings' }))
@@ -549,7 +545,7 @@ describe('the host scope', () => {
         definitionId: HOST_SCOPE,
         name: 'open-settings',
         label: 'Open settings',
-        placements: ['command-palette'],
+        placements: ['palette'],
         decision: { allowed: true },
       },
     ])
@@ -559,12 +555,12 @@ describe('the host scope', () => {
     const { registry } = setup()
     registry.registerHost(registration())
 
-    expect(() => registry.registerHost(registration())).toThrow(/one registration per command name/)
+    expect(() => registry.registerHost(registration())).toThrow(/one registration per action name/)
     expect(registry.size).toBe(1)
   })
 
-  /** A host command and a mount command can share a local name: the scope qualifies it. */
-  it('keeps a host command and a mount command of the same name apart', () => {
+  /** A host action and a mount action can share a local name: the scope qualifies it. */
+  it('keeps a host action and a mount action of the same name apart', () => {
     const { register, registry } = setup()
 
     register()
@@ -576,7 +572,7 @@ describe('the host scope', () => {
     ])
   })
 
-  it('denies a host command through its own canExecute, with the reason it gave', async () => {
+  it('denies a host action through its own canExecute, with the reason it gave', async () => {
     const { registry } = setup()
     registry.registerHost(
       registration({ name: 'clear', canExecute: () => deny('There is nothing on the canvas.') }),
@@ -587,7 +583,7 @@ describe('the host scope', () => {
     expect(result).toEqual({ status: 'denied', reason: 'There is nothing on the canvas.' })
   })
 
-  it('keeps host commands when a mount is disposed', () => {
+  it('keeps host actions when a mount is disposed', () => {
     const { register, registry } = setup()
     register(undefined, 'mount-1')
     registry.registerHost(registration({ name: 'help' }))
@@ -609,7 +605,7 @@ describe('the host scope', () => {
     expect(registry.size).toBe(0)
   })
 
-  it('removes a host command when its handle is removed', () => {
+  it('removes a host action when its handle is removed', () => {
     const { registry } = setup()
     const handle = registry.registerHost(registration())
 
@@ -620,10 +616,10 @@ describe('the host scope', () => {
   })
 
   /**
-   * A host command is still removed when the chrome that registered it unmounts, so `unavailable`
+   * A host action is still removed when the chrome that registered it unmounts, so `unavailable`
    * has to read sensibly for it too.
    */
-  it('reports a removed host command as unavailable, without blaming a mount', async () => {
+  it('reports a removed host action as unavailable, without blaming a mount', async () => {
     const { registry, records } = setup()
     registry.registerHost(registration({ name: 'open-settings' })).remove()
 

@@ -3,7 +3,7 @@
 The runtime every host and every definition on a page shares. It reads the
 registry through the adapters a shell lists, loads containers, mounts every
 definition through one path, and owns the page's services: shell state,
-validated storage, commands, breadcrumbs, the navigation bridge, auth, telemetry
+validated storage, actions, breadcrumbs, the navigation bridge, auth, telemetry
 and diagnostics. It imports no React, Angular, router, single-spa or Module
 Federation, and depends on `@company/mfe-core` alone, which holds the contracts.
 
@@ -95,14 +95,14 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `loader`      | the shared loader, with each adapter's `aroundLoad` applied                |
 | `shellState`  | user, groups and theme, with the session transitions that retire user data |
 | `storage`     | validated storage, scoped by definition id, with `@host` for the page      |
-| `commands`    | the command registry the palette and the key listener read                 |
+| `actions`     | the action registry the palette and the key listener read                  |
 | `breadcrumbs` | the breadcrumb store the header reads                                      |
 | `navigator`   | the `BoundaryNavigator` over the navigation bridge                         |
 | `diagnostics` | the hub every framework failure reaches                                    |
 | `deadlines`   | the budget every mount runs under                                          |
 
-A host listens for `keydown` once and calls `commands.handleKeyDown(event)`,
-which runs the command whose `shortcut` the keys complete. The host page's
+A host listens for `keydown` once and calls `actions.handleKeyDown(event)`,
+which runs the action whose `shortcut` the keys complete. The host page's
 shortcuts fire everywhere and are reserved; an App's fire while the navigator's
 pathname is inside its boundary; a Widget's are ignored. A key two live
 registrations claim runs neither, and the collision was already reported when

@@ -114,25 +114,25 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 | `useUser()`, `useGroups()`, `useTheme()`            | one shell-state field each                               |
 | `useStoredState(name, schema, options)`             | validated state under the definition's storage scope     |
 | `useMfeStorage()`                                   | the imperative storage handle                            |
-| `useCommand(registration)`                          | a command in the shell's palette                         |
+| `useAction(registration)`                           | an action in the shell's palette                         |
 | `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                      |
 | `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                       |
 | `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal            |
 | `useBasePath()`, `useScopeRoot()`                   | the boundary, and the runtime's scope root for the mount |
 | `useRegistryEntries()`, `useApps()`, `useWidgets()` | registry views for a host                                |
 
-Shell-state, storage, command and breadcrumb hooks also work outside a mount,
+Shell-state, storage, action and breadcrumb hooks also work outside a mount,
 in the reserved `@host` scope, given an `MfeProvider` above them.
 
-A command can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such
-as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. `useCommand` passes it
-through unchanged; the host reads every key once and runs the command through
+An action can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such
+as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. `useAction` passes it
+through unchanged; the host reads every key once and runs the action through
 the palette's path, so `canExecute` still decides. An App's shortcut fires while
 the page is inside the App's boundary. A Widget's is ignored, and so is one the
 host page already uses, each with a diagnostic.
 
 ```tsx
-useCommand({
+useAction({
   name: 'open-wells',
   label: 'Operations: open the wells inventory',
   shortcut: 'o w',

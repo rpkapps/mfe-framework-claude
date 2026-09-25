@@ -16,7 +16,7 @@ import {
 } from '@company/mfe-core'
 
 import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import type { CommandDenialNotifier, CommandRegistry } from '../commands/command-registry.ts'
+import type { ActionDenialNotifier, ActionRegistry } from '../actions/action-registry.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import type { ContainerLoader } from '../loader/container-loader.ts'
 import {
@@ -37,7 +37,7 @@ export interface MfeRuntime {
   readonly loader: ContainerLoader
   readonly shellState: ShellStateStore
   readonly storage: MfeStorageStore
-  readonly commands: CommandRegistry
+  readonly actions: ActionRegistry
   readonly breadcrumbs: BreadcrumbStore
   readonly navigator: BoundaryNavigator
   readonly telemetryProvider: TelemetryProvider
@@ -66,7 +66,7 @@ export interface CreateMfeRuntimeOptions {
   readonly adapters: readonly MfeAdapter[]
   /** Merged over `DEFAULT_DEADLINES`, so a shell names only the phases it tunes. */
   readonly deadlines?: Partial<DeadlineConfig>
-  readonly notifyCommandDenial?: CommandDenialNotifier
+  readonly notifyActionDenial?: ActionDenialNotifier
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
@@ -147,7 +147,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     telemetryProvider: options.telemetryProvider,
     diagnostics,
     deadlines: options.deadlines,
-    notifyCommandDenial: options.notifyCommandDenial,
+    notifyActionDenial: options.notifyActionDenial,
     nextSessionGeneration,
   })
 
