@@ -75,10 +75,20 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
+The user menu shows the signed-in user's photo when the profile carries a
+Microsoft Graph photo URL in `entraid_avatar` and an Entra access token for
+Graph in `entraid_access_token`: the shell fetches it with that token, which
+must be issued for Graph with `User.Read`, and keeps a 96 px copy for the tab.
+Until then, and when there is no photo or Graph refuses the token, it shows
+initials; a refusal is logged as `[shell] The profile photo did not load`. A
+deployment with a Content Security Policy allows
+`connect-src https://graph.microsoft.com` and `img-src data:`
+([decisions §36](../../docs/decisions.md)).
+
 While sign-in and boot run, `index.html` shows a loading screen: a drawing,
 with the title and status over it. It fades out as the
-shell fades in; if sign-in fails the drawing stops and recedes behind the
-reason and a way forward.
+shell fades in; if sign-in fails it cross-fades to a page saying why, with a
+way forward.
 
 | Loader      | What it draws                                                               |
 | ----------- | --------------------------------------------------------------------------- |

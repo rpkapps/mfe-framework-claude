@@ -976,6 +976,20 @@ recognised by `code` or `error` with `state` there. The return path travels as t
 request's state and only a path on this origin is honoured. The ID token's claims fill
 `shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
 
+**The header's photo is fetched by the shell, with a token no container sees.** The
+identity provider puts a Microsoft Graph photo URL (`entraid_avatar`) and an Entra access
+token for Graph (`entraid_access_token`) in the profile. An `<img>` cannot send a bearer
+token, so `auth/avatar.ts` fetches the photo with it and the user menu shows it as an
+image URL. It is not part of the boot: the menu shows initials until the photo arrives,
+and keeps them when there is none or Graph refuses. The token goes to that URL only; it is
+not in `shellState`, which every container reads, and the request boundary never sends it,
+because it is not the shell's token. The Entra token lasts about an hour while a reload
+restores the session with the profile it signed in with, so the photo is kept for the tab
+in `sessionStorage` (`shell.avatar:<sub>`), cropped and shrunk to 96 px, a few kilobytes,
+and removed on sign-out. The Entra tokens in the profile are still readable by any script
+on the page, containers included, as the rest of the session is; an avatar endpoint on the
+identity provider's side would let the profile carry none.
+
 **The configuration is read at run time, not built in.** One build serves every
 environment: the shell declares its five values in `src/mfe.config.ts` and reads them
 through the framework's `#mfe/config`, in its Zod-free form for a host (§37), and a

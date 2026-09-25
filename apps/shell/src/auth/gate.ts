@@ -14,6 +14,7 @@ import type { AccessTokenSource } from '@company/mfe-react/host'
 import { InMemoryWebStorage, UserManager, WebStorageStateStore, type User } from 'oidc-client-ts'
 
 import { failLoader, setLoaderStatus } from '../loader.ts'
+import { forgetAvatar, loadAvatar } from './avatar.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
 import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
@@ -25,6 +26,8 @@ export type ShellSession =
       readonly mode: 'oidc'
       readonly identity: ShellIdentity
       readonly tokens: AccessTokenSource
+      /** The user's photo as an image URL, or nothing; the header shows initials until then. */
+      readonly avatar: Promise<string | undefined>
       readonly signOut: () => Promise<void>
     }
   | {
@@ -102,7 +105,12 @@ function redirectToSignIn(manager: UserManager, returnTo: string): void {
   })
 }
 
-function oidcSession(manager: UserManager, config: OidcConfig, user: User): ShellSession {
+function oidcSession(
+  manager: UserManager,
+  config: OidcConfig,
+  user: User,
+  storage: Storage,
+): ShellSession {
   const tokens = createOidcTokenSource({
     current: () => manager.getUser(),
     renew: () => manager.signinSilent(),
@@ -118,7 +126,12 @@ function oidcSession(manager: UserManager, config: OidcConfig, user: User): Shel
     mode: 'oidc',
     identity: identityFromClaims(user.profile, config.groupsClaim),
     tokens,
-    signOut: () => manager.signoutRedirect(),
+    // Started now and never waited for: boot does not hold the page for a photo.
+    avatar: loadAvatar(user.profile, { cache: storage }),
+    signOut: () => {
+      forgetAvatar(user.profile, storage)
+      return manager.signoutRedirect()
+    },
   }
 }
 
@@ -202,7 +215,7 @@ export async function authenticate(): Promise<boolean> {
   if (!isSigninCallback(url)) {
     const restored = await restoreSession(manager, tab)
     if (restored !== null) {
-      session = oidcSession(manager, config, restored)
+      session = oidcSession(manager, config, restored, storage)
       return true
     }
     redirectToSignIn(manager, currentReturnTo(window.location))
@@ -213,7 +226,7 @@ export async function authenticate(): Promise<boolean> {
   try {
     const user = await manager.signinCallback(url.href)
     if (user === undefined) throw new Error('The sign-in response did not produce a session.')
-    session = oidcSession(manager, config, user)
+    session = oidcSession(manager, config, user, storage)
     // The code and state leave the address bar before any router reads it.
     window.history.replaceState(null, '', safeReturnTo(user.state, window.location.origin))
     // Requests abandoned mid-flight, from earlier tabs or visits, are cleaned up here.

@@ -3,7 +3,7 @@
  * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -241,6 +241,23 @@ function SignOutItem(): ReactNode {
   )
 }
 
+/** The user's photo once it has loaded, or nothing, when the menu shows initials. */
+function useAvatar(): string | undefined {
+  const session = shellSession()
+  const [image, setImage] = useState<string>()
+  useEffect(() => {
+    if (session.mode !== 'oidc') return undefined
+    let current = true
+    void session.avatar.then(url => {
+      if (current) setImage(url)
+    })
+    return () => {
+      current = false
+    }
+  }, [session])
+  return image
+}
+
 function Header(): ReactNode {
   const runtime = useMfeRuntime('the shell header')
   const navigate = useNavigate()
@@ -249,6 +266,7 @@ function Header(): ReactNode {
   const theme = useTheme()
   // Subscribed rather than read off the store: a bare `getUser()` is a snapshot nothing re-runs.
   const user = useUser()
+  const avatar = useAvatar()
 
   const current = active === null ? DASHBOARD : appFace(active.id, active.entry)
 
@@ -396,7 +414,13 @@ function Header(): ReactNode {
           </DropdownMenuGroup>
         </AppShellOverflow>
 
-        <AppShellUserMenu user={{ name: user?.name ?? 'Unknown', initials }}>
+        <AppShellUserMenu
+          user={{
+            name: user?.name ?? 'Unknown',
+            initials,
+            ...(avatar === undefined ? {} : { image: avatar }),
+          }}
+        >
           <DropdownMenuGroup>
             <DropdownMenuItem
               textValue="Switch theme"
