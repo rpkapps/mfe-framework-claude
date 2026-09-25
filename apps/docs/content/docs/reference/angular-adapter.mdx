@@ -118,6 +118,7 @@ cleans up with the injector that created it.
 | `injectAction(registration \| () => …)`           | an action for the palette and the agent, and a run for your button |
 | `injectAgentContext(registration \| () => …)`     | a snapshot of what is selected, sent with each agent turn          |
 | `injectAgentPrompt()`                             | a function that hands a click to the shell's chat                  |
+| `injectAgentSuggestions(suggestions)`             | offers prompts the chat shows while the injector lives             |
 | `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
 | `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
@@ -195,8 +196,18 @@ export class OverviewComponent {
 Publish ids and a short label, at most 4096 characters of JSON. The agent reads whole records
 through your read actions. `injectAgentPrompt()` returns a function that takes
 `{ message, context?, submit? }` and hands it to the shell's chat as a turn. It returns whether a
-chat took the prompt. Until the shell has a chat, it returns `false`.
-[Tell the agent what is selected](/docs/tell-the-agent-what-is-selected) has both.
+chat took the prompt; `false` when the shell has no chat. `injectAgentSuggestions` offers up to
+three prompts the chat shows as chips, and takes a list or a factory that reads signals, as
+`injectAgentContext` does:
+
+```ts title="examples/fieldwork/src/overview.component.ts (trimmed)"
+injectAgentSuggestions(() => [
+  { message: 'Which well pads are due an inspection?' },
+  ...(this.padId() === null ? [] : [{ message: 'Log an inspection at the chosen pad' }]),
+])
+```
+
+[Tell the agent what is selected](/docs/tell-the-agent-what-is-selected) has all three.
 
 Inside an App, a route's `canDeactivate` guards also answer a shell navigation that would leave the
 App.

@@ -257,7 +257,26 @@ const prompt = useAgentPrompt()
 prompt({ message: `Why is ${design.name} behind plan?`, context: { wellId: design.id } })
 ```
 
-The function returns whether a chat took the prompt. The runtime refuses an empty message, or a context that is not JSON or is too long. The function then returns `false` and reports a warning with `contract/input-mismatch`. Until the shell has a chat, it returns `false`. `AgentContextEntry`, `AgentContextRegistration` and `AgentPrompt` are exported as types.
+The function returns whether a chat took the prompt. The runtime refuses an empty message, or a context that is not JSON or is too long. The function then returns `false` and reports a warning with `contract/input-mismatch`. It returns `false` when the shell has no chat, which is when its deployment names no agent backend (`AGENT_URL`). `AgentContextEntry`, `AgentContextRegistration` and `AgentPrompt` are exported as types.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
+
+### useAgentSuggestions
+
+```ts
+useAgentSuggestions(suggestions: readonly AgentSuggestion[]): void
+```
+
+Offers prompts the chat shows as ways to start or carry on, while the component is mounted: before the first message, beside the shell's own, and after each answer while nothing waits on the user. An `AgentSuggestion` is an `AgentPrompt` with an optional `label`, the chip's text when shorter than the message. Pressed, a suggestion is handed to the chat as `useAgentPrompt` hands a prompt.
+
+```tsx title="examples/operations/src/routes/index.tsx"
+useAgentSuggestions([
+  { message: 'Summarise the alternatives on this page' },
+  { message: 'Open the wells inventory' },
+])
+```
+
+Call it with the current list on every render; an equal list publishes nothing. A mount offers at most three. One that is empty, not JSON or too long is left out, and a warning with `contract/input-mismatch` is reported once. `AgentSuggestion` is exported as a type.
 
 Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
 
@@ -430,10 +449,10 @@ A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime su
 
 ## Where each hook may be called
 
-| Hook                                                                                                                     | Inside a mount | On the host page |
-| ------------------------------------------------------------------------------------------------------------------------ | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                     | yes            | no               |
+| Hook                                                                                                                                            | Inside a mount | On the host page |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                            | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 

@@ -95,13 +95,37 @@ const [unanswered, setUnanswered] = useState(false)
 
 The chat shows `message` and sends `context` unseen, under the same size limit. Pass
 `submit: false` to fill the chat's input box for the user to review and send. The function returns
-whether a chat took the prompt. Until the shell has a chat, it returns `false`.
+whether a chat took the prompt: `false` when the shell's deployment names no agent backend.
+
+A Widget the agent shows in the chat hands values back the same way: from the user's own press,
+never from a timer or an error handler. The chat also keeps the latest payload of each of its
+outputs as agent context, so the agent can read what the user picked in later turns.
 
 </Step>
 
 <Step>
 
-### 4. Keep shareable filters in the URL
+### 4. Suggest what to ask
+
+```tsx title="examples/operations/src/routes/index.tsx"
+import { useAgentSuggestions } from '@company/mfe-react'
+
+// Offered by the chat while this page is on screen, before the first message and after each answer.
+useAgentSuggestions([
+  { message: 'Summarise the alternatives on this page' },
+  { message: 'Open the wells inventory' },
+])
+```
+
+Each is a prompt, shown as a chip. Pressed, it is handed to the chat as `useAgentPrompt` hands one,
+`context` and `submit` included; `label` shortens the chip. A mount offers at most three, and they
+go when it unmounts.
+
+</Step>
+
+<Step>
+
+### 5. Keep shareable filters in the URL
 
 ```tsx title="examples/operations/src/routes/assets.tsx (trimmed)"
 export const Route = createFileRoute('/assets')({
@@ -197,6 +221,6 @@ JSON, such as a `Date`, gets the same message, naming it: `received a Date at op
 
 - [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — the read action behind the ids.
 - [Hooks and components](/docs/reference/hooks-and-components#useagentcontext) — both hooks, every field.
-- [The Angular adapter](/docs/reference/angular-adapter) — `injectAgentContext` and `injectAgentPrompt`.
+- [The Angular adapter](/docs/reference/angular-adapter) — `injectAgentContext`, `injectAgentPrompt` and `injectAgentSuggestions`.
 - [Add a route](/docs/add-a-route) — search params the agent reads and changes.
 - [Error codes](/docs/reference/error-codes) — every message, with its fix.

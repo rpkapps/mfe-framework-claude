@@ -117,6 +117,7 @@ container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 | `useAction(registration)`                           | an action for the palette and the agent, and its run      |
 | `useAgentContext(registration)`                     | a snapshot of what is selected, sent with each agent turn |
 | `useAgentPrompt()`                                  | a function that hands a click to the shell's chat         |
+| `useAgentSuggestions(suggestions)`                  | prompts the chat offers while the component is mounted    |
 | `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                       |
 | `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                        |
 | `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal             |
@@ -187,9 +188,11 @@ turn without a hook, so a filter the agent should see belongs in search params.
 `useAgentPrompt()` returns a stable function that hands
 `{ message, context?, submit? }` to the shell's chat: `message` is shown,
 `context` is sent unseen, and `submit: false` fills the input box for the user
-to review. It returns whether a chat took the prompt. Until the shell has a
-chat, it returns `false`. The package exports `AgentContextEntry`,
-`AgentContextRegistration` and `AgentPrompt` as types.
+to review. It returns whether a chat took the prompt; `false` when the shell has
+no chat. `useAgentSuggestions([...])` offers up to three such prompts, which the
+chat shows as chips before the first message and after each answer, until the
+component unmounts. The package exports `AgentContextEntry`,
+`AgentContextRegistration`, `AgentPrompt` and `AgentSuggestion` as types.
 
 ```tsx
 const openWell = z.object({ id: z.string(), name: z.string() }).nullable()

@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the AG-UI spike has run (`tools/agent-spike`), and E has begun with the agent package, `@company/mfe-agent` (§49); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** all but G has landed. Steps 0 to 7 and features A to F (§39–§53); the AG-UI spike ran (`tools/agent-spike`) and picked the agent package, `@company/mfe-agent` (§49). G, external agents, is next. Each step that landed has its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -27,8 +27,8 @@ The agent does not click through the UI. Driving the page through its accessibil
 
 - **This framework** — the contract, and no model: action schemas and policy, the published route and Widget schemas, the agent-context store, the audit field that says who acted, and one host API that lists and runs all of it.
 - **The shell, or a package of its own** — the chat surface and the client side of the agent loop. It has to be at host level, because it needs every mount's actions and the navigator, and a Widget has no global effects (`no-widget-global-effects`).
-- **Tecton** — the chat components (`Message`, `Bubble`, `MessageScroller`, `Marker`, `Attachment`, `Questionnaire` exist) and the built-in chat renderers for a table, a chart and a summary.
-- **A backend agent service** — the loop (likely TanStack AI's `chat()` with a provider adapter), the model calls, keys, domain tools, permissions and audit storage. Never in the browser bundle.
+- **Tecton** — the chat components (`Message`, `Bubble`, `MessageScroller`, `Marker`, `Attachment`, `Questionnaire`, and its own `Composer`), and the `Table`, `Chart` and `Card` the built-in chat renderers draw with. The renderers themselves are the shell's, beside the tools whose schemas they read (§51).
+- **A backend agent service** — the loop (likely TanStack AI's `chat()` with a provider adapter), the model calls, keys, domain tools and permissions. Never in the browser bundle. Until its owner is decided, `tools/agent-dev` stands in for development (§50). The audit trail is not stored: it travels as the shell's telemetry (§47).
 - **Apps and Widgets** — no agent library. They use `useAction` / `injectAction` and `useAgentContext` / `injectAgentContext` from their adapter, and a Widget shown in the chat is an ordinary Widget. Lint enforces it (step 7).
 
 Page tools versus domain tools: actions live in mounted pages, so they run in the browser and only while their mount exists. The model loop runs on a backend and sends each call of a page tool back to the page to execute (AG-UI supports tools the client defines and runs). Work that has to run with no page open (scheduled jobs, triage) needs tools on the owning team's backend, exposed over MCP. The shell's chat merges both.
@@ -70,9 +70,9 @@ In the same step, the Widget contract takes the names actions use: `inputs` beco
 
 The shell used `placements: []` (a `KEYS_ONLY` constant, now gone from `apps/shell/src/shell/shell-actions.ts`) to mean "keys only". Once `'agent'` is a placement, an empty list would also hide those actions from the agent without anyone noticing. Document that a shortcut fires whatever the placements are, and give those shell actions an explicit placement list.
 
-### 5. Remove compatibility code for deployments that never happened (optional; §16's went with §41)
+### 5. Remove compatibility code for deployments that never happened (done, §53)
 
-For example, §16's amendment still accepts the old event-name list "so a shell is deployed first".
+As landed: §16's went with §41; no adapter claims an entry whose marker names no framework, and a container descriptor always names its framework and share scopes.
 
 ### 6. Clear every mount-scoped store from one place (done, §44)
 
@@ -141,7 +141,9 @@ As landed: `routes: [{ path, search? }]` on an App's registry entry, paths in on
 
 The build publishes each App's route paths and search-param schemas into the registry, with the reader from step 2, as it publishes Widget contracts (§16). The host generates the navigate tool from them. Capability pages (`settings`, `help`, `releaseNotes`) stay as they are.
 
-### E. The chat host in the shell
+### E. The chat host in the shell (done, §50, §52)
+
+As landed: `apps/shell/src/chat`, one conversation for the page (`ShellChat`) in an aside beside the mounted App or a sheet, with Tecton's conversation components and its new `Composer`; the navigate tool through the router; approvals, prompts, ⌘I and tool discovery as below; suggestions through `useAgentSuggestions` / `injectAgentSuggestions`; the agent libraries confined to the chat module by lint; `tools/agent-dev` as the development backend. The selected text is quoted into the message rather than sent unseen, so it stays in the conversation.
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
 - Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), through `@company/mfe-agent` (§49): the plain `@ag-ui/client` underneath, with TanStack AI's client API (`ChatClient`, `useChat`, `parts`, the tool-call stages, interrupts) copied on top. It was first expected to be TanStack AI's client itself; the spike below showed that client works against TanStack AI's own backend only.
@@ -162,7 +164,9 @@ The build publishes each App's route paths and search-param schemas into the reg
 - Later: suggested prompts, before the first message and after each answer, which a mounted App can contribute to.
 - Replaces the two identical `ai-agent-panel` copies (`examples/operations`, `examples/insights`); the insights `agent-panel` Widget either goes or becomes something the chat renders.
 
-### F. UI in the chat
+### F. UI in the chat (done, §51)
+
+As landed: `render_widget`, `show_table`, `show_chart`, `show_summary`, `ask_user` and `render_a2ui` (A2UI v0.9 with a Tecton catalogue, the AG-UI middleware's input). Each ends the turn once shown and lets the agent correct a call the chat refused. The renderers live in the shell beside their tools, drawn with Tecton. Widget outputs: passive as agent context, explicit through `useAgentPrompt`.
 
 - A tool result renders as a component only when the tool said it would. Never inferred from the shape of the data, and never HTML or script from a result.
 - **Widgets** — the agent calls the render tool with `{ widgetId, inputs }`; the chat shows a skeleton while the inputs stream in, then mounts `<DynamicWidget>` inside a `Message`. The provider validates the inputs, as it always does. The render tool's `followUp` is `false`: showing the Widget ends the turn.
@@ -209,9 +213,9 @@ Not taken as the first choice: it has its own stream protocol rather than AG-UI,
 
 ## Open questions
 
-- Where the backend runs and who owns it. The loop is likely TanStack AI's `chat()`; a .NET backend stays possible through the portability rule.
-- Is the chat composer a Tecton component, or does upstream shadcn have one to sync first?
-- Where the audit trail is stored and for how long.
+- Where the backend runs and who owns it. The loop is likely TanStack AI's `chat()`; a .NET backend stays possible through the portability rule. `tools/agent-dev` stands in meanwhile.
+
+Answered: the chat composer is Tecton's (upstream shadcn has none; §50), and the audit trail is not stored, but sent through the shell's Faro and OpenTelemetry pipeline (§47).
 
 ## Order
 

@@ -261,6 +261,7 @@ initialiser — and clean up with the injector that created them.
 | `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
 | `injectAgentContext(registration \| () => …)`     | nothing; a factory re-publishes when the signals it reads do        | host scope        |
 | `injectAgentPrompt()`                             | a function that hands a prompt to the shell's chat                  | host scope        |
+| `injectAgentSuggestions(suggestions)`             | prompts the chat offers while the injector lives                    | host scope        |
 | `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override     | host crumbs, at 0 |
 | `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
@@ -328,9 +329,11 @@ a signal it reads changes, and an equal value publishes nothing. An invalid
 value is left out and reported once as a warning. The snapshot goes when the
 injector is destroyed or the mount is disposed. `injectAgentPrompt()` returns a
 function that hands `{ message, context?, submit? }` to the shell's chat and
-returns whether a chat took it. Until the shell has a chat, it returns `false`.
-The package exports `AgentContextEntry`, `AgentContextRegistration` and
-`AgentPrompt` as types.
+returns whether a chat took it; `false` when the shell has no chat.
+`injectAgentSuggestions` offers up to three such prompts, as a list or a factory
+of signals, which the chat shows as chips while the injector lives. The package
+exports `AgentContextEntry`, `AgentContextRegistration`, `AgentPrompt` and
+`AgentSuggestion` as types.
 
 ```ts
 const selectedPad = z.object({ id: z.string(), name: z.string() }).nullable()

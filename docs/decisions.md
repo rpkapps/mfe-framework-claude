@@ -1411,6 +1411,11 @@ action's owner), which is the existing path to the shell's telemetry, and hands 
 the host's `auditAction`. Storing it, and for how long, is the backend's job; the page
 keeps nothing. A sink that throws is reported and the run's result stands.
 
+**Amendment (§50):** the audit trail is not stored, by the page, the shell or the agent
+backend. It travels as telemetry: the `run action` records reach the shell's telemetry
+provider, and the shell's Faro and OpenTelemetry pipeline will carry them once it is
+connected. The shell sets no `auditAction`.
+
 **Cost:** a telemetry record per action run, palette and keys included; a host whose
 telemetry volume matters filters `run action` records by level. Redaction by pattern
 lets a credential under an unremarkable key through; an action should not take one.
@@ -1495,3 +1500,128 @@ TypeScript backend's loop.
 API we copied is what we maintain. Agent Framework 1.22-preview raises no approval interrupt for
 its own tool while the page declares tools, so a .NET backend's domain tools cannot ask for
 approval until that is fixed upstream (`tools/agent-spike/README.md`, finding 10).
+
+---
+
+## 50. The chat is the shell's: one conversation for the page, beside the mounted App
+
+**Status:** decided; E of the agentic plan.
+
+`apps/shell/src/chat` is the chat. `ShellChat` holds one conversation for the page, outside React
+and for as long as the runtime, over `@company/mfe-agent` (§49), so closing the panel or crossing
+the breakpoint loses nothing. On a wide screen it is an aside after the main area, a sibling, so
+opening it never remounts the App mounted there; on a narrow one, a sheet. The header's Assistant
+button and ⌘/Ctrl+I open it. Its backend is `AGENT_URL` in the shell's runtime configuration;
+without one the panel says the assistant is not configured. Its requests go through the request
+boundary (`createAuthenticatedFetch`), so the backend alone receives the user's token.
+
+- **Tools.** The page's actions (read again before every run), and the shell's own: a navigate
+  tool from the published routes (§48), which goes through the router so an App's blockers hold
+  the page for the agent too and says so when the page stayed; the render tools of §51; and
+  `ask_user`. Above 24 tools the client declares the shell's own, those discovered in the
+  conversation and `discover_tools`, which names the rest (`withToolDiscovery`, after TanStack AI's
+  lazy tool discovery).
+- **Approvals.** The pipeline's approver opens the chat and asks there, in the one card that also
+  answers a backend's approval interrupt.
+- **Tool calls** render in three stages: inputs arriving, running (or waiting on approval), done
+  with the result. The shell's own tools render as what they show; any other call is one generic
+  card with the action's label, its stage, and its inputs and result behind a disclosure.
+- **Prompts.** A mount's `useAgentPrompt` becomes a turn whose context is sent unseen (as the
+  turn's AG-UI `context`), or, with `submit: false`, a draft with that context as a chip the user
+  can remove.
+- **Selected text.** ⌘/Ctrl+I quotes the page's selection into the next message, as Markdown
+  (`> `), rather than sending it unseen: the user sees what they asked about, and it stays in the
+  conversation for later turns.
+- **Agent context** is the runtime's (§46), plus the latest output of each Widget shown in the
+  chat (§51).
+- **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`
+  (`repo/shell-chat-module`), so a backend or client swap touches that directory alone.
+
+`@company/mfe-agent` grew what the chat needed: `sendMessage(text, { context, forwardedProps })`
+for a turn's own context; `followUp` on a tool, `false` or a function of the result, which ends
+the turn once every call is answered by a tool that does not follow up, and sends the answers with
+the next run; an abort signal for a tool that waits, such as `ask_user`, so stopping a turn never
+hangs; and `withToolDiscovery`.
+
+The backend's owner is still open. `tools/agent-dev`, which `pnpm dev` starts, stands in: a
+spec-only AG-UI server with a scripted demo agent that exercises every path of the chat with no key
+and no network, or Anthropic's Messages API when a key and a model id are set. It is not what a
+deployment runs.
+
+The message box is Tecton's `Composer` (tecton-ui-1, `src/tecton/composer.tsx`): upstream shadcn
+has the conversation components but no composer. It follows the survey in tecton-ui-1's
+`docs/research/composer.md`: Enter sends, Shift+Enter is a new line, ⌘/Ctrl+Enter always sends,
+nothing sends while an IME composes, Escape stops a reply, ArrowUp in an empty box recalls the last
+message, the textarea stays enabled while a reply streams, and Send and Stop are two named buttons
+that swap with focus following.
+
+**Cost:** the shell bundles `@ag-ui/client` and `recharts`. A navigate call is refused for a path
+no published route matches, so an App's code-based routes are out of the agent's reach (§48). The
+conversation lives in memory: a reload starts a new one.
+
+---
+
+## 51. A result is UI only when its tool says so, and the UI is a Widget, a built-in renderer or A2UI
+
+**Status:** decided; F of the agentic plan.
+
+The chat never guesses from a result's shape that it could be drawn, and never takes HTML or script
+from one. A tool the shell declares for the purpose is what draws:
+
+- **`render_widget`**, from the published contracts (§16): `{ widgetId, inputs }`, with each
+  Widget's input schema a variant of `inputs`, titled with its id. The chat shows a skeleton while
+  the inputs arrive, then `<DynamicWidget>`; the provider validates the inputs as it does anywhere,
+  and the host's props are never taken from them. Its result is only that the Widget was shown.
+- **`show_table`, `show_chart`, `show_summary`**: the built-in renderers, for data the agent
+  already has. Their schemas are Zod in the shell, and they draw with Tecton's `Table`, `Chart` and
+  `Card`; a chart also lists its figures in a table behind a disclosure. They live with the tools,
+  not in Tecton as the plan first had it, because their schemas are the tools' contract and Tecton
+  knows nothing of agents. Their descriptions say not to show figures that came from nowhere.
+- **`ask_user`**: questions shown as Tecton's `Questionnaire`; submitting answers the call,
+  declining, stopping the turn or clearing the chat answers it declined.
+- **`render_a2ui`**: one-off UI in A2UI v0.9 (https://a2ui.org) from a catalogue the shell
+  provides, a subset of A2UI's basic catalogue drawn with Tecton (Text, Column, Row, List, Card,
+  Divider, Button, TextField, CheckBox, ChoicePicker, Image, Icon). Its input is the AG-UI A2UI
+  middleware's, `{ surfaceId, components, data? }`, or raw messages; the host stamps the catalogue
+  id. Only data crosses: values are literals, paths into the surface's data model, or calls of the
+  few functions the client implements, and a link opens over http(s) only.
+
+Each of these ends the turn once shown (`followUp` as a function): the result is for the user. One
+the chat refused (an unknown Widget, inputs its schema rejects, a component outside the catalogue)
+lets the agent hear why and correct the call.
+
+A Widget in the chat hands values back two ways. Passively: the latest payload of each output of
+each Widget shown is agent context for later turns, cut to 4096 characters, newest first.
+Explicitly: from the user's own press, through `useAgentPrompt`, as the well-design Widget's "Ask
+the assistant" does; never from a timer or an error handler. An A2UI Button's event is the same
+kind: a new turn, sent unseen as context and as the middleware's `forwardedProps.a2uiAction`.
+
+**Cost:** A2UI's `Tabs`, `Modal`, `Slider`, `DateTimeInput` and media components are not in the
+catalogue yet, nor its `ACTIVITY_SNAPSHOT` transport; an agent behind the middleware that only
+sends activity events draws nothing here.
+
+---
+
+## 52. A mount suggests prompts while it lives
+
+**Status:** decided; the "later" of E in the agentic plan.
+
+`useAgentSuggestions([{ message, label?, context?, submit? }])` and `injectAgentSuggestions` offer
+up to three prompts per mount, kept by the agent-context store and dropped with their mount (§44),
+like a selection. The chat shows them before the first message, beside its own starters, and after
+each answer while nothing waits on the user. Pressed, one is handed on as that mount's prompt.
+A suggestion that is empty, not JSON or too long is left out and reported once, as a selection is.
+
+---
+
+## 53. Nothing carries a path for builds from before a field existed
+
+**Status:** decided; step 5 of the agentic plan.
+
+Nothing is deployed, so no adapter claims an entry whose `mfe` marker names no framework (the React
+adapter did, for builds from before `framework`), a container descriptor always names its
+`framework` and `shareScopes`, and the development registry refuses a build that does not. An
+entry that names no framework is no adapter's and is rejected as unrecognised, which still fails
+loudly; one that names its framework stays with that adapter however broken the rest is (§9).
+`shareScopes` stays optional on a registry entry: one written by hand, for a test or a fixture,
+names none, and `default` alone is right for it.
