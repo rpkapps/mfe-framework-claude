@@ -77,19 +77,29 @@ One user turn takes as many runs as it needs:
 - **A run ends on an approval interrupt for the backend's own tool.** The card shows it. The answer resumes the run with
   `{ approved, toolCall }`, which both backends read, and names the interrupted run as
   `parentRunId`.
-- **A pending call the page does not own** is the backend's to answer, so the turn ends there.
+- **A pending call to a tool the page does not have** (a name the model made up, or a tool
+  discovery has not declared yet) is answered with an error, as the result
+  `No tool named "…" is available on this page.`, and the turn runs again so the model can
+  recover, within `maxRunsPerTurn`. A pending call waits on the client, and one left without a
+  result would make a model API reject every later request.
 
 A tool with `followUp: false` (an action that declares it, or UI the chat shows) ends the turn
 once every call the run made is answered by such a tool: its result is for the user, not for the
 agent to talk over. The answers still reach the backend, with the next run.
 
-`sendMessage(text, { context })` sends extra AG-UI `context` with that turn's runs only, unseen in
-the transcript: what a page attached to a prompt, or the text the user selected.
+`sendMessage(text, { context, forwardedProps })` sends extra AG-UI `context`, and forwarded props
+merged over the client's, with that turn's runs only, unseen in the transcript: what a page
+attached to a prompt, the text the user selected, or a press in UI the chat showed. `reload()`
+sends the last user message again with the options it was sent with, since they are part of the
+question; a message restored from a stored history has none.
 
 A message sent while a turn runs waits for it to end, so one run is in flight at a time; a
 backend's question still open is abandoned first. The page's tools run one at a time. A throw from
 `tools`, a tool's `followUp` or the headers function fails the turn, as a failed run does: it sets
-`error` and `status: 'error'` and calls `onError`. `sendMessage` rejects only if `onError` throws.
+`error` and `status: 'error'` and calls `onError` once. A call the failed turn left without a
+result (one the run was streaming when it failed, or one it had yet to run) is answered as failed,
+so the next turn's request is one a model API accepts; a call a backend's interrupt holds stays the
+backend's. `sendMessage` rejects only if `onError` throws, and `error` stays the turn's own.
 
 Stopping a turn answers the page's open questions as declined, and answers any call that never
 ran as stopped. Every interrupt the last run ended on that nobody answered (the user stopped, or
@@ -98,8 +108,9 @@ the run carrying the answer failed) is resumed as cancelled by the next run, as 
 
 `editMessage(id, text, { context })` replaces the user message `id` and runs the conversation
 again from there. Every message after it is dropped, the agent's included, and `text` is sent as a
-new turn (with a new message id), as `sendMessage` sends it. Like `reload`, it stops a turn in flight
-first and then waits its place in the queue. The dropped runs take their answers with them: a
+new turn (with a new message id), as `sendMessage` sends it: with the options the edit is given,
+not those of the message it replaces, since an edit is a new question. Like `reload`, it stops a
+turn in flight first and then waits its place in the queue. The dropped runs take their answers with them: a
 result that a stopped tool gives late is cut with its call, and an interrupt they ended on is
 resumed as cancelled by the edited turn's first run, since the thread is the same. An id that is not
 a user message in the history, or an empty text, does nothing.

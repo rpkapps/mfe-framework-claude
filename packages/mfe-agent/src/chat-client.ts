@@ -44,6 +44,14 @@ const DEFAULT_MAX_RUNS_PER_TURN = 12
 /** What the agent is told of a call the user stopped the turn before it ran. */
 const STOPPED = 'The user stopped the turn before this tool ran.'
 
+/** What the agent is told of a call the turn failed before it ran. */
+const FAILED = 'The turn failed before this tool ran.'
+
+/** What the agent is told of a call to a tool the page does not have. */
+function noSuchTool(name: string): string {
+  return `No tool named "${name}" is available on this page.`
+}
+
 type Finished =
   | { readonly outcome: 'success'; readonly runId: string; readonly pending: readonly string[] }
   | {
@@ -57,6 +65,13 @@ type Finished =
 interface TurnInput {
   readonly context: readonly Context[]
   readonly forwardedProps: Readonly<Record<string, unknown>> | undefined
+}
+
+/** The input of a turn nobody gave options for, such as one restored from a stored history. */
+const NO_TURN_INPUT: TurnInput = { context: [], forwardedProps: undefined }
+
+function turnInputOf(options: SendMessageOptions): TurnInput {
+  return { context: options.context ?? [], forwardedProps: options.forwardedProps }
 }
 
 /** What a run's page tools are told about it besides their own call. */
@@ -119,12 +134,22 @@ export class ChatClient {
   /** What the client has seen of each call in the history; pruned when the history is replaced. */
   readonly #progress = new Map<string, ToolCallProgress>()
   /**
+   * What each user message in the history was sent with, by its id, so `reload` sends it again;
+   * pruned with `#progress`.
+   */
+  readonly #turnInputs = new Map<string, TurnInput>()
+  /**
    * The page tool running now, where a pipeline approval belongs. A turn runs its tools one at a
    * time and turns never overlap, so there is at most one.
    */
   #executing: { readonly name: string; readonly callId: string } | undefined
   readonly #listeners = new Set<() => void>()
   #interrupts: readonly ChatInterrupt[] = []
+  /**
+   * The backend's interrupts the user was asked about since the last run finished: a call one of
+   * them names is the backend's to answer once it is resumed, even after its card has closed.
+   */
+  readonly #asked = new Set<string>()
   /**
    * Answers to the backend's interrupts that a turn ended without sending, because a tool that
    * does not follow up gave them: the next run sends them.
@@ -184,6 +209,8 @@ export class ChatClient {
       },
       onRunFinishedEvent: ({ event }) => {
         this.#lastRunId = event.runId
+        // Whatever the finished run resumed is settled; what it ended on is asked afresh.
+        this.#asked.clear()
         for (const id of this.#progress.keys()) this.#markEnded(id)
         this.#publish()
       },
@@ -236,40 +263,39 @@ export class ChatClient {
   /**
    * Sends the user's message and runs the turn to its end, once the turn before it has ended. A
    * backend's question still open is abandoned: the backend is told, and the new message follows.
-   * `context` goes with this turn's runs only, unseen in the transcript.
+   * `options` go with this turn's runs only, unseen in the transcript, and again with a `reload`
+   * of it.
    */
   readonly sendMessage = (content: string, options: SendMessageOptions = {}): Promise<void> => {
     if (content.trim() === '') return Promise.resolve()
     this.#cancelBackendInterrupts()
-    return this.#enqueue(
-      () => {
-        this.#agent.addMessage({ id: crypto.randomUUID(), role: 'user', content })
-        return true
-      },
-      { context: options.context ?? [], forwardedProps: options.forwardedProps },
-    )
+    return this.#enqueue(() => this.#addUserMessage(content, turnInputOf(options)))
   }
 
-  /** Runs the last user message again, dropping whatever answered it. */
+  /**
+   * Runs the last user message again, dropping whatever answered it, with the options it was sent
+   * with: the context and forwarded props of a prompt, or of a press in UI the chat showed, are
+   * part of the question. A message restored from a stored history has none.
+   */
   readonly reload = (): Promise<void> => {
     this.stop()
-    return this.#enqueue(
-      () => {
-        const lastUser = this.#agent.messages.findLastIndex(message => message.role === 'user')
-        if (lastUser === -1) return false
-        this.#truncate(lastUser + 1)
-        return true
-      },
-      { context: [], forwardedProps: undefined },
-    )
+    return this.#enqueue(() => {
+      const lastUser = this.#agent.messages.findLastIndex(message => message.role === 'user')
+      const message = this.#agent.messages[lastUser]
+      if (message === undefined) return undefined
+      this.#truncate(lastUser + 1)
+      return this.#turnInputs.get(message.id) ?? NO_TURN_INPUT
+    })
   }
 
   /**
    * Replaces the user message `messageId` with `text` and runs the conversation again from there:
    * every message after it, the agent's included, is dropped, and `text` is sent as a new turn,
-   * with `options`, as `sendMessage` sends it. A turn in flight is stopped first, as `reload`
-   * stops it. An id that is not a user message in the history, or an empty text, changes nothing:
-   * an edit can race a `clear` or `setMessages`, and there is nothing left to edit then.
+   * with `options`, as `sendMessage` sends it. The edited message's own options are not carried
+   * over: the edit is a new question, and the caller says what goes with it. A turn in flight is
+   * stopped first, as `reload` stops it. An id that is not a user message in the history, or an
+   * empty text, changes nothing: an edit can race a `clear` or `setMessages`, and there is nothing
+   * left to edit then.
    */
   readonly editMessage = (
     messageId: string,
@@ -278,18 +304,14 @@ export class ChatClient {
   ): Promise<void> => {
     if (text.trim() === '' || this.#indexOfUserMessage(messageId) === -1) return Promise.resolve()
     this.stop()
-    return this.#enqueue(
-      () => {
-        // Found again: the history may have been cleared or replaced while the turn before ran.
-        const index = this.#indexOfUserMessage(messageId)
-        if (index === -1) return false
-        this.#truncate(index)
-        // A new id: to a backend that keeps what it was sent, this is a message it has not seen.
-        this.#agent.addMessage({ id: crypto.randomUUID(), role: 'user', content: text })
-        return true
-      },
-      { context: options.context ?? [], forwardedProps: options.forwardedProps },
-    )
+    return this.#enqueue(() => {
+      // Found again: the history may have been cleared or replaced while the turn before ran.
+      const index = this.#indexOfUserMessage(messageId)
+      if (index === -1) return undefined
+      this.#truncate(index)
+      // A new id: to a backend that keeps what it was sent, this is a message it has not seen.
+      return this.#addUserMessage(text, turnInputOf(options))
+    })
   }
 
   /**
@@ -302,13 +324,9 @@ export class ChatClient {
     this.#turnAbort.abort()
     this.#agent.abortRun()
     // The call a backend's question is about stays the backend's to answer.
-    const owedByBackend = new Set<string>()
-    for (const interrupt of this.#interrupts) {
-      const backend = interrupt.kind === 'generic' || interrupt.source === 'backend'
-      if (backend && interrupt.toolCallId !== undefined) owedByBackend.add(interrupt.toolCallId)
-      interrupt.cancel()
-    }
-    this.#answerUnansweredCalls(owedByBackend)
+    const heldByBackend = this.#callsHeldByBackend()
+    for (const interrupt of this.#interrupts) interrupt.cancel()
+    this.#answerUnansweredCalls(heldByBackend, STOPPED)
     if (this.#status !== 'error') this.#status = 'ready'
     this.#publish()
   }
@@ -320,7 +338,9 @@ export class ChatClient {
     this.#agent.threadId = crypto.randomUUID()
     // The old thread's interrupts are not the new one's to resume.
     this.#agent.pendingInterrupts = []
+    this.#asked.clear()
     this.#progress.clear()
+    this.#turnInputs.clear()
     this.#owed = []
     this.#lastRunId = undefined
     this.#runId = null
@@ -332,7 +352,7 @@ export class ChatClient {
   /** Replaces the history, for a conversation restored from where it was stored. */
   readonly setMessages = (messages: readonly Message[]): void => {
     this.#agent.setMessages([...messages])
-    this.#pruneProgress()
+    this.#pruneToHistory()
     this.#publish()
   }
 
@@ -393,26 +413,37 @@ export class ChatClient {
   // ─── The turn ─────────────────────────────────────────────────────────────
 
   /**
-   * Runs a turn once every turn before it has ended; `prepare` readies the history for it, or says
-   * there is nothing to run. Whatever the turn throws fails it, as a failed run does.
+   * Runs a turn once every turn before it has ended; `prepare` readies the history for it and
+   * gives what its runs send besides, or says there is nothing to run. Whatever the turn throws
+   * fails it, as a failed run does.
    */
-  #enqueue(prepare: () => boolean, input: TurnInput): Promise<void> {
+  #enqueue(prepare: () => TurnInput | undefined): Promise<void> {
     const turn = this.#turn.then(async () => {
-      if (!prepare()) return
+      const input = prepare()
+      if (input === undefined) return
       const generation = this.#generation
       this.#turnAbort = new AbortController()
+      let failure: Error | undefined
       try {
-        await this.#turnLoop(generation, this.#turnAbort.signal, input)
+        failure = await this.#turnLoop(generation, this.#turnAbort.signal, input)
       } catch (error) {
-        if (generation === this.#generation) this.#fail(toError(error))
+        if (generation === this.#generation) failure = this.#fail(toError(error))
       }
+      // Reported outside the turn, so a handler that throws rejects this call and changes nothing
+      // else: the turn's error stays the one it failed with, and the handler is called once.
+      if (failure !== undefined) this.#options.onError?.(failure)
     })
     // Only `onError` throwing rejects it, which must not keep the next turn from running.
     this.#turn = turn.catch(() => undefined)
     return turn
   }
 
-  async #turnLoop(generation: number, signal: AbortSignal, turnInput: TurnInput): Promise<void> {
+  /** Runs the turn to its end; the error it failed with, if it failed. */
+  async #turnLoop(
+    generation: number,
+    signal: AbortSignal,
+    turnInput: TurnInput,
+  ): Promise<Error | undefined> {
     const maxRuns = this.#options.maxRunsPerTurn ?? DEFAULT_MAX_RUNS_PER_TURN
     let answers = this.#owed
     this.#owed = []
@@ -428,10 +459,7 @@ export class ChatClient {
 
       const finished = await this.#run(declared, answers, turnInput)
       if (generation !== this.#generation) return
-      if (finished instanceof Error) {
-        this.#fail(finished)
-        return
-      }
+      if (finished instanceof Error) return this.#fail(finished)
       if (finished.outcome === 'cancelled') break
 
       const calls = this.#callsById()
@@ -440,20 +468,25 @@ export class ChatClient {
         const tool = call === undefined ? undefined : byName.get(call.function.name)
         return call === undefined || tool === undefined ? undefined : { call, tool }
       }
-      // The page's calls to run, with the interrupt each answers, and the questions for the user.
-      const toRun: { call: ToolCall; tool: ChatTool; interruptId?: string }[] = []
+      // The calls to answer, with the page's tool that runs each (none for a call to a tool the
+      // page does not have) and the interrupt each answers, and the questions for the user.
+      const toRun: { call: ToolCall; tool: ChatTool | undefined; interruptId?: string }[] = []
       const asked: Promise<ResumeEntry>[] = []
       // Whether every call this run made is answered by a tool whose result is for the user.
-      let quiet: boolean
+      let quiet = true
 
       if (finished.outcome === 'success') {
-        // A pending call the page does not own is the backend's to answer; nothing runs it here.
+        // A pending call waits on the client, so every one is answered here: a call to a tool the
+        // page does not have (a name the model made up, or a tool discovery has not declared yet)
+        // is answered with an error the model can recover from. Left unanswered, it would sit in
+        // the history without a result, and a model API rejects every later request for it.
+        const withResult = this.#answeredCallIds()
         for (const id of finished.pending) {
-          const found = pageCall(id)
-          if (found !== undefined) toRun.push(found)
+          const call = calls.get(id)
+          if (call === undefined || withResult.has(id)) continue
+          toRun.push(pageCall(id) ?? { call, tool: undefined })
         }
         if (toRun.length === 0) break
-        quiet = toRun.length === finished.pending.length
       } else {
         for (const interrupt of finished.interrupts) {
           // An interrupt on a call to one of the page's tools means "run it": the backend never
@@ -476,8 +509,15 @@ export class ChatClient {
       // no more of them.
       for (const { call, tool, interruptId } of toRun) {
         if (generation !== this.#generation) return
+        // Still declared by the answering run if this one declared it, as a page tool's answer is.
+        answered.add(call.function.name)
+        if (tool === undefined) {
+          const error = noSuchTool(call.function.name)
+          this.#addResult(call.id, JSON.stringify({ error }), error)
+          quiet = false
+          continue
+        }
         const result = await this.#execute(tool, call, info)
-        answered.add(tool.name)
         if (followsUp(tool, result)) quiet = false
         if (interruptId !== undefined) {
           ran.push({ interruptId, status: 'resolved', payload: result })
@@ -495,8 +535,9 @@ export class ChatClient {
       }
       answering = declared.filter(tool => answered.has(tool.name))
       if (run === maxRuns) {
-        this.#fail(new Error(`The turn took more than ${String(maxRuns)} runs, so it was stopped.`))
-        return
+        return this.#fail(
+          new Error(`The turn took more than ${String(maxRuns)} runs, so it was stopped.`),
+        )
       }
     }
 
@@ -504,6 +545,7 @@ export class ChatClient {
     this.#options.onFinish?.(
       this.#snapshot.messages.findLast(message => message.role === 'assistant'),
     )
+    return undefined
   }
 
   /** One run: the finish it ended with, or why it failed. */
@@ -594,6 +636,7 @@ export class ChatClient {
   /** Shows the user a backend's interrupt and resolves with their answer. */
   #ask(interrupt: Interrupt, calls: ReadonlyMap<string, ToolCall>): Promise<ResumeEntry> {
     const call = interrupt.toolCallId === undefined ? undefined : calls.get(interrupt.toolCallId)
+    this.#asked.add(interrupt.id)
     return new Promise<ResumeEntry>(resolve => {
       let open = true
       const settle = (entry: ResumeEntry): void => {
@@ -696,23 +739,56 @@ export class ChatClient {
     })
   }
 
-  /** Every call with no result and nothing running it: answered as stopped. */
-  #answerUnansweredCalls(owedByBackend: ReadonlySet<string>): void {
-    const answered = new Set(
+  #answeredCallIds(): Set<string> {
+    return new Set(
       this.#agent.messages.flatMap(message =>
         message.role === 'tool' ? [message.toolCallId] : [],
       ),
     )
+  }
+
+  /**
+   * Every call with no result, nothing running it and no backend's interrupt holding it, answered
+   * with `reason`, so the history stays one the backend reads; and no call is left streaming.
+   */
+  #answerUnansweredCalls(heldByBackend: ReadonlySet<string>, reason: string): void {
+    const answered = this.#answeredCallIds()
     for (const id of this.#callsById().keys()) {
-      if (answered.has(id) || id === this.#executing?.callId || owedByBackend.has(id)) continue
-      this.#addResult(id, JSON.stringify({ error: STOPPED }), STOPPED)
+      if (answered.has(id) || id === this.#executing?.callId || heldByBackend.has(id)) continue
+      this.#addResult(id, JSON.stringify({ error: reason }), reason)
     }
+    for (const id of this.#progress.keys()) this.#markEnded(id)
+  }
+
+  /**
+   * The calls a backend's interrupt is about, whether its card is still open or the answer is
+   * waiting on a run: the backend answers them itself once the interrupt is resumed, as cancelled
+   * if nothing else. A page tool's interrupt is not among them: the page answers that call.
+   */
+  #callsHeldByBackend(): Set<string> {
+    const held = new Set<string>()
+    for (const interrupt of this.#interrupts) {
+      const backend = interrupt.kind === 'generic' || interrupt.source === 'backend'
+      if (backend && interrupt.toolCallId !== undefined) held.add(interrupt.toolCallId)
+    }
+    for (const { id, toolCallId } of this.#agent.pendingInterrupts) {
+      if (this.#asked.has(id) && toolCallId !== undefined) held.add(toolCallId)
+    }
+    return held
   }
 
   #cancelBackendInterrupts(): void {
     for (const interrupt of this.#interrupts) {
       if (interrupt.kind === 'generic' || interrupt.source === 'backend') interrupt.cancel()
     }
+  }
+
+  /** Adds a user message and remembers what its turn sends, for a `reload` of it. */
+  #addUserMessage(content: string, input: TurnInput): TurnInput {
+    const id = crypto.randomUUID()
+    this.#agent.addMessage({ id, role: 'user', content })
+    this.#turnInputs.set(id, input)
+    return input
   }
 
   #indexOfUserMessage(id: string): number {
@@ -729,13 +805,15 @@ export class ChatClient {
   #truncate(length: number): void {
     this.#agent.setMessages(this.#agent.messages.slice(0, length))
     this.#owed = []
-    this.#pruneProgress()
+    this.#pruneToHistory()
   }
 
-  /** Drops what the client knows of calls the history no longer holds. */
-  #pruneProgress(): void {
+  /** Drops what the client knows of calls and user messages the history no longer holds. */
+  #pruneToHistory(): void {
     const calls = this.#callsById()
     for (const id of this.#progress.keys()) if (!calls.has(id)) this.#progress.delete(id)
+    const ids = new Set(this.#agent.messages.map(message => message.id))
+    for (const id of this.#turnInputs.keys()) if (!ids.has(id)) this.#turnInputs.delete(id)
   }
 
   #addInterrupt(interrupt: ChatInterrupt): void {
@@ -760,11 +838,17 @@ export class ChatClient {
     this.#publish()
   }
 
-  #fail(error: Error): void {
+  /**
+   * Fails the turn. A call the failed run made, or one the turn had yet to run, is answered as
+   * failed, so the next turn's request pairs every call with a result, as model APIs require.
+   * Returns the error for the turn to report; `onError` is not called here.
+   */
+  #fail(error: Error): Error {
+    this.#answerUnansweredCalls(this.#callsHeldByBackend(), FAILED)
     this.#error = error
     this.#status = 'error'
     this.#publish()
-    this.#options.onError?.(error)
+    return error
   }
 
   #computeSnapshot(): ChatSnapshot {

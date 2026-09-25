@@ -1631,8 +1631,16 @@ hangs; and `withToolDiscovery`. Turns queue, so one run is in flight at a time, 
 page's tools one at a time, so a pipeline approval belongs to the one call running. Every interrupt
 the last run ended on that nobody answered is resumed as cancelled by the next run, as the spec
 requires; `clear()` starts a thread with none. A throw from `tools`, a `followUp` function or the
-connection's headers fails the turn, as a failed run does, rather than rejecting `sendMessage`.
-`editMessage(id, text)` cuts the history back to a question and asks it again, on the same thread.
+connection's headers fails the turn, as a failed run does, rather than rejecting `sendMessage`;
+`onError` is called once, and a handler that throws leaves the turn's error in place. Every call
+ends with a result, because a model API rejects a request with a call that has none: a pending
+call to a tool the page does not have (a made-up name, or one discovery has not declared) is
+answered with an error and the turn runs again, within its run limit, so the model can recover;
+and a failed turn answers the calls it left open as failed, except one a backend's interrupt
+holds, which the backend answers when it is resumed.
+`editMessage(id, text)` cuts the history back to a question and asks it again, on the same thread,
+with the options the edit is given. `reload()` asks the last question again with the context and
+forwarded props it was sent with, so Ask again repeats a prompt's or an A2UI press's turn whole.
 What a run sends is limited, the transcript is not: the last six turns go whole, and in older ones
 a tool result over 2,000 characters is replaced by a note of its size and reasoning is left out, so
 a long conversation stays within a model's context (`history`, or a function of the messages).

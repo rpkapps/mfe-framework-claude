@@ -213,16 +213,60 @@ describe('the page’s tools', () => {
     expect(client.getHistory().at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call-1' })
   })
 
-  it('leaves a call it does not own to the backend, and ends the turn', async () => {
+  it('answers a pending call to a tool the page does not have with an error, and continues', async () => {
     const backend = scriptedBackend(
       calls({ id: 'call-9', name: 'shut_in_well', args: { wellId: 'W-1' } }),
+      says('I cannot shut wells in from here.'),
+      says('Hello.'),
     )
     const client = new ChatClient({ connection: backend.connection, tools: [tool()] })
 
     await client.sendMessage('Shut in W-1')
 
-    expect(backend.requests).toHaveLength(1)
-    expect(toolCalls(client)[0]).toMatchObject({ name: 'shut_in_well', state: 'input-complete' })
+    const error = 'No tool named "shut_in_well" is available on this page.'
+    expect(backend.requests).toHaveLength(2)
+    expect(backend.requests[1]?.messages.slice(1)).toEqual([
+      expect.objectContaining({ role: 'assistant' }),
+      expect.objectContaining({
+        role: 'tool',
+        toolCallId: 'call-9',
+        content: JSON.stringify({ error }),
+        error,
+      }),
+    ])
+    expect(toolCalls(client)[0]).toMatchObject({ name: 'shut_in_well', state: 'error' })
+    expect(client.getStatus()).toBe('ready')
+
+    await client.sendMessage('Hi')
+    expect(backend.requests[2]?.messages.map(message => message.role)).toEqual([
+      'user',
+      'assistant',
+      'tool',
+      'assistant',
+      'user',
+    ])
+  })
+
+  it('keeps an answered unknown call within the turn’s run limit', async () => {
+    const backend = scriptedBackend(input =>
+      calls({ id: input.runId, name: 'made_up_tool', args: {} })(input, 0),
+    )
+    const client = new ChatClient({
+      connection: backend.connection,
+      tools: [tool()],
+      maxRunsPerTurn: 2,
+    })
+
+    await client.sendMessage('Do something')
+
+    expect(backend.requests).toHaveLength(2)
+    expect(client.getError()?.message).toMatch(/more than 2 runs/)
+    expect(
+      client
+        .getHistory()
+        .filter(message => message.role === 'tool')
+        .map(m => m.toolCallId),
+    ).toEqual(backend.requests.map(request => request.runId))
   })
 
   it.each([
@@ -515,6 +559,72 @@ describe('stopping and failing', () => {
     expect(onError).toHaveBeenCalledOnce()
   })
 
+  it('keeps the turn’s error when onError throws, and calls it once', async () => {
+    const backend = scriptedBackend(fails('Model overloaded'), says('Hello.'))
+    const onError = vi.fn(() => {
+      throw new Error('Handler broke')
+    })
+    const client = new ChatClient({ connection: backend.connection, onError })
+
+    await expect(client.sendMessage('Hi')).rejects.toThrow('Handler broke')
+
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'Model overloaded' }))
+    expect(client.getError()?.message).toBe('Model overloaded')
+    await client.sendMessage('Again')
+    expect(client.getStatus()).toBe('ready')
+  })
+
+  it('answers a call the failed run made, so the next request pairs it and nothing streams', async () => {
+    const backend = scriptedBackend(
+      input => [
+        { type: EventType.RUN_STARTED, threadId: input.threadId, runId: input.runId },
+        { type: EventType.TOOL_CALL_START, toolCallId: 'call-1', toolCallName: acknowledge.name },
+        { type: EventType.TOOL_CALL_ARGS, toolCallId: 'call-1', delta: '{"alertId":' },
+        { type: EventType.RUN_ERROR, message: 'Model overloaded' },
+      ],
+      says('Hello.'),
+    )
+    const client = new ChatClient({ connection: backend.connection, tools: [tool()] })
+
+    await client.sendMessage('Acknowledge A-7')
+
+    expect(client.getError()?.message).toBe('Model overloaded')
+    expect(toolCalls(client)[0]?.state).toBe('error')
+    expect(client.getHistory().at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call-1' })
+
+    await client.sendMessage('Hi')
+    expect(backend.requests[1]?.messages.map(message => message.role)).toEqual([
+      'user',
+      'assistant',
+      'tool',
+      'user',
+    ])
+  })
+
+  it('leaves a failed run’s call to the backend whose question holds it', async () => {
+    const shutIn = { id: 'call-9', name: 'shut_in_well', args: { wellId: 'W-1' } }
+    const approval = { id: 'approval-9', reason: 'tool_call', toolCallId: 'call-9' }
+    const backend = scriptedBackend(
+      interrupts([shutIn], approval),
+      fails('Model overloaded'),
+      says('Hello.'),
+    )
+    const client = new ChatClient({ connection: backend.connection })
+
+    const turn = client.sendMessage('Shut in W-1')
+    const interrupt = await nextInterrupt(client)
+    if (interrupt.kind === 'tool-approval') interrupt.resolveInterrupt(true)
+    await turn
+    expect(client.getError()?.message).toBe('Model overloaded')
+    await client.sendMessage('Hi')
+
+    expect(client.getHistory().some(message => message.role === 'tool')).toBe(false)
+    expect(backend.requests[2]?.resume).toEqual([
+      { interruptId: 'approval-9', status: 'cancelled' },
+    ])
+  })
+
   it('stops a turn that keeps calling tools', async () => {
     const backend = scriptedBackend(input => calls({ ...acknowledge, id: input.runId })(input, 0))
     const client = new ChatClient({
@@ -552,6 +662,41 @@ describe('stopping and failing', () => {
       [{ type: 'text', content: 'Hi' }],
       [{ type: 'text', content: 'Second.' }],
     ])
+  })
+
+  it('sends the reloaded turn’s own context and forwarded props again', async () => {
+    const backend = scriptedBackend(says('One.'), says('Two.'), says('Two again.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      forwardedProps: { app: 'shell' },
+    })
+    const pressed = { description: 'The user pressed a button', value: '"submit"' }
+    const a2uiAction = { userAction: { name: 'submit' } }
+    await client.sendMessage('Hi', { context: [{ description: 'First', value: '1' }] })
+    await client.sendMessage('Submit', { context: [pressed], forwardedProps: { a2uiAction } })
+
+    await client.reload()
+
+    expect(backend.requests[2]?.context).toEqual([pressed])
+    expect(backend.requests[2]?.forwardedProps).toEqual({ app: 'shell', a2uiAction })
+    expect(backend.requests[2]?.messages.map(message => message.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+    ])
+  })
+
+  it('reloads a message restored from a stored history with no options of its own', async () => {
+    const backend = scriptedBackend(says('Hello.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      initialMessages: [{ id: 'u-1', role: 'user', content: 'Hi' }],
+    })
+
+    await client.reload()
+
+    expect(backend.requests[0]?.context).toEqual([])
+    expect(backend.requests[0]?.forwardedProps).toEqual({})
   })
 })
 
@@ -764,6 +909,23 @@ describe('editing a message', () => {
     ])
     expect(backend.requests[1]?.context).toEqual([selected])
     expect(client.getStatus()).toBe('ready')
+  })
+
+  it('sends an edit with its own options, not those of the message it replaced, and reloads it so', async () => {
+    const backend = scriptedBackend(says('First.'), says('Second.'), says('Third.'))
+    const client = new ChatClient({ connection: backend.connection })
+    const original = { description: 'Original', value: '1' }
+    const edited = { description: 'Edited', value: '2' }
+    await client.sendMessage('Hi', { context: [original], forwardedProps: { a: 1 } })
+
+    await client.editMessage(userMessageId(client, 0), 'Hello', { context: [edited] })
+    await client.reload()
+
+    expect(backend.requests.slice(1).map(request => request.context)).toEqual([[edited], [edited]])
+    expect(backend.requests.slice(1).map(request => request.forwardedProps as unknown)).toEqual([
+      {},
+      {},
+    ])
   })
 
   it('drops every turn after an earlier message it edits', async () => {
