@@ -102,7 +102,7 @@ export function setAt(data: JsonValue, pointer: string, value: JsonValue | undef
   return object
 }
 
-/** Only a web address opens or loads: never `javascript:`, `data:` or anything else. */
+/** Only a web address opens: never `javascript:`, `data:` or anything else. */
 export function safeUrl(value: string, base: string): string | undefined {
   try {
     const url = new URL(value, base)
@@ -110,6 +110,66 @@ export function safeUrl(value: string, base: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * One origin of AGENT_IMAGE_HOSTS: scheme, host and optional port, no path, no wildcard. The
+ * pattern in src/mfe.config.ts is the list form of this one, so a value the shell booted with only
+ * holds entries of this form; one that still fails to parse (a port past 65535) is dropped.
+ */
+const ORIGIN = /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$/
+
+/** The origins AGENT_IMAGE_HOSTS lists, as `URL.origin` writes them, so matching is exact. */
+export function imageOrigins(setting: string | undefined): ReadonlySet<string> {
+  const origins = new Set<string>()
+  for (const entry of (setting ?? '').split(',')) {
+    const origin = entry.trim()
+    if (!ORIGIN.test(origin)) continue
+    try {
+      origins.add(new URL(origin).origin)
+    } catch {
+      // Not an origin after all; it widens nothing by being left out.
+    }
+  }
+  return origins
+}
+
+/** An image in the data itself, which fetches nothing; any other `data:` is not an image. */
+const DATA_IMAGE = /^data:image\/[a-z0-9.+-]+[;,]/i
+
+/**
+ * What an agent's Image may do: load, or be withheld, with the host it would have loaded from. An
+ * image loads as soon as it is drawn, so its address alone would carry whatever the agent put in
+ * its query to the agent's own server; it loads only from the shell's origin, from the data URL
+ * itself, or from an origin the deployment lists (`imageOrigins`). Nothing to show is undefined.
+ */
+export type ImageSource =
+  | { readonly kind: 'load'; readonly url: string }
+  | { readonly kind: 'withheld'; readonly host: string | undefined }
+
+export function imageSource(
+  value: string,
+  page: string,
+  allowed: ReadonlySet<string>,
+): ImageSource | undefined {
+  if (value.trim() === '') return undefined
+  let url: URL
+  try {
+    url = new URL(value, page)
+  } catch {
+    return { kind: 'withheld', host: undefined }
+  }
+  if (url.protocol === 'data:') {
+    return DATA_IMAGE.test(url.href)
+      ? { kind: 'load', url: url.href }
+      : { kind: 'withheld', host: undefined }
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return { kind: 'withheld', host: undefined }
+  }
+  return url.origin === new URL(page).origin || allowed.has(url.origin)
+    ? { kind: 'load', url: url.href }
+    : { kind: 'withheld', host: url.host }
 }
 
 // ─── Values ───────────────────────────────────────────────────────────────────

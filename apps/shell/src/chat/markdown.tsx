@@ -4,7 +4,8 @@
  * Markdown. A link to a page of this application goes through the router, so an App holding unsaved
  * changes holds it for a link too; any other goes to a new tab, saying where. An image is not
  * loaded: a reply's image would fetch a URL the model chose, which is how a prompt-injected model
- * sends data out, so it shows as its description and host until there is a policy for it (#31).
+ * sends data out, so it shows as its description and host. An agent that means to show an image
+ * uses A2UI's Image, which loads only from where the deployment allows (decisions §51).
  */
 
 import {

@@ -1730,6 +1730,21 @@ Explicitly: from the user's own press, through `useAgentPrompt`, as the well-des
 the assistant" does; never from a timer or an error handler. An A2UI Button's event is the same
 kind: a new turn, sent unseen as context and as the middleware's `forwardedProps.a2uiAction`.
 
+An A2UI `Image` loads only from an allowlist (#31). An image is fetched as soon as it is drawn, with
+no press from the user, so an agent steered by text it read (a prompt injection) could put page data
+in the query of an image URL on its own server and have the browser send it. An `Image` loads when
+its URL is on the shell's own origin, is a `data:image/…` URL (which fetches nothing; any other
+`data:` is refused), or is on an origin the deployment lists in `AGENT_IMAGE_HOSTS` (field
+`agentImageHosts`): comma-separated origins, scheme, host and optional port with no path, matched
+exactly, no wildcards, and none by default. A value with an entry of any other form fails the
+start-up check, like any other setting, rather than being read loosely. Any other image is drawn as
+text, its description and the host it would have come from, with no element that fetches it, and one
+that loads sends no referrer. Click-to-load was the alternative: it keeps every image one press
+away, but that press still sends the URL wherever the agent chose, leaving the call to the user at
+each image; the deployment's list was chosen instead. A reply's Markdown images stay unloaded
+whatever the list says, and a Button's `openUrl` and a reply's links are left as they are: each
+opens only on the user's press.
+
 **Cost:** A2UI's `Tabs`, `Modal`, `Slider`, `DateTimeInput` and media components are not in the
 catalogue yet, nor its `ACTIVITY_SNAPSHOT` transport; an agent behind the middleware that only
 sends activity events draws nothing here.

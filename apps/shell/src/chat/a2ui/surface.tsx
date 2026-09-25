@@ -2,7 +2,8 @@
  * An A2UI surface drawn with Tecton: each catalogue component maps onto the Tecton component that
  * does the same job. Only what the catalogue names is drawn; an unknown or missing id draws
  * nothing, as the spec asks, and an id reached twice on one branch stops there rather than loop.
- * Text is text, never HTML, and a link opens only over http(s).
+ * Text is text, never HTML, and a link opens only over http(s). An Image loads only from where
+ * `imageSource` allows; any other is drawn as its description and host, and fetches nothing.
  */
 
 import { useId, useSyncExternalStore, type ReactNode } from 'react'
@@ -22,6 +23,7 @@ import {
   CircleAlertIcon,
   DownloadIcon,
   HomeIcon,
+  ImageOffIcon,
   InfoIcon,
   LockIcon,
   MailIcon,
@@ -46,6 +48,7 @@ import {
   boundPath,
   checksPass,
   childrenOf,
+  imageSource,
   resolve,
   resolveText,
   safeUrl,
@@ -118,6 +121,8 @@ interface NodeProps {
   readonly id: string
   readonly scope: Scope
   readonly handlers: SurfaceHandlers
+  /** The origins besides the page's own an Image may load from (`imageOrigins`). */
+  readonly imageOrigins: ReadonlySet<string>
   /** The ids above this one, so a component that contains itself is drawn once. */
   readonly path: readonly string[]
 }
@@ -142,10 +147,10 @@ function textOfChild(surface: Surface, id: unknown, scope: Scope): string {
   return child?.component === 'Text' ? resolveText(child['text'], scope) : ''
 }
 
-function Node({ surface, id, scope, handlers, path }: NodeProps): ReactNode {
+function Node({ surface, id, scope, handlers, imageOrigins, path }: NodeProps): ReactNode {
   const component = surface.components.get(id)
   if (component === undefined || path.includes(id) || path.length > 32) return null
-  const inner = { surface, scope, handlers, path: [...path, id] }
+  const inner = { surface, scope, handlers, imageOrigins, path: [...path, id] }
   return <Component component={component} {...inner} />
 }
 
@@ -154,9 +159,10 @@ function Component({
   surface,
   scope,
   handlers,
+  imageOrigins,
   path,
 }: Omit<NodeProps, 'id'> & { readonly component: A2uiComponent }): ReactNode {
-  const inner = { surface, scope, handlers, path }
+  const inner = { surface, scope, handlers, imageOrigins, path }
   const label = resolveText(component['label'], scope)
 
   switch (component.component) {
@@ -276,13 +282,23 @@ function Component({
       return <ChoiceView component={component} scope={scope} handlers={handlers} label={label} />
 
     case 'Image': {
-      const url = safeUrl(resolveText(component['url'], scope), window.location.href)
-      return url === undefined ? null : (
+      const source = imageSource(
+        resolveText(component['url'], scope),
+        window.location.href,
+        imageOrigins,
+      )
+      const description = resolveText(component['description'], scope)
+      if (source === undefined) return null
+      // No referrer either: the page's own address says where the user is.
+      return source.kind === 'load' ? (
         <img
-          src={url}
-          alt={resolveText(component['description'], scope)}
+          src={source.url}
+          alt={description}
+          referrerPolicy="no-referrer"
           className="max-h-48 max-w-full rounded-md object-contain"
         />
+      ) : (
+        <WithheldImage description={description} host={source.host} />
       )
     }
 
@@ -294,6 +310,33 @@ function Component({
     default:
       return null
   }
+}
+
+/**
+ * An Image this deployment does not load, as text: what it shows and where it is, so the user can
+ * tell what was left out. Not an image to assistive technology, since nothing is drawn.
+ */
+function WithheldImage({
+  description,
+  host,
+}: {
+  readonly description: string
+  readonly host: string | undefined
+}): ReactNode {
+  return (
+    <div
+      data-slot="chat-a2ui-image-withheld"
+      className="flex items-start gap-2 rounded-md border border-dashed border-border-subtle bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+    >
+      <ImageOffIcon className="mt-px size-3.5 shrink-0" aria-hidden />
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="break-words">Image not shown{description === '' ? '' : `: ${description}`}</p>
+        {host === undefined ? null : (
+          <p className="break-all">From {host}, which this deployment does not load images from</p>
+        )}
+      </div>
+    </div>
+  )
 }
 
 interface InputViewProps {
@@ -385,10 +428,12 @@ export function A2uiSurface({
   surfaces,
   surfaceId,
   handlers,
+  imageOrigins,
 }: {
   readonly surfaces: A2uiSurfaces
   readonly surfaceId: string
   readonly handlers: SurfaceHandlers
+  readonly imageOrigins: ReadonlySet<string>
 }): ReactNode {
   const all = useSyncExternalStore(surfaces.subscribe, surfaces.getSnapshot, surfaces.getSnapshot)
   const surface = all.get(surfaceId)
@@ -405,6 +450,7 @@ export function A2uiSurface({
         id="root"
         scope={{ data: surface.data, path: '/' }}
         handlers={handlers}
+        imageOrigins={imageOrigins}
         path={[]}
       />
     </div>

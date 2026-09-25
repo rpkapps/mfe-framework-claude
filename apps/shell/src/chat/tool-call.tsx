@@ -312,6 +312,7 @@ function A2uiCall({
     <A2uiSurface
       surfaces={chat.a2ui}
       surfaceId={surfaceId}
+      imageOrigins={chat.imageOrigins}
       handlers={{
         write: (path, value) => {
           chat.a2ui.write(surfaceId, path, value)

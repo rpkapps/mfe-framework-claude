@@ -21,7 +21,8 @@ export const CATALOGUE: Readonly<Record<string, string>> = {
   CheckBox: 'label*, value* (bind with {path})',
   ChoicePicker:
     'options* ([{label, value}]), value* (bind with {path}; always an array), label, variant: mutuallyExclusive|multipleSelection',
-  Image: 'url* (https only), description',
+  Image:
+    "url* (this page's own, a data:image URL, or a host the deployment allows; any other is shown as its description, not loaded), description",
   Icon: 'name*: check|close|warning|error|info|search|settings|delete|edit|add|download|upload|refresh|star|person|home|mail|calendarToday|locationOn|lock',
 }
 

@@ -28,6 +28,7 @@ import {
   type MfeRuntime,
 } from '@company/mfe-react/host'
 
+import { imageOrigins } from './a2ui/model.ts'
 import { A2uiSurfaces } from './a2ui/surfaces.ts'
 import { Store, type ChatPanel } from './panel.ts'
 import { askUserTool, Questions } from './tools/ask-user.ts'
@@ -54,6 +55,8 @@ export interface ShellChatOptions {
   /** The request boundary's fetch, so the backend receives the user's token. */
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
   readonly go: Go
+  /** AGENT_IMAGE_HOSTS as the deployment wrote it: where else an A2UI Image may load from. */
+  readonly imageHosts?: string
   /** The panel's state, which lives on the boot path, before the chat loads (`LazyShellChat`). */
   readonly panel: ChatPanel
 }
@@ -72,6 +75,8 @@ export class ShellChat {
   readonly questions = new Questions()
   readonly outputs = new WidgetOutputs()
   readonly a2ui = new A2uiSurfaces()
+  /** The origins besides the page's own an A2UI Image may load from. */
+  readonly imageOrigins: ReadonlySet<string>
   /** What the chat's one polite status region says; the key makes each a new announcement. */
   readonly announcement = new Store<{ readonly text: string; readonly key: number }>({
     text: '',
@@ -95,6 +100,7 @@ export class ShellChat {
     this.#runtime = runtime
     this.panel = panel
     this.go = options.go
+    this.imageOrigins = imageOrigins(options.imageHosts)
 
     // The registry is read once at boot, so the shell's own tools are built once too.
     const shellTools = [

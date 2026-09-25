@@ -143,6 +143,7 @@ installShellChat(
         }),
         // The router's own navigation, so an App's blockers hold the page for the agent too.
         go: routerNavigation(router, runtime),
+        ...(config.agentImageHosts === undefined ? {} : { imageHosts: config.agentImageHosts }),
       }),
 )
 

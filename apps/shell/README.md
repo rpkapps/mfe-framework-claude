@@ -58,6 +58,7 @@ and a deployment writes it from the environment when the image starts:
 | `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                       |
 | `SHELL_LOADER`      | `loader`          | a loading screen other than the one the build chose, or `cycle`; see below |
 | `AGENT_URL`         | `agentUrl`        | where the assistant's agent backend takes AG-UI runs; see below            |
+| `AGENT_IMAGE_HOSTS` | `agentImageHosts` | other origins the assistant's images may load from; see below              |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -239,6 +240,20 @@ shell alone, so run it beside them:
 ```sh
 pnpm --filter @company/agent-dev start
 ```
+
+An image the agent shows (A2UI's `Image`) loads only from the shell's own
+origin, as a `data:image/…` URL, or from an origin in `AGENT_IMAGE_HOSTS`; any
+other is drawn as its description and host, and nothing is fetched. An image's
+address is fetched as soon as it is drawn, so an agent steered by text it read
+could otherwise put page data in the query of an image on its own server. The
+variable is a comma-separated list of origins, scheme, host and optional port
+with no path, matched exactly: `https://tiles.example.com,
+https://maps.example.com:8443`. There are no wildcards, `http://` and `https://`
+are different origins, and a default port is the same as none. A value with an
+entry of any other form (a bare host, a trailing `/`, `*.`) stops the shell on
+the loading screen, naming the variable. List only hosts that serve images and
+do not redirect elsewhere: an image follows a redirect. A reply's Markdown
+images are never loaded, whatever the list says.
 
 The build replaces `@ag-ui/proto`, the AG-UI client's protobuf codec, with the
 three names the client reads (`build/ag-ui-proto.ts`): the shell always asks for

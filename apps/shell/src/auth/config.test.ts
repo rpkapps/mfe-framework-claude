@@ -11,6 +11,7 @@ const UNSET: MfeConfig = {
   oidcGroupsClaim: 'groups',
   oidcDisabled: undefined,
   agentUrl: undefined,
+  agentImageHosts: undefined,
   loader: 'drill-bit',
 }
 
