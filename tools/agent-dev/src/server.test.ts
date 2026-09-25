@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { EventType, type AGUIEvent } from '@ag-ui/core'
 
@@ -8,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { demoModel } from './demo-model.ts'
 import type { Model } from './events.ts'
-import { createAgentServer, MAX_BODY_BYTES, readInput } from './server.ts'
+import { createAgentServer, loadEnvFile, MAX_BODY_BYTES, readInput } from './server.ts'
 
 const server = createAgentServer(demoModel({ delayMs: 0 }))
 let url = ''
@@ -194,6 +197,25 @@ describe('the development agent over HTTP', () => {
       expect(await response.text()).toContain('RUN_FINISHED')
     } finally {
       await close()
+    }
+  })
+})
+
+describe('loadEnvFile', () => {
+  it('reads the package’s .env, leaving a variable the shell set alone', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agent-dev-env-'))
+    const path = join(dir, '.env')
+    writeFileSync(path, 'AGENT_DEV_TEST_FROM_FILE=file\nAGENT_DEV_TEST_SET=file\n')
+    process.env['AGENT_DEV_TEST_SET'] = 'shell'
+    try {
+      expect(loadEnvFile(path)).toBe(true)
+      expect(process.env['AGENT_DEV_TEST_FROM_FILE']).toBe('file')
+      expect(process.env['AGENT_DEV_TEST_SET']).toBe('shell')
+      expect(loadEnvFile(join(dir, 'missing.env'))).toBe(false)
+    } finally {
+      delete process.env['AGENT_DEV_TEST_FROM_FILE']
+      delete process.env['AGENT_DEV_TEST_SET']
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

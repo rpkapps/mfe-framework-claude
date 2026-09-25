@@ -16,6 +16,14 @@ It answers `POST /agent` and the browser's preflight: another path is 404 and an
 A body over 8 MB is 413, and one that is not an AG-UI `RunAgentInput` is 400, before any model is
 called.
 
+## Settings in a file
+
+The variables below can go in `tools/agent-dev/.env` instead of the command line: copy
+`.env.example`, which lists them, and uncomment one model. The file is git-ignored, so a key stays
+on your machine. `pnpm dev` and `pnpm --filter @company/agent-dev start` read it, and a variable
+set in the shell wins over the file. The port stays `MFE_DEV_AGENT_PORT` in the shell, since
+`pnpm dev` reads it too.
+
 ## Three models
 
 - **The demo agent** (the default) is a script, not a model: no key, no network. It reads the

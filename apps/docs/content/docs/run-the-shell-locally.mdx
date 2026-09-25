@@ -51,7 +51,8 @@ AGENT_DEV_OPENAI_URL=http://192.168.1.20:8000/v1 AGENT_DEV_MODEL=deepseek-v4.1-f
 ```
 
 Add `AGENT_DEV_API_KEY` if the server wants a key, and turn tool calling on in the server: the
-chat works through tool calls. `ANTHROPIC_API_KEY` with `AGENT_DEV_MODEL` talks to Anthropic's API
+chat works through tool calls. To keep these settings, put them in `tools/agent-dev/.env` (copy
+`tools/agent-dev/.env.example`); the file is git-ignored, and a variable set in the shell wins. `ANTHROPIC_API_KEY` with `AGENT_DEV_MODEL` talks to Anthropic's API
 instead. The shell finds it through `agentUrl` in `apps/shell/.mfe/runtime-config.json`.
 
 </Step>

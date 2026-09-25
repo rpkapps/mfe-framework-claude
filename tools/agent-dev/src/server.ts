@@ -5,11 +5,14 @@
  *
  * With `AGENT_DEV_OPENAI_URL` and `AGENT_DEV_MODEL` set it talks to that OpenAI-compatible server,
  * a local model included; with `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL`, to Anthropic's API;
- * otherwise it runs the demo agent, a script that needs neither a key nor the network.
+ * otherwise it runs the demo agent, a script that needs neither a key nor the network. Those can be
+ * kept in `tools/agent-dev/.env` (git-ignored; `.env.example` lists them); a variable set in the
+ * shell wins over the file.
  */
 
+import { existsSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import type { AGUIEvent, RunAgentInput } from '@ag-ui/core'
 
@@ -198,11 +201,19 @@ export function createAgentServer(model: Model) {
   })
 }
 
+/** The package's `.env`, when there is one: Node reads it, and leaves a variable already set alone. */
+export function loadEnvFile(path = fileURLToPath(new URL('../.env', import.meta.url))): boolean {
+  if (!existsSync(path)) return false
+  process.loadEnvFile(path)
+  return true
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  const fromFile = loadEnvFile()
   const { model, name } = modelFromEnvironment()
   createAgentServer(model).listen(DEV_AGENT_PORT, () => {
     process.stdout.write(
-      `Agent backend on http://localhost:${String(DEV_AGENT_PORT)}/agent, with ${name}.\n`,
+      `Agent backend on http://localhost:${String(DEV_AGENT_PORT)}/agent, with ${name}${fromFile ? ' (tools/agent-dev/.env read)' : ''}.\n`,
     )
   })
 }
