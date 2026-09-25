@@ -20,3 +20,6 @@ test-results/
 # Written by `pnpm dlx @tanstack/intent` (the whole file is its `intent-skills` block), so
 # formatting it only drifts back on the next run.
 AGENTS.md
+
+# Blocks installed from the @tecton registry are kept as installed, so a re-install diffs cleanly.
+apps/shell/src/blocks/

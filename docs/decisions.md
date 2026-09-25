@@ -1004,6 +1004,16 @@ entry's read back to the network. Each loader draws in a worker through an `Offs
 so it keeps its frame rate while the entry parses and boots on the main thread, and the boot no longer shares that thread with it:
 under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it. The loading screen stays up for a minimum time once drawn (`loaderMinDuration`, a second), and a boot faster than that waits, hidden, until it has passed: a fast load is a moment slower rather than a flash of a drawing that is gone before it reads. The choice and the minimum are plain exports of `src/mfe.config.ts`, built into the page, rather than runtime settings with defaults: generating seeds a development copy of the runtime configuration with every declared default and never changes a value it seeded, so an edit to a default would never reach a developer's page. `SHELL_LOADER` stays, without a default, for a deployment to choose another.
 
+When sign-in, the configuration or the boot fails, the loader does not stop where it stands: it
+loads one chunk, the failure page (`src/failure/`), which renders Tecton's page-state block
+(`src/blocks/page-state`, installed from the `@tecton` registry) with the status, the code, what
+happened, the reason as given, and the one way forward: sign in again, try again or reload. The
+page is painted hidden above the loader, then the two cross-fade, and focus goes to the way
+forward, or to the title when there is none. The chunk holds React and Tecton and nothing behind
+sign-in: no registry, no container, no token. When it cannot load either, on a network that is
+gone, the loader says the same in its own words, as does index.html's handler for a script or
+stylesheet that failed to load, since a chunk would not load then.
+
 **Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
 running in the page could read it for that long rather than only use it; DPoP, where the
 provider supports it, would bind it to a key that cannot leave the browser. A new tab

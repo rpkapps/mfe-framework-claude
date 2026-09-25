@@ -91,6 +91,7 @@ function redirectToSignIn(manager: UserManager, returnTo: string): void {
   // that would only redirect again.
   manager.signinRedirect({ state: returnTo, redirectMethod: 'replace' }).catch((cause: unknown) => {
     failLoader({
+      kind: 'unreachable',
       title: 'The sign-in service is unreachable',
       detail: describe(cause),
       actionLabel: 'Try again',
@@ -159,6 +160,7 @@ export async function authenticate(): Promise<boolean> {
     runtime = (await import(/* webpackMode: "eager" */ '#mfe/config')).config
   } catch (cause) {
     failLoader({
+      kind: 'configuration',
       title: 'The configuration could not be loaded',
       detail: describe(cause),
       actionLabel: 'Reload',
@@ -173,7 +175,11 @@ export async function authenticate(): Promise<boolean> {
   const config = resolveAuthConfig(runtime, production)
 
   if (config.kind === 'misconfigured') {
-    failLoader({ title: 'Sign-in is not configured', detail: config.problem })
+    failLoader({
+      kind: 'configuration',
+      title: 'Sign-in is not configured',
+      detail: config.problem,
+    })
     return false
   }
 
@@ -216,6 +222,7 @@ export async function authenticate(): Promise<boolean> {
   } catch (cause) {
     window.history.replaceState(null, '', '/')
     failLoader({
+      kind: 'sign-in',
       title: 'We could not sign you in',
       detail: describe(cause),
       actionLabel: 'Sign in again',

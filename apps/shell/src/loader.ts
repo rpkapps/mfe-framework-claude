@@ -1,8 +1,11 @@
 /**
  * The loading screen is static markup in `index.html`, painted before any script or stylesheet
- * arrives; this only changes its words and takes it away. No React: it runs before React is
- * loaded, and after sign-in fails React is never loaded at all.
+ * arrives; this only changes its words and takes it away. No React here: it runs before React is
+ * loaded. A failure loads one chunk, the failure page (`failure/`), which fades in over the loader;
+ * nothing behind sign-in is in it, and when even that cannot load the loader says it in words.
  */
+
+import type { Failure } from './failure/failure-page.tsx'
 
 const LOADER_ID = 'shell-loader'
 
@@ -29,15 +32,31 @@ export function setLoaderStatus(text: string): void {
   )
 }
 
-export interface LoaderFailure {
-  readonly title: string
-  readonly detail: string
-  readonly actionLabel?: string
-  readonly onAction?: () => void
+export type LoaderFailure = Failure
+
+/**
+ * Says what went wrong, with one way forward when there is one: the failure page when its chunk
+ * loads, the loader's own words when it does not. The drawing runs until one of them is shown, so
+ * the screen never stands frozen. The first failure is the one shown.
+ */
+export function failLoader(failure: LoaderFailure): void {
+  const loader = document.getElementById(LOADER_ID)
+  if (loader === null || loader.dataset['state'] !== 'loading') return
+  // Not loading any more, and not yet showing why: index.html's own handler leaves it alone.
+  loader.dataset['state'] = 'failing'
+  setLoaderStatus(failure.title)
+  import('./failure/show.tsx').then(
+    ({ showFailure }) => {
+      showFailure(failure)
+    },
+    () => {
+      showInLoader(failure)
+    },
+  )
 }
 
-/** Stops the animation and says what went wrong, with one way forward when there is one. */
-export function failLoader(failure: LoaderFailure): void {
+/** The loader's words, for when the failure page itself cannot load: a network that is gone. */
+function showInLoader(failure: LoaderFailure): void {
   const loader = document.getElementById(LOADER_ID)
   if (loader === null) return
   loader.dataset['state'] = 'error'

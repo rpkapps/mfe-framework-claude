@@ -14,6 +14,7 @@ void authenticate()
   })
   .catch((cause: unknown) => {
     failLoader({
+      kind: 'workspace',
       title: 'The workspace failed to load',
       detail: cause instanceof Error ? cause.message : String(cause),
       actionLabel: 'Reload',
