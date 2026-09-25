@@ -248,7 +248,8 @@ export function Transcript({
     <MessageScrollerProvider autoScroll defaultScrollPosition="end">
       <MessageScroller data-slot="chat-transcript" className="min-h-0 flex-1">
         <MessageScrollerViewport ref={viewportRef} className="px-4 py-3">
-          <MessageScrollerContent className="gap-4" aria-busy={status === 'streaming'}>
+          {/* Tecton pads each item by 0.25rem for its focus rings, so gap-2 keeps turns 1rem apart. */}
+          <MessageScrollerContent className="gap-2" aria-busy={status === 'streaming'}>
             {messages.length === 0 && (
               <MessageScrollerItem messageId="empty">{empty}</MessageScrollerItem>
             )}

@@ -117,6 +117,8 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       }}
       onStop={chat.stop}
       history={chat.sent()}
+      // The prompts ArrowUp reaches: enough for a working session, few enough to find one.
+      historyLimit={50}
     >
       {suggestions.length > 0 && (
         <ComposerSuggestions
