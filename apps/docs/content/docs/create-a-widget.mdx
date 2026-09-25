@@ -4,7 +4,7 @@ description: 'Declare a Widget in src/mfe.ts, with its render function in its ow
 ---
 
 A Widget is a screen somebody else's page renders as a component: it takes props, emits the
-events it declares, and owns no URL. One container can export any number of Widgets.
+outputs it declares, and owns no URL. One container can export any number of Widgets.
 
 ## Steps
 
@@ -61,14 +61,14 @@ import { z } from 'zod'
 import { AlertPanel } from './alert-panel.tsx'
 
 export const alertPanelContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     alertId: z.string(),
     severity: z.enum(['info', 'warning', 'critical']).default('info'),
   }),
-  events: {
+  outputSchema: z.object({
     acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
     dismissed: z.object({ alertId: z.string() }),
-  },
+  }),
 }
 
 export const alertPanel = createWidget({
@@ -150,7 +150,7 @@ in another module.
 
 ## Related
 
-- [Define inputs and events](/docs/define-inputs-and-events) — the contract your Widget takes.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the contract your Widget takes.
 - [Render a Widget inside your App](/docs/render-a-widget) — consume it from an App.
 - [Keep hot updates working](/docs/keep-hot-updates-working) — why `render` has its own module.
 - [Test a Widget](/docs/test-a-widget) — mount it with props in a test.

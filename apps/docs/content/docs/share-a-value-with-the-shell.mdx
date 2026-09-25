@@ -45,12 +45,12 @@ definition id holds lower-case letters, digits and single hyphens, so no contain
 <AlertPanel
   alertId="a-1001"
   severity="warning"
-  onAcknowledged={event => setAcknowledged(event.acknowledgedAt)}
+  onAcknowledged={payload => setAcknowledged(payload.acknowledgedAt)}
 />
 ```
 
 Storage is not a channel between containers. A Widget takes inputs as props and reports what
-happened through a declared event. An App reads the page's identity, groups and theme through
+happened through a declared output. An App reads the page's identity, groups and theme through
 `useUser`, `useGroups` and `useTheme`.
 
 </Step>
@@ -79,7 +79,7 @@ inside your App or Widget, bind the key normally and let it resolve to your own 
 ## Related
 
 - [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
-- [Define inputs and events](/docs/define-inputs-and-events) — the Widget's own data channel
-- [React to a Widget's events](/docs/react-to-widget-events) — reading what a Widget reports
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the Widget's own data channel
+- [React to a Widget's outputs](/docs/react-to-widget-outputs) — reading what a Widget reports
 - [Follow the shell theme](/docs/follow-the-shell-theme) — shell state you can read
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why the scopes are apart

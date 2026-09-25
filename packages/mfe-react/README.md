@@ -51,8 +51,8 @@ definitions exactly as they place React ones.
   failure. Without a `fallback`, the failure is thrown to the nearest error
   boundary.
 - **`retry()` acts only after a failure**, and a failed load is loaded afresh.
-- **A Widget is handed only inputs that changed**, and events reach the `onX`
-  prop their name maps to, then `onEvent`, with or without a contract.
+- **A Widget is handed only inputs that changed**, and outputs reach the `onX`
+  prop their name maps to, then `onOutput`, with or without a contract.
 - **Under StrictMode** the effect disposes the first mount before its load
   settles, so a definition's `mount` runs once.
 - **`mfeRoute({ appId })`** delegates a splat route to another App and calls

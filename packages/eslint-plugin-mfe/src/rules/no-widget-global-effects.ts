@@ -68,11 +68,11 @@ const rule: Rule.RuleModule = {
     ),
     messages: {
       history:
-        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the event and navigates with its own boundary router, or the shell with the host `BoundaryNavigator`.",
+        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation output in this Widget's `outputSchema` and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the output and navigates with its own boundary router, or the shell with the host `BoundaryNavigator`.",
       title:
-        "`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title event in this Widget's `events` contract and call `emit('title', { text })` from {{emitAccess}}; the owning App receives the event and sets what it owns.",
+        "`{{access}}` is shell-owned: several Widgets can be mounted at once, so the last one to render would win and the tab title would flicker. Declare a title output in this Widget's `outputSchema` and call `emit('title', { text })` from {{emitAccess}}; the owning App receives the output and sets what it owns.",
       headMetadata:
-        "Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an event for the value in this Widget's `events` contract and `emit` it from {{emitAccess}}; the owning App receives the event and applies it to what it owns, which is also what reverts it.",
+        "Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Widget that reaches for `{{access}}` changes the page for every other MFE and leaves the change behind on unmount. Declare an output for the value in this Widget's `outputSchema` and `emit` it from {{emitAccess}}; the owning App receives the output and applies it to what it owns, which is also what reverts it.",
     },
   },
 

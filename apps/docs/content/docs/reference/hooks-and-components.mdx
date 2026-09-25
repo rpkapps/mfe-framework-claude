@@ -238,52 +238,52 @@ lazyWidget(widgetId: string): (props: LazyWidgetProps<undefined>) => ReactNode
 lazyWidget<C extends WidgetContract>(widgetId: string, options: { contract: C }): (props: LazyWidgetProps<C>) => ReactNode
 ```
 
-Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates events on your side.
+Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates outputs on your side.
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
-The returned component takes the Widget's inputs as props and one `onX` handler per declared event. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
+The returned component takes the Widget's inputs as props and one `onX` handler per declared output. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
 
 Recipe: [Render a Widget inside your App](/docs/render-a-widget).
 
 ### DynamicWidget
 
 ```tsx
-<DynamicWidget widgetId={string} onEvent={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
+<DynamicWidget widgetId={string} onOutput={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
 ```
 
-Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so events arrive by name through one `onEvent` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
+Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so outputs arrive by name through one `onOutput` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
 
 ```tsx title="apps/shell/src/shell/dashboard/tile.tsx"
 <DynamicWidget
   widgetId={tile.widgetId}
   {...tile.inputs}
-  onEvent={onEvent}
+  onOutput={onOutput}
   pending={<MountingSkeleton />}
 />
 ```
 
 Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
 
-### describeWidgetInputs and describeWidgetEvents
+### describeInputs and describeOutputs
 
 ```ts
-describeWidgetInputs(contract: PublishedWidgetContract | undefined): readonly WidgetInputField[] | null
-describeWidgetEvents(contract: PublishedWidgetContract | undefined): readonly WidgetEvent[] | null
+describeInputs(contract: PublishedContract | undefined): readonly WidgetInputField[] | null
+describeOutputs(contract: PublishedContract | undefined): readonly WidgetOutput[] | null
 ```
 
-Read the schemas a registry entry publishes in `contract`. A host uses them for a Widget whose contract it never imports. Both walk the JSON Schema with the same code, so an event's payload and another Widget's inputs are described the same way.
+Read the schemas a registry entry publishes in `contract`. A host uses them for a Widget whose contract it never imports. Both walk the JSON Schema with the same code, so an output's payload and another Widget's inputs are described the same way.
 
 ```ts title="apps/shell/src/shell/dashboard/input-schema.ts (trimmed)"
-import { describeWidgetEvents } from '@company/mfe-react'
+import { describeOutputs } from '@company/mfe-react'
 
-const events = describeWidgetEvents(entry.contract)
+const outputs = describeOutputs(entry.contract)
 // [{ name: 'acknowledged', schema: {…}, payload: [{ name: 'alertId', kind: 'string', required: true, … }] }]
 ```
 
@@ -292,9 +292,9 @@ const events = describeWidgetEvents(entry.contract)
 | `null`               | The build could not read the schema. Show it as unknown.                                                                      |
 | `[]`                 | The Widget takes nothing, or emits nothing.                                                                                   |
 | `WidgetInputField[]` | One field per input: `name`, `required`, `kind`, `nullable`, and any `enumValues`, `format`, `defaultValue` or `description`. |
-| `WidgetEvent[]`      | One event per declared event, in order: `name`, `schema` and `payload`.                                                       |
+| `WidgetOutput[]`     | One entry per declared output, in order: `name`, `schema` and `payload`.                                                      |
 
-A `WidgetEvent`'s `payload` lists the payload's fields as `WidgetInputField`s. It is `null` when the build could not read that payload.
+A `WidgetOutput`'s `payload` lists the payload's fields as `WidgetInputField`s. It is `null` when the build could not read that payload.
 
 Three helpers work on the input fields:
 

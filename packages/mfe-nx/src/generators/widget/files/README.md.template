@@ -50,6 +50,6 @@ override is a URL only, never a token.
 ## Being consumed
 
 The generated `.mfe/widgets/<%= id %>.contract.ts` module (published at
-`<%= packageName %>/contracts`) exports `inputs` and `events` for a consumer that wants prop and
-event inference; without it a consumer gets `Record<string, unknown>` inputs and `unknown`
+`<%= packageName %>/contracts`) exports `inputSchema` and `outputSchema` for a consumer that wants prop and
+output inference; without it a consumer gets `Record<string, unknown>` inputs and `unknown`
 payloads.

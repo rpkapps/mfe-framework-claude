@@ -1,9 +1,9 @@
 ---
 title: 'Ask the owning App to navigate or set the title'
-description: 'A Widget emits an event, and the App that renders it navigates or sets its heading.'
+description: 'A Widget emits an output, and the App that renders it navigates or sets its heading.'
 ---
 
-A Widget owns no URL and no tab title. To move the page, declare an event, emit it, and let the
+A Widget owns no URL and no tab title. To move the page, declare an output, emit it, and let the
 App that rendered you act with its own router.
 
 ## Steps
@@ -12,22 +12,23 @@ App that rendered you act with its own router.
 
 <Step>
 
-### 1. Declare the event
+### 1. Declare the output
 
 ```ts title="examples/insights/src/mfe.tsx"
 export const fdaSummaryContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     fdaId: z.enum(['fda-1-02', 'fda-2-3', 'fda-1-2']),
     showActions: z.boolean().default(true),
   }),
-  events: {
+  outputSchema: z.object({
     selected: z.object({ fdaId: z.string(), selected: z.boolean() }),
     opened: z.object({ fdaId: z.string(), title: z.string() }),
-  },
+  }),
 }
 ```
 
-Name the event for what happened, and a `navigate` event carrying `{ to: z.string() }` follows
+Each property of `outputSchema` is one output. Name it for what happened, and a `navigate`
+output carrying `{ to: z.string() }` follows
 the same shape.
 
 </Step>
@@ -58,9 +59,9 @@ const navigate = useNavigate()
 
 <FdaSummary
   fdaId="fda-2-3"
-  onOpened={event => {
-    setHeading(event.title)
-    void navigate({ to: '/reports', search: { fda: event.fdaId } })
+  onOpened={payload => {
+    setHeading(payload.title)
+    void navigate({ to: '/reports', search: { fda: payload.fdaId } })
   }}
 />
 ```
@@ -88,7 +89,7 @@ A Widget does not drive the URL: `history.pushState` navigates the whole page, a
 router, the owning App and every sibling MFE learn about it only by accident.
 ```
 
-**Fix.** Declare a navigation event and emit it. The App navigates with its own router.
+**Fix.** Declare a navigation output and emit it. The App navigates with its own router.
 
 </Callout>
 
@@ -99,7 +100,7 @@ router, the owning App and every sibling MFE learn about it only by accident.
 would win and the tab title would flicker.
 ```
 
-**Fix.** Declare a title event and emit it. The App sets the heading it owns.
+**Fix.** Declare a title output and emit it. The App sets the heading it owns.
 
 </Callout>
 
@@ -108,8 +109,8 @@ Reading is allowed, so `const current = document.title` is fine.
 
 ## Related
 
-- [Define inputs and events](/docs/define-inputs-and-events) — declaring the event.
-- [React to a Widget's events](/docs/react-to-widget-events) — the handler on the App's side.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — declaring the output.
+- [React to a Widget's outputs](/docs/react-to-widget-outputs) — the handler on the App's side.
 - [Link to another App](/docs/link-to-another-app) — when the target is outside your boundary.
 - [Lint rules](/docs/reference/lint-rules) — the full message and how to enable the rule.
 - [What you must not do](/docs/what-you-must-not-do) — every rule, and what enforces it.

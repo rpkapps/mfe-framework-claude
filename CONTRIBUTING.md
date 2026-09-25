@@ -70,7 +70,7 @@ unchanged sources produce unchanged bytes.
   side effects and framework-specific rendering where that makes behaviour
   easier to follow.
 - Use the same term for the same operation across packages. Loading, mounting,
-  retrying, disposal and event delivery each have one name; do not introduce a
+  retrying, disposal and output delivery each have one name; do not introduce a
   synonym.
 - Prefer explicit control flow, focused functions and early returns over deep
   nesting, dense expressions or boolean mode flags. Do not fragment a readable

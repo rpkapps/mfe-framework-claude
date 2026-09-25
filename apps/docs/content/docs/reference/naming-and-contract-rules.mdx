@@ -1,6 +1,6 @@
 ---
 title: 'Naming and contract rules'
-description: 'The rules ids, events, inputs and payloads must follow, and where each one is checked.'
+description: 'The rules ids, outputs, inputs and payloads must follow, and where each one is checked.'
 ---
 
 Every name your container publishes is checked, most of them twice: once by the build, and once when your code runs. This page collects the rules and says where each is enforced.
@@ -22,32 +22,32 @@ Lower-case letters, digits and single hyphens. No leading, trailing or doubled h
 
 `@host` is the page's own scope name. The `@` is not a legal id character, so a definition can never claim it.
 
-## Event names
+## Output names
 
 ```ts
-events: {
+outputSchema: z.object({
   acknowledged: z.object({ alertId: z.string() }),
   selectionChanged: z.object({ ids: z.array(z.string()) }),
-}
+})
 ```
 
-Lower camel case: a lower-case letter, then letters and digits. A consumer subscribes with `on` plus the name capitalised, so `acknowledged` arrives as `onAcknowledged`.
+Each property of `outputSchema` is one output, and its name follows the same rule. Lower camel case: a lower-case letter, then letters and digits. A consumer subscribes with `on` plus the name capitalised, so `acknowledged` arrives as `onAcknowledged`.
 
-Two events must also map to two different handler props. The build names both events and asks you to rename one. Both rules run at build time and again in `createWidget`.
+Two outputs must also map to two different handler props. The build names both outputs and asks you to rename one. Both rules run at build time and again in `createWidget`.
 
 ## Reserved input names
 
-A Widget may not declare an input called `key`, `ref` or `fallback`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to events.
+A Widget may not declare an input called `key`, `ref` or `fallback`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to outputs.
 
 ```ts
-// Rejected: onSelect is an event handler's name.
-inputs: z.object({ onSelect: z.string() })
+// Rejected: onSelect is an output handler's name.
+inputSchema: z.object({ onSelect: z.string() })
 
-// Accepted: declare the event instead.
-inputs: z.object({ alertId: z.string() })
-events: {
-  selected: z.object({ alertId: z.string() })
-}
+// Accepted: declare the output instead.
+inputSchema: z.object({ alertId: z.string() })
+outputSchema: z.object({
+  selected: z.object({ alertId: z.string() }),
+})
 ```
 
 The build checks the declared keys, and the mount boundary checks the parsed ones.
@@ -62,7 +62,7 @@ An action name is letters, digits and hyphens, starting with a letter, for examp
 
 ## JSON-only payloads
 
-Everything that crosses the Widget boundary must survive JSON. That covers inputs and event payloads, in both directions.
+Everything that crosses the Widget boundary must survive JSON. That covers inputs and output payloads, in both directions.
 
 | Allowed                   | Rejected                                       |
 | ------------------------- | ---------------------------------------------- |
@@ -71,15 +71,15 @@ Everything that crosses the Widget boundary must survive JSON. That covers input
 | plain objects and arrays  | `Date`, `Map`, `Set`, `RegExp`, `Error`        |
 | an absent optional field  | DOM nodes, React elements, circular references |
 
-A consumer that needs a callback subscribes to an event instead. A date crosses as an ISO string, which is what `examples/alert-panel` sends in `acknowledgedAt`.
+A consumer that needs a callback subscribes to an output instead. A date crosses as an ISO string, which is what `examples/alert-panel` sends in `acknowledgedAt`.
 
 <Callout type="error" title="contract/input-mismatch">
 
 ```text
-expected a JSON-serializable value, received a function. A consumer that needs a callback subscribes to an event instead. Only JSON data crosses the boundary: no functions, class instances or DOM nodes.
+expected a JSON-serializable value, received a function. A consumer that needs a callback subscribes to an output instead. Only JSON data crosses the boundary: no functions, class instances or DOM nodes.
 ```
 
-**Fix.** Declare an event for what the callback was for, and emit it.
+**Fix.** Declare an output for what the callback was for, and emit it.
 
 </Callout>
 
@@ -87,23 +87,23 @@ expected a JSON-serializable value, received a function. A consumer that needs a
 
 The build reads your entry module without running it, so anything published in the registry has to be readable from the source.
 
-| Field                                                   | Where                       |
-| ------------------------------------------------------- | --------------------------- |
-| `id`, `version`, `title`, `description`                 | `createApp`, `createWidget` |
-| `tags`, as an array of non-empty string literals        | `createApp`, `createWidget` |
-| `icon`, as an imported identifier or an imported `.svg` | `createApp`, `createWidget` |
-| `capability`, as `{ name, label, icon? }`               | a route's `staticData`      |
-| `inputs` and `events`, as top-level declarations        | `createWidget`              |
+| Field                                                       | Where                       |
+| ----------------------------------------------------------- | --------------------------- |
+| `id`, `version`, `title`, `description`                     | `createApp`, `createWidget` |
+| `tags`, as an array of non-empty string literals            | `createApp`, `createWidget` |
+| `icon`, as an imported identifier or an imported `.svg`     | `createApp`, `createWidget` |
+| `capability`, as `{ name, label, icon? }`                   | a route's `staticData`      |
+| `inputSchema` and `outputSchema`, as top-level declarations | `createWidget`              |
 
 A computed value fails the build with the file, the line and the column. A schema imported from another package fails too, because the generated contract module copies the declaration and can only copy one it can see.
 
-The build also publishes `inputs` and `events` in the registry entry, as JSON Schema. There, a schema it cannot read does not fail the build. The build leaves it out instead:
+The build also publishes `inputSchema` and `outputSchema` in the registry entry, as JSON Schema. There, a schema it cannot read does not fail the build. The build leaves it out instead:
 
-| What you wrote                                              | What the registry entry carries                           |
-| ----------------------------------------------------------- | --------------------------------------------------------- |
-| an `inputs` schema the build cannot read, like `.refine(…)` | no `contract.inputs`. A host asks for the inputs as JSON. |
-| a spread or a computed key in the `events` object           | no `contract.events`. A host cannot list your events.     |
-| an event payload the build cannot read, like `.refine(…)`   | that event with `{}`, shown as "payload not published".   |
+| What you wrote                                             | What the registry entry carries                                |
+| ---------------------------------------------------------- | -------------------------------------------------------------- |
+| an `inputSchema` the build cannot read, like `.refine(…)`  | no `contract.inputSchema`. A host asks for the inputs as JSON. |
+| a spread or a computed key in the `outputSchema` object    | no `contract.outputSchema`. A host cannot list your outputs.   |
+| an output payload the build cannot read, like `.refine(…)` | that output with `{}`, shown as "payload not published".       |
 
 Your Widget still validates every input and payload in all three cases. Only a host reading the registry knows less.
 
@@ -114,7 +114,7 @@ Your Widget still validates every input and payload in all three cases. Only a h
 ## Related
 
 - [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — every option.
-- [Define inputs and events](/docs/define-inputs-and-events) — the recipe for a contract.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the recipe for a contract.
 - [Error codes](/docs/reference/error-codes) — every message, with the fix.
 - [Lint rules](/docs/reference/lint-rules) — what your editor catches first.
 - [What you must not do](/docs/what-you-must-not-do) — the rules in one page.

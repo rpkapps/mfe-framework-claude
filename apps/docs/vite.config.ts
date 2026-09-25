@@ -62,10 +62,10 @@ const RECIPES = [
   'embed-another-app',
   // Widgets
   'create-a-widget',
-  'define-inputs-and-events',
+  'define-inputs-and-outputs',
   'render-a-widget',
   'render-a-widget-at-run-time',
-  'react-to-widget-events',
+  'react-to-widget-outputs',
   'ask-the-app-to-navigate',
   // Env
   'declare-an-env-variable',

@@ -89,8 +89,8 @@ import { z } from 'zod'
 import { AlertPanelComponent } from './alert-panel.component'
 
 export const alertPanelContract = {
-  inputs: z.object({ label: z.string() }),
-  events: { activated: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
 }
 
 export const alertPanel = createWidget({
@@ -101,10 +101,10 @@ export const alertPanel = createWidget({
 })
 ```
 
-The component is the contract. Every input key is a component input, and every event is a
-component output of the same name. The mount checks that before it creates anything, and a mismatch
+The component is the contract. Every input key is a component input, and every property of the
+`outputSchema` is a component output of the same name, whether or not it is required. The mount checks that before it creates anything, and a mismatch
 rejects the mount with the member to add. Inputs are validated against the schema before the first
-render, and every payload is validated against its event schema before the host sees it.
+render, and every payload is validated against its output's schema before the host sees it.
 
 ## Read the shell from inside a mount
 
@@ -145,7 +145,7 @@ bootstrapApplication(ShellComponent, {
   widgetId="alert-panel"
   [inputs]="{ label: 'Acknowledge' }"
   [pending]="loading"
-  (event)="onWidgetEvent($event)"
+  (output)="onWidgetOutput($event)"
   (failed)="error = $event"
 />
 <mfe-app-host appId="reports" basePath="/reports" />
@@ -154,13 +154,14 @@ bootstrapApplication(ShellComponent, {
 Both components place the definition through the runtime's `mountDefinition`, so they host React
 definitions as readily as Angular ones. Inside a mount, they use the mount's own runtime.
 
-| Member     | What it does                                                         |
-| ---------- | -------------------------------------------------------------------- |
-| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.               |
-| `pending`  | A template shown while the status is `pending`.                      |
-| `(failed)` | Emits the error each time the mount fails, before or after mounting. |
-| `retry()`  | Tries again after a failure. A failed load is loaded afresh.         |
-| `[inputs]` | Reaches the Widget only when it changed.                             |
+| Member     | What it does                                                                       |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.                             |
+| `pending`  | A template shown while the status is `pending`.                                    |
+| `(output)` | Emits an `MfeWidgetOutput`, `{ name, payload }`, for each output the Widget emits. |
+| `(failed)` | Emits the error each time the mount fails, before or after mounting.               |
+| `retry()`  | Tries again after a failure. A failed load is loaded afresh.                       |
+| `[inputs]` | Reaches the Widget only when it changed.                                           |
 
 Inside an App, `mfeAppRoute({ appId, path })` delegates everything below a prefix to another App. A
 routed `<mfe-app-host>` calls `navigator.announce()` after each navigation of the router it sits
@@ -212,12 +213,12 @@ import { mountWidget } from '@company/mfe-angular/testing'
 
 const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
 widget.element.querySelector('button')?.click()
-expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
+expect(widget.outputs).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
 ```
 
 `mountWidget` and `mountApp` place the definition through `mountDefinition`, the path every host
 takes. They resolve once the first render has settled. The result holds the scope root as
-`element`, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered `events`
+`element`, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered `outputs`
 and the `rejectedInputs`.
 
 ## Related

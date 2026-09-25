@@ -45,7 +45,7 @@ const mount = mountDefinition({
   definitionId: 'alert-panel',
   kind: 'widget',
   inputs: { alertId: 'a-42' },
-  onEvent: (name, payload) => handle(name, payload),
+  onOutput: (name, payload) => handle(name, payload),
   parent, // the enclosing MountContext, if any
 })
 mount.subscribe(() => render(mount.getState()))
@@ -66,7 +66,7 @@ own included. The runtime:
   render;
 - drops an input set shallow-equal to the last, and delivers inputs that
   changed while the mount was pending once, afterwards;
-- reports an event the host's own contract refuses, rather than throwing it;
+- reports an output the host's own contract refuses, rather than throwing it;
 - retries only from the error state, disposes a nested mount with its parent,
   and tears down the definition before its context.
 

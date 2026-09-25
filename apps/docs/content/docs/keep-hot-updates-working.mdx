@@ -17,8 +17,10 @@ every edit, with the state on the page.
 
 ```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
 export const alertPanelContract = {
-  inputs: z.object({ alertId: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }) },
+  inputSchema: z.object({ alertId: z.string() }),
+  outputSchema: z.object({
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+  }),
 }
 
 export const alertPanel = createWidget({

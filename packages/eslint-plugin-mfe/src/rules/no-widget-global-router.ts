@@ -37,7 +37,7 @@ const rule: Rule.RuleModule = {
     schema: widgetScopeSchema("How this Widget's render reaches `emit`, named in the repair."),
     messages: {
       navigate:
-        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation event in this Widget's `events` contract and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the event and navigates with its own `Router`, scoped to its `BoundaryLocationStrategy`, or the shell with the host `BoundaryNavigator`.",
+        "A Widget does not drive the URL: `{{access}}` navigates the whole page, and the host router, the owning App and every sibling MFE learn about it only by accident. Declare a navigation output in this Widget's `outputSchema` and call `emit('navigate', { to })` from {{emitAccess}}; the owning App receives the output and navigates with its own `Router`, scoped to its `BoundaryLocationStrategy`, or the shell with the host `BoundaryNavigator`.",
     },
   },
 

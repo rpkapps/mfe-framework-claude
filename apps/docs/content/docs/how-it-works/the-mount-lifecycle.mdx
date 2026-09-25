@@ -22,12 +22,12 @@ Five boxes run left to right, each with an arrow into the next.
 - **the definition is checked** — `isMountableDefinition`, then its kind.
 - **the roots are created** — the scope root, then `createMountContext`.
 - **mounted, taking input** — `definition.mount(target)`. This is the blue box, and a loop arrow
-  returns to it, labelled "input, or event".
+  returns to it, labelled "input, or output".
 - **disposed** — `dispose()`, then the context.
 
 A dashed panel below them, **Where a failure goes**, holds six codes: `load/manifest-failure`,
 `load/timeout`, `mount/failure`, `app/invalid-router`, `contract/input-mismatch` and
-`contract/event-mismatch`. A red dashed arrow drops into that panel from the first box, the second
+`contract/output-mismatch`. A red dashed arrow drops into that panel from the first box, the second
 and the fourth. A grey box at the bottom, **StrictMode**, reads "first handle disposed; mount runs
 once". A legend names the two colours: blue for the box where the container renders, red for the
 failure path.
@@ -38,7 +38,7 @@ failure path.
 
 A host renders an empty element and calls `mountDefinition` with the runtime, that element, the
 definition id and its kind. An App request adds the base path. A Widget request adds the inputs and
-an `onEvent` handler. The call returns a handle with the mount's state, `retry()`, `dispose()` and,
+an `onOutput` handler. The call returns a handle with the mount's state, `retry()`, `dispose()` and,
 for a Widget, `update(inputs)`.
 
 `AppHost`, `DynamicWidget` and the component `lazyWidget` returns all work this way. So do
@@ -97,12 +97,12 @@ the first commit goes to `target.onFailure` instead, which moves the mount to `e
 A Widget receives its inputs only when they change. The runtime drops a set shallow-equal to the
 last one, and inputs that changed while the Widget was mounting arrive once, afterwards. The Widget
 validates each set in three steps. Serializability comes first, so the diagnostic names the real
-problem. Then the declared `inputs` schema runs, and then the parsed key names are checked against
+problem. Then the declared `inputSchema` runs, and then the parsed key names are checked against
 the reserved ones. The first set that fails rejects the mount. A later set that fails keeps the last
 valid inputs on screen and is reported.
 
-`emit(name, payload)` checks that the event is declared, that the payload is JSON-serializable, and
-that it matches the declared schema. All three throw at the call site, in the Widget's own stack.
+`emit(name, payload)` checks that the output is declared, that the payload is JSON-serializable, and
+that it matches the payload schema the `outputSchema` declares for it. All three throw at the call site, in the Widget's own stack.
 A host that supplied its own contract checks the payload a second time. A payload that fails there is
 reported and not delivered, because a narrower expectation is not the Widget's bug.
 
@@ -134,7 +134,7 @@ container module cache, so mounting the same App again does not refetch it.
 | `app/invalid-router`                        | the first render rejects the mount          | the host's `fallback`                             |
 | `contract/input-mismatch`, first validation | the mount rejects                           | the host's `fallback`                             |
 | `contract/input-mismatch`, later update     | reported to diagnostics                     | the last inputs that passed, still on screen      |
-| `contract/event-mismatch`                   | thrown at the `emit` call site              | a throw in the Widget's own code                  |
+| `contract/output-mismatch`                  | thrown at the `emit` call site              | a throw in the Widget's own code                  |
 | `mount/failure`, after the first commit     | `onFailure` moves the mount to `error`      | the host's `fallback`                             |
 | a render error inside a mounted App         | caught by the App's `defaultErrorComponent` | that error component, inside the App              |
 

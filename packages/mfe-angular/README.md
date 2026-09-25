@@ -199,8 +199,8 @@ import { z } from 'zod'
 import { AlertPanelComponent } from './alert-panel.component'
 
 export const alertPanelContract = {
-  inputs: z.object({ label: z.string() }),
-  events: { activated: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
 }
 
 export const alertPanel = createWidget({
@@ -231,10 +231,12 @@ export class AlertPanelComponent {
 ```
 
 The component is the contract: **every input key is a component input, and
-every event is a component output of the same public name.** The mount checks
+every property of the `outputSchema` is a component output of the same public
+name.** The mount checks
 that with `reflectComponentType` before creating anything, and a mismatch
 rejects the mount with the missing member and the line to add. The component may
-declare further inputs, which keep their defaults. `input()`/`output()` and
+declare further inputs, which keep their defaults. Required-ness in the
+`outputSchema` is ignored: any output may never be emitted. `input()`/`output()` and
 `@Input()`/`@Output()` both work.
 
 Inputs are validated against the schema — serializability first — before the
@@ -242,7 +244,7 @@ first render; invalid first inputs reject the mount. A later update is compared
 with the last one, validated, and set on the live component for the keys that
 changed; a rejected update keeps the last valid inputs, reaches the shell's
 diagnostics and the host's `onInputRejected`. Every payload is validated against
-its event schema before the host sees it. An output's payload that fails is
+its output's schema before the host sees it. An output's payload that fails is
 reported rather than thrown, because Angular's output machinery would swallow or
 defer the throw; `injectWidgetEmit()`, which any component inside the Widget can
 use, throws at the call site.
@@ -344,7 +346,7 @@ bootstrapApplication(ShellComponent, {
   [inputs]="{ label: 'Acknowledge' }"
   [contract]="alertPanelContract"
   [pending]="loading"
-  (event)="onWidgetEvent($event)"
+  (output)="onWidgetOutput($event)"
   (failed)="error = $event"
 />
 <mfe-app-host appId="reports" basePath="/reports" />
@@ -365,8 +367,9 @@ Both components keep what the runtime decides out of the host's hands:
 - **Nesting.** Inside a mount, a placed definition is one level deeper than the
   mount it sits in and is disposed with it.
 
-`<mfe-widget>` validates events against a `contract` it is given and reports,
-rather than delivers, one that fails. Inside an App,
+`<mfe-widget>` emits each output through `(output)` as an `MfeWidgetOutput`
+(`{ name, payload }`). It validates outputs against a `contract` it is given
+and reports, rather than delivers, one that fails. Inside an App,
 `mfeAppRoute({ appId, path: 'reports' })` delegates everything below a prefix to
 another App: the boundary is the parent's boundary joined with the matched
 prefix, and the nested App is one level deeper. A routed `<mfe-app-host>` tells
@@ -394,7 +397,7 @@ import { mountWidget } from '@company/mfe-angular/testing'
 
 const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
 widget.element.querySelector('button')?.click()
-expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
+expect(widget.outputs).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
 ```
 
 `mountWidget` and `mountApp` place the definition through the runtime's
@@ -403,7 +406,7 @@ expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(St
 it but memory. They resolve once the first render has settled and return the
 scope root the runtime created (`element`), the environment, the mount's
 injector, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the
-delivered `events` and the `rejectedInputs`; a mount that fails rejects with its
+delivered `outputs` and the `rejectedInputs`; a mount that fails rejects with its
 error and leaves nothing behind. Given an `environment` of your own, list the
 definition in its `definitions`, as a shell's registry lists what it mounts.
 For a host component, `createHostApplication(environment)` boots a zoneless

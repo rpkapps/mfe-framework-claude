@@ -71,8 +71,8 @@ authors write ordinary absolute-looking paths.
 
 ```tsx
 export const alertPanelContract = {
-  inputs: z.object({ alertId: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  inputSchema: z.object({ alertId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
 }
 
 export const alertPanel = createWidget({
@@ -84,13 +84,13 @@ export const alertPanel = createWidget({
 })
 ```
 
-Consuming one looks like an ordinary lazy component — inputs are props, events
+Consuming one looks like an ordinary lazy component — inputs are props, outputs
 are `onX` props:
 
 ```tsx
 const AlertPanel = lazyWidget('alert-panel', { contract: alertPanelContract })
 
-<AlertPanel alertId={id} onAcknowledged={event => acknowledge(event.alertId)} />
+<AlertPanel alertId={id} onAcknowledged={payload => acknowledge(payload.alertId)} />
 ```
 
 `lazyWidget` is called at module scope, because the component's identity is what
@@ -103,13 +103,13 @@ learns which Widgets exist when it reads the registry cannot do that, so it uses
 ```
 
 That form has no contract and therefore no consumer-side types; the provider
-still validates every input and every event payload. What the host needs in
-order to ask for the inputs at all — the inputs schema, and a schema for each
-event's payload — is published by the Widget's build into the registry, which
+still validates every input and every output payload. What the host needs in
+order to ask for the inputs at all — the `inputSchema`, and the `outputSchema` with a
+schema for each output's payload — is published by the Widget's build into the registry, which
 is how the shell's dashboard renders a form for a Widget it has never imported.
 
-A host that knows those names only as strings takes every event through
-`DynamicWidget`'s `onEvent(name, payload)` instead, alongside any `onX` props.
+A host that knows those names only as strings takes every output through
+`DynamicWidget`'s `onOutput(name, payload)` instead, alongside any `onX` props.
 
 ### One thing to know before you store anything
 
@@ -142,15 +142,15 @@ A shell is the one consumer that reads the registry instead of being listed in
 it. What it gets is deliberately small, and never anything renderable: the icon,
 the fallback title and the tone that marks an override stay the host's.
 
-| You need                             | What there is                                                                            |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| to list what the registry holds      | `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`               |
-| to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                          |
-| where an App keeps a capability page | `capabilityRoute(entry, name)`                                                           |
-| what a Widget takes                  | `describeWidgetInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
-| to store what the page owns          | `useStoredState` outside a mount, or `bindHost` / `hostStorage`                          |
-| to register the page's own actions   | `useAction` outside a mount, or `ActionRegistry.registerHost`                            |
-| the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                        |
+| You need                             | What there is                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| to list what the registry holds      | `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`         |
+| to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                    |
+| where an App keeps a capability page | `capabilityRoute(entry, name)`                                                     |
+| what a Widget takes                  | `describeInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
+| to store what the page owns          | `useStoredState` outside a mount, or `bindHost` / `hostStorage`                    |
+| to register the page's own actions   | `useAction` outside a mount, or `ActionRegistry.registerHost`                      |
+| the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                  |
 
 A React shell boots from `@company/mfe-react/host`, which re-exports the whole
 runtime beside `MfeProvider`, and lists every adapter it reads the registry

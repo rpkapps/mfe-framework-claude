@@ -266,13 +266,13 @@ included.
 
 `/` composes a page out of Widgets the shell was never built against. It knows
 three things about each one, all of them read from the registry: an id, an
-input schema and an events schema, whose properties are the event names and
+`inputSchema` and an `outputSchema`, whose properties are the output names and
 their payloads. Drag a Widget from the catalogue onto
 the canvas — or press its Add button, which is the same thing without a pointer
 — and a dialog asks for its inputs.
 
 The form is generated over the framework's reflection of that published schema
-(`describeWidgetInputs`, with `needsInputPrompt` deciding whether to ask at
+(`describeInputs`, with `needsInputPrompt` deciding whether to ask at
 all); which control each field becomes is this shell's, in
 `dashboard/input-schema.ts`, and a field the build could not describe gets a raw
 JSON box.
@@ -285,8 +285,8 @@ without a store of the shell's own. The old `company:shell:dashboard` key is not
 migrated.
 
 Everything the Widgets emit appears in the activity feed beside them, subscribed
-through `DynamicWidget`'s `onEvent` since the shell knows these events only as
-strings — as named fields, because a Widget's event payload is the half of its
+through `DynamicWidget`'s `onOutput` since the shell knows these outputs only as
+strings — as named fields, because a Widget's output payload is the half of its
 contract a screenshot cannot show and `{"fdaId":"fda-1-02"}` is not something
 anyone should have to parse by eye.
 

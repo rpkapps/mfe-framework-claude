@@ -195,9 +195,9 @@ and only an App may claim any. The page is yours to write, and the shell opens i
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
 ```tsx title="examples/operations/src/routes/index.tsx"
@@ -214,8 +214,8 @@ function Overview() {
         alertId="a-1001"
         severity="warning"
         pending={<p>Loading the alert panel…</p>}
-        onAcknowledged={event => {
-          setAcknowledged(event.acknowledgedAt)
+        onAcknowledged={payload => {
+          setAcknowledged(payload.acknowledgedAt)
         }}
       />
       {acknowledged === null ? null : <p>Acknowledged at {acknowledged}.</p>}
@@ -224,7 +224,7 @@ function Overview() {
 }
 ```
 
-Call `lazyWidget` at module scope, once. A Widget's inputs are ordinary props, and each event it
+Call `lazyWidget` at module scope, once. A Widget's inputs are ordinary props, and each output it
 declares arrives as an `onX` prop. `pending` fills the space while the other container is fetched.
 
 </Step>
@@ -309,5 +309,5 @@ your code, so it cannot be computed.
 - [Architecture](/docs/architecture) — what you have deployed once this runs.
 - [Add a settings page](/docs/add-a-settings-page) — the capability route on its own.
 - [Publish release notes](/docs/publish-release-notes) — the same marker, third name.
-- [Render a Widget inside your App](/docs/render-a-widget) — inputs, events and the pending slot.
+- [Render a Widget inside your App](/docs/render-a-widget) — inputs, outputs and the pending slot.
 - [Test an App](/docs/test-an-app) — more of what `renderApp` gives you.

@@ -61,16 +61,16 @@ major.
 <Step>
 ### 4. Decide whether a change breaks your consumers
 
-| Change to a Widget contract | What a consumer gets                                             |
-| --------------------------- | ---------------------------------------------------------------- |
-| a new optional input        | nothing. Its inputs still pass                                   |
-| a new event                 | nothing, until it handles the new name                           |
-| an event removed or renamed | its `onX` handler is dropped, and never runs again               |
-| a new required input        | its first render fails, and its `fallback` renders instead       |
-| a tighter input schema      | the same failure, for whoever passes the old value               |
-| a new definition id         | a different definition. Its stored records stay under the old id |
+| Change to a Widget contract  | What a consumer gets                                             |
+| ---------------------------- | ---------------------------------------------------------------- |
+| a new optional input         | nothing. Its inputs still pass                                   |
+| a new output                 | nothing, until it handles the new name                           |
+| an output removed or renamed | its `onX` handler is dropped, and never runs again               |
+| a new required input         | its first render fails, and its `fallback` renders instead       |
+| a tighter input schema       | the same failure, for whoever passes the old value               |
+| a new definition id          | a different definition. Its stored records stay under the old id |
 
-Ship any of the four breaking rows under a new name: a new event, a new input, or a new id.
+Ship any of the four breaking rows under a new name: a new output, a new input, or a new id.
 
 </Step>
 
@@ -111,7 +111,7 @@ upgrade. Nothing you write sets this number.
 ## Related
 
 - [Build and publish a container](/docs/build-and-publish) — where these versions are written.
-- [Define inputs and events](/docs/define-inputs-and-events) — the contract a consumer compiles against.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the contract a consumer compiles against.
 - [Undeploy or roll back](/docs/undeploy-or-roll-back) — going back to the version before.
 - [Registry entry](/docs/reference/registry-entry) — the fields an entry carries.
 - [Error codes](/docs/reference/error-codes) — every code, with its fix.

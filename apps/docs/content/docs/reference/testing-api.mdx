@@ -62,22 +62,22 @@ mountApp(definition, options?: MountAppOptions): Promise<MountedTestDefinition>
 mountWidget(definition, options?: MountWidgetOptions): Promise<MountedTestWidget>
 ```
 
-Place a definition the way every host does: through the runtime's `mountDefinition`, into an element attached to `document.body`, with the definition's own `mount`. They resolve once the mount settles and reject with the error it failed with. Reach for them when the test is about the host's side — the scope root, retry, disposal, or the events that reached the host. Any adapter's definition works.
+Place a definition the way every host does: through the runtime's `mountDefinition`, into an element attached to `document.body`, with the definition's own `mount`. They resolve once the mount settles and reject with the error it failed with. Reach for them when the test is about the host's side — the scope root, retry, disposal, or the outputs that reached the host. Any adapter's definition works.
 
-| Option          | Type                      | What it is                                                       |
-| --------------- | ------------------------- | ---------------------------------------------------------------- |
-| `basePath`      | `string`                  | `mountApp` only. The boundary; the history starts there.         |
-| `inputs`        | `Record<string, unknown>` | `mountWidget` only. The first inputs.                            |
-| `onEvent`       | `(name, payload) => void` | `mountWidget` only. Called for each event that reached the host. |
-| `memory`        | `MemoryRuntime`           | A runtime the test owns, which `dispose` leaves alive.           |
-| everything else | `MemoryRuntimeOptions`    | Used to build a runtime when `memory` is absent.                 |
+| Option          | Type                      | What it is                                                        |
+| --------------- | ------------------------- | ----------------------------------------------------------------- |
+| `basePath`      | `string`                  | `mountApp` only. The boundary; the history starts there.          |
+| `inputs`        | `Record<string, unknown>` | `mountWidget` only. The first inputs.                             |
+| `onOutput`      | `(name, payload) => void` | `mountWidget` only. Called for each output that reached the host. |
+| `memory`        | `MemoryRuntime`           | A runtime the test owns, which `dispose` leaves alive.            |
+| everything else | `MemoryRuntimeOptions`    | Used to build a runtime when `memory` is absent.                  |
 
-What they return: `element`, the scope root the runtime created; `memory`; `mount`, the runtime's handle with its `state`, `retry()` and `context`; and `dispose()`. `mountWidget` adds `events`, `rejectedInputs` and `update(inputs)`.
+What they return: `element`, the scope root the runtime created; `memory`; `mount`, the runtime's handle with its `state`, `retry()` and `context`; and `dispose()`. `mountWidget` adds `outputs`, `rejectedInputs` and `update(inputs)`.
 
 ```ts
 const mounted = await mountWidget(alertPanel, { inputs: { alertId: 'a-42' } })
 within(mounted.element).getByRole('button').click()
-expect(mounted.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'a-42' } }])
+expect(mounted.outputs).toEqual([{ name: 'acknowledged', payload: { alertId: 'a-42' } }])
 await mounted.dispose()
 ```
 
@@ -189,7 +189,7 @@ Clears both fixtures at once. The shared vitest setup calls it, so one test neve
 ## Related
 
 - [Test an App](/docs/test-an-app) — the recipe for `renderApp`.
-- [Test a Widget](/docs/test-a-widget) — inputs and emitted events.
+- [Test a Widget](/docs/test-a-widget) — inputs and emitted outputs.
 - [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — the request boundary.
 - [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seeded storage and identity changes.
 - [Hooks and components](/docs/reference/hooks-and-components) — what you are rendering.

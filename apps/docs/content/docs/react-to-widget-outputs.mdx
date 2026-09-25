@@ -1,0 +1,105 @@
+---
+title: "React to a Widget's outputs"
+description: 'Handle each declared output with an onX prop, typed from the published contract.'
+---
+
+Each output a Widget declares arrives as one `onX` prop, so `acknowledged` becomes
+`onAcknowledged`. The payload is validated on its way out of the Widget, so your handler runs on
+data that matches the contract.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Pass the contract, so the handlers are typed
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
+```
+
+With a contract your editor knows every handler name and payload field, and without one the
+component still works.
+
+</Step>
+
+<Step>
+
+### 2. Add one handler per output
+
+```tsx title="examples/lab/src/routes/widgets.tsx (trimmed)"
+<AlertPanel
+  alertId={alertId}
+  severity={severity}
+  onAcknowledged={payload => {
+    record(`acknowledged ${payload.alertId} at ${payload.acknowledgedAt}`)
+  }}
+  onDismissed={payload => {
+    record(`dismissed ${payload.alertId}`)
+  }}
+/>
+```
+
+Subscribe to the outputs you care about, and leave the rest out.
+
+</Step>
+
+<Step>
+
+### 3. Name the payload type where you need it
+
+```ts
+import type { Outputs } from '@example/alert-panel/contracts'
+
+const [latest, setLatest] = useState<Outputs['acknowledged'] | null>(null)
+```
+
+The generated contract module exports the types `Outputs` and `Inputs` beside the schemas.
+`Outputs['acknowledged']` is the payload of that one output.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Press the control inside the Widget and your handler runs with the payload. Payloads are JSON
+only, so a date arrives as the string the Widget sent. An `onX` prop that matches no declared
+output is ignored, and never reaches the Widget as an input. Changing a handler re-renders nothing
+inside the Widget, so an inline arrow function is fine. The lab's Widgets page logs every output it
+receives, which is the quickest way to see the shape of one.
+
+<Callout type="warning" title="The handler never fires">
+
+Check the name first. An output called `acknowledged` is `onAcknowledged`, with one capital letter
+and no other change. Then check that the Widget declares it, as a property of
+`contract.outputSchema` on its registry entry.
+
+</Callout>
+
+## Errors
+
+<Callout type="error" title="contract/output-mismatch">
+
+```text
+alert-panel@1.4.0 failed to emit output 'acknowledged' acknowledgedAt: "2026-05-04T10:15:00.000Z"; ✖ Invalid input: expected number, received string
+  → at acknowledgedAt.
+```
+
+**Fix.** Update the contract package you import. Your copy is older than the Widget that is
+deployed, and your handler is not called while the two disagree.
+
+</Callout>
+
+## Related
+
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — declaring what a Widget emits.
+- [Render a Widget inside your App](/docs/render-a-widget) — the consumer this page extends.
+- [Ask the owning App to navigate](/docs/ask-the-app-to-navigate) — outputs that ask for an action.
+- [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time) — one handler for every
+  output.

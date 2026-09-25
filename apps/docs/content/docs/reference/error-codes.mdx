@@ -9,13 +9,13 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 
 ## Registry and contract codes
 
-| Code                         | When it happens                                                                                                  | Fix                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                    | Rebuild the container. Registry JSON is generated, never hand-written.                          |
-| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                           | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
-| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                    | Rebuild against the shell's major, or upgrade the shell.                                        |
-| `contract/input-mismatch`    | A prop failed the Widget's `inputs` schema, an input name is reserved, or the build could not read the contract. | Send the declared type, or rename the input.                                                    |
-| `contract/event-mismatch`    | An emitted payload failed its schema, or an event name breaks the naming rule.                                   | Check the payload against the schema, or rename the event.                                      |
+| Code                         | When it happens                                                                                                      | Fix                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                        | Rebuild the container. Registry JSON is generated, never hand-written.                          |
+| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                               | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
+| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                        | Rebuild against the shell's major, or upgrade the shell.                                        |
+| `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract.       | Send the declared type, or rename the input.                                                    |
+| `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. | Emit a declared output with a valid payload, or rename the output.                              |
 
 <Callout type="error" title="contract/input-mismatch">
 
@@ -24,6 +24,16 @@ alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected
 ```
 
 **Fix.** Send the type the contract declares. On a first render the Widget throws and your `fallback` renders. On a later update it keeps its last valid inputs and reports the rejection instead.
+
+</Callout>
+
+<Callout type="error" title="contract/output-mismatch">
+
+```text
+alert-panel@1.4.0 failed to emit output 'resolved': expected one of the declared outputs (acknowledged, dismissed), received 'resolved', which this Widget does not declare. Add 'resolved' to the outputSchema, or emit a declared output.
+```
+
+**Fix.** Add the output to the Widget's `outputSchema`, or emit one it already declares. The call throws in the Widget's own stack.
 
 </Callout>
 
@@ -157,12 +167,12 @@ Every build message names the file, and most name the line and column.
 
 | What the build expected                                    | Fix                                                                        |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| an `inputs` schema, or an `events` map                     | Add both. Use `z.object({})` and `{}` when the Widget takes or emits none. |
+| an `inputSchema` schema, or an `outputSchema` schema       | Add both. Use `z.object({})` when the Widget takes or emits none.          |
 | a schema the build can read without running the module     | Declare the schema as an exported top-level const in this container.       |
 | a schema that does not reach back into the container entry | Move the schema into its own module.                                       |
 | a schema built from imports and top-level declarations     | Declare it at the top level, or move the whole schema into its own module. |
-| a lower-camel-case event name                              | Rename the event.                                                          |
-| event names that map to distinct handler props             | Rename one of them.                                                        |
+| a lower-camel-case output name                             | Rename the output.                                                         |
+| output names that map to distinct handler props            | Rename one of them.                                                        |
 | an input name that is not reserved                         | Rename the input. `key`, `ref`, `fallback` and `onX` belong to the host.   |
 
 ## Build diagnostics: capability routes

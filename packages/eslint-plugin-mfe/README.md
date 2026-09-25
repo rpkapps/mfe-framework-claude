@@ -490,8 +490,8 @@ export function Panel() {
   // A new definition identity on every render.
   return createWidget({
     id: 'reports-summary',
-    inputs: z.object({ reportId: z.string() }),
-    events: { opened: z.object({ reportId: z.string() }) },
+    inputSchema: z.object({ reportId: z.string() }),
+    outputSchema: z.object({ opened: z.object({ reportId: z.string() }) }),
     render: Summary,
   })
 }
@@ -511,7 +511,7 @@ export function useWidget() {
 // The classic: rebuilt inside a memo.
 import { lazyWidget } from '@company/mfe-react'
 export function Panel() {
-  return useMemo(() => lazyWidget('alert-panel', { contract: { inputs, events } }), [])
+  return useMemo(() => lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } }), [])
 }
 
 // A class field initialiser runs per construction, not per module.
@@ -527,7 +527,7 @@ export class Holder {
 import { createApp, createWidget, lazyWidget } from '@company/mfe-react'
 import { z } from 'zod'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 import { makeRouter } from './router.ts'
 import { Summary } from './summary.tsx'
 
@@ -535,13 +535,13 @@ export const app = createApp({ id: 'reports', router: makeRouter })
 
 export const widget = createWidget({
   id: 'reports-summary',
-  inputs: z.object({ reportId: z.string() }),
-  events: { opened: z.object({ reportId: z.string() }) },
+  inputSchema: z.object({ reportId: z.string() }),
+  outputSchema: z.object({ opened: z.object({ reportId: z.string() }) }),
   render: Summary,
 })
 
 // Consuming one: an id, and the contract its own build published.
-const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 
 export function Panel() {
   // Reference the definition, do not rebuild it.
@@ -714,7 +714,7 @@ document.head.innerHTML = '<title>Reports</title>'
 **Valid**
 
 ```ts
-// The repair the message asks for: an event this Widget declares, emitted from
+// The repair the message asks for: an output this Widget declares, emitted from
 // its render props, which a React host hands to the `onNavigate` prop.
 export function Panel({ emit }) {
   return () => emit('navigate', { to: '/reports' })
@@ -743,15 +743,15 @@ reported.
 
 **What the message says.** For history: a Widget does not drive the URL, because
 the host router, the owning App and every sibling MFE learn about the navigation
-only by accident; declare a navigation event in the Widget's `events` contract
+only by accident; declare a navigation output in the Widget's `outputSchema`
 and call `emit('navigate', { to })` from its render props, and the owning App
-receives the event and navigates with its own boundary router, or the shell with
+receives the output and navigates with its own boundary router, or the shell with
 the host `BoundaryNavigator`. For the title: several Widgets can be
 mounted at once, so the last to render would win and the tab title would
-flicker; declare a title event and call `emit('title', { text })`, and the
+flicker; declare a title output and call `emit('title', { text })`, and the
 owning App sets what it owns. For head metadata: the favicon, `<meta>` and
 `<title>` belong to the shell, and the change would outlive your unmount;
-declare an event for the value and `emit` it, and the App that applies it is
+declare an output for the value and `emit` it, and the App that applies it is
 also the one that reverts it.
 
 **Options**
@@ -790,7 +790,7 @@ export class PanelComponent {
 **Valid**
 
 ```ts
-// The repair: an event this Widget declares, emitted through injectWidgetEmit().
+// The repair: an output this Widget declares, emitted through injectWidgetEmit().
 export class PanelComponent {
   readonly #emit = injectWidgetEmit<typeof panelContract>()
 
@@ -801,7 +801,7 @@ export class PanelComponent {
 ```
 
 **What the message says.** A Widget does not drive the URL; declare a navigation
-event in the Widget's `events` contract and call `emit('navigate', { to })` from
+output in the Widget's `outputSchema` and call `emit('navigate', { to })` from
 `injectWidgetEmit()`, and the owning App navigates with its own `Router`, scoped
 to its `BoundaryLocationStrategy`, or the shell with the host
 `BoundaryNavigator`.
