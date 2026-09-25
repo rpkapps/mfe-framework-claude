@@ -114,13 +114,17 @@ export {
 
 export {
   ActionRegistry,
-  type ActionDenialNotifier,
-  type ActionExecutionResult,
   type ActionOwner,
   type ActionRegistrationHandle,
   type ActionRegistryOptions,
   type ShortcutDispatchResult,
 } from './actions/action-registry.ts'
+export {
+  type ActionCall,
+  type ActionCaller,
+  type ActionDenialNotifier,
+  type ActionExecutionResult,
+} from './actions/action-executor.ts'
 
 /** The one reading of an action's `shortcut`, for a host that draws or checks one. */
 export {

@@ -101,6 +101,14 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `diagnostics` | the hub every framework failure reaches                                    |
 | `deadlines`   | the budget every mount runs under                                          |
 
+`actions.execute(id, { caller })` runs an action for whoever asked: `'palette'`,
+`'shortcut'`, `'ui'` or `'agent'`. Every caller goes through the same steps in
+`action-executor.ts` — `canExecute` decides, then `execute` runs — and gets back
+`executed` with the `value` `execute` returned, `denied` with the reason,
+`unavailable` when the action is gone, or `failed`. A denial reaches
+`notifyActionDenial` only when a user asked; an agent hears the reason in the
+result.
+
 A host listens for `keydown` once and calls `actions.handleKeyDown(event)`,
 which runs the action whose `shortcut` the keys complete. The host page's
 shortcuts fire everywhere and are reserved; an App's fire while the navigator's

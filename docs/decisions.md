@@ -1129,3 +1129,34 @@ rather than a keys-only constant that would also hide it from the agent unnotice
 **Cost:** "action" is taken twice nearby: React 19 calls an async transition an
 Action (`useActionState`, `<form action>`), and the design system has an `ActionBar`.
 The docs say "action" for ours and name the others in full where both appear.
+
+---
+
+## 40. Every caller runs an action through one executor, and says who it is
+
+**Status:** decided; step 1 of the agentic plan.
+
+The registry ran an action itself, between registration bookkeeping and shortcut
+matching. The agent needs more steps between "may it run" and "run it" — validate the
+input, ask for approval, hold a write while another runs — and a record of who acted
+afterwards, and each step must hold for every caller or the agent gets a path the
+palette does not. So running moved into `action-executor.ts`, as ordered steps:
+decide (`canExecute`), then execute. Validating the input, approval and serializing
+writes land between them, and audit after, each in the commit that adds the field it
+reads; the registry keeps scopes, entries and keys, and hands the executor every run,
+from `execute` and from `handleKeyDown` alike.
+
+`execute(id)` became `execute(id, { caller })`, with `caller` one of `'palette'`,
+`'shortcut'`, `'ui'` and `'agent'`, required so no caller is recorded by default. A
+key press states `'shortcut'` itself. An `executed` result carries the `value`
+`execute` returned, once awaited, so `ActionRegistration.execute` is `() => unknown`
+where it was `() => void | Promise<void>`. The call takes no `input` yet: it arrives
+with `inputSchema`, so there is never a path that hands an action unvalidated input.
+
+A denial goes back to every caller in the result, and to `notifyActionDenial`, which
+carries the caller, only when a user asked. An agent's denial is not also a toast: the
+agent tells the user in its own words, in the chat.
+
+**Cost:** every caller names itself, which the palette's one call site and the tests
+had to learn, and an action's `execute` may now return anything, which no reader
+checks until `outputSchema` exists.

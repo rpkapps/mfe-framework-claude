@@ -301,10 +301,14 @@ describe('renaming through update', () => {
 
     handle.update(registration({ name: 'reload' }))
 
-    await expect(registry.execute('reports:refresh')).resolves.toMatchObject({
-      status: 'unavailable',
+    await expect(registry.execute('reports:refresh', { caller: 'palette' })).resolves.toMatchObject(
+      {
+        status: 'unavailable',
+      },
+    )
+    await expect(registry.execute('reports:reload', { caller: 'palette' })).resolves.toEqual({
+      status: 'executed',
     })
-    await expect(registry.execute('reports:reload')).resolves.toEqual({ status: 'executed' })
   })
 })
 
@@ -361,7 +365,9 @@ describe('execution', () => {
     const { register, registry } = setup()
     register({ execute, canExecute: allow })
 
-    await expect(registry.execute('reports:refresh')).resolves.toEqual({ status: 'executed' })
+    await expect(registry.execute('reports:refresh', { caller: 'palette' })).resolves.toEqual({
+      status: 'executed',
+    })
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
@@ -375,9 +381,34 @@ describe('execution', () => {
       },
     })
 
-    await registry.execute('reports:refresh')
+    await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(finished).toBe(true)
+  })
+
+  it('returns what the action returned, once awaited', async () => {
+    const { register, registry } = setup()
+    register({ execute: async () => await Promise.resolve({ rows: 3 }) })
+
+    await expect(registry.execute('reports:refresh', { caller: 'agent' })).resolves.toEqual({
+      status: 'executed',
+      value: { rows: 3 },
+    })
+  })
+
+  it('tells the user of a denial only when a user asked', async () => {
+    const notifyDenial = vi.fn()
+    const { register, registry } = setup({ notifyDenial })
+    register({ canExecute: () => deny('Select a report before refreshing.') })
+
+    const result = await registry.execute('reports:refresh', { caller: 'agent' })
+
+    // The agent hears the reason and tells the user in its own words.
+    expect(result).toEqual({ status: 'denied', reason: 'Select a report before refreshing.' })
+    expect(notifyDenial).not.toHaveBeenCalled()
+
+    await registry.execute('reports:refresh', { caller: 'ui' })
+    expect(notifyDenial).toHaveBeenCalledWith(expect.objectContaining({ caller: 'ui' }))
   })
 
   it('re-checks the latest committed availability rather than the published entry', async () => {
@@ -394,7 +425,7 @@ describe('execution', () => {
     )
     allowed = false
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result).toEqual({ status: 'denied', reason: 'Select a report before refreshing.' })
     expect(execute).not.toHaveBeenCalled()
@@ -402,6 +433,7 @@ describe('execution', () => {
       actionId: 'reports:refresh',
       label: 'Refresh data',
       reason: 'Select a report before refreshing.',
+      caller: 'palette',
     })
   })
 
@@ -414,7 +446,7 @@ describe('execution', () => {
     registry.subscribe(subscriber)
 
     allowed = false
-    await registry.execute('reports:refresh')
+    await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(registry.getSnapshot()[0]?.decision).toEqual({ allowed: false, reason: 'Not now.' })
     expect(subscriber).toHaveBeenCalledTimes(1)
@@ -423,7 +455,7 @@ describe('execution', () => {
   it('reports an unknown action as unavailable and diagnoses it', async () => {
     const { registry, records } = setup()
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('unavailable')
     expect(records).toHaveLength(1)
@@ -438,7 +470,7 @@ describe('execution', () => {
     register()
     registry.removeMount('mount-1')
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('unavailable')
     expect(codesOf(records)).toEqual(['action/duplicate-name'])
@@ -456,7 +488,7 @@ describe('execution', () => {
     })
     records.length = 0
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result).toEqual({
       status: 'denied',
@@ -476,7 +508,7 @@ describe('execution', () => {
       },
     })
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('failed')
     if (result.status !== 'failed') return
@@ -492,7 +524,7 @@ describe('execution', () => {
     const { register, registry, records } = setup()
     register({ execute: () => Promise.reject(new Error('network down')) })
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('failed')
     expect(codesOf(records)).toEqual(['mount/failure'])
@@ -507,7 +539,7 @@ describe('execution', () => {
       },
     })
 
-    const result = await registry.execute('reports:refresh')
+    const result = await registry.execute('reports:refresh', { caller: 'palette' })
 
     expect(result.status).toBe('failed')
     if (result.status !== 'failed') return
@@ -526,9 +558,11 @@ describe('disposal', () => {
     registry.dispose()
 
     expect(registry.size).toBe(0)
-    await expect(registry.execute('reports:refresh')).resolves.toMatchObject({
-      status: 'unavailable',
-    })
+    await expect(registry.execute('reports:refresh', { caller: 'palette' })).resolves.toMatchObject(
+      {
+        status: 'unavailable',
+      },
+    )
     expect(subscriber).not.toHaveBeenCalled()
   })
 })
@@ -578,7 +612,7 @@ describe('the host scope', () => {
       registration({ name: 'clear', canExecute: () => deny('There is nothing on the canvas.') }),
     )
 
-    const result = await registry.execute('@host:clear')
+    const result = await registry.execute('@host:clear', { caller: 'palette' })
 
     expect(result).toEqual({ status: 'denied', reason: 'There is nothing on the canvas.' })
   })
@@ -623,7 +657,7 @@ describe('the host scope', () => {
     const { registry, records } = setup()
     registry.registerHost(registration({ name: 'open-settings' })).remove()
 
-    const result = await registry.execute('@host:open-settings')
+    const result = await registry.execute('@host:open-settings', { caller: 'palette' })
 
     expect(result.status).toBe('unavailable')
     expect(records[0]?.error.message).toContain('from a mount or from the host page')

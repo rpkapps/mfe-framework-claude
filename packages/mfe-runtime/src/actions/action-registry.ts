@@ -11,15 +11,12 @@
  */
 
 import {
-  allow,
   actionEntryEqual,
   createMfeError,
   HOST_SCOPE,
-  toMfeError,
   type ActionEntry,
   type ActionPlacement,
   type ActionRegistration,
-  type Decision,
   type DefinitionKind,
   type MfeError,
   type MfeErrorDetails,
@@ -28,6 +25,13 @@ import {
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { SnapshotSource } from '../observable.ts'
+import {
+  ActionExecutor,
+  decide,
+  type ActionCall,
+  type ActionDenialNotifier,
+  type ActionExecutionResult,
+} from './action-executor.ts'
 import {
   chordFromEvent,
   firesInsideFields,
@@ -80,12 +84,6 @@ export interface ActionRegistrationHandle {
   readonly qualifiedId: string
 }
 
-export type ActionExecutionResult =
-  | { readonly status: 'executed' }
-  | { readonly status: 'denied'; readonly reason: string }
-  | { readonly status: 'unavailable'; readonly error: MfeError }
-  | { readonly status: 'failed'; readonly error: MfeError }
-
 /** What a key press did. Only `pending` and `matched` prevent the event's default. */
 export type ShortcutDispatchResult =
   | { readonly status: 'unmatched' }
@@ -98,13 +96,6 @@ export type ShortcutDispatchResult =
       readonly actionId: string
       readonly execution: Promise<ActionExecutionResult>
     }
-
-/** How a denial reaches the user: the shell's normal notification surface. */
-export type ActionDenialNotifier = (notice: {
-  readonly actionId: string
-  readonly label: string
-  readonly reason: string
-}) => void
 
 interface RegisteredAction {
   qualifiedId: string
@@ -149,6 +140,7 @@ export class ActionRegistry {
   readonly #byScope = new Map<string, Map<string, RegisteredAction>>()
   readonly #snapshot = new SnapshotSource<readonly ActionEntry[]>(Object.freeze([]))
   readonly #options: ActionRegistryOptions
+  readonly #executor: ActionExecutor<RegisteredAction>
   /** Read once: what `mod` means cannot change while the page is open. */
   readonly #apple = isApplePlatform()
   /** The chords of a sequence typed so far, dropped when the next one is too late. */
@@ -157,6 +149,14 @@ export class ActionRegistry {
 
   constructor(options: ActionRegistryOptions = {}) {
     this.#options = options
+    this.#executor = new ActionExecutor({
+      diagnostics: options.diagnostics,
+      notifyDenial: options.notifyDenial,
+      // Refresh the denied entry, so the palette shows the state the notice describes.
+      onDenied: action => {
+        if (this.#refreshEntry(action)) this.#publish()
+      },
+    })
   }
 
   /** Stable references for `useSyncExternalStore`. */
@@ -228,11 +228,8 @@ export class ActionRegistry {
     if (changed) this.#publish()
   }
 
-  /**
-   * A denial does not run the action and does not fail silently: the reason reaches the
-   * shell's notification surface and the entry's state updates.
-   */
-  async execute(qualifiedId: string): Promise<ActionExecutionResult> {
+  /** Runs through the executor's steps; `call` says who asked, which a key press does itself. */
+  async execute(qualifiedId: string, call: ActionCall): Promise<ActionExecutionResult> {
     const action = this.#find(qualifiedId)
     if (!action) {
       const error = fail(qualifiedId.split(':')[0] ?? qualifiedId, {
@@ -246,7 +243,7 @@ export class ActionRegistry {
       return { status: 'unavailable', error }
     }
 
-    return await this.#run(action)
+    return await this.#executor.run(action, call)
   }
 
   /**
@@ -302,37 +299,8 @@ export class ActionRegistry {
         return {
           status: 'matched',
           actionId: match.target.qualifiedId,
-          execution: this.#run(match.target),
+          execution: this.#executor.run(match.target, { caller: 'shortcut' }),
         }
-    }
-  }
-
-  async #run(action: RegisteredAction): Promise<ActionExecutionResult> {
-    const decision = this.#decide(action.definitionId, action.registration)
-    if (!decision.allowed) {
-      // Refresh this entry so the palette shows the current denial state.
-      if (this.#refreshEntry(action)) this.#publish()
-      this.#options.notifyDenial?.({
-        actionId: action.qualifiedId,
-        label: action.registration.label,
-        reason: decision.reason,
-      })
-      return { status: 'denied', reason: decision.reason }
-    }
-
-    try {
-      await action.registration.execute()
-      return { status: 'executed' }
-    } catch (error) {
-      const structured = toMfeError(error, {
-        code: 'mount/failure',
-        id: action.definitionId,
-        operation: `execute action '${action.registration.name}'`,
-        repair:
-          'Handle the failure inside the action, or surface it through the App’s own error UI.',
-      })
-      this.#options.diagnostics?.report(structured)
-      return { status: 'failed', error: structured }
     }
   }
 
@@ -559,31 +527,6 @@ export class ActionRegistry {
     return undefined
   }
 
-  #decide(definitionId: string, registration: ActionRegistration): Decision {
-    const { canExecute } = registration
-    if (!canExecute) return allow()
-
-    try {
-      return canExecute()
-    } catch (error) {
-      // Treating a throwing availability check as allowed would run an action whose
-      // preconditions are unknown, so it denies and reports instead.
-      this.#options.diagnostics?.report(
-        toMfeError(error, {
-          code: 'mount/failure',
-          id: definitionId,
-          operation: `evaluate canExecute for '${registration.name}'`,
-          repair:
-            'canExecute must be a pure synchronous read of reactive state. Move the failing work into execute.',
-        }),
-      )
-      return {
-        allowed: false,
-        reason: 'This action is unavailable because its availability check failed.',
-      }
-    }
-  }
-
   #buildEntry(action: ActionShape): ActionEntry {
     const { definitionId, registration, usable } = action
     return Object.freeze({
@@ -592,7 +535,7 @@ export class ActionRegistry {
       name: registration.name,
       label: registration.label,
       placements: registration.placements ?? DEFAULT_PLACEMENTS,
-      decision: this.#decide(definitionId, registration),
+      decision: decide(definitionId, registration, this.#options.diagnostics),
       ...(usable === undefined ? {} : { shortcut: usable.source }),
     })
   }

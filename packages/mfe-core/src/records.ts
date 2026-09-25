@@ -44,7 +44,8 @@ export function deny(reason: string): Decision {
 export interface ActionRegistration {
   readonly name: string
   readonly label: string
-  readonly execute: () => void | Promise<void>
+  /** What it returns, once awaited, is the `value` of the run's result. */
+  readonly execute: () => unknown
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
   /**

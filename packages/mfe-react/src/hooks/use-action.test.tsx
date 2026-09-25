@@ -56,7 +56,9 @@ describe('useAction outside a mount', () => {
       hostOnly(created, <Chrome registration={{ name: 'settings', label: 'Settings', execute }} />),
     )
 
-    await expect(created.runtime.actions.execute('@host:settings')).resolves.toEqual({
+    await expect(
+      created.runtime.actions.execute('@host:settings', { caller: 'palette' }),
+    ).resolves.toEqual({
       status: 'executed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
@@ -86,7 +88,9 @@ describe('useAction outside a mount', () => {
       allowed: false,
       reason: 'The dashboard canvas is already empty.',
     })
-    await expect(created.runtime.actions.execute('@host:clear-dashboard')).resolves.toMatchObject({
+    await expect(
+      created.runtime.actions.execute('@host:clear-dashboard', { caller: 'palette' }),
+    ).resolves.toMatchObject({
       status: 'denied',
     })
     expect(execute).not.toHaveBeenCalled()

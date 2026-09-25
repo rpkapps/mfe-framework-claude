@@ -14,8 +14,9 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
+import type { ActionDenialNotifier } from '../actions/action-executor.ts'
+import { ActionRegistry } from '../actions/action-registry.ts'
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import { ActionRegistry, type ActionDenialNotifier } from '../actions/action-registry.ts'
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'

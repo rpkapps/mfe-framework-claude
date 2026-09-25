@@ -173,7 +173,7 @@ export function CommandPalette({
       ...(allowed ? {} : { hint: entry.decision.reason, keys: undefined }),
       id: entry.id,
       isDisabled: !allowed,
-      run: () => void runtime.actions.execute(entry.id),
+      run: () => void runtime.actions.execute(entry.id, { caller: 'palette' }),
     }
   }
 

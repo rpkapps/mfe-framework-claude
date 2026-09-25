@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0 and 4 have landed (§39); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4 and 1 have landed (§39, §40); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -46,12 +46,12 @@ Each is its own commit, with the framework's tests green and no change in behavi
 - No alias: nothing is deployed.
 - Decision entry: why "action" (a typed operation any caller uses; "command" reads as a palette entry, and in CQRS as a write only), and the overlap with React 19 Actions and Tecton's `ActionBar` (the docs say "MFE action").
 
-### 1. Split execution into a pipeline
+### 1. Split execution into a pipeline (done, §40)
 
 `packages/mfe-runtime/src/actions/action-registry.ts` (about 700 lines) mixes shortcut matching and entry bookkeeping with execution.
 
 - Move execution into its own module (`action-executor.ts`); shortcut matching and entries stay in the registry.
-- `execute(id)` becomes `execute(id, { input, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
+- `execute(id)` becomes `execute(id, { caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`. `input` joins the call with `inputSchema` (A), so no unvalidated input channel ever exists.
 - `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval (the action's declaration, then the host's policy, see A) → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
 
 ### 2. Share the build's schema extraction

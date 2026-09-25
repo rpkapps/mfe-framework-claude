@@ -9,9 +9,9 @@ import { deny, isMfeError, type ActionRegistration } from '@company/mfe-core'
 
 import { createMountContext } from '../mount/mount-context.ts'
 import { createMemoryRuntime } from '../testing/memory-runtime.ts'
+import type { ActionExecutionResult } from './action-executor.ts'
 import {
   ActionRegistry,
-  type ActionExecutionResult,
   type ActionOwner,
   type ActionRegistryOptions,
   type ShortcutDispatchResult,
@@ -137,7 +137,7 @@ describe('reading a key press', () => {
     const { result, event } = keydown(registry, { key: 'k', ctrlKey: true })
 
     expect(result).toMatchObject({ status: 'matched', actionId: '@host:palette' })
-    await expect(executionOf(result)).resolves.toEqual({ status: 'executed' })
+    await expect(executionOf(result)).resolves.toEqual({ status: 'executed', value: undefined })
     expect(execute).toHaveBeenCalledOnce()
     expect(event.defaultPrevented).toBe(true)
   })
@@ -149,7 +149,7 @@ describe('reading a key press', () => {
 
     const { result } = keydown(registry, { key: 'k', ctrlKey: true })
 
-    await expect(executionOf(result)).resolves.toEqual({ status: 'executed' })
+    await expect(executionOf(result)).resolves.toEqual({ status: 'executed', value: undefined })
     expect(execute).toHaveBeenCalledOnce()
   })
 
@@ -210,6 +210,7 @@ describe('reading a key press', () => {
       actionId: '@host:clear',
       label: 'Clear the canvas',
       reason: 'The canvas is already empty.',
+      caller: 'shortcut',
     })
     // The key was the action's: the browser does not also act on it.
     expect(event.defaultPrevented).toBe(true)

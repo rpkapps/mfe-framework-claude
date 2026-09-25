@@ -37,7 +37,7 @@ describe('injectAction', () => {
     runInInjectionContext(appRef.injector, () => {
       injectAction({ name: 'refresh', label: 'Refresh', execute })
     })
-    const result = await environment.runtime.actions.execute('@host:refresh')
+    const result = await environment.runtime.actions.execute('@host:refresh', { caller: 'palette' })
 
     expect(environment.runtime.actions.getSnapshot().map(entry => entry.id)).toEqual([
       '@host:refresh',
@@ -118,7 +118,7 @@ describe('injectAction', () => {
 
     // What `execute` asks is still asked afresh, never answered from an earlier change.
     canExport.set(false)
-    const result = await environment.runtime.actions.execute('@host:export')
+    const result = await environment.runtime.actions.execute('@host:export', { caller: 'palette' })
     expect(result).toMatchObject({ status: 'denied' })
     environment.dispose()
   })
