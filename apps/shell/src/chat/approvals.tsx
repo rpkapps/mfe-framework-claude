@@ -16,6 +16,9 @@ import type { ShellChat } from './shell-chat.ts'
 import { humanize } from './tool-stage.ts'
 import { focusAfterAnswer, useFocusWhenWaiting, WAITING } from './waiting-focus.ts'
 
+/** How to reach a card, pinned just above the composer, from the message box. */
+const WAY_TO_CARD = 'Press Shift+Tab from the message box to answer.'
+
 /** A focused card shows it; a card is not in the tab order, only focused when it appears. */
 const CARD_FOCUS = 'outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
@@ -49,7 +52,7 @@ function ApprovalCard({
   const question = `Allow the assistant to ${title.charAt(0).toLowerCase() + title.slice(1)}?`
   const titleId = useId()
   const card = useRef<HTMLDivElement>(null)
-  useFocusWhenWaiting(chat, card, question)
+  useFocusWhenWaiting(chat, card, question, WAY_TO_CARD)
   const answer = (allowed: boolean): void => {
     focusAfterAnswer(chat, card.current)
     interrupt.resolveInterrupt(allowed)
@@ -109,7 +112,7 @@ function QuestionCard({
   const titleId = useId()
   const question = interrupt.message ?? humanize(interrupt.reason)
   const card = useRef<HTMLDivElement>(null)
-  useFocusWhenWaiting(chat, card, question)
+  useFocusWhenWaiting(chat, card, question, WAY_TO_CARD)
 
   return (
     <div

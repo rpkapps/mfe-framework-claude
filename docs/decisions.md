@@ -1589,7 +1589,8 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   moves to the question only if the user is waiting on it: in the chat's empty message box, on one
   of its buttons, or nowhere. The card takes focus, not its first button, so a stray Enter
   approves nothing. A user writing the next message or working in the App keeps their focus and
-  hears the question announced with the way to it (Shift+Tab from the message box). Once it is
+  hears the question announced with the way to it: Shift+Tab from the message box for a card
+  pinned above it, the end of the conversation for `ask_user`'s questions. Once it is
   answered, focus moves to the next question waiting or back to the message box. An error is a
   `role="alert"` and leaves focus where it is.
 - **Tool calls** render in three stages: inputs arriving, running (or waiting on approval), done
@@ -1727,7 +1728,8 @@ sends activity events draws nothing here.
 `useAgentSuggestions([{ message, label?, context?, submit? }])` and `injectAgentSuggestions` offer
 up to three prompts per mount, kept by the agent-context store and dropped with their mount (§44),
 like a selection. The chat shows them before the first message, beside its own starters, and after
-each answer while nothing waits on the user. Pressed, one is handed on as that mount's prompt.
+each answer while nothing waits on the user, a prompt two mounts offer (two of one Widget) once,
+as the first offered it. Pressed, one is handed on as that mount's prompt.
 A suggestion that is empty, not JSON or too long is left out and reported once, as a selection is.
 
 ---

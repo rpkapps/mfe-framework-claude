@@ -397,6 +397,8 @@ function QuestionForm({
     chat,
     card,
     `The assistant asks: ${pending.input.title ?? pending.input.questions[0]?.question ?? 'a question'}`,
+    // In the transcript, not pinned above the composer as an approval is.
+    'The questions are at the end of the conversation, above the message box.',
   )
   const { input } = pending
   const items = input.questions.map(question => ({

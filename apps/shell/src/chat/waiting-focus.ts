@@ -31,13 +31,15 @@ export function isWaiting(panel: Element | null): boolean {
 }
 
 /**
- * Focuses the card as it appears when the user is waiting; otherwise announces `question` with the
- * way to it. Once per card.
+ * Focuses the card as it appears when the user is waiting; otherwise announces `question`, then
+ * `way`, how to reach the card from where the user is, which only the card's caller knows. Once
+ * per card.
  */
 export function useFocusWhenWaiting(
   chat: ShellChat,
   card: RefObject<HTMLElement | null>,
   question: string,
+  way: string,
 ): void {
   useEffect(() => {
     const element = card.current
@@ -46,7 +48,7 @@ export function useFocusWhenWaiting(
       element.focus()
       return
     }
-    chat.announce(`${question} Press Shift+Tab from the message box to answer.`)
+    chat.announce(`${question} ${way}`)
     // Once, as the card appears: a later render is the same question.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

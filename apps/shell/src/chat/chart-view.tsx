@@ -37,9 +37,9 @@ export function ChartView({ input }: { readonly input: ChartInput }): ReactNode 
 
   return (
     <Card size="sm" className="gap-2 py-3" data-slot="chat-chart">
-      {input.title !== undefined && (
+      {(input.title !== undefined || input.caption !== undefined) && (
         <CardHeader className="px-3">
-          <CardTitle className="text-sm">{input.title}</CardTitle>
+          {input.title !== undefined && <CardTitle className="text-sm">{input.title}</CardTitle>}
           {input.caption !== undefined && <CardDescription>{input.caption}</CardDescription>}
         </CardHeader>
       )}

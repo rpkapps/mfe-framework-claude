@@ -52,7 +52,7 @@ import {
 } from 'lucide-react'
 
 import { Interrupts } from './approvals.tsx'
-import { actionAttachment, chatCommands } from './commands.ts'
+import { actionAttachment, chatCommands, NEW_CONVERSATION } from './commands.ts'
 import {
   useAgentActions,
   useAnnouncement,
@@ -96,8 +96,12 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
   const commands = useMemo(() => chatCommands(actions), [actions])
   // Before the first message, and after each answer while nothing waits on the user.
   const idle = snapshot.status === 'ready' && snapshot.interrupts.length === 0
-  const suggestions =
-    snapshot.messages.length === 0 ? [...offered, ...STARTERS] : idle ? offered : []
+  const listed = snapshot.messages.length === 0 ? [...offered, ...STARTERS] : idle ? offered : []
+  // Two mounts of one Widget can offer the same prompt: it is shown once, as the first offered it.
+  const suggestions = listed.filter(
+    (suggestion, index) =>
+      listed.findIndex(other => other.message === suggestion.message) === index,
+  )
 
   return (
     <Composer
@@ -118,7 +122,7 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
         >
           {suggestions.map(suggestion => (
             <ComposerSuggestion
-              key={`${suggestion.definitionId}:${suggestion.message}`}
+              key={suggestion.message}
               value={suggestion.label ?? suggestion.message}
               onSelect={() => {
                 chat.offer(suggestion)
@@ -145,14 +149,16 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
         <ComposerCommands
           items={commands}
           onCommand={(item, composer) => {
-            const command = commands.find(candidate => candidate.id === item.id)
-            if (command?.action === undefined) {
+            if (item.id === NEW_CONVERSATION.id) {
               chat.newConversation()
               return
             }
-            chat.panel.attach(actionAttachment(command.action))
+            // One the list no longer holds, because its action went with its mount, does nothing.
+            const action = commands.find(candidate => candidate.id === item.id)?.action
+            if (action === undefined) return
+            chat.panel.attach(actionAttachment(action))
             // Enter sends it as it is; the user may add what the action should act on.
-            composer.setValue(`${command.label} `)
+            composer.setValue(`${action.label} `)
           }}
         />
         <ComposerInput placeholder="Ask the assistant, or type / for commands…" />
