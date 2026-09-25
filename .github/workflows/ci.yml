@@ -25,6 +25,10 @@ jobs:
           path: mfe-framework-claude
 
       - uses: ./mfe-framework-claude/.github/actions/setup
+        # The shell's chat uses Tecton's Composer, which is on this branch of tecton-ui-1 until it
+        # lands on its default branch; remove this input then.
+        with:
+          tecton-ref: claude/agentic-framework-capabilities-uyzqdp
 
       - name: Generate, format, lint, typecheck, boundaries and test
         working-directory: mfe-framework-claude
@@ -50,6 +54,10 @@ jobs:
           path: mfe-framework-claude
 
       - uses: ./mfe-framework-claude/.github/actions/setup
+        # The shell's chat uses Tecton's Composer, which is on this branch of tecton-ui-1 until it
+        # lands on its default branch; remove this input then.
+        with:
+          tecton-ref: claude/agentic-framework-capabilities-uyzqdp
 
       - name: Install Chromium
         working-directory: mfe-framework-claude
