@@ -51,7 +51,9 @@ Where it differs, it is because our design does:
 - **Tools come from the action registry.** `tools` takes a function that is read again before
   every run, because mounts come and go. There is no `toolDefinition().client()`.
 - **History is AG-UI messages** (`getHistory()`, `initialMessages`, `setMessages`). `parts` is the
-  view of them, and a tool's result sits in the message that called it.
+  view of them, and a tool's result sits in the message that called it. A message keeps its
+  `UIMessage` object until something it shows changes, so a transcript memoised per message
+  re-renders only the one streaming.
 - **One list of approvals.** A page action's approval comes from the pipeline through
   `requestApproval`, with `source: 'page'`. A backend tool's comes from its interrupt, with
   `source: 'backend'`. Both are `tool-approval` interrupts, so one card renders both.

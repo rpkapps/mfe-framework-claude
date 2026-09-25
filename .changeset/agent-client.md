@@ -4,7 +4,7 @@
 
 New package: the shell's connection to the agent (§49): a chat client with TanStack AI's client API on the plain AG-UI client.
 
-- `ChatClient`, `fetchServerSentEvents` and `useChat` (`/react`), with messages as `parts` and approvals as `interrupts`.
+- `ChatClient`, `fetchServerSentEvents` and `useChat` (`/react`), with messages as `parts` and approvals as `interrupts`. A message keeps its `UIMessage` object until something it shows changes.
 - `actionTools`, `approvalsIn` and `agentContextOf` (`/actions`) connect the action registry and agent context.
 - The client talks to any AG-UI backend.
 - Sends queue: one run is in flight at a time, and a turn runs the page's tools one at a time. Every interrupt the last run ended on that nobody answered is resumed as cancelled by the next run; `clear()` starts a thread with none to resume.

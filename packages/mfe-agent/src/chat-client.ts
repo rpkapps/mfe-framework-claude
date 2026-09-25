@@ -26,7 +26,7 @@ import type {
 
 import type { ChatConnection } from './connection.ts'
 import { limitHistory } from './history.ts'
-import { toUIMessages, type ToolCallProgress } from './message-view.ts'
+import { createMessageView, type ToolCallProgress } from './message-view.ts'
 import type {
   ApprovalQuestion,
   ChatClientOptions,
@@ -133,6 +133,7 @@ export class ChatClient {
   readonly #unsubscribeAgent: () => void
   /** What the client has seen of each call in the history; pruned when the history is replaced. */
   readonly #progress = new Map<string, ToolCallProgress>()
+  readonly #view = createMessageView()
   /**
    * What each user message in the history was sent with, by its id, so `reload` sends it again;
    * pruned with `#progress`.
@@ -853,7 +854,7 @@ export class ChatClient {
 
   #computeSnapshot(): ChatSnapshot {
     return {
-      messages: toUIMessages(this.#agent.messages, this.#progress),
+      messages: this.#view(this.#agent.messages, this.#progress),
       status: this.#status,
       isLoading: this.#status === 'submitted' || this.#status === 'streaming',
       error: this.#error,

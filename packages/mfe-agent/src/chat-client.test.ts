@@ -87,6 +87,35 @@ describe('a turn', () => {
   })
 })
 
+describe('the messages a view renders', () => {
+  it('keep an earlier message’s object while the reply streams', async () => {
+    const backend = scriptedBackend(says('First.'), input => [
+      { type: EventType.RUN_STARTED, threadId: input.threadId, runId: input.runId },
+      { type: EventType.TEXT_MESSAGE_START, messageId: 'm-2', role: 'assistant' },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm-2', delta: 'Streaming ' },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm-2', delta: 'a reply.' },
+      { type: EventType.TEXT_MESSAGE_END, messageId: 'm-2' },
+      { type: EventType.RUN_FINISHED, threadId: input.threadId, runId: input.runId },
+    ])
+    const client = new ChatClient({ connection: backend.connection })
+    await client.sendMessage('Hi')
+    const [question, answer] = client.getMessages()
+
+    const replies: string[] = []
+    client.subscribe(() => {
+      const [first, second, , reply] = client.getMessages()
+      expect(first).toBe(question)
+      expect(second).toBe(answer)
+      const part = reply?.parts[0]
+      if (part?.type === 'text') replies.push(part.content)
+    })
+    await client.sendMessage('Again')
+
+    expect(replies).toContain('Streaming ')
+    expect(replies.at(-1)).toBe('Streaming a reply.')
+  })
+})
+
 describe('a turn’s own context', () => {
   it('goes with every run of the turn after the agent context, and not with the next turn', async () => {
     const backend = scriptedBackend(calls(acknowledge), says('Done.'), says('Hello.'))

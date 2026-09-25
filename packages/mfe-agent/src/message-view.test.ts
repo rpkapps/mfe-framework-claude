@@ -1,7 +1,7 @@
 import type { Message } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
-import { toUIMessages, type ToolCallProgress } from './message-view.ts'
+import { createMessageView, toUIMessages, type ToolCallProgress } from './message-view.ts'
 
 function assistantCalling(args: string): Message {
   return {
@@ -87,5 +87,46 @@ describe('other messages', () => {
       { id: 's', role: 'system', parts: [{ type: 'text', content: 'Be brief.' }] },
       { id: 'r', role: 'assistant', parts: [{ type: 'thinking', content: 'The user wants W-1.' }] },
     ])
+  })
+})
+
+describe('a view that remembers', () => {
+  it('keeps an unchanged message’s object while another streams into its own in place', () => {
+    const view = createMessageView()
+    const reply: Message = { id: 'a2', role: 'assistant', content: 'W-1 is' }
+    const history: Message[] = [
+      { id: 'u1', role: 'user', content: 'Read W-1' },
+      assistantCalling('{"wellId":"W-1"}'),
+      { id: 't1', role: 'tool', toolCallId: 'c1', content: '{"status":"producing"}' },
+      reply,
+    ]
+    const progress = new Map([['c1', { ended: true }]])
+
+    const before = view(history, progress)
+    reply.content = 'W-1 is producing.'
+    const after = view(history, progress)
+
+    expect(after).not.toBe(before)
+    expect(after.slice(0, 2)).toEqual(before.slice(0, 2))
+    after.slice(0, 2).forEach((message, index) => {
+      expect(message).toBe(before[index])
+    })
+    expect(after[2]).not.toBe(before[2])
+    expect(after[2]?.parts).toEqual([{ type: 'text', content: 'W-1 is producing.' }])
+  })
+
+  it('makes a message again when its call’s state or result changes, and keeps the list when nothing does', () => {
+    const view = createMessageView()
+    const history: Message[] = [assistantCalling('{}')]
+
+    const streaming = view(history, new Map([['c1', { ended: false }]]))
+    const ended = view(history, new Map([['c1', { ended: true }]]))
+    expect(ended[0]).not.toBe(streaming[0])
+    expect(view(history, new Map([['c1', { ended: true }]]))).toBe(ended)
+
+    history.push({ id: 't1', role: 'tool', toolCallId: 'c1', content: '{}' })
+    const answered = view(history, new Map([['c1', { ended: true }]]))
+    expect(answered[0]).not.toBe(ended[0])
+    expect(answered[0]?.parts[0]).toMatchObject({ state: 'complete' })
   })
 })
