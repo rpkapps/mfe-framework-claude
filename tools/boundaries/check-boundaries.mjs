@@ -18,6 +18,8 @@ const RULES = [
   {
     package: '@company/mfe-core',
     forbidden: [
+      '@company/mfe-chat',
+      '@ag-ui/',
       'react',
       'react-dom',
       '@tanstack/react-router',
@@ -44,6 +46,8 @@ const RULES = [
   {
     package: '@company/mfe-runtime',
     forbidden: [
+      '@company/mfe-chat',
+      '@ag-ui/',
       'react',
       'react-dom',
       '@tanstack/react-router',
@@ -69,6 +73,8 @@ const RULES = [
   {
     package: '@company/mfe-angular',
     forbidden: [
+      '@company/mfe-chat',
+      '@ag-ui/',
       'react',
       'react-dom',
       '@tanstack/',
@@ -110,7 +116,14 @@ const RULES = [
   },
   {
     package: '@company/mfe-react',
-    forbidden: ['single-spa', '@opentelemetry/', '@grafana/faro', '@company/mfe-devtools'],
+    forbidden: [
+      '@company/mfe-chat',
+      '@ag-ui/',
+      'single-spa',
+      '@opentelemetry/',
+      '@grafana/faro',
+      '@company/mfe-devtools',
+    ],
     reason:
       'The legacy adapter is the only package that knows the legacy single-spa contract, and vendor telemetry stays shell-owned.',
   },
@@ -124,6 +137,31 @@ const RULES = [
       '@company/mfe-devtools',
     ],
     reason: 'The legacy adapter is a sibling of the React adapter, not a consumer of it.',
+  },
+  {
+    package: '@company/mfe-chat',
+    forbidden: [
+      'single-spa',
+      '@module-federation/',
+      '@opentelemetry/',
+      '@grafana/faro',
+      '@company/mfe-react',
+      '@company/mfe-angular',
+      '@company/mfe-build',
+      '@tanstack/ai',
+      '@tanstack/ai-client',
+      '@tanstack/ai-react',
+      'ai',
+      '@ai-sdk/',
+      '@copilotkit/',
+      'zustand',
+      'redux',
+      'mobx',
+      'jotai',
+      '@tanstack/store',
+    ],
+    reason:
+      'The chat client speaks AG-UI and nothing else, so any backend that speaks it will do (docs/decisions.md §49); it is adapter-neutral, and the shell hands it the runtime.',
   },
   {
     package: '@company/mfe-devtools',

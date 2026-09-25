@@ -1350,6 +1350,43 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
 
+  packages/mfe-chat:
+    dependencies:
+      '@ag-ui/client':
+        specifier: 'catalog:'
+        version: 1.0.0
+      '@ag-ui/core':
+        specifier: 'catalog:'
+        version: 1.0.0(zod@4.6.5)
+      '@company/mfe-core':
+        specifier: workspace:*
+        version: link:../mfe-core
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../mfe-runtime
+    devDependencies:
+      '@testing-library/react':
+        specifier: 'catalog:'
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.0(react@19.3.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.19.2)(@vitest/coverage-v8@5.0.1)(jsdom@30.1.0(@noble/hashes@1.8.0))(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.5.1)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2)(yaml@2.9.1))
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+
   packages/mfe-core:
     devDependencies:
       typescript:

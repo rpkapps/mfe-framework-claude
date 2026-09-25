@@ -127,7 +127,13 @@ const AGENT_LIBRARY_GROUPS = [
   'langchain/*',
   '@langchain/*',
   '@mastra/*',
+  // The shell's chat client: an agent library of our own, for the host only.
+  '@company/mfe-chat',
+  '@company/mfe-chat/*',
 ] as const
+
+/** The one protocol `@company/mfe-chat` speaks, and the package itself. */
+const CHAT_PACKAGE_OWN = new Set<string>(['@ag-ui/*', '@company/mfe-chat', '@company/mfe-chat/*'])
 
 export interface RestrictedImports {
   readonly paths: readonly RestrictedPath[]
@@ -147,8 +153,27 @@ function agentLibraries(message: string): RestrictedImports {
 
 /** Framework packages run inside every container, so they stay free of an agent library too. */
 export const FRAMEWORK_AGENT_LIBRARIES: RestrictedImports = agentLibraries(
-  "Agent boundary: a framework package runs inside every container, so it never imports an AI or agent library, not even its types. The shell's chat module is the one place that talks to the agent; the framework offers it actions (`ActionRegistry`) and never the other way round.",
+  'Agent boundary: a framework package runs inside every container, so it never imports an AI or agent library, not even its types. `@company/mfe-chat` is the one package that talks to the agent, and only the shell imports it; the framework offers it actions (`ActionRegistry`) and never the other way round.',
 )
+
+/**
+ * `@company/mfe-chat` speaks AG-UI and nothing else, so any backend that speaks it will do: every
+ * other agent library stays out of it, whatever the backend runs on.
+ */
+export const CHAT_PACKAGE_AGENT_LIBRARIES: RestrictedImports = (() => {
+  const message =
+    "Agent boundary: @company/mfe-chat speaks AG-UI only (`@ag-ui/*`), so a backend can be swapped for any that speaks it, a .NET one included. A library's own client or format would tie the shell to that library's backend (docs/decisions.md §49)."
+  return {
+    paths: AGENT_LIBRARY_NAMES.map(name => ({ name, message, allowTypeImports: false })),
+    patterns: [
+      {
+        group: AGENT_LIBRARY_GROUPS.filter(group => !CHAT_PACKAGE_OWN.has(group)),
+        message,
+        allowTypeImports: false,
+      },
+    ],
+  }
+})()
 
 /**
  * An App or Widget never imports one. `offer` names the adapter's way to give the agent something

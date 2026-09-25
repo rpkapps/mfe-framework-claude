@@ -1,0 +1,59 @@
+{
+  "name": "@company/mfe-chat",
+  "version": "0.1.0",
+  "description": "The shell's chat client: talks AG-UI to the agent's backend, offers the page's actions as tools and runs the agent's calls through the action pipeline, and shows approvals from the pipeline and from the backend as one list of interrupts. Its API follows TanStack AI's client; it runs on the plain AG-UI client. For the host only: a container never imports it.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./actions": {
+      "mfe-source": "./src/actions.ts",
+      "types": "./dist/actions.d.ts",
+      "default": "./dist/actions.js"
+    },
+    "./react": {
+      "mfe-source": "./src/react/index.ts",
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ag-ui/client": "catalog:",
+    "@ag-ui/core": "catalog:",
+    "@company/mfe-core": "workspace:*",
+    "@company/mfe-runtime": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

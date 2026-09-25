@@ -86,6 +86,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'chat',
+          root: './packages/mfe-chat',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+        },
+      },
+      {
+        test: {
           name: 'rspack',
           root: './packages/mfe-rspack',
           environment: 'node',

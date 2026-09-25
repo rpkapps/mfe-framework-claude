@@ -333,6 +333,7 @@ Everything above works on Windows. Two things to know:
 | `@company/mfe-rspack`         | `pluginMfe()`: the React containers' Rsbuild integration, built on `@company/mfe-build`, and `hostFederation()` for a React shell.                                                                                                                                                                                                  |
 | `@company/mfe-nx`             | The `app` and `widget` Nx generators, which scaffold an Angular container with PrimeNG, and `withMfe()` on Nx's Angular webpack builder, built on `@company/mfe-build`.                                                                                                                                                             |
 | `@company/mfe-devtools`       | The developer tools overlay: a flag-gated, lazy-loaded panel that writes the boot-time manifest overrides and shows what the registry accepted or rejected.                                                                                                                                                                         |
+| `@company/mfe-chat`           | The shell's chat client: speaks AG-UI to the agent's backend, offers the page's actions as tools and runs the agent's calls through the action pipeline. Its API follows TanStack AI's client. For the host only: a container never imports it.                                                                                     |
 | `@company/mfe-legacy-angular` | The removable legacy adapter. It reads legacy registry entries; no host mounts a legacy application yet.                                                                                                                                                                                                                            |
 | `@company/eslint-plugin-mfe`  | Shared lint presets and MFE-specific rules: a neutral root, `/react` and `/angular`, with each framework's lint plugins as optional peers. Development-only.                                                                                                                                                                        |
 | `@company/create-mfe`         | `pnpm create @company/mfe <directory>`: the App and Widget starters. Writes files and imports no framework package.                                                                                                                                                                                                                 |
@@ -357,7 +358,8 @@ by editing a manifest alone.
 Each arrow is a manifest dependency. `mfe-react`, `mfe-angular`,
 `mfe-legacy-angular` and `mfe-rspack` also name `@company/mfe-core` directly,
 and `mfe-devtools` also names `@company/mfe-runtime`; only the longest edge is
-drawn. `@company/create-mfe` appears in neither direction: it writes files and
+drawn. `mfe-chat` depends on `mfe-runtime` and `mfe-core` beside the adapters, and
+only the shell imports it. `@company/create-mfe` appears in neither direction: it writes files and
 depends on no framework package, and `@company/eslint-plugin-mfe` is
 development-only.
 

@@ -1,3 +1,4 @@
+import type { Linter } from 'eslint'
 import { describe, expect, it } from 'vitest'
 import plugin, { application, configs, framework, rules, tooling } from '../index.ts'
 import {
@@ -267,26 +268,49 @@ describe('framework preset', () => {
     expect(groups).toContain('@grafana/faro-*')
   })
 
+  function restrictedImportsOf(config: Linter.Config) {
+    const [, options] = config.rules?.['@typescript-eslint/no-restricted-imports'] as [
+      string,
+      { paths: { name: string }[]; patterns: { group: string[]; message: string }[] },
+    ]
+    return {
+      paths: options.paths.map(path => path.name),
+      groups: options.patterns.flatMap(pattern => pattern.group),
+    }
+  }
+
   it('keeps every framework package, and each zone of one, free of agent libraries', () => {
     // Every config object that sets the rule, since the last one to match a file replaces it.
     const restricting = preset.filter(
-      config => config.rules?.['@typescript-eslint/no-restricted-imports'] !== undefined,
+      config =>
+        config.rules?.['@typescript-eslint/no-restricted-imports'] !== undefined &&
+        config.name !== 'mfe/zone/mfe-chat',
     )
     expect(restricting.length).toBeGreaterThan(1)
     for (const config of restricting) {
-      const [, options] = config.rules?.['@typescript-eslint/no-restricted-imports'] as [
-        string,
-        { paths: { name: string }[]; patterns: { group: string[]; message: string }[] },
-      ]
-      expect(
-        options.paths.map(path => path.name),
-        config.name,
-      ).toContain('ai')
-      const groups = options.patterns.flatMap(pattern => pattern.group)
-      for (const group of ['@tanstack/ai-*', '@ai-sdk/*', '@ag-ui/*', '@copilotkit/*']) {
+      const { paths, groups } = restrictedImportsOf(config)
+      expect(paths, config.name).toContain('ai')
+      for (const group of [
+        '@tanstack/ai-*',
+        '@ai-sdk/*',
+        '@ag-ui/*',
+        '@copilotkit/*',
+        '@company/mfe-chat',
+      ]) {
         expect(groups, `${config.name ?? ''} ${group}`).toContain(group)
       }
     }
+  })
+
+  it('lets the chat package speak AG-UI and nothing else', () => {
+    const chatZone = preset.find(config => config.name === 'mfe/zone/mfe-chat')
+    expect(chatZone).toBeDefined()
+    const { paths, groups } = restrictedImportsOf(chatZone ?? {})
+
+    expect(paths).toEqual(expect.arrayContaining(['ai', 'openai', '@company/mfe-react']))
+    expect(groups).toEqual(expect.arrayContaining(['@tanstack/ai', '@tanstack/ai-*', '@ai-sdk/*']))
+    expect(groups).not.toContain('@ag-ui/*')
+    expect(groups).not.toContain('@company/mfe-chat')
   })
 
   it('names the Angular adapter, not the React hooks, inside packages/mfe-angular', () => {

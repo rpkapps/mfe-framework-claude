@@ -1451,3 +1451,43 @@ entry's route paths.
 **Cost:** code-based routes (`createRoute`) and routes behind `loadChildren` are not
 published, and the navigate tool cannot offer them; a route whose path is computed is
 not either.
+
+---
+
+## 49. The shell's chat is `@company/mfe-chat`, on the plain AG-UI client with TanStack AI's API
+
+**Status:** decided; the first part of E in the agentic plan, after the AG-UI spike.
+
+The spike (`tools/agent-spike`) ran TanStack AI's client and the plain AG-UI client against a
+TanStack AI backend, a backend that speaks only the spec, and Agent Framework's .NET host.
+TanStack AI's client worked with its own backend only. Against the others it left a page tool's
+call unrun, it never sent AG-UI `context`, and it could answer another backend's interrupt only
+through an escape hatch it calls unsafe. The plain client (`@ag-ui/client` 1.0) worked against
+all three. It sends `context` and keeps history as AG-UI messages, the format the plan stores.
+
+So the chat runs on the plain client, in a package of its own. `@company/mfe-chat` copies TanStack
+AI's public API, not its code: `ChatClient`, `useChat`, `UIMessage` with `parts`, the tool-call
+states from `awaiting-input` to `complete`, and interrupts resolved with `resolveInterrupt`. That
+API is well designed, and its documentation reads across. It differs where our design does:
+
+- **Tools** come from the action registry through `actionTools(runtime.actions)`, and are read
+  again before every run.
+- **History** is AG-UI messages; `parts` is the view of them.
+- **Approvals.** The pipeline's approval step (`approvalsIn(chat.requestApproval)`) and a
+  backend's approval interrupt land in the same `interrupts` list, so one card serves both.
+- **Resuming.** One resume payload, `{ approved, toolCall }`, answers TanStack AI's backend and
+  Agent Framework's alike.
+- **Page tools.** A page tool's call is answered as a tool message whether the backend left it
+  pending (the spec) or raised TanStack AI's `client_tool` interrupt.
+
+The package is the one framework package allowed to import an agent library, and only
+`@ag-ui/*`. Its lint zone and `pnpm boundaries` keep every other one out, so a backend stays
+swappable. The author presets reject `@company/mfe-chat` in containers, and the core, the
+runtime and the adapters may not depend on it. TanStack AI remains a good choice for a
+TypeScript backend's loop.
+
+**Cost:** the shell carries `@ag-ui/client` and its dependencies (`rxjs`, `zod` 3, `uuid`,
+`fast-json-patch`). We own the chat's state instead of taking TanStack AI's; the part of its
+API we copied is what we maintain. Agent Framework 1.22-preview raises no approval interrupt for
+its own tool while the page declares tools, so a .NET backend's domain tools cannot ask for
+approval until that is fixed upstream (`tools/agent-spike/README.md`, finding 10).

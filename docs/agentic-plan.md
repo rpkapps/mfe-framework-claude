@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the AG-UI spike has run (`tools/agent-spike`) and its library recommendation awaits a decision; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A to D have landed (§39–§48), and step 5 in part; the AG-UI spike has run (`tools/agent-spike`), and E has begun with the chat client package, `@company/mfe-chat` (§49); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -144,14 +144,14 @@ The build publishes each App's route paths and search-param schemas into the reg
 ### E. The chat host in the shell
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
-- Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), from one module of the shell with its library pinned. The likely library is TanStack AI's client (`@tanstack/ai-client`, with its React binding): its wire is AG-UI, a tool with a `.client()` implementation runs in the page, the page can declare its tools with each request (`mergeAgentTools` on the server), and it has the tool-call stages, `needsApproval` and interrupts. Fallbacks, in order: the AI SDK (mature, but its own protocol instead of AG-UI, and no built-in path for tools the page declares), then plain `@ag-ui/client`.
+- Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), through `@company/mfe-chat` (§49): the plain `@ag-ui/client` underneath, with TanStack AI's client API (`ChatClient`, `useChat`, `parts`, the tool-call stages, interrupts) copied on top. It was first expected to be TanStack AI's client itself; the spike below showed that client works against TanStack AI's own backend only.
 - A one-day spike comes first. It proves one page action called by a backend agent, executed through the pipeline and its result returned; one approval and one interrupt; that approval happens once, deciding whether TanStack AI's `needsApproval` interrupt or the pipeline's approval step drives the card; and that the shell's chat works against an AG-UI server that is not TanStack AI, ideally a minimal .NET one on Microsoft's Agent Framework host.
 
   Spike result (`tools/agent-spike`, its README has the findings), against a TanStack AI backend, a spec-only one and Agent Framework's .NET host:
   - A page action called by the agent runs through the pipeline with every backend, and its result returns as the tool message.
   - Approval happens once. The pipeline's step drives the card for a page action, because page tools cross as plain AG-UI tools with no approval flag, so `needsApproval` stays on the backend's own tools. The backend's interrupt drives the same card for a domain tool. One resume payload, `{ approved, toolCall }`, answers both backends.
   - TanStack AI's client runs a page tool only when it arrives as TanStack's own interrupt. It leaves a spec backend's pending call unrun, never sends AG-UI `context`, and can answer another backend's interrupt only through an unsafe escape hatch.
-  - The recommendation, pending a decision: build the chat module on the plain `@ag-ui/client`, and keep TanStack AI as a backend option. The AG-UI client works against all three backends.
+  - Decided (§49): the chat runs on the plain `@ag-ui/client`, in a package of its own, `@company/mfe-chat`, with TanStack AI's client API copied. TanStack AI stays a backend option. The AG-UI client works against all three backends.
   - Agent Framework 1.22-preview sends no approval interrupt for a domain tool while the page declares tools. Until that is fixed, .NET domain tools cannot ask for approval in our design.
 
 - Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its return value goes back as the tool result. Tools the page declares come from the browser: the backend lets the model call them, but never trusts them for work on the server.
@@ -190,9 +190,9 @@ Not taken: its hooks inside Apps and Widgets (every mount has a React root of it
 
 ## Borrowed from TanStack AI
 
-[TanStack AI](https://github.com/TanStack/ai) (MIT) is the likely library for the backend's loop and the shell's chat client. Taken: AG-UI on the wire; one tool definition with a `.server()` or a `.client()` implementation; tools the page declares with each request; the tool-call states (`input-streaming` → `input-complete` → `approval-requested` → `approval-responded`, then the result); `needsApproval` as a name; lazy tool discovery; WebMCP page tools, later.
+[TanStack AI](https://github.com/TanStack/ai) (MIT) is a good library for a TypeScript backend's loop, and the model for the chat client's API (§49). Taken: its client's public API, not its code (`ChatClient`, `useChat`, `UIMessage` with `parts`, bound interrupts); AG-UI on the wire; one tool definition with a `.server()` or a `.client()` implementation; tools the page declares with each request; the tool-call states (`input-streaming` → `input-complete` → `approval-requested` → `approval-responded`, then the result); `needsApproval` as a name; lazy tool discovery; WebMCP page tools, later.
 
-Not taken: its extras on the wire (`metadata.tanstack`) as anything the shell depends on; its message format for stored history (AG-UI messages instead); any use inside a container. It is pre-1.0 and moves fast, which is why it stays in one module of the shell and in the backend.
+Not taken: its client as the shell's, which runs a page tool only when TanStack AI's own backend asks for it and never sends AG-UI `context` (the spike); its extras on the wire (`metadata.tanstack`) as anything the shell depends on; its message format for stored history (AG-UI messages instead); any use inside a container. It is pre-1.0 and moves fast (0.57 to 0.61 in four days during the spike).
 
 ## Borrowed from the AI SDK
 
