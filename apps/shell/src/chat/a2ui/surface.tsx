@@ -48,12 +48,14 @@ import {
   childrenOf,
   resolve,
   resolveText,
+  safeUrl,
   type A2uiComponent,
   type JsonValue,
   type Scope,
   type Surface,
 } from './model.ts'
 import type { A2uiSurfaces } from './surfaces.ts'
+import { isObject } from '../records.ts'
 
 /** What a surface's components can do: write an input, and send a Button's event. */
 export interface SurfaceHandlers {
@@ -111,20 +113,6 @@ const ALIGN: Readonly<Record<string, string>> = {
   stretch: 'items-stretch',
 }
 
-/** Only a web address opens: never `javascript:`, `data:` or anything else. */
-export function safeUrl(value: string): string | undefined {
-  try {
-    const url = new URL(value, window.location.href)
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 interface NodeProps {
   readonly surface: Surface
   readonly id: string
@@ -138,8 +126,14 @@ function Children({
   children,
   ...props
 }: Omit<NodeProps, 'id'> & { readonly children: unknown }): ReactNode {
-  return childrenOf(children, props.scope).map(child => (
-    <Node key={`${child.id}@${child.scope.path}`} {...props} id={child.id} scope={child.scope} />
+  // By position too: a list may name one id twice.
+  return childrenOf(children, props.scope).map((child, index) => (
+    <Node
+      key={`${String(index)}:${child.id}@${child.scope.path}`}
+      {...props}
+      id={child.id}
+      scope={child.scope}
+    />
   ))
 }
 
@@ -242,7 +236,7 @@ function Component({
             }
             const call = action['functionCall']
             if (isObject(call) && call['call'] === 'openUrl' && isObject(call['args'])) {
-              const url = safeUrl(resolveText(call['args']['url'], scope))
+              const url = safeUrl(resolveText(call['args']['url'], scope), window.location.href)
               if (url !== undefined) window.open(url, '_blank', 'noopener,noreferrer')
             }
           }}
@@ -282,7 +276,7 @@ function Component({
       return <ChoiceView component={component} scope={scope} handlers={handlers} label={label} />
 
     case 'Image': {
-      const url = safeUrl(resolveText(component['url'], scope))
+      const url = safeUrl(resolveText(component['url'], scope), window.location.href)
       return url === undefined ? null : (
         <img
           src={url}

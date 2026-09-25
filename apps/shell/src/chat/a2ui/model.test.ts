@@ -8,6 +8,7 @@ import {
   getAt,
   resolve,
   resolveText,
+  safeUrl,
   setAt,
   type Surfaces,
 } from './model.ts'
@@ -25,6 +26,24 @@ describe('JSON Pointer, with relative paths', () => {
 
     expect(setAt(written, '/user/name', undefined)).toEqual({ user: {}, items: data.items })
     expect(setAt({}, '/a/b', 1)).toEqual({ a: { b: 1 } })
+  })
+
+  it('reads only the data’s own members, and never writes a prototype or a huge array', () => {
+    expect(getAt({}, '/constructor')).toBeUndefined()
+    expect(getAt({ list: [1] }, '/list/length')).toBeUndefined()
+    expect(resolveText({ path: '/toString' }, { data: {}, path: '/' })).toBe('')
+
+    const data = { list: [1] }
+    expect(setAt(data, '/__proto__/polluted', true)).toBe(data)
+    expect(Object.prototype).not.toHaveProperty('polluted')
+    expect(setAt(data, '/list/1', 2)).toEqual({ list: [1, 2] })
+    expect(setAt(data, '/list/1000000000', 2)).toEqual({ list: [1] })
+  })
+
+  it('opens or loads only web addresses', () => {
+    expect(safeUrl('/help', 'https://shell.test/')).toBe('https://shell.test/help')
+    expect(safeUrl('javascript:alert(1)', 'https://shell.test/')).toBeUndefined()
+    expect(safeUrl('data:text/html,<p>', 'https://shell.test/')).toBeUndefined()
   })
 
   it('resolves a path without a leading slash against the template item', () => {

@@ -17,9 +17,9 @@ import {
 import { devtools } from '@company/mfe-devtools'
 import { toast } from 'sonner'
 
-import { EMPTY_LAYOUT, type DashboardLayout } from './dashboard/layout-store.ts'
 import { shellChat } from '../chat/instance.ts'
 
+import { EMPTY_LAYOUT, type DashboardLayout } from './dashboard/layout-store.ts'
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import type { ShellTheme } from './preferences.ts'
 import { shellUi } from './ui-store.ts'
@@ -64,7 +64,7 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       execute: () => {
         const chat = shellChat()
         if (chat === null) shellUi.show('assistant')
-        else chat.askAbout(window.getSelection()?.toString() ?? '')
+        else chat.panel.askAbout(window.getSelection()?.toString() ?? '')
       },
     },
     {

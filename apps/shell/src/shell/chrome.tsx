@@ -14,11 +14,6 @@ import {
   type BreadcrumbItem,
   type RegistryEntry,
 } from '@company/mfe-react'
-import {
-  boundaryDefinitionId,
-  createNavigationIntent,
-  parseBoundaryLocation,
-} from '@company/mfe-react/host'
 import { MfeDevtools } from '@company/mfe-devtools'
 import {
   Breadcrumb,
@@ -72,8 +67,9 @@ import {
 import { toast } from 'sonner'
 
 import { shellSession } from '../auth/gate.ts'
-import { ChatAside, ChatSheet, ChatUnavailableSheet } from '../chat/chat-panel.tsx'
-import { useChatPanel, useShellChat } from '../chat/hooks.ts'
+import { useChatPanel, useShellChat } from '../chat/panel-hooks.ts'
+import { ChatAside, ChatSheet, ChatUnavailableSheet } from '../chat/lazy-panel.tsx'
+import { ASSISTANT_BUTTON_ID } from '../chat/panel.ts'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
@@ -84,6 +80,7 @@ import {
   useShellActions,
   useShellSurface,
 } from './hooks.ts'
+import { negotiateNavigation } from './navigation.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
@@ -148,21 +145,8 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // `action` is forwarded rather than dropped, because refusing the back button while allowing a
   // redirect is a distinction an App is entitled to make.
   useBlocker({
-    shouldBlockFn: async ({ current, next, action }) => {
-      const outcome = await runtime.navigator.requestNavigation(
-        createNavigationIntent(
-          parseBoundaryLocation(current.pathname),
-          parseBoundaryLocation(next.pathname),
-          // Derived the same way the chrome derives it, so the two cannot disagree about which
-          // App this negotiates with.
-          `/${boundaryDefinitionId(current.pathname) ?? ''}`,
-          action,
-        ),
-        // The router commits when this resolves false, so there is nothing to commit here.
-        () => {},
-      )
-      return outcome === 'blocked'
-    },
+    shouldBlockFn: async ({ current, next, action }) =>
+      (await negotiateNavigation(runtime, current.pathname, next.pathname, action)) === 'blocked',
     // Asked of the blockers rather than counted, so an App that says `enableBeforeUnload: false`
     // is not overruled by the shell.
     enableBeforeUnload: () => runtime.navigator.wantsUnloadPrompt(),
@@ -205,13 +189,25 @@ function AssistantAction(): ReactNode {
   const panel = useChatPanel(chat)
   return (
     <AppShellAction
+      id={ASSISTANT_BUTTON_ID}
       label="Assistant"
       shortcut="mod+i"
-      {...(chat === null ? {} : { 'aria-pressed': panel.open })}
+      {...(chat === null
+        ? {}
+        : {
+            'aria-pressed': panel.open,
+            // The chat's code loads on first use; reaching for the button starts it early.
+            onHoverStart: () => {
+              chat.preload()
+            },
+            onFocus: () => {
+              chat.preload()
+            },
+          })}
       onPress={() => {
         if (chat === null) shellUi.toggle('assistant')
-        else if (panel.open) chat.hide()
-        else chat.focus()
+        else if (panel.open) chat.panel.hide()
+        else chat.panel.focus()
       }}
     >
       <BotIcon />

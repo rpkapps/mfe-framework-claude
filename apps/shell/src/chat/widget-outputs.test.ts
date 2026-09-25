@@ -31,4 +31,17 @@ describe('WidgetOutputs', () => {
     expect(entry?.value.length).toBeLessThanOrEqual(4096)
     expect(entry?.value).toContain('call-99')
   })
+
+  it('leaves out a payload that is not JSON, and an entry too long to fit at all', () => {
+    const outputs = new WidgetOutputs()
+    const cycle: Record<string, unknown> = {}
+    cycle['self'] = cycle
+    outputs.record('call-1', 'w', 'kept', { ok: true })
+    outputs.record('call-2', 'w', 'cyclic', cycle)
+    outputs.record('call-3', 'w', 'huge', 'x'.repeat(5000))
+
+    const [entry] = outputs.context()
+    const value = JSON.parse(entry?.value ?? '[]') as { output: string }[]
+    expect(value.map(item => item.output)).toEqual(['kept'])
+  })
 })

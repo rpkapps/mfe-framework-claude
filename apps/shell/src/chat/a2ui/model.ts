@@ -8,6 +8,8 @@
  * the data model or a call of a named function the client implements. Nothing is evaluated.
  */
 
+import { isObject } from '../records.ts'
+
 export const A2UI_VERSIONS = ['v0.9', 'v0.9.1'] as const
 
 export type JsonValue =
@@ -57,10 +59,6 @@ export interface A2uiError {
   readonly message: string
 }
 
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 // ─── JSON Pointer, with the spec's relative paths ─────────────────────────────
 
 function segments(pointer: string): string[] {
@@ -78,25 +76,35 @@ export function absolutePath(path: string, scope: string): string {
   return path === '' ? scope : `${base}/${path}`
 }
 
+const INDEX = /^\d+$/
+
+/** Only the data's own members: `constructor` or `__proto__` never reach an object's prototype. */
 export function getAt(data: JsonValue, pointer: string): JsonValue | undefined {
   let current: JsonValue | undefined = data
   for (const segment of segments(pointer)) {
-    if (Array.isArray(current)) current = current[Number(segment)]
-    else if (isObject(current)) current = (current as Record<string, JsonValue>)[segment]
-    else return undefined
+    if (Array.isArray(current)) current = INDEX.test(segment) ? current[Number(segment)] : undefined
+    else if (isObject(current) && Object.hasOwn(current, segment)) {
+      current = (current as Record<string, JsonValue>)[segment]
+    } else return undefined
   }
   return current
 }
 
-/** A copy of `data` with the value at `pointer` set, or removed when `value` is undefined. */
+/**
+ * A copy of `data` with the value at `pointer` set, or removed when `value` is undefined. A write
+ * past the end of an array, or to `__proto__`, leaves the data as it was: one would allocate as
+ * many elements as the index says, the other would set the object's prototype.
+ */
 export function setAt(data: JsonValue, pointer: string, value: JsonValue | undefined): JsonValue {
   const [head, ...rest] = segments(pointer)
   if (head === undefined) return value ?? {}
+  if (head === '__proto__') return data
   const restPointer = rest.length === 0 ? '' : `/${rest.join('/')}`
 
-  if (Array.isArray(data) || (/^\d+$/.test(head) && !isObject(data))) {
+  if (Array.isArray(data) || (INDEX.test(head) && !isObject(data))) {
     const array: JsonValue[] = Array.isArray(data) ? [...data] : []
     const index = Number(head)
+    if (!INDEX.test(head) || index > array.length) return data
     const next = rest.length === 0 ? value : setAt(array[index] ?? {}, restPointer, value)
     // Removing an element keeps the length, as the spec says.
     array[index] = next ?? null
@@ -114,6 +122,16 @@ export function setAt(data: JsonValue, pointer: string, value: JsonValue | undef
   const child = setAt(object[head] ?? {}, restPointer, value)
   object[head] = child
   return object
+}
+
+/** Only a web address opens or loads: never `javascript:`, `data:` or anything else. */
+export function safeUrl(value: string, base: string): string | undefined {
+  try {
+    const url = new URL(value, base)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined
+  } catch {
+    return undefined
+  }
 }
 
 // ─── Values ───────────────────────────────────────────────────────────────────
@@ -253,8 +271,11 @@ export function applyMessages(
   surfaces: Surfaces,
   messages: readonly unknown[],
   catalogue: ReadonlySet<string>,
-): { readonly surfaces: Surfaces } | { readonly error: A2uiError } {
+):
+  | { readonly surfaces: Surfaces; readonly created: ReadonlySet<string> }
+  | { readonly error: A2uiError } {
   const next = new Map(surfaces)
+  const created = new Set<string>()
 
   for (const [index, message] of messages.entries()) {
     const fail = (
@@ -290,6 +311,7 @@ export function applyMessages(
         )
       }
       next.set(surfaceId, { surfaceId, catalogId, components: new Map(), data: {} })
+      created.add(surfaceId)
       continue
     }
 
@@ -389,7 +411,7 @@ export function applyMessages(
     )
   }
 
-  return { surfaces: next }
+  return { surfaces: next, created }
 }
 
 /** Whether a surface can be drawn: it has its `root`. */

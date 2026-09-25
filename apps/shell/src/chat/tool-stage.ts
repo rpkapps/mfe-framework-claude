@@ -5,12 +5,9 @@
  */
 
 import type { ToolCallPart } from '@company/mfe-agent'
+import { isObject } from './records.ts'
 
 export type ToolStage = 'preparing' | 'approval' | 'running' | 'done' | 'declined' | 'failed'
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /** What a result says about how it went: every page tool answers with a `status`. */
 function outcome(output: unknown): ToolStage {

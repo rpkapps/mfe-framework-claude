@@ -12,6 +12,7 @@ import type { ChatTool } from '@company/mfe-agent'
 import type { JsonSchemaObject, RegistryEntry } from '@company/mfe-react'
 
 import { SHELL_TOOLS } from './names.ts'
+import { isObject } from '../records.ts'
 
 export interface RenderWidgetInput {
   readonly widgetId: string
@@ -21,10 +22,6 @@ export interface RenderWidgetInput {
 export type RenderWidgetResult =
   | { readonly status: 'shown'; readonly widgetId: string }
   | { readonly status: 'invalid'; readonly error: string }
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /** The call's input, as far as it has arrived: a Widget id and its inputs. */
 export function readRenderWidgetInput(input: unknown): RenderWidgetInput | undefined {

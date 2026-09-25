@@ -23,12 +23,13 @@ import {
   listApps,
   listEntries,
   listWidgets,
+  type ActionApprover,
   type AgentPromptRequest,
   type MfeRuntime,
 } from '@company/mfe-react/host'
 
 import { A2uiSurfaces } from './a2ui/surfaces.ts'
-import { quote } from './quote.ts'
+import type { ChatPanel } from './panel.ts'
 import { askUserTool, Questions } from './tools/ask-user.ts'
 import { isShellTool } from './tools/names.ts'
 import { navigateTool, type Go } from './tools/navigate.ts'
@@ -46,25 +47,6 @@ export interface A2uiUserAction {
   readonly context: Readonly<Record<string, unknown>>
 }
 
-/** What goes with the next message besides its text, shown as a chip the user can remove. */
-export interface ChatAttachment {
-  readonly id: string
-  readonly label: string
-  readonly description: string
-  /** Quoted in the message itself, so it stays in the conversation: the text the user selected. */
-  readonly quote?: string
-  /** Sent as the turn's AG-UI context and not shown: what a page attached to a prompt. */
-  readonly context?: ChatContext
-}
-
-export interface ChatPanelState {
-  readonly open: boolean
-  readonly draft: string
-  readonly attachments: readonly ChatAttachment[]
-  /** Bumped to ask the composer for focus, which only the rendered panel can give. */
-  readonly focusRequest: number
-}
-
 export interface ShellChatOptions {
   readonly runtime: MfeRuntime
   /** Where the agent backend takes AG-UI runs. */
@@ -72,32 +54,8 @@ export interface ShellChatOptions {
   /** The request boundary's fetch, so the backend receives the user's token. */
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
   readonly go: Go
-}
-
-/** A minimal external store, for `useSyncExternalStore`. */
-class Store<T> {
-  #value: T
-  readonly #listeners = new Set<() => void>()
-
-  constructor(value: T) {
-    this.#value = value
-  }
-
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
-
-  readonly getSnapshot = (): T => this.#value
-
-  update(change: (value: T) => T): void {
-    const next = change(this.#value)
-    if (next === this.#value) return
-    this.#value = next
-    for (const listener of this.#listeners) listener()
-  }
+  /** The panel's state, which lives on the boot path, before the chat loads (`LazyShellChat`). */
+  readonly panel: ChatPanel
 }
 
 export class ShellChat {
@@ -105,20 +63,17 @@ export class ShellChat {
   readonly questions = new Questions()
   readonly outputs = new WidgetOutputs()
   readonly a2ui = new A2uiSurfaces()
-  readonly panel = new Store<ChatPanelState>({
-    open: false,
-    draft: '',
-    attachments: [],
-    focusRequest: 0,
-  })
+  readonly panel: ChatPanel
+  /** The pipeline's approval step, asked in the chat, which opens to show the card. */
+  readonly approve: ActionApprover
 
   readonly #runtime: MfeRuntime
   readonly #sent: string[] = []
-  readonly #cleanup: (() => void)[] = []
 
   constructor(options: ShellChatOptions) {
-    const { runtime } = options
+    const { runtime, panel } = options
     this.#runtime = runtime
+    this.panel = panel
 
     // The registry is read once at boot, so the shell's own tools are built once too.
     const shellTools = [
@@ -140,72 +95,10 @@ export class ShellChat {
       agentContext: () => [...agentContextOf(runtime.agentContext), ...this.outputs.context()],
     })
 
-    // The pipeline's approval step asks in the chat, which opens to show the card.
-    runtime.actions.setApprover(
-      approvalsIn(question => {
-        this.show()
-        return this.client.requestApproval(question)
-      }),
-    )
-    this.#cleanup.push(
-      runtime.agentContext.setPromptHandler(request => {
-        this.#prompt(request)
-      }),
-    )
-  }
-
-  // ─── The panel ────────────────────────────────────────────────────────────
-
-  show(): void {
-    this.panel.update(state => (state.open ? state : { ...state, open: true }))
-  }
-
-  hide(): void {
-    this.panel.update(state => (state.open ? { ...state, open: false } : state))
-  }
-
-  toggle(): void {
-    this.panel.update(state => ({ ...state, open: !state.open }))
-  }
-
-  /** Opens the panel and puts the caret in the composer. */
-  focus(): void {
-    this.panel.update(state => ({ ...state, open: true, focusRequest: state.focusRequest + 1 }))
-  }
-
-  setDraft(draft: string): void {
-    this.panel.update(state => (state.draft === draft ? state : { ...state, draft }))
-  }
-
-  attach(attachment: ChatAttachment): void {
-    this.panel.update(state => ({
-      ...state,
-      attachments: [...state.attachments.filter(item => item.id !== attachment.id), attachment],
-    }))
-  }
-
-  detach(id: string): void {
-    this.panel.update(state => ({
-      ...state,
-      attachments: state.attachments.filter(item => item.id !== id),
-    }))
-  }
-
-  /**
-   * The text the user selected on the page, quoted into their next message (agentic plan, B):
-   * the shell's ⌘I. With no selection it only opens the chat.
-   */
-  askAbout(selection: string): void {
-    const text = selection.trim()
-    if (text !== '') {
-      this.attach({
-        id: 'selection',
-        label: 'Selected text',
-        description: text.length > 80 ? `${text.slice(0, 80)}…` : text,
-        quote: quote(text),
-      })
-    }
-    this.focus()
+    this.approve = approvalsIn(question => {
+      panel.show()
+      return this.client.requestApproval(question)
+    })
   }
 
   // ─── The conversation ─────────────────────────────────────────────────────
@@ -219,7 +112,7 @@ export class ShellChat {
     if (message.trim() === '') return
 
     this.#sent.push(text)
-    this.panel.update(state => ({ ...state, draft: '', attachments: [] }))
+    this.panel.clearComposer()
     await this.client.sendMessage(message, { context })
   }
 
@@ -233,12 +126,11 @@ export class ShellChat {
     this.client.clear()
     this.outputs.clear()
     this.a2ui.clear()
-    this.panel.update(state => ({ ...state, draft: '', attachments: [] }))
+    this.panel.clearComposer()
   }
 
   dispose(): void {
     this.client.dispose()
-    for (const cleanup of this.#cleanup.splice(0)) cleanup()
   }
 
   /**
@@ -248,7 +140,7 @@ export class ShellChat {
    */
   a2uiAction(action: A2uiUserAction, label: string): void {
     const described = `User performed action "${action.name}" on surface "${action.surfaceId}" (component: ${action.sourceComponentId}). Context: ${JSON.stringify(action.context)}`
-    this.show()
+    this.panel.show()
     void this.client.sendMessage(label.trim() === '' ? action.name : label, {
       context: [{ description: 'The A2UI action the user took', value: described }],
       forwardedProps: { a2uiAction: { userAction: action } },
@@ -257,7 +149,7 @@ export class ShellChat {
 
   /** A suggestion the user pressed: handed on as the prompt of the mount that offered it. */
   offer(suggestion: AgentSuggestionEntry): void {
-    this.#prompt({
+    this.prompt({
       message: suggestion.message,
       submit: suggestion.submit,
       definitionId: suggestion.definitionId,
@@ -266,7 +158,7 @@ export class ShellChat {
   }
 
   /** A mount's `useAgentPrompt`: a click that becomes a turn, or a draft to review. */
-  #prompt(request: AgentPromptRequest): void {
+  prompt(request: AgentPromptRequest): void {
     const who = this.#titleOf(request.definitionId)
     const context: ChatContext | undefined =
       request.context === undefined
@@ -277,23 +169,23 @@ export class ShellChat {
           }
 
     if (request.submit) {
-      this.show()
+      this.panel.show()
       void this.client.sendMessage(request.message, {
         context: context === undefined ? [] : [context],
       })
       return
     }
 
-    this.setDraft(request.message)
+    this.panel.setDraft(request.message)
     if (context !== undefined) {
-      this.attach({
+      this.panel.attach({
         id: 'prompt-context',
         label: `From ${who}`,
         description: 'Page context',
         context,
       })
     }
-    this.focus()
+    this.panel.focus()
   }
 
   #titleOf(definitionId: string): string {

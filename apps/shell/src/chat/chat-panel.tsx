@@ -1,8 +1,8 @@
 /**
- * The chat surface: an aside beside the mounted App on a wide screen, a sheet on a narrow one.
- * Both render the same panel over the page's one `ShellChat`, which outlives them, so opening,
- * closing and resizing lose nothing. The aside is a sibling after the main area, so opening it
- * never remounts the App.
+ * The chat panel: the transcript, the pending questions and the composer, over the page's one
+ * `ShellChat`, which outlives it, so opening, closing and resizing lose nothing. It is loaded with
+ * the chat, on first use; the aside and the sheet it renders in are on the boot path
+ * (`lazy-panel.tsx`).
  */
 
 import { useEffect, type ReactNode } from 'react'
@@ -11,13 +11,11 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/
 import { Button } from '@tecton/react/components/button'
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from '@tecton/react/components/empty'
-import { Sheet, SheetTitle } from '@tecton/react/components/sheet'
 import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   Composer,
@@ -41,10 +39,9 @@ import {
 } from '@tecton/react/tecton/panel'
 import { BotIcon, SquarePenIcon, TextQuoteIcon, XIcon } from 'lucide-react'
 
-import { useIsCompact } from '../shell/hooks.ts'
-
 import { Interrupts } from './approvals.tsx'
-import { useChatPanel, useChatSnapshot, useOfferedSuggestions, useShellChat } from './hooks.ts'
+import { useChatSnapshot, useOfferedSuggestions } from './hooks.ts'
+import { useChatPanel } from './panel-hooks.ts'
 import type { ShellChat } from './shell-chat.ts'
 import { Transcript } from './transcript.tsx'
 
@@ -56,11 +53,12 @@ const STARTERS: readonly AgentSuggestionEntry[] = [
 ].map(message => ({ message, submit: true, definitionId: HOST_SCOPE }))
 
 /** Puts the caret in the composer when the chat asks, which only a part inside `Composer` can. */
-function FocusOnRequest({ request }: { readonly request: number }): null {
+function FocusOnRequest({ chat }: { readonly chat: ShellChat }): null {
   const { focus } = useComposer()
+  const { focusRequest } = useChatPanel(chat)
   useEffect(() => {
-    if (request > 0) focus()
-  }, [request, focus])
+    if (chat.panel.takeFocusRequest(focusRequest)) focus()
+  }, [chat, focusRequest, focus])
   return null
 }
 
@@ -78,7 +76,7 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       status={snapshot.status}
       value={panel.draft}
       onValueChange={draft => {
-        chat.setDraft(draft)
+        chat.panel.setDraft(draft)
       }}
       onSubmit={({ text }) => {
         void chat.send(text)
@@ -110,7 +108,7 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
             icon: <TextQuoteIcon aria-hidden />,
           }))}
           onRemove={id => {
-            chat.detach(String(id))
+            chat.panel.detach(String(id))
           }}
         />
         <ComposerInput placeholder="Ask the assistant…" />
@@ -120,7 +118,7 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       </ComposerField>
       <ComposerHint isVisible={false} />
       <ComposerStatusMessage />
-      <FocusOnRequest request={panel.focusRequest} />
+      <FocusOnRequest chat={chat} />
     </Composer>
   )
 }
@@ -142,7 +140,8 @@ function StartHere(): ReactNode {
   )
 }
 
-function ChatPanel({
+/** The chat itself, loaded on first use into the aside or the sheet (`lazy-panel.tsx`). */
+export function ChatPanel({
   chat,
   onClose,
 }: {
@@ -208,107 +207,5 @@ function ChatPanel({
         <ChatComposer chat={chat} />
       </PanelFooter>
     </Panel>
-  )
-}
-
-function Unavailable({ onClose }: { readonly onClose: () => void }): ReactNode {
-  return (
-    <Panel data-slot="chat-panel" variant="flat" className="h-full rounded-none">
-      <PanelHeader>
-        <PanelTitle>Assistant</PanelTitle>
-        <PanelActions>
-          <Button variant="ghost" size="icon-sm" aria-label="Close the assistant" onPress={onClose}>
-            <XIcon />
-          </Button>
-        </PanelActions>
-      </PanelHeader>
-      <Empty className="border-0">
-        <EmptyHeader>
-          <EmptyTitle>The assistant is not configured</EmptyTitle>
-          <EmptyDescription>
-            This deployment names no agent backend. Set AGENT_URL in the shell’s runtime
-            configuration to the address that takes its AG-UI runs.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent />
-      </Empty>
-    </Panel>
-  )
-}
-
-/** The aside, beside the main area; rendered only on a wide screen. */
-export function ChatAside(): ReactNode {
-  const chat = useShellChat()
-  const panel = useChatPanel(chat)
-  const compact = useIsCompact()
-  if (compact || !panel.open || chat === null) return null
-
-  return (
-    <aside
-      data-slot="chat-aside"
-      aria-label="Assistant"
-      className="flex w-[26rem] shrink-0 flex-col border-l border-border-subtle bg-card"
-    >
-      <ChatPanel
-        chat={chat}
-        onClose={() => {
-          chat.hide()
-        }}
-      />
-    </aside>
-  )
-}
-
-/** The sheet, over the page; rendered only on a narrow screen. */
-export function ChatSheet(): ReactNode {
-  const chat = useShellChat()
-  const panel = useChatPanel(chat)
-  const compact = useIsCompact()
-  if (chat === null || !compact) return null
-
-  return (
-    <Sheet
-      isOpen={panel.open}
-      onOpenChange={open => {
-        if (!open) chat.hide()
-      }}
-      side="right"
-      showCloseButton={false}
-      className="w-full p-0 sm:max-w-md"
-    >
-      <SheetTitle className="sr-only">Assistant</SheetTitle>
-      <ChatPanel
-        chat={chat}
-        onClose={() => {
-          chat.hide()
-        }}
-      />
-    </Sheet>
-  )
-}
-
-/** When no backend is configured, a sheet that says so, opened by the same button. */
-export function ChatUnavailableSheet({
-  isOpen,
-  onOpenChange,
-}: {
-  readonly isOpen: boolean
-  readonly onOpenChange: (open: boolean) => void
-}): ReactNode {
-  return (
-    <Sheet
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      side="right"
-      showCloseButton={false}
-      className="w-full p-0 sm:max-w-md"
-    >
-      <SheetTitle className="sr-only">Assistant</SheetTitle>
-      <Unavailable
-        onClose={() => {
-          onOpenChange(false)
-        }}
-      />
-    </Sheet>
   )
 }

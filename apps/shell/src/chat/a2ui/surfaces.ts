@@ -4,7 +4,14 @@
  * transcript draws a surface where the call that created it sits.
  */
 
-import { applyMessages, setAt, type A2uiError, type JsonValue, type Surfaces } from './model.ts'
+import {
+  applyMessages,
+  isReady,
+  setAt,
+  type A2uiError,
+  type JsonValue,
+  type Surfaces,
+} from './model.ts'
 
 export class A2uiSurfaces {
   #surfaces: Surfaces = new Map()
@@ -36,7 +43,7 @@ export class A2uiSurfaces {
     const applied = applyMessages(this.#surfaces, messages, catalogue)
     if ('error' in applied) return applied.error
     const surface = drawn === undefined ? undefined : applied.surfaces.get(drawn)
-    if (surface !== undefined && !surface.components.has('root')) {
+    if (surface !== undefined && !isReady(surface)) {
       return {
         code: 'VALIDATION_FAILED',
         surfaceId: surface.surfaceId,
@@ -44,9 +51,12 @@ export class A2uiSurfaces {
         message: 'One component must have the id "root".',
       }
     }
-    for (const surfaceId of applied.surfaces.keys()) {
-      if (!this.#createdBy.has(surfaceId)) this.#createdBy.set(surfaceId, toolCallId)
+    // A surface is drawn where the call that created it sits: one created again moves to the
+    // new call, and a deleted one is drawn nowhere.
+    for (const surfaceId of this.#createdBy.keys()) {
+      if (!applied.surfaces.has(surfaceId)) this.#createdBy.delete(surfaceId)
     }
+    for (const surfaceId of applied.created) this.#createdBy.set(surfaceId, toolCallId)
     this.#set(applied.surfaces)
     return undefined
   }

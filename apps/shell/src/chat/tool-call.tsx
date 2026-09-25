@@ -4,10 +4,9 @@
  * generic card with its label and its stage, and its inputs and result behind a disclosure.
  */
 
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import type { ToolCallPart } from '@company/mfe-agent'
-import { toolNameOf } from '@company/mfe-agent/actions'
-import { DynamicWidget, useMfeRuntime } from '@company/mfe-react'
+import { DynamicWidget } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -42,8 +41,8 @@ import {
 } from 'lucide-react'
 
 import { A2uiSurface } from './a2ui/surface.tsx'
-import { useQuestions } from './hooks.ts'
-import { ChartView, SummaryView, TableView } from './renderers.tsx'
+import { useActionLabel, useQuestions } from './hooks.ts'
+import { SummaryView, TableView } from './renderers.tsx'
 import type { ShellChat } from './shell-chat.ts'
 import { humanize, reasonOf, stageOf, STAGE_TEXT, type ToolStage } from './tool-stage.ts'
 import type { Answers, AskUserInput } from './tools/ask-user.ts'
@@ -105,12 +104,7 @@ function StageIcon({ stage }: { readonly stage: ToolStage }): ReactNode {
 
 /** What the card calls a call: the action's label, where the page offers it, or its name. */
 function useToolLabel(part: ToolCallPart): string {
-  const runtime = useMfeRuntime('the chat')
-  const actions = useSyncExternalStore(
-    runtime.actions.subscribe,
-    runtime.actions.getSnapshot,
-    runtime.actions.getSnapshot,
-  )
+  const actionLabel = useActionLabel(part.name)
   if (part.name === SHELL_TOOLS.navigate) {
     const input = part.input as { app?: unknown; path?: unknown } | undefined
     const app = typeof input?.app === 'string' ? input.app : undefined
@@ -118,7 +112,7 @@ function useToolLabel(part: ToolCallPart): string {
     return app === undefined ? 'Go to a page' : `Go to ${app}${path}`
   }
   if (part.name === 'discover_tools') return 'Look for tools'
-  return actions.find(entry => toolNameOf(entry.id) === part.name)?.label ?? humanize(part.name)
+  return actionLabel ?? humanize(part.name)
 }
 
 function json(value: unknown): string {
@@ -180,6 +174,9 @@ export function ToolCard({
 
 // ─── The built-in renderers ───────────────────────────────────────────────────
 
+/** Recharts is loaded only when a chart is drawn, not with the chat. */
+const ChartView = lazy(async () => ({ default: (await import('./chart-view.tsx')).ChartView }))
+
 function RendererSkeleton(): ReactNode {
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border-subtle p-3" aria-hidden>
@@ -198,7 +195,13 @@ function RendererCall({ part }: { readonly part: ToolCallPart }): ReactNode {
     if (parsed.success) return <TableView input={parsed.data} />
   } else if (part.name === SHELL_TOOLS.chart) {
     const parsed = ChartInput.safeParse(part.input)
-    if (parsed.success) return <ChartView input={parsed.data} />
+    if (parsed.success) {
+      return (
+        <Suspense fallback={<RendererSkeleton />}>
+          <ChartView input={parsed.data} />
+        </Suspense>
+      )
+    }
   } else {
     const parsed = SummaryInput.safeParse(part.input)
     if (parsed.success) return <SummaryView input={parsed.data} />

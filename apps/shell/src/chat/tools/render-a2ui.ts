@@ -14,16 +14,13 @@ import { CATALOGUE, CATALOGUE_NAMES, TECTON_CATALOGUE_ID } from '../a2ui/catalog
 import { SHELL_TOOLS } from './names.ts'
 import type { A2uiError } from '../a2ui/model.ts'
 import type { A2uiSurfaces } from '../a2ui/surfaces.ts'
+import { isObject } from '../records.ts'
 
 const VERSION = 'v0.9'
 
 export type RenderA2uiResult =
   | { readonly status: 'rendered'; readonly surfaceId: string }
   | { readonly status: 'invalid'; readonly error: A2uiError }
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /** The call's input as A2UI messages: raw ones, or the middleware's shorthand expanded. */
 export function messagesOf(
@@ -36,6 +33,7 @@ export function messagesOf(
     const surface = first === undefined ? undefined : Object.values(first).find(isObject)
     const surfaceId =
       isObject(surface) && typeof surface['surfaceId'] === 'string' ? surface['surfaceId'] : ''
+    if (surfaceId === '') return undefined
     // Whatever catalogue the agent named, the host's is the one the shell draws.
     const messages = (input['messages'] as unknown[]).map((message): unknown =>
       isObject(message) && isObject(message['createSurface'])

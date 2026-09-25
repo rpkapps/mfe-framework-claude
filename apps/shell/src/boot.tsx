@@ -28,9 +28,9 @@ import { toast } from 'sonner'
 
 import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
-import { installShellChat } from './chat/instance.ts'
-import { ShellChat } from './chat/shell-chat.ts'
+import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
+import { routerNavigation } from './shell/navigation.ts'
 import { preferredTheme } from './shell/preferences.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
@@ -123,15 +123,15 @@ notices.overrides = activeOverrides
 // under the boundary with it.
 const router = createShellRouter()
 
-// The chat, when the deployment names an agent backend. Its requests go through the request
-// boundary, so the backend receives the user's token and nothing else does.
+// The chat, when the deployment names an agent backend; its code loads on first use. Its requests
+// go through the request boundary, so the backend receives the user's token and nothing else does.
 const { config } = await import('#mfe/config')
 const agentUrl =
   config.agentUrl === undefined ? undefined : new URL(config.agentUrl, window.location.href)
 installShellChat(
   agentUrl === undefined
     ? null
-    : new ShellChat({
+    : new LazyShellChat({
         runtime,
         url: agentUrl.href,
         fetch: createAuthenticatedFetch({
@@ -142,10 +142,7 @@ installShellChat(
           isDevelopment: process.env['NODE_ENV'] !== 'production',
         }),
         // The router's own navigation, so an App's blockers hold the page for the agent too.
-        go: async href => {
-          await router.navigate({ href })
-          return router.state.location.href
-        },
+        go: routerNavigation(router, runtime),
       }),
 )
 

@@ -25,4 +25,18 @@ describe('the built-in renderers', () => {
       status: 'invalid',
     })
   })
+
+  it('take a chart series key only as an identifier, since it names a CSS custom property', async () => {
+    const chart = tools.get('show_chart')
+    const input = (key: string) => ({
+      kind: 'bar',
+      x: { key: 'month', label: 'Month' },
+      series: [{ key, label: 'Oil' }],
+      data: [{ month: 'Jan', [key]: 1 }],
+    })
+    expect(await chart?.execute(input('oil_rate'), call)).toEqual({ status: 'shown' })
+    expect(await chart?.execute(input('x: red; } body { display: none'), call)).toMatchObject({
+      status: 'invalid',
+    })
+  })
 })

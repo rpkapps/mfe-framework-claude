@@ -32,21 +32,37 @@ export class WidgetOutputs {
     this.#latest.clear()
   }
 
-  /** One context entry, newest first, cut to what fits. */
+  /**
+   * One context entry, newest first, with what fits. A payload that cannot be JSON (a cycle, a
+   * BigInt) is left out rather than failing every run; with nothing that fits, there is no entry.
+   */
   context(): ChatContext[] {
-    if (this.#latest.size === 0) return []
-    const newest = [...this.#latest.values()].reverse()
-    const kept: Latest[] = []
-    for (const entry of newest) {
-      if (JSON.stringify([...kept, entry]).length > MAX_LENGTH) break
-      kept.push(entry)
+    const kept: string[] = []
+    // The brackets of the array.
+    let length = 2
+    for (const entry of [...this.#latest.values()].reverse()) {
+      const json = serialise(entry)
+      if (json === undefined) continue
+      const added = json.length + (kept.length === 0 ? 0 : 1)
+      if (length + added > MAX_LENGTH) continue
+      kept.push(json)
+      length += added
     }
+    if (kept.length === 0) return []
     return [
       {
         description:
           'The latest output of each Widget shown in this chat, newest first: what the user picked or changed in it',
-        value: JSON.stringify(kept),
+        value: `[${kept.join(',')}]`,
       },
     ]
+  }
+}
+
+function serialise(entry: Latest): string | undefined {
+  try {
+    return JSON.stringify(entry)
+  } catch {
+    return undefined
   }
 }

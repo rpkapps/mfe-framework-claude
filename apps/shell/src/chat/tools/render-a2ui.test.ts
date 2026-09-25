@@ -85,4 +85,27 @@ describe('render_a2ui', () => {
     surfaces.write('note', '/note', 'Check the dump valve')
     expect(surfaces.getSnapshot().get('note')?.data).toEqual({ note: 'Check the dump valve' })
   })
+
+  it('draws a surface deleted and created again where the call that created it again sits', async () => {
+    const surfaces = new A2uiSurfaces()
+    const tool = renderA2uiTool(surfaces)
+    await tool.execute(form, call('call-1'))
+
+    await tool.execute(
+      { messages: [{ version: 'v0.9', deleteSurface: { surfaceId: 'note' } }] },
+      call('call-2'),
+    )
+    expect(surfaces.createdBy('note')).toBeUndefined()
+
+    await tool.execute(form, call('call-3'))
+    expect(surfaces.createdBy('note')).toBe('call-3')
+  })
+
+  it('refuses raw messages that name no surface', async () => {
+    const result: unknown = await renderA2uiTool(new A2uiSurfaces()).execute(
+      { messages: [{ version: 'v0.9' }] },
+      call(),
+    )
+    expect(result).toMatchObject({ status: 'invalid', error: { path: '/surfaceId' } })
+  })
 })

@@ -52,7 +52,7 @@ describe('the navigate tool', () => {
   })
 
   it('goes to a published page through the router, with its search params', async () => {
-    const go = vi.fn((href: string) => Promise.resolve(href))
+    const go = vi.fn((href: string) => Promise.resolve<string | undefined>(href))
     const tool = navigateTool([operations], go)
 
     const result: unknown = await tool?.execute(
@@ -64,8 +64,14 @@ describe('the navigate tool', () => {
     expect(result).toEqual({ status: 'navigated', url: '/operations/assets?site=south' })
   })
 
+  it('answers with the URL the router landed on, which it may have normalised', async () => {
+    const tool = navigateTool([operations], () => Promise.resolve('/operations/wells/W%2012'))
+    const result: unknown = await tool?.execute({ app: 'operations', path: '/wells/W 12/' }, call)
+    expect(result).toEqual({ status: 'navigated', url: '/operations/wells/W%2012' })
+  })
+
   it('says so when the page stays where it was', async () => {
-    const tool = navigateTool([operations], () => Promise.resolve('/operations'))
+    const tool = navigateTool([operations], () => Promise.resolve(undefined))
     const result: unknown = await tool?.execute({ app: 'operations', path: '/wells/W-1' }, call)
     expect(result).toMatchObject({ status: 'blocked' })
   })
@@ -75,6 +81,8 @@ describe('the navigate tool', () => {
     [{ app: 'operations', path: '/pumps' }, 'operations has no page at /pumps.'],
     [{ app: 'operations', path: '/assets', search: { site: 'west' } }, "'site' must be one of"],
     [{ app: 'operations', path: '/assets', search: { page: '2' } }, "no search param 'page'"],
+    [{ app: 'operations', path: '/reports/../../admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/wells/W-1?tab=log' }, 'search params go in `search`'],
   ])('refuses %j without navigating', async (input, error) => {
     const go = vi.fn()
     const result: unknown = await navigateTool([operations], go)?.execute(input, call)

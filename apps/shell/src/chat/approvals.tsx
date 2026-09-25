@@ -5,24 +5,13 @@
  * Each new question is announced; focus is left where the user has it.
  */
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { ChatInterrupt, GenericInterrupt, ToolApprovalInterrupt } from '@company/mfe-agent'
-import { toolNameOf } from '@company/mfe-agent/actions'
-import { useMfeRuntime } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
 import { ShieldQuestionIcon } from 'lucide-react'
 
+import { useActionLabel } from './hooks.ts'
 import { humanize } from './tool-stage.ts'
-
-function useActionLabel(toolName: string): string | undefined {
-  const runtime = useMfeRuntime('the chat approvals')
-  const actions = useSyncExternalStore(
-    runtime.actions.subscribe,
-    runtime.actions.getSnapshot,
-    runtime.actions.getSnapshot,
-  )
-  return actions.find(entry => toolNameOf(entry.id) === toolName)?.label
-}
 
 function Inputs({ value }: { readonly value: unknown }): ReactNode {
   if (typeof value !== 'object' || value === null) return null
@@ -45,7 +34,7 @@ function Inputs({ value }: { readonly value: unknown }): ReactNode {
 function ApprovalCard({ interrupt }: { readonly interrupt: ToolApprovalInterrupt }): ReactNode {
   const actionLabel = useActionLabel(interrupt.toolName)
   const title = interrupt.label ?? actionLabel ?? humanize(interrupt.toolName)
-  const titleId = `approval-${interrupt.id}`
+  const titleId = useId()
 
   return (
     <div
@@ -91,7 +80,7 @@ function ApprovalCard({ interrupt }: { readonly interrupt: ToolApprovalInterrupt
 }
 
 function QuestionCard({ interrupt }: { readonly interrupt: GenericInterrupt }): ReactNode {
-  const titleId = `interrupt-${interrupt.id}`
+  const titleId = useId()
   return (
     <div
       role="group"

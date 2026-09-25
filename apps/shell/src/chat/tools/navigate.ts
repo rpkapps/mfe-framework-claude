@@ -8,14 +8,15 @@ import type { ChatTool } from '@company/mfe-agent'
 import type { JsonSchemaObject, RegistryEntry } from '@company/mfe-react'
 
 import { SHELL_TOOLS } from './names.ts'
+import { isObject } from '../records.ts'
 
 export type NavigateResult =
   | { readonly status: 'navigated'; readonly url: string }
   | { readonly status: 'blocked'; readonly reason: string }
   | { readonly status: 'invalid'; readonly error: string }
 
-/** Goes to `href` and resolves the URL the page is at afterwards. */
-export type Go = (href: string) => Promise<string>
+/** Goes to `href` and resolves the URL the page is at afterwards, or `undefined` if it stayed. */
+export type Go = (href: string) => Promise<string | undefined>
 
 /**
  * A published path as a pattern: `:name` is one segment, `:name?` an optional one, `*` the rest.
@@ -33,10 +34,6 @@ export function routePattern(path: string): RegExp {
     })
     .join('')
   return new RegExp(`^${source === '' ? '/?' : `${source}/?`}$`)
-}
-
-function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** One line per route, as the model reads them: its path and the search params it takes. */
@@ -122,6 +119,17 @@ export function navigateTool(apps: readonly RegistryEntry[], go: Go): ChatTool |
       const app = apps.find(candidate => candidate.id === id)
       if (app === undefined) return { status: 'invalid', error: `There is no App '${id}'.` }
 
+      // A query or a `..` in the path would reach past the route and its search params' schema.
+      if (
+        /[?#]/.test(path) ||
+        path.split('/').some(segment => segment === '.' || segment === '..')
+      ) {
+        return {
+          status: 'invalid',
+          error: 'A path is one page inside the App, with no `..`; search params go in `search`.',
+        }
+      }
+
       const route = (app.routes ?? [{ path: '/' }]).find(candidate =>
         routePattern(candidate.path).test(path),
       )
@@ -132,14 +140,13 @@ export function navigateTool(apps: readonly RegistryEntry[], go: Go): ChatTool |
       const query = queryFor(search, route.search)
       if ('error' in query) return { status: 'invalid', error: query.error }
 
-      const href = `/${id}${path === '/' ? '' : path}${query.query}`
-      const landed = await go(href)
-      return landed === href
-        ? { status: 'navigated', url: href }
-        : {
+      const landed = await go(`/${id}${path === '/' ? '' : path}${query.query}`)
+      return landed === undefined
+        ? {
             status: 'blocked',
             reason: 'The page stayed where it was: it has unsaved changes, or the user cancelled.',
           }
+        : { status: 'navigated', url: landed }
     },
   }
 }

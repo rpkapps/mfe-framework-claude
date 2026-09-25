@@ -193,6 +193,19 @@ const config: Linter.Config[] = [
               message:
                 'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.',
             },
+            {
+              // The rest of the chat loads on first use; importing it here would put the AG-UI
+              // client, the tools and their UI back on the boot path.
+              group: [
+                '**/chat/*',
+                '!**/chat/instance.ts',
+                '!**/chat/panel.ts',
+                '!**/chat/panel-hooks.ts',
+                '!**/chat/lazy-panel.tsx',
+              ],
+              message:
+                'Outside apps/shell/src/chat, import only chat/instance, panel, panel-hooks and lazy-panel: the rest of the chat is loaded lazily.',
+            },
           ],
         },
       ],

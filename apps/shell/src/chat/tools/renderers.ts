@@ -13,6 +13,15 @@ import { SHELL_TOOLS } from './names.ts'
 
 const cell = z.union([z.string(), z.number(), z.boolean(), z.null()])
 
+/**
+ * A series' key names a CSS custom property the chart writes into a style sheet
+ * (`--color-<key>`), so it is an identifier and nothing that could close the rule.
+ */
+const seriesKey = z
+  .string()
+  .regex(/^[A-Za-z_][\w-]{0,63}$/)
+  .describe('An identifier: letters, digits, _ and -; the key of its number in each row.')
+
 export const TableInput = z.object({
   title: z.string().max(120).optional(),
   columns: z
@@ -35,7 +44,7 @@ export const ChartInput = z.object({
   kind: z.enum(['bar', 'line']),
   x: z.object({ key: z.string().min(1), label: z.string().min(1) }),
   series: z
-    .array(z.object({ key: z.string().min(1), label: z.string().min(1) }))
+    .array(z.object({ key: seriesKey, label: z.string().min(1) }))
     .min(1)
     .max(6),
   data: z.array(z.record(z.string(), cell)).min(1).max(200),

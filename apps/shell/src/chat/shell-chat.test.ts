@@ -8,7 +8,8 @@
 import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-react/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ShellChat } from './shell-chat.ts'
+import { LazyShellChat } from './instance.ts'
+import type { ShellChat } from './shell-chat.ts'
 
 interface Run {
   readonly threadId: string
@@ -43,26 +44,32 @@ function says({ threadId, runId }: Run, text: string): object[] {
 }
 
 let memory: MemoryRuntime
-let chat: ShellChat | undefined
+let lazy: LazyShellChat | undefined
 
 beforeEach(() => {
   memory = createMemoryRuntime({ initialEntries: ['/operations/wells'] })
 })
 
 afterEach(() => {
-  chat?.dispose()
-  chat = undefined
+  lazy?.dispose()
+  lazy = undefined
   memory.dispose()
 })
 
-function create(server = backend()) {
-  chat = new ShellChat({
+/** The chat as boot installs it, its code not yet loaded. */
+function install(server = backend()) {
+  lazy = new LazyShellChat({
     runtime: memory.runtime,
     url: 'http://agent.test/agent',
     fetch: server.fetch,
     go: href => Promise.resolve(href),
   })
-  return { chat, server }
+  return { lazy, server }
+}
+
+async function create(server = backend()): Promise<{ chat: ShellChat; server: typeof server }> {
+  const installed = install(server)
+  return { chat: await installed.lazy.load(), server }
 }
 
 describe('the shell chat', () => {
@@ -73,7 +80,7 @@ describe('the shell chat', () => {
       effect: 'read',
       execute: () => undefined,
     })
-    const { chat: client, server } = create()
+    const { chat: client, server } = await create()
 
     await client.send('Hi')
 
@@ -91,9 +98,9 @@ describe('the shell chat', () => {
   })
 
   it('quotes the selection into the message and sends a page’s context unseen, then clears both', async () => {
-    const { chat: client, server } = create()
-    client.askAbout('A-7 is flaring')
-    client.attach({
+    const { chat: client, server } = await create()
+    client.panel.askAbout('A-7 is flaring')
+    client.panel.attach({
       id: 'prompt-context',
       label: 'From Operations',
       description: 'Page context',
@@ -114,7 +121,7 @@ describe('the shell chat', () => {
   })
 
   it('turns a mount’s prompt into a turn, with its context unseen', async () => {
-    const { chat: client, server } = create()
+    const { chat: client, server } = await create()
 
     expect(
       memory.runtime.agentContext.prompt({ message: 'Explain A-7', context: { alertId: 'A-7' } }),
@@ -128,8 +135,8 @@ describe('the shell chat', () => {
     expect(server.runs[0]?.context.at(-1)).toMatchObject({ value: '{"alertId":"A-7"}' })
   })
 
-  it('fills the composer with a prompt to review, its context a removable chip', () => {
-    const { chat: client, server } = create()
+  it('fills the composer with a prompt to review, its context a removable chip', async () => {
+    const { chat: client, server } = await create()
 
     memory.runtime.agentContext.prompt({
       message: 'Draft a note',
@@ -137,6 +144,9 @@ describe('the shell chat', () => {
       submit: false,
     })
 
+    await vi.waitFor(() => {
+      expect(client.panel.getSnapshot().draft).toBe('Draft a note')
+    })
     expect(server.runs).toHaveLength(0)
     expect(client.panel.getSnapshot()).toMatchObject({
       open: true,
@@ -146,7 +156,7 @@ describe('the shell chat', () => {
   })
 
   it('asks the pipeline’s approvals in the chat, opening it', async () => {
-    const { chat: client } = create()
+    const { chat: client } = await create()
     let ran = false
     memory.runtime.actions.registerHost({
       name: 'clear',
@@ -170,7 +180,7 @@ describe('the shell chat', () => {
   })
 
   it('starts over with a new thread and forgets the Widgets’ outputs', async () => {
-    const { chat: client, server } = create()
+    const { chat: client, server } = await create()
     await client.send('Hi')
     client.outputs.record('call-1', 'well-design', 'selected', { wellId: 'htdp' })
     const thread = client.client.getSnapshot().threadId
@@ -186,7 +196,7 @@ describe('the shell chat', () => {
 
 describe('suggestions', () => {
   it('hands a pressed suggestion on as the prompt of the mount that offered it', async () => {
-    const { chat: client, server } = create()
+    const { chat: client, server } = await create()
     memory.runtime.agentContext.suggest({ definitionId: 'operations', mountToken: 'm-1' }, [
       { message: 'Open the wells inventory', context: { from: 'overview' } },
       { message: 'Draft a shift note', submit: false },
@@ -205,5 +215,45 @@ describe('suggestions', () => {
     expect(server.runs[0]?.context.at(-1)).toMatchObject({
       description: "What operations attached to the user's message",
     })
+  })
+})
+
+describe('before the chat has loaded', () => {
+  it('opens at once for a mount’s prompt, loads, and sends it', async () => {
+    const { lazy: chat, server } = install()
+
+    expect(memory.runtime.agentContext.prompt({ message: 'Explain A-7' })).toBe(true)
+    expect(chat.panel.getSnapshot().open).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(server.runs).toHaveLength(1)
+    })
+    expect(server.runs[0]?.messages.at(-1)).toMatchObject({ content: 'Explain A-7' })
+  })
+
+  it('loads to ask an approval', async () => {
+    const { lazy: chat } = install()
+    memory.runtime.actions.registerHost({
+      name: 'clear',
+      label: 'Clear the canvas',
+      effect: 'destructive',
+      execute: () => undefined,
+    })
+
+    const result = memory.runtime.actions.execute('@host:clear', { caller: 'agent' })
+    const loaded = await chat.load()
+    await vi.waitFor(() => {
+      expect(loaded.client.getInterrupts()).toHaveLength(1)
+    })
+    const [card] = loaded.client.getInterrupts()
+    if (card?.kind === 'tool-approval') card.resolveInterrupt(false)
+
+    expect(await result).toMatchObject({ status: 'declined' })
+  })
+
+  it('lets go of the runtime when it is replaced', () => {
+    const { lazy: chat } = install()
+    chat.dispose()
+    expect(memory.runtime.agentContext.prompt({ message: 'Anyone?' })).toBe(false)
   })
 })
