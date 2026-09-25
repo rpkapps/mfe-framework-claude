@@ -8,7 +8,6 @@ import {
   boundAttributes,
   boundName,
   createMfeError,
-  DEV,
   normalizeError,
   withoutUndefined,
   type Diagnostic,
@@ -21,6 +20,8 @@ import {
   type TelemetryProvider,
   type TelemetryRecord,
 } from '@company/mfe-core'
+
+import { DEV } from '../dev.ts'
 
 /**
  * The `mfe.*` namespace the host owns; span ids live here because an author who set them

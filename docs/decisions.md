@@ -475,8 +475,11 @@ no retention survives a sign-out, and anything derived from a user's data says
 
 **Status:** decided, with a stated cost.
 
-Every other developer-only thing is guarded with `DEV` from `@company/mfe-core`,
-which folds to `false` in a production build. `@company/mfe-devtools` deliberately
+Every other developer-only thing is guarded with a `DEV` flag, which folds to
+`false` in a production build. Each framework package reads its own `src/dev.ts`
+rather than core's: core is shared, and a constant imported across the share
+boundary is resolved at run time, so nothing it guarded was ever folded away
+(`pnpm boundaries` now refuses that import). `@company/mfe-devtools` deliberately
 is not: the page where the panel is most needed is a deployed one, where the
 question is which manifest a surface loaded, and `DEV` would delete the answer
 there. It ships in every build, gated at runtime on one key read once,

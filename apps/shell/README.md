@@ -497,12 +497,17 @@ Every React-bound candidate goes in the share scope named after the React this
 shell installed, `react@19.3.0`, as a strict singleton: `react`, `react-dom`,
 `sonner`, `@company/mfe-react`, `@tanstack/react-router` and
 `@tanstack/react-query`, each holding module state a second copy would
-duplicate. The design system's own entries from `@tecton/react/federation/shared`
-join that scope with the design system's flags: `@tecton/react/` — a prefix
-share, since the package has no root export, with an explicit `version` because
-Module Federation cannot infer one for a prefix — and `react-aria-components`,
-without `singleton`. `recharts` is on that list too, but the shell does not
-install it, and the host shares only what its own `node_modules` hold.
+duplicate. So are React's entry points `react/jsx-runtime`,
+`react/compiler-runtime` and `react-dom/client`: only a bare specifier is a share
+key, and without them every container downloaded its own react-dom client. The
+shell is not built with the React Compiler, so `@company/mfe-react/host` imports
+`react/compiler-runtime` for it to provide. The rest of
+`@tecton/react/federation/shared` joins that scope with the design system's
+flags: `react-aria-components`, without `singleton`, and `recharts`, which the
+shell does not install; the host shares only what its own `node_modules` hold.
+The design system itself is not shared, although that list offers it: every
+container bundles the Tecton components it imports, which measured faster on
+every page than a shared copy split into a chunk per component.
 `@company/mfe-core` and `@company/mfe-runtime` are page singletons in
 `default`, read beside `@company/mfe-react` because this shell declares neither:
 it imports only its adapters.

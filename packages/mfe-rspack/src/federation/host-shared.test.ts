@@ -69,6 +69,8 @@ describe('hostShared', () => {
       '@company/mfe-react',
       '@company/mfe-runtime',
       'react',
+      'react/compiler-runtime',
+      'react/jsx-runtime',
     ])
     expect(shared['@company/mfe-core']).toEqual({
       singleton: true,
@@ -135,20 +137,14 @@ describe('hostShared', () => {
     expect(shared['react']?.singleton).toBe(true)
   })
 
-  it('states the version on the design system prefix share', () => {
+  it('does not share the design system', () => {
     const shared = hostShared({
       root: ROOT,
       installedVersion: name =>
         name === '@tecton/react' ? '0.1.0' : name === 'react' ? '19.3.0' : undefined,
     })
 
-    expect(shared['@tecton/react/']).toEqual({
-      singleton: false,
-      strictVersion: false,
-      requiredVersion: '0.1.0',
-      version: '0.1.0',
-      shareScope: 'react@19.3.0',
-    })
+    expect(Object.keys(shared).filter(name => name.startsWith('@tecton/react'))).toEqual([])
   })
 
   it('requires the version a host installed, declared or not', () => {

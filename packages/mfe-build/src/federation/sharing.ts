@@ -65,9 +65,13 @@ export function withPagePolicy(policy: SharingPolicies): SharingPolicies {
   return { ...PAGE_POLICY, ...policy }
 }
 
-/** The dependency a candidate is satisfied by; a prefix names the package. */
+/**
+ * The dependency a candidate is satisfied by: a prefix (`@scope/pkg/`) and a subpath
+ * (`react/jsx-runtime`) both name the package they sit in.
+ */
 export function packageOf(candidate: string): string {
-  return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate
+  const segments = candidate.split('/')
+  return segments.slice(0, candidate.startsWith('@') ? 2 : 1).join('/')
 }
 
 /** `react@19.3.0`: the framework's name and the exact version its anchor package resolved to. */
@@ -87,7 +91,7 @@ export interface SharedModuleConfig {
   readonly eager?: false
   /** `false` disables the requirement; omitting it has Module Federation infer `catalog:`. */
   readonly requiredVersion: string | false
-  /** Stated explicitly for a prefix share, which has no package literally named after it. */
+  /** Stated explicitly for a prefix or subpath share, which has no package named after it. */
   readonly version?: string
   /** `default` for a page-wide candidate, the framework's scope for everything bound to it. */
   readonly shareScope: string
@@ -172,9 +176,10 @@ function entry(
     strictVersion: policy.strictVersion,
     requiredVersion,
     ...(policy.eager === false ? { eager: false as const } : {}),
-    // A prefix share has no package.json to read a version from, and omitting the field is the
-    // only way to say "unknown" here, since `version` has no `false` the way `requiredVersion` has.
-    ...(candidate.endsWith('/') && installed !== undefined ? { version: installed } : {}),
+    // A prefix or subpath share has no package.json of its own to read a version from, and
+    // omitting the field is the only way to say "unknown" here, since `version` has no `false` the
+    // way `requiredVersion` has.
+    ...(candidate !== name && installed !== undefined ? { version: installed } : {}),
     shareScope,
   }
 }

@@ -7,12 +7,12 @@
 import {
   breadcrumbTrailEqual,
   createMfeError,
-  DEV,
   HOST_SCOPE,
   type BreadcrumbItem,
   type Unsubscribe,
 } from '@company/mfe-core'
 
+import { DEV } from '../dev.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { SnapshotSource } from '../observable.ts'
 
