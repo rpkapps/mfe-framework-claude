@@ -1665,8 +1665,11 @@ that swap with focus following.
 140 kB more; loading them lazily took about 238 kB compressed off the boot path. A navigate call is
 refused for a path
 no published route matches, so an App's code-based routes are out of the agent's reach (§48). The
-conversation lives in memory: a reload starts a new one. Formatting replies adds react-markdown and remark-gfm, about 45 kB compressed, to the chat's
-download, not to the boot path.
+conversation lives in memory: a reload starts a new one. Formatting replies adds markdown-to-jsx
+9, about 28 kB compressed, to the chat's download, not to the boot path; react-markdown and
+remark-gfm, which it replaced, took 16 kB more. Its 7.x line is a quarter of the size, but it
+emphasises inside a word such as `well_id_here`, which replies are full of, and misses GFM's
+pipeless tables and `www.` links.
 
 ---
 

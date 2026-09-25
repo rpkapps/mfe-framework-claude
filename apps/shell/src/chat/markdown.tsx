@@ -7,25 +7,33 @@
  * sends data out, so it shows as its description and host until there is a policy for it (#31).
  */
 
-import { useMemo, type ComponentProps, type MouseEvent, type ReactNode } from 'react'
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  useMemo,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ExternalLinkIcon, ImageOffIcon } from 'lucide-react'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { Markdown as MarkdownToJsx, type MarkdownToJSX } from 'markdown-to-jsx/react'
 
 import type { Go } from './tools/navigate.ts'
 
-const PLUGINS = [remarkGfm]
-
-/** Where a link goes: a page of this application, somewhere else, or nowhere it may. */
+/**
+ * Where a link goes: a page of this application, somewhere else, or nowhere it may. The parser
+ * leaves out an address it finds unsafe, so an `href` may be missing.
+ */
 export function linkTarget(
-  href: string | undefined,
+  href: string | null | undefined,
   base: string,
 ):
   | { readonly kind: 'page'; readonly path: string }
   | { readonly kind: 'away'; readonly url: URL }
   | undefined {
-  if (href === undefined || href === '') return undefined
+  if (typeof href !== 'string' || href === '') return undefined
   let url: URL
   try {
     url = new URL(href, base)
@@ -51,7 +59,7 @@ function Link({
   children,
 }: {
   readonly go: Go
-  readonly href?: string | undefined
+  readonly href?: string | null | undefined
   readonly children?: ReactNode
 }): ReactNode {
   const target = linkTarget(href, window.location.href)
@@ -99,12 +107,16 @@ function textOf(node: ReactNode): string {
   return ''
 }
 
-function CodeBlock({ children }: ComponentProps<'pre'>): ReactNode {
+/**
+ * A fenced or indented block, drawn from its text alone: the parser's inner `code` would be drawn
+ * as inline code, and it carries whatever attributes the fence's info string named.
+ */
+function CodeBlock({ children }: { readonly children?: ReactNode }): ReactNode {
   const code = textOf(children).replace(/\n$/, '')
   return (
     <div className="group/code relative">
       <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-[0.6875rem] leading-relaxed">
-        {children}
+        <code>{code}</code>
       </pre>
       <CopyButton
         value={code}
@@ -116,71 +128,86 @@ function CodeBlock({ children }: ComponentProps<'pre'>): ReactNode {
   )
 }
 
-function components(go: Go): Components {
+/** A task's box shows whether it is done; it is not the user's to tick. */
+function TaskBox({ checked }: { readonly checked?: boolean }): ReactNode {
+  return <input type="checkbox" checked={checked === true} disabled />
+}
+
+/** A GitHub task list, whose items hold their box: drawn without bullets. */
+function isTaskList(items: ReactNode): boolean {
+  return Children.toArray(items).some(
+    item =>
+      isValidElement<{ children?: ReactNode }>(item) &&
+      Children.toArray(item.props.children).some(
+        child => isValidElement(child) && child.type === TaskBox,
+      ),
+  )
+}
+
+interface Drawn {
+  readonly children?: ReactNode
+}
+
+function overrides(go: Go): MarkdownToJSX.Overrides {
   return {
-    p: ({ children }) => <p>{children}</p>,
-    a: ({ href, children }) => (
+    a: ({ href, children }: Drawn & { readonly href?: string | null }) => (
       <Link go={go} href={href}>
         {children}
       </Link>
     ),
-    h1: ({ children }) => <h3 className="text-sm font-semibold">{children}</h3>,
-    h2: ({ children }) => <h3 className="text-sm font-semibold">{children}</h3>,
-    h3: ({ children }) => <h4 className="font-semibold">{children}</h4>,
-    h4: ({ children }) => <h5 className="font-medium">{children}</h5>,
-    h5: ({ children }) => <h6 className="font-medium">{children}</h6>,
-    h6: ({ children }) => <h6 className="font-medium">{children}</h6>,
-    ul: ({ children, className }) => (
+    // A heading's id is left out: two replies with one heading would share it.
+    h1: ({ children }: Drawn) => <h3 className="text-sm font-semibold">{children}</h3>,
+    h2: ({ children }: Drawn) => <h3 className="text-sm font-semibold">{children}</h3>,
+    h3: ({ children }: Drawn) => <h4 className="font-semibold">{children}</h4>,
+    h4: ({ children }: Drawn) => <h5 className="font-medium">{children}</h5>,
+    h5: ({ children }: Drawn) => <h6 className="font-medium">{children}</h6>,
+    h6: ({ children }: Drawn) => <h6 className="font-medium">{children}</h6>,
+    ul: ({ children }: Drawn) => (
       <ul
         className={
-          className === 'contains-task-list'
-            ? 'flex flex-col gap-1'
-            : 'flex list-disc flex-col gap-1 ps-5'
+          isTaskList(children) ? 'flex flex-col gap-1' : 'flex list-disc flex-col gap-1 ps-5'
         }
       >
         {children}
       </ul>
     ),
-    ol: ({ children, start }) => (
+    ol: ({ children, start }: Drawn & { readonly start?: number }) => (
       <ol start={start} className="flex list-decimal flex-col gap-1 ps-5">
         {children}
       </ol>
     ),
-    blockquote: ({ children }) => (
+    input: TaskBox,
+    blockquote: ({ children }: Drawn) => (
       <blockquote className="flex flex-col gap-2 border-s-2 border-border ps-3 text-muted-foreground">
         {children}
       </blockquote>
     ),
     hr: () => <hr className="border-border-subtle" />,
     pre: CodeBlock,
-    code: ({ children, className }) =>
-      // A fenced block's code is inside `pre`, which draws it; only inline code is drawn here.
-      className === undefined ? (
-        <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
-      ) : (
-        <code className={className}>{children}</code>
-      ),
-    table: ({ children }) => (
+    code: ({ children }: Drawn) => (
+      <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
+    ),
+    table: ({ children }: Drawn) => (
       <div className="overflow-x-auto rounded-md border border-border-subtle">
         <table className="w-full border-collapse text-xs">{children}</table>
       </div>
     ),
-    thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-    tr: ({ children }) => (
+    thead: ({ children }: Drawn) => <thead className="bg-muted/50">{children}</thead>,
+    tr: ({ children }: Drawn) => (
       <tr className="border-b border-border-subtle last:border-b-0">{children}</tr>
     ),
-    th: ({ children, style }) => (
+    th: ({ children, style }: Drawn & { readonly style?: CSSProperties }) => (
       <th style={style} className="px-2 py-1.5 text-start font-medium">
         {children}
       </th>
     ),
-    td: ({ children, style }) => (
+    td: ({ children, style }: Drawn & { readonly style?: CSSProperties }) => (
       <td style={style} className="px-2 py-1.5 align-top">
         {children}
       </td>
     ),
-    img: ({ alt, src }) => {
-      const host = typeof src === 'string' ? linkTarget(src, window.location.href) : undefined
+    img: ({ alt, src }: { readonly alt?: string; readonly src?: string | null }) => {
+      const host = linkTarget(src, window.location.href)
       return (
         <span className="inline-flex items-center gap-1 text-muted-foreground">
           <ImageOffIcon className="size-3.5 shrink-0" aria-hidden />
@@ -195,8 +222,10 @@ function components(go: Go): Components {
 }
 
 /**
- * The reply's Markdown, drawn with the chat's components. `javascript:` and other links a person
- * could not follow are dropped by react-markdown's default URL check before `Link` sees them.
+ * The reply's Markdown, drawn with the chat's components. Raw HTML stays text, and a reply that
+ * starts with `---` is a rule, not front matter. A link's address is checked twice: the parser
+ * drops `javascript:`, `vbscript:` and `data:` ones, and `Link` goes nowhere but the web, mail and
+ * this application.
  */
 export function Markdown({
   go,
@@ -205,12 +234,20 @@ export function Markdown({
   readonly go: Go
   readonly children: string
 }): ReactNode {
-  const drawn = useMemo(() => components(go), [go])
+  const options = useMemo(
+    (): MarkdownToJSX.Options => ({
+      overrides: overrides(go),
+      disableParsingRawHTML: true,
+      disableFrontmatter: true,
+      // A reply of one line is still a paragraph, and the blocks go straight into the column.
+      forceBlock: true,
+      wrapper: Fragment,
+    }),
+    [go],
+  )
   return (
     <div data-slot="chat-markdown" className="flex min-w-0 flex-col gap-2 break-words">
-      <ReactMarkdown remarkPlugins={PLUGINS} components={drawn}>
-        {children}
-      </ReactMarkdown>
+      <MarkdownToJsx options={options}>{children}</MarkdownToJsx>
     </div>
   )
 }
