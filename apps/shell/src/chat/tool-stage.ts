@@ -17,6 +17,7 @@ function outcome(output: unknown): ToolStage {
     case 'declined':
     case 'denied':
     case 'blocked':
+    case 'cancelled':
       return 'declined'
     case 'invalid':
     case 'unavailable':

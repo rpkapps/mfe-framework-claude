@@ -22,6 +22,7 @@ export type MfeErrorCode =
   | 'action/invalid-registration'
   | 'action/shortcut-refused'
   | 'action/unavailable'
+  | 'action/timeout'
   | 'app/invalid-base-path'
   | 'app/invalid-router'
   | 'storage/failure'

@@ -67,6 +67,9 @@ import {
 const VALID_PLACEMENTS = new Set<string>(DEFAULT_ACTION_PLACEMENTS)
 const VALID_EFFECTS = new Set<string>(ACTION_EFFECTS)
 
+/** The longest delay `setTimeout` keeps, a little under 25 days. */
+const MAX_TIMEOUT_MS = 2_147_483_647
+
 /** Restricted so `<definitionId>:<name>` stays unambiguous. */
 const ACTION_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9-]*$/
 
@@ -92,6 +95,7 @@ export interface ActionOwner {
 export interface ActionRegistrationHandle {
   /** Applies the latest committed registration after a React commit. */
   update(registration: ActionRegistration): void
+  /** Its runs still queued or running resolve `unavailable`, and their signals abort. */
   remove(): void
   /**
    * Runs this registration through the executor's steps, as `execute` runs one by id. Another
@@ -259,9 +263,13 @@ export class ActionRegistry {
     )
   }
 
-  /** A mount's actions, and so its shortcuts, go with it. */
+  /** A mount's actions, and so its shortcuts and its runs still in flight, go with it. */
   removeMount(mountToken: string): void {
-    if (this.#byScope.delete(mountToken)) this.#publish()
+    const actions = this.#byScope.get(mountToken)
+    if (!actions) return
+    this.#byScope.delete(mountToken)
+    for (const action of actions.values()) this.#executor.release(action)
+    this.#publish()
   }
 
   /**
@@ -356,7 +364,9 @@ export class ActionRegistry {
   }
 
   dispose(): void {
+    const actions = [...this.#allActions()]
     this.#byScope.clear()
+    for (const action of actions) this.#executor.release(action)
     this.#pressed = []
     this.#approver = undefined
     this.#snapshot.dispose()
@@ -436,6 +446,7 @@ export class ActionRegistry {
         if (action.shortcutScope.kind === 'reserved' && action.declared) {
           this.#refreshContainerShortcuts()
         }
+        this.#executor.release(action)
         this.#publish()
       },
     }
@@ -733,6 +744,21 @@ function assertFields(definitionId: string, registration: ActionRegistration): v
       expected: `an effect (${[...VALID_EFFECTS].join(', ')})`,
       observed: JSON.stringify(effect),
       repair: 'Declare what a run can change, or leave effect out to count it as a write.',
+    })
+  }
+
+  // A timer longer than setTimeout's limit fires at once, which would fail every call.
+  const { timeoutMs } = registration
+  if (
+    timeoutMs !== undefined &&
+    !(typeof timeoutMs === 'number' && timeoutMs > 0 && timeoutMs <= MAX_TIMEOUT_MS)
+  ) {
+    throw fail('action/invalid-registration', definitionId, {
+      operation: `register action '${name}'`,
+      expected: `a timeoutMs above 0 and at most ${String(MAX_TIMEOUT_MS)} milliseconds`,
+      observed: typeof timeoutMs === 'number' ? String(timeoutMs) : JSON.stringify(timeoutMs),
+      repair:
+        'Give the milliseconds an agent’s call may run, or leave timeoutMs out for 30 seconds.',
     })
   }
 }

@@ -1,10 +1,20 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { allow, deny, type ActionRegistration } from '@company/mfe-core'
+import {
+  allow,
+  deny,
+  type ActionExecutionContext,
+  type ActionRegistration,
+} from '@company/mfe-core'
 
 import { ActionRegistry, type ActionRegistryOptions } from './action-registry.ts'
-import type { ApprovalRequest } from './action-executor.ts'
+import type { ActionAuditSink } from './action-audit.ts'
+import {
+  DEFAULT_ACTION_TIMEOUT_MS,
+  type ActionExecutionResult,
+  type ApprovalRequest,
+} from './action-executor.ts'
 import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
 const owner = {
@@ -56,7 +66,10 @@ describe('input', () => {
     })
 
     expect(result).toEqual({ status: 'executed', value: undefined })
-    expect(execute).toHaveBeenCalledWith({ orderId: 'A-1', notify: true })
+    expect(execute).toHaveBeenCalledWith(
+      { orderId: 'A-1', notify: true },
+      { signal: expect.any(AbortSignal) as unknown },
+    )
   })
 
   it('refuses input the schema rejects, without running the action', async () => {
@@ -82,7 +95,7 @@ describe('input', () => {
 
     await registry.execute('orders:refund', { caller: 'palette', input: { stray: 1 } })
 
-    expect(execute).toHaveBeenCalledWith({})
+    expect(execute).toHaveBeenCalledWith({}, { signal: expect.any(AbortSignal) as unknown })
   })
 })
 
@@ -453,6 +466,336 @@ describe('waiting', () => {
       status: 'denied',
       reason: 'This action is not offered to the agent.',
     })
+    expect(execute).not.toHaveBeenCalled()
+  })
+})
+
+/** An `execute` that never settles, as an App's forgotten promise does, keeping each signal. */
+function hanging() {
+  const signals: AbortSignal[] = []
+  const execute = vi.fn((_input: unknown, { signal }: ActionExecutionContext) => {
+    signals.push(signal)
+    return new Promise<never>(() => undefined)
+  })
+  return { execute, signals }
+}
+
+describe('the deadline', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('fails a write that never settles, and runs the next one', async () => {
+    const audit = vi.fn<ActionAuditSink>()
+    const { registry, records } = setup({ audit })
+    const hung = hanging()
+    registry.register(owner, { name: 'save', label: 'Save', needsApproval: false, ...hung })
+    const next = vi.fn(() => 'saved')
+    registry.register(owner, { name: 'next', label: 'Next', needsApproval: false, execute: next })
+
+    const first = registry.execute('orders:save', { caller: 'agent' })
+    const second = registry.execute('orders:next', { caller: 'agent' })
+    await vi.advanceTimersByTimeAsync(DEFAULT_ACTION_TIMEOUT_MS - 1)
+    expect(next).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(first).resolves.toMatchObject({
+      status: 'failed',
+      error: { code: 'action/timeout' },
+    })
+    await expect(second).resolves.toEqual({ status: 'executed', value: 'saved' })
+    expect(hung.signals[0]?.aborted).toBe(true)
+    expect(hung.signals[0]?.reason).toMatchObject({ code: 'action/timeout' })
+    expect(codesOf(records)).toEqual(['action/timeout'])
+    expect(audit.mock.calls.map(([record]) => [record.actionId, record.outcome])).toEqual([
+      ['orders:save', 'failed'],
+      ['orders:next', 'executed'],
+    ])
+    expect(audit.mock.calls[0]?.[0]).toMatchObject({ errorCode: 'action/timeout' })
+  })
+
+  it('drops what execute returns once its run timed out', async () => {
+    const audit = vi.fn<ActionAuditSink>()
+    const { register, registry, records } = setup({ audit })
+    const late = deferred<unknown>()
+    // A late value that fails the schema would be reported, were it still read.
+    register({
+      needsApproval: false,
+      outputSchema: z.object({ refunded: z.number() }),
+      execute: async () => await late.promise,
+    })
+
+    const running = registry.execute('orders:refund', { caller: 'agent' })
+    await vi.advanceTimersByTimeAsync(DEFAULT_ACTION_TIMEOUT_MS)
+    late.resolve({ refunded: 'late' })
+    await vi.runAllTimersAsync()
+
+    await expect(running).resolves.toMatchObject({ status: 'failed' })
+    expect(codesOf(records)).toEqual(['action/timeout'])
+    expect(audit).toHaveBeenCalledOnce()
+    expect(audit.mock.calls[0]?.[0]).toMatchObject({ outcome: 'failed' })
+  })
+
+  it('does not report a throw that comes after the run timed out', async () => {
+    const { register, registry, records } = setup()
+    register({
+      needsApproval: false,
+      execute: async (_input, { signal }) =>
+        await new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            reject(new Error('aborted'))
+          })
+        }),
+    })
+
+    const running = registry.execute('orders:refund', { caller: 'agent' })
+    await vi.advanceTimersByTimeAsync(DEFAULT_ACTION_TIMEOUT_MS)
+
+    await expect(running).resolves.toMatchObject({ error: { code: 'action/timeout' } })
+    expect(codesOf(records)).toEqual(['action/timeout'])
+  })
+
+  it('takes the action’s own timeoutMs', async () => {
+    const { register, registry } = setup()
+    register({ needsApproval: false, timeoutMs: 100, ...hanging() })
+    const settled = vi.fn<(result: ActionExecutionResult) => void>()
+
+    void registry.execute('orders:refund', { caller: 'agent' }).then(settled)
+    await vi.advanceTimersByTimeAsync(99)
+    expect(settled).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled.mock.calls[0]?.[0]).toMatchObject({
+      status: 'failed',
+      error: { code: 'action/timeout' },
+    })
+  })
+
+  it('counts from when execute starts, so waiting behind another write does not use it up', async () => {
+    const { registry } = setup()
+    const slow = deferred<void>()
+    registry.register(owner, {
+      name: 'slow',
+      label: 'Slow',
+      needsApproval: false,
+      execute: async () => await slow.promise,
+    })
+    const done = deferred<string>()
+    registry.register(owner, {
+      name: 'next',
+      label: 'Next',
+      needsApproval: false,
+      timeoutMs: 1_000,
+      execute: async () => await done.promise,
+    })
+
+    void registry.execute('orders:slow', { caller: 'agent' })
+    const next = registry.execute('orders:next', { caller: 'agent' })
+    await vi.advanceTimersByTimeAsync(5_000)
+    slow.resolve()
+    await vi.advanceTimersByTimeAsync(999)
+    done.resolve('in time')
+
+    await expect(next).resolves.toEqual({ status: 'executed', value: 'in time' })
+  })
+
+  it('gives a user’s run a signal but no deadline', async () => {
+    const { register, registry } = setup()
+    const hung = hanging()
+    register(hung)
+    const settled = vi.fn()
+
+    void registry.execute('orders:refund', { caller: 'palette' }).then(settled)
+    await vi.advanceTimersByTimeAsync(DEFAULT_ACTION_TIMEOUT_MS * 10)
+
+    expect(settled).not.toHaveBeenCalled()
+    expect(hung.signals).toHaveLength(1)
+    expect(hung.signals[0]?.aborted).toBe(false)
+  })
+
+  it('refuses a timeoutMs that is not a positive number of milliseconds', () => {
+    const { register } = setup()
+    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31]) {
+      expect(() => register({ timeoutMs })).toThrow(
+        expect.objectContaining({ code: 'action/invalid-registration' }),
+      )
+    }
+  })
+})
+
+describe('a registration that goes away', () => {
+  it('releases its queued and running writes as unavailable, and the queue moves on', async () => {
+    const audit = vi.fn<ActionAuditSink>()
+    const { registry } = setup({ audit })
+    const hung = hanging()
+    registry.register(owner, { name: 'save', label: 'Save', needsApproval: false, ...hung })
+    const queued = vi.fn()
+    registry.register(owner, {
+      name: 'publish',
+      label: 'Publish',
+      needsApproval: false,
+      execute: queued,
+    })
+    const other = vi.fn(() => 'other')
+    registry.register(
+      { ...owner, mountToken: 'mount-2' },
+      { name: 'other', label: 'Other', needsApproval: false, execute: other },
+    )
+
+    const running = [
+      registry.execute('orders:save', { caller: 'agent' }),
+      registry.execute('orders:publish', { caller: 'agent' }),
+      registry.execute('orders:other', { caller: 'agent' }),
+    ]
+    await Promise.resolve()
+    expect(hung.execute).toHaveBeenCalledOnce()
+    registry.removeMount('mount-1')
+
+    const results = await Promise.all(running)
+    expect(results.map(result => result.status)).toEqual(['unavailable', 'unavailable', 'executed'])
+    expect(results[0]).toMatchObject({ error: { code: 'action/unavailable' } })
+    expect(hung.signals[0]?.aborted).toBe(true)
+    expect(queued).not.toHaveBeenCalled()
+    expect(audit.mock.calls.map(([record]) => record.outcome)).toEqual([
+      'unavailable',
+      'unavailable',
+      'executed',
+    ])
+  })
+
+  it('releases a user’s run when its component removes the action', async () => {
+    const { register } = setup()
+    const hung = hanging()
+    const handle = register(hung)
+
+    const running = handle.execute({ caller: 'ui' })
+    handle.remove()
+
+    await expect(running).resolves.toMatchObject({ status: 'unavailable' })
+    expect(hung.signals[0]?.aborted).toBe(true)
+  })
+
+  it('keeps one write at a time when a queued one is released before the running one ends', async () => {
+    const { registry } = setup()
+    const order: string[] = []
+    const first = deferred<void>()
+    registry.register(owner, {
+      name: 'first',
+      label: 'First',
+      needsApproval: false,
+      execute: async () => {
+        await first.promise
+        order.push('first')
+      },
+    })
+    const released = registry.register(
+      { ...owner, mountToken: 'mount-2' },
+      { name: 'released', label: 'Released', needsApproval: false, execute: () => undefined },
+    )
+    registry.register(owner, {
+      name: 'last',
+      label: 'Last',
+      needsApproval: false,
+      execute: () => {
+        order.push('last')
+      },
+    })
+
+    const running = [
+      registry.execute('orders:first', { caller: 'agent' }),
+      released.execute({ caller: 'agent' }),
+      registry.execute('orders:last', { caller: 'agent' }),
+    ]
+    released.remove()
+    await running[1]
+    await Promise.resolve()
+    expect(order).toEqual([])
+
+    first.resolve()
+    await Promise.all(running)
+    expect(order).toEqual(['first', 'last'])
+  })
+})
+
+describe('a caller that stops waiting', () => {
+  it('cancels the running write and the one queued behind it, and aborts the action’s signal', async () => {
+    const audit = vi.fn<ActionAuditSink>()
+    const { registry } = setup({ audit })
+    const hung = hanging()
+    registry.register(owner, { name: 'save', label: 'Save', needsApproval: false, ...hung })
+    const queued = vi.fn()
+    registry.register(owner, {
+      name: 'publish',
+      label: 'Publish',
+      needsApproval: false,
+      execute: queued,
+    })
+    const later = vi.fn(() => 'later')
+    registry.register(owner, {
+      name: 'later',
+      label: 'Later',
+      needsApproval: false,
+      execute: later,
+    })
+    const stop = new AbortController()
+
+    const running = [
+      registry.execute('orders:save', { caller: 'agent', signal: stop.signal }),
+      registry.execute('orders:publish', { caller: 'agent', signal: stop.signal }),
+    ]
+    await Promise.resolve()
+    stop.abort('stopped')
+
+    await expect(Promise.all(running)).resolves.toEqual([
+      { status: 'cancelled', reason: 'The caller stopped the run.' },
+      { status: 'cancelled', reason: 'The caller stopped the run.' },
+    ])
+    expect(hung.signals[0]?.reason).toBe('stopped')
+    expect(queued).not.toHaveBeenCalled()
+    await expect(registry.execute('orders:later', { caller: 'agent' })).resolves.toEqual({
+      status: 'executed',
+      value: 'later',
+    })
+    expect(audit.mock.calls.map(([record]) => record.outcome)).toEqual([
+      'cancelled',
+      'cancelled',
+      'executed',
+    ])
+  })
+
+  it('runs nothing for a call whose signal already aborted', async () => {
+    const { register, registry } = setup()
+    const execute = vi.fn()
+    register({ needsApproval: false, execute })
+
+    await expect(
+      registry.execute('orders:refund', { caller: 'agent', signal: AbortSignal.abort() }),
+    ).resolves.toMatchObject({ status: 'cancelled' })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('reads a stop while the user was asked as cancelled, not declined', async () => {
+    const { register, registry } = setup()
+    const stop = new AbortController()
+    // The chat's Stop answers its open card as declined, after aborting the turn.
+    registry.setApprover(
+      async () =>
+        await new Promise<boolean>(resolve => {
+          stop.signal.addEventListener('abort', () => {
+            resolve(false)
+          })
+        }),
+    )
+    const execute = vi.fn()
+    register({ execute })
+
+    const running = registry.execute('orders:refund', { caller: 'agent', signal: stop.signal })
+    stop.abort()
+
+    await expect(running).resolves.toMatchObject({ status: 'cancelled' })
     expect(execute).not.toHaveBeenCalled()
   })
 })

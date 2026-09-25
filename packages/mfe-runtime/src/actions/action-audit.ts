@@ -25,7 +25,7 @@ export interface ActionTurn {
 }
 
 export type ActionOutcome =
-  'executed' | 'denied' | 'declined' | 'invalid' | 'unavailable' | 'failed'
+  'executed' | 'denied' | 'declined' | 'cancelled' | 'invalid' | 'unavailable' | 'failed'
 
 export interface ActionAuditRecord {
   readonly actionId: string
@@ -38,7 +38,7 @@ export interface ActionAuditRecord {
   readonly userId?: string
   readonly turn?: ActionTurn
   readonly outcome: ActionOutcome
-  /** Why a run was denied or declined. */
+  /** Why a run was denied, declined or cancelled. */
   readonly reason?: string
   /** The code of the error an invalid, unavailable or failed run carried. */
   readonly errorCode?: string

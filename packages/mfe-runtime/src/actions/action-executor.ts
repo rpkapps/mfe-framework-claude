@@ -6,9 +6,13 @@
  *   decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit
  *
  * Approval and serializing apply to an agent's calls alone: a user who runs an action is its
- * approval, and a user's run may itself run another action, which a queue would deadlock. Every
- * run is audited, however it ends (`action-audit.ts`). The registry owns everything else about an
- * action: its scope, its entry and its keys.
+ * approval, and a user's run may itself run another action, which a queue would deadlock. So does
+ * the deadline: an agent's call is given up once `execute` has run for the action's `timeoutMs`,
+ * so a write that never settles cannot hold the queue, nor the chat's turn, for longer than that.
+ * A run is also given up when its registration goes away or its caller's signal aborts; the
+ * action's own signal aborts with it, and whatever `execute` returns afterwards is dropped. Every
+ * run is audited once, however it ends (`action-audit.ts`). The registry owns everything else
+ * about an action: its scope, its entry and its keys.
  */
 
 import {
@@ -48,7 +52,19 @@ export interface ActionCall {
   readonly input?: unknown
   /** The chat thread and turn an agent's call came from, recorded in the audit. */
   readonly turn?: ActionTurn
+  /**
+   * The caller no longer wants the result: the chat's Stop. Aborted before the run starts, nothing
+   * runs; aborted while it waits in the queue or runs, it resolves `cancelled` at once and the
+   * action's own signal aborts.
+   */
+  readonly signal?: AbortSignal
 }
+
+/**
+ * How long an agent's call may run once `execute` starts, unless the action sets `timeoutMs`. Long
+ * enough for a slow save, short enough that a hung one does not look like a chat that died.
+ */
+export const DEFAULT_ACTION_TIMEOUT_MS = 30_000
 
 /** Who a caller acts for. */
 function actorOf(caller: ActionCaller): ActionActor {
@@ -62,9 +78,13 @@ export type ActionExecutionResult<Value = unknown> =
   | { readonly status: 'denied'; readonly reason: string }
   /** The user was asked and said no. */
   | { readonly status: 'declined'; readonly reason: string }
+  /** The caller's `signal` aborted before the run ended. */
+  | { readonly status: 'cancelled'; readonly reason: string }
   /** The input did not match the action's `inputSchema`, so nothing ran. */
   | { readonly status: 'invalid'; readonly error: MfeError }
+  /** The registration is gone, or went while the run waited or ran (`action/unavailable`). */
   | { readonly status: 'unavailable'; readonly error: MfeError }
+  /** `execute` threw or passed its deadline (`action/timeout`), or its value failed `outputSchema`. */
   | { readonly status: 'failed'; readonly error: MfeError }
 
 /**
@@ -179,10 +199,73 @@ type Parsed =
   | { readonly ok: true; readonly value: Readonly<Record<string, unknown>> }
   | { readonly ok: false; readonly error: MfeError }
 
+/**
+ * One run from the moment it queues, or starts when it does not queue, until it ends: `execute`
+ * settling, its deadline passing, its caller's signal aborting, or its registration going away.
+ * The first of those is the run's result; anything later is dropped, so a value `execute` returns
+ * after its run was given up is never reported as the run's.
+ */
+class Flight {
+  readonly result: Promise<ActionExecutionResult>
+  readonly #controller = new AbortController()
+  readonly #cleanups: (() => void)[] = []
+  #resolve: (result: ActionExecutionResult) => void = () => undefined
+  #ended = false
+
+  constructor() {
+    this.result = new Promise(resolve => {
+      this.#resolve = resolve
+    })
+  }
+
+  /** What `execute` receives; aborted only when the run is given up, never once it ended. */
+  get signal(): AbortSignal {
+    return this.#controller.signal
+  }
+
+  get ended(): boolean {
+    return this.#ended
+  }
+
+  /** Runs once the run ends, whichever way; at once if it has. */
+  onEnd(cleanup: () => void): void {
+    if (this.#ended) cleanup()
+    else this.#cleanups.push(cleanup)
+  }
+
+  /** Ends the run with what `execute`, or a check before it, came to. */
+  finish(result: ActionExecutionResult): void {
+    this.#end(result)
+  }
+
+  /** Ends the run without waiting for `execute`, which is told why through its signal. */
+  abandon(result: ActionExecutionResult, reason: unknown): void {
+    if (this.#end(result)) this.#controller.abort(reason)
+  }
+
+  #end(result: ActionExecutionResult): boolean {
+    if (this.#ended) return false
+    this.#ended = true
+    for (const cleanup of this.#cleanups.splice(0)) cleanup()
+    this.#resolve(result)
+    return true
+  }
+}
+
+const CANCELLED: ActionExecutionResult = Object.freeze({
+  status: 'cancelled',
+  reason: 'The caller stopped the run.',
+})
+
 export class ActionExecutor<Action extends RunnableAction> {
   readonly #options: ActionExecutorOptions<Action>
-  /** The last queued agent write, settled either way; the next one waits for it. */
+  /**
+   * Settles when every agent write queued so far has ended; the next one waits for it. A write
+   * ends at its deadline at the latest, so a hung one holds the queue no longer than that.
+   */
   #writes: Promise<unknown> = Promise.resolve()
+  /** The runs of each action that are queued or running, given up when it goes away. */
+  readonly #flights = new Map<Action, Set<Flight>>()
 
   constructor(options: ActionExecutorOptions<Action> = {}) {
     this.#options = options
@@ -199,17 +282,32 @@ export class ActionExecutor<Action extends RunnableAction> {
     try {
       result = await this.#run(action, call)
     } catch (error) {
-      // A host hook (the denial notifier) or a schema's own refinement threw: the run still ends in
-      // a result the caller can read, and is still audited.
-      result = {
-        status: 'failed',
-        error: this.#report(error, action, `run action '${action.registration.name}'`, {
-          repair: 'The host’s hooks and the action’s schemas must not throw.',
-        }),
-      }
+      result = this.#thrown(error, action)
     }
     this.audit(action, call, result, startedAt)
     return result
+  }
+
+  /**
+   * Gives up every run of `action` that is queued or running, because its registration went away
+   * with its mount or its component: each resolves `unavailable`, the action's signal aborts, and
+   * the queue moves on. A call still waiting on the user is looked at again once they answer.
+   */
+  release(action: Action): void {
+    const flights = this.#flights.get(action)
+    if (!flights) return
+    this.#flights.delete(action)
+
+    const error = createMfeError({
+      code: 'action/unavailable',
+      id: action.definitionId,
+      operation: `execute action '${action.registration.name}'`,
+      expected: 'the registration the run started with',
+      observed:
+        'no registration, because its mount or component went away while the run was queued or running',
+      repair: 'List the actions again and call one that is registered now.',
+    })
+    for (const flight of [...flights]) flight.abandon({ status: 'unavailable', error }, error)
   }
 
   /**
@@ -269,6 +367,19 @@ export class ActionExecutor<Action extends RunnableAction> {
     return structured
   }
 
+  /**
+   * A host hook (the denial notifier) or a schema's own refinement threw: the run still ends in a
+   * result the caller can read, and is still audited.
+   */
+  #thrown(error: unknown, action: Action): ActionExecutionResult {
+    return {
+      status: 'failed',
+      error: this.#report(error, action, `run action '${action.registration.name}'`, {
+        repair: 'The host’s hooks and the action’s schemas must not throw.',
+      }),
+    }
+  }
+
   #now(): number {
     return this.#options.now?.() ?? Date.now()
   }
@@ -276,28 +387,88 @@ export class ActionExecutor<Action extends RunnableAction> {
   async #run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
     const { registration } = action
     const agent = call.caller === 'agent'
+    if (call.signal?.aborted) return CANCELLED
     const denied = this.#decide(action, call)
     if (denied) return denied
 
     const input = this.#parseInput(action, call.input)
     if (!input.ok) return { status: 'invalid', error: input.error }
-    if (!agent) return await this.#execute(action, input.value)
+    if (!agent) {
+      return await this.#fly(action, call, flight =>
+        this.#execute(action, call, input.value, flight),
+      )
+    }
 
     const ruling = this.#rule(action, input.value)
     if (typeof ruling === 'object') return { status: 'denied', reason: ruling.deny }
     if (ruling === 'ask') {
       const refused = await this.#ask(action, input.value)
+      // The chat's Stop answers its open card too, as declined; the stop is what happened.
+      if (call.signal?.aborted) return CANCELLED
       if (refused) return refused
     }
 
     // Anything awaited gave the page time to change, so the action is looked at again first.
     const waited = ruling === 'ask'
+    const execute = (flight: Flight) =>
+      waited
+        ? this.#executeAfterWait(action, call, input.value, flight)
+        : this.#execute(action, call, input.value, flight)
     if (effectOf(registration) === 'read' || registration.parallelSafe === true) {
-      return waited
-        ? await this.#executeAfterWait(action, call, input.value)
-        : await this.#execute(action, input.value)
+      return await this.#fly(action, call, execute)
     }
-    return await this.#serialize(() => this.#executeAfterWait(action, call, input.value))
+    return await this.#serialize(action, call, flight =>
+      this.#executeAfterWait(action, call, input.value, flight),
+    )
+  }
+
+  /**
+   * Starts a run in flight, after `after` settles when it queues, and resolves with however it
+   * ends first. `work` resolves `undefined` when the run ended before `execute` did.
+   */
+  #fly(
+    action: Action,
+    call: ActionCall,
+    work: (flight: Flight) => Promise<ActionExecutionResult | undefined>,
+    after?: Promise<unknown>,
+  ): Promise<ActionExecutionResult> {
+    const flight = new Flight()
+    let flights = this.#flights.get(action)
+    if (!flights) {
+      flights = new Set()
+      this.#flights.set(action, flights)
+    }
+    const own = flights
+    own.add(flight)
+    flight.onEnd(() => {
+      own.delete(flight)
+      if (own.size === 0 && this.#flights.get(action) === own) this.#flights.delete(action)
+    })
+
+    const { signal } = call
+    if (signal) {
+      const cancel = (): void => {
+        flight.abandon(CANCELLED, signal.reason)
+      }
+      signal.addEventListener('abort', cancel, { once: true })
+      flight.onEnd(() => {
+        signal.removeEventListener('abort', cancel)
+      })
+    }
+
+    // Released or cancelled while it queued, it never starts.
+    const started = after
+      ? after.then(async () => (flight.ended ? undefined : await work(flight)))
+      : work(flight)
+    void started.then(
+      result => {
+        if (result) flight.finish(result)
+      },
+      (error: unknown) => {
+        if (!flight.ended) flight.finish(this.#thrown(error, action))
+      },
+    )
+    return flight.result
   }
 
   /**
@@ -422,18 +593,28 @@ export class ActionExecutor<Action extends RunnableAction> {
     }
   }
 
-  /** One agent write at a time, in the order they were asked for; a failure does not stop the next. */
-  #serialize(run: () => Promise<ActionExecutionResult>): Promise<ActionExecutionResult> {
-    const next = this.#writes.then(run)
-    this.#writes = next.catch(() => undefined)
-    return next
+  /**
+   * One agent write at a time, in the order they were asked for; a failure does not stop the next.
+   * The next one waits for this one to end and for every one before it, since this one may end
+   * while it still waits: released or cancelled in the queue.
+   */
+  #serialize(
+    action: Action,
+    call: ActionCall,
+    work: (flight: Flight) => Promise<ActionExecutionResult | undefined>,
+  ): Promise<ActionExecutionResult> {
+    const previous = this.#writes
+    const result = this.#fly(action, call, work, previous)
+    this.#writes = previous.then(() => result)
+    return result
   }
 
   async #executeAfterWait(
     action: Action,
     call: ActionCall,
     input: Readonly<Record<string, unknown>>,
-  ): Promise<ActionExecutionResult> {
+    flight: Flight,
+  ): Promise<ActionExecutionResult | undefined> {
     if (this.#options.isLive?.(action) === false) {
       return {
         status: 'unavailable',
@@ -447,18 +628,40 @@ export class ActionExecutor<Action extends RunnableAction> {
         }),
       }
     }
-    return this.#decide(action, call) ?? (await this.#execute(action, input))
+    return this.#decide(action, call) ?? (await this.#execute(action, call, input, flight))
   }
 
+  /**
+   * Runs `execute`, under a deadline when an agent called: the agent's turn waits on the result,
+   * and a write holds the queue, while a user sees their own run and the host's code can pass a
+   * signal. The deadline starts here rather than when the call was asked for, so waiting on the
+   * user or behind another write does not count against it; a write behind a hung one waits at
+   * most that one's deadline. Resolves `undefined` when the run ended before `execute` did.
+   */
   async #execute(
     action: Action,
+    call: ActionCall,
     input: Readonly<Record<string, unknown>>,
-  ): Promise<ActionExecutionResult> {
+    flight: Flight,
+  ): Promise<ActionExecutionResult | undefined> {
     const { registration } = action
+    if (call.caller === 'agent') {
+      const timeoutMs = registration.timeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS
+      const timer = setTimeout(() => {
+        const error = this.#timedOut(action, timeoutMs)
+        flight.abandon({ status: 'failed', error }, error)
+      }, timeoutMs)
+      flight.onEnd(() => {
+        clearTimeout(timer)
+      })
+    }
+
     let value: unknown
     try {
-      value = await registration.execute(input)
+      value = await registration.execute(input, { signal: flight.signal })
     } catch (error) {
+      // Once the run was given up, a throw is most likely the abort it was asked for.
+      if (flight.ended) return undefined
       return {
         status: 'failed',
         error: this.#report(error, action, `execute action '${registration.name}'`, {
@@ -467,6 +670,8 @@ export class ActionExecutor<Action extends RunnableAction> {
         }),
       }
     }
+
+    if (flight.ended) return undefined
 
     const { outputSchema } = registration
     if (!outputSchema) return { status: 'executed', value }
@@ -487,6 +692,21 @@ export class ActionExecutor<Action extends RunnableAction> {
     })
     this.#options.diagnostics?.report(error)
     return { status: 'failed', error }
+  }
+
+  /** Reported as the action's owner's failure: a run that never settles is a bug in the App. */
+  #timedOut(action: Action, timeoutMs: number): MfeError {
+    const error = createMfeError({
+      code: 'action/timeout',
+      id: action.definitionId,
+      operation: `execute action '${action.registration.name}'`,
+      expected: `execute to settle within ${String(timeoutMs)}ms of starting`,
+      observed: 'an execute still running, so the run failed and its signal was aborted',
+      repair:
+        'Pass the signal execute receives to the work it waits on, and settle every promise it returns. If the work is slow by nature, give the action a longer timeoutMs.',
+    })
+    this.#options.diagnostics?.report(error)
+    return error
   }
 }
 

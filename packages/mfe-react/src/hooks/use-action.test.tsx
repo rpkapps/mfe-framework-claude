@@ -482,4 +482,39 @@ describe('the run useAction returns', () => {
 
     await expect(runs.at(-1)?.()).resolves.toMatchObject({ status: 'unavailable' })
   })
+
+  it('hands execute a signal that aborts when the component unmounts mid-run', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders' })
+    const created = environment
+    const Mounted = created.wrapper
+    const signals: AbortSignal[] = []
+    const runs: ActionRun[] = []
+
+    function Save(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'save',
+          label: 'Save',
+          execute: (_input, { signal }) => {
+            signals.push(signal)
+            return new Promise<never>(() => undefined)
+          },
+        }),
+      )
+      return null
+    }
+    const view = render(
+      <Mounted>
+        <Save />
+      </Mounted>,
+    )
+
+    const running = runs.at(-1)?.()
+    expect(signals).toHaveLength(1)
+    expect(signals[0]?.aborted).toBe(false)
+    view.unmount()
+
+    await expect(running).resolves.toMatchObject({ status: 'unavailable' })
+    expect(signals[0]?.aborted).toBe(true)
+  })
 })

@@ -137,6 +137,7 @@ export {
   type BreadcrumbItem,
   type ActionEffect,
   type ActionEntry,
+  type ActionExecutionContext,
   type AgentContextEntry,
   type AgentContextRegistration,
   type AgentPrompt,

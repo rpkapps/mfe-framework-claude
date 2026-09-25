@@ -34,6 +34,7 @@ describe('stageOf', () => {
     [part({ state: 'complete', output: { status: 'executed' } }), 'done'],
     [part({ state: 'complete', output: { status: 'declined', reason: 'No' } }), 'declined'],
     [part({ state: 'complete', output: { status: 'blocked' } }), 'declined'],
+    [part({ state: 'complete', output: { status: 'cancelled', reason: 'Stopped' } }), 'declined'],
     [part({ state: 'complete', output: { status: 'unavailable' } }), 'failed'],
     [part({ state: 'complete', output: { error: 'The arguments are not JSON.' } }), 'failed'],
     [part({ state: 'error' }), 'failed'],

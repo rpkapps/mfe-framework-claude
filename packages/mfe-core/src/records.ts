@@ -78,6 +78,17 @@ export function deny(reason: string): Decision {
 }
 
 /**
+ * What `execute` is told about its run besides the input. `signal` aborts when the run is given
+ * up on: an agent's call passed its deadline, the registration went away with its mount or
+ * component, or the caller stopped waiting (the chat's Stop). The run has resolved by then and
+ * whatever `execute` still returns is dropped, so the work should stop rather than finish unseen:
+ * hand the signal to `fetch`, or check it between steps.
+ */
+export interface ActionExecutionContext {
+  readonly signal: AbortSignal
+}
+
+/**
  * One operation every caller shares: the palette, a shortcut, the App's own UI and the agent. The
  * fields that hold a schema end in `Schema`; they are the names a tool definition uses, so an
  * action maps onto one field for field.
@@ -109,13 +120,20 @@ export interface ActionRegistration<
   readonly needsApproval?: boolean | ApprovalCheck<z.output<Input>>
   /** An agent's writes run one at a time, unless this is set. Reads never wait. */
   readonly parallelSafe?: boolean
+  /**
+   * How long an agent's call may run, in milliseconds, from the moment `execute` starts: then it
+   * fails with `action/timeout`, its signal aborts, and the next write in the queue runs. Defaults
+   * to 30 seconds. Only an agent's calls have one: a user sees their own run, and the host's code
+   * can pass a signal of its own.
+   */
+  readonly timeoutMs?: number
   /** Whether the agent carries on once it has the result. Defaults to `true`. */
   readonly followUp?: boolean
   /**
-   * Receives the validated input. What it returns, once awaited, is the `value` of the run's
-   * result.
+   * Receives the validated input, and a signal that aborts when the run is given up on. What it
+   * returns, once awaited, is the `value` of the run's result.
    */
-  execute(input: z.output<Input>): Output | Promise<Output>
+  execute(input: z.output<Input>, context: ActionExecutionContext): Output | Promise<Output>
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
   /**

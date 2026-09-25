@@ -247,4 +247,30 @@ describe('injectAction with a shortcut', () => {
     await expect(run()).resolves.toMatchObject({ status: 'unavailable' })
     environment.dispose()
   })
+
+  it('hands execute a signal that aborts when its injector is destroyed mid-run', async () => {
+    const environment = createMfeTestEnvironment()
+    const appRef = await createHostApplication(environment)
+    const injector = createEnvironmentInjector([], appRef.injector)
+    const signals: AbortSignal[] = []
+
+    const run = runInInjectionContext(injector, () =>
+      injectAction({
+        name: 'save',
+        label: 'Save',
+        execute: (_input, context) => {
+          signals.push(context.signal)
+          return new Promise<never>(() => undefined)
+        },
+      }),
+    )
+    const running = run()
+    expect(signals).toHaveLength(1)
+    expect(signals[0]?.aborted).toBe(false)
+    injector.destroy()
+
+    await expect(running).resolves.toMatchObject({ status: 'unavailable' })
+    expect(signals[0]?.aborted).toBe(true)
+    environment.dispose()
+  })
 })

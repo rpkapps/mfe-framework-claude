@@ -128,6 +128,7 @@ export {
   type ActionTurn,
 } from './actions/action-audit.ts'
 export {
+  DEFAULT_ACTION_TIMEOUT_MS,
   type ActionApprovalPolicy,
   type ActionApprover,
   type ActionCall,

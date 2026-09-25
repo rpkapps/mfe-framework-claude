@@ -39,7 +39,7 @@ export function toolNameOf(actionId: string): string {
 /** What the agent is told of a run, as the tool's result. */
 export type ActionToolResult =
   | { readonly status: 'executed'; readonly value: unknown }
-  | { readonly status: 'denied' | 'declined'; readonly reason: string }
+  | { readonly status: 'denied' | 'declined' | 'cancelled'; readonly reason: string }
   | {
       readonly status: 'invalid' | 'unavailable' | 'failed'
       readonly error: { readonly code: string; readonly message: string }
@@ -51,6 +51,7 @@ function describe(result: ActionExecutionResult): ActionToolResult {
       return { status: 'executed', value: result.value }
     case 'denied':
     case 'declined':
+    case 'cancelled':
       return { status: result.status, reason: result.reason }
     default:
       return {
@@ -76,7 +77,9 @@ function offered(actions: Actions): Map<string, ActionEntry> {
  * Every action the page offers the agent now, as the chat's tools: its placements include
  * `'agent'` and its `canExecute` allows it. Pass it as a function, so the chat reads it again
  * before every run. A call runs through the pipeline as the caller `'agent'`, with the chat's
- * thread and run as its turn; an action whose mount has gone since is answered `unavailable`.
+ * thread and run as its turn; an action whose mount has gone since is answered `unavailable`. The
+ * chat's Stop reaches the call through its signal: a call still queued or running is `cancelled`,
+ * and the action's own signal aborts, so the turn ends and the next write is not held behind it.
  */
 export function actionTools(actions: Actions): ChatTool[] {
   return [...offered(actions)].map(([name, entry]) => ({
@@ -84,7 +87,7 @@ export function actionTools(actions: Actions): ChatTool[] {
     description: entry.description ?? entry.label,
     ...(entry.inputSchema === undefined ? {} : { inputSchema: entry.inputSchema }),
     ...(entry.followUp ? {} : { followUp: false }),
-    execute: async (input, { threadId, runId }): Promise<ActionToolResult> => {
+    execute: async (input, { threadId, runId, signal }): Promise<ActionToolResult> => {
       if (!offered(actions).has(name)) {
         return {
           status: 'unavailable',
@@ -95,6 +98,7 @@ export function actionTools(actions: Actions): ChatTool[] {
         caller: 'agent',
         input,
         turn: { threadId, turnId: runId },
+        signal,
       })
       return describe(result)
     },

@@ -172,6 +172,49 @@ describe('approvalsIn', () => {
   })
 })
 
+describe('the chat’s Stop', () => {
+  it('aborts a page tool’s write that is still running, so the turn ends and the queue moves on', async () => {
+    const { memory, runtime } = page()
+    const signals: AbortSignal[] = []
+    runtime.actions.register(owner, {
+      name: 'save-plan',
+      label: 'Save the plan',
+      needsApproval: false,
+      // A save whose request never settles, as one with no timeout does.
+      execute: (_input, { signal }) => {
+        signals.push(signal)
+        return new Promise<never>(() => undefined)
+      },
+    })
+    const backend = scriptedBackend(
+      calls({ id: 'call-1', name: 'operations__save-plan', args: {} }),
+      says('Stopped.'),
+    )
+    const chat = new ChatClient({
+      connection: backend.connection,
+      tools: () => actionTools(runtime.actions),
+    })
+
+    const turn = chat.sendMessage('Save the plan')
+    await expect.poll(() => signals).toHaveLength(1)
+    chat.stop()
+    await turn
+
+    expect(signals[0]?.aborted).toBe(true)
+    expect(
+      memory.telemetry.frameworkRecords('run action').map(record => record.attributes),
+    ).toMatchObject([{ 'action.id': 'operations:save-plan', 'action.outcome': 'cancelled' }])
+    // The write the stop released no longer holds the next one.
+    runtime.actions.setApprover(() => Promise.resolve(true))
+    await expect(
+      runtime.actions.execute('operations:acknowledge-alert', {
+        caller: 'agent',
+        input: { alertId: 'A-7' },
+      }),
+    ).resolves.toMatchObject({ status: 'executed' })
+  })
+})
+
 describe('agentContextOf', () => {
   it('says where the user is and what they selected', () => {
     const { runtime } = page()
