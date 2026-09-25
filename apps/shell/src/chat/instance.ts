@@ -13,7 +13,7 @@ import type { AgentPromptRequest } from '@company/mfe-react/host'
 import { ChatPanel } from './panel.ts'
 import type { ShellChat, ShellChatOptions } from './shell-chat.ts'
 
-export type LazyShellChatOptions = Omit<ShellChatOptions, 'panel'>
+type LazyShellChatOptions = Omit<ShellChatOptions, 'panel'>
 
 export class LazyShellChat {
   readonly panel = new ChatPanel()

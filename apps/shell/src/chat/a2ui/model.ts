@@ -29,28 +29,6 @@ export interface Surface {
   readonly data: JsonValue
 }
 
-export type A2uiMessage =
-  | {
-      readonly version: string
-      readonly createSurface: { readonly surfaceId: string; readonly catalogId: string }
-    }
-  | {
-      readonly version: string
-      readonly updateComponents: {
-        readonly surfaceId: string
-        readonly components: readonly A2uiComponent[]
-      }
-    }
-  | {
-      readonly version: string
-      readonly updateDataModel: {
-        readonly surfaceId: string
-        readonly path?: string
-        readonly value?: JsonValue
-      }
-    }
-  | { readonly version: string; readonly deleteSurface: { readonly surfaceId: string } }
-
 /** What the client answers a payload it cannot render with, so the agent can correct it. */
 export interface A2uiError {
   readonly code: 'VALIDATION_FAILED' | 'UNKNOWN_COMPONENT' | 'SURFACE_NOT_FOUND'

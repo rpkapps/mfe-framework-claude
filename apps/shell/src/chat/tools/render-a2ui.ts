@@ -23,7 +23,7 @@ export type RenderA2uiResult =
   | { readonly status: 'invalid'; readonly error: A2uiError }
 
 /** The call's input as A2UI messages: raw ones, or the middleware's shorthand expanded. */
-export function messagesOf(
+function messagesOf(
   input: unknown,
   exists: (surfaceId: string) => boolean,
 ): { readonly surfaceId: string; readonly messages: readonly unknown[] } | undefined {

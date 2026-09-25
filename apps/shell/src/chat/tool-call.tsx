@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense, useId, useRef, type ReactNode } from 'react'
-import type { ToolCallPart } from '@company/mfe-agent'
+import { DISCOVER_TOOLS, type ToolCallPart } from '@company/mfe-agent'
 import { DynamicWidget } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -112,7 +112,7 @@ function useToolLabel(part: ToolCallPart): string {
     const path = typeof input?.path === 'string' && input.path !== '/' ? input.path : ''
     return app === undefined ? 'Go to a page' : `Go to ${app}${path}`
   }
-  if (part.name === 'discover_tools') return 'Look for tools'
+  if (part.name === DISCOVER_TOOLS) return 'Look for tools'
   return actionLabel ?? humanize(part.name)
 }
 
@@ -131,7 +131,7 @@ function json(value: unknown): string {
   }
 }
 
-export function ToolCard({
+function ToolCard({
   part,
   label: labelOverride,
 }: {

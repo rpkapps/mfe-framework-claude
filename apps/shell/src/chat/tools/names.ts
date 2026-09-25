@@ -9,7 +9,7 @@ export const SHELL_TOOLS = {
   a2ui: 'render_a2ui',
 } as const
 
-export type ShellToolName = (typeof SHELL_TOOLS)[keyof typeof SHELL_TOOLS]
+type ShellToolName = (typeof SHELL_TOOLS)[keyof typeof SHELL_TOOLS]
 
 const NAMES: ReadonlySet<string> = new Set(Object.values(SHELL_TOOLS))
 
