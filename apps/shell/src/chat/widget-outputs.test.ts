@@ -22,6 +22,19 @@ describe('WidgetOutputs', () => {
     expect(outputs.context()).toEqual([])
   })
 
+  it('forgets the outputs of Widgets whose calls left the history', () => {
+    const outputs = new WidgetOutputs()
+    outputs.record('call-1', 'well-design', 'selected', { wellId: 'htdp' })
+    outputs.record('call-2', 'fda-summary', 'opened', { fdaId: 'fda-1-2' })
+
+    outputs.prune(new Set(['call-1']))
+
+    expect(outputs.context()[0]?.value).toContain('well-design')
+    expect(outputs.context()[0]?.value).not.toContain('fda-summary')
+    outputs.prune(new Set())
+    expect(outputs.context()).toEqual([])
+  })
+
   it('leaves out the oldest outputs once the entry would be too long', () => {
     const outputs = new WidgetOutputs()
     for (let index = 0; index < 100; index += 1) {

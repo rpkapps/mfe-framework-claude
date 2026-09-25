@@ -58,6 +58,15 @@ export interface ShellChatOptions {
   readonly panel: ChatPanel
 }
 
+/** The tool calls a history holds. */
+function callIdsIn(history: ReturnType<ChatClient['getHistory']>): Set<string> {
+  return new Set(
+    history.flatMap(message =>
+      message.role === 'assistant' ? (message.toolCalls ?? []).map(call => call.id) : [],
+    ),
+  )
+}
+
 export class ShellChat {
   readonly client: ChatClient
   readonly questions = new Questions()
@@ -79,6 +88,7 @@ export class ShellChat {
   readonly #runtime: MfeRuntime
   /** Replaced, not pushed to, so the composer sees a new list after each send. */
   #sent: readonly string[] = []
+  readonly #unsubscribe: () => void
 
   constructor(options: ShellChatOptions) {
     const { runtime, panel } = options
@@ -109,6 +119,15 @@ export class ShellChat {
     this.approve = approvalsIn(question => {
       panel.show()
       return this.client.requestApproval(question)
+    })
+
+    // Ask again and an edit cut the history back: what the calls cut showed goes with them, so a
+    // call that replaces one draws its surface anew and the agent hears of no Widget gone from
+    // the chat. Before the next run, since the cut happens in the client's turn queue.
+    this.#unsubscribe = this.client.subscribe(() => {
+      const calls = callIdsIn(this.client.getHistory())
+      this.outputs.prune(calls)
+      this.a2ui.prune(calls)
     })
   }
 
@@ -167,6 +186,7 @@ export class ShellChat {
   }
 
   dispose(): void {
+    this.#unsubscribe()
     this.client.dispose()
   }
 

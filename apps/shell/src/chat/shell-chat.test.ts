@@ -43,6 +43,22 @@ function says({ threadId, runId }: Run, text: string): object[] {
   ]
 }
 
+/** The assistant calls a tool and the run ends with it pending, for the page to run. */
+function calls({ threadId, runId }: Run, id: string, name: string, args: object): object[] {
+  return [
+    { type: 'RUN_STARTED', threadId, runId },
+    { type: 'TOOL_CALL_START', toolCallId: id, toolCallName: name },
+    { type: 'TOOL_CALL_ARGS', toolCallId: id, delta: JSON.stringify(args) },
+    { type: 'TOOL_CALL_END', toolCallId: id },
+    {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      outcome: { type: 'success', pendingToolCallIds: [id] },
+    },
+  ]
+}
+
 let memory: MemoryRuntime
 let lazy: LazyShellChat | undefined
 
@@ -220,6 +236,32 @@ describe('the shell chat', () => {
 
     expect(server.runs[1]?.threadId).not.toBe(thread)
     expect(server.runs[1]?.messages).toHaveLength(1)
+    expect(JSON.stringify(server.runs[1]?.context)).not.toContain('well-design')
+  })
+})
+
+describe('asking again', () => {
+  const note = (text: string) => ({
+    surfaceId: 'note',
+    components: [{ id: 'root', component: 'Text', text }],
+  })
+
+  it('draws a surface anew for the call that replaces the one that drew it, and forgets its Widgets', async () => {
+    let replies = 0
+    const server = backend(run => {
+      replies += 1
+      return calls(run, `call-${String(replies)}`, 'render_a2ui', note(`Reply ${String(replies)}`))
+    })
+    const { chat: client } = await create(server)
+    await client.send('Show a note')
+    expect(client.a2ui.createdBy('note')).toBe('call-1')
+    client.outputs.record('call-1', 'well-design', 'selected', { wellId: 'htdp' })
+
+    await client.client.reload()
+
+    expect(client.a2ui.createdBy('note')).toBe('call-2')
+    const surface = client.a2ui.getSnapshot().get('note')
+    expect(surface?.components.get('root')).toMatchObject({ text: 'Reply 2' })
     expect(JSON.stringify(server.runs[1]?.context)).not.toContain('well-design')
   })
 })

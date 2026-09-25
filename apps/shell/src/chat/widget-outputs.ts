@@ -28,6 +28,13 @@ export class WidgetOutputs {
     this.#latest.set(key, { toolCallId, widgetId, output, payload, at: new Date().toISOString() })
   }
 
+  /** Forgets the Widgets whose calls are no longer in the history: they are not in the chat. */
+  prune(calls: ReadonlySet<string>): void {
+    for (const [key, entry] of this.#latest) {
+      if (!calls.has(entry.toolCallId)) this.#latest.delete(key)
+    }
+  }
+
   clear(): void {
     this.#latest.clear()
   }

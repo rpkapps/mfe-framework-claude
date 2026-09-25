@@ -101,6 +101,51 @@ describe('render_a2ui', () => {
     expect(surfaces.createdBy('note')).toBe('call-3')
   })
 
+  it('undoes what calls no longer in the history did, so a call that replaces one creates it anew', async () => {
+    const surfaces = new A2uiSurfaces()
+    const tool = renderA2uiTool(surfaces)
+    await tool.execute(form, call('call-1'))
+    await tool.execute(
+      {
+        messages: [
+          { version: 'v0.9', updateDataModel: { surfaceId: 'note', path: '/note', value: 'Hi' } },
+        ],
+      },
+      call('call-2'),
+    )
+    surfaces.write('note', '/note', 'Hi there')
+
+    // Asked again from after the first call: the second goes, and the user's input with it.
+    surfaces.prune(new Set(['call-1']))
+    expect(surfaces.getSnapshot().get('note')?.data).toEqual({ note: '' })
+    expect(surfaces.createdBy('note')).toBe('call-1')
+
+    // Asked again from before it: the surface goes, and the new call draws it where it sits.
+    surfaces.prune(new Set())
+    expect(surfaces.getSnapshot().has('note')).toBe(false)
+    expect(surfaces.createdBy('note')).toBeUndefined()
+    await tool.execute(
+      { surfaceId: 'note', components: [{ id: 'root', component: 'Text', text: 'Saved' }] },
+      call('call-3'),
+    )
+    expect(surfaces.createdBy('note')).toBe('call-3')
+    expect([...(surfaces.getSnapshot().get('note')?.components.keys() ?? [])]).toEqual(['root'])
+  })
+
+  it('brings back a surface a cut call deleted, where the call that created it sits', async () => {
+    const surfaces = new A2uiSurfaces()
+    const tool = renderA2uiTool(surfaces)
+    await tool.execute(form, call('call-1'))
+    await tool.execute(
+      { messages: [{ version: 'v0.9', deleteSurface: { surfaceId: 'note' } }] },
+      call('call-2'),
+    )
+
+    surfaces.prune(new Set(['call-1']))
+    expect(surfaces.getSnapshot().get('note')?.data).toEqual({ note: '' })
+    expect(surfaces.createdBy('note')).toBe('call-1')
+  })
+
   it('refuses raw messages that name no surface', async () => {
     const result: unknown = await renderA2uiTool(new A2uiSurfaces()).execute(
       { messages: [{ version: 'v0.9' }] },

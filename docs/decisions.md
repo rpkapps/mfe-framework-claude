@@ -1612,8 +1612,9 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
   URL the model chose (issue [#31](https://github.com/rpkapps/mfe-framework-claude/issues/31)).
 - **Messages.** A reply can be copied, and the last one asked for again. A question can be edited:
-  the replies after it go and it is asked again, its quote kept. A reply the user stopped says
-  Stopped. ArrowUp and ArrowDown in the composer step through what the user sent in this tab.
+  the replies after it go and it is asked again, its quote kept. What the calls in the replies that
+  go showed goes with them (§51). A reply the user stopped says Stopped. ArrowUp and ArrowDown in
+  the composer step through what the user sent in this tab.
 - **Agent context** is the runtime's (§46), plus the latest output of each Widget shown in the
   chat (§51).
 - **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`
@@ -1705,7 +1706,10 @@ lets the agent hear why and correct the call.
 
 A Widget in the chat hands values back two ways. Passively: the latest payload of each output of
 each Widget shown is agent context for later turns, newest first, in at most 4096 characters of
-JSON: a payload that is not JSON, or does not fit, is left out.
+JSON: a payload that is not JSON, or does not fit, is left out. A Widget is shown while its call is
+in the conversation: once Ask again or an edit cuts the call, its outputs leave the context. So it
+is with A2UI: what a cut call did to a surface is undone, the user's input since with it, and a
+surface it created goes, so the call that replaces it creates it again and is where it is drawn.
 Explicitly: from the user's own press, through `useAgentPrompt`, as the well-design Widget's "Ask
 the assistant" does; never from a timer or an error handler. An A2UI Button's event is the same
 kind: a new turn, sent unseen as context and as the middleware's `forwardedProps.a2uiAction`.

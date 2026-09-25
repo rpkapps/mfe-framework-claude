@@ -4,29 +4,34 @@
  * transcript draws a surface where the call that created it sits.
  */
 
+import { Store } from '../panel.ts'
+
 import {
   applyMessages,
   isReady,
   setAt,
   type A2uiError,
   type JsonValue,
+  type Surface,
   type Surfaces,
 } from './model.ts'
 
-export class A2uiSurfaces {
-  #surfaces: Surfaces = new Map()
+/** What one call did to a surface: enough to undo it. */
+interface Change {
+  readonly toolCallId: string
+  readonly before: Surface | undefined
+  readonly createdBy: string | undefined
+}
+
+export class A2uiSurfaces extends Store<Surfaces> {
   /** The call that created each surface, where the transcript draws it. */
   readonly #createdBy = new Map<string, string>()
-  readonly #listeners = new Set<() => void>()
+  /** Each surface's changes, oldest first, so a call that leaves the history can be undone. */
+  readonly #changes = new Map<string, Change[]>()
 
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
+  constructor() {
+    super(new Map())
   }
-
-  readonly getSnapshot = (): Surfaces => this.#surfaces
 
   /** The call a surface belongs to, so a later call that updates it is drawn as a note. */
   createdBy(surfaceId: string): string | undefined {
@@ -40,7 +45,8 @@ export class A2uiSurfaces {
     catalogue: ReadonlySet<string>,
     drawn?: string,
   ): A2uiError | undefined {
-    const applied = applyMessages(this.#surfaces, messages, catalogue)
+    const before = this.getSnapshot()
+    const applied = applyMessages(before, messages, catalogue)
     if ('error' in applied) return applied.error
     const surface = drawn === undefined ? undefined : applied.surfaces.get(drawn)
     if (surface !== undefined && !isReady(surface)) {
@@ -51,35 +57,64 @@ export class A2uiSurfaces {
         message: 'One component must have the id "root".',
       }
     }
+    for (const surfaceId of new Set([...before.keys(), ...applied.surfaces.keys()])) {
+      if (before.get(surfaceId) === applied.surfaces.get(surfaceId)) continue
+      const changes = this.#changes.get(surfaceId) ?? []
+      changes.push({
+        toolCallId,
+        before: before.get(surfaceId),
+        createdBy: this.#createdBy.get(surfaceId),
+      })
+      this.#changes.set(surfaceId, changes)
+    }
     // A surface is drawn where the call that created it sits: one created again moves to the
     // new call, and a deleted one is drawn nowhere.
     for (const surfaceId of this.#createdBy.keys()) {
       if (!applied.surfaces.has(surfaceId)) this.#createdBy.delete(surfaceId)
     }
     for (const surfaceId of applied.created) this.#createdBy.set(surfaceId, toolCallId)
-    this.#set(applied.surfaces)
+    this.update(() => applied.surfaces)
     return undefined
   }
 
   /** A two-way input's value, written at once into its surface's data model. */
   write(surfaceId: string, path: string, value: JsonValue): void {
-    const surface = this.#surfaces.get(surfaceId)
-    if (surface === undefined) return
-    this.#set(
-      new Map(this.#surfaces).set(surfaceId, {
+    this.update(surfaces => {
+      const surface = surfaces.get(surfaceId)
+      if (surface === undefined) return surfaces
+      return new Map(surfaces).set(surfaceId, {
         ...surface,
         data: setAt(surface.data, path, value),
-      }),
-    )
+      })
+    })
+  }
+
+  /**
+   * Undoes what the calls no longer in the history did, once Ask again or an edit has cut them: a
+   * surface such a call created goes, so the call that replaces it creates it anew, and one it
+   * changed goes back to how it was before that call, with what the user entered in it since.
+   */
+  prune(calls: ReadonlySet<string>): void {
+    const next = new Map(this.getSnapshot())
+    let changed = false
+    for (const [surfaceId, changes] of this.#changes) {
+      const gone = changes.findIndex(change => !calls.has(change.toolCallId))
+      const undone = changes[gone]
+      if (undone === undefined) continue
+      changed = true
+      if (undone.before === undefined) next.delete(surfaceId)
+      else next.set(surfaceId, undone.before)
+      if (undone.createdBy === undefined) this.#createdBy.delete(surfaceId)
+      else this.#createdBy.set(surfaceId, undone.createdBy)
+      if (gone === 0) this.#changes.delete(surfaceId)
+      else changes.splice(gone)
+    }
+    if (changed) this.update(() => next)
   }
 
   clear(): void {
     this.#createdBy.clear()
-    this.#set(new Map())
-  }
-
-  #set(surfaces: Surfaces): void {
-    this.#surfaces = surfaces
-    for (const listener of this.#listeners) listener()
+    this.#changes.clear()
+    this.update(() => new Map())
   }
 }

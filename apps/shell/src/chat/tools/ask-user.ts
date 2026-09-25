@@ -8,6 +8,7 @@
 import type { ChatTool } from '@company/mfe-agent'
 import { z } from 'zod'
 
+import { Store } from '../panel.ts'
 import { SHELL_TOOLS } from './names.ts'
 
 export const AskUserInput = z.object({
@@ -57,34 +58,28 @@ export interface PendingQuestion {
 }
 
 /** The questions waiting on the user; the transcript subscribes to find the one for a call. */
-export class Questions {
-  #pending: ReadonlyMap<string, PendingQuestion> = new Map()
-  readonly #listeners = new Set<() => void>()
-
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
+export class Questions extends Store<ReadonlyMap<string, PendingQuestion>> {
+  constructor() {
+    super(new Map())
   }
-
-  readonly getSnapshot = (): ReadonlyMap<string, PendingQuestion> => this.#pending
 
   ask(toolCallId: string, input: AskUserInput, signal: AbortSignal): Promise<AskUserResult> {
     return new Promise(resolve => {
       const settle = (result: AskUserResult): void => {
-        if (!this.#pending.has(toolCallId)) return
-        const next = new Map(this.#pending)
-        next.delete(toolCallId)
-        this.#set(next)
+        if (!this.getSnapshot().has(toolCallId)) return
+        this.update(pending => {
+          const next = new Map(pending)
+          next.delete(toolCallId)
+          return next
+        })
         resolve(result)
       }
       const decline = (): void => {
         settle({ status: 'declined', reason: 'The user did not answer.' })
       }
 
-      this.#set(
-        new Map(this.#pending).set(toolCallId, {
+      this.update(pending =>
+        new Map(pending).set(toolCallId, {
           toolCallId,
           input,
           answer: answers => {
@@ -96,11 +91,6 @@ export class Questions {
       if (signal.aborted) decline()
       else signal.addEventListener('abort', decline, { once: true })
     })
-  }
-
-  #set(next: ReadonlyMap<string, PendingQuestion>): void {
-    this.#pending = next
-    for (const listener of this.#listeners) listener()
   }
 }
 
