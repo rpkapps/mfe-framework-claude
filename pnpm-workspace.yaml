@@ -52,9 +52,10 @@ peerDependencyRules:
 overrides:
   '@module-federation/runtime-tools@2.9.1': 2.9.0
   # @ag-ui/client asks for zod 3 but imports only `zod/v4`, which zod 4 exports too; on the
-  # catalog's zod the shell's chat ships one zod instead of two (about 237 kB minified).
-  '@ag-ui/client>zod': 4.6.5
-  '@ag-ui/proto>zod': 4.6.5
+  # catalog's zod the shell's chat ships one zod instead of two (about 237 kB minified). Taken
+  # from the catalog, so moving zod there moves these with it.
+  '@ag-ui/client>zod': 'catalog:'
+  '@ag-ui/proto>zod': 'catalog:'
   # Where the Tecton design system is checked out. It is not published, so every package declares
   # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
   # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
