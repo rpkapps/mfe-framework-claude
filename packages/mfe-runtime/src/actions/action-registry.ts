@@ -261,11 +261,7 @@ export class ActionRegistry {
 
   /** A mount's actions, and so its shortcuts, go with it. */
   removeMount(mountToken: string): void {
-    if (!this.#byScope.delete(mountToken)) return
-    // Handed the host scope's token, the host page's shortcuts went too, which frees any keys a
-    // container was refused.
-    if (mountToken === HOST_SCOPE) this.#refreshContainerShortcuts()
-    this.#publish()
+    if (this.#byScope.delete(mountToken)) this.#publish()
   }
 
   /**
@@ -419,8 +415,10 @@ export class ActionRegistry {
       get qualifiedId() {
         return action.qualifiedId
       },
+      // `removeMount` may have taken the action already, before its owner's cleanup ran; a rename
+      // then would put it back.
       update: next => {
-        if (active) this.#update(action, next)
+        if (active && this.#isLive(action)) this.#update(action, next)
       },
       execute: async call =>
         this.#isLive(action)

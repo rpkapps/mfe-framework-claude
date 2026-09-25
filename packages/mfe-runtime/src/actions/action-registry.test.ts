@@ -110,6 +110,19 @@ describe('registration', () => {
     expect(registry.getSnapshot().map(entry => entry.id)).toEqual(['billing:refresh'])
   })
 
+  /** The mount's disposal runs before its component's cleanup, which may commit once more. */
+  it('ignores an update, a rename included, from a handle whose mount was cleared', async () => {
+    const { register, registry } = setup()
+    const handle = register({ name: 'refresh' })
+
+    registry.removeMount('mount-1')
+    handle.update(registration({ name: 'export', label: 'Export' }))
+
+    expect(registry.getSnapshot()).toEqual([])
+    expect(registry.size).toBe(0)
+    expect((await handle.execute({ caller: 'ui' })).status).toBe('unavailable')
+  })
+
   it('does not republish when clearing a mount that owns nothing', () => {
     const { register, registry } = setup()
     register()
