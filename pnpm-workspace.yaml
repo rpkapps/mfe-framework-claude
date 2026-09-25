@@ -59,7 +59,10 @@ overrides:
   # Where the Tecton design system is checked out. It is not published, so every package declares
   # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
   # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
-  # read it from here, and CI's repository is set in .github/actions/setup/action.yml.
+  # read it from here, and CI's repository is set in .github/actions/setup/action.yml. A link
+  # installs none of Tecton's own dependencies, so the shell declares the ones its components need
+  # (`@shadcn/react` in the catalog and apps/shell/package.json): once Tecton is published and
+  # this line goes, drop those declarations with it.
   '@tecton/react': link:../tecton-ui-1/packages/tecton-react
 
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
