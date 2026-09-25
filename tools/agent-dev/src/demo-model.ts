@@ -33,6 +33,7 @@ const SHELL = {
   chart: 'show_chart',
   summary: 'show_summary',
   askUser: 'ask_user',
+  a2ui: 'render_a2ui',
   discover: 'discover_tools',
 } as const
 
@@ -193,7 +194,7 @@ function whereabouts(context: readonly Context[]): {
 const HELP = [
   'I am the development agent: a script that reads a few words, not a model.',
   'Try "go to operations", "show a table of your tools", "chart the tools", "summarise the page",',
-  '"show the well design widget", "ask me something", "shut in W-1", or the name of an action',
+  '"show the well design widget", "ask me something", "show a form", "shut in W-1", or the name of an action',
   'on the page, such as "acknowledge alert A-7".',
   'Set ANTHROPIC_API_KEY and AGENT_DEV_MODEL to talk to a real model instead.',
 ].join(' ')
@@ -328,6 +329,76 @@ function answerRequest(input: RunAgentInput, message: string): Step[] {
     ]
   }
 
+  if (/\bform\b/.test(text) && has(SHELL.a2ui)) {
+    return [
+      { say: 'Fill this in and I will take it from there.' },
+      {
+        call: {
+          name: SHELL.a2ui,
+          args: {
+            surfaceId: `handover_${input.runId}`,
+            components: [
+              { id: 'root', component: 'Card', child: 'body' },
+              {
+                id: 'body',
+                component: 'Column',
+                children: ['title', 'note', 'urgent', 'shift', 'send'],
+              },
+              { id: 'title', component: 'Text', text: 'Shift handover', variant: 'h3' },
+              {
+                id: 'note',
+                component: 'TextField',
+                label: 'What the next shift should know',
+                value: { path: '/note' },
+                variant: 'longText',
+              },
+              {
+                id: 'urgent',
+                component: 'CheckBox',
+                label: 'Needs attention first',
+                value: { path: '/urgent' },
+              },
+              {
+                id: 'shift',
+                component: 'ChoicePicker',
+                label: 'Hand over to',
+                value: { path: '/shift' },
+                options: [
+                  { label: 'Day shift', value: 'day' },
+                  { label: 'Night shift', value: 'night' },
+                ],
+              },
+              {
+                id: 'send',
+                component: 'Button',
+                child: 'send_label',
+                variant: 'primary',
+                action: {
+                  event: {
+                    name: 'hand_over',
+                    context: {
+                      note: { path: '/note' },
+                      urgent: { path: '/urgent' },
+                      shift: { path: '/shift' },
+                    },
+                  },
+                },
+                checks: [
+                  {
+                    condition: { call: 'required', args: { value: { path: '/note' } } },
+                    message: 'Write a note',
+                  },
+                ],
+              },
+              { id: 'send_label', component: 'Text', text: 'Hand over' },
+            ],
+            data: { note: '', urgent: false, shift: ['night'] },
+          },
+        },
+      },
+    ]
+  }
+
   const renderWidget = toolNamed(tools, SHELL.renderWidget)
   if (/\bwidget\b/.test(text) && renderWidget !== undefined) {
     const widgets = enumOf(renderWidget, 'widgetId')
@@ -412,6 +483,15 @@ function describeResult(name: string, content: unknown): string {
 /** The steps of a reply, from what the run was sent. */
 export function decide(input: RunAgentInput): Step[] {
   const { messages } = input
+
+  // A Button pressed on a form it showed, sent as the AG-UI A2UI middleware sends it.
+  const forwarded: unknown = input.forwardedProps
+  const a2ui =
+    isObject(forwarded) && isObject(forwarded['a2uiAction']) ? forwarded['a2uiAction'] : undefined
+  const action = isObject(a2ui?.['userAction']) ? a2ui['userAction'] : undefined
+  if (action !== undefined && messages.at(-1)?.role === 'user') {
+    return [{ say: `Got "${String(action['name'])}" with ${JSON.stringify(action['context'])}.` }]
+  }
 
   // The answer to the backend's own approval: run its tool, or say it did not.
   const approval = input.resume?.find(entry => entry.interruptId.startsWith(APPROVAL_PREFIX))

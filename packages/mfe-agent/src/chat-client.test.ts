@@ -104,6 +104,27 @@ describe('a turn’s own context', () => {
   })
 })
 
+describe('a turn’s own forwarded props', () => {
+  it('are merged over the client’s for that turn only', async () => {
+    const backend = scriptedBackend(says('Ok.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      forwardedProps: { app: 'shell' },
+    })
+
+    await client.sendMessage('Submit', {
+      forwardedProps: { a2uiAction: { userAction: { name: 'submit' } } },
+    })
+    await client.sendMessage('Thanks')
+
+    expect(backend.requests[0]?.forwardedProps).toEqual({
+      app: 'shell',
+      a2uiAction: { userAction: { name: 'submit' } },
+    })
+    expect(backend.requests[1]?.forwardedProps).toEqual({ app: 'shell' })
+  })
+})
+
 describe('the page’s tools', () => {
   it('runs a pending call, answers it with a tool message, and continues the run', async () => {
     const backend = scriptedBackend(calls(acknowledge), says('Acknowledged.'))
@@ -317,6 +338,24 @@ describe('a tool that does not follow up', () => {
     const client = new ChatClient({ connection: backend.connection, tools: [summary, tool()] })
 
     await client.sendMessage('Summarise and acknowledge A-7')
+
+    expect(backend.requests).toHaveLength(2)
+  })
+
+  it('decides from the result when followUp is a function: a refused render lets the agent retry', async () => {
+    const backend = scriptedBackend(calls(show), says('Fixed it.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      tools: [
+        {
+          ...summary,
+          followUp: result => (result as { status?: string }).status !== 'shown',
+          execute: () => ({ status: 'invalid', error: 'No title' }),
+        },
+      ],
+    })
+
+    await client.sendMessage('Summarise A-7')
 
     expect(backend.requests).toHaveLength(2)
   })

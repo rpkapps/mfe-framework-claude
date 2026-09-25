@@ -27,13 +27,24 @@ import {
   type MfeRuntime,
 } from '@company/mfe-react/host'
 
+import { A2uiSurfaces } from './a2ui/surfaces.ts'
 import { quote } from './quote.ts'
 import { askUserTool, Questions } from './tools/ask-user.ts'
 import { isShellTool } from './tools/names.ts'
 import { navigateTool, type Go } from './tools/navigate.ts'
+import { renderA2uiTool } from './tools/render-a2ui.ts'
 import { renderWidgetTool } from './tools/render-widget.ts'
 import { rendererTools } from './tools/renderers.ts'
 import { WidgetOutputs } from './widget-outputs.ts'
+
+/** What an A2UI Button sends back (A2UI v0.9 `action`). */
+export interface A2uiUserAction {
+  readonly name: string
+  readonly surfaceId: string
+  readonly sourceComponentId: string
+  readonly timestamp: string
+  readonly context: Readonly<Record<string, unknown>>
+}
 
 /** What goes with the next message besides its text, shown as a chip the user can remove. */
 export interface ChatAttachment {
@@ -93,6 +104,7 @@ export class ShellChat {
   readonly client: ChatClient
   readonly questions = new Questions()
   readonly outputs = new WidgetOutputs()
+  readonly a2ui = new A2uiSurfaces()
   readonly panel = new Store<ChatPanelState>({
     open: false,
     draft: '',
@@ -113,6 +125,7 @@ export class ShellChat {
       navigateTool(listApps(runtime.registry), options.go),
       renderWidgetTool(listWidgets(runtime.registry)),
       ...rendererTools(),
+      renderA2uiTool(this.a2ui),
       askUserTool(this.questions),
     ].filter((tool): tool is ChatTool => tool !== undefined)
 
@@ -219,12 +232,27 @@ export class ShellChat {
   newConversation(): void {
     this.client.clear()
     this.outputs.clear()
+    this.a2ui.clear()
     this.panel.update(state => ({ ...state, draft: '', attachments: [] }))
   }
 
   dispose(): void {
     this.client.dispose()
     for (const cleanup of this.#cleanup.splice(0)) cleanup()
+  }
+
+  /**
+   * A Button's event on an A2UI surface: a new turn from the user's press, which shows what they
+   * pressed and sends the event unseen, both as context and in the form the AG-UI A2UI
+   * middleware reads (`forwardedProps.a2uiAction.userAction`).
+   */
+  a2uiAction(action: A2uiUserAction, label: string): void {
+    const described = `User performed action "${action.name}" on surface "${action.surfaceId}" (component: ${action.sourceComponentId}). Context: ${JSON.stringify(action.context)}`
+    this.show()
+    void this.client.sendMessage(label.trim() === '' ? action.name : label, {
+      context: [{ description: 'The A2UI action the user took', value: described }],
+      forwardedProps: { a2uiAction: { userAction: action } },
+    })
   }
 
   /** A suggestion the user pressed: handed on as the prompt of the mount that offered it. */

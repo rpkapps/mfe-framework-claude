@@ -29,7 +29,7 @@ describe('the render tool', () => {
   it('offers each Widget whose inputs are published, its schema a variant titled with its id', () => {
     const tool = renderWidgetTool([wellDesign, widget('no-contract')])
 
-    expect(tool?.followUp).toBe(false)
+    expect(typeof tool?.followUp).toBe('function')
     expect(tool?.inputSchema).toMatchObject({
       properties: {
         widgetId: { enum: ['well-design'] },

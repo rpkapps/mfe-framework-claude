@@ -41,6 +41,7 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 
+import { A2uiSurface } from './a2ui/surface.tsx'
 import { useQuestions } from './hooks.ts'
 import { ChartView, SummaryView, TableView } from './renderers.tsx'
 import type { ShellChat } from './shell-chat.ts'
@@ -66,6 +67,8 @@ export function ToolCallView({
       return <RendererCall part={part} />
     case SHELL_TOOLS.askUser:
       return <AskUserCall chat={chat} part={part} />
+    case SHELL_TOOLS.a2ui:
+      return <A2uiCall chat={chat} part={part} />
     default:
       return <ToolCard part={part} />
   }
@@ -270,6 +273,43 @@ function WidgetCall({
         )}
       />
     </div>
+  )
+}
+
+// ─── A2UI ─────────────────────────────────────────────────────────────────────
+
+function A2uiCall({
+  chat,
+  part,
+}: {
+  readonly chat: ShellChat
+  readonly part: ToolCallPart
+}): ReactNode {
+  const stage = stageOf(part)
+  if (stage === 'preparing' || stage === 'running') return <RendererSkeleton />
+  const output = part.output as { status?: string; surfaceId?: string } | undefined
+  const surfaceId = output?.surfaceId
+  if (output?.status !== 'rendered' || surfaceId === undefined) {
+    return <ToolCard part={part} label="Show a form" />
+  }
+  // A later call that changed a surface already shown is a note; the surface itself stays where
+  // it was first drawn, and shows the change there.
+  if (chat.a2ui.createdBy(surfaceId) !== part.id) {
+    return <ToolCard part={part} label="Update what is shown above" />
+  }
+  return (
+    <A2uiSurface
+      surfaces={chat.a2ui}
+      surfaceId={surfaceId}
+      handlers={{
+        write: (path, value) => {
+          chat.a2ui.write(surfaceId, path, value)
+        },
+        act: (action, label) => {
+          chat.a2uiAction(action, label)
+        },
+      }}
+    />
   )
 }
 

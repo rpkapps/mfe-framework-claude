@@ -6,6 +6,7 @@ export const SHELL_TOOLS = {
   chart: 'show_chart',
   summary: 'show_summary',
   askUser: 'ask_user',
+  a2ui: 'render_a2ui',
 } as const
 
 export type ShellToolName = (typeof SHELL_TOOLS)[keyof typeof SHELL_TOOLS]

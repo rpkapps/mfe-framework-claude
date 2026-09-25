@@ -69,7 +69,8 @@ function rendererTool(name: string, description: string, schema: z.ZodType): Cha
     name,
     description: `${description} ${NOT_A_SOURCE} It is for the user, so the turn ends with it.`,
     inputSchema: z.toJSONSchema(schema),
-    followUp: false,
+    // Shown, the turn ends; refused, the agent hears why and can correct the call.
+    followUp: result => (result as RendererResult).status !== 'shown',
     execute: (input): RendererResult => {
       const parsed = schema.safeParse(input)
       return parsed.success

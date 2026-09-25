@@ -69,7 +69,8 @@ export function renderWidgetTool(widgets: readonly RegistryEntry[]): ChatTool | 
       required: ['widgetId', 'inputs'],
       additionalProperties: false,
     },
-    followUp: false,
+    // Shown, the turn ends; refused, the agent hears why and can correct the call.
+    followUp: result => (result as RenderWidgetResult).status !== 'shown',
     execute: (input): RenderWidgetResult => {
       const call = readRenderWidgetInput(input)
       if (call === undefined || !shown.some(widget => widget.id === call.widgetId)) {

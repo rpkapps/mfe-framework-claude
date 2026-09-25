@@ -172,3 +172,27 @@ describe('exampleOf', () => {
     ).toEqual({ wellId: 'w-1', compare: [], showActions: true, depth: 100 })
   })
 })
+
+describe('the A2UI path', () => {
+  const a2ui: Tool = {
+    name: 'render_a2ui',
+    description: 'Show UI.',
+    parameters: { type: 'object' },
+  }
+
+  it('shows a form, and answers the action its button sends', () => {
+    const [, shown] = decide(input([user('show a form')], [a2ui]))
+    expect(shown).toMatchObject({
+      call: { name: 'render_a2ui', args: { surfaceId: 'handover_r1' } },
+    })
+
+    const answered = decide(
+      input([user('Hand over')], [a2ui], {
+        forwardedProps: {
+          a2uiAction: { userAction: { name: 'hand_over', context: { note: 'x' } } },
+        },
+      }),
+    )
+    expect(answered).toEqual([{ say: 'Got "hand_over" with {"note":"x"}.' }])
+  })
+})

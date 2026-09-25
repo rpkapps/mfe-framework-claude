@@ -10,7 +10,7 @@ describe('the built-in renderers', () => {
   it('are a table, a chart and a summary, each ending the turn and warning off made-up figures', () => {
     expect([...tools.keys()]).toEqual(['show_table', 'show_chart', 'show_summary'])
     for (const tool of tools.values()) {
-      expect(tool.followUp).toBe(false)
+      expect(typeof tool.followUp).toBe('function')
       expect(tool.description).toContain('never invent figures')
       expect(tool.inputSchema).toMatchObject({ type: 'object' })
     }

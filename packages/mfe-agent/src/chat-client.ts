@@ -42,6 +42,18 @@ type Finished =
     }
   | { readonly outcome: 'cancelled'; readonly runId: string }
 
+/** What a turn sends with each of its runs besides the history. */
+interface TurnInput {
+  readonly context: readonly Context[]
+  readonly forwardedProps: Readonly<Record<string, unknown>> | undefined
+}
+
+/** Whether the agent carries on after this result: the tool's `followUp`, `true` by default. */
+function followsUp(tool: ChatTool, result: unknown): boolean {
+  const { followUp } = tool
+  return typeof followUp === 'function' ? followUp(result) : followUp !== false
+}
+
 interface RunInfo {
   readonly threadId: string
   readonly runId: string
@@ -196,7 +208,7 @@ export class ChatClient {
     this.#cancelBackendInterrupts()
     await this.#turn
     this.#agent.addMessage({ id: crypto.randomUUID(), role: 'user', content })
-    await this.#runTurn(options.context ?? [])
+    await this.#runTurn(options.context ?? [], options.forwardedProps)
   }
 
   /** Runs the last user message again, dropping whatever answered it. */
@@ -307,9 +319,12 @@ export class ChatClient {
 
   // ─── The turn ─────────────────────────────────────────────────────────────
 
-  async #runTurn(context: readonly Context[]): Promise<void> {
+  async #runTurn(
+    context: readonly Context[],
+    forwardedProps?: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
     this.#turnAbort = new AbortController()
-    const turn = this.#turnLoop(this.#generation, context)
+    const turn = this.#turnLoop(this.#generation, { context, forwardedProps })
     this.#turn = turn
     try {
       await turn
@@ -318,7 +333,7 @@ export class ChatClient {
     }
   }
 
-  async #turnLoop(generation: number, context: readonly Context[]): Promise<void> {
+  async #turnLoop(generation: number, turnInput: TurnInput): Promise<void> {
     const maxRuns = this.#options.maxRunsPerTurn ?? DEFAULT_MAX_RUNS_PER_TURN
     let resume: ResumeEntry[] | undefined = this.#takeOwed()
     // The tools a run answering calls still declares, though their mount may have gone: both
@@ -331,7 +346,7 @@ export class ChatClient {
       const byName = new Map(tools.map(tool => [tool.name, tool]))
       const declared = [...tools.map(toWire), ...answering.filter(tool => !byName.has(tool.name))]
 
-      const finished = await this.#run(declared, resume, context)
+      const finished = await this.#run(declared, resume, turnInput)
       if (generation !== this.#generation) return
       if (finished instanceof Error) {
         this.#fail(finished)
@@ -356,15 +371,15 @@ export class ChatClient {
         // A pending call the page does not own is the backend's to answer; nothing runs it here.
         if (ours.length === 0) break
         this.#setStatus('streaming')
+        let allQuiet = ours.length === finished.pending.length
         for (const call of ours) {
           const tool = byName.get(call.function.name)
           if (tool === undefined) continue
-          await this.#execute(tool, call, info)
+          const result = await this.#execute(tool, call, info)
           answered.add(tool.name)
+          if (followsUp(tool, result)) allQuiet = false
         }
-        quiet =
-          ours.length === finished.pending.length &&
-          ours.every(call => byName.get(call.function.name)?.followUp === false)
+        quiet = allQuiet
       } else if (finished.outcome === 'interrupt') {
         const quietAnswers = new Set<string>()
         const answers = finished.interrupts.map(interrupt =>
@@ -400,7 +415,7 @@ export class ChatClient {
   async #run(
     tools: readonly Tool[],
     resume: ResumeEntry[] | undefined,
-    turnContext: readonly Context[],
+    turn: TurnInput,
   ): Promise<Finished | Error> {
     let finished: Finished | undefined
     let runError: Error | undefined
@@ -411,10 +426,10 @@ export class ChatClient {
       await this.#agent.runAgent(
         {
           tools: [...tools],
-          context: [...(this.#options.agentContext?.() ?? []), ...turnContext],
-          ...(this.#options.forwardedProps === undefined
+          context: [...(this.#options.agentContext?.() ?? []), ...turn.context],
+          ...(this.#options.forwardedProps === undefined && turn.forwardedProps === undefined
             ? {}
-            : { forwardedProps: this.#options.forwardedProps }),
+            : { forwardedProps: { ...this.#options.forwardedProps, ...turn.forwardedProps } }),
           ...(resume === undefined || resume.length === 0 ? {} : { resume }),
         },
         {
@@ -484,7 +499,7 @@ export class ChatClient {
       this.#setStatus('streaming')
       const payload = await this.#execute(tool, call, info)
       answered.add(tool.name)
-      if (tool.followUp === false) quiet.add(interrupt.id)
+      if (!followsUp(tool, payload)) quiet.add(interrupt.id)
       return { interruptId: interrupt.id, status: 'resolved', payload }
     }
 

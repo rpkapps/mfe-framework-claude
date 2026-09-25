@@ -101,8 +101,10 @@ export interface ChatTool {
    * Whether the agent carries on once it has the result. Defaults to `true`; `false` is for a
    * result meant for the user, such as UI shown in the chat: once every call a run made is
    * answered by such a tool, the turn ends, and the answers go to the backend with the next run.
+   * A function decides from the result, so a render tool that refused its input lets the agent
+   * correct it.
    */
-  readonly followUp?: boolean
+  readonly followUp?: boolean | ((result: unknown) => boolean)
   execute(input: unknown, context: ToolExecutionContext): unknown
 }
 
@@ -182,6 +184,8 @@ export interface SendMessageOptions {
    * the transcript: what a page attached to a prompt, or the text the user selected.
    */
   readonly context?: readonly Context[]
+  /** Merged over the client's `forwardedProps` for this turn's runs. */
+  readonly forwardedProps?: Readonly<Record<string, unknown>>
 }
 
 /** Everything a view reads, as one immutable value that changes identity on every change. */
