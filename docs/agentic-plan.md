@@ -28,9 +28,12 @@ The agent does not click through the UI. Driving the page through its accessibil
 - **This framework** — the contract, and no model: action schemas and policy, the published route and Widget schemas, the agent-context store, the audit field that says who acted, and one host API that lists and runs all of it.
 - **The shell, or a package of its own** — the chat surface and the client side of the agent loop. It has to be at host level, because it needs every mount's actions and the navigator, and a Widget has no global effects (`no-widget-global-effects`).
 - **Tecton** — the chat components (`Message`, `Bubble`, `MessageScroller`, `Marker`, `Attachment`, `Questionnaire` exist) and the built-in chat renderers for a table, a chart and a summary.
-- **A backend agent service** — the model calls, keys, domain tools, permissions and audit storage. Never in the browser bundle.
+- **A backend agent service** — the loop (likely TanStack AI's `chat()` with a provider adapter), the model calls, keys, domain tools, permissions and audit storage. Never in the browser bundle.
+- **Apps and Widgets** — no agent library. They use `useAction` / `injectAction` and `useAgentContext` / `injectAgentContext` from their adapter, and a Widget shown in the chat is an ordinary Widget. Lint enforces it (step 7).
 
 Page tools versus domain tools: actions live in mounted pages, so they run in the browser and only while their mount exists. The model loop runs on a backend and sends each call of a page tool back to the page to execute (AG-UI supports tools the client defines and runs). Work that has to run with no page open (scheduled jobs, triage) needs tools on the owning team's backend, exposed over MCP. The shell's chat merges both.
+
+The backend is replaceable, including by a .NET one (Microsoft's Agent Framework hosts AG-UI in ASP.NET Core). What keeps it so: the shell speaks only AG-UI to the backend and works without any library's extras on the wire (TanStack AI's `metadata.tanstack`, for one); chat history is stored as AG-UI messages, not in a library's format; page tools cross as JSON Schema, which the build already publishes; and the approval policy and audit rules are data, not code in one SDK. A backend swap then touches the backend and at most the shell's chat module, never a container.
 
 ## Refactors first
 
@@ -49,7 +52,7 @@ Each is its own commit, with the framework's tests green and no change in behavi
 
 - Move execution into its own module (`action-executor.ts`); shortcut matching and entries stay in the registry.
 - `execute(id)` becomes `execute(id, { input, caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`.
-- `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
+- `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval (the action's declaration, then the host's policy, see A) → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
 
 ### 2. Share the build's schema extraction
 
@@ -73,6 +76,10 @@ For example, §16's amendment still accepts the old event-name list "so a shell 
 
 The command registry, the breadcrumb store and the navigator's blockers each collect records per mount, and the agent-context store will be the fourth. They share `SnapshotSource` and `HOST_SCOPE` already; what is left in each is its own logic, so there is no generic store to extract. Their teardown differs, though: `mount/mount-context.ts` clears commands and blockers on dispose, while breadcrumbs rely on their hook's cleanup. Give each store a `removeMount(token)` and clear them all from one list on dispose, so a disposed mount cannot leave context behind that the agent would act on.
 
+### 7. Keep agent libraries out of containers
+
+`eslint-plugin-mfe` already rejects a shell that imports `@company/mfe-core` or `@company/mfe-runtime`. Add a rule of the same kind that rejects `@tanstack/ai*`, `ai` and `@ai-sdk/*`, `@copilotkit/*` and `@ag-ui/*` in code that runs inside a mount. A hook there could not reach the shell's chat anyway (every mount has a React root of its own), and keeping them out means changing the agent library never rebuilds a container and adds nothing to the shared federation scope. A team's own backend may use whatever it likes.
+
 ## Features
 
 ### A. Action fields
@@ -91,6 +98,8 @@ On `ActionRegistration`:
 Naming: a field that holds a schema ends in `Schema`, a value does not, and actions and Widgets use the same two fields. `inputSchema` and `outputSchema` are the names TanStack AI, the AI SDK, MCP and WebMCP use for a tool, so an action maps onto a tool definition field for field, and they end the ambiguity in today's code, where `inputs` is the schema on a Widget's contract and the values in its `render`. `inputSchema` is the same on both: one object schema of the named values going in, read by the same build code and published in the same shape. `outputSchema` is one object schema on both, and what it describes follows from the kind: an action's describes the one value a call returns; a Widget's has a property per named output, each emitted any number of times, or never, while it is mounted, and wiring Widgets in sequence is one Widget's outputs feeding the next one's inputs. They are declared in different places (`useAction`, `createWidget`), so the two are never side by side. The one place they meet is the shell's chat, which turns both into tools, and there the rule is: a Widget's `outputSchema` is never a tool's `outputSchema`. The render tool's result is only that the Widget was shown; its outputs reach the agent through the paths in F. The module that builds the tools enforces it, with a test. Reporting progress over time is a Widget's job, not an action's.
 
 Safe default: an agent call to an action whose effect is `'write'` or `'destructive'`, declared or not, is confirmed by the user unless the action says otherwise. An author who marks an action `'read'` removes that friction.
+
+Approval policy: the action declares its risk (`effect`, `needsApproval`), and the host may add a policy on top, consulted by the pipeline's approval step, which answers one of three outcomes for a call: approved (runs), denied (refused, and the agent is told why) or ask the user (the card in E). The organization tightens or relaxes it per action without touching the App. The policy is data, so the backend applies the same one to its domain tools (OPA-style, as the AI SDK's `@ai-sdk/policy-opa` does).
 
 `canExecute` stays what it is, a pure read of UI state and never an authorization boundary; the server authorizes.
 
@@ -121,8 +130,10 @@ The build publishes each App's route paths and search-param schemas into the reg
 ### E. The chat host in the shell
 
 - Collects the tools: actions with the `'agent'` placement, the navigate tool, the render-Widget tool. It lists them again before every write, because mounts come and go; a call against a stale list is retried after a fresh one, never run.
-- Speaks AG-UI through `@ag-ui/client`, pinned and kept in one module of the shell, so the wire protocol can be swapped without touching the rest. Not CopilotKit (see its section below). A one-day spike comes first: one page action called by a backend agent, executed through the pipeline and its result returned, one approval, one interrupt. If the tool-call and approval plumbing proves large, `@copilotkit/core` headless is the fallback, fed from our registry.
-- Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its return value goes back as the tool result.
+- Speaks AG-UI, and only AG-UI, to the backend (see the portability rule in "Who owns what"), from one module of the shell with its library pinned. The likely library is TanStack AI's client (`@tanstack/ai-client`, with its React binding): its wire is AG-UI, a tool with a `.client()` implementation runs in the page, the page can declare its tools with each request (`mergeAgentTools` on the server), and it has the tool-call stages, `needsApproval` and interrupts. Fallbacks, in order: the AI SDK (mature, but its own protocol instead of AG-UI, and no built-in path for tools the page declares), then plain `@ag-ui/client`.
+- A one-day spike comes first. It proves one page action called by a backend agent, executed through the pipeline and its result returned; one approval and one interrupt; that approval happens once, deciding whether TanStack AI's `needsApproval` interrupt or the pipeline's approval step drives the card; and that the shell's chat works against an AG-UI server that is not TanStack AI, ideally a minimal .NET one on Microsoft's Agent Framework host.
+- Page tools: the backend declares them from the tool list above; a call comes back to the page, runs through the action pipeline, and its return value goes back as the tool result. Tools the page declares come from the browser: the backend lets the model call them, but never trusts them for work on the server.
+- Lazy tool discovery: with many Apps publishing actions, the model is given the tools relevant to the task, not the whole list (TanStack AI has this built in).
 - Approval, two paths, one card. For a page action, the pipeline's approval step renders a card in the chat and waits for the user's answer before `execute` runs; decline returns a declined result to the agent. For a backend (domain) tool, the backend stops the run with an AG-UI interrupt carrying that call's id; the same card resumes it or declines it.
 - Every tool call renders in three stages: its inputs streaming in, running, complete with its result. A tool with no renderer of its own gets one generic card with its label and stage.
 - Renders answers with the Tecton conversation components.
@@ -153,7 +164,19 @@ Not taken: a dependency on it (it owns the server, the database, auth and the ag
 
 [CopilotKit](https://github.com/CopilotKit/CopilotKit) (MIT) registers tools in the page while the component that owns them is mounted, as our actions are, and created AG-UI. Taken: the three stages of a rendered tool call and a generic card for the rest; the user's answer resolving the call a card belongs to (`useHumanInTheLoop`), for approvals and for `ask_user`; AG-UI interrupts for backend approvals; `description` on agent context; `followUp`; APIs for both React and Angular; suggestions and A2UI, later.
 
-Not taken: its hooks inside Apps and Widgets (every mount has a React root of its own, so a hook there cannot reach a provider in the shell, the wall §35 hit with shortcuts; containers use our `useAction`, and only the shell talks to the agent client); its chat components (Tecton has them); tools per agent id (one agent for now); a dependency on it, unless the spike in E says otherwise (its API is partway through a v1 to v2 change, and it carries Copilot Cloud hooks such as a license watermark, disabled today).
+Not taken: its hooks inside Apps and Widgets (every mount has a React root of its own, so a hook there cannot reach a provider in the shell, the wall §35 hit with shortcuts; containers use our `useAction`, and only the shell talks to the agent client); its chat components (Tecton has them); tools per agent id (one agent for now); a dependency on it (its API is partway through a v1 to v2 change, and it carries Copilot Cloud hooks such as a license watermark, disabled today).
+
+## Borrowed from TanStack AI
+
+[TanStack AI](https://github.com/TanStack/ai) (MIT) is the likely library for the backend's loop and the shell's chat client. Taken: AG-UI on the wire; one tool definition with a `.server()` or a `.client()` implementation; tools the page declares with each request; the tool-call states (`input-streaming` → `input-complete` → `approval-requested` → `approval-responded`, then the result); `needsApproval` as a name; lazy tool discovery; WebMCP page tools, later.
+
+Not taken: its extras on the wire (`metadata.tanstack`) as anything the shell depends on; its message format for stored history (AG-UI messages instead); any use inside a container. It is pre-1.0 and moves fast, which is why it stays in one module of the shell and in the backend.
+
+## Borrowed from the AI SDK
+
+[The AI SDK](https://github.com/vercel/ai) (Apache-2.0, `ai` and `@ai-sdk/*`) is the fallback if TanStack AI proves too unstable. Taken: approval as a policy with three outcomes (approved, denied, ask the user) instead of a flag on each tool alone, and rules kept as data (`@ai-sdk/policy-opa`).
+
+Not taken as the first choice: it has its own stream protocol rather than AG-UI, and no built-in path for tools the page declares with each request. A model given as a plain string goes through Vercel's AI Gateway by default, so the backend passes a provider's model object.
 
 ## Not doing
 
@@ -165,10 +188,10 @@ Not taken: its hooks inside Apps and Widgets (every mount has a React root of it
 ## Open questions
 
 - Is `'agent'` a default placement for Widget actions as well as App actions?
-- Which backend runs the loop. It streams AG-UI.
+- Where the backend runs and who owns it. The loop is likely TanStack AI's `chat()`; a .NET backend stays possible through the portability rule.
 - Is the chat composer a Tecton component, or does upstream shadcn have one to sync first?
 - Where the audit trail is stored and for how long.
 
 ## Order
 
-0 → 4 → 1 → 2 → 3 with A → 6 → B → C → D → the AG-UI spike → E → F → G. Steps 0 and 4 touch the same files and can go together.
+0 → 4 → 1 → 2 → 3 with A → 6 → 7 → B → C → D → the AG-UI spike → E → F → G. Steps 0 and 4 touch the same files and can go together; step 7 can land at any point before E.
