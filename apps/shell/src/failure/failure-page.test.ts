@@ -1,7 +1,9 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { buttonVariants } from '@tecton/react/components/button'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { ACTION_BUTTON, COPY_BUTTON } from './button-classes.ts'
 import { FailurePage, type Failure } from './failure-page.tsx'
 
 const AT = new Date('2026-09-25T20:14:42Z')
@@ -55,5 +57,12 @@ describe('FailurePage', () => {
     expect(unreachable).toContain('Try again')
     expect(configuration).toContain('500')
     expect(configuration).not.toContain('data-failure-action')
+  })
+})
+
+describe('the failure page’s buttons', () => {
+  it('draw exactly as Tecton’s Button does', () => {
+    expect(ACTION_BUTTON).toBe(buttonVariants())
+    expect(COPY_BUTTON).toBe(buttonVariants({ variant: 'ghost', size: 'icon-xs' }))
   })
 })

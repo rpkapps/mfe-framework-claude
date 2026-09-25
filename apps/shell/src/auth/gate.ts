@@ -88,6 +88,10 @@ function describe(cause: unknown): string {
   return 'The identity provider did not say why.'
 }
 
+/**
+ * Also the failure page's "Sign in again", after the loader is gone: its button then says it is
+ * redirecting, and a provider that cannot be reached replaces the page's failure with its own.
+ */
 function redirectToSignIn(manager: UserManager, returnTo: string): void {
   setLoaderStatus('Redirecting to sign in…')
   // `replace`, so Back from the identity provider leaves the shell rather than landing on a page
@@ -98,6 +102,7 @@ function redirectToSignIn(manager: UserManager, returnTo: string): void {
       title: 'The sign-in service is unreachable',
       detail: describe(cause),
       actionLabel: 'Try again',
+      pendingLabel: 'Reloading…',
       onAction: () => {
         window.location.reload()
       },
@@ -177,6 +182,7 @@ export async function authenticate(): Promise<boolean> {
       title: 'The configuration could not be loaded',
       detail: describe(cause),
       actionLabel: 'Reload',
+      pendingLabel: 'Reloading…',
       onAction: () => {
         window.location.reload()
       },
@@ -239,6 +245,7 @@ export async function authenticate(): Promise<boolean> {
       title: 'We could not sign you in',
       detail: describe(cause),
       actionLabel: 'Sign in again',
+      pendingLabel: 'Redirecting…',
       onAction: () => {
         redirectToSignIn(manager, '/')
       },

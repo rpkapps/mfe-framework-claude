@@ -7,7 +7,8 @@
 
 import type { Failure } from './failure/failure-page.tsx'
 
-const LOADER_ID = 'shell-loader'
+/** The loading screen in index.html, and what the failure page fades in over. */
+export const LOADER_ID = 'shell-loader'
 
 function part(name: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`#${LOADER_ID} [data-part="${name}"]`)
@@ -32,19 +33,24 @@ export function setLoaderStatus(text: string): void {
   )
 }
 
-export type LoaderFailure = Failure
-
 /**
  * Says what went wrong, with one way forward when there is one: the failure page when its chunk
  * loads, the loader's own words when it does not. The drawing runs until one of them is shown, so
- * the screen never stands frozen. The first failure is the one shown.
+ * the screen never stands frozen. A later failure replaces the one shown, because it is the
+ * outcome of the user taking that way forward: signing in again and finding the identity provider
+ * gone says so rather than leaving the page as it was. Once the shell is on its way in, a failure
+ * is no longer the loader's to show.
  */
-export function failLoader(failure: LoaderFailure): void {
+export function failLoader(failure: Failure): void {
   const loader = document.getElementById(LOADER_ID)
-  if (loader === null || loader.dataset['state'] !== 'loading') return
-  // Not loading any more, and not yet showing why: index.html's own handler leaves it alone.
-  loader.dataset['state'] = 'failing'
-  setLoaderStatus(failure.title)
+  const state = loader?.dataset['state']
+  if (document.documentElement.dataset['shell'] === 'ready' || state === 'holding') return
+  if (loader !== null && state === 'loading') {
+    // Not loading any more, and not yet showing why: index.html's own handler leaves it alone.
+    loader.dataset['state'] = 'failing'
+    setLoaderStatus(failure.title)
+  }
+  // Tried again for a later failure even when it failed before: the network may be back.
   import('./failure/show.tsx').then(
     ({ showFailure }) => {
       showFailure(failure)
@@ -56,7 +62,7 @@ export function failLoader(failure: LoaderFailure): void {
 }
 
 /** The loader's words, for when the failure page itself cannot load: a network that is gone. */
-function showInLoader(failure: LoaderFailure): void {
+function showInLoader(failure: Failure): void {
   const loader = document.getElementById(LOADER_ID)
   if (loader === null) return
   loader.dataset['state'] = 'error'
@@ -66,11 +72,49 @@ function showInLoader(failure: LoaderFailure): void {
   if (detail !== null) detail.textContent = failure.detail
 
   const action = part('action')
-  if (action instanceof HTMLButtonElement && failure.onAction !== undefined) {
-    action.textContent = failure.actionLabel ?? 'Try again'
-    action.hidden = false
-    action.onclick = failure.onAction
-    action.focus()
+  if (!(action instanceof HTMLButtonElement)) return
+  const { onAction } = failure
+  action.hidden = onAction === undefined
+  action.textContent = failure.actionLabel ?? 'Try again'
+  action.removeAttribute('aria-disabled')
+  action.removeAttribute('aria-busy')
+  action.onclick =
+    onAction === undefined
+      ? null
+      : () => {
+          // Pressed once: the page is on its way somewhere, and a second press would only race it.
+          // Still focusable, so the button a screen reader is on says what is happening.
+          if (action.getAttribute('aria-disabled') === 'true') return
+          action.setAttribute('aria-disabled', 'true')
+          action.setAttribute('aria-busy', 'true')
+          if (failure.pendingLabel !== undefined) action.textContent = failure.pendingLabel
+          onAction()
+        }
+  if (onAction !== undefined) action.focus()
+}
+
+/**
+ * Fades the loading screen out and removes it: when the shell is revealed, or when the failure
+ * page has been painted over it. Only the fade itself is waited for.
+ */
+export function retireLoader(): void {
+  const loader = document.getElementById(LOADER_ID)
+  if (loader === null) return
+  loader.dataset['state'] = 'done'
+  const remove = (): void => {
+    loader.remove()
+  }
+  // A reduced-motion user gets no transition, and so no transitionend to wait for.
+  if (prefersReducedMotion()) remove()
+  else {
+    // When its own fade ends, which can start a frame or two after this: only the loader's, as a
+    // transition inside it bubbles the same event.
+    loader.addEventListener('transitionend', event => {
+      if (event.target === loader) remove()
+    })
+    // The backstop for a tab in the background, where transitions may never run: three times
+    // the fade, in index.html.
+    window.setTimeout(remove, 1500)
   }
 }
 
@@ -98,21 +142,5 @@ function reveal(): void {
   const root = document.documentElement
   if (root.dataset['shell'] === 'ready') return
   root.dataset['shell'] = 'ready'
-
-  const loader = document.getElementById(LOADER_ID)
-  if (loader === null) return
-  loader.dataset['state'] = 'done'
-  const remove = (): void => {
-    loader.remove()
-  }
-  // A reduced-motion user gets no transition, and so no transitionend to wait for.
-  if (prefersReducedMotion()) remove()
-  else {
-    // Only the loader's own fade: a transition inside it bubbles the same event.
-    loader.addEventListener('transitionend', event => {
-      if (event.target === loader) remove()
-    })
-    // The backstop for a tab in the background, where transitions may never run.
-    window.setTimeout(remove, 1000)
-  }
+  retireLoader()
 }
