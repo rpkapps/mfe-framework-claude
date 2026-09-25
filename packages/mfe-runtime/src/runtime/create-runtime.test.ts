@@ -382,3 +382,32 @@ describe('disposing the runtime', () => {
     expect(recorded).toEqual([])
   })
 })
+
+describe('auditing action runs', () => {
+  it('hands the host its record when the telemetry provider throws, and reports the provider', async () => {
+    const auditAction = vi.fn()
+    const created = create({
+      auditAction,
+      telemetryProvider: {
+        ...createNoopTelemetryProvider(),
+        isLevelEnabled: () => true,
+        record: () => {
+          throw new Error('collector down')
+        },
+      },
+    })
+    created.runtime.actions.registerHost({ name: 'refresh', label: 'Refresh', execute: () => 1 })
+
+    const result = await created.runtime.actions.execute('@host:refresh', { caller: 'palette' })
+
+    expect(result.status).toBe('executed')
+    expect(auditAction).toHaveBeenCalledTimes(1)
+    expect(auditAction.mock.calls[0]?.[0]).toMatchObject({
+      actionId: '@host:refresh',
+      outcome: 'executed',
+    })
+    expect(recorded.map(diagnostic => [diagnostic.severity, diagnostic.error.code])).toEqual([
+      ['warning', 'config/invalid'],
+    ])
+  })
+})

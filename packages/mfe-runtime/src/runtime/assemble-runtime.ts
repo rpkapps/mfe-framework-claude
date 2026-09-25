@@ -6,6 +6,7 @@
 
 import {
   isMfeError,
+  toMfeError,
   withoutUndefined,
   type DeadlineConfig,
   type MfeAdapter,
@@ -82,10 +83,26 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
       approvalPolicy: parts.actionApprovalPolicy,
     }),
     // Every run goes to telemetry, as a framework record, and to the host, whose backend stores it.
+    // The host's copy is the record of who acted, so a telemetry provider that throws is caught
+    // and reported on its own rather than skipping it; a host sink that throws is the executor's
+    // to report.
     audit: record => {
-      const reported = auditTelemetryRecord(record)
-      if (parts.telemetryProvider.isLevelEnabled?.(reported.level) !== false) {
-        parts.telemetryProvider.record(reported)
+      try {
+        const reported = auditTelemetryRecord(record)
+        if (parts.telemetryProvider.isLevelEnabled?.(reported.level) !== false) {
+          parts.telemetryProvider.record(reported)
+        }
+      } catch (failure) {
+        diagnostics.report(
+          toMfeError(failure, {
+            code: 'config/invalid',
+            id: record.definitionId,
+            operation: `record the audit of '${record.actionId}' in telemetry`,
+            expected: 'a telemetry provider that returns without throwing',
+            repair: 'Fix the provider so it buffers or drops internally.',
+          }),
+          { severity: 'warning' },
+        )
       }
       parts.auditAction?.(record)
     },
