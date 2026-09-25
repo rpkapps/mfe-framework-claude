@@ -85,6 +85,25 @@ describe('a turn', () => {
   })
 })
 
+describe('a turn’s own context', () => {
+  it('goes with every run of the turn after the agent context, and not with the next turn', async () => {
+    const backend = scriptedBackend(calls(acknowledge), says('Done.'), says('Hello.'))
+    const client = new ChatClient({
+      connection: backend.connection,
+      tools: [tool()],
+      agentContext: () => [{ description: 'Where the user is', value: '{}' }],
+    })
+    const selected = { description: 'Text the user selected', value: '"A-7 is flaring"' }
+
+    await client.sendMessage('What is this?', { context: [selected] })
+    await client.sendMessage('Thanks')
+
+    expect(backend.requests.map(request => request.context.length)).toEqual([2, 2, 1])
+    expect(backend.requests[1]?.context.at(-1)).toEqual(selected)
+    expect(client.getMessages()[0]?.parts).toEqual([{ type: 'text', content: 'What is this?' }])
+  })
+})
+
 describe('the page’s tools', () => {
   it('runs a pending call, answers it with a tool message, and continues the run', async () => {
     const backend = scriptedBackend(calls(acknowledge), says('Acknowledged.'))
@@ -98,7 +117,12 @@ describe('the page’s tools', () => {
     const firstRunId = backend.requests[0]?.runId
     expect(execute).toHaveBeenCalledWith(
       { alertId: 'A-7' },
-      { toolCallId: 'call-1', threadId: client.getSnapshot().threadId, runId: firstRunId },
+      {
+        toolCallId: 'call-1',
+        threadId: client.getSnapshot().threadId,
+        runId: firstRunId,
+        signal: expect.any(AbortSignal) as unknown,
+      },
     )
     expect(backend.requests[1]?.messages.at(-1)).toMatchObject({
       role: 'tool',
@@ -134,6 +158,36 @@ describe('the page’s tools', () => {
       error: 'Alert service down',
     })
     expect(toolCalls(client)[0]?.state).toBe('error')
+  })
+
+  it('aborts the signal of a tool still running when the user stops the turn', async () => {
+    const backend = scriptedBackend(calls(acknowledge), says('Never reached.'))
+    let aborted = false
+    const client = new ChatClient({
+      connection: backend.connection,
+      tools: [
+        tool(
+          (_input, { signal }) =>
+            new Promise(resolve => {
+              signal.addEventListener('abort', () => {
+                aborted = true
+                resolve({ status: 'declined' })
+              })
+            }),
+        ),
+      ],
+    })
+
+    const turn = client.sendMessage('Ask me')
+    await vi.waitFor(() => {
+      expect(toolCalls(client)[0]?.state).toBe('input-complete')
+    })
+    client.stop()
+    await turn
+
+    expect(aborted).toBe(true)
+    expect(backend.requests).toHaveLength(1)
+    expect(client.getHistory().at(-1)).toMatchObject({ role: 'tool', toolCallId: 'call-1' })
   })
 
   it('leaves a call it does not own to the backend, and ends the turn', async () => {
@@ -228,6 +282,57 @@ describe('the page’s tools', () => {
       state: 'complete',
       approval: { approved: true },
     })
+  })
+})
+
+describe('a tool that does not follow up', () => {
+  const show = { id: 'call-2', name: 'show_summary', args: { title: 'A-7' } }
+  const summary: ChatTool = {
+    name: 'show_summary',
+    description: 'Show a summary card',
+    followUp: false,
+    execute: () => ({ shown: true }),
+  }
+
+  it('ends the turn once it answered, and the answer goes with the next run', async () => {
+    const backend = scriptedBackend(calls(show), says('Anything else?'))
+    const client = new ChatClient({ connection: backend.connection, tools: [summary] })
+
+    await client.sendMessage('Summarise A-7')
+    expect(backend.requests).toHaveLength(1)
+    expect(client.getStatus()).toBe('ready')
+    expect(toolCalls(client)[0]).toMatchObject({ state: 'complete', output: { shown: true } })
+
+    await client.sendMessage('Thanks')
+    expect(backend.requests[1]?.messages.map(message => message.role)).toEqual([
+      'user',
+      'assistant',
+      'tool',
+      'user',
+    ])
+  })
+
+  it('keeps the turn going when another call in the run wants the result', async () => {
+    const backend = scriptedBackend(calls(show, acknowledge), says('Done.'))
+    const client = new ChatClient({ connection: backend.connection, tools: [summary, tool()] })
+
+    await client.sendMessage('Summarise and acknowledge A-7')
+
+    expect(backend.requests).toHaveLength(2)
+  })
+
+  it('owes an interrupt’s answer to the next run instead of resuming at once', async () => {
+    const raised = { id: 'client_tool_call-2', reason: 'tool_call', toolCallId: 'call-2' }
+    const backend = scriptedBackend(interrupts([show], raised), says('Anything else?'))
+    const client = new ChatClient({ connection: backend.connection, tools: [summary] })
+
+    await client.sendMessage('Summarise A-7')
+    expect(backend.requests).toHaveLength(1)
+
+    await client.sendMessage('Thanks')
+    expect(backend.requests[1]?.resume).toEqual([
+      { interruptId: 'client_tool_call-2', status: 'resolved', payload: { shown: true } },
+    ])
   })
 })
 

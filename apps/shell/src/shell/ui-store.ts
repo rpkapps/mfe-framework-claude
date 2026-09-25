@@ -5,7 +5,7 @@
  */
 
 /** The registry is not one of these: it moved into the developer tools, behind their own flag (§22). */
-export type ShellSurface = 'palette' | 'settings' | 'help' | 'releases' | 'bug'
+export type ShellSurface = 'palette' | 'settings' | 'help' | 'releases' | 'bug' | 'assistant'
 
 let open: ShellSurface | null = null
 const listeners = new Set<() => void>()

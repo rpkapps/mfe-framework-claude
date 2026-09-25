@@ -18,6 +18,8 @@ import { devtools } from '@company/mfe-devtools'
 import { toast } from 'sonner'
 
 import { EMPTY_LAYOUT, type DashboardLayout } from './dashboard/layout-store.ts'
+import { shellChat } from '../chat/instance.ts'
+
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import type { ShellTheme } from './preferences.ts'
 import { shellUi } from './ui-store.ts'
@@ -49,6 +51,20 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       placements: [],
       execute: () => {
         shellUi.toggle('palette')
+      },
+    },
+    {
+      name: 'assistant',
+      label: 'Ask the assistant',
+      description:
+        'Opens the assistant, with the text selected on the page quoted in the next message.',
+      shortcut: 'mod+i',
+      // The agent does not open its own chat.
+      placements: ['palette'],
+      execute: () => {
+        const chat = shellChat()
+        if (chat === null) shellUi.show('assistant')
+        else chat.askAbout(window.getSelection()?.toString() ?? '')
       },
     },
     {

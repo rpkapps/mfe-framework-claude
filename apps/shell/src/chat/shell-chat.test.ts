@@ -1,0 +1,185 @@
+// @vitest-environment jsdom
+
+/**
+ * The shell's chat against an AG-UI backend in process: what it declares, what it sends with a
+ * message, how a mount's prompt becomes a turn, and where the pipeline's approvals go.
+ */
+
+import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-react/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ShellChat } from './shell-chat.ts'
+
+interface Run {
+  readonly threadId: string
+  readonly runId: string
+  readonly messages: readonly { readonly role: string; readonly content?: unknown }[]
+  readonly tools: readonly { readonly name: string }[]
+  readonly context: readonly { readonly description: string; readonly value: string }[]
+}
+
+/** Answers every run with a line of text, or with the events a reply returns. */
+function backend(reply: (run: Run) => readonly object[] = run => says(run, 'Hello.')) {
+  const runs: Run[] = []
+  const fetch = vi.fn((_url: string, init: RequestInit) => {
+    const run = JSON.parse(init.body as string) as Run
+    runs.push(run)
+    const body = reply(run)
+      .map(event => `data: ${JSON.stringify(event)}\n\n`)
+      .join('')
+    return Promise.resolve(new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }))
+  })
+  return { runs, fetch }
+}
+
+function says({ threadId, runId }: Run, text: string): object[] {
+  return [
+    { type: 'RUN_STARTED', threadId, runId },
+    { type: 'TEXT_MESSAGE_START', messageId: `m-${runId}`, role: 'assistant' },
+    { type: 'TEXT_MESSAGE_CONTENT', messageId: `m-${runId}`, delta: text },
+    { type: 'TEXT_MESSAGE_END', messageId: `m-${runId}` },
+    { type: 'RUN_FINISHED', threadId, runId },
+  ]
+}
+
+let memory: MemoryRuntime
+let chat: ShellChat | undefined
+
+beforeEach(() => {
+  memory = createMemoryRuntime({ initialEntries: ['/operations/wells'] })
+})
+
+afterEach(() => {
+  chat?.dispose()
+  chat = undefined
+  memory.dispose()
+})
+
+function create(server = backend()) {
+  chat = new ShellChat({
+    runtime: memory.runtime,
+    url: 'http://agent.test/agent',
+    fetch: server.fetch,
+    go: href => Promise.resolve(href),
+  })
+  return { chat, server }
+}
+
+describe('the shell chat', () => {
+  it('declares its own tools and the page’s actions, and sends the agent context', async () => {
+    memory.runtime.actions.registerHost({
+      name: 'refresh',
+      label: 'Refresh the page data',
+      effect: 'read',
+      execute: () => undefined,
+    })
+    const { chat: client, server } = create()
+
+    await client.send('Hi')
+
+    const [run] = server.runs
+    expect(run?.tools.map(tool => tool.name)).toEqual(
+      expect.arrayContaining([
+        'show_table',
+        'show_chart',
+        'show_summary',
+        'ask_user',
+        '_host__refresh',
+      ]),
+    )
+    expect(run?.context[0]?.description).toContain('Where the user is')
+  })
+
+  it('quotes the selection into the message and sends a page’s context unseen, then clears both', async () => {
+    const { chat: client, server } = create()
+    client.askAbout('A-7 is flaring')
+    client.attach({
+      id: 'prompt-context',
+      label: 'From Operations',
+      description: 'Page context',
+      context: { description: 'The alert', value: '{"alertId":"A-7"}' },
+    })
+    expect(client.panel.getSnapshot()).toMatchObject({ open: true, focusRequest: 1 })
+
+    await client.send('Why?')
+
+    const [run] = server.runs
+    expect(run?.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: '> A-7 is flaring\n\nWhy?',
+    })
+    expect(run?.context.at(-1)).toEqual({ description: 'The alert', value: '{"alertId":"A-7"}' })
+    expect(client.panel.getSnapshot().attachments).toEqual([])
+    expect(client.lastSent()).toBe('Why?')
+  })
+
+  it('turns a mount’s prompt into a turn, with its context unseen', async () => {
+    const { chat: client, server } = create()
+
+    expect(
+      memory.runtime.agentContext.prompt({ message: 'Explain A-7', context: { alertId: 'A-7' } }),
+    ).toBe(true)
+    await vi.waitFor(() => {
+      expect(server.runs).toHaveLength(1)
+    })
+
+    expect(client.panel.getSnapshot().open).toBe(true)
+    expect(server.runs[0]?.messages.at(-1)).toMatchObject({ content: 'Explain A-7' })
+    expect(server.runs[0]?.context.at(-1)).toMatchObject({ value: '{"alertId":"A-7"}' })
+  })
+
+  it('fills the composer with a prompt to review, its context a removable chip', () => {
+    const { chat: client, server } = create()
+
+    memory.runtime.agentContext.prompt({
+      message: 'Draft a note',
+      context: { id: 1 },
+      submit: false,
+    })
+
+    expect(server.runs).toHaveLength(0)
+    expect(client.panel.getSnapshot()).toMatchObject({
+      open: true,
+      draft: 'Draft a note',
+      attachments: [{ id: 'prompt-context', label: 'From the shell' }],
+    })
+  })
+
+  it('asks the pipeline’s approvals in the chat, opening it', async () => {
+    const { chat: client } = create()
+    let ran = false
+    memory.runtime.actions.registerHost({
+      name: 'clear',
+      label: 'Clear the canvas',
+      effect: 'destructive',
+      execute: () => {
+        ran = true
+      },
+    })
+
+    const result = memory.runtime.actions.execute('@host:clear', { caller: 'agent' })
+    await vi.waitFor(() => {
+      expect(client.client.getInterrupts()).toHaveLength(1)
+    })
+    expect(client.panel.getSnapshot().open).toBe(true)
+    const [card] = client.client.getInterrupts()
+    if (card?.kind === 'tool-approval') card.resolveInterrupt(true)
+
+    expect(await result).toMatchObject({ status: 'executed' })
+    expect(ran).toBe(true)
+  })
+
+  it('starts over with a new thread and forgets the Widgets’ outputs', async () => {
+    const { chat: client, server } = create()
+    await client.send('Hi')
+    client.outputs.record('call-1', 'well-design', 'selected', { wellId: 'htdp' })
+    const thread = client.client.getSnapshot().threadId
+
+    client.newConversation()
+    await client.send('Again')
+
+    expect(server.runs[1]?.threadId).not.toBe(thread)
+    expect(server.runs[1]?.messages).toHaveLength(1)
+    expect(JSON.stringify(server.runs[1]?.context)).not.toContain('well-design')
+  })
+})

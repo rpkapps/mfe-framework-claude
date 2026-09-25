@@ -77,6 +77,21 @@ describe('actionTools', () => {
     ])
   })
 
+  it('carries an action’s followUp: false, so its result ends the turn', () => {
+    const { runtime } = page()
+    runtime.actions.register(owner, {
+      name: 'open-report',
+      label: 'Open the report',
+      effect: 'read',
+      followUp: false,
+      execute: () => undefined,
+    })
+
+    const byName = new Map(actionTools(runtime.actions).map(tool => [tool.name, tool]))
+    expect(byName.get('operations__open-report')?.followUp).toBe(false)
+    expect(byName.get('operations__acknowledge-alert')).not.toHaveProperty('followUp')
+  })
+
   it('runs a call through the pipeline as the agent’s, with the chat turn in the audit', async () => {
     const { memory, runtime, acknowledged } = page()
     runtime.actions.setApprover(() => Promise.resolve(true))
@@ -84,7 +99,12 @@ describe('actionTools', () => {
 
     const result = await tool?.execute(
       { alertId: 'A-7' },
-      { toolCallId: 'call-1', threadId: 'thread-1', runId: 'run-4' },
+      {
+        toolCallId: 'call-1',
+        threadId: 'thread-1',
+        runId: 'run-4',
+        signal: new AbortController().signal,
+      },
     )
 
     expect(result).toEqual({ status: 'executed', value: { acknowledged: true } })
@@ -104,7 +124,12 @@ describe('actionTools', () => {
     const { runtime } = page()
     runtime.actions.setApprover(() => Promise.resolve(false))
     const [tool] = actionTools(runtime.actions)
-    const context = { toolCallId: 'call-1', threadId: 't', runId: 'r' }
+    const context = {
+      toolCallId: 'call-1',
+      threadId: 't',
+      runId: 'r',
+      signal: new AbortController().signal,
+    }
 
     expect(await tool?.execute({ alertId: 'A-7' }, context)).toMatchObject({ status: 'declined' })
     expect(await tool?.execute({ alertId: 7 }, context)).toMatchObject({ status: 'invalid' })

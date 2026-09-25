@@ -83,6 +83,7 @@ export function actionTools(actions: Actions): ChatTool[] {
     name,
     description: entry.description ?? entry.label,
     ...(entry.inputSchema === undefined ? {} : { inputSchema: entry.inputSchema }),
+    ...(entry.followUp ? {} : { followUp: false }),
     execute: async (input, { threadId, runId }): Promise<ActionToolResult> => {
       if (!offered(actions).has(name)) {
         return {

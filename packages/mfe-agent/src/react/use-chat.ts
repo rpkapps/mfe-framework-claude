@@ -8,11 +8,16 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { ChatClient } from '../chat-client.ts'
-import type { ApprovalQuestion, ChatClientOptions, ChatSnapshot } from '../types.ts'
+import type {
+  ApprovalQuestion,
+  ChatClientOptions,
+  ChatSnapshot,
+  SendMessageOptions,
+} from '../types.ts'
 import type { Message } from '@ag-ui/core'
 
 export interface UseChatReturn extends ChatSnapshot {
-  sendMessage(content: string): Promise<void>
+  sendMessage(content: string, options?: SendMessageOptions): Promise<void>
   reload(): Promise<void>
   stop(): void
   clear(): void

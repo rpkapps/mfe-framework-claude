@@ -10,6 +10,7 @@ const UNSET: MfeConfig = {
   oidcScope: 'openid profile email offline_access',
   oidcGroupsClaim: 'groups',
   oidcDisabled: undefined,
+  agentUrl: undefined,
   loader: 'drill-bit',
 }
 

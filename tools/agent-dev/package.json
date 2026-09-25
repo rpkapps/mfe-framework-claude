@@ -1,0 +1,20 @@
+{
+  "name": "@company/agent-dev",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A development stand-in for the agent backend: an AG-UI server with a scripted demo agent, or a real model when a key is set. Not the backend a deployment runs.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ag-ui/core": "catalog:"
+  },
+  "devDependencies": {
+    "@company/mfe-agent": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

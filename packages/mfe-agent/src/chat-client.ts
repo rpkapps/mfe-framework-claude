@@ -14,7 +14,7 @@
  */
 
 import { HttpAgent } from '@ag-ui/client'
-import type { Interrupt, Message, ResumeEntry, Tool, ToolCall } from '@ag-ui/core'
+import type { Context, Interrupt, Message, ResumeEntry, Tool, ToolCall } from '@ag-ui/core'
 
 import { toUIMessages, type ToolCallProgress } from './message-view.ts'
 import type {
@@ -24,6 +24,7 @@ import type {
   ChatInterrupt,
   ChatSnapshot,
   ChatTool,
+  SendMessageOptions,
   UIMessage,
 } from './types.ts'
 
@@ -44,6 +45,7 @@ type Finished =
 interface RunInfo {
   readonly threadId: string
   readonly runId: string
+  readonly signal: AbortSignal
 }
 
 function toError(error: unknown): Error {
@@ -78,14 +80,19 @@ export class ChatClient {
   readonly #executing = new Map<string, string>()
   readonly #listeners = new Set<() => void>()
   #interrupts: readonly ChatInterrupt[] = []
-  /** Backend interrupts the user walked away from: the next run tells the backend. */
-  #abandoned: ResumeEntry[] = []
+  /**
+   * Answers owed to the backend's interrupts, sent with the next run: those the user walked away
+   * from, as cancelled, and those a tool that does not follow up answered, as resolved.
+   */
+  #owed: ResumeEntry[] = []
   #status: ChatClientState = 'ready'
   #error: Error | undefined
   #runId: string | null = null
   #lastRunId: string | undefined
   /** Bumped by `stop` and `clear`, so a turn in flight stops at its next step. */
   #generation = 0
+  /** Aborted by `stop`, for the tools of the turn in flight. */
+  #turnAbort = new AbortController()
   #turn: Promise<void> | undefined
   #approvals = 0
   #snapshot: ChatSnapshot
@@ -120,12 +127,15 @@ export class ChatClient {
       onToolCallStartEvent: ({ event }) => {
         this.#progress.set(event.toolCallId, { ended: false })
       },
+      // Neither changes a message, so each publishes the call's new state itself.
       onToolCallEndEvent: ({ event }) => {
         this.#markEnded(event.toolCallId)
+        this.#publish()
       },
       onRunFinishedEvent: ({ event }) => {
         this.#lastRunId = event.runId
         for (const id of this.#progress.keys()) this.#markEnded(id)
+        this.#publish()
       },
       onMessagesChanged: () => {
         this.#publish()
@@ -175,14 +185,18 @@ export class ChatClient {
 
   /**
    * Sends the user's message and runs the turn to its end. A question still open from the last
-   * turn is abandoned: the backend is told, and the new message follows.
+   * turn is abandoned: the backend is told, and the new message follows. `context` goes with this
+   * turn's runs only, unseen in the transcript.
    */
-  readonly sendMessage = async (content: string): Promise<void> => {
+  readonly sendMessage = async (
+    content: string,
+    options: SendMessageOptions = {},
+  ): Promise<void> => {
     if (content.trim() === '') return
     this.#cancelBackendInterrupts()
     await this.#turn
     this.#agent.addMessage({ id: crypto.randomUUID(), role: 'user', content })
-    await this.#runTurn()
+    await this.#runTurn(options.context ?? [])
   }
 
   /** Runs the last user message again, dropping whatever answered it. */
@@ -193,7 +207,7 @@ export class ChatClient {
     const lastUser = history.findLastIndex(message => message.role === 'user')
     if (lastUser === -1) return
     this.#agent.setMessages(history.slice(0, lastUser + 1))
-    await this.#runTurn()
+    await this.#runTurn([])
   }
 
   /**
@@ -202,13 +216,14 @@ export class ChatClient {
    */
   readonly stop = (): void => {
     this.#generation += 1
+    this.#turnAbort.abort()
     this.#agent.abortRun()
     // A backend's open question is still owed an answer, and the AG-UI spec wants the next run to
     // resume it: that run tells the backend it was dropped. Its call is the backend's to answer.
     const owedByBackend = new Set<string>()
     for (const interrupt of this.#interrupts) {
       if (interrupt.kind === 'generic' || interrupt.source === 'backend') {
-        this.#abandoned.push({ interruptId: interrupt.id, status: 'cancelled' })
+        this.#owed.push({ interruptId: interrupt.id, status: 'cancelled' })
         if (interrupt.toolCallId !== undefined) owedByBackend.add(interrupt.toolCallId)
       }
       interrupt.cancel()
@@ -223,7 +238,7 @@ export class ChatClient {
     this.#agent.setMessages([])
     this.#agent.threadId = crypto.randomUUID()
     this.#progress.clear()
-    this.#abandoned = []
+    this.#owed = []
     this.#lastRunId = undefined
     this.#runId = null
     this.#error = undefined
@@ -292,8 +307,9 @@ export class ChatClient {
 
   // ─── The turn ─────────────────────────────────────────────────────────────
 
-  async #runTurn(): Promise<void> {
-    const turn = this.#turnLoop(this.#generation)
+  async #runTurn(context: readonly Context[]): Promise<void> {
+    this.#turnAbort = new AbortController()
+    const turn = this.#turnLoop(this.#generation, context)
     this.#turn = turn
     try {
       await turn
@@ -302,9 +318,9 @@ export class ChatClient {
     }
   }
 
-  async #turnLoop(generation: number): Promise<void> {
+  async #turnLoop(generation: number, context: readonly Context[]): Promise<void> {
     const maxRuns = this.#options.maxRunsPerTurn ?? DEFAULT_MAX_RUNS_PER_TURN
-    let resume: ResumeEntry[] | undefined = this.#takeAbandoned()
+    let resume: ResumeEntry[] | undefined = this.#takeOwed()
     // The tools a run answering calls still declares, though their mount may have gone: both
     // TanStack AI and Agent Framework recognise a page tool's answer by the tools the run declares.
     let answering: readonly Tool[] = []
@@ -315,17 +331,23 @@ export class ChatClient {
       const byName = new Map(tools.map(tool => [tool.name, tool]))
       const declared = [...tools.map(toWire), ...answering.filter(tool => !byName.has(tool.name))]
 
-      const finished = await this.#run(declared, resume)
+      const finished = await this.#run(declared, resume, context)
       if (generation !== this.#generation) return
       if (finished instanceof Error) {
         this.#fail(finished)
         return
       }
 
-      const info = { threadId: this.#agent.threadId, runId: finished.runId }
+      const info = {
+        threadId: this.#agent.threadId,
+        runId: finished.runId,
+        signal: this.#turnAbort.signal,
+      }
       const calls = this.#callsById()
       const answered = new Set<string>()
       resume = undefined
+      // Whether every call this run made was answered by a tool whose result is for the user.
+      let quiet: boolean
 
       if (finished.outcome === 'success') {
         const ours = finished.pending
@@ -340,16 +362,27 @@ export class ChatClient {
           await this.#execute(tool, call, info)
           answered.add(tool.name)
         }
+        quiet =
+          ours.length === finished.pending.length &&
+          ours.every(call => byName.get(call.function.name)?.followUp === false)
       } else if (finished.outcome === 'interrupt') {
+        const quietAnswers = new Set<string>()
         const answers = finished.interrupts.map(interrupt =>
-          this.#answer(interrupt, calls, byName, info, answered),
+          this.#answer(interrupt, calls, byName, info, answered, quietAnswers),
         )
         resume = await Promise.all(answers)
+        quiet = finished.interrupts.every(interrupt => quietAnswers.has(interrupt.id))
       } else {
         break
       }
 
       if (generation !== this.#generation) return
+      if (quiet) {
+        // The result was for the user: the turn ends, and the backend reads the answers with the
+        // next run, as it reads the tool messages already in the history.
+        this.#owed.push(...(resume ?? []))
+        break
+      }
       answering = declared.filter(tool => answered.has(tool.name))
       if (run === maxRuns - 1) {
         this.#fail(new Error(`The turn took more than ${String(maxRuns)} runs, so it was stopped.`))
@@ -364,7 +397,11 @@ export class ChatClient {
   }
 
   /** One run: the finish it ended with, or why it failed. */
-  async #run(tools: readonly Tool[], resume: ResumeEntry[] | undefined): Promise<Finished | Error> {
+  async #run(
+    tools: readonly Tool[],
+    resume: ResumeEntry[] | undefined,
+    turnContext: readonly Context[],
+  ): Promise<Finished | Error> {
     let finished: Finished | undefined
     let runError: Error | undefined
     this.#agent.headers = { ...this.#options.connection.headers?.() }
@@ -374,7 +411,7 @@ export class ChatClient {
       await this.#agent.runAgent(
         {
           tools: [...tools],
-          context: [...(this.#options.agentContext?.() ?? [])],
+          context: [...(this.#options.agentContext?.() ?? []), ...turnContext],
           ...(this.#options.forwardedProps === undefined
             ? {}
             : { forwardedProps: this.#options.forwardedProps }),
@@ -434,6 +471,7 @@ export class ChatClient {
     tools: ReadonlyMap<string, ChatTool>,
     info: RunInfo,
     answered: Set<string>,
+    quiet: Set<string>,
   ): Promise<ResumeEntry> {
     const call = interrupt.toolCallId === undefined ? undefined : calls.get(interrupt.toolCallId)
     const tool = call === undefined ? undefined : tools.get(call.function.name)
@@ -446,6 +484,7 @@ export class ChatClient {
       this.#setStatus('streaming')
       const payload = await this.#execute(tool, call, info)
       answered.add(tool.name)
+      if (tool.followUp === false) quiet.add(interrupt.id)
       return { interruptId: interrupt.id, status: 'resolved', payload }
     }
 
@@ -513,7 +552,7 @@ export class ChatClient {
 
   #tools(): readonly ChatTool[] {
     const { tools } = this.#options
-    return typeof tools === 'function' ? tools() : (tools ?? [])
+    return typeof tools === 'function' ? tools({ threadId: this.#agent.threadId }) : (tools ?? [])
   }
 
   #callsById(): Map<string, ToolCall> {
@@ -559,11 +598,11 @@ export class ChatClient {
     }
   }
 
-  #takeAbandoned(): ResumeEntry[] | undefined {
-    if (this.#abandoned.length === 0) return undefined
-    const abandoned = this.#abandoned
-    this.#abandoned = []
-    return abandoned
+  #takeOwed(): ResumeEntry[] | undefined {
+    if (this.#owed.length === 0) return undefined
+    const owed = this.#owed
+    this.#owed = []
+    return owed
   }
 
   #addInterrupt(interrupt: ChatInterrupt): void {

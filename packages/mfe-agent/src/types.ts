@@ -81,6 +81,11 @@ export interface ToolExecutionContext {
   readonly threadId: string
   /** The run that made the call, which an audit records as the turn. */
   readonly runId: string
+  /**
+   * Aborted when the user stops the turn or clears the chat: a tool that waits, such as one asking
+   * the user, answers at once instead, so the turn can end.
+   */
+  readonly signal: AbortSignal
 }
 
 /**
@@ -92,7 +97,18 @@ export interface ChatTool {
   readonly description: string
   /** JSON Schema of the input; an object with no properties when absent. */
   readonly inputSchema?: Readonly<Record<string, unknown>>
+  /**
+   * Whether the agent carries on once it has the result. Defaults to `true`; `false` is for a
+   * result meant for the user, such as UI shown in the chat: once every call a run made is
+   * answered by such a tool, the turn ends, and the answers go to the backend with the next run.
+   */
+  readonly followUp?: boolean
   execute(input: unknown, context: ToolExecutionContext): unknown
+}
+
+/** What the tools are read for: the conversation a run belongs to. */
+export interface ToolListContext {
+  readonly threadId: string
 }
 
 /**
@@ -144,7 +160,7 @@ export interface ApprovalQuestion {
 export interface ChatClientOptions {
   readonly connection: ChatConnection
   /** Read again before every run: mounts come and go, and their actions with them. */
-  readonly tools?: readonly ChatTool[] | (() => readonly ChatTool[])
+  readonly tools?: readonly ChatTool[] | ((context: ToolListContext) => readonly ChatTool[])
   /** Sent as AG-UI `context` with every run, read when the run is sent. */
   readonly agentContext?: () => readonly Context[]
   /** Passed to the backend untouched, as AG-UI `forwardedProps`. */
@@ -157,6 +173,15 @@ export interface ChatClientOptions {
   /** A turn ended: every run finished and nothing waits on the user. */
   readonly onFinish?: (message: UIMessage | undefined) => void
   readonly onError?: (error: Error) => void
+}
+
+/** What `sendMessage` takes besides the text. */
+export interface SendMessageOptions {
+  /**
+   * Sent as AG-UI `context` with every run of this turn, after `agentContext`, and not shown in
+   * the transcript: what a page attached to a prompt, or the text the user selected.
+   */
+  readonly context?: readonly Context[]
 }
 
 /** Everything a view reads, as one immutable value that changes identity on every change. */

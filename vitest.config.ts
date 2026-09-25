@@ -94,6 +94,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'agent-dev',
+          root: './tools/agent-dev',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
           name: 'rspack',
           root: './packages/mfe-rspack',
           environment: 'node',

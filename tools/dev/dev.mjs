@@ -12,6 +12,7 @@
 
 import { spawn } from 'node:child_process'
 
+import { DEV_AGENT_PORT } from '../agent-dev/src/port.ts'
 import { DEV_API_PORT } from './api.mjs'
 import { busyPortsMessage, findBusyPorts, waitForPortsFree } from './ports.mjs'
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
@@ -165,6 +166,21 @@ function startDevApi() {
 }
 
 /**
+ * The stand-in agent backend the shell's chat talks to (tools/agent-dev): the demo agent, or a
+ * real model when the environment names one.
+ */
+function startDevAgent() {
+  const child = spawn(process.execPath, [join(repoRoot, 'tools/agent-dev/src/server.ts')], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: detachedForGroupKill,
+  })
+  prefixOutput(child.stdout, 'dev agent', COLOURS[4] ?? '')
+  prefixOutput(child.stderr, 'dev agent', COLOURS[4] ?? '')
+  return child
+}
+
+/**
  * Regenerates every container's artifacts before the registry is assembled from them: a
  * container's own `dev` script generates only after its server starts, so a Widget whose
  * contract changed reached the shell one `pnpm dev` late.
@@ -244,8 +260,14 @@ async function main() {
 
   // Before anything starts: a busy port is reported once, by name, rather than as one
   // bundler's fallback and another's crash. The stand-in API is in the list because it is
-  // started from here too, and its `listen` would otherwise throw into one prefixed line.
-  const ports = [...services.map(service => service.port), DEV_API_PORT]
+  // started from here too, and its `listen` would otherwise throw into one prefixed line; the
+  // agent backend likewise, when the shell is started.
+  const includesShell = services.some(service => service.isShell)
+  const ports = [
+    ...services.map(service => service.port),
+    DEV_API_PORT,
+    ...(includesShell ? [DEV_AGENT_PORT] : []),
+  ]
   const busy = await findBusyPorts(ports)
   if (busy.length > 0) {
     console.error(busyPortsMessage(busy))
@@ -269,6 +291,7 @@ async function main() {
 
   const children = services.map((service, index) => start(service, COLOURS[index % COLOURS.length]))
   children.push(startDevApi())
+  if (includesShell) children.push(startDevAgent())
 
   /**
    * One Ctrl-C stops everything and waits for the ports to come back, because returning to the

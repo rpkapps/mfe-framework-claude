@@ -4,7 +4,15 @@ export {
   type ChatConnection,
   type FetchConnectionOptions,
 } from './connection.ts'
+export {
+  DISCOVER_TOOLS,
+  withToolDiscovery,
+  type DiscoveredTool,
+  type ToolDiscoveryOptions,
+} from './discovery.ts'
 export { toUIMessages, type ToolCallProgress } from './message-view.ts'
+/** One entry of AG-UI `context`: what `agentContext` and a turn's own context are made of. */
+export type { Context as ChatContext } from '@ag-ui/core'
 export type {
   ApprovalQuestion,
   ChatClientOptions,
@@ -14,12 +22,14 @@ export type {
   ChatTool,
   GenericInterrupt,
   MessagePart,
+  SendMessageOptions,
   TextPart,
   ThinkingPart,
   ToolApprovalInterrupt,
   ToolCallPart,
   ToolCallState,
   ToolExecutionContext,
+  ToolListContext,
   ToolResultPart,
   ToolResultState,
   UIMessage,

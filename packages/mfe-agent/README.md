@@ -71,6 +71,27 @@ One user turn takes as many runs as it needs:
   `parentRunId`.
 - **A pending call the page does not own** is the backend's to answer, so the turn ends there.
 
+A tool with `followUp: false` (an action that declares it, or UI the chat shows) ends the turn
+once every call the run made is answered by such a tool: its result is for the user, not for the
+agent to talk over. The answers still reach the backend, with the next run.
+
+`sendMessage(text, { context })` sends extra AG-UI `context` with that turn's runs only, unseen in
+the transcript: what a page attached to a prompt, or the text the user selected.
+
+## Many tools
+
+`withToolDiscovery(tools, { threshold, eager })` follows TanStack AI's lazy tool discovery. Up to
+`threshold` tools (24 by default), every one is declared. Above it, a run declares the `eager`
+tools, those discovered earlier in the conversation, and `discover_tools`, whose description names
+the rest with a line each. The agent calls it with the names it needs and gets their definitions;
+from the next run on they are declared.
+
+```ts
+tools: withToolDiscovery(() => [...shellTools, ...actionTools(runtime.actions)], {
+  eager: tool => shellToolNames.has(tool.name),
+}),
+```
+
 Stopping a turn answers the page's open questions as declined, and answers any call that never
 ran as stopped. A backend question left open is resumed as cancelled by the next run, as the spec
 requires.

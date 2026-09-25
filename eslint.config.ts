@@ -130,6 +130,16 @@ const config: Linter.Config[] = [
     extraRestrictedPatterns: [TELEMETRY_BAN],
   }),
 
+  /*
+   * The development agent backend is a backend, not host code, but like the spike it speaks AG-UI,
+   * which `framework()` bans everywhere else; it imports no adapter at all.
+   */
+  ...mfe.application({
+    files: ['tools/agent-dev/src/**/*.ts'],
+    adapterModules: [],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
+  }),
+
   ...mfe.application({
     files: ['tools/interop/src/**/*.ts'],
     // A cross-adapter harness, so it may import both adapters.
@@ -156,6 +166,41 @@ const config: Linter.Config[] = [
    * removed `@tecton/eslint-config`, so there is no preset left to compose and the block that
    * did it is gone; nothing in this workspace checks a Tailwind class against the token set.
    */
+
+  {
+    /*
+     * The shell may import the agent libraries `framework()` bans, but only its chat module does
+     * (agentic plan, 7 and E): a backend or client swap then touches that directory and nothing
+     * else. The core rule, beside the TypeScript one the presets configure, so neither replaces the
+     * other's list.
+     */
+    name: 'repo/shell-chat-module',
+    files: ['apps/shell/src/**/*.{ts,tsx}'],
+    ignores: ['apps/shell/src/chat/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@company/mfe-agent',
+                '@company/mfe-agent/*',
+                '@ag-ui/*',
+                '@tanstack/ai',
+                '@tanstack/ai-*',
+                'ai',
+                '@ai-sdk/*',
+                '@copilotkit/*',
+              ],
+              message:
+                'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 
   {
     // The one file that adapts the neutral telemetry contract to Faro.

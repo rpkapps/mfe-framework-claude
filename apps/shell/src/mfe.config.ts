@@ -31,6 +31,9 @@ export default {
   ),
   oidcGroupsClaim: env('OIDC_GROUPS_CLAIM', z.string().trim().min(1).default('groups')),
   oidcDisabled: env('OIDC_DISABLED', z.boolean().optional()),
+  // Where the chat's agent backend takes AG-UI runs. Absent, the shell has no chat: the button
+  // says the agent is not configured. The development copy names tools/agent-dev.
+  agentUrl: env('AGENT_URL', z.string().trim().min(1).optional()),
   // A deployment's own choice of loading screen, over `loader` above: one per script in
   // src/loaders/, named as its file is, or 'cycle'. index.html reads it itself, before any script.
   // It has no default, so a development copy of the configuration never pins one.

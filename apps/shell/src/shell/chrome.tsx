@@ -58,6 +58,7 @@ import {
   AppShellUserMenu,
 } from '@tecton/react/tecton/app-shell'
 import {
+  BotIcon,
   BugIcon,
   CircleHelpIcon,
   ClipboardCopyIcon,
@@ -71,6 +72,8 @@ import {
 import { toast } from 'sonner'
 
 import { shellSession } from '../auth/gate.ts'
+import { ChatAside, ChatSheet, ChatUnavailableSheet } from '../chat/chat-panel.tsx'
+import { useChatPanel, useShellChat } from '../chat/hooks.ts'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
@@ -173,8 +176,10 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
         <AriaRouterProvider navigate={to => void navigate({ to })}>
           <Header />
         </AriaRouterProvider>
-        <AppShellBody className="flex-col">
+        <AppShellBody>
           <AppShellMain className="flex">{children}</AppShellMain>
+          {/* After the main area, so opening it never remounts the App mounted there. */}
+          <ChatAside />
         </AppShellBody>
       </AppShell>
 
@@ -184,11 +189,33 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
       <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
       <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
+      <ChatSheet />
+      <ChatUnavailableSheet isOpen={surface === 'assistant'} onOpenChange={closeOnDismiss} />
       {/* Not a member of `ShellSurface`: the developer tools own their open state and are not modal (§22). */}
       <MfeDevtools />
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
     </>
+  )
+}
+
+/** Opens and closes the assistant; pressed while it is open, it closes, as the aside's own button does. */
+function AssistantAction(): ReactNode {
+  const chat = useShellChat()
+  const panel = useChatPanel(chat)
+  return (
+    <AppShellAction
+      label="Assistant"
+      shortcut="mod+i"
+      {...(chat === null ? {} : { 'aria-pressed': panel.open })}
+      onPress={() => {
+        if (chat === null) shellUi.toggle('assistant')
+        else if (panel.open) chat.hide()
+        else chat.focus()
+      }}
+    >
+      <BotIcon />
+    </AppShellAction>
   )
 }
 
@@ -307,6 +334,7 @@ function Header(): ReactNode {
         >
           Search or jump to…
         </AppShellCommandTrigger>
+        <AssistantAction />
         <AppShellAction
           label="Help"
           shortcut="?"
