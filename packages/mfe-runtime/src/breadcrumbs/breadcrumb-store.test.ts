@@ -369,3 +369,44 @@ describe('labelling and marking derived crumbs', () => {
     expect(withCurrentLast([])).toEqual([])
   })
 })
+
+describe('removeMount', () => {
+  it('drops the mount’s crumbs and its override, and leaves the others', () => {
+    const store = new BreadcrumbStore()
+    const parent = store.registerMount('reports', 'mount-parent', 1)
+    const child = store.registerMount('report-detail', 'mount-child', 2)
+    parent.update([crumb('reports')])
+    child.update([crumb('detail')])
+    store.setOverride('mount-child', [crumb('step-2')], 'wizard')
+
+    store.removeMount('mount-child')
+
+    expect(keysOf(store.getSnapshot())).toEqual(['reports'])
+    expect(store.contributionCount).toBe(1)
+  })
+
+  it('makes the handle a no-op when its owner’s cleanup runs afterwards', () => {
+    const store = new BreadcrumbStore()
+    const first = store.registerMount('reports', 'mount-1', 1)
+    first.update([crumb('reports')])
+    const listener = vi.fn()
+    store.subscribe(listener)
+
+    store.removeMount('mount-1')
+    first.update([crumb('late')])
+    first.remove()
+
+    expect(store.getSnapshot()).toEqual([])
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('publishes nothing for a mount it never held', () => {
+    const store = new BreadcrumbStore()
+    const listener = vi.fn()
+    store.subscribe(listener)
+
+    store.removeMount('mount-unknown')
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+})

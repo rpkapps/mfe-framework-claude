@@ -1293,3 +1293,26 @@ branches on it. The union widens, deliberately:
   after an agent's call waited while its mount went away (which reported `mount/failure`).
 
 **Cost:** three more codes in the union, each with a row on the error codes page.
+
+---
+
+## 44. A disposed mount is cleared from every store at once
+
+**Status:** decided; step 6 of the agentic plan.
+
+The action registry, the navigator's blockers and the breadcrumb store each keep
+records per mount. Disposing a mount cleared the first two, while a mount's crumbs
+went only when the component that contributed them ran its cleanup, so for a moment,
+or for good if that cleanup never ran, the trail still named a mount that was gone.
+The agent-context store (plan B) will be the fourth such store, and a snapshot of a
+disposed mount's selection is context the agent would act on.
+
+So each store has `removeMount(token)`, and `mountScopedStores(runtime)` in
+`mount/mount-context.ts` lists them; disposal clears every one before it aborts the
+mount's signal, as it cleared actions before. A handle whose records `removeMount`
+already took does nothing afterwards, so the owner's late cleanup cannot publish
+again. There is still no generic store: what the three share is `removeMount`, not
+their logic. A test lists every runtime member with a `removeMount` and fails when
+one is missing from the list, so a new store cannot be forgotten.
+
+**Cost:** one more list to keep, which the test keeps honest.

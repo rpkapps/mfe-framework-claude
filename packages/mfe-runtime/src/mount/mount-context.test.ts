@@ -4,11 +4,11 @@
  * half-way through.
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
-import { createMountContext, createMountToken } from './mount-context.ts'
+import { createMountContext, createMountToken, mountScopedStores } from './mount-context.ts'
 import {
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,
@@ -157,7 +157,7 @@ describe('disposing a mount context', () => {
   })
 
   /** Anything listening for the abort must find the mount already gone from the palette. */
-  it('removes the mount’s actions and blockers before it aborts', async () => {
+  it('removes the mount’s actions, blockers and crumbs before it aborts', async () => {
     const host = runtime()
     const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const { mountToken } = handle.context
@@ -171,16 +171,39 @@ describe('disposing a mount context', () => {
       shouldBlock: () => true,
       confirm: () => Promise.resolve('proceed'),
     })
+    host.breadcrumbs
+      .registerMount('reports', mountToken, 1)
+      .update([{ key: 'r', label: 'Reports' }])
 
-    const atAbort: { actions?: number; blockers?: number } = {}
+    const atAbort: { actions?: number; blockers?: number; crumbs?: number } = {}
     handle.context.signal.addEventListener('abort', () => {
       atAbort.actions = host.actions.getSnapshot().length
       atAbort.blockers = host.navigator.blockerCount
+      atAbort.crumbs = host.breadcrumbs.getSnapshot().length
     })
 
     await handle.dispose()
 
-    expect(atAbort).toEqual({ actions: 0, blockers: 0 })
+    expect(atAbort).toEqual({ actions: 0, blockers: 0, crumbs: 0 })
+  })
+
+  /** A store that keeps records per mount and is left off the list would outlive the mount. */
+  it('clears every runtime member that keeps records per mount', async () => {
+    const host = runtime()
+    const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
+    const perMount = Object.entries(host).filter(
+      (entry): entry is [string, { removeMount: (token: string) => void }] =>
+        typeof (entry[1] as { removeMount?: unknown } | null)?.removeMount === 'function',
+    )
+    const spies = perMount.map(([name, store]) => [name, vi.spyOn(store, 'removeMount')] as const)
+
+    await handle.dispose()
+
+    expect(perMount.map(([name]) => name).sort()).toEqual(['actions', 'breadcrumbs', 'navigator'])
+    expect(mountScopedStores(host)).toHaveLength(perMount.length)
+    for (const [name, spy] of spies) {
+      expect(spy, name).toHaveBeenCalledWith(handle.context.mountToken)
+    }
   })
 
   it('leaves another mount of the same definition untouched', async () => {

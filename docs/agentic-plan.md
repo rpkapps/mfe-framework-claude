@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2 and 3 and feature A have landed (§39–§42), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3 and 6 and feature A have landed (§39–§44), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -74,7 +74,9 @@ The shell used `placements: []` (a `KEYS_ONLY` constant, now gone from `apps/she
 
 For example, §16's amendment still accepts the old event-name list "so a shell is deployed first".
 
-### 6. Clear every mount-scoped store from one place
+### 6. Clear every mount-scoped store from one place (done, §44)
+
+As landed: `mountScopedStores(runtime)` in `mount/mount-context.ts` is the list, and a test fails for a runtime member with `removeMount` that is not on it. The agent-context store joins it in B.
 
 The action registry, the breadcrumb store and the navigator's blockers each collect records per mount, and the agent-context store will be the fourth. They share `SnapshotSource` and `HOST_SCOPE` already; what is left in each is its own logic, so there is no generic store to extract. Their teardown differs, though: `mount/mount-context.ts` clears actions and blockers on dispose, while breadcrumbs rely on their hook's cleanup. Give each store a `removeMount(token)` and clear them all from one list on dispose, so a disposed mount cannot leave context behind that the agent would act on.
 
