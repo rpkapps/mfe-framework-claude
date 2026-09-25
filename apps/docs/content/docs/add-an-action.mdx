@@ -1,11 +1,11 @@
 ---
 title: 'Add an action to the palette'
-description: 'Register an action with useAction, and the shell lists it in the command palette and offers it to its agent for as long as your component is on the page.'
+description: 'Register an action with useAction, and the shell lists it in the command palette for as long as your component is on the page.'
 ---
 
-Apps and Widgets. Call `useAction` and your action appears in the shell's command palette. The
-shell's agent can call it too, as a tool. You decide what it does, whether it may run right now and
-what it changes.
+Apps and Widgets. Call `useAction` and your action appears in the shell's command palette. You
+decide what it does and whether it may run right now. The shell's agent can call it too:
+[Offer an action to the agent](/docs/offer-an-action-to-the-agent) says what to declare for it.
 
 ## Steps
 
@@ -15,7 +15,7 @@ what it changes.
 
 ### 1. Register the action
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx"
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
 import { useAction } from '@company/mfe-react'
 
 export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
@@ -23,7 +23,7 @@ export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanel
 
   useAction({
     name: 'acknowledge-alert',
-    label: 'Acknowledge this alert',
+    label: `Acknowledge alert ${inputs.alertId}`,
     execute: () => {
       setState('acknowledged')
       emit('acknowledged', { alertId: inputs.alertId, acknowledgedAt: new Date().toISOString() })
@@ -43,13 +43,14 @@ component renders, so leaving the page takes it out of the palette.
 
 ### 2. Say when it may run
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx"
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
 import { allow, deny, useAction } from '@company/mfe-react'
 
 useAction({
   name: 'acknowledge-alert',
-  label: 'Acknowledge this alert',
-  canExecute: () => (state === 'open' ? allow() : deny('This alert was already acknowledged.')),
+  label: `Acknowledge alert ${inputs.alertId}`,
+  canExecute: () =>
+    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
   execute: () => {
     setState('acknowledged')
   },
@@ -64,125 +65,24 @@ but it is not a permission check. Your API still authorizes the request.
 
 <Step>
 
-### 3. Describe it for the agent
+### 3. Run it from your own button
 
-```tsx title="examples/lab/src/routes/actions.tsx"
-useAction({
-  name: 'export-results',
-  label: 'Export results',
-  description: 'Exports the simulation results to a file the user downloads.',
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+const acknowledge = useAction({
+  name: 'acknowledge-alert',
+  label: `Acknowledge alert ${inputs.alertId}`,
   canExecute: () =>
-    groups.includes('well-planning.read')
-      ? allow()
-      : deny('You need the well-planning.read group to export.'),
+    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
   execute: () => {
-    record('Exported the results')
-  },
-})
-```
-
-`label` is the menu text. `description` is for the agent: say what the action does and when to use
-it, in one or two sentences.
-
-</Step>
-
-<Step>
-
-### 4. Say what it changes
-
-```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
-useAction({
-  name: 'open-wells',
-  label: 'Operations: open the wells inventory',
-  // Opening a page changes nothing the user keeps, so the agent may do it without asking.
-  effect: 'read',
-  canExecute: () => allow(),
-  execute: () => {
-    void navigate({ to: '/wells' })
-  },
-})
-```
-
-`effect` decides whether the agent asks the user before it runs the action.
-
-| `effect`               | What a run changes                    | An agent's call     |
-| ---------------------- | ------------------------------------- | ------------------- |
-| `'read'`               | No data. It may change what is shown. | runs without asking |
-| `'write'`, the default | Data the user could change back.      | asks the user first |
-| `'destructive'`        | Data the user could not change back.  | asks the user first |
-
-Mark an action that only opens or shows something `'read'`. Left undeclared, it counts as a write,
-and the agent asks before every call. A user who runs the action from the palette, the keys or your
-own button is never asked. To ask for some calls only, set `needsApproval` to a check of the input
-([useAction](/docs/reference/hooks-and-components#useaction) has every field).
-
-</Step>
-
-<Step>
-
-### 5. Take input
-
-```tsx title="examples/lab/src/routes/actions.tsx (trimmed)"
-import { z } from 'zod'
-
-/** At module scope: the registry converts it to JSON Schema whenever its identity changes. */
-const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
-
-useAction({
-  name: 'run-simulation',
-  label: 'Run the simulation',
-  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
-  inputSchema: simulationInput,
-  effect: 'read',
-  canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
-  execute: ({ runs }) => {
-    record(`Ran the simulation ${runs} times`)
-  },
-})
-```
-
-`inputSchema` is one `z.object`, declared at module scope. Every caller's input is checked against
-it before `execute` runs, and `execute` receives the parsed value with its defaults filled in. An
-action without `inputSchema` takes no input.
-
-`outputSchema` declares the value `execute` returns. The caller gets the parsed value, and a value
-that does not match fails the run.
-
-</Step>
-
-<Step>
-
-### 6. Run it from your own button
-
-```tsx title="examples/lab/src/routes/actions.tsx (trimmed)"
-const runSimulation = useAction({
-  name: 'run-simulation',
-  label: 'Run the simulation',
-  inputSchema: simulationInput,
-  effect: 'read',
-  canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
-  execute: ({ runs }) => {
-    record(`Ran the simulation ${runs} times`)
+    setState('acknowledged')
   },
 })
 
-return (
-  <Button
-    variant="outline"
-    onPress={() => {
-      void runSimulation({ runs: 10 }).then(result => {
-        if (result.status !== 'executed') record(`Not run: ${result.status}`)
-      })
-    }}
-  >
-    Run the simulation 10 times
-  </Button>
-)
+return <Button onPress={() => void acknowledge()}>Acknowledge</Button>
 ```
 
-`useAction` returns a function that runs the action. Your button then goes through the same checks
-as the palette, the keys and the agent. The input is optional when the schema accepts `{}`. The run
-resolves to one result:
+`useAction` returns a function that runs the action through the palette's checks. It resolves to
+one result:
 
 | `status`      | What happened                                                                       |
 | ------------- | ----------------------------------------------------------------------------------- |
@@ -200,7 +100,7 @@ In an Angular component, `injectAction` returns the same function. See the
 
 <Step>
 
-### 7. Register App-wide actions from your layout
+### 4. Register App-wide actions from your layout
 
 ```tsx title="examples/operations/src/routes/__root.tsx"
 useAction({
@@ -221,7 +121,7 @@ by a page lasts as long as that page.
 
 <Step>
 
-### 8. Give it a shortcut
+### 5. Give it a shortcut
 
 ```tsx title="examples/operations/src/routes/__root.tsx"
 useAction({
@@ -236,8 +136,8 @@ useAction({
 })
 ```
 
-A chord joins modifiers and one key with `+`: `mod+s`, `shift+?`, `alt+enter`. A sequence is
-chords separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
+A chord joins modifiers and one key with `+`: `mod+s`, `alt+enter`. A sequence is chords
+separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
 Spell a named key out: `escape`, `enter`, `space`, `plus`, `arrowup`, `f1`.
 
 The shell runs the action when the keys are pressed, the same way the palette runs it, so
@@ -254,29 +154,6 @@ lists them.
 
 </Step>
 
-<Step>
-
-### 9. Keep it away from the agent
-
-```tsx title="examples/reports/src/routes/__root.tsx (trimmed)"
-useAction({
-  name: 'copy-ranking',
-  label: 'Reports: copy the ranking',
-  // The clipboard is the user's, so only they are offered it.
-  placements: ['palette'],
-  canExecute: () => (alternatives.length === 0 ? deny('There is nothing to copy.') : allow()),
-  execute: () => {
-    void navigator.clipboard.writeText(rows.join('\n'))
-  },
-})
-```
-
-`placements` lists where the action is offered. Left out, it is `['palette', 'agent']`. List only
-`'palette'` to keep the action from the agent, or `[]` to list it nowhere. Its shortcut and your own
-button still run it either way.
-
-</Step>
-
 </Steps>
 
 ## Check it works
@@ -285,7 +162,8 @@ Run `pnpm dev` and open the shell at `http://localhost:3000`. Add the Alert pane
 from the palette, under "Add to the dashboard". Open the palette again with <Kbd>⌘</Kbd> <Kbd>K</Kbd>
 or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>, and look under "From the mounted application". The right-hand
 column names the App or Widget that owns the action, and a denied one shows your reason there
-instead. The lab App's Actions page has a button that calls the function `useAction` returned.
+instead. The panel's Acknowledge button runs the same action, so pressing it greys the action out
+in the palette.
 
 ## Errors
 
@@ -320,65 +198,6 @@ string.
 ```
 
 **Fix.** Give the action the words you want in the palette. It is the only text the reader sees.
-
-</Callout>
-
-<Callout type="error" title="expected an effect">
-
-```text
-lab failed to register action 'plan-visit': expected an effect (read, write, destructive),
-received "safe".
-```
-
-**Fix.** Use one of the three effects, or leave `effect` out to count the action as a write.
-
-</Callout>
-
-<Callout type="error" title="expected an inputSchema made with z.object">
-
-```text
-lab failed to register action 'plan-visit': expected an inputSchema made with z.object, received a
-schema that is not an object schema.
-```
-
-**Fix.** Wrap the values in `z.object({ … })`. An action takes named values, as a tool's arguments
-are.
-
-</Callout>
-
-<Callout type="error" title="cannot be represented in JSON Schema">
-
-```text
-lab failed to describe the inputSchema of action 'plan-visit' as JSON Schema: Error: Date cannot
-be represented in JSON Schema.
-```
-
-**Fix.** Use only what JSON Schema can express: no dates, functions or transforms. Send a date as
-an ISO string, with `z.iso.datetime()`.
-
-</Callout>
-
-<Callout type="error" title="expected input matching the action’s inputSchema">
-
-```text
-lab failed to accept input for action 'run-simulation' runs: expected input matching the action’s
-inputSchema, received ✖ Invalid input: expected number, received string → at runs.
-```
-
-**Fix.** Call the action with input its `inputSchema` accepts. The run resolves `invalid` and
-nothing runs. The code is `contract/input-mismatch`.
-
-</Callout>
-
-<Callout type="error" title="expected a value matching the action’s outputSchema">
-
-```text
-lab failed to return a value from action 'run-simulation' mean: expected a value matching the
-action’s outputSchema, received ✖ Invalid input: expected number, received string → at mean.
-```
-
-**Fix.** Return what `outputSchema` declares from `execute`, or change the schema. The action has
-already run, and the result is `failed` with the code `contract/output-mismatch`.
 
 </Callout>
 
@@ -438,6 +257,8 @@ Widget register the shortcut.
 - [Create a Widget](/docs/create-a-widget) — the container this example lives in.
 - [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — a Widget must
   not move the page itself.
+- [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — what the agent needs from
+  it.
 - [Hooks and components](/docs/reference/hooks-and-components) — every `useAction` field and result.
 - [Run the shell with your container](/docs/run-the-shell-locally) — how to get the palette on
   screen.

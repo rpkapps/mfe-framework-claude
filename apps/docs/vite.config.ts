@@ -52,6 +52,7 @@ const RECIPES = [
   'add-a-help-page',
   'publish-release-notes',
   'add-an-action',
+  'offer-an-action-to-the-agent',
   'block-navigation-when-unsaved',
   'show-an-icon',
   'set-breadcrumbs',
