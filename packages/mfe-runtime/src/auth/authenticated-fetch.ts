@@ -4,8 +4,9 @@
  * through untouched.
  */
 
-import { createMfeError, DEV } from '@company/mfe-core'
+import { createMfeError } from '@company/mfe-core'
 
+import { DEV } from '../dev.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { normalizeAllowedOrigins } from './origins.ts'
 import type { AccessTokenOptions, GetAccessToken } from './session.ts'

@@ -6,7 +6,12 @@
 
 import { join } from 'node:path'
 
-import { createBuildError, SINGLETON, type SharingPolicies } from '@company/mfe-build/federation'
+import {
+  createBuildError,
+  packageOf,
+  SINGLETON,
+  type SharingPolicies,
+} from '@company/mfe-build/federation'
 
 import { ANGULAR_ADAPTER } from '../adapter.ts'
 import { SHARED_OPTION } from '../options.ts'
@@ -26,8 +31,8 @@ export const ANGULAR_ANCHOR = '@angular/core'
 export const ANGULAR_SHARING_POLICY: SharingPolicies = {
   '@angular/core': SINGLETON,
   '@angular/common': SINGLETON,
-  // `packageOf` only strips a trailing slash, so `@angular/common/http` is shared through this
-  // prefix entry; the bare entry alone never matches a subpath import.
+  // A bare share key never matches a subpath import, so `@angular/common/http` is shared through
+  // this prefix entry.
   '@angular/common/': SINGLETON,
   '@angular/platform-browser': SINGLETON,
   '@angular/router': SINGLETON,
@@ -59,7 +64,7 @@ export function assertShareable(
   containerRoot: string,
 ): void {
   for (const name of Object.keys(overrides)) {
-    const owner = packageNameOf(name)
+    const owner = packageOf(name)
     if (!NEVER_SHARED.includes(owner)) continue
 
     throw createBuildError({
@@ -71,10 +76,4 @@ export function assertShareable(
       repair: `Remove '${name}' from ${SHARED_OPTION}. Its theme engine keeps page-wide state, so each container bundles its own copy; keep every Angular container on the same PrimeNG version and preset instead.`,
     })
   }
-}
-
-/** The package a share belongs to: `primeng/button` is `primeng`, `@primeng/themes/aura` is `@primeng/themes`. */
-function packageNameOf(specifier: string): string {
-  const segments = specifier.split('/')
-  return (specifier.startsWith('@') ? segments.slice(0, 2) : segments.slice(0, 1)).join('/')
 }

@@ -5,7 +5,7 @@
  * root on the context, so this renders neither.
  */
 
-import { DEV, toMfeError, withoutUndefined, type MfeError } from '@company/mfe-core'
+import { toMfeError, withoutUndefined, type MfeError } from '@company/mfe-core'
 import type {
   AppMountTarget,
   MountedApp,
@@ -17,6 +17,7 @@ import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 
 import type { AppDefinition, WidgetDefinition } from './definition.ts'
+import { DEV } from './dev.ts'
 import { MountTree } from './mount-tree.tsx'
 import { withQueryClient, type MfeMount } from './runtime.ts'
 

@@ -65,7 +65,14 @@ describe('pluginMfe', () => {
       shared: { '@company/auth-client': '^3.0.0' },
     })
 
-    expect(Object.keys(plan.shared)).toEqual(['@company/auth-client', 'react', 'react-dom'])
+    expect(Object.keys(plan.shared)).toEqual([
+      '@company/auth-client',
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react/compiler-runtime',
+      'react/jsx-runtime',
+    ])
     expect(plan.shared['react']).toMatchObject({
       singleton: true,
       strictVersion: true,

@@ -8,7 +8,6 @@
 import {
   boundAttributes,
   boundName,
-  DEV,
   SpanKind,
   TELEMETRY_LIMITS,
   type Span,
@@ -19,6 +18,7 @@ import {
   type Tracer,
 } from '@company/mfe-core'
 
+import { DEV } from '../dev.ts'
 import {
   isReservedAttributeKey,
   RESERVED_ATTRIBUTE_KEYS,

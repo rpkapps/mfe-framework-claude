@@ -193,6 +193,22 @@ async function packageDirectoryFor(packageName) {
   return null
 }
 
+/**
+ * The packages that reach `@company/mfe-core` through the share scope at run time. None of them may
+ * guard code with core's `DEV`: an import across the share boundary is not a constant any minifier
+ * can fold, so everything behind it would ship to production. Each keeps its own `src/dev.ts`.
+ */
+const SHARED_CORE_CONSUMERS = [
+  '@company/mfe-runtime',
+  '@company/mfe-react',
+  '@company/mfe-angular',
+  '@company/mfe-legacy-angular',
+  '@company/mfe-devtools',
+]
+
+/** A value import or re-export of `DEV` from core; `type DEV` would not reach the bundle. */
+const CORE_DEV_IMPORT = /(?:import|export)\s*\{([^}]*)\}\s*from\s*['"]@company\/mfe-core['"]/g
+
 const violations = []
 
 for (const rule of RULES) {
@@ -229,10 +245,31 @@ for (const rule of RULES) {
   }
 }
 
+for (const packageName of SHARED_CORE_CONSUMERS) {
+  const packageDir = await packageDirectoryFor(packageName)
+  if (!packageDir) {
+    violations.push(`Unknown package in the development-flag rule: ${packageName}`)
+    continue
+  }
+  for (const file of await collectSourceFiles(join(packageDir, 'src'))) {
+    const source = await readFile(file, 'utf8')
+    for (const match of source.matchAll(CORE_DEV_IMPORT)) {
+      const names = match[1].split(',').map(name => name.trim())
+      if (!names.some(name => name === 'DEV' || name.startsWith('DEV '))) continue
+      const line = source.slice(0, match.index).split('\n').length
+      violations.push(
+        `${relative(repoRoot, file)}:${line} imports DEV from @company/mfe-core.\n  Core is shared, so the flag cannot fold across the share boundary and the code it guards ships to production. Import DEV from this package's own src/dev.ts instead.`,
+      )
+    }
+  }
+}
+
 if (violations.length > 0) {
   console.error(`Package boundary check failed (${violations.length} violation(s)):\n`)
   for (const violation of violations) console.error(`  - ${violation}\n`)
   process.exit(1)
 }
 
-console.log(`Package boundary check passed: ${RULES.length} package rules, import DAG intact.`)
+console.log(
+  `Package boundary check passed: ${RULES.length} package rules, import DAG intact, no shared development flag.`,
+)
