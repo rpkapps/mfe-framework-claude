@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import {
   AppWindowIcon,
   BanIcon,
+  BotIcon,
   BoxIcon,
   BugIcon,
   CircleHelpIcon,
@@ -88,6 +89,7 @@ type HostFace = (live: Live) => Pick<Row, 'icon' | 'text' | 'hint'>
 
 const HOST_FACES: Readonly<Record<string, HostFace>> = {
   registry: () => ({ icon: <LayersIcon />, text: 'loaded rejected entries' }),
+  assistant: () => ({ icon: <BotIcon />, text: 'chat agent ai question selection' }),
   settings: () => ({ icon: <SettingsIcon />, text: 'theme dashboard overrides' }),
   help: () => ({ icon: <CircleHelpIcon />, text: 'keyboard shortcuts' }),
   releases: () => ({ icon: <SparklesIcon />, text: 'what is new release notes' }),
