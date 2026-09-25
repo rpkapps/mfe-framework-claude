@@ -48,7 +48,8 @@ export function useFocusWhenWaiting(
       element.focus()
       return
     }
-    chat.announce(`${question} ${way}`)
+    // A title the agent wrote may not end a sentence; the way to the card is a sentence of its own.
+    chat.announce(`${question}${/[.?!…:]$/.test(question) ? '' : '.'} ${way}`)
     // Once, as the card appears: a later render is the same question.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
