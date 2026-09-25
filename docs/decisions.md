@@ -1478,7 +1478,9 @@ API is well designed, and its documentation reads across. It differs where our d
 - **Resuming.** One resume payload, `{ approved, toolCall }`, answers TanStack AI's backend and
   Agent Framework's alike.
 - **Page tools.** A page tool's call is answered as a tool message whether the backend left it
-  pending (the spec) or raised TanStack AI's `client_tool` interrupt.
+  pending (the spec) or stopped on an interrupt for it (TanStack AI's backend does). An interrupt
+  on a page tool always means "run it", because the pipeline, not the backend, asks for a page
+  action's approval; so the client needs no knowledge of TanStack AI's interrupt metadata.
 
 The package is the one framework package allowed to import an agent library, and only
 `@ag-ui/*`. Its lint zone and `pnpm boundaries` keep every other one out, so a backend stays

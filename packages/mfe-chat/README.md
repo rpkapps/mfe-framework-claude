@@ -30,7 +30,7 @@ In React, `useChat(options)` from `@company/mfe-chat/react` returns the snapshot
 
 ## The API is TanStack AI's
 
-The names and shapes follow TanStack AI's client, so its documentation reads across:
+The names and shapes follow [TanStack AI](https://github.com/TanStack/ai)'s client (`@tanstack/ai-client`, `@tanstack/ai-react`), so its documentation reads across. Only the API is copied, not the code. The source comments say which TanStack AI name each piece follows.
 
 | TanStack AI                                                               | Here                                          |
 | ------------------------------------------------------------------------- | --------------------------------------------- |
@@ -60,11 +60,13 @@ Where it differs, it is because our design does:
 
 One user turn takes as many runs as it needs:
 
-- **A run ends with the page's tools pending**, or with TanStack AI's `client_tool` interrupt. The
+- **A run ends with the page's tools pending**, or on an interrupt for a call to one of them. The
   client runs those tools through the pipeline, answers each call with a tool message, and runs
-  again. The answering run still declares the answered tools, even if their mount has gone,
+  again. An interrupt on a page tool always means "run it": a backend never asks for a page
+  tool's approval, since the pipeline asks the user itself. TanStack AI's backend stops a run
+  this way; the spec leaves the call pending. The answering run still declares the answered tools, even if their mount has gone,
   because both backends recognise an answer by the declared tools.
-- **A run ends on an approval interrupt.** The card shows it. The answer resumes the run with
+- **A run ends on an approval interrupt for the backend's own tool.** The card shows it. The answer resumes the run with
   `{ approved, toolCall }`, which both backends read, and names the interrupted run as
   `parentRunId`.
 - **A pending call the page does not own** is the backend's to answer, so the turn ends there.

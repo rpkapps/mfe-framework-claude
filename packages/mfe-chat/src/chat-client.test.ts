@@ -148,31 +148,44 @@ describe('the page’s tools', () => {
     expect(toolCalls(client)[0]).toMatchObject({ name: 'shut_in_well', state: 'input-complete' })
   })
 
-  it('runs a page tool TanStack AI’s backend asks for through an interrupt', async () => {
-    const backend = scriptedBackend(
-      interrupts([acknowledge], {
+  it.each([
+    [
+      'TanStack AI’s client-tool interrupt',
+      {
         id: 'client_tool_call-1',
         reason: 'tanstack:client_tool_execution',
         toolCallId: 'call-1',
         metadata: { kind: 'client_tool' },
-      }),
-      says('Acknowledged.'),
-    )
-    const client = new ChatClient({ connection: backend.connection, tools: [tool()] })
+      },
+    ],
+    [
+      'any interrupt on a page tool’s call',
+      { id: 'client_tool_call-1', reason: 'tool_call', toolCallId: 'call-1' },
+    ],
+  ])(
+    'runs a page tool the backend stops on, rather than asking the user (%s)',
+    async (_, raised) => {
+      const backend = scriptedBackend(interrupts([acknowledge], raised), says('Acknowledged.'))
+      const client = new ChatClient({ connection: backend.connection, tools: [tool()] })
 
-    await client.sendMessage('Acknowledge A-7')
+      await client.sendMessage('Acknowledge A-7')
 
-    expect(backend.requests[1]).toMatchObject({
-      parentRunId: backend.requests[0]?.runId,
-      resume: [
-        { interruptId: 'client_tool_call-1', status: 'resolved', payload: { acknowledged: true } },
-      ],
-    })
-    expect(backend.requests[1]?.messages.at(-1)).toMatchObject({
-      role: 'tool',
-      toolCallId: 'call-1',
-    })
-  })
+      expect(backend.requests[1]).toMatchObject({
+        parentRunId: backend.requests[0]?.runId,
+        resume: [
+          {
+            interruptId: 'client_tool_call-1',
+            status: 'resolved',
+            payload: { acknowledged: true },
+          },
+        ],
+      })
+      expect(backend.requests[1]?.messages.at(-1)).toMatchObject({
+        role: 'tool',
+        toolCallId: 'call-1',
+      })
+    },
+  )
 
   it('shows the pipeline’s question as the call’s approval, and resolves it with the answer', async () => {
     const backend = scriptedBackend(calls(acknowledge), says('Acknowledged.'))

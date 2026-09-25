@@ -1,7 +1,12 @@
 /**
- * The chat client: one conversation with an AG-UI backend. Its methods and snapshot follow
- * TanStack AI's `ChatClient`; underneath it is the plain AG-UI client, so it speaks the spec both
- * ways and works against any AG-UI backend (docs/decisions.md §49).
+ * The chat client: one conversation with an AG-UI backend.
+ *
+ * It follows TanStack AI's client (`ChatClient` in `@tanstack/ai-client`,
+ * https://github.com/TanStack/ai): the same methods (`sendMessage`, `reload`, `stop`, `clear`,
+ * `setMessages`), statuses and snapshot, so TanStack AI's documentation reads across. Only the API
+ * is copied, not the code: underneath is the plain AG-UI client, which speaks the spec both ways and
+ * works against any AG-UI backend, where TanStack AI's client works only against its own
+ * (docs/decisions.md §49). Where this differs from TanStack AI, the README says why.
  *
  * One user turn is as many runs as it takes. A run that stops on the page's tools is answered by
  * running them and continued; a run that stops on an interrupt is shown to the user as one and
@@ -53,11 +58,6 @@ function toWire(tool: ChatTool): Tool {
   }
 }
 
-/** TanStack AI's convention for a page tool: its run ends on an interrupt, not a pending call. */
-function isTanStackClientTool(interrupt: Interrupt): boolean {
-  return interrupt.metadata?.['kind'] === 'client_tool'
-}
-
 function parseArguments(call: ToolCall): { readonly input: unknown } | { readonly error: string } {
   const text = call.function.arguments.trim()
   if (text === '') return { input: {} }
@@ -68,6 +68,7 @@ function parseArguments(call: ToolCall): { readonly input: unknown } | { readonl
   }
 }
 
+/** TanStack AI's `ChatClient`, on the plain AG-UI client; see the module comment. */
 export class ChatClient {
   #options: ChatClientOptions
   readonly #agent: HttpAgent
@@ -437,8 +438,11 @@ export class ChatClient {
     const call = interrupt.toolCallId === undefined ? undefined : calls.get(interrupt.toolCallId)
     const tool = call === undefined ? undefined : tools.get(call.function.name)
 
-    if (call !== undefined && tool !== undefined && isTanStackClientTool(interrupt)) {
-      // Answered both ways, as TanStack AI's own client does: the tool message, and the payload.
+    // An interrupt on a call to one of the page's tools means "run it": the backend never asks for
+    // a page tool's approval, as the action pipeline asks the user itself when the action needs it.
+    // TanStack AI's backend ends a run this way where the spec leaves the call pending. Answered
+    // both ways, as TanStack AI's own client does: the tool message, and the payload.
+    if (call !== undefined && tool !== undefined) {
       this.#setStatus('streaming')
       const payload = await this.#execute(tool, call, info)
       answered.add(tool.name)

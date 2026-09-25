@@ -1,5 +1,6 @@
 /**
- * The transcript's view of the stored AG-UI messages: each message with `parts`, a tool's result
+ * The transcript's view of the stored AG-UI messages, in TanStack AI's `UIMessage` shape: each
+ * message with `parts`, a tool's result
  * folded into the message that called it, and each call's state from what the client has seen of
  * it. A pure function of the history and that state, so the view never drifts from what is kept.
  */

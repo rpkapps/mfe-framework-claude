@@ -1,17 +1,19 @@
 /**
- * The chat's public shapes. The names and states follow TanStack AI's client (`UIMessage` with
- * `parts`, the tool-call states, bound interrupts), so its documentation reads across. What is
- * stored is AG-UI's own `Message` list; `UIMessage` is only the view a transcript renders.
+ * The chat's public shapes. They follow TanStack AI's client (`@tanstack/ai-client`,
+ * https://github.com/TanStack/ai): `UIMessage` with `parts`, the tool-call and result states,
+ * `ChatClientState`, and interrupts answered with `resolveInterrupt`, so its documentation reads
+ * across. What is stored is AG-UI's own `Message` list; `UIMessage` is only the view a transcript
+ * renders.
  */
 
 import type { Context, Message } from '@ag-ui/core'
 
 import type { ChatConnection } from './connection.ts'
 
-/** Whether a run is in flight: `submitted` until its first event, then `streaming`. */
+/** TanStack AI's `ChatClientState`: `submitted` until a run's first event, then `streaming`. */
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
 
-/** A tool call from its first event to its result. */
+/** TanStack AI's `ToolCallState`: a tool call from its first event to its result. */
 export type ToolCallState =
   | 'awaiting-input'
   | 'input-streaming'
@@ -63,7 +65,10 @@ export interface ToolResultPart {
 
 export type MessagePart = TextPart | ThinkingPart | ToolCallPart | ToolResultPart
 
-/** One message as a transcript renders it. A tool's result sits in the message that called it. */
+/**
+ * TanStack AI's `UIMessage`: one message as a transcript renders it. A tool's result sits in the
+ * message that called it.
+ */
 export interface UIMessage {
   readonly id: string
   readonly role: 'system' | 'user' | 'assistant'
@@ -90,7 +95,10 @@ export interface ChatTool {
   execute(input: unknown, context: ToolExecutionContext): unknown
 }
 
-/** A tool call waiting on the user: from the page's action pipeline, or from the backend. */
+/**
+ * TanStack AI's bound `tool-approval` interrupt: a tool call waiting on the user. Here it comes
+ * from the page's action pipeline as well as from the backend, which TanStack AI has no need for.
+ */
 export interface ToolApprovalInterrupt {
   readonly kind: 'tool-approval'
   readonly id: string
@@ -108,7 +116,10 @@ export interface ToolApprovalInterrupt {
   cancel(): void
 }
 
-/** Anything else a backend stops a run for; its answer is whatever `responseSchema` describes. */
+/**
+ * TanStack AI's `generic` interrupt: anything else a backend stops a run for, answered with
+ * whatever `responseSchema` describes.
+ */
 export interface GenericInterrupt {
   readonly kind: 'generic'
   readonly id: string

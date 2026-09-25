@@ -16,7 +16,10 @@ export interface FetchConnectionOptions {
   readonly fetch?: (url: string, init: RequestInit) => Promise<Response>
 }
 
-/** The connection to an AG-UI backend at `url`, named as TanStack AI's client names its own. */
+/**
+ * The connection to an AG-UI backend at `url`. It follows TanStack AI's `fetchServerSentEvents`,
+ * name and arguments; the plain AG-UI client does the streaming.
+ */
 export function fetchServerSentEvents(
   url: string,
   options: FetchConnectionOptions = {},

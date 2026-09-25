@@ -1,5 +1,6 @@
 /**
- * `useChat`, as TanStack AI's React binding names it: the chat client for one component, its
+ * `useChat`, following TanStack AI's React binding (`useChat` in `@tanstack/ai-react`,
+ * https://github.com/TanStack/ai): the chat client for one component, its
  * snapshot as state, and its methods. The client lives as long as the component; options passed on
  * a later render are taken without rebuilding it.
  */
