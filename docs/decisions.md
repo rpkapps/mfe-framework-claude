@@ -1289,6 +1289,9 @@ is typed by the action's schemas. The run goes through the registration's own ha
 (`ActionRegistrationHandle.execute`), not its id: two mounts of one definition may
 each register a name, and the second is `<definitionId>:<name>-2` (then `-3`), so the
 palette and the agent see two actions and a run by id reaches the mount it names. A
+React run made before its component registered, from a child's layout effect or from
+a passive effect a concurrent root flushes in a later task, waits for that
+registration rather than guessing the id, which could be another mount's. A
 removed handle runs nothing and returns `unavailable`. A run's promise never rejects:
 a hook or a schema that throws makes it `failed`, audited like any other. The
 published entry carries `description`, `effect`, `followUp` and both schemas as JSON

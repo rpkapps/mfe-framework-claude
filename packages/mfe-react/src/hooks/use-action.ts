@@ -7,8 +7,8 @@
  * through the palette's path, while this mount's App is where the page is. A Widget's is ignored.
  */
 
-import { useCallback, useEffect, useRef } from 'react'
-import { HOST_SCOPE, type ActionInputSchema, type ActionRegistration } from '@company/mfe-core'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ActionInputSchema, ActionRegistration } from '@company/mfe-core'
 import type {
   ActionExecutionResult,
   ActionRegistrationHandle,
@@ -17,6 +17,26 @@ import type {
 
 import { useOptionalMfeMount } from '../mount-context.tsx'
 import { useMfeRuntime } from '../runtime-context.tsx'
+
+type Latest = () => ActionRegistrationHandle
+
+/**
+ * Settled by the component's first registration with a reader of its latest one, so a run that
+ * waited runs the registration current when it resumes: under StrictMode the first is already
+ * removed and replaced by then.
+ */
+interface FirstRegistration {
+  readonly settled: Promise<Latest>
+  readonly settle: (latest: Latest) => void
+}
+
+function firstRegistration(): FirstRegistration {
+  let settle: (latest: Latest) => void = () => {}
+  const settled = new Promise<Latest>(resolve => {
+    settle = resolve
+  })
+  return { settled, settle }
+}
 
 /**
  * Returns a stable run with the caller `'ui'`, for the App's own button: a click then shares
@@ -30,6 +50,7 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
   const mount = useOptionalMfeMount()
   const { actions } = useMfeRuntime('useAction()')
   const handle = useRef<ActionRegistrationHandle | null>(null)
+  const [first] = useState(firstRegistration)
 
   // The newest committed registration, so a re-registration picks it up after a remount.
   const committed = useRef<ActionRegistration<Input, Output>>(registration)
@@ -50,13 +71,14 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
         ? actions.registerHost(committed.current)
         : actions.register({ definitionId, mountToken, kind, basePath }, committed.current)
     handle.current = registered
+    first.settle(() => handle.current ?? registered)
 
     // The handle outlives its removal, so a run after unmount resolves `unavailable` rather than
     // reaching another mount's action of the same name.
     return () => {
       registered.remove()
     }
-  }, [actions, definitionId, mountToken, kind, basePath])
+  }, [actions, definitionId, mountToken, kind, basePath, first])
 
   // The registry compares the visible result and publishes nothing when only identity changed.
   useEffect(() => {
@@ -66,17 +88,16 @@ export function useAction<Input extends ActionInputSchema = ActionInputSchema, O
 
   return useCallback(
     async (input?: unknown): Promise<ActionExecutionResult<Output>> => {
-      const call = { caller: 'ui', input } as const
-      // Called from a child's effect, which runs before this one: the commit's effects all run
-      // before a microtask does, so by then this component has registered.
-      if (!handle.current) await Promise.resolve()
-      const result = handle.current
-        ? await handle.current.execute(call)
-        : await actions.execute(`${definitionId ?? HOST_SCOPE}:${committed.current.name}`, call)
+      // A child's layout effect, or its passive effect, runs before this component registers, and
+      // with a concurrent root the passive effects wait for a later task. The run waits for the
+      // registration rather than guessing an id, because `<definitionId>:<name>` may be another
+      // mount's action. The registration effect runs before any unmount's cleanup, so the wait
+      // ends: with this component's action, or `unavailable` once it is removed.
+      const own = handle.current ?? (await first.settled)()
       // The registry parsed the value with this registration's `outputSchema`, or it is what this
       // registration's `execute` returned.
-      return result as ActionExecutionResult<Output>
+      return (await own.execute({ caller: 'ui', input })) as ActionExecutionResult<Output>
     },
-    [actions, definitionId],
+    [first],
   )
 }

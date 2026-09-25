@@ -5,11 +5,13 @@
 
 import { render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
+import { createRoot } from 'react-dom/client'
 import { allow, deny, HOST_SCOPE, type ActionRegistration } from '@company/mfe-core'
 import type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 import { z } from 'zod'
 
+import { MfeMountProvider } from '../mount-context.tsx'
 import { MfeProvider } from '../runtime-context.tsx'
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
 import { useAction } from './use-action.ts'
@@ -376,6 +378,91 @@ describe('the run useAction returns', () => {
       <Mounted>
         <Parent />
       </Mounted>,
+    )
+
+    await expect(result).resolves.toEqual({ status: 'executed', value: 'mine' })
+  })
+
+  /**
+   * Outside `act`, a concurrent root runs the commit's passive effects in a later task, so a run
+   * from a child's layout effect outlasts a microtask before its component registers; by its
+   * reconstructed id it would have reached the first mount's action.
+   */
+  it('runs its own mount’s action when a child calls it from a layout effect in a second mount', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const FirstMount = created.wrapper
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Alert({ answer }: { readonly answer: string }): ReactNode {
+      useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => answer })
+      return null
+    }
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useLayoutEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function CallingAlert(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'second' })
+      return <Child run={run} />
+    }
+    render(
+      <FirstMount>
+        <Alert answer="first" />
+      </FirstMount>,
+    )
+
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean | undefined }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    const root = createRoot(document.createElement('div'))
+    try {
+      root.render(
+        <MfeProvider runtime={created.runtime}>
+          <MfeMountProvider mount={{ ...created.mount, mountToken: 'alerts#second' }}>
+            <CallingAlert />
+          </MfeMountProvider>
+        </MfeProvider>,
+      )
+      await vi.waitFor(() => {
+        expect(result).toBeDefined()
+      })
+
+      await expect(result).resolves.toEqual({ status: 'executed', value: 'second' })
+      expect(created.runtime.actions.getSnapshot().map(entry => entry.id)).toEqual([
+        'alerts:acknowledge',
+        'alerts:acknowledge-2',
+      ])
+    } finally {
+      root.unmount()
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+    }
+  })
+
+  /** StrictMode registers, removes and registers again; the run waits for the one that stays. */
+  it('runs the registration StrictMode kept when a child called it before either', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useLayoutEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function Parent(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' })
+      return <Child run={run} />
+    }
+    render(
+      <Mounted>
+        <Parent />
+      </Mounted>,
+      { reactStrictMode: true },
     )
 
     await expect(result).resolves.toEqual({ status: 'executed', value: 'mine' })
