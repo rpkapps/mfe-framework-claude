@@ -266,6 +266,19 @@ export const Route = createFileRoute('/')({
   return values.reduce((sum, value) => sum + value, 0)
 }
 `,
+    'src/agent.ts': `import { useChat } from '@tanstack/ai-react'
+import type { UIMessage } from 'ai'
+import { streamText } from 'ai/rsc'
+import { HttpAgent } from '@ag-ui/client'
+import { local } from './ai'
+import { helper } from './ai/helper'
+export const hooks = [useChat, streamText, HttpAgent, local, helper]
+export type Message = UIMessage
+`,
+    'src/ai.ts': `export const local = 1
+`,
+    'src/ai/helper.ts': `export const helper = 1
+`,
   })
 
   const preset = author({
@@ -302,6 +315,16 @@ export const Route = createFileRoute('/')({
       message => message.ruleId === '@typescript-eslint/no-restricted-imports',
     )
     expect(zustand).toEqual([])
+  })
+
+  it('restricts agent libraries, a type import included, but not a local module named ai', async () => {
+    const { results } = await lint(root, preset)
+    const agent = resultFor(results, 'src/agent.ts')
+    const restricted = (agent?.messages ?? []).filter(
+      message => message.ruleId === '@typescript-eslint/no-restricted-imports',
+    )
+    expect(restricted.map(message => message.line)).toEqual([1, 2, 3, 4])
+    expect(restricted[0]?.message).toContain('useAction()')
   })
 
   it('reports Widget-owned global effects only inside the declared Widget scope', async () => {

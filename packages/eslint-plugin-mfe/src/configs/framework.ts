@@ -16,6 +16,7 @@ import {
 } from './shared.ts'
 import { reactCorrectness } from './react-support.ts'
 import {
+  FRAMEWORK_AGENT_LIBRARIES,
   MODULE_FEDERATION_PATTERN,
   STATE_PATHS,
   TELEMETRY_PATTERNS,
@@ -93,8 +94,12 @@ function packageZones(
   extraPaths: readonly RestrictedPath[],
   extraPatterns: readonly RestrictedPattern[],
 ): Linter.Config[] {
-  const basePaths = [...STATE_PATHS, ...extraPaths]
-  const basePatterns = [...TELEMETRY_PATTERNS, ...extraPatterns]
+  const basePaths = [...STATE_PATHS, ...FRAMEWORK_AGENT_LIBRARIES.paths, ...extraPaths]
+  const basePatterns = [
+    ...TELEMETRY_PATTERNS,
+    ...FRAMEWORK_AGENT_LIBRARIES.patterns,
+    ...extraPatterns,
+  ]
 
   const zone = (
     pkg: string,
@@ -202,8 +207,8 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
       plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
-          [...STATE_PATHS, ...extraPaths],
-          [...TELEMETRY_PATTERNS, ...extraPatterns],
+          [...STATE_PATHS, ...FRAMEWORK_AGENT_LIBRARIES.paths, ...extraPaths],
+          [...TELEMETRY_PATTERNS, ...FRAMEWORK_AGENT_LIBRARIES.patterns, ...extraPatterns],
         ),
       },
     },

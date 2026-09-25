@@ -1316,3 +1316,29 @@ their logic. A test lists every runtime member with a `removeMount` and fails wh
 one is missing from the list, so a new store cannot be forgotten.
 
 **Cost:** one more list to keep, which the test keeps honest.
+
+---
+
+## 45. Apps, Widgets and framework packages never import an agent library
+
+**Status:** decided; step 7 of the agentic plan.
+
+The shell's chat is the one place that talks to the agent (plan E). A hook from an
+agent library inside a mount could not reach it anyway, as every mount renders in a
+root of its own (the wall §35 hit with shortcuts), and a container that bundled one
+would be rebuilt with every change to it and would add it to the shared scope. What a
+mount offers the agent is its actions, through `useAction` or `injectAction`.
+
+So the author presets (`react.author`, `angular`) and the `framework` preset, in every
+package zone, reject the AI and agent libraries and the model providers' SDKs, type
+imports included: `ai`, `openai` and `langchain` as exact paths, and `@tanstack/ai`,
+`@tanstack/ai-*`, `ai/*`, `@ai-sdk/*`, `@ag-ui/*`, `@copilotkit/*`,
+`@anthropic-ai/*`, `openai/*`, `@google/genai`, `langchain/*`, `@langchain/*` and
+`@mastra/*` as patterns. The bare names are paths because, as a pattern, `ai` would
+match any import whose last segment is `ai`, `./ai` included. The `application()`
+preset, which the shell uses, leaves them allowed: E confines the library to the
+chat module there. A team's own backend is not linted by these presets and may use
+whatever it likes.
+
+**Cost:** a list of package names to keep current as libraries appear; one that is
+missing is let through, not refused.

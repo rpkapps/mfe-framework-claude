@@ -185,7 +185,10 @@ It layers:
   framework package would force one of them on every consumer; `@opentelemetry/*`
   and `@grafana/faro-*` are out **including type imports**, because a type import
   still couples the package to a vendor's release cadence and still shows up in
-  its published declarations.
+  its published declarations. The AI and agent libraries (`ai`, `@tanstack/ai-*`,
+  `@ai-sdk/*`, `@ag-ui/*`, `@copilotkit/*`, the model providers' SDKs) are out on
+  the same terms: a framework package runs inside every container, and only the
+  shell's chat module talks to the agent.
 - **Contracts only in `@company/mfe-core`**: a zone that rejects, outside its
   tests, an exported class other than an error, a top-level `let`, `var`, `Map`,
   `Set` or `WeakMap`, a timer call, and the browser globals (`window`,
@@ -230,7 +233,9 @@ Everything in the `framework` preset's general layers applies, and then:
   framework's internals, the React root, or a telemetry SDK: `@opentelemetry/*`
   and `@grafana/faro-*` stay restricted, type imports included, in favour of
   `useTelemetry()` from `@company/mfe-react` and `context.mfe.telemetry` in a
-  route callback.
+  route callback. The AI and agent libraries are restricted too, type imports
+  included: an App or Widget offers the agent its actions with `useAction()`,
+  and the shell's chat talks to the agent.
 - **Generated router output** (`routeTree.gen.ts`, `src/generated/**`) is exempt
   from the rules that would only ever blame the generator.
 

@@ -267,6 +267,28 @@ describe('framework preset', () => {
     expect(groups).toContain('@grafana/faro-*')
   })
 
+  it('keeps every framework package, and each zone of one, free of agent libraries', () => {
+    // Every config object that sets the rule, since the last one to match a file replaces it.
+    const restricting = preset.filter(
+      config => config.rules?.['@typescript-eslint/no-restricted-imports'] !== undefined,
+    )
+    expect(restricting.length).toBeGreaterThan(1)
+    for (const config of restricting) {
+      const [, options] = config.rules?.['@typescript-eslint/no-restricted-imports'] as [
+        string,
+        { paths: { name: string }[]; patterns: { group: string[]; message: string }[] },
+      ]
+      expect(
+        options.paths.map(path => path.name),
+        config.name,
+      ).toContain('ai')
+      const groups = options.patterns.flatMap(pattern => pattern.group)
+      for (const group of ['@tanstack/ai-*', '@ai-sdk/*', '@ag-ui/*', '@copilotkit/*']) {
+        expect(groups, `${config.name ?? ''} ${group}`).toContain(group)
+      }
+    }
+  })
+
   it('names the Angular adapter, not the React hooks, inside packages/mfe-angular', () => {
     const angularBlock = preset.find(
       config => config.name === 'mfe/framework/rules-angular-wording',

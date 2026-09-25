@@ -20,6 +20,7 @@ import { reactCorrectness } from './react-support.ts'
 import { loadTanstackPeers } from './react-peers.ts'
 import {
   applicationBoundaryPaths,
+  authorAgentLibraries,
   authorTelemetryPatterns,
   deepImportPattern,
   MODULE_FEDERATION_PATTERN,
@@ -76,6 +77,7 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
           [
             ...applicationBoundaryPaths([ADAPTER_MODULE]),
             { name: 'react-dom/client', message: REACT_ROOT_MESSAGE },
+            ...authorAgentLibraries(ADAPTER_MODULE, 'useAction()').paths,
             ...extraPaths,
           ],
           [
@@ -87,6 +89,7 @@ export function author(options: AuthorPresetOptions = {}): Linter.Config[] {
               'useTelemetry()',
               'or `context.mfe.telemetry` in a route callback',
             ),
+            ...authorAgentLibraries(ADAPTER_MODULE, 'useAction()').patterns,
             ...extraPatterns,
           ],
         ),

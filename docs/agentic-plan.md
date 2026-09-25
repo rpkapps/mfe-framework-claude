@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3 and 6 and feature A have landed (§39–§44), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and feature A have landed (§39–§45), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -80,7 +80,9 @@ As landed: `mountScopedStores(runtime)` in `mount/mount-context.ts` is the list,
 
 The action registry, the breadcrumb store and the navigator's blockers each collect records per mount, and the agent-context store will be the fourth. They share `SnapshotSource` and `HOST_SCOPE` already; what is left in each is its own logic, so there is no generic store to extract. Their teardown differs, though: `mount/mount-context.ts` clears actions and blockers on dispose, while breadcrumbs rely on their hook's cleanup. Give each store a `removeMount(token)` and clear them all from one list on dispose, so a disposed mount cannot leave context behind that the agent would act on.
 
-### 7. Keep agent libraries out of containers
+### 7. Keep agent libraries out of containers (done, §45)
+
+As landed: `no-restricted-imports` entries in the author presets and in every zone of the `framework` preset, type imports included, with the model providers' SDKs, LangChain and Mastra added to the list. The shell's `application()` preset leaves them allowed; E confines them to the chat module.
 
 `eslint-plugin-mfe` already rejects a shell that imports `@company/mfe-core` or `@company/mfe-runtime`. Add a rule of the same kind that rejects `@tanstack/ai*`, `ai` and `@ai-sdk/*`, `@copilotkit/*` and `@ag-ui/*` in code that runs inside a mount. A hook there could not reach the shell's chat anyway (every mount has a React root of its own), and keeping them out means changing the agent library never rebuilds a container and adds nothing to the shared federation scope. A team's own backend may use whatever it likes.
 

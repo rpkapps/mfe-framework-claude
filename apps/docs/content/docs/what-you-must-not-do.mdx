@@ -187,15 +187,16 @@ Everything an author needs, types included, comes from that one package. Tests i
 `/testing` entry point. Lint blocks the rest, so no framework internal reaches your code and pins
 you to a patch release.
 
-| Blocked import                                  | Why                                                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `@company/mfe-core`                             | It is a framework-internal contract package whose shape changes with the framework.                  |
-| `@company/mfe-runtime`                          | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
-| `react-dom/client`                              | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
-| a deep path, such as `@company/mfe-react/src/*` | A deep import reaches past the entry point into files that change in a patch release.                |
-| `single-spa`, `single-spa-*`                    | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |
-| `@module-federation/*`                          | Module Federation is an implementation detail of the build and of the shell's loader.                |
-| `@opentelemetry/*`, `@grafana/faro*`            | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
+| Blocked import                                           | Why                                                                                                  |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `@company/mfe-core`                                      | It is a framework-internal contract package whose shape changes with the framework.                  |
+| `@company/mfe-runtime`                                   | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
+| `react-dom/client`                                       | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
+| a deep path, such as `@company/mfe-react/src/*`          | A deep import reaches past the entry point into files that change in a patch release.                |
+| `single-spa`, `single-spa-*`                             | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |
+| `@module-federation/*`                                   | Module Federation is an implementation detail of the build and of the shell's loader.                |
+| `@opentelemetry/*`, `@grafana/faro*`                     | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
+| an AI or agent library, such as `ai` or `@tanstack/ai-*` | The shell's chat talks to the agent. Offer it your actions with `useAction` instead.                 |
 
 Zustand, Redux, MobX, Jotai and `@tanstack/store` are allowed, because an MFE owns its own state.
 

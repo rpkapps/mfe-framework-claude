@@ -16,6 +16,7 @@ import {
 } from './shared.ts'
 import {
   applicationBoundaryPaths,
+  authorAgentLibraries,
   authorTelemetryPatterns,
   deepImportPattern,
   MODULE_FEDERATION_PATTERN,
@@ -103,6 +104,7 @@ export function angular(options: AngularPresetOptions = {}): Linter.Config[] {
               message: PLATFORM_BROWSER_DYNAMIC_MESSAGE,
             },
             ...applicationBoundaryPaths([ANGULAR_ADAPTER_MODULE]),
+            ...authorAgentLibraries(ANGULAR_ADAPTER_MODULE, 'injectAction()').paths,
             ...extraPaths,
           ],
           [
@@ -111,6 +113,7 @@ export function angular(options: AngularPresetOptions = {}): Linter.Config[] {
             singleSpaPattern([ANGULAR_ADAPTER_MODULE]),
             MODULE_FEDERATION_PATTERN,
             ...authorTelemetryPatterns(ANGULAR_ADAPTER_MODULE, ANGULAR_TELEMETRY_HOOK),
+            ...authorAgentLibraries(ANGULAR_ADAPTER_MODULE, 'injectAction()').patterns,
             ...extraPatterns,
           ],
         ),
