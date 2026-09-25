@@ -426,8 +426,10 @@ link work:
    only place the location is written). It also declares its peers (`react-aria-components`, `cn`,
    `class-variance-authority`, `lucide-react`, `next-themes`, `sonner`,
    `react-resizable-panels`, `react-aria`) plus what its stylesheet imports
-   (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`). pnpm does not
-   install a linked package's own dependencies, so each consumer has to.
+   (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`), and
+   `@shadcn/react`, which the chat's Questionnaire and MessageScroller import.
+   pnpm does not install a linked package's own dependencies, so each consumer
+   has to.
 2. **`tools/tecton/tecton-build.mjs`** supplies the resolution: this
    workspace's `node_modules` named by absolute path, ahead of each module's
    own, because walking up from the design system's real location finds a

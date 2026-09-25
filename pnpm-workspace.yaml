@@ -107,6 +107,9 @@ catalog:
   '@rspack/core': 2.2.6
   '@rspack/dev-server': 2.2.1
   '@rspack/plugin-react-refresh': 2.0.2
+  # The primitives under Tecton's Questionnaire and MessageScroller, which the shell's chat renders.
+  # pnpm does not install a linked package's own dependencies, so the shell declares it.
+  '@shadcn/react': 0.3.1
   '@tailwindcss/postcss': 4.3.3
   '@tailwindcss/vite': 4.3.3
   '@tanstack/eslint-plugin-query': 5.103.1

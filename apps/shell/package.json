@@ -21,6 +21,7 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/material-symbols-rounded": "catalog:",
     "@module-federation/runtime": "catalog:",
+    "@shadcn/react": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tecton/react": "*",
