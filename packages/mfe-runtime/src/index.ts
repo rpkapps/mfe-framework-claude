@@ -121,7 +121,6 @@ export {
 } from './actions/action-registry.ts'
 export {
   redactInput,
-  REDACTED,
   type ActionActor,
   type ActionAuditRecord,
   type ActionAuditSink,
@@ -151,7 +150,6 @@ export {
 export {
   AgentContextStore,
   MAX_AGENT_CONTEXT_LENGTH,
-  MAX_AGENT_SUGGESTIONS,
   type AgentAppLocation,
   type AgentContextHandle,
   type AgentContextOwner,

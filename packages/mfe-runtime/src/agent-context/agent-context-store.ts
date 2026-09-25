@@ -46,7 +46,7 @@ export interface AgentContextOwner {
 }
 
 /** The most suggestions one mount offers at once; the rest are left out. */
-export const MAX_AGENT_SUGGESTIONS = 3
+const MAX_AGENT_SUGGESTIONS = 3
 
 export interface AgentSuggestionsHandle {
   /** Replaces the mount's suggestions; an equal list publishes nothing. */

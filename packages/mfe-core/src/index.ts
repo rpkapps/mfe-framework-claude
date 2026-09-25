@@ -51,7 +51,6 @@ export {
 export {
   findOutputNameProblem,
   isReservedInputName,
-  isValidOutputName,
   outputNameToHandlerProp,
   outputPayloadSchema,
   outputSchemaError,
@@ -63,7 +62,6 @@ export {
   type ContractOutputs,
   type ContractValidation,
   type ContractValidationContext,
-  type OutputNameProblem,
   type OutputSchema,
   type WidgetContract,
 } from './contract.ts'
