@@ -99,14 +99,13 @@ export interface ContainerDescriptor {
   /** The Module Federation container name; a shell registers the remote under it before fetching. */
   readonly container: string
   readonly contractMajor: number
-  /** The adapter that built it; absent means a React container built before this field existed. */
-  readonly framework?: string
+  /** The adapter that built it, which the registry entry names so exactly one adapter reads it. */
+  readonly framework: string
   /**
    * The Module Federation share scopes a host registers the container with, `default` first and
-   * then its framework's, such as `react@19.3.0`. Absent means a container built before
-   * framework scopes, which shares in `default` alone.
+   * then its framework's, such as `react@19.3.0`.
    */
-  readonly shareScopes?: readonly string[]
+  readonly shareScopes: readonly string[]
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path. */
   readonly entries: Readonly<Record<string, string>>

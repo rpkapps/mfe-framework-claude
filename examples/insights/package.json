@@ -8,8 +8,7 @@
     "definitions": [
       "fda-summary",
       "well-design",
-      "cost-vs-risk",
-      "agent-panel"
+      "cost-vs-risk"
     ]
   },
   "exports": {

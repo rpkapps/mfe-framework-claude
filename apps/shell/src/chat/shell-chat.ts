@@ -18,7 +18,7 @@ import {
   type ChatTool,
 } from '@company/mfe-agent'
 import { actionTools, agentContextOf, approvalsIn } from '@company/mfe-agent/actions'
-import { HOST_SCOPE } from '@company/mfe-react'
+import { HOST_SCOPE, type AgentSuggestionEntry } from '@company/mfe-react'
 import {
   listApps,
   listEntries,
@@ -225,6 +225,16 @@ export class ShellChat {
   dispose(): void {
     this.client.dispose()
     for (const cleanup of this.#cleanup.splice(0)) cleanup()
+  }
+
+  /** A suggestion the user pressed: handed on as the prompt of the mount that offered it. */
+  offer(suggestion: AgentSuggestionEntry): void {
+    this.#prompt({
+      message: suggestion.message,
+      submit: suggestion.submit,
+      definitionId: suggestion.definitionId,
+      ...(suggestion.context === undefined ? {} : { context: suggestion.context }),
+    })
   }
 
   /** A mount's `useAgentPrompt`: a click that becomes a turn, or a draft to review. */

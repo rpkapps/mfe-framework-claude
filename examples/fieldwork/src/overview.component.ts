@@ -1,6 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core'
 import { RouterLink } from '@angular/router'
-import { allow, deny, injectAction, injectUser, type ActionRun } from '@company/mfe-angular'
+import {
+  allow,
+  deny,
+  injectAction,
+  injectAgentSuggestions,
+  injectUser,
+  type ActionRun,
+} from '@company/mfe-angular'
 import { Button } from 'primeng/button'
 import { Select, type SelectChangeEvent } from 'primeng/select'
 
@@ -74,6 +81,12 @@ export class OverviewComponent {
         this.logInspection()
       },
     }))
+
+    // Offered by the chat while this page is on screen; the second only once a pad is chosen.
+    injectAgentSuggestions(() => [
+      { message: 'Which well pads are due an inspection?' },
+      ...(this.padId() === null ? [] : [{ message: 'Log an inspection at the chosen pad' }]),
+    ])
   }
 
   protected choosePad(event: SelectChangeEvent): void {

@@ -257,3 +257,58 @@ describe('prompt handoff', () => {
     expect(second).toHaveBeenCalledOnce()
   })
 })
+
+describe('suggestions', () => {
+  it('offers a mount’s prompts with submit settled, and takes them away with the mount', () => {
+    const { store } = setup()
+    const listener = vi.fn()
+    store.subscribeSuggestions(listener)
+
+    store.suggest(owner, [
+      { message: 'Which well is down?' },
+      { message: 'Draft a note', submit: false },
+    ])
+
+    expect(store.getSuggestions()).toEqual([
+      { definitionId: 'operations', message: 'Which well is down?', submit: true },
+      { definitionId: 'operations', message: 'Draft a note', submit: false },
+    ])
+    store.removeMount('mount-1')
+    expect(store.getSuggestions()).toEqual([])
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+
+  it('publishes nothing for an equal list, and follows a changed one', () => {
+    const { store } = setup()
+    const handle = store.suggestHost([{ message: 'A', context: { id: 1 } }])
+    const before = store.getSuggestions()
+
+    handle.update([{ message: 'A', context: { id: 1 } }])
+    expect(store.getSuggestions()).toBe(before)
+
+    handle.update([{ message: 'B' }])
+    expect(store.getSuggestions()).toEqual([
+      { definitionId: HOST_SCOPE, message: 'B', submit: true },
+    ])
+    handle.remove()
+    expect(store.getSuggestions()).toEqual([])
+  })
+
+  it('leaves out an empty or oversized suggestion and any past three, reporting it once', () => {
+    const { store, records } = setup()
+    const offered = [
+      { message: ' ' },
+      { message: 'A' },
+      { message: 'B', context: { note: 'x'.repeat(5000) } },
+      { message: 'C' },
+      { message: 'D' },
+      { message: 'E' },
+    ]
+
+    const handle = store.suggest(owner, offered)
+    handle.update([...offered])
+
+    expect(store.getSuggestions().map(entry => entry.message)).toEqual(['A', 'C', 'D'])
+    expect(codesOf(records)).toEqual(['contract/input-mismatch'])
+  })
+})

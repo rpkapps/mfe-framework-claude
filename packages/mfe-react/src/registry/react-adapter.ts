@@ -1,7 +1,7 @@
 /**
  * The adapter for entries a React build publishes. The entry shape is the runtime's, shared with
- * every other framework adapter; what is React's is claiming an entry whose marker names no
- * framework, and hiding the router global while a React container evaluates.
+ * every other framework adapter; what is React's is hiding the router global while a React
+ * container evaluates.
  */
 
 import type { MfeAdapter } from '@company/mfe-core'
@@ -42,8 +42,6 @@ async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T>
 export const reactAdapter: MfeAdapter<typeof REACT_ADAPTER_KIND, ReactRegistryEntry> =
   createFederatedAdapter({
     kind: REACT_ADAPTER_KIND,
-    // An entry from before the framework field existed is a React build.
-    claimsUnmarked: true,
     // The runtime runs every React container's load inside this, and no other adapter's.
     aroundLoad: withoutCurrentRouterGlobal,
   })

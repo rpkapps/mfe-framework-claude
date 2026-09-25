@@ -301,11 +301,6 @@ export function parseFederatedEntry<K extends string>(
 export interface FederatedAdapterOptions<K extends string> {
   /** What `entry.adapter` says on everything the adapter parses, and what `mfe.framework` names. */
   readonly kind: K
-  /**
-   * Also claims an entry whose `mfe` marker names no framework, or is too broken to name one: a
-   * build from before the field existed. At most one adapter on a page may claim them.
-   */
-  readonly claimsUnmarked?: boolean
   /** See `MfeAdapter.aroundLoad`. */
   readonly aroundLoad?: MfeAdapter['aroundLoad']
 }
@@ -319,13 +314,12 @@ export interface FederatedAdapterOptions<K extends string> {
 export function createFederatedAdapter<K extends string>(
   options: FederatedAdapterOptions<K>,
 ): MfeAdapter<K, FederatedRegistryEntry & { readonly adapter: K }> {
-  const { kind, claimsUnmarked = false, aroundLoad } = options
+  const { kind, aroundLoad } = options
 
-  const namesThisFramework = (marker: unknown): boolean => {
-    if (!isRecord(marker)) return claimsUnmarked
-    const framework = marker['framework']
-    return framework === kind || (claimsUnmarked && framework === undefined)
-  }
+  // Every build names its framework, so an entry that names none is no adapter's and is rejected
+  // as unrecognised: nothing was deployed before the field existed.
+  const namesThisFramework = (marker: unknown): boolean =>
+    isRecord(marker) && marker['framework'] === kind
 
   return {
     kind,

@@ -142,6 +142,8 @@ export {
   type AgentContextEntry,
   type AgentContextRegistration,
   type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
   type ActionInputSchema,
   type ActionPlacement,
   type ActionRegistration,

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { ChatSnapshot } from '@company/mfe-agent'
+import { useMfeRuntime, type AgentSuggestionEntry } from '@company/mfe-react'
 
 import { shellChat } from './instance.ts'
 import type { ChatPanelState, ShellChat } from './shell-chat.ts'
@@ -31,5 +32,15 @@ export function useQuestions(chat: ShellChat): ReadonlyMap<string, PendingQuesti
     chat.questions.subscribe,
     chat.questions.getSnapshot,
     () => NO_QUESTIONS,
+  )
+}
+
+/** What the mounted Apps suggest, while they are mounted. */
+export function useOfferedSuggestions(): readonly AgentSuggestionEntry[] {
+  const { agentContext } = useMfeRuntime('the chat suggestions')
+  return useSyncExternalStore(
+    agentContext.subscribeSuggestions,
+    agentContext.getSuggestions,
+    agentContext.getSuggestions,
   )
 }

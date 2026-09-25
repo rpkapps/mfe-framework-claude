@@ -391,12 +391,12 @@ describe('an adapter for one framework’s federation builds', () => {
     expect(adapter.detect('not an entry')).toBe(false)
   })
 
-  it('also claims an entry that names no framework, when asked to', () => {
-    const adapter = createFederatedAdapter({ kind: 'react', claimsUnmarked: true })
+  /** Every build names its framework; nothing was deployed from before it did. */
+  it('claims no entry that names no framework', () => {
+    const adapter = createFederatedAdapter({ kind: 'react' })
 
-    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(true)
-    expect(adapter.detect(marked('broken'))).toBe(true)
-    expect(adapter.detect(marked({ contractMajor: 1, framework: 'angular' }))).toBe(false)
+    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(false)
+    expect(adapter.detect(marked('broken'))).toBe(false)
     expect(adapter.detect({ id: 'reports' })).toBe(false)
   })
 

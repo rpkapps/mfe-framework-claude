@@ -1,5 +1,13 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { allow, deny, useAction, useStoredState, useTheme, useUser } from '@company/mfe-react'
+import {
+  allow,
+  deny,
+  useAction,
+  useAgentSuggestions,
+  useStoredState,
+  useTheme,
+  useUser,
+} from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Separator } from '@tecton/react/components/separator'
@@ -53,6 +61,12 @@ function Overview(): ReactNode {
       setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
     },
   })
+
+  // Offered by the chat while this page is on screen, before the first message and after each answer.
+  useAgentSuggestions([
+    { message: 'Summarise the alternatives on this page' },
+    { message: 'Open the wells inventory' },
+  ])
 
   return (
     <div className={`flex flex-col gap-6 px-4 md:px-6 ${density === 'compact' ? 'py-4' : 'py-6'}`}>

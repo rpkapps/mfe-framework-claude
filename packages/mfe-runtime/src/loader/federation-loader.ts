@@ -28,8 +28,8 @@ export interface FederatedRegistryEntry extends RegistryEntry {
   readonly expose?: string
   /**
    * The share scopes the container's shares live in: `default`, then its framework's, such as
-   * `react@19.3.0`. Absent for a container built before framework scopes, which shares in
-   * `default` alone.
+   * `react@19.3.0`. Every build names them; an entry written by hand (a test, a fixture) may
+   * leave them out, and shares in `default` alone.
    */
   readonly shareScopes?: readonly string[]
 }

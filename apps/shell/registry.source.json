@@ -31,9 +31,6 @@
     },
     "cost-vs-risk": {
       "title": "Cost vs risk"
-    },
-    "agent-panel": {
-      "title": "AI agent"
     }
   },
   "$fixtures": "Deliberately invalid entries. Each one proves a rejection stays per-entry: the shell keeps running and every other entry stays available.",
@@ -42,7 +39,8 @@
       "id": "legacy-reports",
       "kind": "app",
       "mfe": {
-        "contractMajor": 2
+        "contractMajor": 2,
+        "framework": "react"
       },
       "manifestUrl": "http://localhost:3106/mf-manifest.json",
       "container": "legacy_reports",
@@ -53,7 +51,8 @@
       "id": "no-manifest",
       "kind": "app",
       "mfe": {
-        "contractMajor": 1
+        "contractMajor": 1,
+        "framework": "react"
       },
       "container": "no_manifest",
       "expose": "./app",

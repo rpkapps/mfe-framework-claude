@@ -223,6 +223,21 @@ export interface AgentPrompt {
   readonly submit?: boolean
 }
 
+/**
+ * A prompt a mount offers the user as a way to start or carry on the conversation, shown by the
+ * chat as a chip while the mount lives. Pressed, it is handed to the chat as a prompt would be.
+ */
+export interface AgentSuggestion extends AgentPrompt {
+  /** What the chip says, when shorter than the message. */
+  readonly label?: string
+}
+
+/** One published suggestion: whose, and with `submit` settled. */
+export interface AgentSuggestionEntry extends AgentSuggestion {
+  readonly definitionId: string
+  readonly submit: boolean
+}
+
 /** `Array.isArray` narrows to `any[]`; a JSON value's array holds JSON values. */
 function isJsonArray(value: JsonSchemaValue): value is readonly JsonSchemaValue[] {
   return Array.isArray(value)

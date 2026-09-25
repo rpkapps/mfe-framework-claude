@@ -5,7 +5,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { agentPanel, costVsRisk, fdaSummary, wellDesign } from './mfe.tsx'
+import { costVsRisk, fdaSummary, wellDesign } from './mfe.tsx'
 
 let cleanup: (() => Promise<void>) | null = null
 
@@ -72,14 +72,5 @@ describe('cost-vs-risk', () => {
     expect(Object.keys(costVsRisk.contract.outputSchema.shape)).toEqual([])
     // The header counts what `compare` selected, and the schema default selects two.
     expect(screen.getByText('2 Selected')).toBeInTheDocument()
-  })
-})
-
-describe('agent-panel', () => {
-  it('takes a heading with a default', () => {
-    const rendered = renderWidget(agentPanel, { props: {} })
-    cleanup = rendered.dispose
-
-    expect(screen.getByText('AI Agent')).toBeInTheDocument()
   })
 })

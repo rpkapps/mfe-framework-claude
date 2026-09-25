@@ -2,15 +2,10 @@
  * by its own id and never learns they are neighbours. */
 
 import { createWidget } from '@company/mfe-react'
-import { ChartScatterIcon, ClipboardListIcon, RouteIcon, SparklesIcon } from 'lucide-react'
+import { ChartScatterIcon, ClipboardListIcon, RouteIcon } from 'lucide-react'
 import { z } from 'zod'
 
-import {
-  AgentPanelWidget,
-  CostVsRiskWidget,
-  FdaSummaryWidget,
-  WellDesignWidget,
-} from './widgets.tsx'
+import { CostVsRiskWidget, FdaSummaryWidget, WellDesignWidget } from './widgets.tsx'
 
 /** The build reads these schemas statically into the registry, so `z.enum([...])` is what makes the
  * shell's dashboard draw a dropdown for a Widget it never imported (§16). */
@@ -73,24 +68,4 @@ export const costVsRisk = createWidget({
   icon: ChartScatterIcon,
   ...costVsRiskContract,
   render: CostVsRiskWidget,
-})
-
-export const agentPanelContract = {
-  inputSchema: z.object({
-    heading: z.string().default('AI Agent'),
-  }),
-  outputSchema: z.object({
-    closed: z.object({ at: z.string() }),
-  }),
-}
-
-export const agentPanel = createWidget({
-  id: 'agent-panel',
-  version: '0.9.0',
-  title: 'AI agent',
-  description: 'Asks questions about the current selection and answers in the panel.',
-  tags: ['insights', 'assistant'],
-  icon: SparklesIcon,
-  ...agentPanelContract,
-  render: AgentPanelWidget,
 })

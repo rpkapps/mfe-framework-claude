@@ -34,7 +34,11 @@ export {
   type StoredStateOptions,
 } from './inject/stored-state.ts'
 export { injectAction } from './inject/action.ts'
-export { injectAgentContext, injectAgentPrompt } from './inject/agent-context.ts'
+export {
+  injectAgentContext,
+  injectAgentPrompt,
+  injectAgentSuggestions,
+} from './inject/agent-context.ts'
 export { injectBreadcrumbs } from './inject/breadcrumbs.ts'
 export {
   injectNavigationBlock,
@@ -68,6 +72,8 @@ export {
   type AgentContextEntry,
   type AgentContextRegistration,
   type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,

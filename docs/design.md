@@ -110,7 +110,7 @@ The runtime is neutral: `@company/mfe-core` and `@company/mfe-runtime` import no
 
 | Adapter                       | Recognises an entry when                                     | Mounts it with                       | Removable |
 | ----------------------------- | ------------------------------------------------------------ | ------------------------------------ | --------- |
-| `@company/mfe-react`          | its `mfe` marker names `react`, or names no framework        | a React root per mount               | no        |
+| `@company/mfe-react`          | its `mfe` marker names `react`                               | a React root per mount               | no        |
 | `@company/mfe-angular`        | its `mfe` marker names `angular`                             | an Angular application per mount     | no        |
 | `@company/mfe-legacy-angular` | it has no `mfe` key, and has a `name` and an `mfManifestUrl` | nothing yet: the shell only lists it | yes       |
 

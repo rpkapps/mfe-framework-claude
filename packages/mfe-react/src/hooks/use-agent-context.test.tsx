@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 import { MfeProvider } from '../runtime-context.tsx'
 import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
-import { useAgentContext, useAgentPrompt } from './use-agent-context.ts'
+import { useAgentContext, useAgentPrompt, useAgentSuggestions } from './use-agent-context.ts'
 
 let environment: MfeTestEnvironment | null = null
 
@@ -139,5 +139,45 @@ describe('useAgentPrompt', () => {
       submit: true,
       definitionId: 'operations',
     })
+  })
+})
+
+describe('useAgentSuggestions', () => {
+  it('offers the mount’s suggestions, follows them, and takes them away on unmount', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'operations' })
+    const created = environment
+    const Mounted = created.wrapper
+
+    function Suggest(): ReactNode {
+      const [message, setMessage] = useState('Which well is down?')
+      useAgentSuggestions([{ message }])
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            setMessage('Which well is next?')
+          }}
+        >
+          change
+        </button>
+      )
+    }
+    const view = render(
+      <Mounted>
+        <Suggest />
+      </Mounted>,
+    )
+    const { agentContext } = created.runtime
+    expect(agentContext.getSuggestions()).toEqual([
+      { definitionId: 'operations', message: 'Which well is down?', submit: true },
+    ])
+
+    view.getByRole('button').click()
+    await waitFor(() => {
+      expect(agentContext.getSuggestions()[0]?.message).toBe('Which well is next?')
+    })
+
+    view.unmount()
+    expect(agentContext.getSuggestions()).toEqual([])
   })
 })

@@ -6,7 +6,7 @@
  */
 
 import { assertInInjectionContext, DestroyRef, effect, inject, untracked } from '@angular/core'
-import type { AgentContextRegistration, AgentPrompt } from '@company/mfe-core'
+import type { AgentContextRegistration, AgentPrompt, AgentSuggestion } from '@company/mfe-core'
 import type { z } from 'zod'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
@@ -54,4 +54,36 @@ export function injectAgentPrompt(): (prompt: AgentPrompt) => boolean {
 
   return prompt =>
     mount === null ? agentContext.prompt(prompt) : agentContext.prompt(prompt, mount.definitionId)
+}
+
+/**
+ * Offers prompts the chat shows as ways to start or carry on the conversation, while the injector
+ * lives: before the first message and after each answer. A factory is re-run by an effect, so a
+ * list that reads signals is offered again when they change. A mount offers at most three.
+ */
+export function injectAgentSuggestions(
+  suggestions: readonly AgentSuggestion[] | (() => readonly AgentSuggestion[]),
+): void {
+  assertInInjectionContext(injectAgentSuggestions)
+
+  const mount = injectOptionalMfeMount()
+  const { agentContext } = injectMfeRuntime('injectAgentSuggestions()')
+
+  const initial = typeof suggestions === 'function' ? untracked(suggestions) : suggestions
+  const handle =
+    mount === null ? agentContext.suggestHost(initial) : agentContext.suggest(mount, initial)
+
+  inject(DestroyRef).onDestroy(() => {
+    handle.remove()
+  })
+
+  if (typeof suggestions !== 'function') return
+
+  const factory = suggestions
+  effect(() => {
+    const next = factory()
+    untracked(() => {
+      handle.update(next)
+    })
+  })
 }

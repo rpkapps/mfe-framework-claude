@@ -103,7 +103,7 @@ root.render(
 ```
 
 The shell lists every adapter; none is registered implicitly. `reactAdapter`
-recognises an entry whose `mfe` marker names `react`, or names no framework, and
+recognises an entry whose `mfe` marker names `react`, and
 its `aroundLoad` hides TanStack Router's development global while a React
 container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 

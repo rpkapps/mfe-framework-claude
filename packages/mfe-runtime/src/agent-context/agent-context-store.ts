@@ -6,10 +6,11 @@
  *   every boundary;
  * - selections: a small, typed snapshot each mount publishes of what is selected or focused,
  *   through `useAgentContext` or `injectAgentContext`;
- * - prompt handoff: a click that becomes a chat turn, forwarded to whichever chat set a handler.
+ * - prompt handoff: a click that becomes a chat turn, forwarded to whichever chat set a handler;
+ * - suggestions: prompts a mount offers as ways to start or carry on, which the chat shows.
  *
  * A selection belongs to its mount, like an action, and goes with it (`removeMount`), so the
- * agent never acts on the selection of a mount that is gone.
+ * agent never acts on the selection of a mount that is gone; so do a mount's suggestions.
  */
 
 import {
@@ -20,6 +21,8 @@ import {
   type AgentContextEntry,
   type AgentContextRegistration,
   type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
   type BoundaryLocation,
   type JsonSchemaValue,
   type MfeError,
@@ -40,6 +43,15 @@ export const MAX_AGENT_CONTEXT_LENGTH = 4096
 export interface AgentContextOwner {
   readonly definitionId: string
   readonly mountToken: string
+}
+
+/** The most suggestions one mount offers at once; the rest are left out. */
+export const MAX_AGENT_SUGGESTIONS = 3
+
+export interface AgentSuggestionsHandle {
+  /** Replaces the mount's suggestions; an equal list publishes nothing. */
+  update(suggestions: readonly AgentSuggestion[]): void
+  remove(): void
 }
 
 export interface AgentContextHandle {
@@ -101,13 +113,25 @@ interface Boundary {
   readonly basePath: string
 }
 
+interface Suggestions {
+  readonly definitionId: string
+  readonly scopeToken: string
+  json: string
+  entries: readonly AgentSuggestionEntry[]
+  /** The last problem reported, so a suggestion that stays invalid is reported once. */
+  reported: string | undefined
+}
+
 const EMPTY: readonly AgentContextEntry[] = Object.freeze([])
+const NO_SUGGESTIONS: readonly AgentSuggestionEntry[] = Object.freeze([])
 
 export class AgentContextStore {
   /** In registration order, which is the order the agent reads them in. */
   readonly #selections = new Set<Selection>()
   readonly #boundaries = new Map<string, Boundary>()
   readonly #snapshot = new SnapshotSource<readonly AgentContextEntry[]>(EMPTY)
+  readonly #suggestions = new Set<Suggestions>()
+  readonly #suggestionSnapshot = new SnapshotSource<readonly AgentSuggestionEntry[]>(NO_SUGGESTIONS)
   readonly #options: AgentContextStoreOptions
   #promptHandler: AgentPromptHandler | undefined
 
@@ -118,6 +142,25 @@ export class AgentContextStore {
   /** The selections, as stable references for `useSyncExternalStore`. */
   readonly getSnapshot = (): readonly AgentContextEntry[] => this.#snapshot.getSnapshot()
   readonly subscribe = (listener: () => void): Unsubscribe => this.#snapshot.subscribe(listener)
+
+  /** Every mount's suggestions, in registration order, as stable references. */
+  readonly getSuggestions = (): readonly AgentSuggestionEntry[] =>
+    this.#suggestionSnapshot.getSnapshot()
+  readonly subscribeSuggestions = (listener: () => void): Unsubscribe =>
+    this.#suggestionSnapshot.subscribe(listener)
+
+  /** A mount's prompts for the chat to offer, while the mount lives. */
+  suggest(
+    owner: AgentContextOwner,
+    suggestions: readonly AgentSuggestion[],
+  ): AgentSuggestionsHandle {
+    return this.#addSuggestions(owner.definitionId, owner.mountToken, suggestions)
+  }
+
+  /** The host page's own suggestions. */
+  suggestHost(suggestions: readonly AgentSuggestion[]): AgentSuggestionsHandle {
+    return this.#addSuggestions(HOST_SCOPE, HOST_SCOPE, suggestions)
+  }
 
   register(owner: AgentContextOwner, registration: AgentContextRegistration): AgentContextHandle {
     return this.#add(owner.definitionId, owner.mountToken, registration)
@@ -149,6 +192,14 @@ export class AgentContextStore {
       removed = true
     }
     if (removed) this.#publish()
+
+    let offered = false
+    for (const suggestions of this.#suggestions) {
+      if (suggestions.scopeToken !== mountToken) continue
+      this.#suggestions.delete(suggestions)
+      offered = true
+    }
+    if (offered) this.#publishSuggestions()
   }
 
   /** Read when a turn is sent, so the URL is the page's at that moment. */
@@ -217,9 +268,101 @@ export class AgentContextStore {
 
   dispose(): void {
     this.#selections.clear()
+    this.#suggestions.clear()
+    this.#suggestionSnapshot.dispose()
     this.#boundaries.clear()
     this.#promptHandler = undefined
     this.#snapshot.dispose()
+  }
+
+  #addSuggestions(
+    definitionId: string,
+    scopeToken: string,
+    suggestions: readonly AgentSuggestion[],
+  ): AgentSuggestionsHandle {
+    const record: Suggestions = {
+      definitionId,
+      scopeToken,
+      json: '[]',
+      entries: NO_SUGGESTIONS,
+      reported: undefined,
+    }
+    this.#suggestions.add(record)
+    this.#applySuggestions(record, suggestions)
+    this.#publishSuggestions()
+
+    const live = (): boolean => this.#suggestions.has(record)
+    return {
+      update: next => {
+        if (live() && this.#applySuggestions(record, next)) this.#publishSuggestions()
+      },
+      remove: () => {
+        if (live() && this.#suggestions.delete(record)) this.#publishSuggestions()
+      },
+    }
+  }
+
+  /** Keeps the valid ones, up to the limit; returns whether what is offered changed. */
+  #applySuggestions(record: Suggestions, suggestions: readonly AgentSuggestion[]): boolean {
+    const kept: AgentSuggestionEntry[] = []
+    const problems: string[] = []
+    for (const suggestion of suggestions) {
+      const problem =
+        suggestion.message.trim() === ''
+          ? 'an empty message'
+          : suggestion.context === undefined
+            ? undefined
+            : describeProblem(suggestion.context)
+      if (problem !== undefined) {
+        problems.push(problem)
+        continue
+      }
+      if (kept.length === MAX_AGENT_SUGGESTIONS) {
+        problems.push(`more than ${String(MAX_AGENT_SUGGESTIONS)} suggestions`)
+        break
+      }
+      kept.push(
+        Object.freeze({
+          ...suggestion,
+          submit: suggestion.submit ?? true,
+          definitionId: record.definitionId,
+        }),
+      )
+    }
+
+    const problem = problems.length === 0 ? undefined : problems.join('; ')
+    if (problem !== undefined && problem !== record.reported) {
+      this.#options.diagnostics?.report(
+        createMfeError({
+          code: 'contract/input-mismatch',
+          id: record.definitionId,
+          operation: 'offer agent suggestions',
+          direction: 'input',
+          expected: `up to ${String(MAX_AGENT_SUGGESTIONS)} suggestions, each a message with context of JSON data no longer than ${String(MAX_AGENT_CONTEXT_LENGTH)} characters`,
+          observed: problem,
+          repair: 'Offer the few prompts that matter most here; the rest are left out.',
+        }),
+        { severity: 'warning' },
+      )
+    }
+    record.reported = problem
+
+    const json = JSON.stringify(kept)
+    if (json === record.json) return false
+    record.json = json
+    record.entries = kept
+    return true
+  }
+
+  #publishSuggestions(): void {
+    const entries: AgentSuggestionEntry[] = []
+    for (const record of this.#suggestions) entries.push(...record.entries)
+    const current = this.#suggestionSnapshot.getSnapshot()
+    const unchanged =
+      entries.length === current.length && entries.every((entry, index) => entry === current[index])
+    if (!unchanged) {
+      this.#suggestionSnapshot.set(entries.length === 0 ? NO_SUGGESTIONS : Object.freeze(entries))
+    }
   }
 
   #add(

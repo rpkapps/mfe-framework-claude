@@ -6,6 +6,7 @@
  */
 
 import { useEffect, type ReactNode } from 'react'
+import { HOST_SCOPE, type AgentSuggestionEntry } from '@company/mfe-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -43,16 +44,16 @@ import { BotIcon, SquarePenIcon, TextQuoteIcon, XIcon } from 'lucide-react'
 import { useIsCompact } from '../shell/hooks.ts'
 
 import { Interrupts } from './approvals.tsx'
-import { useChatPanel, useChatSnapshot, useShellChat } from './hooks.ts'
+import { useChatPanel, useChatSnapshot, useOfferedSuggestions, useShellChat } from './hooks.ts'
 import type { ShellChat } from './shell-chat.ts'
 import { Transcript } from './transcript.tsx'
 
-/** Prompts to start from, before the first message. */
-const STARTERS = [
+/** The shell's own prompts to start from, before the first message; the mounted Apps add theirs. */
+const STARTERS: readonly AgentSuggestionEntry[] = [
   'What can you do on this page?',
   'Summarise what I’m looking at',
   'Where can I go from here?',
-] as const
+].map(message => ({ message, submit: true, definitionId: HOST_SCOPE }))
 
 /** Puts the caret in the composer when the chat asks, which only a part inside `Composer` can. */
 function FocusOnRequest({ request }: { readonly request: number }): null {
@@ -66,6 +67,11 @@ function FocusOnRequest({ request }: { readonly request: number }): null {
 function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
   const snapshot = useChatSnapshot(chat)
   const panel = useChatPanel(chat)
+  const offered = useOfferedSuggestions()
+  // Before the first message, and after each answer while nothing waits on the user.
+  const idle = snapshot.status === 'ready' && snapshot.interrupts.length === 0
+  const suggestions =
+    snapshot.messages.length === 0 ? [...offered, ...STARTERS] : idle ? offered : []
 
   return (
     <Composer
@@ -80,10 +86,18 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
       onStop={chat.client.stop}
       onRecallLast={() => chat.lastSent()}
     >
-      {snapshot.messages.length === 0 && (
-        <ComposerSuggestions aria-label="Ways to start">
-          {STARTERS.map(starter => (
-            <ComposerSuggestion key={starter} value={starter} submit />
+      {suggestions.length > 0 && (
+        <ComposerSuggestions
+          aria-label={snapshot.messages.length === 0 ? 'Ways to start' : 'Suggestions'}
+        >
+          {suggestions.map(suggestion => (
+            <ComposerSuggestion
+              key={`${suggestion.definitionId}:${suggestion.message}`}
+              value={suggestion.label ?? suggestion.message}
+              onSelect={() => {
+                chat.offer(suggestion)
+              }}
+            />
           ))}
         </ComposerSuggestions>
       )}

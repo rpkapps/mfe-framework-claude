@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react'
-import type { AgentContextRegistration, AgentPrompt } from '@company/mfe-core'
-import type { AgentContextHandle } from '@company/mfe-runtime'
+import type { AgentContextRegistration, AgentPrompt, AgentSuggestion } from '@company/mfe-core'
+import type { AgentContextHandle, AgentSuggestionsHandle } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
 import { useOptionalMfeMount } from '../mount-context.tsx'
@@ -64,4 +64,38 @@ export function useAgentPrompt(): (prompt: AgentPrompt) => boolean {
         : agentContext.prompt(prompt, definitionId),
     [agentContext, definitionId],
   )
+}
+
+/**
+ * Offers prompts the chat shows as ways to start or carry on the conversation, while this
+ * component is mounted: before the first message and after each answer. Pressed, a suggestion is
+ * handed to the chat as `useAgentPrompt` hands one. Call it with the current list on every render;
+ * an equal list publishes nothing. A mount offers at most three.
+ */
+export function useAgentSuggestions(suggestions: readonly AgentSuggestion[]): void {
+  const mount = useOptionalMfeMount()
+  const { agentContext } = useMfeRuntime('useAgentSuggestions()')
+  const handle = useRef<AgentSuggestionsHandle | null>(null)
+  const committed = useRef(suggestions)
+
+  const definitionId = mount?.definitionId
+  const mountToken = mount?.mountToken
+
+  useEffect(() => {
+    const offered =
+      definitionId === undefined || mountToken === undefined
+        ? agentContext.suggestHost(committed.current)
+        : agentContext.suggest({ definitionId, mountToken }, committed.current)
+    handle.current = offered
+
+    return () => {
+      handle.current = null
+      offered.remove()
+    }
+  }, [agentContext, definitionId, mountToken])
+
+  useEffect(() => {
+    committed.current = suggestions
+    handle.current?.update(suggestions)
+  })
 }

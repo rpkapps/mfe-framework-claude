@@ -183,3 +183,27 @@ describe('the shell chat', () => {
     expect(JSON.stringify(server.runs[1]?.context)).not.toContain('well-design')
   })
 })
+
+describe('suggestions', () => {
+  it('hands a pressed suggestion on as the prompt of the mount that offered it', async () => {
+    const { chat: client, server } = create()
+    memory.runtime.agentContext.suggest({ definitionId: 'operations', mountToken: 'm-1' }, [
+      { message: 'Open the wells inventory', context: { from: 'overview' } },
+      { message: 'Draft a shift note', submit: false },
+    ])
+    const [send, draft] = memory.runtime.agentContext.getSuggestions()
+    if (send === undefined || draft === undefined) throw new Error('No suggestions')
+
+    client.offer(draft)
+    expect(client.panel.getSnapshot().draft).toBe('Draft a shift note')
+
+    client.offer(send)
+    await vi.waitFor(() => {
+      expect(server.runs).toHaveLength(1)
+    })
+    expect(server.runs[0]?.messages.at(-1)).toMatchObject({ content: 'Open the wells inventory' })
+    expect(server.runs[0]?.context.at(-1)).toMatchObject({
+      description: "What operations attached to the user's message",
+    })
+  })
+})

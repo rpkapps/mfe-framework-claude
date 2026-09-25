@@ -153,12 +153,14 @@ export {
 export {
   AgentContextStore,
   MAX_AGENT_CONTEXT_LENGTH,
+  MAX_AGENT_SUGGESTIONS,
   type AgentAppLocation,
   type AgentContextHandle,
   type AgentContextOwner,
   type AgentContextStoreOptions,
   type AgentPromptHandler,
   type AgentPromptRequest,
+  type AgentSuggestionsHandle,
   type AgentTurnContext,
 } from './agent-context/agent-context-store.ts'
 

@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { createWidget } from '../definition.ts'
 import { createHostApplication, createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
-import { injectAgentContext, injectAgentPrompt } from './agent-context.ts'
+import { injectAgentContext, injectAgentPrompt, injectAgentSuggestions } from './agent-context.ts'
 
 @Component({ selector: 'test-empty', template: '' })
 class EmptyComponent {}
@@ -77,5 +77,29 @@ describe('injectAgentPrompt', () => {
       submit: false,
       definitionId: 'orders',
     })
+  })
+})
+
+describe('injectAgentSuggestions', () => {
+  it('offers the mount’s suggestions, follows a signal, and goes with its injector', async () => {
+    const widget = await mountWidget(ordersWidget)
+    const message = signal('Which order is late?')
+    const injector = createEnvironmentInjector([], widget.injector)
+
+    runInInjectionContext(injector, () => {
+      injectAgentSuggestions(() => [{ message: message() }])
+    })
+    const { agentContext } = widget.environment.runtime
+    expect(agentContext.getSuggestions()).toEqual([
+      { definitionId: 'orders', message: 'Which order is late?', submit: true },
+    ])
+
+    message.set('Which order is next?')
+    await vi.waitFor(() => {
+      expect(agentContext.getSuggestions()[0]?.message).toBe('Which order is next?')
+    })
+
+    injector.destroy()
+    expect(agentContext.getSuggestions()).toEqual([])
   })
 })

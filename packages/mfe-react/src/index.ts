@@ -50,7 +50,7 @@ export {
   useTelemetry,
 } from './hooks/services.ts'
 export { useAction } from './hooks/use-action.ts'
-export { useAgentContext, useAgentPrompt } from './hooks/use-agent-context.ts'
+export { useAgentContext, useAgentPrompt, useAgentSuggestions } from './hooks/use-agent-context.ts'
 
 /** What the run `useAction` returns resolves to, and its type. */
 export type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
@@ -90,6 +90,8 @@ export {
   type AgentContextEntry,
   type AgentContextRegistration,
   type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
