@@ -1,14 +1,14 @@
 /**
- * Running an action, whoever asks: the palette, a shortcut, the App's own UI or an agent. Every
- * caller goes through the same ordered steps, so they share one decision, one input check, one
- * failure report and, as it lands, one audit record:
+ * Running an action, whoever asks: the palette, a shortcut, the App's own UI, an agent or the
+ * host's own code. Every caller goes through the same ordered steps, so they share one decision,
+ * one input check, one failure report and one audit record:
  *
  *   decide (`canExecute`) → validate the input → approval → serialize writes → execute → audit
  *
  * Approval and serializing apply to an agent's calls alone: a user who runs an action is its
- * approval, and a user's run may itself run another action, which a queue would deadlock. Audit
- * needs a record of who acted and lands with it (`agentic-plan.md`, C). The registry owns
- * everything else about an action: its scope, its entry and its keys.
+ * approval, and a user's run may itself run another action, which a queue would deadlock. Every
+ * run is audited, however it ends (`action-audit.ts`). The registry owns everything else about an
+ * action: its scope, its entry and its keys.
  */
 
 import {
@@ -21,20 +21,38 @@ import {
   type ActionInputSchema,
   type ActionRegistration,
   type Decision,
+  type DefinitionKind,
   type MfeError,
 } from '@company/mfe-core'
 import { z } from 'zod'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
+import {
+  redactInput,
+  type ActionActor,
+  type ActionAuditRecord,
+  type ActionAuditSink,
+  type ActionTurn,
+} from './action-audit.ts'
 
-/** Who asked for the run. A denial reaches the user only when a user asked. */
-export type ActionCaller = 'palette' | 'shortcut' | 'ui' | 'agent'
+/**
+ * Who asked for the run. A denial reaches the user only when a user asked (the palette, a
+ * shortcut, the App's own UI); `'system'` is the host's own code, acting for nobody.
+ */
+export type ActionCaller = 'palette' | 'shortcut' | 'ui' | 'agent' | 'system'
 
 /** One request to run an action. */
 export interface ActionCall {
   readonly caller: ActionCaller
   /** Validated against the action's `inputSchema`; absent is an empty object. */
   readonly input?: unknown
+  /** The chat thread and turn an agent's call came from, recorded in the audit. */
+  readonly turn?: ActionTurn
+}
+
+/** Who a caller acts for. */
+export function actorOf(caller: ActionCaller): ActionActor {
+  return caller === 'agent' ? 'agent' : caller === 'system' ? 'system' : 'user'
 }
 
 export type ActionExecutionResult<Value = unknown> =
@@ -97,6 +115,8 @@ export type ActionApprover = (request: ApprovalRequest) => Promise<boolean>
 export interface RunnableAction {
   readonly qualifiedId: string
   readonly definitionId: string
+  /** The host page's actions count as an App's. */
+  readonly definitionKind: DefinitionKind
   readonly registration: ActionRegistration
 }
 
@@ -110,6 +130,12 @@ export interface ActionExecutorOptions<Action extends RunnableAction> {
   readonly approver?: (() => ActionApprover | undefined) | undefined
   /** Whether the action is still registered, read after a wait: its mount may have gone. */
   readonly isLive?: ((action: Action) => boolean) | undefined
+  /** Takes one record for every run, however it ended. */
+  readonly audit?: ActionAuditSink | undefined
+  /** The signed-in user's id, read as a run is audited. */
+  readonly readUserId?: (() => string | undefined) | undefined
+  /** Injectable so a test can fix the audit's times. */
+  readonly now?: (() => number) | undefined
 }
 
 const NO_INPUT: ActionInputSchema = z.object({})
@@ -168,6 +194,62 @@ export class ActionExecutor<Action extends RunnableAction> {
    * back to the agent alone, which tells the user in its own words.
    */
   async run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
+    const startedAt = this.#now()
+    const result = await this.#run(action, call)
+    this.audit(action, call, result, startedAt)
+    return result
+  }
+
+  /**
+   * Records one run. The registry calls it too, for a call to an action that is no longer
+   * registered, which never reaches `run`. A sink that throws is reported, and the run's result
+   * stands.
+   */
+  audit(
+    action: Pick<RunnableAction, 'qualifiedId' | 'definitionId' | 'definitionKind'>,
+    call: ActionCall,
+    result: ActionExecutionResult,
+    startedAt: number,
+  ): void {
+    const { audit, readUserId, diagnostics } = this.#options
+    if (!audit) return
+
+    const record: ActionAuditRecord = {
+      actionId: action.qualifiedId,
+      definitionId: action.definitionId,
+      definitionKind: action.definitionKind,
+      actor: actorOf(call.caller),
+      caller: call.caller,
+      ...withoutUndefined({
+        userId: readUserId?.(),
+        turn: call.turn,
+        reason: 'reason' in result ? result.reason : undefined,
+        errorCode: 'error' in result ? result.error.code : undefined,
+      }),
+      outcome: result.status,
+      input: redactInput(call.input ?? {}),
+      startedAt: new Date(startedAt).toISOString(),
+      durationMs: Math.max(0, this.#now() - startedAt),
+    }
+    try {
+      audit(record)
+    } catch (error) {
+      diagnostics?.report(
+        toMfeError(error, {
+          code: 'mount/failure',
+          id: action.definitionId,
+          operation: `audit the run of '${action.qualifiedId}'`,
+          repair: 'The audit sink must not throw; queue the record and deliver it elsewhere.',
+        }),
+      )
+    }
+  }
+
+  #now(): number {
+    return this.#options.now?.() ?? Date.now()
+  }
+
+  async #run(action: Action, call: ActionCall): Promise<ActionExecutionResult> {
     const { registration } = action
     const agent = call.caller === 'agent'
     if (agent && !(registration.placements ?? DEFAULT_ACTION_PLACEMENTS).includes('agent')) {
@@ -204,7 +286,7 @@ export class ActionExecutor<Action extends RunnableAction> {
     if (decision.allowed) return undefined
 
     onDenied?.(action)
-    if (call.caller !== 'agent') {
+    if (actorOf(call.caller) === 'user') {
       notifyDenial?.({
         actionId: action.qualifiedId,
         label: action.registration.label,

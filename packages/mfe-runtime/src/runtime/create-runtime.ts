@@ -15,6 +15,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
+import type { ActionAuditSink } from '../actions/action-audit.ts'
 import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import type { ActionRegistry } from '../actions/action-registry.ts'
 import type { AgentContextStore } from '../agent-context/agent-context-store.ts'
@@ -76,6 +77,13 @@ export interface CreateMfeRuntimeOptions {
    * approve, ask the user, or deny one call without touching the App that registers the action.
    */
   readonly actionApprovalPolicy?: ActionApprovalPolicy
+  /**
+   * Takes one record for every action run: who acted (the user, the agent on the user's behalf, or
+   * the host), how it was called, in which chat turn, the outcome and the input with credentials
+   * redacted. The host sends it to its backend, which stores it; the runtime also reports it to
+   * telemetry.
+   */
+  readonly auditAction?: ActionAuditSink
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
@@ -158,6 +166,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     deadlines: options.deadlines,
     notifyActionDenial: options.notifyActionDenial,
     actionApprovalPolicy: options.actionApprovalPolicy,
+    auditAction: options.auditAction,
     nextSessionGeneration,
   })
 

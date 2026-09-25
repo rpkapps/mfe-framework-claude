@@ -14,6 +14,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
+import { auditTelemetryRecord, type ActionAuditSink } from '../actions/action-audit.ts'
 import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
 import { ActionRegistry } from '../actions/action-registry.ts'
 import { AgentContextStore } from '../agent-context/agent-context-store.ts'
@@ -56,6 +57,7 @@ export interface RuntimeParts {
   readonly deadlines?: Partial<DeadlineConfig> | undefined
   readonly notifyActionDenial?: ActionDenialNotifier | undefined
   readonly actionApprovalPolicy?: ActionApprovalPolicy | undefined
+  readonly auditAction?: ActionAuditSink | undefined
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration: () => string
 }
@@ -79,6 +81,15 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
       notifyDenial: parts.notifyActionDenial,
       approvalPolicy: parts.actionApprovalPolicy,
     }),
+    // Every run goes to telemetry, as a framework record, and to the host, whose backend stores it.
+    audit: record => {
+      const reported = auditTelemetryRecord(record)
+      if (parts.telemetryProvider.isLevelEnabled?.(reported.level) !== false) {
+        parts.telemetryProvider.record(reported)
+      }
+      parts.auditAction?.(record)
+    },
+    readUserId: () => shellState.getSnapshot().user?.id,
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
   const agentContext = new AgentContextStore({

@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A and B have landed (§39–§46), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1, 2, 3, 6 and 7 and features A, B and C have landed (§39–§47), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -129,7 +129,9 @@ Modelled on Agent-Native's context layers (`context-awareness` in its docs):
 - **Prompt handoff** — `agent.prompt({ message, context, submit })` on the host, so a click becomes a chat turn: `message` is visible, `context` is hidden, `submit: false` pre-fills for review.
 - **Selected text** — ⌘I sends the page's text selection into the next turn.
 
-### C. Who acted
+### C. Who acted (done, §47)
+
+As landed: `ActionAuditRecord` from the executor's last step, for every run and every outcome, including `invalid` and `unavailable`; `'system'` is a new caller for the host's own code; the chat passes `turn` with each call. The input is redacted by key words and by credential-shaped strings. Records go to telemetry (`run action`) and to the host's `auditAction`.
 
 Every action run records the actor (`user`, `agent`, `system`, and for the agent, on whose behalf), the caller, the chat thread and turn, the outcome (`executed`, `denied`, `failed`, and `declined` by the user) and the input with anything that looks like a credential redacted. It goes through the existing diagnostics and telemetry hub; storing it is the backend's job.
 

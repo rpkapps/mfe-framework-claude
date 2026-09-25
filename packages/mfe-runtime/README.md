@@ -102,8 +102,9 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `diagnostics`  | the hub every framework failure reaches                                    |
 | `deadlines`    | the budget every mount runs under                                          |
 
-`actions.execute(id, { caller, input })` runs an action for whoever asked:
-`'palette'`, `'shortcut'`, `'ui'` or `'agent'`. Every caller goes through the
+`actions.execute(id, { caller, input, turn })` runs an action for whoever asked:
+`'palette'`, `'shortcut'`, `'ui'`, `'agent'`, or `'system'` for the host's own
+code. Every caller goes through the
 same steps in `action-executor.ts`: `canExecute` decides, the input is parsed
 with the action's `inputSchema` (absent input is `{}`), and `execute` runs with
 the parsed value. The result is one of these:
@@ -118,7 +119,7 @@ the parsed value. The result is one of these:
 | `failed`      | `execute` threw, or its value failed `outputSchema` (`contract/output-mismatch`)        |
 
 A denial reaches `notifyActionDenial` only when a user asked; an agent hears the
-reason in the result.
+reason in the result, and the host's own code reads it there.
 
 An agent's call takes two more steps. An action not placed for `'agent'` is
 denied. Then approval: a `'read'` runs, anything else asks, unless the action's
@@ -143,6 +144,25 @@ const { runtime } = createMfeRuntime({
 
 // `confirmInChat` is the host's own: it resolves true when the user approves.
 const removeApprover = runtime.actions.setApprover(request => confirmInChat(request))
+```
+
+Every run is audited, whatever its outcome, a call to an action that is gone
+included. The record (`ActionAuditRecord`) says who acted (`actor`: `'user'`,
+`'agent'` on the user's behalf, or `'system'`), the `caller`, the signed-in
+`userId`, the chat `turn` an agent's call passed, the `outcome` with its
+`reason` or `errorCode`, the `input` with credentials redacted (`redactInput`:
+values under keys such as `password`, `apiKey` or `token`, and any string that
+is a bearer header, a JWT or a private key), `startedAt` and `durationMs`. The
+runtime reports it to the telemetry provider as a `framework` record, operation
+`run action`, at `info` when it ran and `warn` otherwise, and hands it to the
+host's `auditAction`, whose backend stores it:
+
+```ts
+const { runtime } = createMfeRuntime({
+  // …
+  // `sendToAuditLog` is the host's own: it queues the record for its backend.
+  auditAction: record => sendToAuditLog(record),
+})
 ```
 
 Each `ActionEntry` in `actions.getSnapshot()` carries what an agent's tool list

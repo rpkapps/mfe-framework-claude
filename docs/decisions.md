@@ -1381,3 +1381,36 @@ input, and lands with it in E.
 
 **Cost:** a mount states its selection twice, in its own state and in the snapshot,
 and the size limit refuses a large value where truncating it would have sent something.
+
+---
+
+## 47. Every action run is audited, and the host's backend stores it
+
+**Status:** decided; feature C of the agentic plan.
+
+Once an agent can act, "who did this" has three answers where it had one, so the
+executor's last step (§40) records every run, whatever its outcome and whoever asked,
+a call to an action that is gone included. `ActionAuditRecord` holds the action and
+its owner, the `actor` (`'user'`; `'agent'`, which acts on the signed-in user's behalf;
+or `'system'`, the host's own code, a new caller that no user asked for and so is
+neither told of a denial nor asked to approve), the `caller`, the signed-in `userId`,
+the chat thread and turn an agent's call passes as `turn`, the `outcome` with its
+`reason` or error code, the input, `startedAt` and `durationMs`, approval and waiting
+included.
+
+The input is recorded as the caller sent it, which is what an audit asks about, with
+credentials replaced by `[redacted]`: every value under a key whose words name one
+(`password`, `apiKey`, `x-api-key`, `client_secret`, `sessionId`; `author` and
+`compass` are not caught), and every string that is a bearer or basic header, a JWT or
+a PEM private key, whatever its key. Matching on the key's words rather than on
+substrings keeps redaction from eating ordinary fields.
+
+The runtime reports each record to the telemetry provider as a `framework` record
+(operation `run action`, `info` when it ran and `warn` otherwise, attributed to the
+action's owner), which is the existing path to the shell's telemetry, and hands it to
+the host's `auditAction`. Storing it, and for how long, is the backend's job; the page
+keeps nothing. A sink that throws is reported and the run's result stands.
+
+**Cost:** a telemetry record per action run, palette and keys included; a host whose
+telemetry volume matters filters `run action` records by level. Redaction by pattern
+lets a credential under an unremarkable key through; an action should not take one.

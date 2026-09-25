@@ -42,6 +42,7 @@ import {
   type ActionDenialNotifier,
   type ActionExecutionResult,
 } from './action-executor.ts'
+import type { ActionAuditSink } from './action-audit.ts'
 import {
   chordFromEvent,
   firesInsideFields,
@@ -112,6 +113,7 @@ export type ShortcutDispatchResult =
 interface RegisteredAction {
   qualifiedId: string
   readonly definitionId: string
+  readonly definitionKind: DefinitionKind
   /** The mount token that owns it, or the reserved host scope. */
   readonly scopeToken: string
   /** Where its shortcut may fire, resolved once from its owner. */
@@ -151,6 +153,10 @@ export interface ActionRegistryOptions {
   readonly readPathname?: () => string
   /** The host's rule over every agent call, on top of what each action declares. */
   readonly approvalPolicy?: ActionApprovalPolicy
+  /** Takes one record for every run, however it ended. */
+  readonly audit?: ActionAuditSink
+  /** The signed-in user's id, recorded with each run. */
+  readonly readUserId?: () => string | undefined
 }
 
 const UNMATCHED: ShortcutDispatchResult = Object.freeze({ status: 'unmatched' })
@@ -182,6 +188,8 @@ export class ActionRegistry {
       },
       approvalPolicy: options.approvalPolicy,
       approver: () => this.#approver,
+      audit: options.audit,
+      readUserId: options.readUserId,
       isLive: action =>
         this.#byScope.get(action.scopeToken)?.get(action.registration.name) === action,
     })
@@ -219,6 +227,7 @@ export class ActionRegistry {
     return this.#add(
       {
         definitionId,
+        definitionKind: owner.kind,
         scopeToken: mountToken,
         shortcutScope: mountShortcutScope(owner.kind, owner.basePath),
       },
@@ -235,7 +244,12 @@ export class ActionRegistry {
     registration: ActionRegistration<Input, Output>,
   ): ActionRegistrationHandle {
     return this.#add(
-      { definitionId: HOST_SCOPE, scopeToken: HOST_SCOPE, shortcutScope: HOST_PAGE_SCOPE },
+      {
+        definitionId: HOST_SCOPE,
+        definitionKind: 'app',
+        scopeToken: HOST_SCOPE,
+        shortcutScope: HOST_PAGE_SCOPE,
+      },
       registration,
     )
   }
@@ -277,6 +291,7 @@ export class ActionRegistry {
   async execute(qualifiedId: string, call: ActionCall): Promise<ActionExecutionResult> {
     const action = this.#find(qualifiedId)
     if (!action) {
+      const startedAt = Date.now()
       const error = fail('action/unavailable', qualifiedId.split(':')[0] ?? qualifiedId, {
         operation: `execute action '${qualifiedId}'`,
         expected: 'a live registration, from a mount or from the host page',
@@ -285,7 +300,16 @@ export class ActionRegistry {
           'Re-open the surface that registers this action. A mount action goes with its mount, and a host action with the chrome that registered it.',
       })
       this.#options.diagnostics?.report(error, { severity: 'warning' })
-      return { status: 'unavailable', error }
+      const result: ActionExecutionResult = { status: 'unavailable', error }
+      // Its kind went with it; a missing action is filed under 'app', as a page-owned diagnostic is.
+      const definitionId = qualifiedId.split(':')[0] ?? qualifiedId
+      this.#executor.audit(
+        { qualifiedId, definitionId, definitionKind: 'app' },
+        call,
+        result,
+        startedAt,
+      )
+      return result
     }
 
     return await this.#executor.run(action, call)
@@ -357,7 +381,10 @@ export class ActionRegistry {
   }
 
   #add(
-    owner: Pick<RegisteredAction, 'definitionId' | 'scopeToken' | 'shortcutScope'>,
+    owner: Pick<
+      RegisteredAction,
+      'definitionId' | 'definitionKind' | 'scopeToken' | 'shortcutScope'
+    >,
     registration: ActionRegistration,
   ): ActionRegistrationHandle {
     const { definitionId, scopeToken } = owner
