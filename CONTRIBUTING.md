@@ -11,7 +11,7 @@ pnpm check
 ```
 
 runs, in order: required generation, format check, lint, strict typecheck,
-package-boundary checks and the test suites. CI runs the same action and never
+package-boundary checks and the test suites. CI runs the same command and never
 silently rewrites authored files.
 
 Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,

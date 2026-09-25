@@ -187,6 +187,12 @@ the two adapters say about themselves, and not because of where a shell put them
 in a list. The shell in this repository registers the legacy adapter, so a legacy
 entry in its registry is read rather than rejected.
 
+**Amendment (§53):** `reactAdapter.detect` no longer recognises an entry whose
+`mfe` marker names no framework. It recognises one that names React, however
+malformed the rest is, so a typo still fails in the React adapter rather than
+being read as legacy; a marker without a framework is no adapter's, and the entry
+is rejected as unrecognised, which fails just as loudly.
+
 ---
 
 ## 10. The framework owns no session; the shell installs one and the container binds to it
@@ -1601,7 +1607,7 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
 - **Replies** are Markdown, GitHub's flavour, with no raw HTML. A link to a page of the application
   goes through the router and the Apps' blockers, as a link on the page does (§20); any other opens
   in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
-  URL the model chose (#31).
+  URL the model chose (issue [#31](https://github.com/rpkapps/mfe-framework-claude/issues/31)).
 - **Messages.** A reply can be copied, and the last one asked for again. A question can be edited:
   the replies after it go and it is asked again, its quote kept. A reply the user stopped says
   Stopped. ArrowUp and ArrowDown in the composer step through what the user sent in this tab.
