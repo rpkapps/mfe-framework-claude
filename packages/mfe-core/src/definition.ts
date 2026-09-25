@@ -103,7 +103,7 @@ export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** Widget-only; read statically at build time (§16). */
-  readonly contract?: PublishedWidgetContract
+  readonly contract?: PublishedContract
   /** Presentation the author declares, so a host can catalogue the definition unloaded (§16). */
   readonly title?: string
   readonly description?: string
@@ -113,15 +113,16 @@ export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
 }
 
 /** What a host may know about a Widget without loading its container (§16). */
-export interface PublishedWidgetContract {
+export interface PublishedContract {
   /** JSON Schema (draft 2020-12), absent when the build could not read the schema statically. */
-  readonly inputs?: JsonSchemaObject
+  readonly inputSchema?: JsonSchemaObject
   /**
-   * The same shape as `inputs`: an object schema with one property per declared event, in
-   * declaration order, each the schema of that event's payload. A payload the build could not
-   * read is `{}`; the whole field is absent when the event names themselves could not be read.
+   * The same shape as `inputSchema`: an object schema with one property per declared output, in
+   * declaration order, each the schema of that output's payload. A payload the build could not
+   * read is `{}`; the whole field is absent when the output names themselves could not be read.
+   * Whether a property is required means nothing here, as every output may never be emitted.
    */
-  readonly events?: JsonSchemaObject
+  readonly outputSchema?: JsonSchemaObject
 }
 
 /** The subset of JSON Schema the build emits: values only, no `$ref`. */

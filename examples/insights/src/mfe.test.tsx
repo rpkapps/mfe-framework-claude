@@ -65,11 +65,11 @@ describe('well-design', () => {
 })
 
 describe('cost-vs-risk', () => {
-  it('mounts with the defaulted comparison and declares no events', () => {
+  it('mounts with the defaulted comparison and declares no outputs', () => {
     const rendered = renderWidget(costVsRisk, { props: {} })
     cleanup = rendered.dispose
 
-    expect(Object.keys(costVsRisk.contract.events)).toEqual([])
+    expect(Object.keys(costVsRisk.contract.outputSchema.shape)).toEqual([])
     // The header counts what `compare` selected, and the schema default selects two.
     expect(screen.getByText('2 Selected')).toBeInTheDocument()
   })

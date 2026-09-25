@@ -14,8 +14,8 @@ class EmptyComponent {}
 
 const tableWidget = createWidget({
   id: 'orders-table',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: EmptyComponent,
 })
 

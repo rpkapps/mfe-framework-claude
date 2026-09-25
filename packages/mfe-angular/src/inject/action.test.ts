@@ -23,8 +23,8 @@ const reportsApp = createApp({
 
 const ordersWidget = createWidget({
   id: 'orders',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: EmptyComponent,
 })
 

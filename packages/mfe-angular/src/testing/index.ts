@@ -77,19 +77,19 @@ export interface MountAppOptions extends PlacementOptions {
   readonly basePath?: string
 }
 
-export interface WidgetEvent {
+export interface WidgetOutput {
   readonly name: string
   readonly payload: unknown
 }
 
 export interface MountWidgetOptions extends PlacementOptions {
   readonly inputs?: Readonly<Record<string, unknown>>
-  readonly onEvent?: (name: string, payload: unknown) => void
+  readonly onOutput?: (name: string, payload: unknown) => void
 }
 
 export interface MountedTestWidget extends MountedTestDefinition {
-  /** Every event the Widget emitted and its contract accepted, in order. */
-  readonly events: readonly WidgetEvent[]
+  /** Every output the Widget emitted and its contract accepted, in order. */
+  readonly outputs: readonly WidgetOutput[]
   /** Every later input set the Widget rejected, in order. */
   readonly rejectedInputs: readonly MfeError[]
   /** Replaces the inputs and waits for the Widget to render them. */
@@ -315,7 +315,7 @@ export async function mountWidget(
   options: MountWidgetOptions = {},
 ): Promise<MountedTestWidget> {
   const placement = place(definition, options, '')
-  const events: WidgetEvent[] = []
+  const outputs: WidgetOutput[] = []
   const rejectedInputs: MfeError[] = []
 
   const mount: WidgetDefinitionMount = mountDefinition({
@@ -324,9 +324,9 @@ export async function mountWidget(
     definitionId: definition.id,
     kind: 'widget',
     inputs: options.inputs ?? {},
-    onEvent: (name, payload) => {
-      events.push({ name, payload })
-      options.onEvent?.(name, payload)
+    onOutput: (name, payload) => {
+      outputs.push({ name, payload })
+      options.onOutput?.(name, payload)
     },
     onInputRejected: error => {
       rejectedInputs.push(error)
@@ -341,7 +341,7 @@ export async function mountWidget(
     element,
     environment: placement.environment,
     injector,
-    events,
+    outputs,
     rejectedInputs,
     whenStable: () => mount.whenStable(),
     update: async inputs => {

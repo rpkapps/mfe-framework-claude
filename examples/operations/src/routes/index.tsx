@@ -133,7 +133,7 @@ function Overview(): ReactNode {
         <PanelContent className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
             The panel below is a Widget served by a different deployment. It is consumed here as an
-            ordinary component: its inputs are props and its events are <code>onX</code> props.
+            ordinary component: its inputs are props and its outputs are <code>onX</code> props.
           </p>
 
           <AlertPanel
@@ -150,8 +150,8 @@ function Overview(): ReactNode {
                 <Skeleton className="h-8 w-40 self-end" />
               </div>
             }
-            onAcknowledged={event => {
-              setAcknowledged(event.acknowledgedAt)
+            onAcknowledged={payload => {
+              setAcknowledged(payload.acknowledgedAt)
             }}
             fallback={({ error, retry }) => (
               <div role="alert" className="rounded-md border border-destructive/40 p-4">

@@ -1,13 +1,14 @@
 /**
  * Mounting one definition into an element a host provides. Every host mounts every definition
  * this way, whichever adapter built it and whichever framework the host is written in, its own
- * included. So loading, retry, deadlines, the scope root, input equality, consumer event checks
+ * included. So loading, retry, deadlines, the scope root, input equality, consumer output checks
  * and teardown are decided once, here, rather than again in each adapter.
  */
 
 import {
   shallowEqual,
   toMfeError,
+  outputPayloadSchema,
   validateAgainstContract,
   withoutUndefined,
   type MfeError,
@@ -48,9 +49,9 @@ export interface WidgetMountRequest extends MountRequestBase {
   readonly kind: 'widget'
   readonly inputs: Inputs
   /** Called after the provider validated the payload and any consumer contract accepted it. */
-  readonly onEvent: (event: string, payload: unknown) => void
-  /** The host's own view of the events; a payload that fails it is reported and not delivered. */
-  readonly consumerEvents?: WidgetContract['events']
+  readonly onOutput: (output: string, payload: unknown) => void
+  /** The host's own view of the outputs; a payload that fails it is reported and not delivered. */
+  readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
   /** An update the Widget rejected, which the Widget has already reported. */
   readonly onInputRejected?: (error: MfeError) => void
 }
@@ -132,7 +133,7 @@ type HeldRequest = AppMountRequest | HeldWidgetRequest
  * The request without its first inputs, which `#inputs` and each attempt's `delivered` replace:
  * holding the request itself would keep that first set alive for the mount's whole life. Copied
  * by descriptor rather than by value, because a host may pass a field as a getter that follows
- * its own state, as the Angular host does with `consumerEvents`.
+ * its own state, as the Angular host does with `consumerOutputs`.
  */
 function withoutFirstInputs(request: MountRequest): HeldRequest {
   if (request.kind === 'app') return request
@@ -320,8 +321,8 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
       element,
       context,
       inputs: attempt.delivered,
-      emit: (event, payload) => {
-        if (!attempt.detached) deliverEvent(request, definition, event, payload)
+      emit: (output, payload) => {
+        if (!attempt.detached) deliverOutput(request, definition, output, payload)
       },
       onFailure,
       ...(onInputRejected === undefined
@@ -369,32 +370,32 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 }
 
 /** The provider already validated the payload; this checks only what the host declared. */
-function deliverEvent(
+function deliverOutput(
   request: HeldWidgetRequest,
   definition: MountableWidgetDefinition,
-  event: string,
+  output: string,
   payload: unknown,
 ): void {
-  const schema = request.consumerEvents?.[event]
+  const schema = outputPayloadSchema(request.consumerOutputs, output)
   if (schema === undefined) {
-    request.onEvent(event, payload)
+    request.onOutput(output, payload)
     return
   }
 
   const accepted = validateAgainstContract(schema, payload, {
     id: definition.id,
     ...withoutUndefined({ definitionVersion: definition.version }),
-    direction: 'event',
+    direction: 'output',
     side: 'consumer',
-    eventName: event,
+    outputName: output,
   })
   // The consumer's contract is the consumer's to fix, so a mismatch is reported rather than
   // thrown into the provider's stack.
   if (!accepted.ok) {
     request.runtime.diagnostics.report(accepted.error, {
-      context: { widget: definition.id, event },
+      context: { widget: definition.id, output },
     })
     return
   }
-  request.onEvent(event, accepted.value)
+  request.onOutput(output, accepted.value)
 }

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import type { JsonSchemaObject, PublishedWidgetContract } from './definition.ts'
+import type { JsonSchemaObject, PublishedContract } from './definition.ts'
 import {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
   type WidgetInputField,
   type WidgetInputKind,
@@ -14,9 +14,9 @@ import {
 function contractOf(
   properties: Readonly<Record<string, JsonSchemaObject>>,
   required: readonly string[] = [],
-): PublishedWidgetContract {
+): PublishedContract {
   return {
-    inputs: {
+    inputSchema: {
       title: 'alert-panel inputs',
       type: 'object',
       properties,
@@ -30,21 +30,21 @@ function fieldsOf(
   properties: Readonly<Record<string, JsonSchemaObject>>,
   required: readonly string[] = [],
 ): readonly WidgetInputField[] {
-  const fields = describeWidgetInputs(contractOf(properties, required))
+  const fields = describeInputs(contractOf(properties, required))
   if (fields === null) throw new Error('expected the schema to be readable')
   return fields
 }
 
-describe('describeWidgetInputs', () => {
+describe('describeInputs', () => {
   it('tells a schema that was never published from one that takes nothing', () => {
-    expect(describeWidgetInputs(undefined)).toBeNull()
-    expect(describeWidgetInputs({ events: { type: 'object', properties: {} } })).toBeNull()
-    expect(describeWidgetInputs(contractOf({}))).toEqual([])
+    expect(describeInputs(undefined)).toBeNull()
+    expect(describeInputs({ outputSchema: { type: 'object', properties: {} } })).toBeNull()
+    expect(describeInputs(contractOf({}))).toEqual([])
   })
 
   it('reports a schema it cannot read as properties as unpublished rather than as empty', () => {
-    expect(describeWidgetInputs({ inputs: { type: 'object' } })).toBeNull()
-    expect(describeWidgetInputs({ inputs: { properties: ['alertId'] } })).toBeNull()
+    expect(describeInputs({ inputSchema: { type: 'object' } })).toBeNull()
+    expect(describeInputs({ inputSchema: { properties: ['alertId'] } })).toBeNull()
   })
 
   it('marks the fields the schema lists as required, in declaration order', () => {
@@ -59,8 +59,8 @@ describe('describeWidgetInputs', () => {
   })
 
   it('survives a `required` that is not a list of names', () => {
-    const fields = describeWidgetInputs({
-      inputs: { properties: { alertId: {} }, required: 'alertId' },
+    const fields = describeInputs({
+      inputSchema: { properties: { alertId: {} }, required: 'alertId' },
     })
 
     expect(fields).toEqual([
@@ -141,33 +141,33 @@ describe('describeWidgetInputs', () => {
   })
 })
 
-describe('describeWidgetEvents', () => {
-  const events = (properties: JsonSchemaObject): PublishedWidgetContract => ({
-    events: {
-      title: 'alert-panel events',
+describe('describeOutputs', () => {
+  const outputs = (properties: JsonSchemaObject): PublishedContract => ({
+    outputSchema: {
+      title: 'alert-panel outputs',
       type: 'object',
       properties,
       additionalProperties: false,
     },
   })
 
-  it('tells event names that were never published from a Widget that emits nothing', () => {
-    expect(describeWidgetEvents(undefined)).toBeNull()
-    expect(describeWidgetEvents({ inputs: { type: 'object', properties: {} } })).toBeNull()
-    expect(describeWidgetEvents({ events: { type: 'object' } })).toBeNull()
-    expect(describeWidgetEvents(events({}))).toEqual([])
+  it('tells output names that were never published from a Widget that emits nothing', () => {
+    expect(describeOutputs(undefined)).toBeNull()
+    expect(describeOutputs({ inputSchema: { type: 'object', properties: {} } })).toBeNull()
+    expect(describeOutputs({ outputSchema: { type: 'object' } })).toBeNull()
+    expect(describeOutputs(outputs({}))).toEqual([])
   })
 
-  it('keeps the events in declaration order, each payload read as the inputs are', () => {
+  it('keeps the outputs in declaration order, each payload read as the inputs are', () => {
     const acknowledged = {
       type: 'object',
       properties: { alertId: { type: 'string' }, note: { type: 'string' } },
       required: ['alertId'],
       additionalProperties: false,
     }
-    const described = describeWidgetEvents(events({ acknowledged, dismissed: {} }))
+    const described = describeOutputs(outputs({ acknowledged, dismissed: {} }))
 
-    expect(described?.map(event => event.name)).toEqual(['acknowledged', 'dismissed'])
+    expect(described?.map(output => output.name)).toEqual(['acknowledged', 'dismissed'])
     expect(described?.[0]?.schema).toEqual(acknowledged)
     expect(described?.[0]?.payload?.map(field => [field.name, field.kind, field.required])).toEqual(
       [
@@ -179,8 +179,8 @@ describe('describeWidgetEvents', () => {
 
   /** `{}` is "the build could not read this payload", which is not a payload with no fields. */
   it('reports a payload it cannot read as fields as unknown rather than as empty', () => {
-    const described = describeWidgetEvents(
-      events({
+    const described = describeOutputs(
+      outputs({
         dismissed: {},
         cleared: { type: 'object', properties: {} },
         renamed: { type: 'string' },
@@ -188,7 +188,7 @@ describe('describeWidgetEvents', () => {
       }),
     )
 
-    expect(described?.map(event => [event.name, event.payload])).toEqual([
+    expect(described?.map(output => [output.name, output.payload])).toEqual([
       ['dismissed', null],
       ['cleared', []],
       ['renamed', null],

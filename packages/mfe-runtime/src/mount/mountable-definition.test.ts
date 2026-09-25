@@ -17,7 +17,7 @@ function widget(overrides: Record<PropertyKey, unknown> = {}): Record<PropertyKe
     kind: 'widget',
     id: 'alert-panel',
     framework: 'angular',
-    contract: { inputs: {}, events: {} },
+    contract: { inputSchema: {}, outputSchema: { shape: {} } },
     mount,
     ...overrides,
   }
@@ -59,12 +59,15 @@ describe('isMountableDefinition', () => {
     expect(isMountableDefinition(app({ contributesBreadcrumbs: undefined }))).toBe(false)
   })
 
-  /** The host routes events by the names in the contract, so it must be able to read them. */
-  it('refuses a Widget whose contract names no events a host could route', () => {
-    expect(isMountableDefinition(widget({ contract: undefined }))).toBe(false)
-    expect(isMountableDefinition(widget({ contract: { inputs: {} } }))).toBe(false)
-    expect(isMountableDefinition(widget({ contract: { inputs: {}, events: null } }))).toBe(false)
-    expect(isMountableDefinition(widget({ contract: { events: {} } }))).toBe(false)
+  /** The host routes outputs by the names in the contract, so it must be able to read them. */
+  it('refuses a Widget whose contract names no outputs a host could route', () => {
+    const contract = (value: unknown) => widget({ contract: value })
+    expect(isMountableDefinition(contract(undefined))).toBe(false)
+    expect(isMountableDefinition(contract({ inputSchema: {} }))).toBe(false)
+    expect(isMountableDefinition(contract({ inputSchema: {}, outputSchema: null }))).toBe(false)
+    // A record of payload schemas rather than a z.object: there is no shape to read names from.
+    expect(isMountableDefinition(contract({ inputSchema: {}, outputSchema: {} }))).toBe(false)
+    expect(isMountableDefinition(contract({ outputSchema: { shape: {} } }))).toBe(false)
   })
 
   it('refuses values that are not records', () => {

@@ -1,7 +1,7 @@
 /**
  * `<mfe-widget>` — an Angular host placing a Widget by id. The runtime's `mountDefinition` does the
  * placing, as it does for every host, so the Widget may be one any adapter built; the Widget
- * validates its own inputs, and a contract the host declares here checks the events.
+ * validates its own inputs, and a contract the host declares here checks the outputs.
  */
 
 import { NgTemplateOutlet } from '@angular/common'
@@ -25,7 +25,7 @@ import { mountDefinition, type WidgetDefinitionMount } from '@company/mfe-runtim
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
 
-export interface MfeWidgetEvent {
+export interface MfeWidgetOutput {
   readonly name: string
   readonly payload: unknown
 }
@@ -42,13 +42,13 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) widgetId!: string
   /** Replaced, never mutated: a new object is an update, validated by the Widget itself. */
   @Input() inputs: Readonly<Record<string, unknown>> = {}
-  /** The host's own view of the contract; events that fail it are reported and not delivered. */
+  /** The host's own view of the contract; outputs that fail it are reported and not delivered. */
   @Input() contract: WidgetContract | undefined
   /** Shown while the Widget loads. */
   @Input() pending: TemplateRef<unknown> | undefined
 
-  /** Every event the Widget emits, by name, after the Widget's contract and this host's accept it. */
-  @Output() readonly event = new EventEmitter<MfeWidgetEvent>()
+  /** Every output the Widget emits, by name, after the Widget's contract and this host's accept it. */
+  @Output() readonly output = new EventEmitter<MfeWidgetOutput>()
   /** The Widget could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
   @Output() readonly failed = new EventEmitter<MfeError>()
 
@@ -81,9 +81,10 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   }
 
   #place(): void {
-    // The mount reads the consumer events when an event arrives, so a contract bound later
+    // The mount reads the consumer's outputs when an output arrives, so a contract bound later
     // applies to the Widget already mounted.
-    const consumerEvents = (): WidgetContract['events'] => this.contract?.events ?? {}
+    const consumerOutputs = (): WidgetContract['outputSchema'] | undefined =>
+      this.contract?.outputSchema
     this.#mount.replace(
       mountDefinition({
         runtime: this.#runtime,
@@ -92,11 +93,11 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
         kind: 'widget',
         parent: this.#parent,
         inputs: this.inputs,
-        onEvent: (name, payload) => {
-          this.event.emit({ name, payload })
+        onOutput: (name, payload) => {
+          this.output.emit({ name, payload })
         },
-        get consumerEvents() {
-          return consumerEvents()
+        get consumerOutputs() {
+          return consumerOutputs()
         },
       }),
     )

@@ -1,9 +1,9 @@
-/** How to *show* a Widget's declared inputs; reading the schema is `describeWidgetInputs`'s job, and nothing here validates (§28). */
+/** How to *show* a Widget's declared inputs; reading the schema is `describeInputs`'s job, and nothing here validates (§28). */
 
 import {
-  describeWidgetEvents,
-  describeWidgetInputs,
-  type PublishedWidgetContract,
+  describeOutputs,
+  describeInputs,
+  type PublishedContract,
   type WidgetInputField,
   type WidgetInputType,
 } from '@company/mfe-react'
@@ -44,10 +44,10 @@ function typeName(type: WidgetInputType): string {
 
 /** `null` is "the build could not describe this", never "no fields": the dialog offers raw JSON instead (§28). */
 export function readInputFields(
-  contract: PublishedWidgetContract | undefined,
+  contract: PublishedContract | undefined,
 ): readonly InputField[] | null {
   return (
-    describeWidgetInputs(contract)?.map(field => ({
+    describeInputs(contract)?.map(field => ({
       ...field,
       control: controlFor(field),
       typeLabel: field.nullable ? `${typeName(field)} | null` : typeName(field),
@@ -56,25 +56,25 @@ export function readInputFields(
   )
 }
 
-/** A declared event, with its payload in one line for a tooltip. */
-export interface EventDetail {
+/** A declared output, with its payload in one line for a tooltip. */
+export interface OutputDetail {
   readonly name: string
   readonly payloadLabel: string
 }
 
-/** `null` is "the build could not read the event names", never "emits nothing" (§28). */
-export function readEvents(
-  contract: PublishedWidgetContract | undefined,
-): readonly EventDetail[] | null {
+/** `null` is "the build could not read the output names", never "emits nothing" (§28). */
+export function readOutputs(
+  contract: PublishedContract | undefined,
+): readonly OutputDetail[] | null {
   return (
-    describeWidgetEvents(contract)?.map(event => ({
-      name: event.name,
+    describeOutputs(contract)?.map(output => ({
+      name: output.name,
       payloadLabel:
-        event.payload === null
+        output.payload === null
           ? 'payload not published'
-          : event.payload.length === 0
+          : output.payload.length === 0
             ? 'no payload'
-            : `{ ${event.payload
+            : `{ ${output.payload
                 .map(field => {
                   const type = field.nullable ? `${typeName(field)} | null` : typeName(field)
                   return `${field.name}${field.required ? '' : '?'}: ${type}`

@@ -26,18 +26,18 @@ function Widgets(): ReactNode {
   const [alertId, setAlertId] = useState('a-1001')
   const [severity, setSeverity] = useState<(typeof SEVERITIES)[number]>('warning')
   const [badSeverity, setBadSeverity] = useState('critical')
-  const [events, setEvents] = useState<readonly { at: string; text: string }[]>([])
+  const [outputs, setOutputs] = useState<readonly { at: string; text: string }[]>([])
   const [showMissing, setShowMissing] = useState(false)
 
   const record = (text: string): void => {
-    setEvents(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
+    setOutputs(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
   }
 
   return (
     <LabPage
       eyebrow="Widgets"
-      title="Inputs are props, events are onX props"
-      description="Every panel below comes from a different container over the network. Consuming one looks like an ordinary lazy component, and the boundary between them is enforced in both directions: inputs are validated going in, event payloads going out."
+      title="Inputs are props, outputs are onX props"
+      description="Every panel below comes from a different container over the network. Consuming one looks like an ordinary lazy component, and the boundary between them is enforced in both directions: inputs are validated going in, output payloads going out."
       tryThis={
         <>
           Change the inputs and watch the Widget update without remounting. Then set the severity to
@@ -86,11 +86,11 @@ function Widgets(): ReactNode {
           alertId={alertId}
           severity={severity}
           pending={<WidgetSkeleton />}
-          onAcknowledged={event => {
-            record(`acknowledged ${event.alertId} at ${event.acknowledgedAt}`)
+          onAcknowledged={payload => {
+            record(`acknowledged ${payload.alertId} at ${payload.acknowledgedAt}`)
           }}
-          onDismissed={event => {
-            record(`dismissed ${event.alertId}`)
+          onDismissed={payload => {
+            record(`dismissed ${payload.alertId}`)
           }}
           fallback={({ error, retry }) => (
             <WidgetFailure message={error.message} code={error.code} onRetry={retry} />
@@ -98,9 +98,9 @@ function Widgets(): ReactNode {
         />
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Events received from the Widget</span>
+          <span className="text-xs text-muted-foreground">Outputs received from the Widget</span>
           <EventLog
-            entries={events}
+            entries={outputs}
             empty="Nothing yet. Acknowledge or dismiss the alert above — the payload is validated against the contract on its way out of the Widget."
           />
         </div>

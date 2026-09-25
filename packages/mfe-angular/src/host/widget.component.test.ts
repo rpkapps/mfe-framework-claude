@@ -27,7 +27,7 @@ import {
   type MfeTestEnvironment,
   type RenderedHost,
 } from '../testing/index.ts'
-import { MfeWidgetComponent, type MfeWidgetEvent } from './widget.component.ts'
+import { MfeWidgetComponent, type MfeWidgetOutput } from './widget.component.ts'
 
 /** The mount each Alert component was created in, as `injectMfeMount()` gave it. */
 const alertMounts: MountContext[] = []
@@ -47,8 +47,8 @@ class AlertComponent {
 
 const alertWidget = createWidget({
   id: 'alert-panel',
-  inputs: z.object({ alertId: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  inputSchema: z.object({ alertId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
   component: AlertComponent,
 })
 
@@ -74,8 +74,8 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
     framework: 'plain-dom',
     id,
     contract: {
-      inputs: z.object({ count: z.number() }),
-      events: { clicked: z.object({ count: z.number() }) },
+      inputSchema: z.object({ count: z.number() }),
+      outputSchema: z.object({ clicked: z.object({ count: z.number() }) }),
     },
     mount: target => {
       attempts += 1
@@ -117,7 +117,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
       [inputs]="inputs()"
       [contract]="contract"
       [pending]="loading"
-      (event)="events.push($event)"
+      (output)="outputs.push($event)"
       (failed)="failures.push($event)"
     />
     <ng-template #loading><span class="pending">loading</span></ng-template>
@@ -127,7 +127,7 @@ class HostComponent {
   readonly widgetId = signal('alert-panel')
   readonly inputs = signal<Readonly<Record<string, unknown>>>({ alertId: 'a-1' })
   contract: WidgetContract | undefined = undefined
-  readonly events: MfeWidgetEvent[] = []
+  readonly outputs: MfeWidgetOutput[] = []
   readonly failures: MfeError[] = []
   @ViewChild('widget') widget: MfeWidgetComponent | undefined
 }
@@ -183,7 +183,7 @@ describe('<mfe-widget>', () => {
     expect(rendered.element.querySelector('.pending')).toBeNull()
   })
 
-  it('feeds new inputs to the mounted Widget and delivers its events', async () => {
+  it('feeds new inputs to the mounted Widget and delivers its outputs', async () => {
     const { rendered, appRef } = await renderHost([alertWidget])
     await vi.waitFor(() => {
       expect(rendered.element.querySelector('p')?.textContent).toBe('a-1')
@@ -196,7 +196,7 @@ describe('<mfe-widget>', () => {
     })
     rendered.element.querySelector('button')?.click()
 
-    expect(rendered.ref.instance.events).toEqual([
+    expect(rendered.ref.instance.outputs).toEqual([
       { name: 'acknowledged', payload: { alertId: 'a-2' } },
     ])
   })
@@ -222,8 +222,8 @@ describe('<mfe-widget>', () => {
 
     const picker = createWidget({
       id: 'picker',
-      inputs: z.object({ alertId: z.string(), onPick: z.string().optional() }),
-      events: {},
+      inputSchema: z.object({ alertId: z.string(), onPick: z.string().optional() }),
+      outputSchema: z.object({}),
       component: PickerComponent,
     })
 
@@ -293,8 +293,8 @@ describe('<mfe-widget>', () => {
         host.widgetId.set('counter')
         host.inputs.set({ count: 1 })
         host.contract = {
-          inputs: z.object({ count: z.number() }),
-          events: { clicked: z.object({ count: z.number().max(5) }) },
+          inputSchema: z.object({ count: z.number() }),
+          outputSchema: z.object({ clicked: z.object({ count: z.number().max(5) }) }),
         }
       })
       await vi.waitFor(() => {
@@ -304,9 +304,9 @@ describe('<mfe-widget>', () => {
       calls.targets[0]?.emit('clicked', { count: 3 })
       calls.targets[0]?.emit('clicked', { count: 9 })
 
-      expect(rendered.ref.instance.events).toEqual([{ name: 'clicked', payload: { count: 3 } }])
+      expect(rendered.ref.instance.outputs).toEqual([{ name: 'clicked', payload: { count: 3 } }])
       expect(environment.diagnostics.map(({ error }) => error.code)).toEqual([
-        'contract/event-mismatch',
+        'contract/output-mismatch',
       ])
     })
 

@@ -35,8 +35,8 @@ afterEach(async () => {
 const reporter = createWidget({
   id: 'reporter-widget',
   version: '1.0.0',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: function Reporter(): ReactNode {
     const aborted = useMfeSignal().aborted
     const mount = useMfeMount('the reporter widget')

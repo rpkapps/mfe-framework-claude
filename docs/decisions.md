@@ -328,6 +328,11 @@ claim to be closed. The host still accepts the old list of names, read as those
 events with unknown payloads, so a shell is deployed first and the containers
 rebuilt in any order after it, without a contract major.
 
+**Amendment (2026-09-25):** the published fields are `inputSchema` and
+`outputSchema`, the names the authored contract now uses (§41), and a Widget's
+events are its outputs. The old list of names is no longer accepted: nothing was
+deployed, and the field it lived in no longer exists.
+
 ---
 
 ## 17. Each container ships its own stylesheet, scoped to its own mount roots
@@ -616,6 +621,11 @@ the emitter. A host knows event names only as strings, so `DynamicWidget` gains
 
 **Cost:** which control to draw stays in the host, since picking a select for an
 enum would ship a control set (§22).
+
+**Amendment (2026-09-25):** the readers are `describeInputs` and
+`describeOutputs`, over a `PublishedContract`, and `DynamicWidget`'s catch-all is
+`onOutput` (§41). `describeOutputs` does not read `required`: every output may
+never be emitted, so whether a property is required means nothing.
 
 ---
 
@@ -1160,3 +1170,48 @@ agent tells the user in its own words, in the chat.
 **Cost:** every caller names itself, which the palette's one call site and the tests
 had to learn, and an action's `execute` may now return anything, which no reader
 checks until `outputSchema` exists.
+
+---
+
+## 41. A Widget's contract is `inputSchema` and `outputSchema`, and its events are outputs
+
+**Status:** decided; step 2 of the agentic plan.
+
+Actions (§39) take an `inputSchema` and return a value described by an
+`outputSchema`: the names TanStack AI, the AI SDK, MCP and WebMCP give a tool's
+two schemas. A Widget's contract used `inputs` for the schema, which is also the
+name of the values `render` receives, and `events` for a plain record of payload
+schemas. So a Widget now declares the same two fields. `inputSchema` is unchanged
+but for its name. `outputSchema` is one `z.object` with a property per output,
+each that output's payload schema, which is the shape the registry already
+published (§16's amendment), so the authored and the published contract are one
+thing and the build, the provider boundary and the Angular check read one schema.
+"Event" left the vocabulary with it: a Widget emits outputs, as an Angular
+component does through its `output()`s. `emit(name, payload)` and the `onX` props
+stay, as Angular keeps "emit" and event binding for its outputs. So:
+`DynamicWidget`'s `onEvent` is `onOutput`, `<mfe-widget>`'s `(event)` is
+`(output)`, the error code `contract/event-mismatch` is `contract/output-mismatch`
+with direction `'output'`, the testing helpers' `events` are `outputs`, and the
+generated contract module exports `inputSchema`, `outputSchema`, `Inputs` and
+`Outputs`. Nothing is deployed, so there is no alias.
+
+The two `outputSchema`s differ in what they describe, following from the kind: an
+action's is the one value a call returns, a Widget's has a property per output,
+each emitted any number of times, or never, while it is mounted. So no reader of
+a Widget's `outputSchema` looks at whether a property is required, and the
+agentic plan's rule holds where the two meet: a Widget's `outputSchema` is never
+a tool's `outputSchema`.
+
+The plan's other half of this step, moving the build's schema reader into a
+neutral module for actions and routes, was not needed. The reader is already
+neutral (`config/zod-static.ts`, `readStaticSchema`); what stays in
+`widget-contract.ts` is finding the two fields in `createWidget`'s options. An
+action's schema is a live Zod object in the page, which the chat host converts
+at run time, so the build never reads one, and published routes (the plan's D)
+call `readStaticSchema` directly.
+
+**Cost:** `outputSchema` must be a `z.object`, so a Widget that emits nothing
+writes `z.object({})` where it wrote `{}`, and `createWidget` refuses anything
+without a `shape`. Typing an output's payload reads through the shape
+(`z.infer<(typeof outputSchema)['shape']['acknowledged']>`), which the generated
+`Outputs` type spells out so a consumer never has to.

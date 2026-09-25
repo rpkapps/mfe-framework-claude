@@ -20,8 +20,8 @@ export const operations = createApp({ id: 'operations', version: '2.1.0', router
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: { acknowledged: z.object({ at: z.string() }) },
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
   render: () => null,
 })
 `
@@ -107,7 +107,7 @@ describe('pluginMfe', () => {
 import { createWidget } from '@company/mfe-react'
 import { z } from 'zod'
 
-export const stray = createWidget({ id: 'stray', inputs: z.object({}), events: {}, render: () => null })
+export const stray = createWidget({ id: 'stray', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
 `,
     })
 

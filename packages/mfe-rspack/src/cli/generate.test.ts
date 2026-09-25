@@ -14,8 +14,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: { acknowledged: z.object({ at: z.string() }) },
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
   render: () => null,
 })
 `

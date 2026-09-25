@@ -46,8 +46,8 @@ afterEach(async () => {
 
 const label = createWidget({
   id: 'label-widget',
-  inputs: z.object({ text: z.string() }),
-  events: {},
+  inputSchema: z.object({ text: z.string() }),
+  outputSchema: z.object({}),
   render: ({ inputs }): ReactNode => <p>{inputs.text}</p>,
 })
 

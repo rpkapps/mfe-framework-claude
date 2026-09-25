@@ -18,7 +18,7 @@ import {
   type JsonSchemaObject,
   type MfeAdapter,
   type MfeError,
-  type PublishedWidgetContract,
+  type PublishedContract,
   type RegistryEntry,
 } from '@company/mfe-core'
 import { z } from 'zod'
@@ -118,29 +118,9 @@ const capabilities = z
   )
 
 /** The build emits values only, never a `$ref`, so the host carries the schema uninterpreted. */
-const inputsSchema = z.custom<JsonSchemaObject>(isRecord, {
+const jsonSchema = z.custom<JsonSchemaObject>(isRecord, {
   error: 'a JSON Schema object, or nothing when the build could not read one',
 })
-
-/**
- * A container built before events carried their payload schemas published the names alone. They
- * are read as the same shape with every payload unknown (`{}`), so a shell deployed first keeps
- * reading those containers, and each reader handles one shape.
- */
-const eventsSchema = z.union(
-  [
-    z.custom<JsonSchemaObject>(isRecord),
-    z.array(z.string()).transform((names): JsonSchemaObject => ({
-      type: 'object',
-      properties: Object.fromEntries(names.map(name => [name, {}])),
-      additionalProperties: false,
-    })),
-  ],
-  {
-    error:
-      'a JSON Schema object with one property per event, or nothing when the build could not read one',
-  },
-)
 
 /**
  * Both fields are optional on purpose: a build that could not read a schema statically leaves it
@@ -150,15 +130,15 @@ const eventsSchema = z.union(
 const publishedContract = z
   .object(
     {
-      events: eventsSchema.optional(),
-      inputs: inputsSchema.optional(),
+      inputSchema: jsonSchema.optional(),
+      outputSchema: jsonSchema.optional(),
     },
-    { error: 'an object with, when readable, an events schema and an inputs schema' },
+    { error: 'an object with, when readable, an inputSchema and an outputSchema' },
   )
-  .transform((value): PublishedWidgetContract =>
+  .transform((value): PublishedContract =>
     withoutUndefined({
-      events: value.events,
-      inputs: value.inputs,
+      inputSchema: value.inputSchema,
+      outputSchema: value.outputSchema,
     }),
   )
 
@@ -199,7 +179,7 @@ const entrySchema = z
   .refine(value => !(value.contract !== undefined && value.kind === 'app'), {
     path: ['contract'],
     error:
-      'no Widget contract on an App. An App has no inputs and no events. Drop the contract, or declare the surface as a Widget.',
+      'no Widget contract on an App. An App has no inputs and no outputs. Drop the contract, or declare the surface as a Widget.',
   })
   // Capability routes are an App's own pages, so a Widget cannot own one.
   .refine(value => !(value.capabilities !== undefined && value.kind === 'widget'), {

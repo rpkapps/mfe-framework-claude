@@ -9,10 +9,11 @@ import {
   assertDefinitionId,
   createMfeError,
   DEFINITION_BRAND,
-  eventNameToHandlerProp,
-  findEventNameProblem,
+  outputNameToHandlerProp,
+  findOutputNameProblem,
   withoutUndefined,
-  type ContractEvents,
+  type ContractOutputs,
+  type OutputSchema,
   type ContractInputs,
   type WidgetContract,
 } from '@company/mfe-core'
@@ -101,37 +102,38 @@ export function createApp(options: AppOptions): AppDefinition {
 export interface WidgetRenderProps<C extends WidgetContract> {
   readonly inputs: ContractInputs<C>
   /** Validates the payload at this call site, so a failure surfaces here. */
-  readonly emit: <K extends keyof ContractEvents<C> & string>(
-    event: K,
-    payload: ContractEvents<C>[K],
+  readonly emit: <K extends keyof ContractOutputs<C> & string>(
+    output: K,
+    payload: ContractOutputs<C>[K],
   ) => void
 }
 
 export interface WidgetOptions<
   Inputs extends z.ZodType,
-  Events extends Record<string, z.ZodType>,
+  Outputs extends OutputSchema,
 > extends PresentationOptions {
   readonly id: string
   readonly version?: string
-  readonly inputs: Inputs
-  readonly events: Events
-  readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Events>>) => ReactNode
+  readonly inputSchema: Inputs
+  /** `z.object({ acknowledged: z.object({ … }) })`: one property per output, its payload's schema. */
+  readonly outputSchema: Outputs
+  readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Outputs>>) => ReactNode
 }
 
 export interface WidgetDefinition<
   Inputs extends z.ZodType = z.ZodType,
-  Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
+  Outputs extends OutputSchema = OutputSchema,
 > extends MountableWidgetDefinition {
   readonly framework: 'react'
-  readonly contract: WidgetContract<Inputs, Events>
-  readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Events>>) => ReactNode
+  readonly contract: WidgetContract<Inputs, Outputs>
+  readonly render: (props: WidgetRenderProps<WidgetContract<Inputs, Outputs>>) => ReactNode
 }
 
-export function createWidget<Inputs extends z.ZodType, Events extends Record<string, z.ZodType>>(
-  options: WidgetOptions<Inputs, Events>,
-): WidgetDefinition<Inputs, Events> {
+export function createWidget<Inputs extends z.ZodType, Outputs extends OutputSchema>(
+  options: WidgetOptions<Inputs, Outputs>,
+): WidgetDefinition<Inputs, Outputs> {
   assertDefinitionId(options.id, 'createWidget')
-  assertUsableEventNames(options.id, options.events)
+  assertUsableOutputNames(options.id, options.outputSchema)
 
   if (typeof options.render !== 'function') {
     throw createMfeError({
@@ -150,7 +152,7 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
     framework: 'react',
     id: options.id,
     ...withoutUndefined({ version: options.version }),
-    contract: { inputs: options.inputs, events: options.events },
+    contract: { inputSchema: options.inputSchema, outputSchema: options.outputSchema },
     render: options.render,
     // See `createApp`: `this` is the copy a container's build attached its style root to.
     async mount(target: WidgetMountTarget): Promise<MountedWidget> {
@@ -162,29 +164,42 @@ export function createWidget<Inputs extends z.ZodType, Events extends Record<str
 
 export type MfeDefinition = AppDefinition | WidgetDefinition
 
-/** Two events mapping to one `on`-prefixed prop would make a subscription ambiguous. */
-function assertUsableEventNames(id: string, events: Record<string, z.ZodType>): void {
-  const problem = findEventNameProblem(Object.keys(events))
+/** Two outputs mapping to one `on`-prefixed prop would make a subscription ambiguous. */
+function assertUsableOutputNames(id: string, outputSchema: OutputSchema): void {
+  const shape = (outputSchema as Partial<OutputSchema> | undefined)?.shape
+  if (shape === null || typeof shape !== 'object') {
+    throw createMfeError({
+      code: 'contract/output-mismatch',
+      id,
+      operation: 'declare the outputs',
+      expected: 'an outputSchema made with z.object, one property per output',
+      observed: outputSchema === undefined ? 'nothing' : 'a schema that is not an object schema',
+      repair:
+        'Declare outputSchema: z.object({ acknowledged: z.object({ … }) }), or z.object({}) when the Widget emits nothing.',
+    })
+  }
+
+  const problem = findOutputNameProblem(Object.keys(shape))
   if (problem === null) return
 
   const declaration = {
-    code: 'contract/event-mismatch',
+    code: 'contract/output-mismatch',
     id,
-    operation: `declare event '${problem.name}'`,
+    operation: `declare output '${problem.name}'`,
   } as const
 
   if (problem.kind === 'invalid') {
     throw createMfeError({
       ...declaration,
-      expected: 'a lower-camel-case event name, for example "acknowledged"',
+      expected: 'a lower-camel-case output name, for example "acknowledged"',
       observed: JSON.stringify(problem.name),
-      repair: `Rename the event; consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}.`,
+      repair: `Rename the output; consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}.`,
     })
   }
 
   throw createMfeError({
     ...declaration,
-    expected: 'event names that map to distinct handler props',
+    expected: 'output names that map to distinct handler props',
     observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
     repair: `Rename one of them, for example '${problem.name}Completed'.`,
   })

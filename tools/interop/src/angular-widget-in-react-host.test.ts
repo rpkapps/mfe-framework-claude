@@ -76,8 +76,8 @@ class AlertPanelComponent implements OnChanges {
 }
 
 const alertPanelContract = {
-  inputs: z.object({ label: z.string(), alertId: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  inputSchema: z.object({ label: z.string(), alertId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
 }
 
 const alertPanel = createWidget({
@@ -91,8 +91,10 @@ const alertPanel = createWidget({
 /** A consumer whose own contract is stricter about ids than the provider's. */
 const StrictAlertPanel = lazyWidget('alert-panel', {
   contract: {
-    inputs: alertPanelContract.inputs,
-    events: { acknowledged: z.object({ alertId: z.string().startsWith('alert-') }) },
+    inputSchema: alertPanelContract.inputSchema,
+    outputSchema: z.object({
+      acknowledged: z.object({ alertId: z.string().startsWith('alert-') }),
+    }),
   },
 })
 
@@ -100,7 +102,7 @@ interface AlertPanelProps {
   readonly label: string
   readonly alertId: string
   readonly onAcknowledged?: (payload: { readonly alertId: string }) => void
-  readonly onEvent?: (name: string, payload: unknown) => void
+  readonly onOutput?: (name: string, payload: unknown) => void
 }
 
 /** The two ways a React host places a Widget; every behaviour below holds for both. */
@@ -148,21 +150,21 @@ describe.each(placements)('an Angular Widget placed by %s', (_placement, place) 
     expect(applications.live).toBe(1)
   })
 
-  it('delivers an Angular output to the React onX handler and the onEvent catch-all, validated', async () => {
+  it('delivers an Angular output to the React onX handler and the onOutput catch-all, validated', async () => {
     const memory = createPageRuntime({ definitions: [alertPanel] })
     const onAcknowledged = vi.fn()
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     await renderSuspending(
       reactHostPage(
         memory.runtime,
-        place({ label: 'Disk full', alertId: 'alert-1', onAcknowledged, onEvent }),
+        place({ label: 'Disk full', alertId: 'alert-1', onAcknowledged, onOutput }),
       ),
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Acknowledge' }))
 
     expect(onAcknowledged.mock.calls).toEqual([[{ alertId: 'alert-1' }]])
-    expect(onEvent.mock.calls).toEqual([['acknowledged', { alertId: 'alert-1' }]])
+    expect(onOutput.mock.calls).toEqual([['acknowledged', { alertId: 'alert-1' }]])
     expect(memory.diagnostics).toEqual([])
   })
 
@@ -201,7 +203,7 @@ describe('an Angular Widget’s events in a React host', () => {
 
     expect(onAcknowledged).not.toHaveBeenCalled()
     expect(memory.diagnostics.map(diagnostic => diagnostic.error)).toEqual([
-      expect.objectContaining({ code: 'contract/event-mismatch', id: 'alert-panel' }),
+      expect.objectContaining({ code: 'contract/output-mismatch', id: 'alert-panel' }),
     ])
 
     view.rerender(page('alert-2'))

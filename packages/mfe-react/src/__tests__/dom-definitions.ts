@@ -20,8 +20,8 @@ import { z } from 'zod'
 const FRAMEWORK = 'plain-dom'
 
 export const alertContract = {
-  inputs: z.object({ label: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
 } satisfies WidgetContract
 
 interface Settlement {

@@ -40,7 +40,7 @@ import { MountTree } from '../mount-tree.tsx'
 import type { MfeRouterContext } from '../router-contract.ts'
 import { MfeProvider } from '../runtime-context.tsx'
 import { withQueryClient, type MfeMount, type MfeRuntime } from '../runtime.ts'
-import { deliverWidgetEvent, widgetInputs } from '../widget-props.ts'
+import { deliverWidgetOutput, widgetInputs } from '../widget-props.ts'
 
 /**
  * The runtime's memory fakes and the generated-alias fixtures, so a test imports its adapter's
@@ -226,8 +226,8 @@ export function renderWidget(
       definition={definition}
       mount={environment.mount}
       inputs={widgetInputs(props)}
-      emit={(event, payload) => {
-        deliverWidgetEvent(props, event, payload)
+      emit={(output, payload) => {
+        deliverWidgetOutput(props, output, payload)
       }}
     />,
   )
@@ -253,19 +253,19 @@ export interface MountAppOptions extends PlacementOptions {
   readonly basePath?: string
 }
 
-export interface WidgetEvent {
+export interface WidgetOutput {
   readonly name: string
   readonly payload: unknown
 }
 
 export interface MountWidgetOptions extends PlacementOptions {
   readonly inputs?: Readonly<Record<string, unknown>>
-  readonly onEvent?: (name: string, payload: unknown) => void
+  readonly onOutput?: (name: string, payload: unknown) => void
 }
 
 export interface MountedTestWidget extends MountedTestDefinition {
-  /** Every event the Widget emitted and its contract accepted, in order. */
-  readonly events: readonly WidgetEvent[]
+  /** Every output the Widget emitted and its contract accepted, in order. */
+  readonly outputs: readonly WidgetOutput[]
   /** Every later input set the Widget rejected, in order. */
   readonly rejectedInputs: readonly MfeError[]
   /** Replaces the inputs, as a host re-rendering with new props does. */
@@ -355,9 +355,9 @@ export async function mountWidget(
   definition: MountableWidgetDefinition,
   options: MountWidgetOptions = {},
 ): Promise<MountedTestWidget> {
-  const { inputs = {}, onEvent, ...placementOptions } = options
+  const { inputs = {}, onOutput, ...placementOptions } = options
   const placement = place(definition, placementOptions, '')
-  const events: WidgetEvent[] = []
+  const outputs: WidgetOutput[] = []
   const rejectedInputs: MfeError[] = []
 
   const mount = mountDefinition({
@@ -366,9 +366,9 @@ export async function mountWidget(
     definitionId: definition.id,
     kind: 'widget',
     inputs,
-    onEvent: (name, payload) => {
-      events.push({ name, payload })
-      onEvent?.(name, payload)
+    onOutput: (name, payload) => {
+      outputs.push({ name, payload })
+      onOutput?.(name, payload)
     },
     onInputRejected: error => {
       rejectedInputs.push(error)
@@ -380,7 +380,7 @@ export async function mountWidget(
     element,
     memory: placement.memory,
     mount,
-    events,
+    outputs,
     rejectedInputs,
     update: next => {
       mount.update(next)

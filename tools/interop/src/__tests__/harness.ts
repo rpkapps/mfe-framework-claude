@@ -28,7 +28,7 @@ import {
   MfeWidgetComponent,
   provideMfeRuntime,
   type MfeError,
-  type MfeWidgetEvent,
+  type MfeWidgetOutput,
 } from '@company/mfe-angular'
 import {
   createHostApplication,
@@ -85,7 +85,7 @@ function createAngularHost(runtime: MfeRuntime): Promise<ApplicationRef> {
     <mfe-widget
       [widgetId]="widgetId"
       [inputs]="inputs()"
-      (event)="events.push($event)"
+      (output)="outputs.push($event)"
       (failed)="failures.push($event)"
     />
   }`,
@@ -94,7 +94,7 @@ export class WidgetHostComponent {
   @Input() widgetId = ''
   readonly shown = signal(true)
   readonly inputs = signal<Readonly<Record<string, unknown>>>({})
-  readonly events: MfeWidgetEvent[] = []
+  readonly outputs: MfeWidgetOutput[] = []
   readonly failures: MfeError[] = []
 }
 

@@ -28,8 +28,8 @@ beforeEach(() => {
 
 const reactThemeBadge = createWidget({
   id: 'theme-badge',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: function ThemeBadge(): ReactNode {
     const theme = useTheme()
     useEffect(() => {
@@ -56,8 +56,8 @@ class ThemePanelComponent {
 
 const angularThemePanel = createAngularWidget({
   id: 'theme-panel',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: ThemePanelComponent,
 })
 

@@ -55,7 +55,7 @@ function Inner(): ReactNode {
       widgetId: 'counter',
       label: 'Counter',
       count,
-      onEvent: (name, payload) => {
+      onOutput: (name, payload) => {
         const next = (payload as { readonly count: number }).count
         setLastEvent(`${name} to ${String(next)}`)
         setCount(next)

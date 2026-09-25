@@ -1,11 +1,11 @@
 /**
  * Reading the schemas a Widget publishes: one walk for every reader, because three separate ones
- * drifted as the emitter learned constructs a reader then reported as unreadable (§28). An event
- * payload is walked by the same code as the inputs, so a host wiring one Widget's event into
+ * drifted as the emitter learned constructs a reader then reported as unreadable (§28). An output's
+ * payload is walked by the same code as the inputs, so a host wiring one Widget's output into
  * another's inputs compares like with like.
  */
 
-import type { JsonSchemaObject, JsonSchemaValue, PublishedWidgetContract } from './definition.ts'
+import type { JsonSchemaObject, JsonSchemaValue, PublishedContract } from './definition.ts'
 
 /** The vocabulary the build emits; `unknown` is a schema this cannot classify. */
 export type WidgetInputKind =
@@ -108,7 +108,7 @@ function describeType(raw: JsonSchemaObject): WidgetInputType {
   }
 }
 
-export interface WidgetEvent {
+export interface WidgetOutput {
   readonly name: string
   /** The payload's own schema; `{}` when the build could not read it. */
   readonly schema: JsonSchemaObject
@@ -117,20 +117,21 @@ export interface WidgetEvent {
 }
 
 /** `null` is "the build could not describe this", where `[]` is "this Widget takes nothing" (§28). */
-export function describeWidgetInputs(
-  contract: PublishedWidgetContract | undefined,
+export function describeInputs(
+  contract: PublishedContract | undefined,
 ): readonly WidgetInputField[] | null {
-  return describeFields(contract?.inputs)
+  return describeFields(contract?.inputSchema)
 }
 
 /**
- * The declared events, in declaration order. `null` is "the build could not read the names",
- * where `[]` is "this Widget emits nothing", as for the inputs (§28).
+ * The declared outputs, in declaration order. `null` is "the build could not read the names",
+ * where `[]` is "this Widget emits nothing", as for the inputs (§28). `required` is not read:
+ * every output may never be emitted.
  */
-export function describeWidgetEvents(
-  contract: PublishedWidgetContract | undefined,
-): readonly WidgetEvent[] | null {
-  const properties = asObject(contract?.events?.['properties'])
+export function describeOutputs(
+  contract: PublishedContract | undefined,
+): readonly WidgetOutput[] | null {
+  const properties = asObject(contract?.outputSchema?.['properties'])
   if (properties === undefined) return null
 
   return Object.entries(properties).map(([name, value]) => {
@@ -198,8 +199,8 @@ export function coerceInputs(
 }
 
 /** An unpublished schema counts as needing a prompt, because the host then knows nothing. */
-export function needsInputPrompt(contract: PublishedWidgetContract | undefined): boolean {
-  const fields = describeWidgetInputs(contract)
+export function needsInputPrompt(contract: PublishedContract | undefined): boolean {
+  const fields = describeInputs(contract)
   return fields === null || fields.some(field => field.required)
 }
 

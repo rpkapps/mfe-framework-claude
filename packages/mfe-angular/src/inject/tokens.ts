@@ -16,6 +16,6 @@ export const MFE_MOUNT = new InjectionToken<MountContext>('MFE_MOUNT')
  * The validating emit of the Widget mount the injector belongs to. Output subscriptions go
  * through the same function, so a nested component and the Widget's root agree on every rule.
  */
-export const WIDGET_EMIT = new InjectionToken<(event: string, payload: unknown) => void>(
+export const WIDGET_EMIT = new InjectionToken<(output: string, payload: unknown) => void>(
   'WIDGET_EMIT',
 )

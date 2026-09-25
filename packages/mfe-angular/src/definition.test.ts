@@ -72,16 +72,16 @@ describe('createApp', () => {
 
 describe('createWidget', () => {
   const contract = {
-    inputs: z.object({ label: z.string() }),
-    events: { activated: z.object({ at: z.string() }) },
+    inputSchema: z.object({ label: z.string() }),
+    outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
   }
 
   it('returns a branded record carrying its contract and component', () => {
     const widget = createWidget({ id: 'badge', ...contract, component: BadgeComponent })
 
     expect(widget).toMatchObject({ kind: 'widget', framework: 'angular', id: 'badge' })
-    expect(widget.contract.inputs).toBe(contract.inputs)
-    expect(widget.contract.events).toBe(contract.events)
+    expect(widget.contract.inputSchema).toBe(contract.inputSchema)
+    expect(widget.contract.outputSchema).toBe(contract.outputSchema)
     expect(widget.component).toBe(BadgeComponent)
     expect(widget.providers).toEqual([])
     expect(isMountableDefinition(widget)).toBe(true)
@@ -91,11 +91,11 @@ describe('createWidget', () => {
     expect(() =>
       createWidget({
         id: 'badge',
-        inputs: contract.inputs,
-        events: { 'was-activated': z.object({}) },
+        inputSchema: contract.inputSchema,
+        outputSchema: z.object({ 'was-activated': z.object({}) }),
         component: BadgeComponent,
       }),
-    ).toThrowError(/declare event 'was-activated': expected a lower-camel-case event name/)
+    ).toThrowError(/declare output 'was-activated': expected a lower-camel-case output name/)
   })
 
   it('rejects a missing component', () => {

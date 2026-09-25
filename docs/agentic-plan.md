@@ -1,6 +1,6 @@
 # Plan: an agentic framework
 
-**Status:** in progress. Steps 0, 4 and 1 have landed (§39, §40); the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
+**Status:** in progress. Steps 0, 4, 1 and 2 have landed (§39, §40, §41), and step 5 in part; the rest is proposed. Each step that lands gets its own entry in `decisions.md`. Nothing is deployed, so none of the steps carries a compatibility path.
 
 ## Goal
 
@@ -54,9 +54,11 @@ Each is its own commit, with the framework's tests green and no change in behavi
 - `execute(id)` becomes `execute(id, { caller })`, where `caller` is `'palette' | 'shortcut' | 'ui' | 'agent'`; the `executed` result carries a `value`. `input` joins the call with `inputSchema` (A), so no unvalidated input channel ever exists.
 - `#run` becomes ordered steps: decide (`canExecute`) → validate the input → approval (the action's declaration, then the host's policy, see A) → serialize writes → execute → audit. Steps 2–4 and 6 are empty until the action fields below exist.
 
-### 2. Share the build's schema extraction
+### 2. Share the build's schema extraction (done, §41)
 
 `packages/mfe-build/src/discovery/widget-contract.ts` reads Zod syntax into JSON Schema for Widgets only (`readInputSchema` titles its output `${id} inputs`). Move the reader into a neutral module so action input schemas, and later route and search schemas, use the same code, and rename the host readers to match (`describeWidgetInputs` → `describeInputs`, `describeWidgetEvents` → `describeOutputs`, `PublishedWidgetContract` → `PublishedContract`). Covered by the existing extraction tests.
+
+As landed: the renames, and no move. The reader is already neutral (`config/zod-static.ts`); an action's schema is live in the page and converted at run time, so the build never reads one, and D calls `readStaticSchema` directly.
 
 In the same step, the Widget contract takes the names actions use: `inputs` becomes `inputSchema`, and `events` becomes `outputSchema`, one object schema with a property per output, whose value is that output's payload schema. That is the shape the registry already publishes (§16's amendment), so the authored and the published contract become the same thing. The rename covers the contract field, the published registry field, the build's reader and the Angular adapter's check that every property is one of the component's `output()`s. The values keep their names: `render` still receives `inputs`, and `emit(name, payload)` validates against the property of that name; `emit` and the `onX` props stay, as Angular keeps "emit" and event binding for its outputs. `DynamicWidget`'s `onEvent(name, payload)` becomes `onOutput`, so no "event" is left in the vocabulary. The readers of a Widget's `outputSchema` (`describeOutputs`, the Angular check) ignore whether a property is required: every output may never be emitted. §16 and §28 get an amendment.
 
@@ -68,7 +70,7 @@ In the same step, the Widget contract takes the names actions use: `inputs` beco
 
 The shell used `placements: []` (a `KEYS_ONLY` constant, now gone from `apps/shell/src/shell/shell-actions.ts`) to mean "keys only". Once `'agent'` is a placement, an empty list would also hide those actions from the agent without anyone noticing. Document that a shortcut fires whatever the placements are, and give those shell actions an explicit placement list.
 
-### 5. Remove compatibility code for deployments that never happened (optional)
+### 5. Remove compatibility code for deployments that never happened (optional; §16's went with §41)
 
 For example, §16's amendment still accepts the old event-name list "so a shell is deployed first".
 

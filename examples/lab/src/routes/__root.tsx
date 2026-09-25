@@ -25,7 +25,7 @@ const NAV: readonly { to: string; label: string; hint: string; icon: LucideIcon 
   { to: '/shell-state', label: 'Shell state', hint: 'user, groups, theme', icon: UserIcon },
   { to: '/storage', label: 'Storage', hint: 'validated, scoped, retained', icon: DatabaseIcon },
   { to: '/actions', label: 'Actions', hint: 'palette and denial', icon: TerminalIcon },
-  { to: '/widgets', label: 'Widgets', hint: 'inputs, events, failure', icon: BoxIcon },
+  { to: '/widgets', label: 'Widgets', hint: 'inputs, outputs, failure', icon: BoxIcon },
   { to: '/config', label: 'Config & fetch', hint: 'runtime config, auth', icon: KeyRoundIcon },
   { to: '/telemetry', label: 'Telemetry', hint: 'spans and logs', icon: ActivityIcon },
   {

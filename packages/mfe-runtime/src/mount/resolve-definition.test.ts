@@ -38,7 +38,7 @@ const ALERT_PANEL: MountableWidgetDefinition = {
   kind: 'widget',
   id: 'alert-panel',
   framework: 'plain-dom',
-  contract: { inputs: z.object({}), events: {} },
+  contract: { inputSchema: z.object({}), outputSchema: z.object({}) },
   mount: async () => ({ update: () => undefined, dispose: async () => undefined }),
 }
 

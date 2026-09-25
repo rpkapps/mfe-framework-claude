@@ -60,11 +60,11 @@ export {
 export {
   allow,
   deny,
+  type ActionPlacement,
+  type ActionRegistration,
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
-  type ActionPlacement,
-  type ActionRegistration,
   type Decision,
   type MfeError,
   type MfeErrorCode,
@@ -75,6 +75,7 @@ export {
   type ShellUser,
   type StorageArea,
   type StorageKeyOptions,
+  type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
@@ -82,7 +83,7 @@ export {
   /* An author reads these inside `injectNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,
-  type PublishedWidgetContract,
+  type PublishedContract,
   /* What a shell author needs to write or register an adapter of their own. */
   type MfeAdapter,
   type Registry,
@@ -92,7 +93,7 @@ export {
 
 /* Placing definitions from an Angular shell or App; a shell composes the page from `/host`. */
 export { provideMfeRuntime } from './host/provide-runtime.ts'
-export { MfeWidgetComponent, type MfeWidgetEvent } from './host/widget.component.ts'
+export { MfeWidgetComponent, type MfeWidgetOutput } from './host/widget.component.ts'
 export { MfeAppHostComponent } from './host/app-host.component.ts'
 export type { MountStatus } from './host/hosted-mount.ts'
 export { MfeDefinitionIconComponent } from './host/definition-icon.component.ts'
@@ -123,15 +124,15 @@ export {
   type ShellAuthOptions,
 } from '@company/mfe-runtime'
 
-/** The one walk over a Widget's published inputs and events, for a host composing the registry. */
+/** The one walk over a Widget's published inputs and outputs, for a host composing the registry. */
 export {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
   type BuildProvenance,
-  type WidgetEvent,
+  type WidgetOutput,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

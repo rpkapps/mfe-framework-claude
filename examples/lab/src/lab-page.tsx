@@ -157,7 +157,7 @@ export function Identifier({
   )
 }
 
-/** A list of names — groups, definitions, event names — never a JSON array. */
+/** A list of names — groups, definitions, output names — never a JSON array. */
 export function Tags({
   values,
   variant = 'secondary',

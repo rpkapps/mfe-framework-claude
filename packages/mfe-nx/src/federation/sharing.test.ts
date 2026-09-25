@@ -29,8 +29,8 @@ class PanelComponent {}
 
 export const panel = createWidget({
   id: 'panel',
-  inputs: z.object({ label: z.string() }),
-  events: {},
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({}),
   component: PanelComponent,
 })
 `

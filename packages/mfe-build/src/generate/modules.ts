@@ -474,7 +474,7 @@ function widgetContractModule(
   const schemaLines: string[] = []
   const exportLines: string[] = []
 
-  for (const field of ['inputs', 'events'] as const) {
+  for (const field of ['inputSchema', 'outputSchema'] as const) {
     const binding = source[field]
     if (binding.kind === 'reexport') {
       const alias = binding.exported === field ? field : `${binding.exported} as ${field}`
@@ -488,13 +488,14 @@ function widgetContractModule(
   const zod = zodBinding(source.imports, boundNames)
   if (zod.importLine !== null) importLines.unshift(zod.importLine)
 
-  const eventsType =
-    widget.eventNames.length === 0
-      ? 'export type Events = Record<never, never>'
+  const outputsType =
+    widget.outputNames.length === 0
+      ? 'export type Outputs = Record<never, never>'
       : [
-          'export type Events = {',
-          ...widget.eventNames.map(
-            name => `  readonly ${name}: ${zod.local}.infer<(typeof events)[${quote(name)}]>`,
+          'export type Outputs = {',
+          ...widget.outputNames.map(
+            name =>
+              `  readonly ${name}: ${zod.local}.infer<(typeof outputSchema)['shape'][${quote(name)}]>`,
           ),
           '}',
         ].join('\n')
@@ -513,7 +514,7 @@ function widgetContractModule(
       [...source.prelude].join('\n'),
       schemaLines.join('\n'),
       exportLines.join('\n'),
-      [`export type Inputs = ${zod.local}.infer<typeof inputs>`, '', eventsType].join('\n'),
+      [`export type Inputs = ${zod.local}.infer<typeof inputSchema>`, '', outputsType].join('\n'),
     ]),
   }
 }

@@ -2,6 +2,6 @@
 
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })

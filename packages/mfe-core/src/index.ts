@@ -38,7 +38,7 @@ export {
   type IconNode,
   type JsonSchemaObject,
   type JsonSchemaValue,
-  type PublishedWidgetContract,
+  type PublishedContract,
 } from './definition.ts'
 
 export {
@@ -48,18 +48,20 @@ export {
 } from './definition-brand.ts'
 
 export {
-  eventNameToHandlerProp,
-  findEventNameProblem,
+  findOutputNameProblem,
   isReservedInputName,
-  isValidEventName,
+  isValidOutputName,
+  outputNameToHandlerProp,
+  outputPayloadSchema,
   RESERVED_INPUT_NAMES,
   validateAgainstContract,
   validateSerializable,
-  type ContractEvents,
   type ContractInputs,
+  type ContractOutputs,
   type ContractValidation,
   type ContractValidationContext,
-  type EventNameProblem,
+  type OutputNameProblem,
+  type OutputSchema,
   type WidgetContract,
 } from './contract.ts'
 
@@ -151,10 +153,10 @@ export { HOST_SCOPE } from './scope.ts'
 export {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
-  type WidgetEvent,
+  type WidgetOutput,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

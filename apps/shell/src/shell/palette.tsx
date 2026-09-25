@@ -9,7 +9,7 @@ import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from 'react
 import { useNavigate } from '@tanstack/react-router'
 import {
   defaultInputsFor,
-  describeWidgetInputs,
+  describeInputs,
   HOST_SCOPE,
   needsInputPrompt,
   useApps,
@@ -143,7 +143,7 @@ export function CommandPalette({
   const add = (entry: RegistryEntry): void => {
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
     const needsInputs = needsInputPrompt(entry.contract)
-    const inputs = defaultInputsFor(describeWidgetInputs(entry.contract))
+    const inputs = defaultInputsFor(describeInputs(entry.contract))
     // No canvas is measured from here, so the tile is placed against a nominal one and the
     // canvas refits it to its real width on the way in.
     setLayout(value => addTile(value, { key: tileKey(entry.id), widgetId: entry.id, inputs }))

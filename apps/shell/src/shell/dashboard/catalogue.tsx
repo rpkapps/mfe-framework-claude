@@ -31,7 +31,7 @@ import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
 import { Chip, ChipGroup, ChipList } from '@tecton/react/tecton/chip'
 import { BoxIcon, PlusIcon, SearchIcon, XIcon, ZapIcon } from 'lucide-react'
 
-import { readEvents, readInputFields, type EventDetail, type InputField } from './input-schema.ts'
+import { readOutputs, readInputFields, type OutputDetail, type InputField } from './input-schema.ts'
 
 /** The drag payload. A custom type keeps unrelated drops out of the canvas. */
 export const WIDGET_MEDIA_TYPE = 'application/x-mfe-widget'
@@ -256,10 +256,10 @@ function WidgetIcon({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   )
 }
 
-/** The published contract, in two lines: inputs in, events out. */
+/** The published contract, in two lines: inputs in, outputs out. */
 function ContractDetail({ entry }: { readonly entry: RegistryEntry }): ReactNode {
   const fields = readInputFields(entry.contract)
-  const events = readEvents(entry.contract)
+  const outputs = readOutputs(entry.contract)
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -283,17 +283,17 @@ function ContractDetail({ entry }: { readonly entry: RegistryEntry }): ReactNode
         </div>
       )}
 
-      <Contract fields={fields} events={events} />
+      <Contract fields={fields} outputs={outputs} />
     </div>
   )
 }
 
 function Contract({
   fields,
-  events,
+  outputs,
 }: {
   readonly fields: readonly InputField[] | null
-  readonly events: readonly EventDetail[] | null
+  readonly outputs: readonly OutputDetail[] | null
 }): ReactNode {
   return (
     <dl className="flex flex-col gap-1 text-xs">
@@ -328,21 +328,21 @@ function Contract({
       <div className="flex min-w-0 gap-2">
         <dt className="w-12 shrink-0 pt-0.5 text-muted-foreground">Emits</dt>
         <dd className="flex min-w-0 flex-wrap gap-1">
-          {events === null ? (
+          {outputs === null ? (
             <span className="text-muted-foreground italic">no schema published</span>
-          ) : events.length === 0 ? (
+          ) : outputs.length === 0 ? (
             <span className="text-muted-foreground">nothing</span>
           ) : (
-            events.map(event => (
-              <TooltipTrigger key={event.name}>
+            outputs.map(output => (
+              <TooltipTrigger key={output.name}>
                 <Badge
                   variant="info"
                   appearance="outline"
                   render={props => <span {...props} tabIndex={0} />}
                 >
-                  <ZapIcon aria-hidden data-icon="inline-start" /> {event.name}
+                  <ZapIcon aria-hidden data-icon="inline-start" /> {output.name}
                 </Badge>
-                <Tooltip>{event.payloadLabel}</Tooltip>
+                <Tooltip>{output.payloadLabel}</Tooltip>
               </TooltipTrigger>
             ))
           )}

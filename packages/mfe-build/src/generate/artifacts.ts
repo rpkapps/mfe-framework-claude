@@ -53,8 +53,12 @@ export function containerDescriptor(
       ...(definition.kind === 'widget'
         ? {
             contract: {
-              ...(definition.eventSchema === undefined ? {} : { events: definition.eventSchema }),
-              ...(definition.inputSchema === undefined ? {} : { inputs: definition.inputSchema }),
+              ...(definition.inputSchema === undefined
+                ? {}
+                : { inputSchema: definition.inputSchema }),
+              ...(definition.outputSchema === undefined
+                ? {}
+                : { outputSchema: definition.outputSchema }),
             },
           }
         : {}),

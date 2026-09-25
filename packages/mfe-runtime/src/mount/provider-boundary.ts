@@ -9,6 +9,7 @@ import {
   createMfeError,
   isRecord,
   isReservedInputName,
+  outputPayloadSchema,
   validateAgainstContract,
   validateSerializable,
   withoutUndefined,
@@ -35,12 +36,12 @@ export type ProviderInputs =
 
 function contextOf(
   definition: ProviderDefinition,
-  direction: 'input' | 'event',
-  eventName?: string,
+  direction: 'input' | 'output',
+  outputName?: string,
 ): ContractValidationContext {
   return {
     id: definition.id,
-    ...withoutUndefined({ definitionVersion: definition.version, eventName }),
+    ...withoutUndefined({ definitionVersion: definition.version, outputName }),
     direction,
     side: 'provider',
   }
@@ -51,7 +52,7 @@ function reservedInputName(id: string, name: string): MfeError {
     code: 'contract/input-mismatch',
     id,
     operation: `declare input '${name}'`,
-    expected: 'an input name that is not reserved for host control or event handlers',
+    expected: 'an input name that is not reserved for host control or output handlers',
     observed: `'${name}', which is reserved`,
     repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
   })
@@ -70,7 +71,7 @@ export function validateProviderInputs(
   const nonSerializable = validateSerializable(inputs, context)
   if (nonSerializable) return { status: 'rejected', error: nonSerializable }
 
-  const result = validateAgainstContract(definition.contract.inputs, inputs, context)
+  const result = validateAgainstContract(definition.contract.inputSchema, inputs, context)
   if (!result.ok) return { status: 'rejected', error: result.error }
 
   const reserved = isRecord(result.value)
@@ -84,31 +85,31 @@ export function validateProviderInputs(
 }
 
 /**
- * The one emit a Widget's events go through. It throws at the call site, which keeps a failure in
+ * The one emit a Widget's outputs go through. It throws at the call site, which keeps a failure in
  * the provider's own stack; `deliver` receives only a payload the Widget's own schema accepted.
  */
 export function createProviderEmit(
   definition: ProviderDefinition,
-  deliver: (event: string, payload: unknown) => void,
-): (event: string, payload: unknown) => void {
-  const declared = definition.contract.events
+  deliver: (output: string, payload: unknown) => void,
+): (output: string, payload: unknown) => void {
+  const declared = definition.contract.outputSchema
 
-  return (event, payload) => {
-    const schema = declared[event]
+  return (output, payload) => {
+    const schema = outputPayloadSchema(declared, output)
     if (!schema) {
       throw createMfeError({
-        code: 'contract/event-mismatch',
+        code: 'contract/output-mismatch',
         id: definition.id,
         ...withoutUndefined({ definitionVersion: definition.version }),
-        operation: `emit event '${event}'`,
-        direction: 'event',
-        expected: `one of the declared events (${Object.keys(declared).join(', ') || 'none'})`,
-        observed: `'${event}', which this Widget does not declare`,
-        repair: `Add '${event}' to the events schema, or emit a declared event.`,
+        operation: `emit output '${output}'`,
+        direction: 'output',
+        expected: `one of the declared outputs (${Object.keys(declared.shape).join(', ') || 'none'})`,
+        observed: `'${output}', which this Widget does not declare`,
+        repair: `Add '${output}' to the outputSchema, or emit a declared output.`,
       })
     }
 
-    const context = contextOf(definition, 'event', event)
+    const context = contextOf(definition, 'output', output)
 
     const nonSerializable = validateSerializable(payload, context)
     if (nonSerializable) throw nonSerializable
@@ -117,6 +118,6 @@ export function createProviderEmit(
     if (!validated.ok) throw validated.error
 
     // Whatever the consumer declared is the host's to check, on its side of the channel.
-    deliver(event, validated.value)
+    deliver(output, validated.value)
   }
 }

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import {
-  eventNameToHandlerProp,
+  outputNameToHandlerProp,
   findNonSerializableValue,
   isReservedInputName,
-  isValidEventName,
+  isValidOutputName,
   validateAgainstContract,
   validateSerializable,
   type ContractValidationContext,
@@ -44,7 +44,7 @@ describe('validateAgainstContract', () => {
     expect(result.error.message).toContain('Check the alertId prop on the Widget.')
   })
 
-  it('attributes a consumer-side event failure to the consumer contract', () => {
+  it('attributes a consumer-side output failure to the consumer contract', () => {
     const schema = z.object({ alertId: z.string() })
 
     const result = validateAgainstContract(
@@ -52,16 +52,16 @@ describe('validateAgainstContract', () => {
       { alertId: 42 },
       {
         id: 'alert-panel',
-        direction: 'event',
+        direction: 'output',
         side: 'consumer',
-        eventName: 'acknowledged',
+        outputName: 'acknowledged',
       },
     )
 
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.error.code).toBe('contract/event-mismatch')
-    expect(result.error.message).toContain("emit event 'acknowledged'")
+    expect(result.error.code).toBe('contract/output-mismatch')
+    expect(result.error.message).toContain("emit output 'acknowledged'")
     expect(result.error.message).toContain(
       "Check the 'acknowledged' schema this consumer declared.",
     )
@@ -74,7 +74,7 @@ describe('validateAgainstContract', () => {
     const result = validateAgainstContract(
       consumerContract,
       { alertId: 'a-1', severity: 'high', addedLater: true },
-      { id: 'alert-panel', direction: 'event', side: 'consumer', eventName: 'acknowledged' },
+      { id: 'alert-panel', direction: 'output', side: 'consumer', outputName: 'acknowledged' },
     )
 
     expect(result).toEqual({ ok: true, value: { alertId: 'a-1' } })
@@ -131,7 +131,7 @@ describe('serializable values only', () => {
     expect(error?.code).toBe('contract/input-mismatch')
     expect(error?.path).toEqual(['onSelect'])
     expect(error?.message).toContain('expected a JSON-serializable value')
-    expect(error?.message).toContain('subscribes to an event instead')
+    expect(error?.message).toContain('subscribes to an output instead')
   })
 
   it('allows an absent optional field but not a hole inside an array', () => {
@@ -149,15 +149,15 @@ describe('reserved names', () => {
     expect(isReservedInputName(name)).toBe(false)
   })
 
-  it('maps an event name to its handler prop', () => {
-    expect(eventNameToHandlerProp('acknowledged')).toBe('onAcknowledged')
-    expect(eventNameToHandlerProp('selectionChanged')).toBe('onSelectionChanged')
+  it('maps an output name to its handler prop', () => {
+    expect(outputNameToHandlerProp('acknowledged')).toBe('onAcknowledged')
+    expect(outputNameToHandlerProp('selectionChanged')).toBe('onSelectionChanged')
   })
 
-  it('requires lower-camel-case event names', () => {
-    expect(isValidEventName('acknowledged')).toBe(true)
-    expect(isValidEventName('selectionChanged')).toBe(true)
-    expect(isValidEventName('Acknowledged')).toBe(false)
-    expect(isValidEventName('selection-changed')).toBe(false)
+  it('requires lower-camel-case output names', () => {
+    expect(isValidOutputName('acknowledged')).toBe(true)
+    expect(isValidOutputName('selectionChanged')).toBe(true)
+    expect(isValidOutputName('Acknowledged')).toBe(false)
+    expect(isValidOutputName('selection-changed')).toBe(false)
   })
 })

@@ -887,7 +887,7 @@ async function lifecycle() {
       [909, 130],
       [1034, 130],
     ],
-    label: 'input, or event',
+    label: 'input, or output',
     labelOffset: -16,
   })
 
@@ -905,7 +905,7 @@ async function lifecycle() {
     'mount/failure',
     'app/invalid-router',
     'contract/input-mismatch',
-    'contract/event-mismatch',
+    'contract/output-mismatch',
   ].forEach((name, position) =>
     code(scene, { x: 18 + position * 227, y: 396, w: 213, h: 38, name, size: 11.5 }),
   )

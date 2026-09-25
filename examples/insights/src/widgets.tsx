@@ -1,4 +1,4 @@
-/** `inputs` arrives already validated and `emit` refuses any event the contract does not declare, so
+/** `inputs` arrives already validated and `emit` refuses any output the contract does not declare, so
  * neither needs a check here. */
 
 import type { WidgetRenderProps } from '@company/mfe-react'

@@ -220,14 +220,16 @@ describe('the Widget starter', () => {
     const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as {
       exports: Record<string, string>
     }
-    // The build reads `src/mfe.ts` and emits this exact path, exporting `inputs`
-    // and `events` — never a `<camel>Contract` object (that name only exists in
+    // The build reads `src/mfe.ts` and emits this exact path, exporting `inputSchema`
+    // and `outputSchema` — never a `<camel>Contract` object (that name only exists in
     // this container's own entry, not in what the build publishes).
     expect(manifest.exports['./contracts']).toBe('./.mfe/widgets/alert-panel.contract.ts')
 
     const readme = await readFile(join(directory, 'README.md'), 'utf8')
-    expect(readme).toContain("import { events, inputs } from '@example/alert-panel/contracts'")
-    expect(readme).toContain('contract: { inputs, events }')
+    expect(readme).toContain(
+      "import { inputSchema, outputSchema } from '@example/alert-panel/contracts'",
+    )
+    expect(readme).toContain('contract: { inputSchema, outputSchema }')
     expect(readme).not.toContain('alertPanelContract')
   })
 

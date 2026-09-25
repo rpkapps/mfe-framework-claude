@@ -13,6 +13,7 @@ import {
   isMfeError,
   type DeadlineConfig,
   type MountState,
+  type OutputSchema,
 } from '@company/mfe-core'
 
 import { at, codesOf, deferred, flush, type Deferred } from '../__tests__/harness.ts'
@@ -95,8 +96,8 @@ function plainApp(
 }
 
 const ALERT_CONTRACT = {
-  inputs: z.object({ label: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
 }
 
 interface FakeWidget {
@@ -212,7 +213,7 @@ function mountWidget(
     definitionId: 'alert-panel',
     kind: 'widget',
     inputs: { label: 'Pressure high' },
-    onEvent: () => undefined,
+    onOutput: () => undefined,
     ...extras,
   })
 }
@@ -764,94 +765,97 @@ describe('Widget inputs', () => {
   })
 })
 
-describe('Widget events', () => {
+describe('Widget outputs', () => {
   it('delivers an event the host declared nothing about as the Widget emitted it', async () => {
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
-    const mount = mountWidget(runtime, { onEvent })
+    const mount = mountWidget(runtime, { onOutput })
     await settled(mount, 'mounted')
 
     at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
 
-    expect(onEvent).toHaveBeenCalledWith('acknowledged', { alertId: 'a-7', extra: true })
+    expect(onOutput).toHaveBeenCalledWith('acknowledged', { alertId: 'a-7', extra: true })
   })
 
   it('delivers what the host’s own contract accepted', async () => {
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
-    const mount = mountWidget(runtime, { onEvent, consumerEvents: ALERT_CONTRACT.events })
+    const mount = mountWidget(runtime, { onOutput, consumerOutputs: ALERT_CONTRACT.outputSchema })
     await settled(mount, 'mounted')
 
     at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
 
-    expect(onEvent).toHaveBeenCalledWith('acknowledged', { alertId: 'a-7' })
+    expect(onOutput).toHaveBeenCalledWith('acknowledged', { alertId: 'a-7' })
   })
 
   /** The Angular host passes its contract as a getter, so one bound after mounting applies. */
-  it('reads the host’s events when one arrives, following a getter the host passed', async () => {
-    const onEvent = vi.fn()
+  it('reads the host’s outputs when one arrives, following a getter the host passed', async () => {
+    const onOutput = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
     // What the Angular host's getter returns before a contract is bound: nothing declared.
-    let consumerEvents: Record<string, z.ZodType> = {}
+    let consumerOutputs: OutputSchema | undefined = undefined
     const mount = mountDefinition({
       runtime,
       element: host,
       definitionId: 'alert-panel',
       kind: 'widget',
       inputs: { label: 'Pressure high' },
-      onEvent,
-      get consumerEvents() {
-        return consumerEvents
+      onOutput,
+      get consumerOutputs() {
+        return consumerOutputs
       },
     })
     await settled(mount, 'mounted')
 
     at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
-    consumerEvents = ALERT_CONTRACT.events
+    consumerOutputs = ALERT_CONTRACT.outputSchema
     at(widget.targets).emit('acknowledged', { alertId: 'a-8', extra: true })
 
-    expect(onEvent.mock.calls).toEqual([
+    expect(onOutput.mock.calls).toEqual([
       ['acknowledged', { alertId: 'a-7', extra: true }],
       ['acknowledged', { alertId: 'a-8' }],
     ])
   })
 
   it('reports a payload the host’s contract refuses, and never throws into the Widget', async () => {
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     const widget = plainWidget()
     const memory = memoryRuntime([widget.definition])
-    const mount = mountWidget(memory.runtime, { onEvent, consumerEvents: ALERT_CONTRACT.events })
+    const mount = mountWidget(memory.runtime, {
+      onOutput,
+      consumerOutputs: ALERT_CONTRACT.outputSchema,
+    })
     await settled(mount, 'mounted')
 
     expect(() => {
       at(widget.targets).emit('acknowledged', { alertId: 7 })
     }).not.toThrow()
 
-    expect(onEvent).not.toHaveBeenCalled()
+    expect(onOutput).not.toHaveBeenCalled()
     expect(memory.diagnostics).toHaveLength(1)
     expect(at(memory.diagnostics)).toMatchObject({
-      error: { code: 'contract/event-mismatch', id: 'alert-panel' },
-      context: { widget: 'alert-panel', event: 'acknowledged' },
+      error: { code: 'contract/output-mismatch', id: 'alert-panel' },
+      context: { widget: 'alert-panel', output: 'acknowledged' },
     })
     expect(isMfeError(at(memory.diagnostics).error)).toBe(true)
     expect(mount.getState()).toEqual({ status: 'mounted' })
   })
 
   it('drops what an attempt that was torn down still emits', async () => {
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
-    const mount = mountWidget(runtime, { onEvent })
+    const mount = mountWidget(runtime, { onOutput })
     await settled(mount, 'mounted')
     const stale = at(widget.targets)
     await mount.dispose()
 
     stale.emit('acknowledged', { alertId: 'a-7' })
 
-    expect(onEvent).not.toHaveBeenCalled()
+    expect(onOutput).not.toHaveBeenCalled()
   })
 })
 

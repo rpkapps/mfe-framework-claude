@@ -9,8 +9,8 @@ import { createElement as h, useEffect, type ReactNode } from 'react'
 import { z } from 'zod'
 
 export const counterContract = {
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
+  inputSchema: z.object({ label: z.string(), count: z.number() }),
+  outputSchema: z.object({ bumped: z.object({ count: z.number() }) }),
 }
 
 /**

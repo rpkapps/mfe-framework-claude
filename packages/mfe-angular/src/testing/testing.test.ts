@@ -22,8 +22,8 @@ class GreetingComponent {
 
 const greeting = createWidget({
   id: 'greeting',
-  inputs: z.object({ name: z.string() }),
-  events: {},
+  inputSchema: z.object({ name: z.string() }),
+  outputSchema: z.object({}),
   component: GreetingComponent,
 })
 

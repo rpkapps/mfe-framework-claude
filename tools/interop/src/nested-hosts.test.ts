@@ -11,7 +11,7 @@ import {
   injectAction,
   injectMfeMount,
   MfeWidgetComponent,
-  type MfeWidgetEvent,
+  type MfeWidgetOutput,
 } from '@company/mfe-angular'
 import { AppHost } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
@@ -37,7 +37,7 @@ const applications = applicationCensus()
   imports: [MfeWidgetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<h1>Workbench at depth {{ depth }}</h1>
-    <mfe-widget widgetId="counter" [inputs]="counterInputs()" (event)="received($event)" />
+    <mfe-widget widgetId="counter" [inputs]="counterInputs()" (output)="received($event)" />
     <p>{{ lastEvent() }}</p>`,
 })
 class WorkbenchComponent {
@@ -49,9 +49,9 @@ class WorkbenchComponent {
     injectAction({ name: 'refresh', label: 'Refresh the workbench', execute: () => undefined })
   }
 
-  /** Hands the Widget's own count back to it, so the event crosses down as well as up. */
-  received(event: MfeWidgetEvent): void {
-    const { count } = counterContract.events.bumped.parse(event.payload)
+  /** Hands the Widget's own count back to it, so the output crosses down as well as up. */
+  received(event: MfeWidgetOutput): void {
+    const { count } = counterContract.outputSchema.shape.bumped.parse(event.payload)
     this.lastEvent.set(`${event.name} to ${String(count)}`)
     this.counterInputs.set({ label: 'Nested', count })
   }

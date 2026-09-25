@@ -1,6 +1,6 @@
 /**
  * One tile: a Widget from another container, mounted inside the shell. The shell cannot reach
- * into the Widget, so everything crossing the line does so as inputs in and declared events out.
+ * into the Widget, so everything crossing the line does so as inputs in and declared outputs out.
  *
  * The tile owns its rectangle on the canvas. The pointer gestures are handed in rather than
  * started here, because a drag that began on this tile keeps running over every other one.
@@ -66,7 +66,7 @@ export interface TileProps {
   readonly onConfigure: () => void
   readonly onRemove: () => void
   readonly onResize: (size: { readonly w: number; readonly h: number }) => void
-  readonly onEvent: (event: string, payload: unknown) => void
+  readonly onOutput: (output: string, payload: unknown) => void
   readonly onMoveStart: (event: React.PointerEvent) => void
   readonly onResizeStart: (event: React.PointerEvent, edge: ResizeEdge) => void
   readonly onKeyDown: (event: React.KeyboardEvent) => void
@@ -80,7 +80,7 @@ export function Tile({
   onConfigure,
   onRemove,
   onResize,
-  onEvent,
+  onOutput,
   onMoveStart,
   onResizeStart,
   onKeyDown,
@@ -176,7 +176,7 @@ export function Tile({
           {entry === undefined ? (
             <MissingEntry widgetId={tile.widgetId} />
           ) : (
-            <MountedWidget tile={tile} onEvent={onEvent} />
+            <MountedWidget tile={tile} onOutput={onOutput} />
           )}
         </PanelContent>
       </Panel>
@@ -216,17 +216,17 @@ function MountingSkeleton(): ReactNode {
 /** Memoized on the tile, so typing in the input dialog does not re-render every mount on the canvas. */
 const MountedWidget = memo(function TileWidget({
   tile,
-  onEvent,
+  onOutput,
 }: {
   readonly tile: DashboardTile
-  readonly onEvent: (event: string, payload: unknown) => void
+  readonly onOutput: (output: string, payload: unknown) => void
 }): ReactNode {
   return (
     <DynamicWidget
       widgetId={tile.widgetId}
       {...tile.inputs}
-      /* The shell was never compiled against this Widget and knows its events only as strings, so it subscribes to all of them. */
-      onEvent={onEvent}
+      /* The shell was never compiled against this Widget and knows its outputs only as strings, so it subscribes to all of them. */
+      onOutput={onOutput}
       pending={<MountingSkeleton />}
       fallback={({ error, retry }) => (
         <div role="alert" className="flex flex-col gap-3">

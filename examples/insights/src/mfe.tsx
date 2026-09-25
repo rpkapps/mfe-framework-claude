@@ -15,14 +15,14 @@ import {
 /** The build reads these schemas statically into the registry, so `z.enum([...])` is what makes the
  * shell's dashboard draw a dropdown for a Widget it never imported (§16). */
 export const fdaSummaryContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     fdaId: z.enum(['fda-1-02', 'fda-2-3', 'fda-1-2']),
     showActions: z.boolean().default(true),
   }),
-  events: {
+  outputSchema: z.object({
     selected: z.object({ fdaId: z.string(), selected: z.boolean() }),
     opened: z.object({ fdaId: z.string(), title: z.string() }),
-  },
+  }),
 }
 
 export const fdaSummary = createWidget({
@@ -37,13 +37,13 @@ export const fdaSummary = createWidget({
 })
 
 export const wellDesignContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     wellId: z.enum(['reduced-dls', 'htdp', 'liner']),
   }),
-  events: {
+  outputSchema: z.object({
     selected: z.object({ wellId: z.string(), selected: z.boolean() }),
     viewed: z.object({ wellId: z.string(), well: z.string() }),
-  },
+  }),
 }
 
 export const wellDesign = createWidget({
@@ -58,10 +58,10 @@ export const wellDesign = createWidget({
 })
 
 export const costVsRiskContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     compare: z.array(z.enum(['initial', 'dls', 'htdp', 'liner'])).default(['initial', 'liner']),
   }),
-  events: {},
+  outputSchema: z.object({}),
 }
 
 export const costVsRisk = createWidget({
@@ -76,12 +76,12 @@ export const costVsRisk = createWidget({
 })
 
 export const agentPanelContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     heading: z.string().default('AI Agent'),
   }),
-  events: {
+  outputSchema: z.object({
     closed: z.object({ at: z.string() }),
-  },
+  }),
 }
 
 export const agentPanel = createWidget({

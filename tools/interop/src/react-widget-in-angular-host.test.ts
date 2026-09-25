@@ -69,12 +69,12 @@ describe('a React Widget placed by an Angular <mfe-widget>', () => {
     expect(counterRoots.live).toBe(1)
   })
 
-  it('delivers what the React Widget emits to the (event) output as { name, payload }', async () => {
+  it('delivers what the React Widget emits to the (output) output as { name, payload }', async () => {
     const { ref, element } = await placeCounter()
 
     fireEvent.click(await within(element).findByRole('button', { name: 'Clicks: 1' }))
 
-    expect(ref.instance.events).toEqual([{ name: 'bumped', payload: { count: 2 } }])
+    expect(ref.instance.outputs).toEqual([{ name: 'bumped', payload: { count: 2 } }])
   })
 
   it('reports first inputs the React Widget refuses through the (failed) output', async () => {

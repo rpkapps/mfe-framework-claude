@@ -1,6 +1,6 @@
 /**
  * Compose a page out of Widgets the shell was never built against: it knows an id, an input
- * schema and a list of event names, all read from the registry. Adding a Widget here is a
+ * schema and a list of output names, all read from the registry. Adding a Widget here is a
  * registry change, not a shell release.
  *
  * The three columns fill the height they are given and the user decides how the width is split.
@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   defaultInputsFor,
-  describeWidgetInputs,
+  describeInputs,
   needsInputPrompt,
   useWidgets,
   type RegistryEntry,
@@ -70,7 +70,7 @@ import { ACTIVITY_PANEL, CANVAS_PANEL, CATALOGUE_PANEL } from './panels-store.ts
 import { Tile } from './tile.tsx'
 import { tileKeyboardMove, useTileDrag } from './use-tile-drag.ts'
 
-interface WidgetEvent {
+interface ReceivedOutput {
   readonly key: string
   readonly widgetId: string
   readonly name: string
@@ -83,7 +83,7 @@ type Editing =
   | { readonly mode: 'add'; readonly entry: RegistryEntry }
   | { readonly mode: 'edit'; readonly entry: RegistryEntry; readonly tile: DashboardTile }
 
-const MAX_EVENTS = 40
+const MAX_OUTPUTS = 40
 
 export function DashboardPage(): ReactNode {
   const widgets = useWidgets()
@@ -92,7 +92,7 @@ export function DashboardPage(): ReactNode {
   const [panels, setPanels] = useDashboardPanels()
   const [snapToTop, setSnapToTop] = useSnapToTop()
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [events, setEvents] = useState<readonly WidgetEvent[]>([])
+  const [outputs, setOutputs] = useState<readonly ReceivedOutput[]>([])
   const [isDropTarget, setIsDropTarget] = useState(false)
   const [placement, setPlacement] = useState('')
   const isCompact = useIsCompact()
@@ -136,7 +136,7 @@ export function DashboardPage(): ReactNode {
           {
             key: tileKey(entry.id),
             widgetId: entry.id,
-            inputs: defaultInputsFor(describeWidgetInputs(entry.contract)),
+            inputs: defaultInputsFor(describeInputs(entry.contract)),
           },
           columns,
         ),
@@ -161,8 +161,8 @@ export function DashboardPage(): ReactNode {
 
   const drag = useTileDrag(columns, place)
 
-  const recordEvent = useCallback((widgetId: string, name: string, payload: unknown) => {
-    setEvents(current =>
+  const recordOutput = useCallback((widgetId: string, name: string, payload: unknown) => {
+    setOutputs(current =>
       [
         {
           key: `${widgetId}:${name}:${String(Date.now())}:${Math.random().toString(36).slice(2, 6)}`,
@@ -172,7 +172,7 @@ export function DashboardPage(): ReactNode {
           at: new Date().toLocaleTimeString(),
         },
         ...current,
-      ].slice(0, MAX_EVENTS),
+      ].slice(0, MAX_OUTPUTS),
     )
   }, [])
 
@@ -190,9 +190,9 @@ export function DashboardPage(): ReactNode {
 
   const activity = (
     <ActivityFeed
-      events={events}
+      outputs={outputs}
       onClear={() => {
-        setEvents([])
+        setOutputs([])
       }}
       onCollapse={() => activityPanel.current?.collapse()}
     />
@@ -302,8 +302,8 @@ export function DashboardPage(): ReactNode {
                 onResize={size => {
                   place(tile.key, { x: tile.x, y: tile.y, ...size })
                 }}
-                onEvent={(name, payload) => {
-                  recordEvent(tile.widgetId, name, payload)
+                onOutput={(name, payload) => {
+                  recordOutput(tile.widgetId, name, payload)
                 }}
                 onMoveStart={event => {
                   drag.startMove(event, tile.key, tile)
@@ -525,13 +525,13 @@ function EmptyCanvas({ hasWidgets }: { readonly hasWidgets: boolean }): ReactNod
   )
 }
 
-/** A Widget's events are the half of its contract a screenshot cannot show, so they get a place on the page rather than a console line. */
+/** A Widget's outputs are the half of its contract a screenshot cannot show, so they get a place on the page rather than a console line. */
 function ActivityFeed({
-  events,
+  outputs,
   onClear,
   onCollapse,
 }: {
-  readonly events: readonly WidgetEvent[]
+  readonly outputs: readonly ReceivedOutput[]
   readonly onClear: () => void
   readonly onCollapse: () => void
 }): ReactNode {
@@ -540,12 +540,12 @@ function ActivityFeed({
       <PanelHeader>
         <PanelTitle>Activity</PanelTitle>
         <PanelActions>
-          {events.length === 0 ? null : (
+          {outputs.length === 0 ? null : (
             <>
               <Badge variant="secondary" size="default">
-                {events.length}
+                {outputs.length}
               </Badge>
-              <Button variant="ghost" size="icon-sm" aria-label="Clear events" onPress={onClear}>
+              <Button variant="ghost" size="icon-sm" aria-label="Clear outputs" onPress={onClear}>
                 <Trash2Icon />
               </Button>
             </>
@@ -562,30 +562,30 @@ function ActivityFeed({
         </PanelActions>
       </PanelHeader>
       <PanelContent>
-        {events.length === 0 ? (
+        {outputs.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing yet. Acknowledge an alert, select a design — anything a Widget declares as an
-            event arrives here, validated against its schema on the way out.
+            output arrives here, validated against its schema on the way out.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {events.map(event => (
+            {outputs.map(output => (
               <li
-                key={event.key}
+                key={output.key}
                 className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-background/40 p-2.5"
               >
                 <div className="flex items-center gap-1.5">
                   <ZapIcon aria-hidden className="size-3.5 shrink-0 text-info" />
-                  <span className="truncate text-sm font-medium">{event.name}</span>
+                  <span className="truncate text-sm font-medium">{output.name}</span>
                   <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-                    {event.at}
+                    {output.at}
                   </span>
                 </div>
                 <span className="truncate font-mono text-xs text-muted-foreground">
-                  {event.widgetId}
+                  {output.widgetId}
                 </span>
-                {/* Fields rather than a line of JSON: this panel is the only place a Widget's events are visible. */}
-                <Payload payload={event.payload} />
+                {/* Fields rather than a line of JSON: this panel is the only place a Widget's outputs are visible. */}
+                <Payload payload={output.payload} />
               </li>
             ))}
           </ul>
@@ -595,7 +595,7 @@ function ActivityFeed({
   )
 }
 
-/** An event payload: named fields when it has them, one value when it does not. */
+/** An output's payload: named fields when it has them, one value when it does not. */
 function Payload({ payload }: { readonly payload: unknown }): ReactNode {
   if (payload === null || typeof payload !== 'object' || Array.isArray(payload))
     return (

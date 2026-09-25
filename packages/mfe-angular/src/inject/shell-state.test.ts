@@ -17,8 +17,8 @@ class EmptyComponent {}
 
 const emptyWidget = createWidget({
   id: 'empty',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: EmptyComponent,
 })
 

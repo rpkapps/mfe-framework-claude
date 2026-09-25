@@ -6,7 +6,7 @@ export type MfeErrorCode =
   | 'registry/duplicate-id'
   | 'contract/unsupported-major'
   | 'contract/input-mismatch'
-  | 'contract/event-mismatch'
+  | 'contract/output-mismatch'
   | 'config/missing'
   | 'config/unreachable'
   | 'config/invalid'
@@ -26,7 +26,7 @@ export type MfeErrorCode =
   | 'dispose/failure'
   | 'dispose/timeout'
 
-export type MfeErrorDirection = 'input' | 'event'
+export type MfeErrorDirection = 'input' | 'output'
 
 export interface MfeError extends Error {
   readonly code: MfeErrorCode

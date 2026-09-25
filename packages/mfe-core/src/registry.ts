@@ -5,7 +5,7 @@ import type {
   CapabilityDescriptor,
   DefinitionKind,
   IconData,
-  PublishedWidgetContract,
+  PublishedContract,
 } from './definition.ts'
 
 /**
@@ -22,7 +22,7 @@ export interface RegistryEntry {
   /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** Widget-only; a host offers the Widget in a catalogue before its container is fetched (§16). */
-  readonly contract?: PublishedWidgetContract
+  readonly contract?: PublishedContract
   /** Which build the entry came from, readable without loading the container (§29). */
   readonly build?: BuildProvenance
   /** Excluded from catalogue and finder views; not a security boundary. */

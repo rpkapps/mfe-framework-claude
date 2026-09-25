@@ -205,7 +205,7 @@ import { z } from 'zod'
 
 class Panel {}
 
-export const panel = createWidget({ id: 'panel', inputs: z.object({}), events: {}, component: Panel })
+export const panel = createWidget({ id: 'panel', inputSchema: z.object({}), outputSchema: z.object({}), component: Panel })
 `,
       'src/panel.routes.ts': `
 import { mfeRouteData } from '@company/mfe-angular'

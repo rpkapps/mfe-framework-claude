@@ -11,9 +11,9 @@
  *
  * Validation is split the way a Widget boundary splits it everywhere. The provider — the
  * definition's `mount` — checks inputs for serializability and against its own schema, and every
- * payload it emits against its own event schema, throwing in its own stack. Those checks are
+ * payload it emits against its own output schema, throwing in its own stack. Those checks are
  * `validateProviderInputs` and `createProviderEmit`. The host checks only what the consumer
- * declared, and routes events to its handlers.
+ * declared, and routes outputs to its handlers.
  */
 
 import {
@@ -31,8 +31,8 @@ export interface WidgetMountTarget {
   readonly context: MountContext
   /** Raw consumer inputs; the provider validates them against its own contract. */
   readonly inputs: Readonly<Record<string, unknown>>
-  /** Called by the provider after validating the payload against its own event schema. */
-  readonly emit: (event: string, payload: unknown) => void
+  /** Called by the provider after validating the payload against its own output schema. */
+  readonly emit: (output: string, payload: unknown) => void
   /**
    * A later input update the provider rejected; the mount keeps its last valid inputs. The
    * provider has already reported it to the runtime's diagnostics, so a host that reports it
@@ -103,7 +103,7 @@ export type MountableDefinition = MountableAppDefinition | MountableWidgetDefini
 
 /**
  * Checks what a host reads before mounting — the brand, `mount`, and for a Widget the contract
- * whose event names the host routes — so a malformed record fails here rather than mid-mount.
+ * whose output names the host routes — so a malformed record fails here rather than mid-mount.
  */
 export function isMountableDefinition(value: unknown): value is MountableDefinition {
   if (!isBrandedDefinition(value)) return false
@@ -116,7 +116,9 @@ export function isMountableDefinition(value: unknown): value is MountableDefinit
 }
 
 function isWidgetContract(value: unknown): boolean {
-  if (value === null || typeof value !== 'object' || !('inputs' in value)) return false
-  const events = (value as Record<string, unknown>)['events']
-  return events !== null && typeof events === 'object'
+  if (value === null || typeof value !== 'object' || !('inputSchema' in value)) return false
+  const outputSchema = (value as Record<string, unknown>)['outputSchema']
+  if (outputSchema === null || typeof outputSchema !== 'object') return false
+  const shape = (outputSchema as Record<string, unknown>)['shape']
+  return shape !== null && typeof shape === 'object'
 }

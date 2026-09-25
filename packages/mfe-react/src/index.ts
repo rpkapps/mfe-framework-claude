@@ -79,11 +79,11 @@ export {
 export {
   allow,
   deny,
+  type ActionPlacement,
+  type ActionRegistration,
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
-  type ActionPlacement,
-  type ActionRegistration,
   type Decision,
   type MfeError,
   type MfeErrorCode,
@@ -93,6 +93,7 @@ export {
   type ShellTheme,
   type ShellUser,
   type StorageKeyOptions,
+  type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
@@ -100,7 +101,7 @@ export {
   /* An author reads these inside `useNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,
-  type PublishedWidgetContract,
+  type PublishedContract,
   /* What a shell author needs to write or register an adapter of their own. */
   type MfeAdapter,
   type Registry,
@@ -129,15 +130,15 @@ export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
 
-/** The one walk over a Widget's published inputs and events, for a host composing the registry (§28). */
+/** The one walk over a Widget's published inputs and outputs, for a host composing the registry (§28). */
 export {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
   type BuildProvenance,
-  type WidgetEvent,
+  type WidgetOutput,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,
@@ -155,8 +156,9 @@ export {
 
 /** Re-exported from the core because a host depends on this package, not on the core. */
 export {
-  eventNameToHandlerProp,
   HOST_SCOPE,
+  outputNameToHandlerProp,
+  outputPayloadSchema,
   type CapabilityName,
   type IconData,
   type IconNode,

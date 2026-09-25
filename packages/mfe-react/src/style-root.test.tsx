@@ -32,8 +32,8 @@ function StyleRoot({ overlayContainer, children }: StyleRootProps): ReactNode {
 const probeWidget = createWidget({
   id: 'probe-widget',
   version: '1.2.0',
-  inputs: z.object({ value: z.string() }),
-  events: { changed: z.object({ value: z.string() }) },
+  inputSchema: z.object({ value: z.string() }),
+  outputSchema: z.object({ changed: z.object({ value: z.string() }) }),
   render: ({ inputs }) => <span data-testid="widget-value">{inputs.value}</span>,
 })
 

@@ -27,8 +27,8 @@ export interface WidgetMountTreeProps {
   readonly definition: WidgetDefinition
   readonly mount: MfeMount
   readonly inputs: Readonly<Record<string, unknown>>
-  /** Called with a payload the Widget's own event schema accepted. */
-  readonly emit: (event: string, payload: unknown) => void
+  /** Called with a payload the Widget's own output schema accepted. */
+  readonly emit: (output: string, payload: unknown) => void
   readonly onInputRejected?: ((error: MfeError) => void) | undefined
 }
 
