@@ -79,8 +79,10 @@ The user menu shows the signed-in user's photo when the profile carries a
 Microsoft Graph photo URL in `entraid_avatar` and an Entra access token for
 Graph in `entraid_access_token`: the shell fetches it with that token, which
 must be issued for Graph with `User.Read`, and keeps a 96 px copy for the tab.
-Until then, and when there is no photo or Graph refuses the token, it shows
-initials; a refusal is logged as `[shell] The profile photo did not load`. A
+The token is sent only to `https://graph.microsoft.com`: a photo URL on any
+other origin is not fetched. Until then, and when there is no photo, Graph
+refuses the token or the answer is not an image, it shows initials; a refusal is
+logged as `[shell] The profile photo did not load`. A
 deployment with a Content Security Policy allows
 `connect-src https://graph.microsoft.com` and `img-src data:`
 ([decisions §36](../../docs/decisions.md)).

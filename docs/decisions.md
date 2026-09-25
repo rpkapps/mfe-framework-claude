@@ -990,8 +990,9 @@ identity provider puts a Microsoft Graph photo URL (`entraid_avatar`) and an Ent
 token for Graph (`entraid_access_token`) in the profile. An `<img>` cannot send a bearer
 token, so `auth/avatar.ts` fetches the photo with it and the user menu shows it as an
 image URL. It is not part of the boot: the menu shows initials until the photo arrives,
-and keeps them when there is none or Graph refuses. The token goes to that URL only; it is
-not in `shellState`, which every container reads, and the request boundary never sends it,
+and keeps them when there is none, Graph refuses or the answer is not an image. The token
+goes to that URL only, and only when it is on `https://graph.microsoft.com`; it is not in
+`shellState`, which every container reads, and the request boundary never sends it,
 because it is not the shell's token. The Entra token lasts about an hour while a reload
 restores the session with the profile it signed in with, so the photo is kept for the tab
 in `sessionStorage` (`shell.avatar:<sub>`), cropped and shrunk to 96 px, a few kilobytes,

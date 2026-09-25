@@ -1,8 +1,9 @@
 /**
  * The signed-in user's photo for the header. The identity provider puts a Microsoft Graph photo
  * URL and an Entra access token for Graph in the profile; an `<img>` cannot send that token, so
- * the photo is fetched with it and handed on as a data URL. The token goes to that URL and nowhere
- * else: it never enters shell state, which every container reads.
+ * the photo is fetched with it and handed on as a data URL. The token goes to Microsoft Graph and
+ * nowhere else: a photo URL on any other origin is not fetched, so a profile cannot send it
+ * elsewhere, and it never enters shell state, which every container reads.
  *
  * Entra access tokens last about an hour, while a reload restores the session with the profile it
  * signed in with, so the photo is kept for the tab, shrunk to what the header draws, beside the
@@ -14,6 +15,9 @@
 const PHOTO_URL_CLAIM = 'entraid_avatar'
 const GRAPH_TOKEN_CLAIM = 'entraid_access_token'
 
+/** The one origin the Graph token is sent to. */
+const GRAPH_ORIGIN = 'https://graph.microsoft.com'
+
 /** Outside the OIDC stores' prefixes, whose cleanup removes keys it does not recognise. */
 const CACHE_PREFIX = 'shell.avatar:'
 
@@ -22,7 +26,7 @@ const AVATAR_SIZE = 96
 
 export interface AvatarOptions {
   readonly fetch?: typeof fetch
-  /** Where the photo is kept for the tab; nothing when storage is blocked. */
+  /** Where the photo is kept for the tab: beside the session, in memory when storage is blocked. */
   readonly cache?: Pick<Storage, 'getItem' | 'setItem'> | undefined
   /** The photo as a small data URL; injectable because it needs a canvas. */
   readonly shrink?: (photo: Blob) => Promise<string>
@@ -31,6 +35,18 @@ export interface AvatarOptions {
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
+
+/** Whether `url` is on Graph's origin, so the token may go with it; a bad URL is not. */
+function isGraphUrl(url: string): boolean {
+  try {
+    return new URL(url).origin === GRAPH_ORIGIN
+  } catch {
+    return false
+  }
+}
+
+/** Once a page: the profile does not change, so every later load would say the same. */
+let warnedNotGraph = false
 
 function cacheKey(subject: string): string {
   return `${CACHE_PREFIX}${subject}`
@@ -85,6 +101,15 @@ export async function loadAvatar(
   const cached = cache?.getItem(cacheKey(subject))
   if (cached !== null && cached !== undefined) return cached
   if (token === undefined) return undefined
+  if (!isGraphUrl(url)) {
+    if (!warnedNotGraph) {
+      warnedNotGraph = true
+      console.warn(
+        `[shell] The profile photo is not on ${GRAPH_ORIGIN}, so the Graph token is not sent to it.`,
+      )
+    }
+    return undefined
+  }
 
   let photo: Blob
   try {
@@ -104,18 +129,21 @@ export async function loadAvatar(
     return undefined
   }
 
+  let small: string
   try {
-    const small = await (options.shrink ?? shrinkPhoto)(photo)
-    try {
-      cache?.setItem(cacheKey(subject), small)
-    } catch {
-      // A full storage only costs a fetch on the next reload.
-    }
-    return small
-  } catch {
-    // No canvas to shrink it on: shown as it came, for this page only.
-    return URL.createObjectURL(photo)
+    small = await (options.shrink ?? shrinkPhoto)(photo)
+  } catch (cause) {
+    // Not an image, or no canvas to shrink it on. Shown as it came it would need a `blob:` URL,
+    // which a Content Security Policy of `img-src data:` blocks, so it is initials instead.
+    console.warn('[shell] The profile photo could not be shown.', cause)
+    return undefined
   }
+  try {
+    cache?.setItem(cacheKey(subject), small)
+  } catch {
+    // A full storage only costs a fetch on the next reload.
+  }
+  return small
 }
 
 /** On sign-out, so the photo does not outlive the session it came with. */

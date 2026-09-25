@@ -104,18 +104,39 @@ describe('loadAvatar', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('shows the photo as it came when it cannot be shrunk, without keeping it', async () => {
+  it('shows initials when the photo cannot be shrunk, without keeping anything', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const cache = memoryCache()
-    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:photo')
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
 
     await expect(
       loadAvatar(PROFILE, {
         fetch: answering(200),
         cache,
-        shrink: () => Promise.reject(new Error('No canvas')),
+        shrink: () => Promise.reject(new Error('The source image could not be decoded.')),
       }),
-    ).resolves.toBe('blob:photo')
-    expect(createObjectURL).toHaveBeenCalledOnce()
+    ).resolves.toBe(undefined)
+    expect(createObjectURL).not.toHaveBeenCalled()
     expect(cache.size).toBe(0)
+    expect(warn).toHaveBeenCalledOnce()
+  })
+
+  it('sends the Graph token only to Microsoft Graph, and says so once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const fetch = answering(200)
+
+    for (const elsewhere of [
+      'https://attacker.example/photo',
+      'http://graph.microsoft.com/v1.0/me/photo/$value',
+      'https://graph.microsoft.com.attacker.example/v1.0/me/photo/$value',
+      'https://graph.microsoft.com:8443/v1.0/me/photo/$value',
+      'not a url',
+    ]) {
+      await expect(
+        loadAvatar({ ...PROFILE, entraid_avatar: elsewhere }, { fetch, shrink }),
+      ).resolves.toBe(undefined)
+    }
+    expect(fetch).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledOnce()
   })
 })
