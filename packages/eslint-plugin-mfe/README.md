@@ -188,7 +188,7 @@ It layers:
   its published declarations. The AI and agent libraries (`ai`, `@tanstack/ai-*`,
   `@ai-sdk/*`, `@ag-ui/*`, `@copilotkit/*`, the model providers' SDKs) are out on
   the same terms: a framework package runs inside every container. The one
-  exception is `@company/mfe-chat`, the shell's chat client, which may import
+  exception is `@company/mfe-agent`, the shell's connection to the agent, which may import
   `@ag-ui/*` and nothing else; the author presets reject it in a container.
 - **Contracts only in `@company/mfe-core`**: a zone that rejects, outside its
   tests, an exported class other than an error, a top-level `let`, `var`, `Map`,

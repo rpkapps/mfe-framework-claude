@@ -1454,7 +1454,7 @@ not either.
 
 ---
 
-## 49. The shell's chat is `@company/mfe-chat`, on the plain AG-UI client with TanStack AI's API
+## 49. The shell talks to the agent through `@company/mfe-agent`, on the plain AG-UI client with TanStack AI's API
 
 **Status:** decided; the first part of E in the agentic plan, after the AG-UI spike.
 
@@ -1465,7 +1465,9 @@ call unrun, it never sent AG-UI `context`, and it could answer another backend's
 through an escape hatch it calls unsafe. The plain client (`@ag-ui/client` 1.0) worked against
 all three. It sends `context` and keeps history as AG-UI messages, the format the plan stores.
 
-So the chat runs on the plain client, in a package of its own. `@company/mfe-chat` copies TanStack
+So the chat runs on the plain client, in a package of its own. It is named for the agent, not the
+chat, because its job is the page's connection to the agent: the chat UI lives in the shell, and
+exposing the same actions to browser agents (WebMCP, G) belongs beside it. `@company/mfe-agent` copies TanStack
 AI's public API, not its code: `ChatClient`, `useChat`, `UIMessage` with `parts`, the tool-call
 states from `awaiting-input` to `complete`, and interrupts resolved with `resolveInterrupt`. That
 API is well designed, and its documentation reads across. It differs where our design does:
@@ -1484,7 +1486,7 @@ API is well designed, and its documentation reads across. It differs where our d
 
 The package is the one framework package allowed to import an agent library, and only
 `@ag-ui/*`. Its lint zone and `pnpm boundaries` keep every other one out, so a backend stays
-swappable. The author presets reject `@company/mfe-chat` in containers, and the core, the
+swappable. The author presets reject `@company/mfe-agent` in containers, and the core, the
 runtime and the adapters may not depend on it. TanStack AI remains a good choice for a
 TypeScript backend's loop.
 

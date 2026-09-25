@@ -284,7 +284,7 @@ describe('framework preset', () => {
     const restricting = preset.filter(
       config =>
         config.rules?.['@typescript-eslint/no-restricted-imports'] !== undefined &&
-        config.name !== 'mfe/zone/mfe-chat',
+        config.name !== 'mfe/zone/mfe-agent',
     )
     expect(restricting.length).toBeGreaterThan(1)
     for (const config of restricting) {
@@ -295,22 +295,22 @@ describe('framework preset', () => {
         '@ai-sdk/*',
         '@ag-ui/*',
         '@copilotkit/*',
-        '@company/mfe-chat',
+        '@company/mfe-agent',
       ]) {
         expect(groups, `${config.name ?? ''} ${group}`).toContain(group)
       }
     }
   })
 
-  it('lets the chat package speak AG-UI and nothing else', () => {
-    const chatZone = preset.find(config => config.name === 'mfe/zone/mfe-chat')
+  it('lets the agent package speak AG-UI and nothing else', () => {
+    const chatZone = preset.find(config => config.name === 'mfe/zone/mfe-agent')
     expect(chatZone).toBeDefined()
     const { paths, groups } = restrictedImportsOf(chatZone ?? {})
 
     expect(paths).toEqual(expect.arrayContaining(['ai', 'openai', '@company/mfe-react']))
     expect(groups).toEqual(expect.arrayContaining(['@tanstack/ai', '@tanstack/ai-*', '@ai-sdk/*']))
     expect(groups).not.toContain('@ag-ui/*')
-    expect(groups).not.toContain('@company/mfe-chat')
+    expect(groups).not.toContain('@company/mfe-agent')
   })
 
   it('names the Angular adapter, not the React hooks, inside packages/mfe-angular', () => {

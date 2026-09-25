@@ -1,7 +1,7 @@
-# @company/mfe-chat
+# @company/mfe-agent
 
-The shell's chat client. It talks AG-UI to the agent's backend and offers the page's actions to
-the agent as tools. It runs the agent's calls through the action pipeline and shows one list of
+The shell's connection to the agent. Its chat client talks AG-UI to the agent's backend and offers
+the page's actions to the agent as tools. It runs the agent's calls through the action pipeline and shows one list of
 approvals: those the pipeline asks for and those the backend asks for.
 
 It is for the host only. A container never imports it, and the lint presets reject it there.
@@ -11,8 +11,8 @@ backend will do, TanStack AI's or Agent Framework's (.NET) alike (docs/decisions
 ## Use
 
 ```ts
-import { ChatClient, fetchServerSentEvents } from '@company/mfe-chat'
-import { actionTools, agentContextOf, approvalsIn } from '@company/mfe-chat/actions'
+import { ChatClient, fetchServerSentEvents } from '@company/mfe-agent'
+import { actionTools, agentContextOf, approvalsIn } from '@company/mfe-agent/actions'
 
 const chat = new ChatClient({
   connection: fetchServerSentEvents('/agent', { headers: () => ({ Authorization: token() }) }),
@@ -24,7 +24,7 @@ runtime.actions.setApprover(approvalsIn(chat.requestApproval))
 await chat.sendMessage('Acknowledge alert A-7')
 ```
 
-In React, `useChat(options)` from `@company/mfe-chat/react` returns the snapshot (`messages`,
+In React, `useChat(options)` from `@company/mfe-agent/react` returns the snapshot (`messages`,
 `status`, `isLoading`, `error`, `interrupts`) and the methods (`sendMessage`, `reload`, `stop`,
 `clear`, `setMessages`, `requestApproval`).
 

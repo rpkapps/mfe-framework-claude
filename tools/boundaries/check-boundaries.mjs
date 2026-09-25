@@ -18,7 +18,7 @@ const RULES = [
   {
     package: '@company/mfe-core',
     forbidden: [
-      '@company/mfe-chat',
+      '@company/mfe-agent',
       '@ag-ui/',
       'react',
       'react-dom',
@@ -46,7 +46,7 @@ const RULES = [
   {
     package: '@company/mfe-runtime',
     forbidden: [
-      '@company/mfe-chat',
+      '@company/mfe-agent',
       '@ag-ui/',
       'react',
       'react-dom',
@@ -73,7 +73,7 @@ const RULES = [
   {
     package: '@company/mfe-angular',
     forbidden: [
-      '@company/mfe-chat',
+      '@company/mfe-agent',
       '@ag-ui/',
       'react',
       'react-dom',
@@ -117,7 +117,7 @@ const RULES = [
   {
     package: '@company/mfe-react',
     forbidden: [
-      '@company/mfe-chat',
+      '@company/mfe-agent',
       '@ag-ui/',
       'single-spa',
       '@opentelemetry/',
@@ -139,7 +139,7 @@ const RULES = [
     reason: 'The legacy adapter is a sibling of the React adapter, not a consumer of it.',
   },
   {
-    package: '@company/mfe-chat',
+    package: '@company/mfe-agent',
     forbidden: [
       'single-spa',
       '@module-federation/',
@@ -161,7 +161,7 @@ const RULES = [
       '@tanstack/store',
     ],
     reason:
-      'The chat client speaks AG-UI and nothing else, so any backend that speaks it will do (docs/decisions.md §49); it is adapter-neutral, and the shell hands it the runtime.',
+      'The agent package speaks AG-UI and nothing else, so any backend that speaks it will do (docs/decisions.md §49); it is adapter-neutral, and the shell hands it the runtime.',
   },
   {
     package: '@company/mfe-devtools',

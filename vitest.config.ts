@@ -86,8 +86,8 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'chat',
-          root: './packages/mfe-chat',
+          name: 'agent',
+          root: './packages/mfe-agent',
           environment: 'jsdom',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
         },

@@ -16,7 +16,7 @@ import {
 } from './shared.ts'
 import { reactCorrectness } from './react-support.ts'
 import {
-  CHAT_PACKAGE_AGENT_LIBRARIES,
+  AGENT_PACKAGE_AGENT_LIBRARIES,
   FRAMEWORK_AGENT_LIBRARIES,
   MODULE_FEDERATION_PATTERN,
   STATE_PATHS,
@@ -172,22 +172,22 @@ function packageZones(
       ],
       basePatterns,
     ),
-    // The chat package is the framework's one door to the agent, so the agent-library ban every
+    // The agent package is the framework's one door to the agent, so the agent-library ban every
     // other zone carries is replaced here by one that lets AG-UI through and nothing else.
     {
-      name: 'mfe/zone/mfe-chat',
-      files: intersectFiles(files, '**/packages/mfe-chat/**'),
+      name: 'mfe/zone/mfe-agent',
+      files: intersectFiles(files, '**/packages/mfe-agent/**'),
       plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
           [
             ...STATE_PATHS,
-            ...CHAT_PACKAGE_AGENT_LIBRARIES.paths,
+            ...AGENT_PACKAGE_AGENT_LIBRARIES.paths,
             ...extraPaths,
             {
               name: '@company/mfe-react',
               message:
-                'Package boundary: the chat client is adapter-neutral; its React binding needs React alone, and the shell hands it the runtime.',
+                'Package boundary: the agent package is adapter-neutral; its React binding needs React alone, and the shell hands it the runtime.',
             },
             {
               name: 'single-spa',
@@ -197,7 +197,7 @@ function packageZones(
           ],
           [
             ...TELEMETRY_PATTERNS,
-            ...CHAT_PACKAGE_AGENT_LIBRARIES.patterns,
+            ...AGENT_PACKAGE_AGENT_LIBRARIES.patterns,
             MODULE_FEDERATION_PATTERN,
             ...extraPatterns,
           ],

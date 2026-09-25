@@ -1,6 +1,6 @@
 # AG-UI spike
 
-The chat it recommends is now `@company/mfe-chat` (docs/decisions.md §49).
+The chat it recommends is now `@company/mfe-agent` (docs/decisions.md §49).
 
 The experiment before step E of `docs/agentic-plan.md`: it picks the library the shell's chat
 module is built on. It is throwaway. E replaces it, and nothing imports it.

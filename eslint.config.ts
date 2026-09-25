@@ -68,7 +68,7 @@ const config: Linter.Config[] = [
     // plugin building a module rule's `use:` list is told it called a Hook outside a component.
     reactFiles: [
       'packages/mfe-react/src/**/*.{ts,tsx}',
-      'packages/mfe-chat/src/react/**/*.{ts,tsx}',
+      'packages/mfe-agent/src/react/**/*.{ts,tsx}',
       'packages/mfe-devtools/src/**/*.{ts,tsx}',
       'apps/shell/src/**/*.{ts,tsx}',
       'apps/docs/src/**/*.{ts,tsx}',

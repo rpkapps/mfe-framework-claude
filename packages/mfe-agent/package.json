@@ -1,7 +1,7 @@
 {
-  "name": "@company/mfe-chat",
+  "name": "@company/mfe-agent",
   "version": "0.1.0",
-  "description": "The shell's chat client: talks AG-UI to the agent's backend, offers the page's actions as tools and runs the agent's calls through the action pipeline, and shows approvals from the pipeline and from the backend as one list of interrupts. Its API follows TanStack AI's client; it runs on the plain AG-UI client. For the host only: a container never imports it.",
+  "description": "The shell's connection to the agent: a chat client that talks AG-UI to the agent's backend, offers the page's actions as tools and runs the agent's calls through the action pipeline, and shows approvals from the pipeline and from the backend as one list of interrupts. Its API follows TanStack AI's client; it runs on the plain AG-UI client. For the host only: a container never imports it.",
   "type": "module",
   "sideEffects": false,
   "exports": {
