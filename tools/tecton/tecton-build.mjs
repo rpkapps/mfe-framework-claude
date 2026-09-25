@@ -52,13 +52,22 @@ export function useWorkspaceModules(packageRoot) {
   ].join(delimiter)
 }
 
+/**
+ * The consumer's `node_modules`, then the workspace's, before each module's own. The design
+ * system's files are resolved where the link points, and walking up from there finds the
+ * checkout's own React, React DOM and recharts, which Module Federation would provide beside this
+ * workspace's: only one copy runs, but both are emitted, recharts at 515 kB. Symlinks stay
+ * resolved, so a package still finds whatever neither directory holds among its own dependencies.
+ * The cost is that a package depending on another version of something the consumer installs gets
+ * the consumer's; building the shell and every example both ways changed nothing but the design
+ * system's copies.
+ */
 export function tectonResolve(packageRoot) {
   return {
-    // Symlinks stay resolved, so every package still finds its own transitive dependencies.
     modules: [
-      'node_modules',
       resolve(packageRoot, 'node_modules'),
       resolve(repoRoot, 'node_modules'),
+      'node_modules',
     ],
     // The framework packages' TypeScript source rather than their dist/ (tools/workspace).
     conditionNames: sourceConditionNames,
