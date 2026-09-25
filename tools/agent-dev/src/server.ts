@@ -3,8 +3,9 @@
  * run back as server-sent events, which is AG-UI's HTTP binding and all the shell's chat speaks
  * (docs/decisions.md §49). `pnpm dev` starts it beside the dev API.
  *
- * With `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` set it talks to that model; otherwise it runs the
- * demo agent, a script that needs neither a key nor the network.
+ * With `AGENT_DEV_OPENAI_URL` and `AGENT_DEV_MODEL` set it talks to that OpenAI-compatible server,
+ * a local model included; with `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL`, to Anthropic's API;
+ * otherwise it runs the demo agent, a script that needs neither a key nor the network.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -14,13 +15,28 @@ import type { RunAgentInput } from '@ag-ui/core'
 
 import { anthropicModel } from './anthropic-model.ts'
 import { demoModel } from './demo-model.ts'
+import { openAiModel } from './openai-model.ts'
 import { runError, type Model } from './events.ts'
 import { DEV_AGENT_PORT } from './port.ts'
 
-function modelFromEnvironment(): { readonly model: Model; readonly name: string } {
-  const apiKey = process.env['ANTHROPIC_API_KEY']
-  const model = process.env['AGENT_DEV_MODEL']
-  if (apiKey !== undefined && apiKey !== '' && model !== undefined && model !== '') {
+function set(name: string): string | undefined {
+  const value = process.env[name]
+  return value === undefined || value.trim() === '' ? undefined : value.trim()
+}
+
+/** An OpenAI-compatible server first, then Anthropic, then the demo agent. */
+export function modelFromEnvironment(): { readonly model: Model; readonly name: string } {
+  const model = set('AGENT_DEV_MODEL')
+  const baseUrl = set('AGENT_DEV_OPENAI_URL')
+  if (baseUrl !== undefined && model !== undefined) {
+    const apiKey = set('AGENT_DEV_API_KEY')
+    return {
+      model: openAiModel({ baseUrl, model, ...(apiKey === undefined ? {} : { apiKey }) }),
+      name: `${model} at ${baseUrl}`,
+    }
+  }
+  const apiKey = set('ANTHROPIC_API_KEY')
+  if (apiKey !== undefined && model !== undefined) {
     return { model: anthropicModel({ apiKey, model }), name: model }
   }
   return { model: demoModel(), name: 'the demo agent' }

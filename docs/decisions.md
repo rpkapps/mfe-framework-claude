@@ -1545,8 +1545,9 @@ hangs; and `withToolDiscovery`.
 
 The backend's owner is still open. `tools/agent-dev`, which `pnpm dev` starts, stands in: a
 spec-only AG-UI server with a scripted demo agent that exercises every path of the chat with no key
-and no network, or Anthropic's Messages API when a key and a model id are set. It is not what a
-deployment runs.
+and no network; a model behind any OpenAI-compatible server, a local open-weight one included
+(vLLM, SGLang, llama.cpp, Ollama), with its reasoning shown as thinking; or Anthropic's Messages API.
+It is not what a deployment runs.
 
 The message box is Tecton's `Composer` (tecton-ui-1, `src/tecton/composer.tsx`): upstream shadcn
 has the conversation components but no composer. It follows the survey in tecton-ui-1's

@@ -12,7 +12,7 @@ development configuration points its chat at `http://localhost:3011/agent`. On i
 pnpm --filter @company/agent-dev start
 ```
 
-## Two models
+## Three models
 
 - **The demo agent** (the default) is a script, not a model: no key, no network. It reads the
   user's last message for a few words and answers with the page's own tools, so every path of the
@@ -33,9 +33,23 @@ pnpm --filter @company/agent-dev start
   An action the page has but did not declare (tool discovery) is asked for through
   `discover_tools`, then called.
 
-- **A real model** when `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` (the model id) are both set:
-  Anthropic's Messages API, streamed and translated to AG-UI, through plain `fetch`. The agent
-  context goes into the system prompt, and every tool is the page's, so a run that calls tools ends
-  with them pending, as the spec writes it.
+- **A model behind an OpenAI-compatible server**, such as an open-weight model on your own
+  machine or network, when `AGENT_DEV_OPENAI_URL` (the base URL, `/v1` included) and
+  `AGENT_DEV_MODEL` (the id the server serves) are set; `AGENT_DEV_API_KEY` if the server wants a
+  key. vLLM, SGLang, llama.cpp's `llama-server`, Ollama and LM Studio all serve this API.
+
+  ```sh
+  AGENT_DEV_OPENAI_URL=http://192.168.1.20:8000/v1 AGENT_DEV_MODEL=deepseek-v4.1-flash pnpm dev
+  ```
+
+  A reasoning model's thinking (`reasoning_content`, `reasoning`, or inline `<think>` tags) shows in
+  the chat as "Thinking" and is never sent back. The chat works through tool calls, so the server
+  must have tool calling turned on; without it the model writes its calls as text and nothing runs.
+
+- **Anthropic's Messages API** when `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` are set.
+
+Either real model is streamed and translated to AG-UI through plain `fetch`, with no SDK. The agent
+context goes into the system prompt, and every tool is the page's, so a run that calls tools ends
+with them pending, as the spec writes it. The OpenAI-compatible server wins when both are set.
 
 Neither stores anything: the conversation is what the shell sends with each run.

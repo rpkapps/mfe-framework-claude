@@ -5,10 +5,12 @@
  * so a run that calls tools ends with them pending for the page to answer, as the spec writes it.
  */
 
-import type { AGUIEvent, Message, RunAgentInput } from '@ag-ui/core'
+import type { AGUIEvent, RunAgentInput } from '@ag-ui/core'
 import { EventType } from '@ag-ui/core'
 
 import { runError, runFinished, runStarted, type Model } from './events.ts'
+import { parseInput, systemPrompt, textOf } from './prompt.ts'
+import { serverSentEvents } from './sse.ts'
 
 export interface AnthropicModelOptions {
   readonly apiKey: string
@@ -29,48 +31,12 @@ interface AnthropicMessage {
   content: Block[]
 }
 
-const INSTRUCTIONS = [
-  'You are the assistant in a workspace shell that hosts several applications (Apps) and Widgets.',
-  'Use the tools to act for the user; they run in the page, and the page asks the user before anything that changes data.',
-  'Navigate with the navigate tool, show UI with render_widget or the show_* tools, and ask the user with ask_user when you need a decision.',
-  'Only show figures you got from a tool or the context: never invent data for a table, a chart or a summary.',
-  'Keep answers short.',
-].join(' ')
-
-function textOf(message: Message): string {
-  if (!('content' in message)) return ''
-  const { content } = message
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return (content as unknown[])
-    .map(part =>
-      typeof part === 'object' && part !== null && 'text' in part && typeof part.text === 'string'
-        ? part.text
-        : '',
-    )
-    .join('')
-}
-
-function parseInput(text: string): unknown {
-  try {
-    return JSON.parse(text === '' ? '{}' : text) as unknown
-  } catch {
-    return {}
-  }
-}
-
 /** AG-UI history as Anthropic messages: tool results are user turns, and turns alternate. */
 export function toAnthropic(input: RunAgentInput): {
   readonly system: string
   readonly messages: AnthropicMessage[]
 } {
-  const system = [INSTRUCTIONS]
-  if (input.context.length > 0) {
-    system.push(
-      'What the page says about where the user is and what they selected:',
-      ...input.context.map(entry => `- ${entry.description}: ${entry.value}`),
-    )
-  }
+  const system = [systemPrompt(input)]
 
   const messages: AnthropicMessage[] = []
   const push = (role: AnthropicMessage['role'], blocks: Block[]): void => {
@@ -122,27 +88,6 @@ export function toAnthropic(input: RunAgentInput): {
   }
 
   return { system: system.join('\n'), messages }
-}
-
-/** Server-sent events, one parsed `data:` payload at a time. */
-async function* serverSentEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<unknown> {
-  const decoder = new TextDecoder()
-  let buffered = ''
-  for await (const chunk of body) {
-    buffered += decoder.decode(chunk, { stream: true })
-    let end = buffered.indexOf('\n\n')
-    while (end !== -1) {
-      const frame = buffered.slice(0, end)
-      buffered = buffered.slice(end + 2)
-      const data = frame
-        .split('\n')
-        .filter(line => line.startsWith('data:'))
-        .map(line => line.slice(5).trimStart())
-        .join('\n')
-      if (data !== '') yield JSON.parse(data) as unknown
-      end = buffered.indexOf('\n\n')
-    }
-  }
 }
 
 type StreamEvent =
@@ -210,8 +155,8 @@ export function anthropicModel(options: AnthropicModelOptions): Model {
     const blocks = new Map<number, { readonly kind: 'text' | 'tool'; readonly id: string }>()
     const pending: string[] = []
 
-    for await (const raw of serverSentEvents(response.body)) {
-      const event = raw as StreamEvent
+    for await (const data of serverSentEvents(response.body)) {
+      const event = JSON.parse(data) as StreamEvent
       const out: AGUIEvent[] = []
       if (event.type === 'message_start' && 'message' in event) {
         messageId = event.message.id

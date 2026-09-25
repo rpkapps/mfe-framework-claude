@@ -271,8 +271,9 @@ goes out and comes back. It is in `tools/dev/api.mjs` and is not part of the
 framework.
 
 It starts a stand-in agent backend on port 3011 too, for the shell's assistant (⌘I, or the button in
-the header): a scripted demo agent that needs no key (say `help` to it), or Anthropic's Messages API
-when `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` are set. It is in `tools/agent-dev`, and it is not the
+the header): a scripted demo agent that needs no key (say `help` to it), a model behind any OpenAI-compatible
+server (a local open-weight one included) when `AGENT_DEV_OPENAI_URL` and `AGENT_DEV_MODEL` are set,
+or Anthropic's Messages API when `ANTHROPIC_API_KEY` and `AGENT_DEV_MODEL` are. It is in `tools/agent-dev`, and it is not the
 backend a deployment runs (`docs/decisions.md` §50).
 
 Other entry points:
