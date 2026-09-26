@@ -145,8 +145,9 @@ export interface AppMountProps {
 }
 
 /**
- * The router is built once per mount, so an ordinary rerender never rebuilds it. Its history is
- * built over the runtime's navigator, which every mount on the page shares.
+ * The router is built once per mount, so an ordinary rerender never rebuilds it; StrictMode may
+ * build it twice in development and keep one, which the factory's contract allows for. Its history
+ * is built over the runtime's navigator, which every mount on the page shares.
  */
 export function AppMount({ definition, mount }: AppMountProps): ReactNode {
   const navigator = mount.runtime.navigator

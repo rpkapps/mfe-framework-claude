@@ -31,7 +31,7 @@ export default createApp({
 | Option        | Type                                       | Required | What it does                                                            |
 | ------------- | ------------------------------------------ | -------- | ----------------------------------------------------------------------- |
 | `id`          | `string`                                   | yes      | The definition id. Also the storage prefix and the CSS scope value.     |
-| `router`      | `(options: AppRouterOptions) => AnyRouter` | yes      | Called once per mount, never once per module.                           |
+| `router`      | `(options: AppRouterOptions) => AnyRouter` | yes      | Once per mount; StrictMode may call it twice in dev: no side effects.   |
 | `version`     | `string`                                   | no       | Recorded in diagnostics, so a failure names the build that was running. |
 | `breadcrumbs` | `false`                                    | no       | Drops this App's own breadcrumb segment. Nested Apps still contribute.  |
 | `title`       | `string`                                   | no       | Presentation. See the table below.                                      |

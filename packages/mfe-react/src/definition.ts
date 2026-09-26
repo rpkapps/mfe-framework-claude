@@ -55,7 +55,11 @@ export interface AppOptions extends PresentationOptions {
   readonly id: string
   /** Recorded in diagnostics so a failure identifies which build was running. */
   readonly version?: string
-  /** Called once per mount, never once per module; an App mounted twice gets two routers. */
+  /**
+   * Called once per mount, never once per module; an App mounted twice gets two routers. In
+   * development the mount renders under StrictMode, which may call it twice and keep one router,
+   * so it builds the router and does nothing else: no subscription, request or write.
+   */
   readonly router: (options: AppRouterOptions) => AnyRouter
   /** Opts this App out of its own breadcrumb segment, not nested child Apps' contributions. */
   readonly breadcrumbs?: false
