@@ -755,6 +755,100 @@ export const oddPanel = createWidget({
     })
   })
 
+  it('reads a payload named by a top-level const, in shorthand or not', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const acknowledged = z.object({ at: z.string() })
+const empty = z.object({})
+const cleared = empty
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged, cleared, picked: empty }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+    const properties = descriptor.definitions[0]?.contract?.outputSchema?.properties
+
+    expect(properties?.['acknowledged']).toMatchObject({
+      type: 'object',
+      properties: { at: { type: 'string' } },
+    })
+    const none = { type: 'object', properties: {}, additionalProperties: false }
+    expect(properties?.['cleared']).toEqual(none)
+    expect(properties?.['picked']).toEqual(none)
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('reads a payload imported from a module of the container', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/contracts/payloads.ts': `
+import { z } from 'zod'
+
+export const acknowledged = z.object({ at: z.string() })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+import { acknowledged as ack } from './contracts/payloads.ts'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged: ack }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+
+    expect(
+      descriptor.definitions[0]?.contract?.outputSchema?.properties?.['acknowledged'],
+    ).toMatchObject({
+      type: 'object',
+      properties: { at: { type: 'string' } },
+    })
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('publishes a payload named by something it cannot follow as an unknown payload', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+import { acknowledged } from '@acme/payloads'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract?.outputSchema?.properties).toEqual({
+      acknowledged: {},
+    })
+  })
+
   it('publishes no outputSchema when the output names are not statically readable', () => {
     const { fileFor } = planFixture({
       'src/mfe.ts': `

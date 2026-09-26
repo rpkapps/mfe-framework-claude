@@ -327,8 +327,10 @@ schema, instead of a list of names. A host wiring Widgets in sequence, one
 Widget's event feeding the next one's inputs, has to compare a payload with an
 input schema before either container loads, and one shape means one reader:
 `describeWidgetEvents` walks each payload with the code `describeWidgetInputs`
-uses (§28). A payload the build cannot read is `{}`, "anything", and the name
-stays. `events` is absent only when the names themselves cannot be read. A spread
+uses (§28). A payload written as a name, `{ acknowledged }` or
+`acknowledged: ack`, is followed to the top-level const or the container
+module's export it names. A payload the build cannot read is `{}`, "anything",
+and the name stays. `events` is absent only when the names themselves cannot be read. A spread
 or a computed key in the events map counts as that, since a partial set would
 claim to be closed. The host still accepts the old list of names, read as those
 events with unknown payloads, so a shell is deployed first and the containers

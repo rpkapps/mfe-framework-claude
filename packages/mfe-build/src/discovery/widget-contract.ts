@@ -9,6 +9,8 @@ import { findExportedExpression, resolveRelativeModule } from './local-modules.t
 import type { ContainerSources } from './sources.ts'
 import {
   calleeName,
+  collectImportedBindings,
+  collectTopLevelBindings,
   positionOf,
   propertyName,
   ts,
@@ -106,7 +108,7 @@ export function readWidgetContract(
       return inputSchema === undefined ? {} : { inputSchema }
     })(),
     ...(() => {
-      const outputSchema = readOutputSchema(outputs, id)
+      const outputSchema = readOutputSchema(outputs, id, sources)
       return outputSchema === undefined ? {} : { outputSchema }
     })(),
     source: {
@@ -146,7 +148,11 @@ function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undef
  * output's; the provider still validates it. No property is listed as required: every output may
  * never be emitted.
  */
-function readOutputSchema(outputs: ResolvedSchema, id: string): JsonObject | undefined {
+function readOutputSchema(
+  outputs: ResolvedSchema,
+  id: string,
+  sources: ContainerSources,
+): JsonObject | undefined {
   const node = objectShapeLiteral(outputs.expression)
   if (node === undefined) return undefined
 
@@ -155,17 +161,60 @@ function readOutputSchema(outputs: ResolvedSchema, id: string): JsonObject | und
     // A spread or a computed name hides which outputs exist; a partial list would claim a closed set.
     const name = propertyName(property)
     if (name === null) return undefined
-    properties[name] = ts.isPropertyAssignment(property)
-      ? readPayloadSchema(property.initializer, outputs.sourceFile, name)
-      : {}
+    const payload = ts.isPropertyAssignment(property)
+      ? property.initializer
+      : ts.isShorthandPropertyAssignment(property)
+        ? property.name
+        : undefined
+    properties[name] =
+      payload === undefined
+        ? {}
+        : readPayloadSchema(followName(payload, outputs.sourceFile, sources), name)
   }
 
   return { title: `${id} outputs`, type: 'object', properties, additionalProperties: false }
 }
 
-function readPayloadSchema(
+/** How deep `followName` goes: a chain this long is a mistake, and a cycle never ends. */
+const MAX_NAME_HOPS = 8
+
+/**
+ * The schema a payload names, so `{ acknowledged }` and `acknowledged: ack` read as the schema
+ * declared for it: a top-level const of the same module, or the export of a module of the
+ * container it is imported from, followed as far as another name. What it cannot follow (a
+ * package's export, a function's result) stays as written, which reads as an unknown payload.
+ */
+function followName(
   expression: ts.Expression,
   sourceFile: ts.SourceFile,
+  sources: ContainerSources,
+  hops = 0,
+): ResolvedExpression {
+  const node = unwrapExpression(expression)
+  if (!ts.isIdentifier(node) || hops >= MAX_NAME_HOPS) return { expression: node, sourceFile }
+
+  const local = collectTopLevelBindings(sourceFile).get(node.text)
+  if (local !== undefined) return followName(local, sourceFile, sources, hops + 1)
+
+  const imported = collectImportedBindings(sourceFile).get(node.text)
+  if (imported !== undefined) {
+    const file = resolveRelativeModule(sourceFile.fileName, imported.moduleSpecifier)
+    if (file !== null) {
+      const external = sources.parse(file)
+      const exported = findExportedExpression(external, imported.imported)
+      if (exported !== null) return followName(exported, external, sources, hops + 1)
+    }
+  }
+  return { expression: node, sourceFile }
+}
+
+interface ResolvedExpression {
+  readonly expression: ts.Expression
+  readonly sourceFile: ts.SourceFile
+}
+
+function readPayloadSchema(
+  { expression, sourceFile }: ResolvedExpression,
   name: string,
 ): JsonObject {
   try {
