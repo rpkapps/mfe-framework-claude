@@ -101,16 +101,44 @@ function provideMfeMount(
 
 /**
  * One application per mount, on the page's shared browser platform, which no mount ever destroys.
- * A provider that fails here is the definition's, so the failure is named after it.
+ * A provider that fails here is the definition's, so the failure is named after it. Creation waits
+ * on the definition's initializers, which may never settle, so a disposal stops the wait rather
+ * than leaving the mount pinned to it.
  */
 async function createMountApplication(
   providers: MountProviders,
   errors: MountErrorHandler,
+  context: MountContext,
 ): Promise<ApplicationRef> {
+  const creating = createApplication({ providers: [...providers] })
+  const { signal } = context
+  let stopWaiting = (): void => undefined
+  const disposed = new Promise<never>((_resolve, reject) => {
+    const onAbort = (): void => {
+      reject(disposedWhileMounting(context))
+    }
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+    stopWaiting = () => {
+      signal.removeEventListener('abort', onAbort)
+    }
+  })
+
   try {
-    return await createApplication({ providers: [...providers] })
+    return await Promise.race([creating, disposed])
   } catch (error) {
-    throw errors.toMountError(error, 'create its application')
+    if (!signal.aborted) throw errors.toMountError(error, 'create its application')
+    // An application created after the disposal has no mount left to hand it to, and a creation
+    // that fails after it is no longer anybody's failure.
+    void creating.then(
+      application => {
+        application.destroy()
+      },
+      () => undefined,
+    )
+    throw disposedWhileMounting(context)
+  } finally {
+    stopWaiting()
   }
 }
 
@@ -202,10 +230,17 @@ export async function runMountApplication<T>(
   const { definition, errors, render, start, release = () => undefined } = options
   const { context, element, onFailure } = options.target
 
-  const application = await createMountApplication(
-    [...definition.providers, ...provideMfeMount(context, errors), ...options.providers],
-    errors,
-  )
+  let application: ApplicationRef
+  try {
+    application = await createMountApplication(
+      [...definition.providers, ...provideMfeMount(context, errors), ...options.providers],
+      errors,
+      context,
+    )
+  } catch (error) {
+    release()
+    throw error
+  }
 
   if (context.signal.aborted) {
     application.destroy()

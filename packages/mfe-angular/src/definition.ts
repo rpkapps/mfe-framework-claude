@@ -5,7 +5,14 @@
  */
 
 import type { EnvironmentProviders, Provider, Type } from '@angular/core'
-import type { RouterFeatures, Routes } from '@angular/router'
+import {
+  NoPreloading,
+  withEnabledBlockingInitialNavigation,
+  withInMemoryScrolling,
+  withPreloading,
+  type RouterFeatures,
+  type Routes,
+} from '@angular/router'
 import {
   assertDefinitionId,
   createMfeError,
@@ -52,7 +59,11 @@ export interface AppOptions extends PresentationOptions {
   readonly routes: Routes
   /**
    * Features for the App's router, such as `withComponentInputBinding()`. The mount owns the
-   * router's location and its first navigation, so features that set either are overridden.
+   * router's location and starts its first navigation itself, so `withHashLocation()` and
+   * `withDisabledInitialNavigation()` change nothing. A mount's application is created rather
+   * than bootstrapped, and the router starts some features only when an application is
+   * bootstrapped, so `createApp` refuses those: `withEnabledBlockingInitialNavigation()`, which
+   * would hold every navigation forever, `withPreloading()` and `withInMemoryScrolling()`.
    */
   readonly routerFeatures?: readonly RouterFeatures[]
   /** Extra environment providers for this App's application injector, created once per mount. */
@@ -112,6 +123,9 @@ export function createApp(options: AppOptions): AppDefinition {
     })
   }
   if (options.component !== undefined) assertComponent(options.id, options.component, 'App')
+  options.routerFeatures?.forEach((feature, index) => {
+    assertSupportedRouterFeature(options.id, feature, index)
+  })
 
   const definition: AppDefinition = {
     [DEFINITION_BRAND]: true,
@@ -166,6 +180,64 @@ function assertComponent(id: string, component: unknown, kind: 'App' | 'Widget')
     expected: 'a standalone component class',
     observed: describeOption(component),
     repair: 'Pass the class decorated with @Component as `component`, imported, not instantiated.',
+  })
+}
+
+interface UnsupportedRouterFeature {
+  readonly name: string
+  readonly reason: string
+  readonly repair: string
+}
+
+/**
+ * The features the router starts from the listener it runs when an application is bootstrapped.
+ * A mount creates its application and attaches the App's root itself, so that listener never
+ * runs. Keyed by the kind each feature carries, read off the router's own factories so the key
+ * follows the installed router.
+ */
+function unsupportedRouterFeatures(): ReadonlyMap<
+  RouterFeatures['ɵkind'],
+  UnsupportedRouterFeature
+> {
+  return new Map([
+    [
+      withEnabledBlockingInitialNavigation().ɵkind,
+      {
+        name: 'withEnabledBlockingInitialNavigation()',
+        reason: 'holds every navigation until a bootstrap that never comes',
+        repair: 'Remove it; the host shows its loading state until the App has mounted.',
+      },
+    ],
+    [
+      withPreloading(NoPreloading).ɵkind,
+      {
+        name: 'withPreloading()',
+        reason: 'starts preloading only on a bootstrap, so nothing would preload',
+        repair: 'Remove it; each lazy route loads when it is first navigated to.',
+      },
+    ],
+    [
+      withInMemoryScrolling().ɵkind,
+      {
+        name: 'withInMemoryScrolling()',
+        reason: 'restores scroll only on a bootstrap, and the page’s scroll is the host’s',
+        repair: 'Remove it, and scroll an element inside the App where a route needs to.',
+      },
+    ],
+  ])
+}
+
+function assertSupportedRouterFeature(id: string, feature: RouterFeatures, index: number): void {
+  const unsupported = unsupportedRouterFeatures().get(feature.ɵkind)
+  if (unsupported === undefined) return
+  throw createMfeError({
+    code: 'app/invalid-router',
+    id,
+    operation: 'create App definition',
+    path: ['routerFeatures', index],
+    expected: 'a router feature that runs in an application created without a bootstrap',
+    observed: `${unsupported.name}, which ${unsupported.reason}`,
+    repair: unsupported.repair,
   })
 }
 

@@ -1,5 +1,12 @@
 import { APP_BASE_HREF, Location } from '@angular/common'
-import { Component, inject, Input } from '@angular/core'
+import {
+  Component,
+  DestroyRef,
+  inject,
+  Input,
+  provideAppInitializer,
+  provideEnvironmentInitializer,
+} from '@angular/core'
 import {
   ActivatedRoute,
   ROUTER_CONFIGURATION,
@@ -12,6 +19,7 @@ import {
   withRouterConfig,
 } from '@angular/router'
 import {
+  createMountContext,
   createNavigationIntent,
   mountDefinition,
   parseBoundaryLocation,
@@ -184,6 +192,52 @@ describe('mounting an App', () => {
     expect(heading(right)).toBe('report 2')
     expect(environment.navigation.entries.at(-1)).toBe('/right/reports/2')
     await right.dispose()
+    environment.dispose()
+  })
+
+  it('stops waiting on an application that never finishes creating once disposed', async () => {
+    let finishCreating: () => void = () => undefined
+    let destroyed = 0
+    const stalled = createApp({
+      id: 'stalled',
+      routes,
+      providers: [
+        provideAppInitializer(
+          () =>
+            new Promise<void>(resolve => {
+              finishCreating = resolve
+            }),
+        ),
+        provideEnvironmentInitializer(() => {
+          inject(DestroyRef).onDestroy(() => {
+            destroyed += 1
+          })
+        }),
+      ],
+    })
+    const environment = createMfeTestEnvironment({ initialEntries: ['/stalled'] })
+    const handle = createMountContext({
+      runtime: environment.runtime,
+      definitionId: stalled.id,
+      kind: 'app',
+      basePath: '/stalled',
+    })
+    const element = document.createElement('div')
+    document.body.appendChild(element)
+
+    const mounting = stalled.mount({ element, context: handle.context, onFailure: vi.fn() })
+    await handle.dispose()
+
+    await expect(mounting).rejects.toThrowError(
+      /the mount was disposed before it finished mounting/,
+    )
+    expect(element.childElementCount).toBe(0)
+
+    finishCreating()
+    await vi.waitFor(() => {
+      expect(destroyed).toBe(1)
+    })
+    element.remove()
     environment.dispose()
   })
 

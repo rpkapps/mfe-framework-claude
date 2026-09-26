@@ -1,5 +1,14 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core'
-import type { Routes } from '@angular/router'
+import {
+  PreloadAllModules,
+  withComponentInputBinding,
+  withEnabledBlockingInitialNavigation,
+  withInMemoryScrolling,
+  withPreloading,
+  withRouterConfig,
+  type RouterFeatures,
+  type Routes,
+} from '@angular/router'
 import { DEFINITION_BRAND, isBrandedDefinition } from '@company/mfe-core'
 import { isMountableDefinition } from '@company/mfe-runtime'
 import { describe, expect, it } from 'vitest'
@@ -67,6 +76,24 @@ describe('createApp', () => {
     expect(() =>
       createApp({ id: 'reports', routes, component: 'page' as unknown as typeof PageComponent }),
     ).toThrowError(/expected a standalone component class, received a string/)
+  })
+
+  it('refuses the router features that start only in a bootstrapped application', () => {
+    const withFeatures = (routerFeatures: RouterFeatures[]) => () =>
+      createApp({ id: 'reports', routes, routerFeatures })
+
+    expect(
+      withFeatures([withComponentInputBinding(), withEnabledBlockingInitialNavigation()]),
+    ).toThrowError(
+      'reports failed to create App definition routerFeatures[1]: expected a router feature that runs in an application created without a bootstrap, received withEnabledBlockingInitialNavigation(), which holds every navigation until a bootstrap that never comes. Remove it; the host shows its loading state until the App has mounted.',
+    )
+    expect(withFeatures([withPreloading(PreloadAllModules)])).toThrowError(
+      /routerFeatures\[0\]: .* received withPreloading\(\), which starts preloading only on a bootstrap/,
+    )
+    expect(withFeatures([withInMemoryScrolling()])).toThrowError(
+      /routerFeatures\[0\]: .* received withInMemoryScrolling\(\), which restores scroll only on a bootstrap/,
+    )
+    expect(() => withFeatures([withComponentInputBinding(), withRouterConfig({})])()).not.toThrow()
   })
 })
 

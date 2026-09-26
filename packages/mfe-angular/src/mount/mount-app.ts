@@ -2,7 +2,9 @@
  * Mounting an App: one Angular application per mount, with the App's routes over a location
  * strategy that reads and writes the host's navigation bridge rather than the browser's history.
  * The router starts its first navigation only once the root view is attached, because an
- * application that is not bootstrapped never runs the router's bootstrap listener.
+ * application that is not bootstrapped never runs the router's bootstrap listener. Preloading and
+ * in-memory scrolling start only from that listener too, and blocking initial navigation waits on
+ * it forever, so `createApp` refuses those features.
  */
 
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
