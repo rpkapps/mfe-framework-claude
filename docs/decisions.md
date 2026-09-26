@@ -22,6 +22,13 @@ subscription made in the constructor was removed by the first cleanup and never
 re-made (§14), so construction is pure and `attach()` listens. A missing one does
 not announce itself.
 
+**Amendment (2026-09-26):** each App's router reaches the navigator through a bridge of its own
+(`createBridge`). A push or replace through it is told, a microtask later, to every other
+subscriber and not to the router that made it, which already knows; it is held during a
+negotiation as a browser report is, and a write that leaves the page where it was is told to no
+one. Nested Apps share the page, so where one takes it the other must hear. A push by one App
+still asks no other App's blockers.
+
 ---
 
 ## 2. One generated route tree can back two concurrent mounts
@@ -425,6 +432,11 @@ rebuilds and checkouts — carried forward whenever the hash matches, not this
 compilation's, though a fixed `buildTime` is still recorded as given. A build
 running on every compilation must be a pure function of its inputs.
 
+**Amendment (2026-09-26):** a plan lists the files it writes in `.mfe/.generated-files.json`. Writing a
+changed list deletes what the previous one named and this one does not, inside that directory
+only, so a renamed Widget leaves no stale entry behind. Nothing a plan never listed is deleted,
+so the developer's `runtime-config.json` survives.
+
 ---
 
 ## 20. An App blocks navigation with TanStack's own `useBlocker`, and the framework widens it
@@ -480,6 +492,10 @@ noise beside it. Per-user data is the explicit choice now: a record that declare
 no retention survives a sign-out, and anything derived from a user's data says
 `retention: 'user'` where a reader can see it.
 
+**Amendment (2026-09-26):** a generation is reused across a reload only for the identity and the canonical
+group set recorded beside it, so a user whose groups changed between sign-ins starts a fresh
+generation; a transition in the page rewrites that record.
+
 ---
 
 ## 22. The developer tools ship in production and are gated at runtime
@@ -518,6 +534,12 @@ pointing at a dead dev server looks like a broken deployment.
 `collectDiagnostics` carries the overrides and any `registry.json` failure into
 the bug report, now the only place on the page that says what the shell was
 running.
+
+**Amendment (2026-09-26):** overrides are still read in every build, but apply only to a loopback origin
+or one the host lists in `overrideOrigins`; any other is refused with a warning. An override for
+an id the registry does not list is reported, and a tab whose session record names a different
+user than the one signed in discards the overrides it finds. A new tab has no record to compare,
+and a user change without a reload clears nothing.
 
 ---
 
@@ -771,6 +793,18 @@ declares PrimeNG's variables for the whole page before the first Angular contain
 mounts (§38). `injectTheme()` and the mount's roots are still what a container's own
 theming code would build on.
 
+**Amendment (2026-09-26):** a mount creates its application and attaches the App's root rather than
+bootstrapping it, so the router's bootstrap listener never runs. `createApp` refuses the features
+that start only from it — `withEnabledBlockingInitialNavigation()`, which held every navigation
+forever, `withPreloading()` and `withInMemoryScrolling()` — with `app/invalid-router`. The router
+gives a failed navigation to its promise and a `NavigationError` event, not the `ErrorHandler`,
+so the mount listens: a failure before the App's first completed navigation fails the mount
+through `onFailure`, and one after it is a diagnostic. The mount sets
+`resolveNavigationPromiseOnError`, because the router drops the promises of the navigations it
+starts itself. **Cost:** an App's own `router.navigate()` resolves `false` on failure rather than
+rejecting, and the App's `withRouterConfig` options are carried over by reading the feature's
+providers, which a router upgrade could change.
+
 ---
 
 ## 32. `@company/mfe-host` is `@company/mfe-runtime`, the core holds contracts only, and an application imports only its adapter
@@ -867,6 +901,11 @@ installs, so the design system's `recharts` was not shared until the chat's char
 it a dependency of the shell. And `shareScopes` couples the registry to the build: an entry without
 it shares in `default` alone and runs on its own React.
 
+**Amendment (2026-09-26):** `react` and `react-dom` are shared by the React adapter's own policy, and a
+design-system contract cannot override an entry the adapter lists, so no release of it can load
+a second React. A mount torn down while its definition is still mounting has its signal aborted
+first, so a definition that stops on abort cannot hold the teardown.
+
 ---
 
 ## 34. The lint plugin has a neutral root and one subpath per framework
@@ -945,6 +984,11 @@ the registry can tell an App from a Widget and knows the boundary. Shortcut erro
 warnings reuse `command/duplicate-name`, which already covered an invalid registration,
 rather than widening the closed union (§7). And a key the page is inside two nested
 Apps for is ambiguous where an inner-wins rule would have resolved it.
+
+**Amendment (2026-09-26):** letters and digits name keys, not what a layout types on them: where the key
+is not printable ASCII, or Alt is held without Ctrl, the physical key (`event.code`) is read, so
+the shell's shortcuts work on a Cyrillic layout. Ctrl+Alt keeps its symbol, as Windows reports
+AltGr. A held key's repeats run nothing but are still claimed.
 
 ---
 
@@ -1100,6 +1144,10 @@ single-page fallback serves for a file it does not have, as a missing file.
 **Cost:** an object nested in a host's configuration refuses a key its schema does not
 name, as the JSON Schema says, where Zod would strip it; top-level unknown keys are refused
 by both. The string transforms apply to a top-level field only.
+
+**Amendment (2026-09-26):** an `{ api: true }` field must be a URL schema with an http(s) default, if it has
+one; its value is checked for http(s) when the configuration loads, and an unset optional field
+declares no origin.
 
 ---
 
@@ -1572,6 +1620,9 @@ published, and the navigate tool cannot offer them; a route whose path is comput
 not either, nor one with a parameter that shares its segment with a prefix or a suffix
 (`{$id}.json`), which the neutral syntax cannot write, nor an Angular route with a
 `matcher` or on a named outlet.
+
+**Amendment (2026-09-26):** capability paths are published in the same neutral syntax as `routes`, and a
+marked route that syntax cannot write fails the build.
 
 ---
 
