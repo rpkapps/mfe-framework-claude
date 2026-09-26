@@ -54,7 +54,7 @@ function reservedInputName(id: string, name: string): MfeError {
     operation: `declare input '${name}'`,
     expected: 'an input name that is not reserved for host control or output handlers',
     observed: `'${name}', which is reserved`,
-    repair: 'Rename the input; key, ref, fallback and onX names belong to the host.',
+    repair: 'Rename the input; key, ref, fallback, pending and onX names belong to the host.',
   })
 }
 

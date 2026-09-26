@@ -363,7 +363,7 @@ describe('a React Widget mounting itself', () => {
 
     /** The Angular adapter fails with this same message, word for word. */
     const RESERVED_MESSAGE =
-      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback, pending and onX names belong to the host."
 
     /** Outside `act`, because inside it React rethrows the failure to the test instead. */
     it('rejects the first mount with the declaration error', async () => {
@@ -413,6 +413,32 @@ describe('a React Widget mounting itself', () => {
         message: RESERVED_MESSAGE,
       })
       expect(onInputRejected).not.toHaveBeenCalled()
+    })
+
+    /** `pending` is the Widget host's loading slot, so a consumer's value never reached the Widget. */
+    it('rejects an input named pending with the same declaration error', async () => {
+      const status = createWidget({
+        id: 'status',
+        version: '1.0.0',
+        inputSchema: z.object({ pending: z.boolean().default(false) }),
+        outputSchema: z.object({}),
+        render: ({ inputs }): ReactNode => <p>{String(inputs.pending)}</p>,
+      })
+      const { context } = hostFor('widget', 'status')
+
+      const thrown = await status
+        .mount({
+          element,
+          context,
+          inputs: {},
+          emit: () => undefined,
+          onFailure: noopFailure,
+        })
+        .catch((error: unknown) => error)
+
+      expect(thrown).toMatchObject({ code: 'contract/input-mismatch', id: 'status' })
+      expect((thrown as Error).message).toContain("failed to declare input 'pending'")
+      expect(element.childElementCount).toBe(0)
     })
   })
 

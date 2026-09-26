@@ -42,8 +42,12 @@ export function outputPayloadSchema(
   return shape !== undefined && Object.hasOwn(shape, name) ? shape[name] : undefined
 }
 
-/** Host control props never forwarded as inputs; `on` + uppercase is reserved separately. */
-export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback'] as const
+/**
+ * Host control props never forwarded as inputs; `on` + uppercase is reserved separately. A host
+ * places a Widget by id without its contract, so it can only tell its own props from inputs by
+ * name, and an input with one of these names would never reach the Widget.
+ */
+export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback', 'pending'] as const
 
 const HANDLER_PROP_PATTERN = /^on[A-Z]/
 const OUTPUT_NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/
