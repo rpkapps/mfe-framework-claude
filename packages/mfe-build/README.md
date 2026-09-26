@@ -44,6 +44,12 @@ const plan = planContainer(profile, { containerRoot, buildTime })
 writeGeneratedFiles(plan.generated.files) // skips every file whose bytes are unchanged
 ```
 
+A plan lists its own files in `.mfe/.generated-files.json`, and writing a list that
+changed deletes each file the one before named and this one does not, so a removed
+Widget's entry and contract, or `config.ts` once `src/mfe.config.ts` is gone, go
+with it. A file no plan listed is never deleted, the developer's
+`.mfe/runtime-config.json` included.
+
 The plan carries everything the bundler glue needs: `exposes`, `shared`,
 `aliases`, `entryStub`, `stylesheet`, `scopes`, `generated` (files, build hash,
 registry descriptor and manifest metadata), and `diagnostics` to report as

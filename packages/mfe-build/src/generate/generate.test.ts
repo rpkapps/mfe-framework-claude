@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 
 import tailwindcss from '@tailwindcss/postcss'
@@ -115,6 +115,7 @@ describe('generated inventory', () => {
 
     expect(names).toEqual([
       '.mfe/.env.example',
+      '.mfe/.generated-files.json',
       '.mfe/.gitignore',
       '.mfe/config.ts',
       '.mfe/css.d.ts',
@@ -162,6 +163,46 @@ describe('generated inventory', () => {
 
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(plan.generated.files.length)
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(0)
+  })
+
+  it('deletes what an earlier run generated and this one does not, and nothing else', () => {
+    const widget = (id: string) => `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const row = createWidget({
+  id: '${id}',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: () => null,
+})
+`
+    const { root, plan } = planFixture({
+      'src/mfe.ts': `${APP_ENTRY}\n${widget('order-row')}`,
+      'src/mfe.config.ts': CONFIG,
+    })
+    writeGeneratedFiles(plan.generated.files)
+    writeFileSync(join(root, '.mfe/runtime-config.json'), '{ "pageSize": 50 }\n')
+    writeFileSync(join(root, '.mfe/notes.txt'), 'kept by hand\n')
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-row.ts'))).toBe(true)
+    expect(existsSync(join(root, '.mfe/widgets/order-row.contract.ts'))).toBe(true)
+
+    writeFileSync(join(root, 'src/mfe.ts'), `${APP_ENTRY}\n${widget('order-line')}`)
+    rmSync(join(root, 'src/mfe.config.ts'))
+    writeGeneratedFiles(
+      planContainer(TEST_PROFILE, { containerRoot: root, buildTime: BUILD_TIME }).generated.files,
+    )
+
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-row.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/widgets/order-row.contract.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/config.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/runtime-config.schema.json'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-line.ts'))).toBe(true)
+    expect(existsSync(join(root, '.mfe/widgets/order-line.contract.ts'))).toBe(true)
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(
+      '{ "pageSize": 50 }\n',
+    )
+    expect(readFileSync(join(root, '.mfe/notes.txt'), 'utf8')).toBe('kept by hand\n')
   })
 
   it('names the integration in every banner, as the place to change what it wrote', () => {

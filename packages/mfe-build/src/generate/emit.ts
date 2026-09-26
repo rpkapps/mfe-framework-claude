@@ -1,8 +1,18 @@
 /** The same sources produce the same bytes, so a watching build never restarts itself (§19). */
 
 import { createHash } from 'node:crypto'
-import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync, type Stats } from 'node:fs'
-import { dirname, relative, resolve, sep } from 'node:path'
+import {
+  chmodSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  type Stats,
+} from 'node:fs'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 export interface GeneratedFile {
   /** Absolute path the file is written to. */
@@ -12,6 +22,33 @@ export interface GeneratedFile {
   readonly executable?: boolean
   /** The name it ships under beside the container's assets; absent for a file that stays local. */
   readonly asset?: string
+  /**
+   * Lists the other files of its run, relative to its own directory. Writing it deletes each file
+   * the copy it replaces listed and it does not, so a removed Widget's modules go with it.
+   */
+  readonly inventory?: boolean
+}
+
+/** Where a generated directory lists what the last run wrote into it. */
+export const GENERATED_INVENTORY_FILE = '.generated-files.json'
+
+/**
+ * The inventory of one run into `generatedDir`. Only what the run generates is listed, so a file
+ * the developer keeps there, such as the local runtime configuration, is never deleted.
+ */
+export function inventoryFile(
+  generatedDir: string,
+  files: readonly GeneratedFile[],
+): GeneratedFile {
+  const names = files
+    .map(file => posixRelative(generatedDir, file.path))
+    .filter(name => !name.startsWith('../') && !isAbsolute(name))
+    .sort()
+  return {
+    path: generatedPath(generatedDir, GENERATED_INVENTORY_FILE),
+    contents: jsonFile({ files: names }),
+    inventory: true,
+  }
 }
 
 /** Names the integration that wrote the file, which is where a reader goes to change it. */
@@ -73,10 +110,13 @@ export function createGeneratedFileWriter(): (
 
   return files => {
     const written: GeneratedFile[] = []
+    const stale: { readonly path: string; readonly root: string }[] = []
 
     for (const file of files) {
       let stats = statOf(file.path)
       if (stats === null || !holds(file, stats, known.get(file.path))) {
+        // Read before it is replaced: an unchanged inventory lists nothing to delete.
+        if (file.inventory === true && stats !== null) stale.push(...unlisted(file))
         mkdirSync(dirname(file.path), { recursive: true })
         writeFileSync(file.path, file.contents, 'utf8')
         written.push(file)
@@ -88,8 +128,59 @@ export function createGeneratedFileWriter(): (
       known.set(file.path, { contents: file.contents, size: stats.size, mtimeMs: stats.mtimeMs })
     }
 
+    for (const { path, root } of stale) {
+      removeGeneratedFile(path, root)
+      known.delete(path)
+    }
+
     return written
   }
+}
+
+/** The files the inventory on disk lists and `inventory` no longer does, with their directory. */
+function unlisted(inventory: GeneratedFile): { readonly path: string; readonly root: string }[] {
+  const root = dirname(inventory.path)
+  const current = new Set(listedIn(inventory.contents))
+
+  return listedIn(readFileSync(inventory.path, 'utf8'))
+    .filter(name => !current.has(name))
+    .map(name => resolve(root, name))
+    .filter(path => path !== inventory.path && isInside(root, path))
+    .map(path => ({ path, root }))
+}
+
+/** An inventory that cannot be read lists nothing, so nothing is deleted on its account. */
+function listedIn(contents: string): readonly string[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(contents)
+  } catch {
+    return []
+  }
+  if (typeof parsed !== 'object' || parsed === null) return []
+  const files: unknown = (parsed as { files?: unknown }).files
+  if (!Array.isArray(files)) return []
+  return files.filter((name): name is string => typeof name === 'string')
+}
+
+function isInside(directory: string, path: string): boolean {
+  const name = relative(directory, path)
+  return name !== '' && !name.startsWith(`..${sep}`) && name !== '..' && !isAbsolute(name)
+}
+
+/** Removes the file, then each directory below `root` it leaves empty. */
+function removeGeneratedFile(path: string, root: string): void {
+  if (statOf(path)?.isFile() !== true) return
+  rmSync(path)
+  let directory = dirname(path)
+  while (isInside(root, directory) && isEmptyDirectory(directory)) {
+    rmdirSync(directory)
+    directory = dirname(directory)
+  }
+}
+
+function isEmptyDirectory(path: string): boolean {
+  return statOf(path)?.isDirectory() === true && readdirSync(path).length === 0
 }
 
 /** Whether the file on disk already holds these contents, answered from memory when it can be. */

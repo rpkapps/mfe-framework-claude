@@ -131,6 +131,7 @@ describe('planHostConfig', () => {
     const names = result?.files.map(file => file.path.split(/[\\/]/).at(-1)).sort()
     expect(names).toEqual([
       '.env.example',
+      '.generated-files.json',
       '.gitignore',
       'config.ts',
       'runtime-config.defaults.json',

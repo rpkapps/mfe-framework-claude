@@ -14,7 +14,7 @@ import {
   tsconfigPathsFile,
   type FrameworkManifestMetadata,
 } from './artifacts.ts'
-import { contentHash, generatedPath, type GeneratedFile } from './emit.ts'
+import { contentHash, generatedPath, inventoryFile, type GeneratedFile } from './emit.ts'
 import {
   configModule,
   containerEntryModule,
@@ -80,6 +80,7 @@ export function generateContainerFiles(
     metaModule(recorded, buildHash),
     registryDescriptorFile(recorded, descriptor),
   ]
+  files.push(inventoryFile(context.options.generatedDir, files))
 
   return {
     files: [...files].sort((left, right) => (left.path < right.path ? -1 : 1)),
