@@ -42,7 +42,12 @@ export interface LegacyRegistryEntry extends RegistryEntry {
   readonly onboardingType?: string
   readonly categories: readonly string[]
   readonly externalUrl?: string
-  readonly routes: readonly string[]
+  /**
+   * The legacy config's `routes`: shell paths the legacy app serves. Named apart from
+   * `RegistryEntry.routes`, the App-relative routes a framework build publishes, which a legacy
+   * config does not have.
+   */
+  readonly legacyRoutes: readonly string[]
   readonly settingsRoutes: readonly string[]
 }
 
@@ -161,7 +166,7 @@ export const legacyAngularAdapter: MfeAdapter<typeof LEGACY_ADAPTER_KIND, Legacy
       tags: parsed.tags,
       categories: parsed.categories,
       ...(parsed.externalUrl == null ? {} : { externalUrl: parsed.externalUrl }),
-      routes: parsed.routes,
+      legacyRoutes: parsed.routes,
       settingsRoutes: parsed.settings?.routes ?? [],
       ...(parsed.version == null ? {} : { version: parsed.version }),
       ...(parsed.title == null ? {} : { title: parsed.title }),

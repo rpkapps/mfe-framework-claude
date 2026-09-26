@@ -27,8 +27,8 @@ afterEach(async () => {
 const counter = createWidget({
   id: 'counter-widget',
   version: '1.0.0',
-  inputs: z.object({ label: z.string() }),
-  events: { bumped: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ bumped: z.object({ at: z.string() }) }),
   render: function Counter({ inputs, emit }): ReactNode {
     const [clicks, setClicks] = useState(0)
     return (
@@ -48,8 +48,11 @@ const counter = createWidget({
 const feed = createWidget({
   id: 'feed-widget',
   version: '1.0.0',
-  inputs: z.object({ label: z.string() }),
-  events: { opened: z.object({ at: z.string() }), closed: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({
+    opened: z.object({ at: z.string() }),
+    closed: z.object({ at: z.string() }),
+  }),
   render: ({ inputs, emit }): ReactNode => (
     <>
       <span>{inputs.label}</span>
@@ -77,8 +80,8 @@ const feed = createWidget({
 const collides = createWidget({
   id: 'collides-widget',
   version: '1.0.0',
-  inputs: z.object({}),
-  events: { event: z.object({ n: z.number() }) },
+  inputSchema: z.object({}),
+  outputSchema: z.object({ event: z.object({ n: z.number() }) }),
   render: ({ emit }): ReactNode => (
     <button
       type="button"
@@ -94,8 +97,8 @@ const collides = createWidget({
 const other = createWidget({
   id: 'other-widget',
   version: '2.0.0',
-  inputs: z.object({ label: z.string() }),
-  events: {},
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({}),
   render: ({ inputs }) => <p data-testid="other">{inputs.label}</p>,
 })
 
@@ -235,15 +238,15 @@ describe('DynamicWidget', () => {
 })
 
 /** A host knows a Widget's events only as the strings its published contract lists (§28). */
-describe('DynamicWidget onEvent', () => {
+describe('DynamicWidget onOutput', () => {
   it('delivers every declared event, by name, to one handler', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
 
     render(
       hosted(
         environment.runtime,
-        <DynamicWidget widgetId="feed-widget" label="Feed" onEvent={onEvent} />,
+        <DynamicWidget widgetId="feed-widget" label="Feed" onOutput={onOutput} />,
       ),
     )
 
@@ -253,7 +256,7 @@ describe('DynamicWidget onEvent', () => {
     await userEvent.click(screen.getByRole('button', { name: 'open' }))
     await userEvent.click(screen.getByRole('button', { name: 'close' }))
 
-    expect(onEvent.mock.calls).toEqual([
+    expect(onOutput.mock.calls).toEqual([
       ['opened', { at: 'now' }],
       ['closed', { at: 'later' }],
     ])
@@ -261,13 +264,18 @@ describe('DynamicWidget onEvent', () => {
 
   it('delivers an event to its own handler and to the catch-all', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
     const onOpened = vi.fn()
 
     render(
       hosted(
         environment.runtime,
-        <DynamicWidget widgetId="feed-widget" label="Feed" onOpened={onOpened} onEvent={onEvent} />,
+        <DynamicWidget
+          widgetId="feed-widget"
+          label="Feed"
+          onOpened={onOpened}
+          onOutput={onOutput}
+        />,
       ),
     )
 
@@ -278,7 +286,7 @@ describe('DynamicWidget onEvent', () => {
 
     // A consumer asking for all of them and for one in particular means both.
     expect(onOpened).toHaveBeenCalledWith({ at: 'now' })
-    expect(onEvent).toHaveBeenCalledWith('opened', { at: 'now' })
+    expect(onOutput).toHaveBeenCalledWith('opened', { at: 'now' })
   })
 
   it('never forwards the catch-all to the provider as an input', async () => {
@@ -290,7 +298,7 @@ describe('DynamicWidget onEvent', () => {
         <DynamicWidget
           widgetId="counter-widget"
           label="Clicks"
-          onEvent={() => undefined}
+          onOutput={() => undefined}
           fallback={({ error }) => <p data-testid="error">{error.message}</p>}
         />,
       ),
@@ -305,10 +313,10 @@ describe('DynamicWidget onEvent', () => {
 
   it('still delivers an event whose name maps to the catch-all prop', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [collides] })
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
 
     render(
-      hosted(environment.runtime, <DynamicWidget widgetId="collides-widget" onEvent={onEvent} />),
+      hosted(environment.runtime, <DynamicWidget widgetId="collides-widget" onOutput={onOutput} />),
     )
 
     await waitFor(() => {
@@ -317,7 +325,7 @@ describe('DynamicWidget onEvent', () => {
     await userEvent.click(screen.getByRole('button'))
 
     // The prop is the catch-all's, so this Widget cannot be subscribed to by prop name.
-    expect(onEvent).toHaveBeenCalledWith('event', { n: 1 })
+    expect(onOutput).toHaveBeenCalledWith('event', { n: 1 })
   })
 })
 
@@ -461,7 +469,7 @@ describe('a Widget any framework built', () => {
       definitions: [widget.definition],
     })
     const onAcknowledged = vi.fn()
-    const onEvent = vi.fn()
+    const onOutput = vi.fn()
 
     render(
       hosted(
@@ -470,7 +478,7 @@ describe('a Widget any framework built', () => {
           widgetId="alert-panel"
           label="Disk full"
           onAcknowledged={onAcknowledged}
-          onEvent={onEvent}
+          onOutput={onOutput}
         />,
       ),
     )
@@ -479,7 +487,7 @@ describe('a Widget any framework built', () => {
     widget.emit('acknowledged', { alertId: 'a-1' })
 
     expect(onAcknowledged).toHaveBeenCalledWith({ alertId: 'a-1' })
-    expect(onEvent).toHaveBeenCalledWith('acknowledged', { alertId: 'a-1' })
+    expect(onOutput).toHaveBeenCalledWith('acknowledged', { alertId: 'a-1' })
   })
 
   it('reaches the handler committed last, without mounting again', async () => {
@@ -521,8 +529,10 @@ describe('a Widget any framework built', () => {
     })
     const AlertPanel = lazyWidget('alert-panel', {
       contract: {
-        inputs: alertContract.inputs,
-        events: { acknowledged: z.object({ alertId: z.string().startsWith('alert-') }) },
+        inputSchema: alertContract.inputSchema,
+        outputSchema: z.object({
+          acknowledged: z.object({ alertId: z.string().startsWith('alert-') }),
+        }),
       },
     })
     const onAcknowledged = vi.fn()
@@ -540,7 +550,7 @@ describe('a Widget any framework built', () => {
     expect(onAcknowledged.mock.calls).toEqual([[{ alertId: 'alert-2' }]])
     expect(environment.diagnostics).toHaveLength(1)
     expect(environment.diagnostics[0]?.error).toMatchObject({
-      code: 'contract/event-mismatch',
+      code: 'contract/output-mismatch',
       id: 'alert-panel',
     })
   })

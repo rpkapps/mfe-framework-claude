@@ -1,19 +1,13 @@
-/** `inputs` arrives already validated and `emit` refuses any event the contract does not declare, so
+/** `inputs` arrives already validated and `emit` refuses any output the contract does not declare, so
  * neither needs a check here. */
 
-import type { WidgetRenderProps } from '@company/mfe-react'
+import { useAgentPrompt, type WidgetRenderProps } from '@company/mfe-react'
 import { useState, type ReactNode } from 'react'
 
-import { AiAgentPanel } from './components/ai-agent-panel/page.tsx'
 import { CostVsRiskPanel } from './components/cost-vs-risk-panel/page.tsx'
 import { FdaCard, fdaSummaries } from './components/fda-card/page.tsx'
 import { WellDesignCard, wellDesigns } from './components/well-design-card/page.tsx'
-import type {
-  agentPanelContract,
-  costVsRiskContract,
-  fdaSummaryContract,
-  wellDesignContract,
-} from './mfe.tsx'
+import type { costVsRiskContract, fdaSummaryContract, wellDesignContract } from './mfe.tsx'
 
 export function FdaSummaryWidget({
   inputs,
@@ -50,6 +44,9 @@ export function WellDesignWidget({
   emit,
 }: WidgetRenderProps<typeof wellDesignContract>): ReactNode {
   const [selected, setSelected] = useState(false)
+  // The explicit way a Widget hands something to the agent: a new turn, from the user's own press
+  // and nothing else (never a timer or an error handler). With no chat on the page it does nothing.
+  const ask = useAgentPrompt()
   const design = wellDesigns.find(candidate => candidate.id === inputs.wellId)
 
   if (design === undefined) return <Unknown what={`well design ${inputs.wellId}`} />
@@ -65,6 +62,12 @@ export function WellDesignWidget({
       onView={() => {
         emit('viewed', { wellId: design.id, well: design.well })
       }}
+      onAsk={() =>
+        ask({
+          message: `What stands out in the ${design.well} design?`,
+          context: { wellId: design.id, well: design.well },
+        })
+      }
     />
   )
 }
@@ -73,23 +76,6 @@ export function CostVsRiskWidget({
   inputs,
 }: WidgetRenderProps<typeof costVsRiskContract>): ReactNode {
   return <CostVsRiskPanel defaultSelected={[...inputs.compare]} variant="flat" />
-}
-
-export function AgentPanelWidget({
-  inputs,
-  emit,
-}: WidgetRenderProps<typeof agentPanelContract>): ReactNode {
-  return (
-    // The panel fills its container, so the height is this Widget's choice of how much room to take.
-    <div className="h-112">
-      <AiAgentPanel
-        aria-label={inputs.heading}
-        onClose={() => {
-          emit('closed', { at: new Date().toISOString() })
-        }}
-      />
-    </div>
-  )
 }
 
 function Unknown({ what }: { readonly what: string }): ReactNode {

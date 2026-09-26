@@ -22,7 +22,7 @@ export const innerLive = { count: 0 }
 
 /**
  * Places the `counter` Widget, which is built on the test's own React, and hands the Widget's
- * count back to it, so an event crosses up from one React to the other and the answer back down.
+ * count back to it, so an output crosses up from one React to the other and the answer back down.
  */
 function Inner(): ReactNode {
   const [clicks, setClicks] = useState(0)
@@ -55,7 +55,7 @@ function Inner(): ReactNode {
       widgetId: 'counter',
       label: 'Counter',
       count,
-      onEvent: (name, payload) => {
+      onOutput: (name, payload) => {
         const next = (payload as { readonly count: number }).count
         setLastEvent(`${name} to ${String(next)}`)
         setCount(next)

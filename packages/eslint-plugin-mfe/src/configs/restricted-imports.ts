@@ -108,6 +108,75 @@ export function authorTelemetryPatterns(
   ]
 }
 
+/**
+ * The AI and agent libraries, and the model providers' SDKs. A bare name is a path, matched
+ * exactly: as a pattern, `ai` would also match any import whose last segment is `ai`, `./ai`
+ * included. Everything else is a pattern, which catches a subpath too (`@company/mfe-agent/actions`).
+ */
+const AGENT_LIBRARY_NAMES = ['ai', 'openai', 'langchain'] as const
+const AGENT_LIBRARY_GROUPS = [
+  '@tanstack/ai',
+  '@tanstack/ai-*',
+  'ai/*',
+  '@ai-sdk/*',
+  '@ag-ui/*',
+  '@copilotkit/*',
+  '@anthropic-ai/*',
+  'openai/*',
+  '@google/genai',
+  'langchain/*',
+  '@langchain/*',
+  '@mastra/*',
+  // The shell's connection to the agent: an agent library of our own, for the host only.
+  '@company/mfe-agent',
+] as const
+
+/** The one protocol `@company/mfe-agent` speaks, and the package itself. */
+const AGENT_PACKAGE_OWN: ReadonlySet<string> = new Set(['@ag-ui/*', '@company/mfe-agent'])
+
+export interface RestrictedImports {
+  readonly paths: readonly RestrictedPath[]
+  readonly patterns: readonly RestrictedPattern[]
+}
+
+/**
+ * `allowTypeImports` stays false: a type from one still ties the code to the library's releases
+ * and puts it in the published declarations.
+ */
+function agentLibraries(
+  message: string,
+  groups: readonly string[] = AGENT_LIBRARY_GROUPS,
+): RestrictedImports {
+  return {
+    paths: AGENT_LIBRARY_NAMES.map(name => ({ name, message, allowTypeImports: false })),
+    patterns: [{ group: [...groups], message, allowTypeImports: false }],
+  }
+}
+
+/** Framework packages run inside every container, so they stay free of an agent library too. */
+export const FRAMEWORK_AGENT_LIBRARIES: RestrictedImports = agentLibraries(
+  'Agent boundary: a framework package runs inside every container, so it never imports an AI or agent library, not even its types. `@company/mfe-agent` is the one package that talks to the agent, and only the shell imports it; the framework offers it actions (`ActionRegistry`) and never the other way round.',
+)
+
+/**
+ * `@company/mfe-agent` speaks AG-UI and nothing else, so any backend that speaks it will do: every
+ * other agent library stays out of it, whatever the backend runs on.
+ */
+export const AGENT_PACKAGE_AGENT_LIBRARIES: RestrictedImports = agentLibraries(
+  "Agent boundary: @company/mfe-agent speaks AG-UI only (`@ag-ui/*`), so a backend can be swapped for any that speaks it, a .NET one included. A library's own client or format would tie the shell to that library's backend (docs/decisions.md §49).",
+  AGENT_LIBRARY_GROUPS.filter(group => !AGENT_PACKAGE_OWN.has(group)),
+)
+
+/**
+ * An App or Widget never imports one. `offer` names the adapter's way to give the agent something
+ * to do: `useAction()` or `injectAction()`.
+ */
+export function authorAgentLibraries(adapterModule: string, offer: string): RestrictedImports {
+  return agentLibraries(
+    `Agent boundary: an App or Widget never imports an AI or agent library, not even its types. The shell's chat talks to the agent, and a mount could not reach it anyway, as every mount renders in a root of its own; the library would also be bundled into this container and rebuilt with it on every change. Offer the agent what it may do with \`${offer}\` from ${adapterModule}: the chat lists your actions as its tools.`,
+  )
+}
+
 export const MODULE_FEDERATION_PATTERN: RestrictedPattern = {
   group: ['@module-federation/*'],
   message:

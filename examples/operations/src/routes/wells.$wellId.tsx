@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { useAgentContext, useAgentPrompt } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -20,7 +21,8 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tect
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { ArrowLeftIcon, SearchXIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { z } from 'zod'
 
 import {
   WellDesignCard,
@@ -28,6 +30,9 @@ import {
   trajectoryMeta,
   wellDesigns,
 } from '../components/well-design-card/page.tsx'
+
+/** Ids and a name only: the agent reads the design itself through an action, fresh. */
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
 
 /** Per-instance data arrives through this App's own URL; nothing in here parses the mount prefix to
  * find the well id. */
@@ -39,6 +44,15 @@ function WellDetail(): ReactNode {
   const { wellId } = Route.useParams()
   const navigate = useNavigate()
   const design = wellDesigns.find(candidate => candidate.id === wellId)
+
+  // Sent with each of the agent's turns while this page is open, and gone when it closes.
+  useAgentContext({
+    description: 'The well design the user has open, or null when its id is unknown',
+    schema: openWell,
+    value: design === undefined ? null : { id: design.id, name: design.name },
+  })
+  const prompt = useAgentPrompt()
+  const [unanswered, setUnanswered] = useState(false)
 
   if (design === undefined) {
     return (
@@ -96,6 +110,21 @@ function WellDetail(): ReactNode {
           </PageHeaderDescription>
         </PageHeaderContent>
         <PageHeaderActions>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => {
+              // Whether a chat took it: the shell may have none.
+              setUnanswered(
+                !prompt({
+                  message: `What stands out in ${design.name}?`,
+                  context: { wellId: design.id },
+                }),
+              )
+            }}
+          >
+            Ask the agent
+          </Button>
           <CopyButton variant="ghost" size="sm" value={window.location.href}>
             Copy link
           </CopyButton>
@@ -110,6 +139,11 @@ function WellDetail(): ReactNode {
           </Button>
         </PageHeaderActions>
       </PageHeader>
+      {unanswered ? (
+        <p className="text-sm text-muted-foreground">
+          This shell has no chat to take the question.
+        </p>
+      ) : null}
 
       <StatGroup>
         <Stat>

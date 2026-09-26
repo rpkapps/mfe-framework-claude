@@ -33,6 +33,9 @@ export type { EnvOptions, EnvVarDescriptor, InferEnvConfig } from './config/env.
 export type { ConfigField, ConfigSource } from './config/config-source.ts'
 
 export { collectCapabilities } from './discovery/capabilities.ts'
+export { mergeSearch, readSearchSchema } from './discovery/routes.ts'
+/** Re-exported for an integration that reads routes without depending on the core itself. */
+export type { PublishedRoute } from '@company/mfe-core'
 export type { CapabilityMarker, CapabilityOwner, MarkerTerms } from './discovery/capabilities.ts'
 export type {
   DefinitionSyntax,

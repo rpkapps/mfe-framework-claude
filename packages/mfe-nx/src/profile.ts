@@ -7,6 +7,7 @@ import type { ContainerProfile } from '@company/mfe-build'
 
 import { ANGULAR_ADAPTER } from './adapter.ts'
 import { readRouteDataCapabilities } from './discovery/capabilities.ts'
+import { readAngularRoutes } from './discovery/routes.ts'
 import { ANGULAR_ANCHOR, ANGULAR_FRAMEWORK, ANGULAR_SHARING_POLICY } from './federation/sharing.ts'
 import { GLOBAL_STYLE_QUERY, globalStylesheetImports } from './generate/styles.ts'
 import { CONTAINER_ROOT_OPTION } from './options.ts'
@@ -39,6 +40,7 @@ export function angularProfile(): ContainerProfile {
       query: GLOBAL_STYLE_QUERY,
     },
     readCapabilities: readRouteDataCapabilities,
+    readRoutes: readAngularRoutes,
     containerRootOption: CONTAINER_ROOT_OPTION,
   }
 }

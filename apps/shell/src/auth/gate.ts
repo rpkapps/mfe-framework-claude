@@ -14,6 +14,7 @@ import type { AccessTokenSource } from '@company/mfe-react/host'
 import { InMemoryWebStorage, UserManager, WebStorageStateStore, type User } from 'oidc-client-ts'
 
 import { failLoader, setLoaderStatus } from '../loader.ts'
+import { forgetAvatar, loadAvatar } from './avatar.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
 import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
@@ -25,6 +26,8 @@ export type ShellSession =
       readonly mode: 'oidc'
       readonly identity: ShellIdentity
       readonly tokens: AccessTokenSource
+      /** The user's photo as an image URL, or nothing; the header shows initials until then. */
+      readonly avatar: Promise<string | undefined>
       readonly signOut: () => Promise<void>
     }
   | {
@@ -85,15 +88,21 @@ function describe(cause: unknown): string {
   return 'The identity provider did not say why.'
 }
 
+/**
+ * Also the failure page's "Sign in again", after the loader is gone: its button then says it is
+ * redirecting, and a provider that cannot be reached replaces the page's failure with its own.
+ */
 function redirectToSignIn(manager: UserManager, returnTo: string): void {
   setLoaderStatus('Redirecting to sign in…')
   // `replace`, so Back from the identity provider leaves the shell rather than landing on a page
   // that would only redirect again.
   manager.signinRedirect({ state: returnTo, redirectMethod: 'replace' }).catch((cause: unknown) => {
     failLoader({
+      kind: 'unreachable',
       title: 'The sign-in service is unreachable',
       detail: describe(cause),
       actionLabel: 'Try again',
+      pendingLabel: 'Reloading…',
       onAction: () => {
         window.location.reload()
       },
@@ -101,7 +110,12 @@ function redirectToSignIn(manager: UserManager, returnTo: string): void {
   })
 }
 
-function oidcSession(manager: UserManager, config: OidcConfig, user: User): ShellSession {
+function oidcSession(
+  manager: UserManager,
+  config: OidcConfig,
+  user: User,
+  storage: Storage,
+): ShellSession {
   const tokens = createOidcTokenSource({
     current: () => manager.getUser(),
     renew: () => manager.signinSilent(),
@@ -117,7 +131,12 @@ function oidcSession(manager: UserManager, config: OidcConfig, user: User): Shel
     mode: 'oidc',
     identity: identityFromClaims(user.profile, config.groupsClaim),
     tokens,
-    signOut: () => manager.signoutRedirect(),
+    // Started now and never waited for: boot does not hold the page for a photo.
+    avatar: loadAvatar(user.profile, { cache: storage }),
+    signOut: () => {
+      forgetAvatar(user.profile, storage)
+      return manager.signoutRedirect()
+    },
   }
 }
 
@@ -159,9 +178,11 @@ export async function authenticate(): Promise<boolean> {
     runtime = (await import(/* webpackMode: "eager" */ '#mfe/config')).config
   } catch (cause) {
     failLoader({
+      kind: 'configuration',
       title: 'The configuration could not be loaded',
       detail: describe(cause),
       actionLabel: 'Reload',
+      pendingLabel: 'Reloading…',
       onAction: () => {
         window.location.reload()
       },
@@ -173,7 +194,11 @@ export async function authenticate(): Promise<boolean> {
   const config = resolveAuthConfig(runtime, production)
 
   if (config.kind === 'misconfigured') {
-    failLoader({ title: 'Sign-in is not configured', detail: config.problem })
+    failLoader({
+      kind: 'configuration',
+      title: 'Sign-in is not configured',
+      detail: config.problem,
+    })
     return false
   }
 
@@ -196,7 +221,7 @@ export async function authenticate(): Promise<boolean> {
   if (!isSigninCallback(url)) {
     const restored = await restoreSession(manager, tab)
     if (restored !== null) {
-      session = oidcSession(manager, config, restored)
+      session = oidcSession(manager, config, restored, storage)
       return true
     }
     redirectToSignIn(manager, currentReturnTo(window.location))
@@ -207,7 +232,7 @@ export async function authenticate(): Promise<boolean> {
   try {
     const user = await manager.signinCallback(url.href)
     if (user === undefined) throw new Error('The sign-in response did not produce a session.')
-    session = oidcSession(manager, config, user)
+    session = oidcSession(manager, config, user, storage)
     // The code and state leave the address bar before any router reads it.
     window.history.replaceState(null, '', safeReturnTo(user.state, window.location.origin))
     // Requests abandoned mid-flight, from earlier tabs or visits, are cleaned up here.
@@ -216,9 +241,11 @@ export async function authenticate(): Promise<boolean> {
   } catch (cause) {
     window.history.replaceState(null, '', '/')
     failLoader({
+      kind: 'sign-in',
       title: 'We could not sign you in',
       detail: describe(cause),
       actionLabel: 'Sign in again',
+      pendingLabel: 'Redirecting…',
       onAction: () => {
         redirectToSignIn(manager, '/')
       },

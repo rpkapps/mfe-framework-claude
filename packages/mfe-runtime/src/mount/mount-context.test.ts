@@ -4,11 +4,11 @@
  * half-way through.
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
-import { createMountContext, createMountToken } from './mount-context.ts'
+import { createMountContext, createMountToken, mountScopedStores } from './mount-context.ts'
 import {
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,
@@ -147,6 +147,23 @@ describe('createMountContext', () => {
 })
 
 describe('disposing a mount context', () => {
+  it('names an App’s boundary to the agent, and not a Widget’s', async () => {
+    memory = createMemoryRuntime({ initialEntries: ['/reports/q3'] })
+    const host = memory.runtime
+    const app = createMountContext({
+      runtime: host,
+      definitionId: 'reports',
+      kind: 'app',
+      basePath: '/reports',
+    })
+    createMountContext({ runtime: host, definitionId: 'alert-panel', kind: 'widget' })
+
+    expect(host.agentContext.read().apps.map(located => located.definitionId)).toEqual(['reports'])
+
+    await app.dispose()
+    expect(host.agentContext.read().apps).toEqual([])
+  })
+
   it('aborts the signal and removes the overlay root', async () => {
     const handle = createMountContext({ runtime: runtime(), definitionId: 'reports', kind: 'app' })
 
@@ -157,11 +174,11 @@ describe('disposing a mount context', () => {
   })
 
   /** Anything listening for the abort must find the mount already gone from the palette. */
-  it('removes the mount’s commands and blockers before it aborts', async () => {
+  it('removes the mount’s actions, blockers and crumbs before it aborts', async () => {
     const host = runtime()
     const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const { mountToken } = handle.context
-    host.commands.register(handle.context, {
+    host.actions.register(handle.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,
@@ -171,23 +188,51 @@ describe('disposing a mount context', () => {
       shouldBlock: () => true,
       confirm: () => Promise.resolve('proceed'),
     })
+    host.breadcrumbs
+      .registerMount('reports', mountToken, 1)
+      .update([{ key: 'r', label: 'Reports' }])
 
-    const atAbort: { commands?: number; blockers?: number } = {}
+    const atAbort: { actions?: number; blockers?: number; crumbs?: number } = {}
     handle.context.signal.addEventListener('abort', () => {
-      atAbort.commands = host.commands.getSnapshot().length
+      atAbort.actions = host.actions.getSnapshot().length
       atAbort.blockers = host.navigator.blockerCount
+      atAbort.crumbs = host.breadcrumbs.getSnapshot().length
     })
 
     await handle.dispose()
 
-    expect(atAbort).toEqual({ commands: 0, blockers: 0 })
+    expect(atAbort).toEqual({ actions: 0, blockers: 0, crumbs: 0 })
+  })
+
+  /** A store that keeps records per mount and is left off the list would outlive the mount. */
+  it('clears every runtime member that keeps records per mount', async () => {
+    const host = runtime()
+    const handle = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
+    const perMount = Object.entries(host).filter(
+      (entry): entry is [string, { removeMount: (token: string) => void }] =>
+        typeof (entry[1] as { removeMount?: unknown } | null)?.removeMount === 'function',
+    )
+    const spies = perMount.map(([name, store]) => [name, vi.spyOn(store, 'removeMount')] as const)
+
+    await handle.dispose()
+
+    expect(perMount.map(([name]) => name).sort()).toEqual([
+      'actions',
+      'agentContext',
+      'breadcrumbs',
+      'navigator',
+    ])
+    expect(mountScopedStores(host)).toHaveLength(perMount.length)
+    for (const [name, spy] of spies) {
+      expect(spy, name).toHaveBeenCalledWith(handle.context.mountToken)
+    }
   })
 
   it('leaves another mount of the same definition untouched', async () => {
     const host = runtime()
     const first = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const second = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
-    host.commands.register(second.context, {
+    host.actions.register(second.context, {
       name: 'refresh',
       label: 'Refresh',
       execute: () => undefined,
@@ -197,6 +242,6 @@ describe('disposing a mount context', () => {
 
     expect(second.context.signal.aborted).toBe(false)
     expect(second.context.overlayRoot.isConnected).toBe(true)
-    expect(host.commands.getSnapshot()).toHaveLength(1)
+    expect(host.actions.getSnapshot()).toHaveLength(1)
   })
 })

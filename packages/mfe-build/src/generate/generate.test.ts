@@ -3,6 +3,7 @@ import { join, sep } from 'node:path'
 
 import tailwindcss from '@tailwindcss/postcss'
 import postcss from 'postcss'
+import ts from 'typescript'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
@@ -69,6 +70,33 @@ function planFixture(
     return generated.contents
   }
   return { root, plan, fileFor }
+}
+
+/**
+ * Typechecks the generated Widget contract entries against the fixture's sources, with the zod
+ * this package is tested with, the way a consumer importing `/contracts` compiles them.
+ */
+function typeErrors(root: string, plan: ContainerPlan): readonly string[] {
+  writeGeneratedFiles(plan.generated.files)
+  mkdirSync(join(root, 'node_modules'), { recursive: true })
+  symlinkSync(join(INSTALLED, 'zod'), join(root, 'node_modules/zod'), 'dir')
+
+  const program = ts.createProgram(
+    plan.generated.files.map(file => file.path).filter(path => path.endsWith('.contract.ts')),
+    {
+      strict: true,
+      noEmit: true,
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      allowImportingTsExtensions: true,
+      skipLibCheck: true,
+      types: [],
+    },
+  )
+  return ts
+    .getPreEmitDiagnostics(program)
+    .map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
 }
 
 describe('generated inventory', () => {
@@ -429,8 +457,8 @@ import { z } from 'zod'
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,
@@ -489,8 +517,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: {},
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,
@@ -616,25 +644,25 @@ import { z } from 'zod'
 export const alertPanel = createWidget({
   id: 'alert-panel',
   version: '1.4.0',
-  inputs: z.object({
+  inputSchema: z.object({
     alertId: z.string(),
     severity: z.enum(['info', 'warning', 'critical']).default('info'),
     muted: z.boolean().optional(),
   }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
   render: () => null,
 })
 `
 
-  it('publishes the inputs and the events as JSON Schema', () => {
+  it('publishes the inputs and the outputs as JSON Schema', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': WIDGET })
     const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
       definitions: { contract?: Record<string, unknown> }[]
     }
 
     expect(descriptor.definitions[0]?.contract).toEqual({
-      events: {
-        title: 'alert-panel events',
+      outputSchema: {
+        title: 'alert-panel outputs',
         type: 'object',
         properties: {
           acknowledged: {
@@ -646,7 +674,7 @@ export const alertPanel = createWidget({
         },
         additionalProperties: false,
       },
-      inputs: {
+      inputSchema: {
         title: 'alert-panel inputs',
         type: 'object',
         properties: {
@@ -669,7 +697,7 @@ export const alertPanel = createWidget({
     expect(descriptor.definitions[0]).not.toHaveProperty('contract')
   })
 
-  it('publishes the events alone when the inputs schema is not statically readable', () => {
+  it('publishes the outputs alone when the inputs schema is not statically readable', () => {
     const { fileFor } = planFixture({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -677,8 +705,8 @@ import { z } from 'zod'
 
 export const oddPanel = createWidget({
   id: 'odd-panel',
-  inputs: z.object({ when: z.string() }).refine(value => value.when !== ''),
-  events: { picked: z.object({}) },
+  inputSchema: z.object({ when: z.string() }).refine(value => value.when !== ''),
+  outputSchema: z.object({ picked: z.object({}) }),
   render: () => null,
 })
 `,
@@ -689,8 +717,8 @@ export const oddPanel = createWidget({
     }
 
     expect(descriptor.definitions[0]?.contract).toEqual({
-      events: {
-        title: 'odd-panel events',
+      outputSchema: {
+        title: 'odd-panel outputs',
         type: 'object',
         properties: { picked: { type: 'object', properties: {}, additionalProperties: false } },
         additionalProperties: false,
@@ -699,7 +727,7 @@ export const oddPanel = createWidget({
   })
 
   /** `{}` is "anything" in JSON Schema: the name stays, and the provider still validates. */
-  it('publishes an event whose payload is not statically readable as an unknown payload', () => {
+  it('publishes an output whose payload is not statically readable as an unknown payload', () => {
     const { fileFor } = planFixture({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -707,27 +735,121 @@ import { z } from 'zod'
 
 export const oddPanel = createWidget({
   id: 'odd-panel',
-  inputs: z.object({}),
-  events: {
+  inputSchema: z.object({}),
+  outputSchema: z.object({
     picked: z.object({ id: z.string() }).refine(value => value.id !== ''),
     cleared: z.object({}),
-  },
+  }),
   render: () => null,
 })
 `,
     })
 
     const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: { events?: { properties?: Record<string, unknown> } } }[]
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
     }
 
-    expect(descriptor.definitions[0]?.contract?.events?.properties).toEqual({
+    expect(descriptor.definitions[0]?.contract?.outputSchema?.properties).toEqual({
       picked: {},
       cleared: { type: 'object', properties: {}, additionalProperties: false },
     })
   })
 
-  it('publishes no events schema when the event names are not statically readable', () => {
+  it('reads a payload named by a top-level const, in shorthand or not', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const acknowledged = z.object({ at: z.string() })
+const empty = z.object({})
+const cleared = empty
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged, cleared, picked: empty }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+    const properties = descriptor.definitions[0]?.contract?.outputSchema?.properties
+
+    expect(properties?.['acknowledged']).toMatchObject({
+      type: 'object',
+      properties: { at: { type: 'string' } },
+    })
+    const none = { type: 'object', properties: {}, additionalProperties: false }
+    expect(properties?.['cleared']).toEqual(none)
+    expect(properties?.['picked']).toEqual(none)
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('reads a payload imported from a module of the container', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/contracts/payloads.ts': `
+import { z } from 'zod'
+
+export const acknowledged = z.object({ at: z.string() })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+import { acknowledged as ack } from './contracts/payloads.ts'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged: ack }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+
+    expect(
+      descriptor.definitions[0]?.contract?.outputSchema?.properties?.['acknowledged'],
+    ).toMatchObject({
+      type: 'object',
+      properties: { at: { type: 'string' } },
+    })
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('publishes a payload named by something it cannot follow as an unknown payload', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+import { acknowledged } from '@acme/payloads'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ acknowledged }),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
+    }
+
+    expect(descriptor.definitions[0]?.contract?.outputSchema?.properties).toEqual({
+      acknowledged: {},
+    })
+  })
+
+  it('publishes no outputSchema when the output names are not statically readable', () => {
     const { fileFor } = planFixture({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -737,8 +859,8 @@ const shared = { cleared: z.object({}) }
 
 export const oddPanel = createWidget({
   id: 'odd-panel',
-  inputs: z.object({}),
-  events: { ...shared, picked: z.object({}) },
+  inputSchema: z.object({}),
+  outputSchema: z.object({ ...shared, picked: z.object({}) }),
   render: () => null,
 })
 `,
@@ -748,7 +870,30 @@ export const oddPanel = createWidget({
       definitions: { contract?: Record<string, unknown> }[]
     }
 
-    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('events')
+    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
+  })
+
+  it('publishes no outputSchema when a method adds outputs to the literal', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const oddPanel = createWidget({
+  id: 'odd-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ picked: z.object({}) }).extend({ cleared: z.object({}) }).strict(),
+  render: () => null,
+})
+`,
+    })
+
+    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
+      definitions: { contract?: Record<string, unknown> }[]
+    }
+
+    // The literal names `picked` alone, so a schema read from it would close out `cleared`.
+    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
   })
 })
 
@@ -822,8 +967,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: { acknowledged: z.object({ at: z.string() }) },
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
   render: () => null,
 })
 `
@@ -833,10 +978,14 @@ export const orderRow = createWidget({
     const source = fileFor('widgets/order-row.contract.ts')
 
     expect(source).toContain("export const widgetId = 'order-row'")
-    expect(source).toContain('export const inputs = z.object({ orderId: z.string() })')
-    expect(source).toContain('export const events = { acknowledged: z.object({ at: z.string() }) }')
-    expect(source).toContain('export type Inputs = z.infer<typeof inputs>')
-    expect(source).toContain("readonly acknowledged: z.infer<(typeof events)['acknowledged']>")
+    expect(source).toContain('export const inputSchema = z.object({ orderId: z.string() })')
+    expect(source).toContain(
+      'export const outputSchema = z.object({ acknowledged: z.object({ at: z.string() }) })',
+    )
+    expect(source).toContain('export type Inputs = z.infer<typeof inputSchema>')
+    expect(source).toContain(
+      "readonly [Name in keyof (typeof outputSchema)['shape']]: z.infer<(typeof outputSchema)['shape'][Name]>",
+    )
   })
 
   it('imports no App entry, route tree, generated config or router augmentation', () => {
@@ -856,17 +1005,17 @@ export const orderRow = createWidget({
 import { z } from 'zod'
 
 export const orderRowInputs = z.object({ orderId: z.string() })
-export const orderRowEvents = { acknowledged: z.object({ at: z.string() }) }
+export const orderRowOutputs = z.object({ acknowledged: z.object({ at: z.string() }) })
 `,
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
 
-import { orderRowEvents, orderRowInputs } from './contracts/order-row.ts'
+import { orderRowInputs, orderRowOutputs } from './contracts/order-row.ts'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: orderRowInputs,
-  events: orderRowEvents,
+  inputSchema: orderRowInputs,
+  outputSchema: orderRowOutputs,
   render: () => null,
 })
 `,
@@ -875,10 +1024,10 @@ export const orderRow = createWidget({
     const source = fileFor('widgets/order-row.contract.ts')
 
     expect(source).toContain(
-      "import { orderRowInputs as inputs } from '../../src/contracts/order-row.ts'",
+      "import { orderRowInputs as inputSchema } from '../../src/contracts/order-row.ts'",
     )
-    expect(source).toContain('export { inputs }')
-    expect(source).toContain('export { events }')
+    expect(source).toContain('export { inputSchema }')
+    expect(source).toContain('export { outputSchema }')
     expect(source).toContain("import type { z } from 'zod'")
   })
 
@@ -892,8 +1041,8 @@ const orderId = z.string().min(1)
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId }),
-  events: {},
+  inputSchema: z.object({ orderId }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,
@@ -902,7 +1051,58 @@ export const orderRow = createWidget({
     const source = fileFor('widgets/order-row.contract.ts')
 
     expect(source).toContain('const orderId = z.string().min(1)')
-    expect(source).toContain('export const inputs = z.object({ orderId })')
+    expect(source).toContain('export const inputSchema = z.object({ orderId })')
+  })
+
+  it('re-exports shorthand schemas imported from their own module, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/contracts/row.ts': `
+import { z } from 'zod'
+
+export const inputSchema = z.object({ orderId: z.string() })
+export const outputSchema = z.object({ acknowledged: z.object({ at: z.string() }) })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+
+import { inputSchema, outputSchema } from './contracts/row.ts'
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, outputSchema, render: () => null })
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import { inputSchema } from '../../src/contracts/row.ts'")
+    expect(source).toContain('export { inputSchema }')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('exports a top-level const named like the field without declaring it twice', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const inputSchema = z.object({ orderId: z.string() })
+const outputSchema = z.object({ acknowledged: z.object({ at: z.string() }) })
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: inputSchema,
+  outputSchema,
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain('const inputSchema = z.object({ orderId: z.string() })')
+    expect(source).toContain('export { inputSchema }')
+    expect(source).toContain('export { outputSchema }')
+    expect(source).not.toContain('export const inputSchema')
+    expect(typeErrors(root, plan)).toEqual([])
   })
 })
 

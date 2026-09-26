@@ -51,7 +51,9 @@ const RECIPES = [
   'add-a-settings-page',
   'add-a-help-page',
   'publish-release-notes',
-  'add-a-command',
+  'add-an-action',
+  'offer-an-action-to-the-agent',
+  'tell-the-agent-what-is-selected',
   'block-navigation-when-unsaved',
   'show-an-icon',
   'set-breadcrumbs',
@@ -62,10 +64,10 @@ const RECIPES = [
   'embed-another-app',
   // Widgets
   'create-a-widget',
-  'define-inputs-and-events',
+  'define-inputs-and-outputs',
   'render-a-widget',
   'render-a-widget-at-run-time',
-  'react-to-widget-events',
+  'react-to-widget-outputs',
   'ask-the-app-to-navigate',
   // Env
   'declare-an-env-variable',

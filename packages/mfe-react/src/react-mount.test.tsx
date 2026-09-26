@@ -78,8 +78,8 @@ const noopFailure = (): void => undefined
 const counter = createWidget({
   id: 'counter-widget',
   version: '1.0.0',
-  inputs: z.object({ label: z.string() }),
-  events: { bumped: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ bumped: z.object({ at: z.string() }) }),
   render: function Counter({ inputs, emit }): ReactNode {
     latestEmit = emit as (event: string, payload: unknown) => void
     if (inputs.label === 'boom') throw new Error('the Widget cannot render boom')
@@ -141,8 +141,8 @@ describe('a React Widget mounting itself', () => {
     let seen: QueryClient | null = null
     const probe = createWidget({
       id: 'client-probe',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       render: function ClientProbe(): ReactNode {
         seen = useQueryClient()
         return null
@@ -168,8 +168,8 @@ describe('a React Widget mounting itself', () => {
     const ids: string[] = []
     const probe = createWidget({
       id: 'id-probe',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       render: function IdProbe(): ReactNode {
         const id = useId()
         ids.push(id)
@@ -205,8 +205,8 @@ describe('a React Widget mounting itself', () => {
     let seen: HTMLElement | null = null
     const probe = createWidget({
       id: 'scope-probe',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       render: function ScopeProbe(): ReactNode {
         seen = useScopeRoot()
         return null
@@ -356,14 +356,14 @@ describe('a React Widget mounting itself', () => {
     const picker = createWidget({
       id: 'picker',
       version: '2.0.0',
-      inputs: z.object({ label: z.string(), onPick: z.string().optional() }),
-      events: {},
+      inputSchema: z.object({ label: z.string(), onPick: z.string().optional() }),
+      outputSchema: z.object({}),
       render: ({ inputs }): ReactNode => <p>{inputs.label}</p>,
     })
 
     /** The Angular adapter fails with this same message, word for word. */
     const RESERVED_MESSAGE =
-      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or event handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
 
     /** Outside `act`, because inside it React rethrows the failure to the test instead. */
     it('rejects the first mount with the declaration error', async () => {
@@ -421,8 +421,8 @@ describe('a React Widget mounting itself', () => {
     const committed: string[] = []
     const echo = createWidget({
       id: 'echo',
-      inputs: z.object({ label: z.string() }),
-      events: {},
+      inputSchema: z.object({ label: z.string() }),
+      outputSchema: z.object({}),
       render: function Echo({ inputs }): ReactNode {
         useEffect(() => {
           committed.push(inputs.label)

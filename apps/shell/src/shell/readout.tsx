@@ -58,7 +58,7 @@ export function Mono({
   )
 }
 
-/** A list of names — groups, event names, input names. Never a JSON array. */
+/** A list of names — groups, output names, input names. Never a JSON array. */
 export function TagRow({
   values,
   variant = 'secondary',

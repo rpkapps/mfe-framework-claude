@@ -31,6 +31,20 @@ export interface CapabilityDescriptor extends CapabilityDeclaration {
   readonly path: string
 }
 
+/**
+ * One route of an App, published so a host can navigate to it, or offer an agent the way there,
+ * before the App is loaded. `path` is App-relative in one syntax whatever the router: a parameter
+ * is `:name` (`:name?` when optional) and a catch-all is `*`, as `URLPattern` writes them.
+ */
+export interface PublishedRoute {
+  readonly path: string
+  /**
+   * The search params the route reads, as an object schema, its parent routes' included. Absent
+   * when the router declares none, or the build could not read them.
+   */
+  readonly search?: JsonSchemaObject
+}
+
 /** Never gates loading: a container that names no build still mounts (§29). */
 export interface BuildProvenance {
   readonly hash?: string
@@ -85,14 +99,13 @@ export interface ContainerDescriptor {
   /** The Module Federation container name; a shell registers the remote under it before fetching. */
   readonly container: string
   readonly contractMajor: number
-  /** The adapter that built it; absent means a React container built before this field existed. */
-  readonly framework?: string
+  /** The adapter that built it, which the registry entry names so exactly one adapter reads it. */
+  readonly framework: string
   /**
    * The Module Federation share scopes a host registers the container with, `default` first and
-   * then its framework's, such as `react@19.3.0`. Absent means a container built before
-   * framework scopes, which shares in `default` alone.
+   * then its framework's, such as `react@19.3.0`.
    */
-  readonly shareScopes?: readonly string[]
+  readonly shareScopes: readonly string[]
   readonly definitions: readonly ExportedDefinitionDescriptor[]
   /** Definition id to the generated expose path. */
   readonly entries: Readonly<Record<string, string>>
@@ -102,8 +115,10 @@ export interface ContainerDescriptor {
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]
+  /** App-only; every route the build could read, sorted by path. */
+  readonly routes?: readonly PublishedRoute[]
   /** Widget-only; read statically at build time (§16). */
-  readonly contract?: PublishedWidgetContract
+  readonly contract?: PublishedContract
   /** Presentation the author declares, so a host can catalogue the definition unloaded (§16). */
   readonly title?: string
   readonly description?: string
@@ -113,15 +128,16 @@ export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
 }
 
 /** What a host may know about a Widget without loading its container (§16). */
-export interface PublishedWidgetContract {
+export interface PublishedContract {
   /** JSON Schema (draft 2020-12), absent when the build could not read the schema statically. */
-  readonly inputs?: JsonSchemaObject
+  readonly inputSchema?: JsonSchemaObject
   /**
-   * The same shape as `inputs`: an object schema with one property per declared event, in
-   * declaration order, each the schema of that event's payload. A payload the build could not
-   * read is `{}`; the whole field is absent when the event names themselves could not be read.
+   * The same shape as `inputSchema`: an object schema with one property per declared output, in
+   * declaration order, each the schema of that output's payload. A payload the build could not
+   * read is `{}`; the whole field is absent when the output names themselves could not be read.
+   * Whether a property is required means nothing here, as every output may never be emitted.
    */
-  readonly events?: JsonSchemaObject
+  readonly outputSchema?: JsonSchemaObject
 }
 
 /** The subset of JSON Schema the build emits: values only, no `$ref`. */

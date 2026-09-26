@@ -15,8 +15,8 @@ export interface WidgetMountProps {
   readonly definition: WidgetDefinition
   readonly mount: MfeMount
   readonly inputs: Readonly<Record<string, unknown>>
-  /** The host's channel, called with a payload this Widget's own event schema accepted. */
-  readonly emit: (event: string, payload: unknown) => void
+  /** The host's channel, called with a payload this Widget's own output schema accepted. */
+  readonly emit: (output: string, payload: unknown) => void
   readonly onInputRejected?: ((error: MfeError) => void) | undefined
 }
 
@@ -54,11 +54,11 @@ const WidgetBody = memo(function RenderWidgetBody({
 }: {
   readonly definition: WidgetDefinition
   readonly inputs: Record<string, unknown>
-  readonly emit: (event: string, payload: unknown) => void
+  readonly emit: (output: string, payload: unknown) => void
 }): ReactNode {
   const Render = definition.render as (props: {
     inputs: unknown
-    emit: (event: string, payload: unknown) => void
+    emit: (output: string, payload: unknown) => void
   }) => ReactNode
 
   return <Render inputs={inputs} emit={emit} />
@@ -102,8 +102,8 @@ export function WidgetMount({
   const emit = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- `createProviderEmit` only keeps the callback, which reads the ref when the Widget emits and never while this renders
-      createProviderEmit(definition, (event, payload) => {
-        committedEmit.current(event, payload)
+      createProviderEmit(definition, (output, payload) => {
+        committedEmit.current(output, payload)
       }),
     [definition],
   )

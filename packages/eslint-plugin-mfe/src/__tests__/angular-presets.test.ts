@@ -93,6 +93,22 @@ describe('angular preset', () => {
     expect(runtime?.message).toContain('@company/mfe-angular/testing')
   })
 
+  it('keeps agent libraries out, pointing at injectAction', () => {
+    const boundaries = preset.find(config => config.name === 'mfe/angular/boundaries')
+    const entry = boundaries?.rules?.['@typescript-eslint/no-restricted-imports']
+    const [, options] = entry as [
+      string,
+      {
+        paths: { name: string; message: string }[]
+        patterns: { group: string[]; message: string; allowTypeImports?: boolean }[]
+      },
+    ]
+    expect(options.paths.find(path => path.name === 'ai')?.message).toContain('injectAction()')
+    const agent = options.patterns.find(pattern => pattern.group.includes('@copilotkit/*'))
+    expect(agent?.message).toContain('@company/mfe-angular')
+    expect(agent?.allowTypeImports).toBe(false)
+  })
+
   it('names the Angular adapter APIs in the shared rules, not the React hooks', () => {
     const rulesBlock = preset.find(config => config.name === 'mfe/angular/rules')
     expect(rulesBlock?.rules?.['mfe/no-global-patching']).toEqual([

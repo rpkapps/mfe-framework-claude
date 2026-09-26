@@ -2,8 +2,8 @@
 
 import {
   DEFINITION_ID_RULE,
-  eventNameToHandlerProp,
-  findEventNameProblem,
+  outputNameToHandlerProp,
+  findOutputNameProblem,
   isReservedInputName,
   isValidDefinitionId,
   RESERVED_INPUT_NAMES,
@@ -56,14 +56,14 @@ export interface DiscoveredDefinition {
   /** The entry's export name; `'default'` for a default export. */
   readonly exportName: string
   readonly isDefaultExport: boolean
-  /** Widget only: contract event names, in declaration order. */
-  readonly eventNames: readonly string[]
+  /** Widget only: contract output names, in declaration order. */
+  readonly outputNames: readonly string[]
   /** Widget only: input field names, when the schema could be read. */
   readonly inputNames: readonly string[]
   /** Widget only: the inputs as JSON Schema, when the build could read them. */
   readonly inputSchema?: JsonObject
-  /** Widget only: the events as JSON Schema, one property per event, when the names could be read. */
-  readonly eventSchema?: JsonObject
+  /** Widget only: the outputs as JSON Schema, one property per output, when the names could be read. */
+  readonly outputSchema?: JsonObject
   /** Widget only: how to reach the contract schemas without the App entry. */
   readonly contractSource?: WidgetContractSource
   /** Presentation the author declared, so a host can catalogue the definition unloaded (§16). */
@@ -277,10 +277,10 @@ function readDefinition(
     ...presentation,
     exportName: binding.exportName,
     isDefaultExport: binding.isDefaultExport,
-    eventNames: contract?.eventNames ?? [],
+    outputNames: contract?.outputNames ?? [],
     inputNames: contract?.inputNames ?? [],
     inputSchema: contract?.inputSchema,
-    eventSchema: contract?.eventSchema,
+    outputSchema: contract?.outputSchema,
     contractSource: contract === null ? undefined : contract.source,
   })
 }
@@ -561,37 +561,37 @@ function assertContainerShape(
 
   for (const definition of definitions) {
     if (definition.kind !== 'widget') continue
-    assertUsableEventNames(entryFile, definition)
+    assertUsableOutputNames(entryFile, definition)
     assertUsableInputNames(entryFile, definition)
   }
 }
 
-function assertUsableEventNames(entryFile: string, definition: DiscoveredDefinition): void {
-  const problem = findEventNameProblem(definition.eventNames)
+function assertUsableOutputNames(entryFile: string, definition: DiscoveredDefinition): void {
+  const problem = findOutputNameProblem(definition.outputNames)
   if (problem === null) return
 
   if (problem.kind === 'invalid') {
     throw createBuildError({
-      code: 'contract/event-mismatch',
+      code: 'contract/output-mismatch',
       file: entryFile,
       id: definition.id,
-      operation: `read the Widget event '${problem.name}'`,
-      expected: 'a lower-camel-case event name, for example "acknowledged" or "selectionChanged"',
+      operation: `read the Widget output '${problem.name}'`,
+      expected: 'a lower-camel-case output name, for example "acknowledged" or "selectionChanged"',
       observed: JSON.stringify(problem.name),
       declaredBy: 'The Widget contract',
-      repair: `Rename the event. Consumers subscribe to it as ${eventNameToHandlerProp('yourEvent')}, so the name has to survive that mapping.`,
+      repair: `Rename the output. Consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}, so the name has to survive that mapping.`,
     })
   }
 
   throw createBuildError({
-    code: 'contract/event-mismatch',
+    code: 'contract/output-mismatch',
     file: entryFile,
     id: definition.id,
-    operation: `read the Widget event '${problem.name}'`,
-    expected: 'event names that map to distinct handler props',
+    operation: `read the Widget output '${problem.name}'`,
+    expected: 'output names that map to distinct handler props',
     observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
     declaredBy: 'The Widget contract',
-    repair: `Rename one of them, for example '${problem.name}Completed'. A consumer that passed ${problem.handlerProp} could not say which event it meant.`,
+    repair: `Rename one of them, for example '${problem.name}Completed'. A consumer that passed ${problem.handlerProp} could not say which output it meant.`,
   })
 }
 
@@ -604,10 +604,10 @@ function assertUsableInputNames(entryFile: string, definition: DiscoveredDefinit
       file: entryFile,
       id: definition.id,
       operation: `read the Widget input '${name}'`,
-      expected: 'an input name that is not reserved for host control or event handlers',
+      expected: 'an input name that is not reserved for host control or output handlers',
       observed: `'${name}', which is reserved`,
       declaredBy: 'The Widget consumption contract',
-      repair: `Rename the input. ${listNames([...RESERVED_INPUT_NAMES])} are host control props, and a name starting with "on" followed by a capital letter is an event handler.`,
+      repair: `Rename the input. ${listNames([...RESERVED_INPUT_NAMES])} are host control props, and a name starting with "on" followed by a capital letter is an output handler.`,
     })
   }
 }

@@ -57,6 +57,8 @@ and a deployment writes it from the environment when the image starts:
 | `OIDC_GROUPS_CLAIM` | `oidcGroupsClaim` | the claim read into `shellState.groups`; defaults to `groups`              |
 | `OIDC_DISABLED`     | `oidcDisabled`    | `true` runs without sign-in, as the development user                       |
 | `SHELL_LOADER`      | `loader`          | a loading screen other than the one the build chose, or `cycle`; see below |
+| `AGENT_URL`         | `agentUrl`        | where the assistant's agent backend takes AG-UI runs; see below            |
+| `AGENT_IMAGE_HOSTS` | `agentImageHosts` | other origins the assistant's images may load from; see below              |
 
 The generated `.mfe/runtime-config.sh` (`pnpm run generate`) writes the file,
 in POSIX `sh` and `awk` only: copy it into an nginx image's
@@ -75,10 +77,22 @@ and allow refresh tokens for the client (Entra ID and Okta issue them only with
 `offline_access`). A production build with no provider configured refuses to
 boot until either the provider or `OIDC_DISABLED=true` is set.
 
+The user menu shows the signed-in user's photo when the profile carries a
+Microsoft Graph photo URL in `entraid_avatar` and an Entra access token for
+Graph in `entraid_access_token`: the shell fetches it with that token, which
+must be issued for Graph with `User.Read`, and keeps a 96 px copy for the tab.
+The token is sent only to `https://graph.microsoft.com`: a photo URL on any
+other origin is not fetched. Until then, and when there is no photo, Graph
+refuses the token or the answer is not an image, it shows initials; a refusal is
+logged as `[shell] The profile photo did not load`. A
+deployment with a Content Security Policy allows
+`connect-src https://graph.microsoft.com` and `img-src data:`
+([decisions §36](../../docs/decisions.md)).
+
 While sign-in and boot run, `index.html` shows a loading screen: a drawing,
 with the title and status over it. It fades out as the
-shell fades in; if sign-in fails the drawing stops and recedes behind the
-reason and a way forward.
+shell fades in; if sign-in fails it cross-fades to a page saying why, with a
+way forward.
 
 | Loader      | What it draws                                                               |
 | ----------- | --------------------------------------------------------------------------- |
@@ -176,7 +190,8 @@ wherever you already are and dismissed back to it.
 
 | Surface         | Opened by                  | What it is                                                                                 |
 | --------------- | -------------------------- | ------------------------------------------------------------------------------------------ |
-| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered command, host or mount      |
+| Command palette | `⌘K` / `Ctrl+K`            | every application, every capability page, and every registered action, host or mount       |
+| Assistant       | the bot, `⌘I` / `Ctrl+I`   | the chat with the agent, beside the App; without `AGENT_URL`, a sheet saying so            |
 | Developer tools | `g d` / `g r`, the palette | the override editor, and what loaded, what was rejected and the entry as published         |
 | Settings        | the gear, `g s`            | theme, the dashboard canvas, and links to each App's own settings page                     |
 | Help            | the question mark, `?`     | what the pieces of the page are, and every shortcut that can fire right now                |
@@ -192,17 +207,59 @@ callbacks threaded down from the layout, which is what lets the palette open
 settings and settings open the registry without either knowing where the other
 lives.
 
-The shell's own commands are registered through `runtime.commands.registerHost`,
+The shell's own actions are registered through `runtime.actions.registerHost`,
 so the palette renders one snapshot that holds the mounted App's as well.
-`shell-commands.ts` says what each of the shell's commands is called, its
+`shell-actions.ts` says what each of the shell's actions is called, its
 shortcut, whether it may run and what it does; `palette.tsx` says what is drawn
 beside it.
 
 Every key goes through one `keydown` listener on the document, which hands it
-to `runtime.commands.handleKeyDown`. A shortcut is a field on a command, the
+to `runtime.actions.handleKeyDown`. A shortcut is a field on an action, the
 shell's and a mounted App's alike, so the palette shows the keys beside each
-command and the help sheet lists them from the same snapshot. The shell's keys
+action and the help sheet lists them from the same snapshot. The shell's keys
 are reserved: an App asking for one of them is refused with a diagnostic.
+
+### The assistant
+
+The Assistant button and `⌘I` / `Ctrl+I` (also "Ask the assistant" in the
+palette) open a chat with an agent that can use the page's actions: an aside
+beside the mounted App on a wide screen, a sheet on a narrow one, holding one
+conversation for the page. `⌘I` / `Ctrl+I` quotes the text selected on the page
+into the next message. The chat's code loads the first time it opens, not with
+the shell ([decisions §49–§53](../../docs/decisions.md)).
+
+It talks AG-UI to the backend at `AGENT_URL`, through the request boundary, so
+the backend receives the user's token. A deployment without `AGENT_URL` has no
+chat: the button opens a sheet saying the assistant is not configured. The
+development configuration points it at `http://localhost:3011/agent`, the
+stand-in backend in [`tools/agent-dev`](../../tools/agent-dev/README.md): a demo
+agent with no key and no network, or a real model. `pnpm dev` starts it with the
+shell; `pnpm run dev:shell` and `pnpm --filter @company/shell dev` start the
+shell alone, so run it beside them:
+
+```sh
+pnpm --filter @company/agent-dev start
+```
+
+An image the agent shows (A2UI's `Image`) loads only from the shell's own
+origin, as a `data:image/…` URL, or from an origin in `AGENT_IMAGE_HOSTS`; any
+other is drawn as its description and host, and nothing is fetched. An image's
+address is fetched as soon as it is drawn, so an agent steered by text it read
+could otherwise put page data in the query of an image on its own server. The
+variable is a comma-separated list of origins, scheme, host and optional port
+with no path, matched exactly: `https://tiles.example.com,
+https://maps.example.com:8443`. There are no wildcards, `http://` and `https://`
+are different origins, and a default port is the same as none. A value with an
+entry of any other form (a bare host, a trailing `/`, `*.`) stops the shell on
+the loading screen, naming the variable. List only hosts that serve images and
+do not redirect elsewhere: an image follows a redirect. A reply's Markdown
+images are never loaded, whatever the list says.
+
+The build replaces `@ag-ui/proto`, the AG-UI client's protobuf codec, with the
+three names the client reads (`build/ag-ui-proto.ts`): the shell always asks for
+`text/event-stream`, so the codec never ran, and it was 100 kB of the chat's
+chunk. A backend that answers in protobuf regardless fails the run with an error
+that names that file.
 
 ### The theme
 
@@ -266,13 +323,13 @@ included.
 
 `/` composes a page out of Widgets the shell was never built against. It knows
 three things about each one, all of them read from the registry: an id, an
-input schema and an events schema, whose properties are the event names and
+`inputSchema` and an `outputSchema`, whose properties are the output names and
 their payloads. Drag a Widget from the catalogue onto
 the canvas — or press its Add button, which is the same thing without a pointer
 — and a dialog asks for its inputs.
 
 The form is generated over the framework's reflection of that published schema
-(`describeWidgetInputs`, with `needsInputPrompt` deciding whether to ask at
+(`describeInputs`, with `needsInputPrompt` deciding whether to ask at
 all); which control each field becomes is this shell's, in
 `dashboard/input-schema.ts`, and a field the build could not describe gets a raw
 JSON box.
@@ -285,8 +342,8 @@ without a store of the shell's own. The old `company:shell:dashboard` key is not
 migrated.
 
 Everything the Widgets emit appears in the activity feed beside them, subscribed
-through `DynamicWidget`'s `onEvent` since the shell knows these events only as
-strings — as named fields, because a Widget's event payload is the half of its
+through `DynamicWidget`'s `onOutput` since the shell knows these outputs only as
+strings — as named fields, because a Widget's output payload is the half of its
 contract a screenshot cannot show and `{"fdaId":"fda-1-02"}` is not something
 anyone should have to parse by eye.
 
@@ -384,11 +441,14 @@ link work:
    only place the location is written). It also declares its peers (`react-aria-components`, `cn`,
    `class-variance-authority`, `lucide-react`, `next-themes`, `sonner`,
    `react-resizable-panels`, `react-aria`) plus what its stylesheet imports
-   (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`). pnpm does not
-   install a linked package's own dependencies, so each consumer has to.
+   (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`), and
+   `@shadcn/react`, which the chat's Questionnaire and MessageScroller import.
+   pnpm does not install a linked package's own dependencies, so each consumer
+   has to.
 2. **`tools/tecton/tecton-build.mjs`** supplies the resolution: this
-   workspace's `node_modules` named by absolute path, because walking up from
-   the design system's real location finds a second copy of React; and
+   workspace's `node_modules` named by absolute path, ahead of each module's
+   own, because walking up from the design system's real location finds a
+   second copy of React, React DOM and recharts; and
    `NODE_PATH` for Tailwind, which resolves `@import`s from the stylesheet's
    own directory; the shell and every container import the same helper, so the
    two cannot drift. `requireTecton` fails the config when the checkout is
@@ -493,8 +553,10 @@ key, and without them every container downloaded its own react-dom client. The
 shell is not built with the React Compiler, so `@company/mfe-react/host` imports
 `react/compiler-runtime` for it to provide. The rest of
 `@tecton/react/federation/shared` joins that scope with the design system's
-flags: `react-aria-components`, without `singleton`, and `recharts`, which the
-shell does not install; the host shares only what its own `node_modules` hold.
+flags: `react-aria-components`, without `singleton`, and `recharts`, without
+`singleton` and never eager, which the shell installs for the assistant's
+charts and which loads with the first one; the host shares only what its own
+`node_modules` hold.
 The design system itself is not shared, although that list offers it: every
 container bundles the Tecton components it imports, which measured faster on
 every page than a shared copy split into a chunk per component.

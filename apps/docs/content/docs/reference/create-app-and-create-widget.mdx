@@ -55,29 +55,29 @@ export const alertPanel = createWidget({
   description: 'Open alerts for one asset, acknowledged or dismissed in place.',
   tags: ['alerts', 'operations', 'safety'],
   icon: BellIcon,
-  inputs: z.object({
+  inputSchema: z.object({
     alertId: z.string(),
     severity: z.enum(['info', 'warning', 'critical']).default('info'),
   }),
-  events: {
+  outputSchema: z.object({
     acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
     dismissed: z.object({ alertId: z.string() }),
-  },
+  }),
   render: AlertPanel,
 })
 ```
 
-| Option        | Type                                      | Required | What it does                                                               |
-| ------------- | ----------------------------------------- | -------- | -------------------------------------------------------------------------- |
-| `id`          | `string`                                  | yes      | The definition id, under the same rule as an App's.                        |
-| `inputs`      | `z.ZodType`                               | yes      | One schema for every prop. A Widget that takes none writes `z.object({})`. |
-| `events`      | `Record<string, z.ZodType>`               | yes      | Event name to payload schema. A Widget that emits none writes `{}`.        |
-| `render`      | `(props: WidgetRenderProps) => ReactNode` | yes      | The component. Keep it in its own module.                                  |
-| `version`     | `string`                                  | no       | Recorded in diagnostics.                                                   |
-| `title`       | `string`                                  | no       | Presentation.                                                              |
-| `description` | `string`                                  | no       | Presentation.                                                              |
-| `tags`        | `readonly string[]`                       | no       | Presentation.                                                              |
-| `icon`        | imported identifier                       | no       | Presentation.                                                              |
+| Option         | Type                                      | Required | What it does                                                                                         |
+| -------------- | ----------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `id`           | `string`                                  | yes      | The definition id, under the same rule as an App's.                                                  |
+| `inputSchema`  | `z.ZodType`                               | yes      | One `z.object` with a property per prop. A Widget that takes none writes `z.object({})`.             |
+| `outputSchema` | `z.ZodObject`                             | yes      | One property per output, holding its payload schema. A Widget that emits none writes `z.object({})`. |
+| `render`       | `(props: WidgetRenderProps) => ReactNode` | yes      | The component. Keep it in its own module.                                                            |
+| `version`      | `string`                                  | no       | Recorded in diagnostics.                                                                             |
+| `title`        | `string`                                  | no       | Presentation.                                                                                        |
+| `description`  | `string`                                  | no       | Presentation.                                                                                        |
+| `tags`         | `readonly string[]`                       | no       | Presentation.                                                                                        |
+| `icon`         | imported identifier                       | no       | Presentation.                                                                                        |
 
 ## The four presentation options
 
@@ -108,10 +108,10 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 ## What your render function receives
 
-| Field    | Type                       | What it is                                                       |
-| -------- | -------------------------- | ---------------------------------------------------------------- |
-| `inputs` | `ContractInputs<C>`        | The validated props, typed from your `inputs` schema.            |
-| `emit`   | `(event, payload) => void` | Sends one declared event. The payload is validated at this call. |
+| Field    | Type                        | What it is                                                        |
+| -------- | --------------------------- | ----------------------------------------------------------------- |
+| `inputs` | `ContractInputs<C>`         | The validated props, typed from your `inputSchema`.               |
+| `emit`   | `(output, payload) => void` | Sends one declared output. The payload is validated at this call. |
 
 ## What each factory returns
 
@@ -149,10 +149,10 @@ alert-panel failed to create Widget definition: expected a render function, rece
 
 </Callout>
 
-<Callout type="error" title="contract/event-mismatch">
+<Callout type="error" title="contract/output-mismatch">
 
 ```text
-alert-panel failed to declare event 'alert-acknowledged': expected a lower-camel-case event name, for example "acknowledged", received "alert-acknowledged". Rename the event; consumers subscribe to it as onYourEvent.
+alert-panel failed to declare output 'alert-acknowledged': expected a lower-camel-case output name, for example "acknowledged", received "alert-acknowledged". Rename the output; consumers subscribe to it as onYourOutput.
 ```
 
 **Fix.** Rename it to `alertAcknowledged`. The name has to survive the mapping to an `onX` prop.
@@ -163,6 +163,6 @@ alert-panel failed to declare event 'alert-acknowledged': expected a lower-camel
 
 - [Create an App](/docs/create-an-app) — the recipe this page backs.
 - [Create a Widget](/docs/create-a-widget) — the Widget recipe.
-- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, events, inputs.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, outputs, inputs.
 - [Route staticData fields](/docs/reference/static-data) — what a route adds to a definition.
 - [Error codes](/docs/reference/error-codes) — every code, with the fix.

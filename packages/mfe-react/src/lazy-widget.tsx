@@ -4,12 +4,12 @@
  * mounts itself into an element this renders, whichever framework built it.
  */
 
-import type { ContractEvents, ContractInputs, MfeError, WidgetContract } from '@company/mfe-core'
+import type { ContractOutputs, ContractInputs, MfeError, WidgetContract } from '@company/mfe-core'
 import type { ReactNode } from 'react'
 
 import { DefinitionSlot } from './definition-slot.tsx'
 import { useDefinitionMount } from './use-definition-mount.ts'
-import { deliverWidgetEvent, widgetInputs } from './widget-props.ts'
+import { deliverWidgetOutput, widgetInputs } from './widget-props.ts'
 
 /** What the `fallback` slot receives, the one documented inline failure seam. */
 export interface WidgetFallbackProps {
@@ -18,8 +18,8 @@ export interface WidgetFallbackProps {
 }
 
 type HandlerProps<C extends WidgetContract> = {
-  readonly [K in keyof ContractEvents<C> & string as `on${Capitalize<K>}`]?: (
-    event: ContractEvents<C>[K],
+  readonly [K in keyof ContractOutputs<C> & string as `on${Capitalize<K>}`]?: (
+    payload: ContractOutputs<C>[K],
   ) => void
 }
 
@@ -32,7 +32,7 @@ export type LazyWidgetProps<C extends WidgetContract | undefined> = (C extends W
 }
 
 export interface LazyWidgetOptions<C extends WidgetContract> {
-  /** Enables consumer-side event validation and infers prop and handler types (§15). */
+  /** Enables consumer-side output validation and infers prop and handler types (§15). */
   readonly contract?: C
 }
 
@@ -69,10 +69,10 @@ export function lazyWidget(
 export interface DynamicWidgetProps extends LazyWidgetProps<undefined> {
   readonly widgetId: string
   /**
-   * Every event this Widget declares, delivered by name, for a consumer that knows them only
+   * Every output this Widget declares, delivered by name, for a consumer that knows them only
    * as strings read from a published contract (§28).
    */
-  readonly onEvent?: (name: string, payload: unknown) => void
+  readonly onOutput?: (name: string, payload: unknown) => void
 }
 
 export function DynamicWidget({ widgetId, ...props }: DynamicWidgetProps): ReactNode {
@@ -94,10 +94,10 @@ function WidgetSlot({
       kind: 'widget',
       definitionId: widgetId,
       inputs: widgetInputs(props),
-      onEvent: (event, payload) => {
-        deliverWidgetEvent(props, event, payload)
+      onOutput: (output, payload) => {
+        deliverWidgetOutput(props, output, payload)
       },
-      consumerEvents: contract?.events,
+      consumerOutputs: contract?.outputSchema,
     },
     `the "${widgetId}" Widget`,
   )

@@ -15,8 +15,8 @@ describe('reading a Widget’s component against its contract', () => {
   it('reflects a definition once, however many times it mounts', () => {
     const alert = createWidget({
       id: 'alert-panel',
-      inputs: z.object({ alertId: z.string() }),
-      events: { acknowledged: z.object({}) },
+      inputSchema: z.object({ alertId: z.string() }),
+      outputSchema: z.object({ acknowledged: z.object({}) }),
       component: AlertComponent,
     })
 
@@ -30,8 +30,8 @@ describe('reading a Widget’s component against its contract', () => {
   it('keeps nothing for a definition that fails, so it fails the same way every time', () => {
     const missing = createWidget({
       id: 'missing-input',
-      inputs: z.object({ alertId: z.string(), title: z.string() }),
-      events: {},
+      inputSchema: z.object({ alertId: z.string(), title: z.string() }),
+      outputSchema: z.object({}),
       component: AlertComponent,
     })
 

@@ -1,8 +1,5 @@
 /** Read out of the route file, so the shell knows a route exists before the App is loaded. */
 
-import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
-
 import type { CapabilityDescriptor } from '@company/mfe-core'
 
 import {
@@ -20,7 +17,7 @@ import {
   type MarkerTerms,
 } from '@company/mfe-build'
 
-const ROUTE_EXTENSIONS = ['.ts', '.tsx'] as const
+import { routeFiles } from './route-files.ts'
 
 /** A file route marks a capability in its `staticData`, so that is what a repair names. */
 const FILE_ROUTE_TERMS: MarkerTerms = {
@@ -53,22 +50,6 @@ export function extractCapabilities(
   }
 
   return collectCapabilities(markers, options, FILE_ROUTE_TERMS)
-}
-
-/** Every route source file, in a stable order. */
-function routeFiles(routesDirectory: string): readonly string[] {
-  let entries: readonly string[]
-  try {
-    entries = readdirSync(routesDirectory, { recursive: true, encoding: 'utf8' })
-  } catch {
-    return []
-  }
-
-  return entries
-    .filter(entry => ROUTE_EXTENSIONS.some(extension => entry.endsWith(extension)))
-    .filter(entry => !entry.endsWith('.d.ts'))
-    .map(entry => join(routesDirectory, entry))
-    .sort()
 }
 
 /** Matches `createFileRoute('<path>')({ … })`; a route whose path is computed is not marked. */

@@ -15,8 +15,11 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
+import type { ActionAuditSink } from '../actions/action-audit.ts'
+import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
+import type { ActionRegistry } from '../actions/action-registry.ts'
+import type { AgentContextStore } from '../agent-context/agent-context-store.ts'
 import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import type { CommandDenialNotifier, CommandRegistry } from '../commands/command-registry.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import type { ContainerLoader } from '../loader/container-loader.ts'
 import {
@@ -37,8 +40,10 @@ export interface MfeRuntime {
   readonly loader: ContainerLoader
   readonly shellState: ShellStateStore
   readonly storage: MfeStorageStore
-  readonly commands: CommandRegistry
+  readonly actions: ActionRegistry
   readonly breadcrumbs: BreadcrumbStore
+  /** What the agent knows of the page with each turn: the URL, selections, prompt handoff. */
+  readonly agentContext: AgentContextStore
   readonly navigator: BoundaryNavigator
   readonly telemetryProvider: TelemetryProvider
   readonly diagnostics: DiagnosticsHub
@@ -66,7 +71,19 @@ export interface CreateMfeRuntimeOptions {
   readonly adapters: readonly MfeAdapter[]
   /** Merged over `DEFAULT_DEADLINES`, so a shell names only the phases it tunes. */
   readonly deadlines?: Partial<DeadlineConfig>
-  readonly notifyCommandDenial?: CommandDenialNotifier
+  readonly notifyActionDenial?: ActionDenialNotifier
+  /**
+   * The organization's rule over the agent's calls, on top of what each action declares: it can
+   * approve, ask the user, or deny one call without touching the App that registers the action.
+   */
+  readonly actionApprovalPolicy?: ActionApprovalPolicy
+  /**
+   * Takes one record for every action run: who acted (the user, the agent on the user's behalf, or
+   * the host), how it was called, in which chat turn, the outcome and the input with credentials
+   * redacted. The host sends it to its backend, which stores it; the runtime also reports it to
+   * telemetry.
+   */
+  readonly auditAction?: ActionAuditSink
   /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
   readonly sessionGeneration?: string
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
@@ -147,7 +164,9 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     telemetryProvider: options.telemetryProvider,
     diagnostics,
     deadlines: options.deadlines,
-    notifyCommandDenial: options.notifyCommandDenial,
+    notifyActionDenial: options.notifyActionDenial,
+    actionApprovalPolicy: options.actionApprovalPolicy,
+    auditAction: options.auditAction,
     nextSessionGeneration,
   })
 

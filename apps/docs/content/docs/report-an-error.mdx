@@ -63,7 +63,7 @@ working. `retry` is a fresh attempt rather than a re-render of the broken tree.
 In a test, `environment.telemetry.logs('error')` holds the report, with `error.type` set from the
 error's name. In the shell, open `/lab/failure` and throw on purpose. Your region shows the
 failure, the header keeps working, and the application finder still moves you elsewhere. Framework
-failures, such as a storage or command failure, are reported to the shell for you before they are
+failures, such as a storage or action failure, are reported to the shell for you before they are
 thrown.
 
 ## Errors

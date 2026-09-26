@@ -28,6 +28,7 @@ export {
   isValidDefinitionId,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
+  type PublishedRoute,
   type CapabilityIconRef,
   type CapabilityName,
   type ContainerDescriptor,
@@ -38,7 +39,7 @@ export {
   type IconNode,
   type JsonSchemaObject,
   type JsonSchemaValue,
-  type PublishedWidgetContract,
+  type PublishedContract,
 } from './definition.ts'
 
 export {
@@ -48,18 +49,20 @@ export {
 } from './definition-brand.ts'
 
 export {
-  eventNameToHandlerProp,
-  findEventNameProblem,
+  findOutputNameProblem,
   isReservedInputName,
-  isValidEventName,
+  outputNameToHandlerProp,
+  outputPayloadSchema,
+  outputSchemaError,
   RESERVED_INPUT_NAMES,
   validateAgainstContract,
+  findNonSerializableValue,
   validateSerializable,
-  type ContractEvents,
   type ContractInputs,
+  type ContractOutputs,
   type ContractValidation,
   type ContractValidationContext,
-  type EventNameProblem,
+  type OutputSchema,
   type WidgetContract,
 } from './contract.ts'
 
@@ -119,10 +122,12 @@ export { type DeadlineConfig } from './deadline.ts'
 export { defaultExposePath, PAGE_SHARE_SCOPE, SCOPE_ATTRIBUTE } from './container-contract.ts'
 
 export {
+  ACTION_EFFECTS,
+  actionEntryEqual,
   allow,
   arrayEqual,
   breadcrumbTrailEqual,
-  commandEntryEqual,
+  DEFAULT_ACTION_PLACEMENTS,
   deny,
   isRecord,
   isWithinBoundary,
@@ -130,9 +135,17 @@ export {
   withoutUndefined,
   type BoundaryLocation,
   type BreadcrumbItem,
-  type CommandEntry,
-  type CommandPlacement,
-  type CommandRegistration,
+  type ActionEffect,
+  type ActionEntry,
+  type ActionExecutionContext,
+  type AgentContextEntry,
+  type AgentContextRegistration,
+  type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
+  type ActionInputSchema,
+  type ActionPlacement,
+  type ActionRegistration,
   type Decision,
   type NavigationAction,
   type NavigationBridge,
@@ -151,10 +164,10 @@ export { HOST_SCOPE } from './scope.ts'
 export {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
-  type WidgetEvent,
+  type WidgetOutput,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,

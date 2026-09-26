@@ -78,7 +78,7 @@ describe('parse', () => {
       entry({
         id: 'alert-panel',
         kind: 'widget',
-        contract: { events: acknowledgedOnly, inputs: { type: 'object' } },
+        contract: { inputSchema: { type: 'object' }, outputSchema: acknowledgedOnly },
         title: 'Alert panel',
         tags: ['ops', 3, ''],
         icon: 'AP',
@@ -92,7 +92,7 @@ describe('parse', () => {
 
     expect(widget).toMatchObject({
       definitionKind: 'widget',
-      contract: { events: acknowledgedOnly, inputs: { type: 'object' } },
+      contract: { inputSchema: { type: 'object' }, outputSchema: acknowledgedOnly },
       title: 'Alert panel',
       tags: ['ops'],
       icon: 'AP',

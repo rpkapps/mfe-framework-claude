@@ -5,7 +5,7 @@ import {
   useMatchRoute,
   useNavigate,
 } from '@tanstack/react-router'
-import { allow, deny, useCommand, useGroups, type MfeRouterContext } from '@company/mfe-react'
+import { allow, deny, useAction, useGroups, type MfeRouterContext } from '@company/mfe-react'
 import { ScrollArea } from '@tecton/react/components/scroll-area'
 import {
   BoxesIcon,
@@ -16,8 +16,13 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { z } from 'zod'
 
 import { ProjectTree, projectTree } from '../components/dashboard-01/page.tsx'
+import { wellDesigns } from '../components/well-design-card/page.tsx'
+
+/** At module scope, as every inputSchema is. */
+const wellDesignInput = z.object({ id: z.string() })
 
 /** The shell owns the header above this and renders nothing else, so everything below it is this
  * App's to lay out; `createApp` has no layout option because a root route already is one. */
@@ -50,11 +55,13 @@ function OperationsLayout(): ReactNode {
 
   /*
    * Registered by the layout rather than by a page, so they live as long as this application is
-   * mounted; a page's own command is scoped to that page instead.
+   * mounted; a page's own action is scoped to that page instead.
    */
-  useCommand({
+  useAction({
     name: 'open-wells',
     label: 'Operations: open the wells inventory',
+    // Opening a page changes nothing the user keeps, so the agent may do it without asking.
+    effect: 'read',
     // Fires while the page is inside this App; the shell's own keys are reserved, so an App's
     // sequences start with a letter the shell leaves free.
     shortcut: 'o w',
@@ -64,9 +71,10 @@ function OperationsLayout(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'open-assets',
     label: 'Operations: open the asset list',
+    effect: 'read',
     shortcut: 'o a',
     canExecute: () => allow(),
     execute: () => {
@@ -74,18 +82,33 @@ function OperationsLayout(): ReactNode {
     },
   })
 
-  useCommand({
+  useAction({
     name: 'open-settings',
     label: 'Operations: open settings',
+    effect: 'read',
     canExecute: () => allow(),
     execute: () => {
       void navigate({ to: '/settings' })
     },
   })
 
-  useCommand({
+  // For the agent alone: the well page publishes only the id and name of the design it shows, and
+  // the agent reads the design itself here, fresh, before it acts on it.
+  useAction({
+    name: 'read-well-design',
+    label: 'Operations: read a well design',
+    description:
+      'Returns the well design with this id: depths, inclination, phase and AFE cost, or null.',
+    inputSchema: wellDesignInput,
+    effect: 'read',
+    placements: ['agent'],
+    execute: ({ id }) => wellDesigns.find(design => design.id === id) ?? null,
+  })
+
+  useAction({
     name: 'open-reports',
     label: 'Operations: open the alternatives ranking',
+    effect: 'read',
     // The one surface in this App that a group actually gates.
     canExecute: () =>
       groups.includes('well-planning.read')

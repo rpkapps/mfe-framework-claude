@@ -31,6 +31,26 @@ export default {
   ),
   oidcGroupsClaim: env('OIDC_GROUPS_CLAIM', z.string().trim().min(1).default('groups')),
   oidcDisabled: env('OIDC_DISABLED', z.boolean().optional()),
+  // Where the chat's agent backend takes AG-UI runs. Absent, the shell has no chat: the button
+  // says the agent is not configured. The development copy names tools/agent-dev.
+  agentUrl: env('AGENT_URL', z.string().trim().min(1).optional()),
+  // The other origins an A2UI Image in the chat may load from, besides the shell's own and data:
+  // images: comma-separated, each scheme, host and optional port with no path, matched exactly
+  // (`https://tiles.example.com, https://maps.example.com:8443`). Absent, none. The pattern is the
+  // list form of ORIGIN in src/chat/a2ui/model.ts, which reads the value; keep the two in step.
+  agentImageHosts: env(
+    'AGENT_IMAGE_HOSTS',
+    z
+      .string()
+      .trim()
+      .regex(
+        /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?(?:\s*,\s*https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?)*$/,
+      )
+      .describe(
+        'Origins an A2UI Image in the chat may load from besides the shell’s own, comma-separated: https://tiles.example.com, https://maps.example.com:8443',
+      )
+      .optional(),
+  ),
   // A deployment's own choice of loading screen, over `loader` above: one per script in
   // src/loaders/, named as its file is, or 'cycle'. index.html reads it itself, before any script.
   // It has no default, so a development copy of the configuration never pins one.

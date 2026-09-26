@@ -90,7 +90,7 @@ writes its components' rules into unscoped style tags named page-wide, so every 
 on a page uses the same PrimeNG version.
 
 A `widget` project has no routes, configuration or local values; its `src/mfe.ts` calls
-`createWidget({ id, version, inputs, events, component, providers })` with the contract exported
+`createWidget({ id, version, inputSchema, outputSchema, component, providers })` with the contract exported
 separately, `src/<id>.component.ts` renders a `p-button` with signal `input()`/`output()`, and its
 `package.json` publishes `exports['./contracts']`. Its `eslint.config.ts` declares its whole `src/`
 as its own Widget scope (`widgetScopes: ['src/**']`); an `app` project declares none, since an App

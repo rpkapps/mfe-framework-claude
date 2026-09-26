@@ -5,7 +5,7 @@ description: 'What an App is, what a Widget is, and the recipe for the task you 
 
 You build one piece of a page somebody else owns: an App or a Widget. An App owns a stretch of the
 URL and routes everything under it. A Widget owns no URL, takes props from whoever renders it, and
-reports back by emitting a declared event. A screen a user can link to is an App, and a screen the
+reports back by emitting a declared output. A screen a user can link to is an App, and a screen the
 page around it places is a Widget. One container exports at most one App and any number of Widgets.
 
 ### An App takes a URL
@@ -24,8 +24,10 @@ export default createApp({ id: 'operations', version: '2.1.0', router: makeRoute
 export const alertPanel = createWidget({
   id: 'alert-panel',
   version: '1.4.0',
-  inputs: z.object({ alertId: z.string() }),
-  events: { acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }) },
+  inputSchema: z.object({ alertId: z.string() }),
+  outputSchema: z.object({
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+  }),
   render: AlertPanel,
 })
 ```
@@ -54,8 +56,14 @@ Each card is one task, with the code first.
   <Card href="/docs/publish-release-notes" title="Publish release notes">
     Your release notes, on the shell's releases screen.
   </Card>
-  <Card href="/docs/add-a-command" title="Add a command to the palette">
+  <Card href="/docs/add-an-action" title="Add an action to the palette">
     An action of yours in the command palette.
+  </Card>
+  <Card href="/docs/offer-an-action-to-the-agent" title="Offer an action to the agent">
+    The same action, as a tool the shell's agent can call.
+  </Card>
+  <Card href="/docs/tell-the-agent-what-is-selected" title="Tell the agent what is selected">
+    What the user has open or chosen, sent with each chat turn.
   </Card>
   <Card href="/docs/block-navigation-when-unsaved" title="Block navigation when edits are unsaved">
     Stop a move away from unsaved edits.
@@ -91,7 +99,7 @@ Each card is one task, with the code first.
   <Card href="/docs/create-a-widget" title="Create a Widget">
     Declare a Widget other people can render.
   </Card>
-  <Card href="/docs/define-inputs-and-events" title="Define inputs and events">
+  <Card href="/docs/define-inputs-and-outputs" title="Define inputs and outputs">
     The contract a consumer of your Widget relies on.
   </Card>
   <Card href="/docs/render-a-widget" title="Render a Widget inside your App">
@@ -100,14 +108,14 @@ Each card is one task, with the code first.
   <Card href="/docs/render-a-widget-at-run-time" title="Render a Widget chosen at run time">
     Render a Widget whose id you learn late.
   </Card>
-  <Card href="/docs/react-to-widget-events" title="React to a Widget's events">
-    Handle the events a Widget you render emits.
+  <Card href="/docs/react-to-widget-outputs" title="React to a Widget's outputs">
+    Handle the outputs a Widget you render emits.
   </Card>
   <Card
     href="/docs/ask-the-app-to-navigate"
     title="Ask the owning App to navigate or set the title"
   >
-    Emit an event and let the App act.
+    Emit an output and let the App act.
   </Card>
 </Cards>
 
@@ -200,7 +208,7 @@ Each card is one task, with the code first.
     Render your App and assert on a page.
   </Card>
   <Card href="/docs/test-a-widget" title="Test a Widget">
-    Render your Widget and check its events.
+    Render your Widget and check its outputs.
   </Card>
   <Card href="/docs/test-with-env-and-a-fake-api" title="Test with env values and a fake API">
     Set env values and intercept requests.

@@ -71,20 +71,21 @@ The **definition** is a side-effect-free record. The React adapter therefore che
 
 An arrow in the picture points at what a package depends on. `pnpm boundaries` reads the `src/**` imports and each manifest alike, so a forbidden edge cannot be added by editing a `package.json`.
 
-| Package                       | What it owns                                                                          | Depends on                       | Never imports                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `@company/mfe-core`           | Contracts only: identity, errors, Widget contracts, telemetry types, records.         | nothing                          | a framework, a router, federation, the runtime       |
-| `@company/mfe-runtime`        | The registry, the loader, `mountDefinition`, shell state, storage, commands.          | core                             | a framework, a router, single-spa, federation        |
-| `@company/mfe-react`          | The React author API, the host components, the router adapter, `reactAdapter`.        | core, runtime                    | single-spa, a vendor SDK, the developer tools        |
-| `@company/mfe-angular`        | The Angular author API, the host components, the router adapter, `angularAdapter`.    | core, runtime                    | React, TanStack, zone.js, federation, a UI library   |
-| `@company/mfe-legacy-angular` | The removable legacy adapter. It reads legacy entries, and mounts none yet.           | core, runtime                    | React, a router, the React adapter                   |
-| `@company/mfe-build`          | The framework-neutral build: discovery, generated modules, share scopes, CSS.         | core                             | a framework, a bundler, the runtime, a design system |
-| `@company/mfe-rspack`         | `pluginMfe()`: the React build on Rsbuild, over `@company/mfe-build`.                 | core, build                      | —                                                    |
-| `@company/mfe-nx`             | The `app` and `widget` generators and `withMfe()`: the Angular build on Nx's webpack. | build                            | —                                                    |
-| `@company/mfe-devtools`       | The developer tools overlay, gated on one key.                                        | core, runtime, the React adapter | single-spa, a vendor SDK, the build plugin           |
-| `@company/create-mfe`         | The React scaffold, `pnpm create @company/mfe <directory>`.                           | nothing                          | —                                                    |
-| `@company/eslint-plugin-mfe`  | The lint presets: a neutral root, `/react` and `/angular`.                            | nothing                          | —                                                    |
-| `apps/shell`                  | The host page: the chrome, the boundary routes, the session.                          | the three adapters, devtools     | the core and the runtime, directly                   |
+| Package                       | What it owns                                                                                        | Depends on                              | Never imports                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `@company/mfe-core`           | Contracts only: identity, errors, Widget contracts, telemetry types, records.                       | nothing                                 | a framework, a router, federation, the runtime                                     |
+| `@company/mfe-runtime`        | The registry, the loader, `mountDefinition`, shell state, storage, actions.                         | core                                    | a framework, a router, single-spa, federation                                      |
+| `@company/mfe-react`          | The React author API, the host components, the router adapter, `reactAdapter`.                      | core, runtime                           | single-spa, a vendor SDK, the developer tools                                      |
+| `@company/mfe-angular`        | The Angular author API, the host components, the router adapter, `angularAdapter`.                  | core, runtime                           | React, TanStack, zone.js, federation, a UI library                                 |
+| `@company/mfe-legacy-angular` | The removable legacy adapter. It reads legacy entries, and mounts none yet.                         | core, runtime                           | React, a router, the React adapter                                                 |
+| `@company/mfe-build`          | The framework-neutral build: discovery, generated modules, share scopes, CSS.                       | core                                    | a framework, a bundler, the runtime, a design system                               |
+| `@company/mfe-rspack`         | `pluginMfe()`: the React build on Rsbuild, over `@company/mfe-build`.                               | core, build                             | —                                                                                  |
+| `@company/mfe-nx`             | The `app` and `widget` generators and `withMfe()`: the Angular build on Nx's webpack.               | build                                   | —                                                                                  |
+| `@company/mfe-devtools`       | The developer tools overlay, gated on one key.                                                      | core, runtime, the React adapter        | single-spa, a vendor SDK, the build plugin                                         |
+| `@company/mfe-agent`          | The shell's connection to the agent over AG-UI: the page's actions as tools, one list of approvals. | core, runtime                           | an adapter, the developer tools, a build package, any agent library but `@ag-ui/*` |
+| `@company/create-mfe`         | The React scaffold, `pnpm create @company/mfe <directory>`.                                         | nothing                                 | —                                                                                  |
+| `@company/eslint-plugin-mfe`  | The lint presets: a neutral root, `/react` and `/angular`.                                          | nothing                                 | —                                                                                  |
+| `apps/shell`                  | The host page: the chrome, the boundary routes, the session.                                        | the three adapters, devtools, the agent | the core and the runtime, directly                                                 |
 
 The build packages run in the build rather than on the page, so they sit outside that graph. `@company/mfe-build` holds the half every framework shares. It reads the sources without running them, then generates the `#mfe/*` modules, the container and App entries, the registry entry and the scoped stylesheet. A React container adds one `pluginMfe()` line to its `rsbuild.config.ts`. An Angular container, scaffolded by `@company/mfe-nx` in an Nx workspace, exports `withMfe()` from its `webpack.config.ts` ([decision 31](/docs/how-it-works/decisions#31-angular-containers-get-an-adapter-of-their-own-built-by-nx-on-webpack)).
 
@@ -99,8 +100,8 @@ The design rule is one sentence: every micro-frontend concern uses a mechanism t
 **In words.** Titled `adapters`, under "One neutral runtime; the adapters the shell lists." Ten boxes, read top to bottom.
 
 - **The shell** (`adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`) sits at the top, with an arrow **registry.json** into **The neutral runtime** ("@company/mfe-runtime — no framework, no federation import").
-- The runtime holds **Shared services** ("storage, commands, navigation, diagnostics"), **Federation loader** (`createFederationContainerLoader`) and **One mount path** (`mountDefinition`).
-- An arrow **detect, parse** drops into **The adapters** ("exactly one recognises each entry; any order"): **The React adapter** (`mfe.framework 'react', or none`), **The Angular adapter** (`mfe.framework 'angular'`) and **The legacy Angular adapter** ("no mfe key; removable").
+- The runtime holds **Shared services** ("storage, actions, navigation, diagnostics"), **Federation loader** (`createFederationContainerLoader`) and **One mount path** (`mountDefinition`).
+- An arrow **detect, parse** drops into **The adapters** ("exactly one recognises each entry; any order"): **The React adapter** (`mfe.framework 'react'`), **The Angular adapter** (`mfe.framework 'angular'`) and **The legacy Angular adapter** ("no mfe key; removable").
 - An arrow **defines, mounts** drops from the React adapter to `operations` ("a React App, with its own root") and from the Angular adapter to **an Nx container** ("an Angular App or Widgets"). A dashed arrow **entries only** drops from the legacy adapter to `asset-tracker` ("a legacy application, not mounted yet"). The legend names the shell, a neutral package, an adapter package and a container.
 
 The runtime is neutral: `@company/mfe-core` and `@company/mfe-runtime` import no framework, no router and no Module Federation. The core holds the `MfeAdapter` interface and the common `RegistryEntry` shape, and names no framework. The runtime holds everything that is the same for every adapter. That is the registry read, the federation loader the shell hands the federation runtime to, and `mountDefinition`.
@@ -109,7 +110,7 @@ The runtime is neutral: `@company/mfe-core` and `@company/mfe-runtime` import no
 
 | Adapter                       | Recognises an entry when                                     | Mounts it with                       | Removable |
 | ----------------------------- | ------------------------------------------------------------ | ------------------------------------ | --------- |
-| `@company/mfe-react`          | its `mfe` marker names `react`, or names no framework        | a React root per mount               | no        |
+| `@company/mfe-react`          | its `mfe` marker names `react`                               | a React root per mount               | no        |
 | `@company/mfe-angular`        | its `mfe` marker names `angular`                             | an Angular application per mount     | no        |
 | `@company/mfe-legacy-angular` | it has no `mfe` key, and has a `name` and an `mfManifestUrl` | nothing yet: the shell only lists it | yes       |
 
@@ -119,7 +120,7 @@ The Angular adapter is Angular 19 and zoneless. Every mount is its own applicati
 
 Nothing falls back silently. An entry naming a framework belongs to that framework's adapter, whatever state the rest of it is in. A malformed entry is set aside with a reason, and the registry lists it under `rejected`. Reading it with another adapter instead would let a typo change how an application loads, unseen.
 
-Shared services come from the runtime and are the same for every adapter. One storage store, one command registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the registry and never asks which adapter an entry came from.
+Shared services come from the runtime and are the same for every adapter. One storage store, one action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the registry and never asks which adapter an entry came from.
 
 The legacy adapter reads a legacy entry into the same common shape. Its own fields are typed on its own entry type and reached through `legacyAngularAdapter.is(entry)`. It keeps a parcel lifecycle, the base href each application expects and the routes left to the shell. No host mounts a legacy application yet, so the shell reads and lists legacy entries only. Removal is the point of it. When the last legacy application is migrated, delete the package, one entry from the shell's `adapters` list and one import from its composition root. No other package changes. [Legacy Angular applications](/docs/reference/legacy-angular) is the reference for its fields, its lifecycle and its migration edit.
 

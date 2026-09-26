@@ -113,22 +113,53 @@ export {
 } from './shell-state/shell-state-store.ts'
 
 export {
-  CommandRegistry,
-  type CommandDenialNotifier,
-  type CommandExecutionResult,
-  type CommandOwner,
-  type CommandRegistrationHandle,
-  type CommandRegistryOptions,
+  ActionRegistry,
+  type ActionOwner,
+  type ActionRegistrationHandle,
+  type ActionRegistryOptions,
   type ShortcutDispatchResult,
-} from './commands/command-registry.ts'
+} from './actions/action-registry.ts'
+export {
+  redactInput,
+  type ActionActor,
+  type ActionAuditRecord,
+  type ActionAuditSink,
+  type ActionOutcome,
+  type ActionTurn,
+} from './actions/action-audit.ts'
+export {
+  DEFAULT_ACTION_TIMEOUT_MS,
+  type ActionApprovalPolicy,
+  type ActionApprover,
+  type ActionCall,
+  type ActionCaller,
+  type ActionDenialNotifier,
+  type ActionExecutionResult,
+  type ActionRun,
+  type ApprovalRequest,
+  type ApprovalRuling,
+} from './actions/action-executor.ts'
 
-/** The one reading of a command's `shortcut`, for a host that draws or checks one. */
+/** The one reading of an action's `shortcut`, for a host that draws or checks one. */
 export {
   parseShortcut,
   type ParsedShortcut,
   type ShortcutChord,
   type ShortcutParseResult,
-} from './commands/shortcut.ts'
+} from './actions/shortcut.ts'
+
+export {
+  AgentContextStore,
+  MAX_AGENT_CONTEXT_LENGTH,
+  type AgentAppLocation,
+  type AgentContextHandle,
+  type AgentContextOwner,
+  type AgentContextStoreOptions,
+  type AgentPromptHandler,
+  type AgentPromptRequest,
+  type AgentSuggestionsHandle,
+  type AgentTurnContext,
+} from './agent-context/agent-context-store.ts'
 
 export {
   BreadcrumbStore,

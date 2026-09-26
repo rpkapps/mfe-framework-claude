@@ -294,10 +294,10 @@ Subtitle: "One neutral runtime; the adapters the shell lists." Ten boxes, read t
 the top, a yellow **The shell** (`adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`),
 with an arrow labelled **registry.json** into a panel **The neutral runtime**
 ("@company/mfe-runtime — no framework, no federation import"). That panel holds three grey boxes:
-**Shared services** ("storage, commands, navigation, diagnostics"), **Federation loader**
+**Shared services** ("storage, actions, navigation, diagnostics"), **Federation loader**
 (`createFederationContainerLoader`) and **One mount path** (`mountDefinition`). An arrow
 labelled **detect, parse** drops into a dashed panel **The adapters** ("exactly one recognises
-each entry; any order"), holding **The React adapter** (`mfe.framework 'react', or none`),
+each entry; any order"), holding **The React adapter** (`mfe.framework 'react'`),
 **The Angular adapter** (`mfe.framework 'angular'`) and **The legacy Angular adapter** ("no mfe
 key; removable"). An arrow labelled **defines, mounts** drops from each of the first two to a
 blue container: `operations` ("a React App, with its own root") and **an Nx container** ("an
@@ -386,13 +386,13 @@ Not on the figure. An App: the shell owns `/operations` and the App owns everyth
 `basepath` makes every route, `Link` and `navigate` relative to the boundary; and an App
 delegates a nested App at a splat route with `mfeRoute`, where `boundaryAboveSplat` strips the
 remainder so `reports` is mounted at `/operations/reports` and never learns whether it was
-reached on its own or inside another App. A Widget: `inputs` and `events` are Zod schemas the
+reached on its own or inside another App. A Widget: `inputSchema` and `outputSchema` are Zod object schemas the
 build reads statically; `lazyWidget` is called at module scope, because the component's identity
 is what React uses to decide it is looking at the same element and one built during render
-remounts the Widget; inputs arrive as props and events as `onX` props, typed from the contract;
+remounts the Widget; inputs arrive as props and outputs as `onX` props, typed from the contract;
 and `DynamicWidget` is for a host that learns which Widgets exist only when it reads the
-registry — no contract, so no consumer-side types, every event arriving through
-`onEvent(name, payload)`, and the provider still validating every input it is given.
+registry — no contract, so no consumer-side types, every output arriving through
+`onOutput(name, payload)`, and the provider still validating every input it is given.
 
 ### config-and-data
 
@@ -430,10 +430,10 @@ row, joined left to right: **the container loads** (`runtime.loader.load(entry)`
 definition is checked** (`isMountableDefinition, its kind`), **the roots are created**
 (`scope root, createMountContext`), the blue **mounted, taking input**
 (`definition.mount(target)`) and **disposed** (`dispose(), then the context`). A loop arrow
-leaves the top of the fourth stage and returns to it, labelled **input, or event**. Red dashed
+leaves the top of the fourth stage and returns to it, labelled **input, or output**. Red dashed
 arrows drop from the first, second and fourth stages into a dashed band **Where a failure
 goes**, holding six red tiles: `load/manifest-failure`, `load/timeout`, `mount/failure`,
-`app/invalid-router`, `contract/input-mismatch` and `contract/event-mismatch`. Below the band,
+`app/invalid-router`, `contract/input-mismatch` and `contract/output-mismatch`. Below the band,
 one grey box **StrictMode** ("first handle disposed; mount runs once"), and to its right a
 two-entry legend: blue a container, red a failure path.
 
@@ -450,7 +450,7 @@ areas and the `AbortSignal` an author is handed. **Mounted**: the definition's `
 after an `await`, under the mount deadline; a React definition opens its own root, with its own
 Query client, and an App's router is checked in the first render — `app/invalid-base-path` and
 `app/invalid-router` reject the mount there. Inputs reach a Widget only when they changed; a
-Widget validates every input set and every event it emits, and a rejected input keeps the last
+Widget validates every input set and every output it emits, and a rejected input keeps the last
 one that passed and reports a diagnostic rather than blanking a Widget already on the page. A
 render error after the first commit goes to `onFailure` and moves the mount to its error state;
 a render error inside an App's routes reaches that App's own `defaultErrorComponent` instead,

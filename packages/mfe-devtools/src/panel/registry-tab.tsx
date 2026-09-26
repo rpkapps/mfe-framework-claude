@@ -133,7 +133,7 @@ export function RegistryTab(): ReactNode {
 }
 
 /**
- * Only `overridden` is a badge: with the version, the capabilities, the inputs and the events all
+ * Only `overridden` is a badge: with the version, the capabilities, the inputs and the outputs all
  * badges too, the one row that had been re-pointed looked exactly like the seven that had not.
  */
 function AcceptedEntry({ entry }: { readonly entry: RegistryEntry }): ReactNode {

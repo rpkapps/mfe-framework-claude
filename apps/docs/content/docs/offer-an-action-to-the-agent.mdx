@@ -1,0 +1,262 @@
+---
+title: 'Offer an action to the agent'
+description: "Describe an action, say what it changes and what input it takes, so the shell's agent can call it and asks the user first when it should."
+---
+
+Apps and Widgets. Every action you [add to the palette](/docs/add-an-action) is offered to the
+shell's agent as a tool. The agent calls it through the same checks as the palette. Declare what
+the agent needs to call it well, and whether it must ask the user first.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Describe it for the agent
+
+```tsx title="examples/lab/src/routes/actions.tsx"
+useAction({
+  name: 'export-results',
+  label: 'Export results',
+  description: 'Exports the simulation results to a file the user downloads.',
+  canExecute: () =>
+    groups.includes('well-planning.read')
+      ? allow()
+      : deny('You need the well-planning.read group to export.'),
+  execute: () => {
+    record('Exported the results')
+  },
+})
+```
+
+`label` is the menu text. `description` is for the agent: say what the action does and when to use
+it, in one or two sentences.
+
+</Step>
+
+<Step>
+
+### 2. Say what it changes
+
+```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
+useAction({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  // Opening a page changes nothing the user keeps, so the agent may do it without asking.
+  effect: 'read',
+  canExecute: () => allow(),
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+`effect` decides whether the agent asks the user before it runs the action.
+
+| `effect`               | What a run changes                    | An agent's call     |
+| ---------------------- | ------------------------------------- | ------------------- |
+| `'read'`               | No data. It may change what is shown. | runs without asking |
+| `'write'`, the default | Data the user could change back.      | asks the user first |
+| `'destructive'`        | Data the user could not change back.  | asks the user first |
+
+Mark an action that only opens or shows something `'read'`. Left undeclared, it counts as a write,
+and the agent asks before every call. A user who runs the action from the palette, the keys or your
+own button is never asked. To ask for some calls only, set `needsApproval` to a check of the input
+([useAction](/docs/reference/hooks-and-components#useaction) has every field).
+
+</Step>
+
+<Step>
+
+### 3. Take input
+
+```tsx title="examples/lab/src/routes/actions.tsx (trimmed)"
+import { z } from 'zod'
+
+/** At module scope: the registry converts it to JSON Schema whenever its identity changes. */
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
+
+useAction({
+  name: 'run-simulation',
+  label: 'Run the simulation',
+  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+  inputSchema: simulationInput,
+  effect: 'read',
+  canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
+  execute: ({ runs }) => {
+    record(`Ran the simulation ${runs} times`)
+  },
+})
+```
+
+`inputSchema` is one `z.object`, declared at module scope. Every caller's input is checked against
+it before `execute` runs, and `execute` receives the parsed value with its defaults filled in. An
+action without `inputSchema` takes no input.
+
+`outputSchema` declares the value `execute` returns. The caller gets the parsed value, and a value
+that does not match fails the run.
+
+</Step>
+
+<Step>
+
+### 4. Keep it away from the agent
+
+```tsx title="examples/reports/src/routes/__root.tsx (trimmed)"
+useAction({
+  name: 'copy-ranking',
+  label: 'Reports: copy the ranking',
+  // The clipboard is the user's, so only they are offered it.
+  placements: ['palette'],
+  canExecute: () => (alternatives.length === 0 ? deny('There is nothing to copy.') : allow()),
+  execute: () => {
+    void navigator.clipboard.writeText(rows.join('\n'))
+  },
+})
+```
+
+`placements` lists where the action is offered. Left out, it is `['palette', 'agent']`. List only
+`'palette'` to keep the action from the agent, or `[]` to list it nowhere. Its shortcut and your own
+button still run it either way.
+
+</Step>
+
+<Step>
+
+### 5. Stop when the run is given up
+
+```tsx title="src/routes/plan.tsx"
+useAction({
+  name: 'save-plan',
+  label: 'Save the plan',
+  description: 'Saves the plan the user is editing.',
+  inputSchema: planInput,
+  // A save that waits on a slow approval service upstream.
+  timeoutMs: 60_000,
+  execute: async (plan, { signal }) => {
+    const response = await fetch('/api/plans', {
+      method: 'PUT',
+      body: JSON.stringify(plan),
+      signal,
+    })
+    return { saved: response.ok }
+  },
+})
+```
+
+The agent's writes run one at a time, so a save that never settles would hold every later one, and
+the chat's turn with them. An agent's call therefore has a deadline, 30 seconds unless `timeoutMs`
+says otherwise, counted from when `execute` starts. When it passes, the call fails with
+`action/timeout` and the next write runs. `execute` receives a `signal` that aborts then, when your
+component unmounts during the run (`unavailable`), and when the user presses Stop in the chat
+(`cancelled`). The run already has its result by then, and whatever `execute` still returns is
+dropped, so hand the signal to the request. A user's own run has no deadline, but the signal still
+aborts when the component unmounts.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+The entry the registry publishes is what the agent's tool list is built from. In a test, register
+the action and read the entry, then run it the way the agent does:
+
+```tsx title="src/actions.test.tsx"
+expect(environment.runtime.actions.getSnapshot()).toMatchObject([
+  { id: 'lab:run-simulation', effect: 'read', inputSchema: { properties: { runs: {} } } },
+])
+
+await expect(
+  environment.runtime.actions.execute('lab:run-simulation', {
+    caller: 'agent',
+    input: { runs: 5 },
+  }),
+).resolves.toMatchObject({ status: 'executed' })
+```
+
+A call with `caller: 'agent'` to a write asks for approval. A test has nothing to ask, so the run
+resolves `denied`.
+
+## Errors
+
+<Callout type="error" title="expected an effect">
+
+```text
+lab failed to register action 'plan-visit': expected an effect (read, write, destructive),
+received "safe".
+```
+
+**Fix.** Use one of the three effects, or leave `effect` out to count the action as a write.
+
+</Callout>
+
+<Callout type="error" title="expected an inputSchema made with z.object">
+
+```text
+lab failed to register action 'plan-visit': expected an inputSchema made with z.object, received a
+schema that is not an object schema.
+```
+
+**Fix.** Wrap the values in `z.object({ … })`. An action takes named values, as a tool's arguments
+are.
+
+</Callout>
+
+<Callout type="error" title="cannot be represented in JSON Schema">
+
+```text
+lab failed to describe the inputSchema of action 'plan-visit' as JSON Schema: Error: Date cannot
+be represented in JSON Schema.
+```
+
+**Fix.** Use only what JSON Schema can express: no dates, functions or transforms. Send a date as
+an ISO string, with `z.iso.datetime()`.
+
+</Callout>
+
+<Callout type="error" title="expected input matching the action’s inputSchema">
+
+```text
+lab failed to accept input for action 'run-simulation' runs: expected input matching the action’s
+inputSchema, received ✖ Invalid input: expected number, received string → at runs.
+```
+
+**Fix.** Call the action with input its `inputSchema` accepts. The run resolves `invalid` and
+nothing runs. The code is `contract/input-mismatch`.
+
+</Callout>
+
+<Callout type="error" title="expected a value matching the action’s outputSchema">
+
+```text
+lab failed to return a value from action 'run-simulation' mean: expected a value matching the
+action’s outputSchema, received ✖ Invalid input: expected number, received string → at mean.
+```
+
+**Fix.** Return what `outputSchema` declares from `execute`, or change the schema. The action has
+already run, and the result is `failed` with the code `contract/output-mismatch`.
+
+</Callout>
+
+<Callout type="error" title="expected execute to settle">
+
+```text
+lab failed to execute action 'save-plan': expected execute to settle within 30000ms of starting,
+received an execute still running, so the run failed and its signal was aborted. Pass the signal
+execute receives to the work it waits on, and settle every promise it returns. If the work is slow
+by nature, give the action a longer timeoutMs.
+```
+
+**Fix.** Pass `signal` to the request, and make sure every path through `execute` settles. The code
+is `action/timeout`, and the agent is told the run failed.
+
+</Callout>
+
+## Related
+
+- [Add an action to the palette](/docs/add-an-action) — registering it, `canExecute` and shortcuts.
+- [Hooks and components](/docs/reference/hooks-and-components#useaction) — every field and result.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.
+- [Test an App](/docs/test-an-app) — the test environment the check uses.

@@ -33,12 +33,13 @@ useGroups<T>(selector: (groups: readonly string[]) => T): T
 
 Returns the group names the shell reports for the signed-in user.
 
-```ts title="examples/lab/src/routes/commands.tsx"
+```ts title="examples/lab/src/routes/actions.tsx"
 const groups = useGroups()
 
-useCommand({
+useAction({
   name: 'export-results',
   label: 'Export results',
+  description: 'Exports the simulation results to a file the user downloads.',
   canExecute: () =>
     groups.includes('well-planning.read')
       ? allow()
@@ -49,7 +50,7 @@ useCommand({
 })
 ```
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+Recipe: [Add an action to the palette](/docs/add-an-action).
 
 ### useTheme
 
@@ -144,26 +145,66 @@ Recipe: [Log an event](/docs/log-an-event).
 
 ## Shell features
 
-### useCommand
+### useAction
 
 ```ts
-useCommand(registration: CommandRegistration): void
+useAction<Input extends ActionInputSchema, Output>(
+  registration: ActionRegistration<Input, Output>,
+): ActionRun<Input, Output>
 ```
 
-Publishes one command into the shell's palette for as long as the component is rendered. `CommandRegistration` is `{ name, label, execute, canExecute?, placements?, shortcut? }`. `canExecute` returns `allow()` or `deny(reason)`, and it must be a pure synchronous read. `shortcut` is a chord such as `'mod+s'` or a sequence such as `'g r'`; the shell runs the command for it while the page is inside your App, and ignores one from a Widget.
+Publishes one action for as long as the component is rendered. The shell lists it in the command palette and offers it to its agent as a tool. It returns a stable function that runs the action with the caller `'ui'`, for your own button. The function runs this component's registration, even when another mount of your definition registered the same name.
 
-```ts title="examples/lab/src/routes/commands.tsx"
-useCommand({
+| Field           | Type                                               | What it does                                                                                                                              |
+| --------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`          | `string`                                           | Letters, digits and hyphens, starting with a letter. Unique within the mount.                                                             |
+| `label`         | `string`                                           | The menu text. It must not be empty.                                                                                                      |
+| `description`   | `string`, optional                                 | For the agent: what the action does and when to use it.                                                                                   |
+| `execute`       | `(input, { signal }) => Output \| Promise<Output>` | Does the work. It receives the parsed input and a `signal` that aborts when the run is given up; what it returns is the result's `value`. |
+| `canExecute`    | `() => Decision`, optional                         | Returns `allow()` or `deny(reason)`. A pure synchronous read of UI state, never an authorization check.                                   |
+| `inputSchema`   | a `z.object`, optional                             | The values a call takes, checked before `execute` runs. Absent means the action takes none. Declare it at module scope.                   |
+| `outputSchema`  | `z.ZodType<Output>`, optional                      | The value `execute` returns, checked after it runs.                                                                                       |
+| `effect`        | `'read' \| 'write' \| 'destructive'`, optional     | What a run can change. Undeclared counts as `'write'`.                                                                                    |
+| `needsApproval` | `boolean \| (input) => boolean`, optional          | Whether an agent's call waits for the user's approval. Absent, a `'read'` runs and anything else asks.                                    |
+| `parallelSafe`  | `boolean`, optional                                | Lets an agent's write run beside another. Without it, an agent's writes run one at a time.                                                |
+| `timeoutMs`     | `number`, optional                                 | How long an agent's call may run once `execute` starts, 30 seconds by default. Then it fails with `action/timeout`.                       |
+| `followUp`      | `boolean`, optional                                | Whether the agent carries on once it has the result. Defaults to `true`.                                                                  |
+| `placements`    | `('palette' \| 'agent')[]`, optional               | Where the action is offered. Absent is `['palette', 'agent']`, and `[]` lists it nowhere.                                                 |
+| `shortcut`      | `string`, optional                                 | A chord such as `'mod+s'` or a sequence such as `'g r'`. It fires while the page is inside your App. A Widget's is ignored.               |
+
+```ts title="examples/lab/src/routes/actions.tsx (trimmed)"
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
+
+const runSimulation = useAction({
   name: 'run-simulation',
   label: 'Run the simulation',
+  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+  inputSchema: simulationInput,
+  effect: 'read',
   canExecute: () => (armed ? allow() : deny('Arm the simulation first.')),
-  execute: () => {
-    record('Ran the simulation')
+  execute: ({ runs }) => {
+    record(`Ran the simulation ${runs} times`)
   },
 })
+
+void runSimulation({ runs: 10 })
 ```
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+A field changed on a later render is checked as it was at registration, and one the registry cannot accept throws. The returned run takes the input, which is optional when the schema accepts `{}`. It goes through the same steps as the palette, a shortcut and the agent: `canExecute`, then the input check, then `execute`. It resolves to an `ActionExecutionResult<Output>`:
+
+| `status`      | Carries  | When                                                                                                                                                                                                          |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executed`    | `value`  | `execute` ran. `value` is what it returned, parsed by `outputSchema` when there is one.                                                                                                                       |
+| `denied`      | `reason` | `canExecute` refused. An agent's call is also denied when it is not placed for the agent, by the host's policy or a policy that throws, or when it needs approval and nothing can ask.                        |
+| `declined`    | `reason` | The user was asked about an agent's call and said no.                                                                                                                                                         |
+| `cancelled`   | `reason` | The caller stopped waiting before the run ended: the user pressed Stop in the chat.                                                                                                                           |
+| `invalid`     | `error`  | The input did not match `inputSchema`, so nothing ran. The code is `contract/input-mismatch`.                                                                                                                 |
+| `unavailable` | `error`  | The component that registered the action is gone, or went while a call waited, queued or ran.                                                                                                                 |
+| `failed`      | `error`  | `execute` threw, an agent's call passed its deadline (`action/timeout`), its value did not match `outputSchema` (`contract/output-mismatch`), or a schema's own check or a host hook threw (`mount/failure`). |
+
+The promise never rejects: every outcome is one of these results, and every run is audited once. When a run is given up (an agent's call passed its deadline, the component unmounted, or the user pressed Stop), the `signal` `execute` received aborts, and whatever `execute` returns afterwards is dropped. Approval applies to an agent's calls only. A user who runs the action from the palette, a shortcut or your button is its approval, so none of those asks. `ActionEffect`, `ActionInputSchema`, `ActionRun` and `ActionExecutionResult` are exported as types.
+
+Recipe: [Add an action to the palette](/docs/add-an-action).
 
 ### allow and deny
 
@@ -172,9 +213,74 @@ allow(): Decision
 deny(reason: string): Decision
 ```
 
-Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user.
+Build the answer `canExecute` returns. `deny` takes the sentence the palette shows the user. An agent is told the same sentence.
 
-Recipe: [Add a command to the palette](/docs/add-a-command).
+Recipe: [Add an action to the palette](/docs/add-an-action).
+
+### useAgentContext
+
+```ts
+useAgentContext<Schema extends z.ZodType>(registration: AgentContextRegistration<Schema>): void
+```
+
+Publishes a small snapshot of what is selected or open, for as long as the component is rendered. The shell's agent receives it with each chat turn. Call it on every render with the current value. An equal value publishes nothing.
+
+| Field         | Type               | What it does                                                                                          |
+| ------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `description` | `string`           | Tells the model what the value is, such as `'The wells the user has selected'`. It must not be empty. |
+| `schema`      | `z.ZodType`        | Parses `value`. What it parsed is what the agent receives.                                            |
+| `value`       | the schema's input | Ids and a short label: JSON, at most 4096 characters of it.                                           |
+
+```ts title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+useAgentContext({
+  description: 'The well design the user has open, or null when its id is unknown',
+  schema: openWell,
+  value: design === undefined ? null : { id: design.id, name: design.name },
+})
+```
+
+The agent receives an `AgentContextEntry`: `{ definitionId, description, value, capturedAt }`, where `capturedAt` is the ISO time the value last changed. A value that fails its schema, is not JSON or is too long is left out, and reported once as a warning with `contract/input-mismatch`. An empty `description` throws the same code on the first render. One that becomes empty later is left out and reported, as a bad value is. The entry goes when the component unmounts or the mount is disposed. Outside a mount, it belongs to the host page. Never publish whole records or secrets: offer a read action that takes the id instead.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
+
+### useAgentPrompt
+
+```ts
+useAgentPrompt(): (prompt: AgentPrompt) => boolean
+```
+
+Returns a stable function that hands a click to the shell's chat as a turn. An `AgentPrompt` is `{ message, context?, submit? }`. The chat shows `message` and sends `context` unseen, under the same JSON size limit. `submit: false` fills the chat's input box for the user to review. `submit` defaults to `true`.
+
+```tsx
+const prompt = useAgentPrompt()
+
+prompt({ message: `Why is ${design.name} behind plan?`, context: { wellId: design.id } })
+```
+
+The function returns whether a chat took the prompt. The runtime refuses an empty message, or a context that is not JSON or is too long. The function then returns `false` and reports a warning with `contract/input-mismatch`. It returns `false` when the shell has no chat, which is when its deployment names no agent backend (`AGENT_URL`). `AgentContextEntry`, `AgentContextRegistration` and `AgentPrompt` are exported as types.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
+
+### useAgentSuggestions
+
+```ts
+useAgentSuggestions(suggestions: readonly AgentSuggestion[]): void
+```
+
+Offers prompts the chat shows as ways to start or carry on, while the component is mounted: before the first message, beside the shell's own, and after each answer while nothing waits on the user. An `AgentSuggestion` is an `AgentPrompt` with an optional `label`, the chip's text when shorter than the message. Pressed, a suggestion is handed to the chat as `useAgentPrompt` hands a prompt.
+
+```tsx title="examples/operations/src/routes/index.tsx"
+useAgentSuggestions([
+  { message: 'Summarise the alternatives on this page' },
+  { message: 'Open the wells inventory' },
+])
+```
+
+Call it with the current list on every render; an equal list publishes nothing. A mount offers at most three. One that is empty, not JSON or too long is left out, and a warning with `contract/input-mismatch` is reported once. `AgentSuggestion` is exported as a type.
+
+Recipe: [Tell the agent what is selected](/docs/tell-the-agent-what-is-selected).
 
 ### useBreadcrumbs
 
@@ -238,52 +344,52 @@ lazyWidget(widgetId: string): (props: LazyWidgetProps<undefined>) => ReactNode
 lazyWidget<C extends WidgetContract>(widgetId: string, options: { contract: C }): (props: LazyWidgetProps<C>) => ReactNode
 ```
 
-Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates events on your side.
+Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates outputs on your side.
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
-The returned component takes the Widget's inputs as props and one `onX` handler per declared event. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
+The returned component takes the Widget's inputs as props and one `onX` handler per declared output. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
 
 Recipe: [Render a Widget inside your App](/docs/render-a-widget).
 
 ### DynamicWidget
 
 ```tsx
-<DynamicWidget widgetId={string} onEvent={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
+<DynamicWidget widgetId={string} onOutput={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
 ```
 
-Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so events arrive by name through one `onEvent` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
+Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so outputs arrive by name through one `onOutput` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
 
 ```tsx title="apps/shell/src/shell/dashboard/tile.tsx"
 <DynamicWidget
   widgetId={tile.widgetId}
   {...tile.inputs}
-  onEvent={onEvent}
+  onOutput={onOutput}
   pending={<MountingSkeleton />}
 />
 ```
 
 Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
 
-### describeWidgetInputs and describeWidgetEvents
+### describeInputs and describeOutputs
 
 ```ts
-describeWidgetInputs(contract: PublishedWidgetContract | undefined): readonly WidgetInputField[] | null
-describeWidgetEvents(contract: PublishedWidgetContract | undefined): readonly WidgetEvent[] | null
+describeInputs(contract: PublishedContract | undefined): readonly WidgetInputField[] | null
+describeOutputs(contract: PublishedContract | undefined): readonly WidgetOutput[] | null
 ```
 
-Read the schemas a registry entry publishes in `contract`. A host uses them for a Widget whose contract it never imports. Both walk the JSON Schema with the same code, so an event's payload and another Widget's inputs are described the same way.
+Read the schemas a registry entry publishes in `contract`. A host uses them for a Widget whose contract it never imports. Both walk the JSON Schema with the same code, so an output's payload and another Widget's inputs are described the same way.
 
 ```ts title="apps/shell/src/shell/dashboard/input-schema.ts (trimmed)"
-import { describeWidgetEvents } from '@company/mfe-react'
+import { describeOutputs } from '@company/mfe-react'
 
-const events = describeWidgetEvents(entry.contract)
+const outputs = describeOutputs(entry.contract)
 // [{ name: 'acknowledged', schema: {…}, payload: [{ name: 'alertId', kind: 'string', required: true, … }] }]
 ```
 
@@ -292,9 +398,9 @@ const events = describeWidgetEvents(entry.contract)
 | `null`               | The build could not read the schema. Show it as unknown.                                                                      |
 | `[]`                 | The Widget takes nothing, or emits nothing.                                                                                   |
 | `WidgetInputField[]` | One field per input: `name`, `required`, `kind`, `nullable`, and any `enumValues`, `format`, `defaultValue` or `description`. |
-| `WidgetEvent[]`      | One event per declared event, in order: `name`, `schema` and `payload`.                                                       |
+| `WidgetOutput[]`     | One entry per declared output, in order: `name`, `schema` and `payload`.                                                      |
 
-A `WidgetEvent`'s `payload` lists the payload's fields as `WidgetInputField`s. It is `null` when the build could not read that payload.
+A `WidgetOutput`'s `payload` lists the payload's fields as `WidgetInputField`s. It is `null` when the build could not read that payload.
 
 Three helpers work on the input fields:
 
@@ -345,10 +451,10 @@ A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime su
 
 ## Where each hook may be called
 
-| Hook                                                                                                 | Inside a mount | On the host page |
-| ---------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useCommand`, `useBreadcrumbs`, `useStoredState`                 | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock` | yes            | no               |
+| Hook                                                                                                                                            | Inside a mount | On the host page |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                            | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 

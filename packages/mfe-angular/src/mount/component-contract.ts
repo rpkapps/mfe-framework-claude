@@ -1,6 +1,6 @@
 /**
  * Checking a Widget's component against its contract before anything is created: every input the
- * schema declares must be an input of the component, and every event one of its outputs. Read
+ * schema declares must be an input of the component, and every output one of its outputs. Read
  * through `reflectComponentType`, which covers `input()`/`output()` and `@Input()`/`@Output()`
  * alike, and matched on public names, which are what `setInput` and a template use.
  */
@@ -18,7 +18,7 @@ import type { WidgetDefinition } from '../definition.ts'
 export interface ComponentContract {
   /** Public input names. */
   readonly inputs: ReadonlySet<string>
-  /** Each declared event's public output name, mapped to the instance property carrying it. */
+  /** Each declared output's public name, mapped to the instance property carrying it. */
   readonly outputs: ReadonlyMap<string, string>
 }
 
@@ -69,31 +69,32 @@ function reflectComponentContract(definition: WidgetDefinition): ComponentContra
   }
 
   const inputs = new Set(mirror.inputs.map(input => input.templateName))
-  for (const name of declaredInputNames(definition.contract.inputs)) {
+  for (const name of declaredInputNames(definition.contract.inputSchema)) {
     if (inputs.has(name)) continue
     throw fail({
-      expected: `an input named "${name}" on ${componentName}, because the inputs schema declares it`,
+      expected: `an input named "${name}" on ${componentName}, because the inputSchema declares it`,
       observed: `inputs ${list(inputs)}`,
       repair: `Declare it on the component: \`${name} = input.required<…>()\`, or \`@Input() ${name}\`.`,
     })
   }
 
   const outputs = new Map(mirror.outputs.map(output => [output.templateName, output.propName]))
-  const events = Object.keys(definition.contract.events)
-  for (const event of events) {
-    if (outputs.has(event)) continue
+  // Every property of the outputSchema, required or not: an output may never be emitted.
+  const declared = Object.keys(definition.contract.outputSchema.shape)
+  for (const name of declared) {
+    if (outputs.has(name)) continue
     throw fail({
-      expected: `an output named "${event}" on ${componentName}, because the events schema declares it`,
+      expected: `an output named "${name}" on ${componentName}, because the outputSchema declares it`,
       observed: `outputs ${list(outputs.keys())}`,
-      repair: `Declare it on the component: \`${event} = output<…>()\`, or \`@Output() ${event} = new EventEmitter<…>()\`.`,
+      repair: `Declare it on the component: \`${name} = output<…>()\`, or \`@Output() ${name} = new EventEmitter<…>()\`.`,
     })
   }
 
   // An undeclared output is the component's own business, unless its name is one a host reserves.
   for (const name of outputs.keys()) {
-    if (events.includes(name) || !isReservedInputName(name)) continue
+    if (declared.includes(name) || !isReservedInputName(name)) continue
     throw fail({
-      expected: 'outputs that are declared events, or names a host does not reserve',
+      expected: 'outputs the outputSchema declares, or names a host does not reserve',
       observed: `an output named "${name}"`,
       repair: 'Rename the output; key, ref, fallback and onX names belong to the host.',
     })
@@ -101,7 +102,7 @@ function reflectComponentContract(definition: WidgetDefinition): ComponentContra
 
   return {
     inputs,
-    outputs: new Map(events.map(event => [event, outputs.get(event) ?? event])),
+    outputs: new Map(declared.map(name => [name, outputs.get(name) ?? name])),
   }
 }
 
@@ -119,7 +120,7 @@ export function undeclaredInput(
   })
   return fail({
     expected: `an input the component declares (${list(contract.inputs)})`,
-    observed: `'${name}', which the inputs schema let through`,
-    repair: `Declare \`${name}\` as an input on the component, or strip it from the inputs schema.`,
+    observed: `'${name}', which the inputSchema let through`,
+    repair: `Declare \`${name}\` as an input on the component, or strip it from the inputSchema.`,
   })
 }

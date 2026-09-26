@@ -89,8 +89,8 @@ import { z } from 'zod'
 import { AlertPanelComponent } from './alert-panel.component'
 
 export const alertPanelContract = {
-  inputs: z.object({ label: z.string() }),
-  events: { activated: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
 }
 
 export const alertPanel = createWidget({
@@ -101,10 +101,10 @@ export const alertPanel = createWidget({
 })
 ```
 
-The component is the contract. Every input key is a component input, and every event is a
-component output of the same name. The mount checks that before it creates anything, and a mismatch
+The component is the contract. Every input key is a component input, and every property of the
+`outputSchema` is a component output of the same name, whether or not it is required. The mount checks that before it creates anything, and a mismatch
 rejects the mount with the member to add. Inputs are validated against the schema before the first
-render, and every payload is validated against its event schema before the host sees it.
+render, and every payload is validated against its output's schema before the host sees it.
 
 ## Read the shell from inside a mount
 
@@ -115,7 +115,10 @@ cleans up with the injector that created it.
 | ------------------------------------------------- | ------------------------------------------------------------------ |
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                           |
 | `injectStoredState(name, schema, options)`        | `{ value, set, remove }`, stored under the definition's scope      |
-| `injectCommand(registration)`                     | a command in the shell's palette                                   |
+| `injectAction(registration \| () => …)`           | an action for the palette and the agent, and a run for your button |
+| `injectAgentContext(registration \| () => …)`     | a snapshot of what is selected, sent with each agent turn          |
+| `injectAgentPrompt()`                             | a function that hands a click to the shell's chat                  |
+| `injectAgentSuggestions(suggestions)`             | offers prompts the chat shows while the injector lives             |
 | `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
 | `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
@@ -123,9 +126,95 @@ cleans up with the injector that created it.
 | `injectWidgetEmit()`                              | the Widget's validating emit                                       |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
 
-A registration passed to `injectCommand` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
-shell runs the command for it while the page is inside your App, the same way the palette runs it.
-A Widget's shortcut is ignored. [Add a command to the palette](/docs/add-a-command) has the rules.
+`injectAction` takes the registration `useAction` takes, or a factory that returns one. A factory
+runs again when a signal it reads changes, so the palette sees a new `canExecute` decision. The
+fields are listed under [useAction](/docs/reference/hooks-and-components#useaction).
+
+```ts title="examples/fieldwork/src/overview.component.ts (trimmed)"
+import { allow, deny, injectAction, type ActionRun } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-overview',
+  imports: [Button],
+  template: `<p-button label="Log inspection" (onClick)="logInspectionAction()" />`,
+})
+export class OverviewComponent {
+  protected readonly padId = signal<string | null>(null)
+  protected readonly logInspectionAction: ActionRun
+
+  constructor() {
+    this.logInspectionAction = injectAction(() => ({
+      name: 'log-inspection',
+      label: 'Fieldwork: log an inspection at the chosen pad',
+      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
+      shortcut: 'f l',
+      canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
+      execute: () => {
+        this.logInspection()
+      },
+    }))
+  }
+}
+```
+
+`injectAction` returns an `ActionRun`, a function that runs the action with the caller `'ui'`.
+Call it from your own button, and the click goes through the same checks as the palette, the keys
+and the agent. It runs this injector's registration, even when another mount of your definition
+registered the same name. It resolves an `ActionExecutionResult`, never rejects, and resolves
+`unavailable` once the component is destroyed, or as it is destroyed while the run goes on.
+
+`execute` receives the parsed input and `{ signal }`. The signal aborts when the run is given up:
+an agent's call passed its deadline (`timeoutMs`, 30 seconds by default), the injector was destroyed
+during the run, or the user pressed Stop in the chat. Pass it to `fetch`, or end an `HttpClient`
+request with `takeUntil(fromEvent(signal, 'abort'))`; whatever `execute` returns afterwards is
+dropped.
+
+This action declares no `effect`, so it counts as a write, and the agent asks the user before it
+logs an inspection. `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+`ActionExecutionResult` are exported as types.
+
+A registration passed to `injectAction` may carry a `shortcut`, such as `'mod+e'` or `'g r'`. The
+shell runs the action for it while the page is inside your App, the same way the palette runs it.
+A Widget's shortcut is ignored. [Add an action to the palette](/docs/add-an-action) has the rules.
+
+`injectAgentContext` takes the registration `useAgentContext` takes, or a factory that returns one.
+It publishes a small snapshot of what is selected or open, and the shell's agent receives it with
+each chat turn. A factory runs again when a signal it reads changes. An equal value publishes
+nothing. The snapshot goes when the injector is destroyed or the mount is disposed. The fields are
+listed under [useAgentContext](/docs/reference/hooks-and-components#useagentcontext).
+
+```ts
+const selectedPad = z.object({ id: z.string(), name: z.string() }).nullable()
+
+@Component({ selector: 'fieldwork-overview', template: `…` })
+export class OverviewComponent {
+  protected readonly pad = signal<{ id: string; name: string } | null>(null)
+
+  constructor() {
+    injectAgentContext(() => ({
+      description: 'The well pad the user has chosen, or null before they choose one',
+      schema: selectedPad,
+      value: this.pad(),
+    }))
+  }
+}
+```
+
+Publish ids and a short label, at most 4096 characters of JSON. The agent reads whole records
+through your read actions. `injectAgentPrompt()` returns a function that takes
+`{ message, context?, submit? }` and hands it to the shell's chat as a turn. It returns whether a
+chat took the prompt; `false` when the shell has no chat. `injectAgentSuggestions` offers up to
+three prompts the chat shows as chips, and takes a list or a factory that reads signals, as
+`injectAgentContext` does:
+
+```ts title="examples/fieldwork/src/overview.component.ts (trimmed)"
+injectAgentSuggestions(() => [
+  { message: 'Which well pads are due an inspection?' },
+  ...(this.padId() === null ? [] : [{ message: 'Log an inspection at the chosen pad' }]),
+])
+```
+
+[Tell the agent what is selected](/docs/tell-the-agent-what-is-selected) has all three.
 
 Inside an App, a route's `canDeactivate` guards also answer a shell navigation that would leave the
 App.
@@ -145,7 +234,7 @@ bootstrapApplication(ShellComponent, {
   widgetId="alert-panel"
   [inputs]="{ label: 'Acknowledge' }"
   [pending]="loading"
-  (event)="onWidgetEvent($event)"
+  (output)="onWidgetOutput($event)"
   (failed)="error = $event"
 />
 <mfe-app-host appId="reports" basePath="/reports" />
@@ -154,13 +243,14 @@ bootstrapApplication(ShellComponent, {
 Both components place the definition through the runtime's `mountDefinition`, so they host React
 definitions as readily as Angular ones. Inside a mount, they use the mount's own runtime.
 
-| Member     | What it does                                                         |
-| ---------- | -------------------------------------------------------------------- |
-| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.               |
-| `pending`  | A template shown while the status is `pending`.                      |
-| `(failed)` | Emits the error each time the mount fails, before or after mounting. |
-| `retry()`  | Tries again after a failure. A failed load is loaded afresh.         |
-| `[inputs]` | Reaches the Widget only when it changed.                             |
+| Member     | What it does                                                                       |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.                             |
+| `pending`  | A template shown while the status is `pending`.                                    |
+| `(output)` | Emits an `MfeWidgetOutput`, `{ name, payload }`, for each output the Widget emits. |
+| `(failed)` | Emits the error each time the mount fails, before or after mounting.               |
+| `retry()`  | Tries again after a failure. A failed load is loaded afresh.                       |
+| `[inputs]` | Reaches the Widget only when it changed.                                           |
 
 Inside an App, `mfeAppRoute({ appId, path })` delegates everything below a prefix to another App. A
 routed `<mfe-app-host>` calls `navigator.announce()` after each navigation of the router it sits
@@ -212,12 +302,12 @@ import { mountWidget } from '@company/mfe-angular/testing'
 
 const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
 widget.element.querySelector('button')?.click()
-expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
+expect(widget.outputs).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
 ```
 
 `mountWidget` and `mountApp` place the definition through `mountDefinition`, the path every host
 takes. They resolve once the first render has settled. The result holds the scope root as
-`element`, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered `events`
+`element`, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the delivered `outputs`
 and the `rejectedInputs`.
 
 ## Related

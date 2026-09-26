@@ -1,10 +1,10 @@
 ---
 title: 'Test a Widget'
-description: 'Render your Widget with inputs, then assert on what it rendered and on the events it emitted.'
+description: 'Render your Widget with inputs, then assert on what it rendered and on the outputs it emitted.'
 ---
 
 Widgets only. `renderWidget` renders your Widget through the production validation path. You pass
-the props a consumer would pass, and you assert on the markup and on every event payload.
+the props a consumer would pass, and you assert on the markup and on every output payload.
 
 ## Steps
 
@@ -39,7 +39,7 @@ it('renders the alert and emits a validated acknowledgement', async () => {
 })
 ```
 
-`props` carries your declared inputs and one `on<Event>` handler per declared event. A prop a
+`props` carries your declared inputs and one `on<Output>` handler per declared output. A prop a
 consumer sets for the host, such as `fallback`, never reaches your render function as an input.
 
 </Step>
@@ -57,7 +57,7 @@ expect(payload.alertId).toBe('a-42')
 expect(typeof payload.acknowledgedAt).toBe('string')
 ```
 
-The payload passed your event schema before the handler saw it.
+The payload passed your output's schema before the handler saw it.
 
 </Step>
 
@@ -108,7 +108,7 @@ modules first, then runs Vitest in jsdom.
 The suite passes, and an input your schema rejects fails the test rather than rendering. A bad
 input on the first render throws, so assert it with
 `expect(() => renderWidget(…)).toThrowError(…)`. A Widget test needs no shell, no dev server and
-no network. The scaffolded Widget ships one event test and one rejected-input test in
+no network. The scaffolded Widget ships one output test and one rejected-input test in
 `src/mfe.test.tsx`, and they pass before you change a line.
 
 ## Errors
@@ -124,21 +124,22 @@ number → at alertId. Check the alertId prop on the Widget.
 
 </Callout>
 
-<Callout type="error" title="failed to emit event">
+<Callout type="error" title="failed to emit output">
 
 ```text
-alert-panel@1.4.0 failed to emit event 'resolved': expected one of the declared events
-(acknowledged, dismissed), received 'resolved', which this Widget does not declare.
+alert-panel@1.4.0 failed to emit output 'resolved': expected one of the declared outputs
+(acknowledged, dismissed), received 'resolved', which this Widget does not declare. Add 'resolved'
+to the outputSchema, or emit a declared output.
 ```
 
-**Fix.** Declare the event in your contract, or emit one of the events already there.
+**Fix.** Add the output to your `outputSchema`, or emit one of the outputs already there.
 
 </Callout>
 
 ## Related
 
 - [Create a Widget](/docs/create-a-widget) — the definition this renders.
-- [Define inputs and events](/docs/define-inputs-and-events) — the schemas these checks run.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the schemas these checks run.
 - [Test an App](/docs/test-an-app) — the same runner, for a routed App.
 - [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — a Widget that fetches.
 - [Testing API](/docs/reference/testing-api) — every export, with its options.

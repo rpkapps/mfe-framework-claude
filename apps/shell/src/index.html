@@ -153,6 +153,11 @@
       .shell-loader__action:hover {
         background: var(--loader-button-hover);
       }
+      /* Pressed: the page is on its way, and the button says where. */
+      .shell-loader__action[aria-disabled='true'] {
+        cursor: progress;
+        opacity: 0.6;
+      }
       .shell-loader__action:focus-visible {
         outline: 2px solid var(--loader-ring);
         outline-offset: 2px;
@@ -322,9 +327,12 @@
 
         function draw(choice) {
           // A shell that was ready first never shows a drawing only to take it away again, and
-          // 'cycle' does not move on for a load that showed none.
+          // 'cycle' does not move on for a load that showed none. A failure still draws: the
+          // drawing runs until the page saying why is shown ('failing'), and then stands paused.
           var state = screen.dataset.state
-          if (!screen.isConnected || (state !== 'loading' && state !== 'error')) return
+          if (!screen.isConnected || (state !== 'loading' && state !== 'failing' && state !== 'error')) {
+            return
+          }
           var name = choose(choice) || choose(loaders.fallback) || names[0]
           try {
             var entry = loaders.draw[name]

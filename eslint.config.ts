@@ -37,6 +37,12 @@ const TELEMETRY_BAN = {
   allowTypeImports: false,
 } as const
 
+/** The agent libraries published without a scope, which the shell's chat module alone imports. */
+const UNSCOPED_AGENT_LIBRARIES = ['ai', 'openai', 'langchain']
+
+const CHAT_MODULE_MESSAGE =
+  'Agent libraries stay in apps/shell/src/chat: reach the chat through its own modules there.'
+
 const config: Linter.Config[] = [
   {
     ignores: [
@@ -118,6 +124,16 @@ const config: Linter.Config[] = [
     extraRestrictedPatterns: [TELEMETRY_BAN],
   }),
 
+  /*
+   * The development agent backend is a backend, not host code, but like the shell's chat module
+   * it speaks AG-UI, which `framework()` bans everywhere else; it imports no adapter at all.
+   */
+  ...mfe.application({
+    files: ['tools/agent-dev/src/**/*.ts'],
+    adapterModules: [],
+    extraRestrictedPatterns: [TELEMETRY_BAN],
+  }),
+
   ...mfe.application({
     files: ['tools/interop/src/**/*.ts'],
     // A cross-adapter harness, so it may import both adapters.
@@ -144,6 +160,62 @@ const config: Linter.Config[] = [
    * removed `@tecton/eslint-config`, so there is no preset left to compose and the block that
    * did it is gone; nothing in this workspace checks a Tailwind class against the token set.
    */
+
+  {
+    /*
+     * The shell may import the agent libraries `framework()` bans, but only its chat module does
+     * (agentic plan, 7 and E): a backend or client swap then touches that directory and nothing
+     * else. The core rule, beside the TypeScript one the presets configure, so neither replaces the
+     * other's list.
+     */
+    name: 'repo/shell-chat-module',
+    files: ['apps/shell/src/**/*.{ts,tsx}'],
+    ignores: ['apps/shell/src/chat/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          // The unscoped names are matched as package names, not gitignore patterns, which would
+          // also match a relative path such as `./ai/index.ts`.
+          paths: UNSCOPED_AGENT_LIBRARIES.map(name => ({ name, message: CHAT_MODULE_MESSAGE })),
+          patterns: [
+            {
+              group: [
+                '@company/mfe-agent',
+                '@ag-ui/*',
+                '@tanstack/ai',
+                '@tanstack/ai-*',
+                '@ai-sdk/*',
+                '@copilotkit/*',
+                '@anthropic-ai/*',
+                '@google/genai',
+                '@langchain/*',
+                '@mastra/*',
+              ],
+              message: CHAT_MODULE_MESSAGE,
+            },
+            {
+              regex: `^(?:${UNSCOPED_AGENT_LIBRARIES.join('|')})/`,
+              message: CHAT_MODULE_MESSAGE,
+            },
+            {
+              // The rest of the chat loads on first use; importing it here would put the AG-UI
+              // client, the tools and their UI back on the boot path.
+              group: [
+                '**/chat/*',
+                '!**/chat/instance.ts',
+                '!**/chat/panel.ts',
+                '!**/chat/panel-hooks.ts',
+                '!**/chat/lazy-panel.tsx',
+              ],
+              message:
+                'Outside apps/shell/src/chat, import only chat/instance, panel, panel-hooks and lazy-panel: the rest of the chat is loaded lazily.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 
   {
     // The one file that adapts the neutral telemetry contract to Faro.

@@ -48,8 +48,8 @@ class NoopComponent {}
 
 const notAnApp = createWidget({
   id: 'not-an-app',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: NoopComponent,
 })
 

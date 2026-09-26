@@ -10,14 +10,14 @@ import { z } from 'zod'
 import { AlertPanel } from './alert-panel.tsx'
 
 export const alertPanelContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     alertId: z.string(),
     severity: z.enum(['info', 'warning', 'critical']).default('info'),
   }),
-  events: {
+  outputSchema: z.object({
     acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
     dismissed: z.object({ alertId: z.string() }),
-  },
+  }),
 }
 
 export const alertPanel = createWidget({

@@ -49,8 +49,8 @@ export const subsurfaceCanvas = createApp({
 })
 
 export const subsurfaceWell3dContract = {
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
 }
 
 export const subsurfaceWell3d = createWidget({

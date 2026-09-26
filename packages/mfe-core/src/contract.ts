@@ -10,26 +10,43 @@ import {
   type MfeErrorDetails,
 } from './errors.ts'
 
-/** A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one. */
+/** The schemas of a Widget's outputs, one property per output, each that output's payload. */
+export type OutputSchema = z.ZodObject<Readonly<Record<string, z.ZodType>>>
+
+/**
+ * The same two fields an action and a tool have. `inputSchema` is the values going in; the
+ * `outputSchema` of a Widget has a property per named output, each emitted any number of times, or
+ * never, while it is mounted, so whether a property is required means nothing and no reader looks.
+ * A consumer contract never calls `.strict()`, so a Widget can add a field without breaking one.
+ */
 export interface WidgetContract<
   Inputs extends z.ZodType = z.ZodType,
-  Events extends Record<string, z.ZodType> = Record<string, z.ZodType>,
+  Outputs extends OutputSchema = OutputSchema,
 > {
-  readonly inputs: Inputs
-  readonly events: Events
+  readonly inputSchema: Inputs
+  readonly outputSchema: Outputs
 }
 
-export type ContractInputs<C extends WidgetContract> = z.infer<C['inputs']>
+export type ContractInputs<C extends WidgetContract> = z.infer<C['inputSchema']>
 
-export type ContractEvents<C extends WidgetContract> = {
-  readonly [K in keyof C['events']]: z.infer<C['events'][K]>
+export type ContractOutputs<C extends WidgetContract> = {
+  readonly [K in keyof C['outputSchema']['shape']]: z.infer<C['outputSchema']['shape'][K]>
+}
+
+/** The payload schema of one output, or `undefined` when the contract declares no such output. */
+export function outputPayloadSchema(
+  outputSchema: OutputSchema | undefined,
+  name: string,
+): z.ZodType | undefined {
+  const shape: Readonly<Record<string, z.ZodType>> | undefined = outputSchema?.shape
+  return shape !== undefined && Object.hasOwn(shape, name) ? shape[name] : undefined
 }
 
 /** Host control props never forwarded as inputs; `on` + uppercase is reserved separately. */
 export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback'] as const
 
 const HANDLER_PROP_PATTERN = /^on[A-Z]/
-const EVENT_NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/
+const OUTPUT_NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/
 
 export function isReservedInputName(name: string): boolean {
   return (
@@ -37,16 +54,16 @@ export function isReservedInputName(name: string): boolean {
   )
 }
 
-export function eventNameToHandlerProp(eventName: string): string {
-  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`
+export function outputNameToHandlerProp(outputName: string): string {
+  return `on${outputName.charAt(0).toUpperCase()}${outputName.slice(1)}`
 }
 
-export function isValidEventName(name: string): boolean {
-  return EVENT_NAME_PATTERN.test(name)
+export function isValidOutputName(name: string): boolean {
+  return OUTPUT_NAME_PATTERN.test(name)
 }
 
 /** An invalid name, or two names that would map to the same `on`-prefixed handler prop. */
-export type EventNameProblem =
+export type OutputNameProblem =
   | { readonly kind: 'invalid'; readonly name: string }
   | {
       readonly kind: 'collision'
@@ -60,19 +77,65 @@ export type EventNameProblem =
  * into its own error, since only the caller knows whether it is reading source or enforcing a
  * definition at creation time.
  */
-export function findEventNameProblem(names: readonly string[]): EventNameProblem | null {
+export function findOutputNameProblem(names: readonly string[]): OutputNameProblem | null {
   const handlerProps = new Map<string, string>()
 
   for (const name of names) {
-    if (!isValidEventName(name)) return { kind: 'invalid', name }
+    if (!isValidOutputName(name)) return { kind: 'invalid', name }
 
-    const handlerProp = eventNameToHandlerProp(name)
+    const handlerProp = outputNameToHandlerProp(name)
     const existing = handlerProps.get(handlerProp)
     if (existing !== undefined) return { kind: 'collision', name, existing, handlerProp }
     handlerProps.set(handlerProp, name)
   }
 
   return null
+}
+
+/**
+ * Why `createWidget` cannot accept an `outputSchema`: it is not an object schema, or one of its
+ * names is not lower camel case or maps to the same handler prop as another. Each adapter throws
+ * it, naming in `renameRepair` how its consumers see an output.
+ */
+export function outputSchemaError(
+  id: string,
+  outputSchema: OutputSchema | undefined,
+  renameRepair: string,
+): MfeError | undefined {
+  const shape: unknown = (outputSchema as Partial<OutputSchema> | undefined)?.shape
+  if (shape === null || typeof shape !== 'object') {
+    return createMfeError({
+      code: 'contract/output-mismatch',
+      id,
+      operation: 'declare the outputs',
+      expected: 'an outputSchema made with z.object, one property per output',
+      observed: outputSchema === undefined ? 'nothing' : 'a schema that is not an object schema',
+      repair:
+        'Declare outputSchema: z.object({ acknowledged: z.object({ … }) }), or z.object({}) when the Widget emits nothing.',
+    })
+  }
+
+  const problem = findOutputNameProblem(Object.keys(shape))
+  if (problem === null) return undefined
+
+  const declaration = {
+    code: 'contract/output-mismatch',
+    id,
+    operation: `declare output '${problem.name}'`,
+  } as const
+  return problem.kind === 'invalid'
+    ? createMfeError({
+        ...declaration,
+        expected: 'a lower-camel-case output name, for example "acknowledged"',
+        observed: JSON.stringify(problem.name),
+        repair: renameRepair,
+      })
+    : createMfeError({
+        ...declaration,
+        expected: 'output names that map to distinct handler props',
+        observed: `'${problem.existing}' and '${problem.name}' both map to ${problem.handlerProp}`,
+        repair: `Rename one of them, for example '${problem.name}Completed'.`,
+      })
 }
 
 /** Built-ins whose instances cannot survive JSON, by the name they report. */
@@ -107,7 +170,7 @@ export function findNonSerializableValue(
       path,
       description:
         type === 'function'
-          ? 'a function. A consumer that needs a callback subscribes to an event instead'
+          ? 'a function. A consumer that needs a callback subscribes to an output instead'
           : `a ${type}`,
     }
   }
@@ -155,10 +218,10 @@ export function findNonSerializableValue(
 export interface ContractValidationContext {
   readonly id: string
   readonly definitionVersion?: string
-  readonly direction: 'input' | 'event'
+  readonly direction: 'input' | 'output'
   /** `'provider'` validates its own declaration; `'consumer'` what it subscribed to. */
   readonly side: 'provider' | 'consumer'
-  readonly eventName?: string
+  readonly outputName?: string
 }
 
 export type ContractValidation<T> =
@@ -169,22 +232,22 @@ function failureBase(
 ): Pick<MfeErrorDetails, 'code' | 'id' | 'operation' | 'direction' | 'definitionVersion'> {
   const isInput = context.direction === 'input'
   return {
-    code: isInput ? 'contract/input-mismatch' : 'contract/event-mismatch',
+    code: isInput ? 'contract/input-mismatch' : 'contract/output-mismatch',
     id: context.id,
     ...(context.definitionVersion === undefined
       ? {}
       : { definitionVersion: context.definitionVersion }),
-    operation: isInput ? 'accept input' : `emit event '${context.eventName ?? 'unknown'}'`,
+    operation: isInput ? 'accept input' : `emit output '${context.outputName ?? 'unknown'}'`,
     direction: context.direction,
   }
 }
 
 function repairFor(context: ContractValidationContext, field: string): string {
   if (context.direction === 'input') return `Check the ${field || 'input'} prop on the Widget.`
-  const event = context.eventName ?? 'event'
+  const output = context.outputName ?? 'output'
   return context.side === 'provider'
-    ? `Check the payload passed to emit('${event}', …).`
-    : `Check the '${event}' schema this consumer declared.`
+    ? `Check the payload passed to emit('${output}', …).`
+    : `Check the '${output}' schema this consumer declared.`
 }
 
 /** Zod names the received type, so the concrete value is the one detail a reader cannot re-derive. */

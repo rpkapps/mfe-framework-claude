@@ -115,9 +115,11 @@ describe('parse', () => {
       tags: ['assets', 'field-service'],
       categories: ['operations'],
       externalUrl: 'https://docs.example.test/asset-tracker',
-      routes: ['/asset-tracker', '/asset-tracker/sites'],
+      legacyRoutes: ['/asset-tracker', '/asset-tracker/sites'],
       settingsRoutes: ['/asset-tracker/settings', '/asset-tracker/settings/alerts'],
     })
+    // The neutral field is a framework build's App-relative routes, which a legacy config lacks.
+    expect('routes' in entry).toBe(false)
   })
 
   it('flattens settings.routes onto the entry', () => {
@@ -153,7 +155,7 @@ describe('parse', () => {
       navigationOwnership: 'shell',
       tags: [],
       categories: [],
-      routes: [],
+      legacyRoutes: [],
       settingsRoutes: [],
     })
   })

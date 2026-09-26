@@ -35,8 +35,8 @@ afterEach(async () => {
 const reporter = createWidget({
   id: 'reporter-widget',
   version: '1.0.0',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: function Reporter(): ReactNode {
     const aborted = useMfeSignal().aborted
     const mount = useMfeMount('the reporter widget')
@@ -93,8 +93,8 @@ function buildApp() {
     }),
     createRoute({
       getParentRoute: () => rootRoute,
-      path: '/commands',
-      component: () => <p data-testid="page">commands</p>,
+      path: '/actions',
+      component: () => <p data-testid="page">actions</p>,
     }),
   ])
 
@@ -113,7 +113,7 @@ describe('an App’s history under StrictMode', () => {
     environment = createMfeTestEnvironment({
       definitionId: 'lab',
       basePath: '/lab',
-      initialEntries: ['/lab/storage', '/lab/commands'],
+      initialEntries: ['/lab/storage', '/lab/actions'],
     })
     const { mount, navigation } = environment
 
@@ -124,7 +124,7 @@ describe('an App’s history under StrictMode', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('page')).toHaveTextContent('commands')
+      expect(screen.getByTestId('page')).toHaveTextContent('actions')
     })
 
     await act(async () => {

@@ -6,6 +6,7 @@
 
 import {
   isMfeError,
+  toMfeError,
   withoutUndefined,
   type DeadlineConfig,
   type MfeAdapter,
@@ -14,8 +15,11 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
+import { auditTelemetryRecord, type ActionAuditSink } from '../actions/action-audit.ts'
+import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
+import { ActionRegistry } from '../actions/action-registry.ts'
+import { AgentContextStore } from '../agent-context/agent-context-store.ts'
 import { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
-import { CommandRegistry, type CommandDenialNotifier } from '../commands/command-registry.ts'
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
@@ -52,7 +56,9 @@ export interface RuntimeParts {
   readonly diagnostics: DiagnosticsHub
   /** Merged over `DEFAULT_DEADLINES`. */
   readonly deadlines?: Partial<DeadlineConfig> | undefined
-  readonly notifyCommandDenial?: CommandDenialNotifier | undefined
+  readonly notifyActionDenial?: ActionDenialNotifier | undefined
+  readonly actionApprovalPolicy?: ActionApprovalPolicy | undefined
+  readonly auditAction?: ActionAuditSink | undefined
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration: () => string
 }
@@ -67,14 +73,46 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   const { diagnostics, shellState, storage } = parts
 
   const navigator = new BoundaryNavigator({ bridge: parts.navigationBridge, diagnostics })
-  const commands = new CommandRegistry({
+  const actions = new ActionRegistry({
     diagnostics,
     // An App's shortcuts fire while the page is inside its boundary, read where it is read for
     // navigation.
     readPathname: () => navigator.read().pathname,
-    ...withoutUndefined({ notifyDenial: parts.notifyCommandDenial }),
+    ...withoutUndefined({
+      notifyDenial: parts.notifyActionDenial,
+      approvalPolicy: parts.actionApprovalPolicy,
+    }),
+    // Every run goes to telemetry, as a framework record, and to the host, whose backend stores it.
+    // The host's copy is the record of who acted, so a telemetry provider that throws is caught
+    // and reported on its own rather than skipping it; a host sink that throws is the executor's
+    // to report.
+    audit: record => {
+      try {
+        const reported = auditTelemetryRecord(record)
+        if (parts.telemetryProvider.isLevelEnabled?.(reported.level) !== false) {
+          parts.telemetryProvider.record(reported)
+        }
+      } catch (failure) {
+        diagnostics.report(
+          toMfeError(failure, {
+            code: 'config/invalid',
+            id: record.definitionId,
+            operation: `record the audit of '${record.actionId}' in telemetry`,
+            expected: 'a telemetry provider that returns without throwing',
+            repair: 'Fix the provider so it buffers or drops internally.',
+          }),
+          { severity: 'warning' },
+        )
+      }
+      parts.auditAction?.(record)
+    },
+    readUserId: () => shellState.getSnapshot().user?.id,
   })
   const breadcrumbs = new BreadcrumbStore({ diagnostics })
+  const agentContext = new AgentContextStore({
+    diagnostics,
+    readLocation: () => navigator.read(),
+  })
 
   // The new generation fences records written under the old one, so it is minted, not reused.
   const stopWatchingSession = shellState.observeTransitions(change => {
@@ -94,8 +132,9 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     loader: new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters)),
     shellState,
     storage,
-    commands,
+    actions,
     breadcrumbs,
+    agentContext,
     navigator,
     telemetryProvider: parts.telemetryProvider,
     diagnostics,
@@ -106,8 +145,9 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     runtime,
     dispose: () => {
       stopWatchingSession()
-      commands.dispose()
+      actions.dispose()
       breadcrumbs.dispose()
+      agentContext.dispose()
       navigator.clearBlockers()
       storage.dispose()
       shellState.dispose()

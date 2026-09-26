@@ -20,7 +20,7 @@ Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,
 ## File and export conventions
 
 - **File names** are kebab-case and describe the thing, not its category:
-  `command-registry.ts`, not `commands/index-impl.ts`. A file whose only job is
+  `action-registry.ts`, not `actions/index-impl.ts`. A file whose only job is
   to re-export is `index.ts`.
 - **Local imports carry their extension** (`./errors.ts`, `./mount-context.tsx`).
   The TypeScript configuration rewrites them on emit.
@@ -70,7 +70,7 @@ unchanged sources produce unchanged bytes.
   side effects and framework-specific rendering where that makes behaviour
   easier to follow.
 - Use the same term for the same operation across packages. Loading, mounting,
-  retrying, disposal and event delivery each have one name; do not introduce a
+  retrying, disposal and output delivery each have one name; do not introduce a
   synonym.
 - Prefer explicit control flow, focused functions and early returns over deep
   nesting, dense expressions or boolean mode flags. Do not fragment a readable

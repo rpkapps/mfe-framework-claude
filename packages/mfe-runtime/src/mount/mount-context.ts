@@ -43,6 +43,21 @@ export interface MountContext {
   readonly overlayRoot: HTMLElement
 }
 
+/** A runtime store that keeps records per mount, and drops them all when told the mount is gone. */
+export interface MountScopedStore {
+  removeMount(mountToken: string): void
+}
+
+/**
+ * Every store that keeps records per mount, cleared together when a mount is disposed, so a
+ * disposed mount leaves nothing behind that the palette would list or an agent would act on. A new
+ * store of that kind joins this list; a test fails for a runtime member with `removeMount` that
+ * is missing from it.
+ */
+export function mountScopedStores(runtime: MfeRuntime): readonly MountScopedStore[] {
+  return [runtime.actions, runtime.navigator, runtime.breadcrumbs, runtime.agentContext]
+}
+
 export interface CreateMountContextOptions {
   readonly runtime: MfeRuntime
   readonly definitionId: string
@@ -106,12 +121,16 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     overlayRoot: overlay.element,
   }
 
+  // The agent's URL layer names every App the page is inside, which only the mount knows of.
+  if (kind === 'app') {
+    runtime.agentContext.trackBoundary({ definitionId, mountToken, basePath: context.basePath })
+  }
+
   return {
     context,
     dispose: async () => {
       // Registrations go first, so a disposed mount cannot appear in the palette mid-teardown.
-      runtime.commands.removeMount(mountToken)
-      runtime.navigator.removeMount(mountToken)
+      for (const store of mountScopedStores(runtime)) store.removeMount(mountToken)
 
       // Synchronous, so work an adapter stops on abort ends before telemetry is closed below.
       disposal.abort()

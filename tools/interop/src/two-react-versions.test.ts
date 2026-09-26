@@ -203,7 +203,7 @@ describe('two React versions on one page', () => {
     await within(inner).findByRole('button', { name: 'Inner clicks: 2' }, SECOND_REACT)
   })
 
-  it('delivers the 19.3 Widget’s event to the 19.2 App, and the App’s answer back down', async () => {
+  it('delivers the 19.3 Widget’s output to the 19.2 App, and the App’s answer back down', async () => {
     const { inner, widget } = await renderThreeLevels()
 
     fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 1' }))

@@ -34,22 +34,22 @@ function isSubscribable(value: unknown): value is Subscribable {
  * Angular's output machinery sits between the component's `emit` and these listeners and would
  * swallow or defer a throw, so a rejected payload reaches the mount's error handler instead.
  */
-function subscribeToEvents(
+function subscribeToOutputs(
   ref: ComponentRef<unknown>,
   component: ComponentContract,
-  emit: (event: string, payload: unknown) => void,
+  emit: (output: string, payload: unknown) => void,
   errors: MountErrorHandler,
 ): readonly { unsubscribe(): void }[] {
   const instance = ref.instance as Record<string, unknown>
 
-  return [...component.outputs].map(([event, property]) => {
+  return [...component.outputs].map(([name, property]) => {
     const output = instance[property]
     if (!isSubscribable(output)) {
-      throw new TypeError(`The output "${property}" for event '${event}' has no subscribe method.`)
+      throw new TypeError(`The output "${property}" for '${name}' has no subscribe method.`)
     }
     return output.subscribe(payload => {
       try {
-        emit(event, payload)
+        emit(name, payload)
       } catch (error) {
         errors.handleError(error)
       }
@@ -86,7 +86,7 @@ export async function mountWidget(
         hostElement,
       })
       for (const [name, value] of Object.entries(valid)) ref.setInput(name, value)
-      const subscriptions = subscribeToEvents(ref, component, emit, errors)
+      const subscriptions = subscribeToOutputs(ref, component, emit, errors)
       application.attachView(ref.hostView)
       application.tick()
       return { ref, subscriptions }

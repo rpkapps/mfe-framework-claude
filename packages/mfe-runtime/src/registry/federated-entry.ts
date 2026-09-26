@@ -18,7 +18,8 @@ import {
   type JsonSchemaObject,
   type MfeAdapter,
   type MfeError,
-  type PublishedWidgetContract,
+  type PublishedContract,
+  type PublishedRoute,
   type RegistryEntry,
 } from '@company/mfe-core'
 import { z } from 'zod'
@@ -118,29 +119,26 @@ const capabilities = z
   )
 
 /** The build emits values only, never a `$ref`, so the host carries the schema uninterpreted. */
-const inputsSchema = z.custom<JsonSchemaObject>(isRecord, {
+const jsonSchema = z.custom<JsonSchemaObject>(isRecord, {
   error: 'a JSON Schema object, or nothing when the build could not read one',
 })
 
-/**
- * A container built before events carried their payload schemas published the names alone. They
- * are read as the same shape with every payload unknown (`{}`), so a shell deployed first keeps
- * reading those containers, and each reader handles one shape.
- */
-const eventsSchema = z.union(
-  [
-    z.custom<JsonSchemaObject>(isRecord),
-    z.array(z.string()).transform((names): JsonSchemaObject => ({
-      type: 'object',
-      properties: Object.fromEntries(names.map(name => [name, {}])),
-      additionalProperties: false,
-    })),
-  ],
-  {
-    error:
-      'a JSON Schema object with one property per event, or nothing when the build could not read one',
-  },
-)
+/** An App-relative path in the neutral syntax (`:name`, `*`), and the search params it reads. */
+const route = z
+  .object(
+    {
+      path: z
+        .string({ error: 'an App-relative path starting with /' })
+        .startsWith('/', { error: 'an App-relative path starting with /' }),
+      search: jsonSchema.optional(),
+    },
+    { error: 'a route object such as { "path": "/wells/:wellId" }' },
+  )
+  .transform((value): PublishedRoute =>
+    withoutUndefined({ path: value.path, search: value.search }),
+  )
+
+const routes = z.array(route, { error: 'an array of route objects' })
 
 /**
  * Both fields are optional on purpose: a build that could not read a schema statically leaves it
@@ -150,15 +148,15 @@ const eventsSchema = z.union(
 const publishedContract = z
   .object(
     {
-      events: eventsSchema.optional(),
-      inputs: inputsSchema.optional(),
+      inputSchema: jsonSchema.optional(),
+      outputSchema: jsonSchema.optional(),
     },
-    { error: 'an object with, when readable, an events schema and an inputs schema' },
+    { error: 'an object with, when readable, an inputSchema and an outputSchema' },
   )
-  .transform((value): PublishedWidgetContract =>
+  .transform((value): PublishedContract =>
     withoutUndefined({
-      events: value.events,
-      inputs: value.inputs,
+      inputSchema: value.inputSchema,
+      outputSchema: value.outputSchema,
     }),
   )
 
@@ -186,6 +184,7 @@ const entrySchema = z
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
     capabilities: capabilities.optional(),
+    routes: routes.optional(),
     contract: publishedContract.optional(),
     hidden: z.unknown().optional(),
     title: z.string({ error: 'a title string' }).optional(),
@@ -199,13 +198,18 @@ const entrySchema = z
   .refine(value => !(value.contract !== undefined && value.kind === 'app'), {
     path: ['contract'],
     error:
-      'no Widget contract on an App. An App has no inputs and no events. Drop the contract, or declare the surface as a Widget.',
+      'no Widget contract on an App. An App has no inputs and no outputs. Drop the contract, or declare the surface as a Widget.',
   })
   // Capability routes are an App's own pages, so a Widget cannot own one.
   .refine(value => !(value.capabilities !== undefined && value.kind === 'widget'), {
     path: ['capabilities'],
     error:
       'no capabilities on a Widget. Move the capability routes into an App, or drop them from the Widget.',
+  })
+  // A Widget owns no URL, so it has no routes to publish.
+  .refine(value => !(value.routes !== undefined && value.kind === 'widget'), {
+    path: ['routes'],
+    error: 'no routes on a Widget. A Widget owns no URL; routes belong to an App.',
   })
 
 /** The first issue is the one a reader acts on, so it is the one the error names. */
@@ -282,6 +286,7 @@ export function parseFederatedEntry<K extends string>(
       shareScopes: parsed.shareScopes,
       version: parsed.version,
       capabilities: parsed.capabilities,
+      routes: parsed.routes,
       contract: parsed.contract,
       build: parsed.build,
       hidden: parsed.hidden === true ? true : undefined,
@@ -296,11 +301,6 @@ export function parseFederatedEntry<K extends string>(
 export interface FederatedAdapterOptions<K extends string> {
   /** What `entry.adapter` says on everything the adapter parses, and what `mfe.framework` names. */
   readonly kind: K
-  /**
-   * Also claims an entry whose `mfe` marker names no framework, or is too broken to name one: a
-   * build from before the field existed. At most one adapter on a page may claim them.
-   */
-  readonly claimsUnmarked?: boolean
   /** See `MfeAdapter.aroundLoad`. */
   readonly aroundLoad?: MfeAdapter['aroundLoad']
 }
@@ -314,13 +314,12 @@ export interface FederatedAdapterOptions<K extends string> {
 export function createFederatedAdapter<K extends string>(
   options: FederatedAdapterOptions<K>,
 ): MfeAdapter<K, FederatedRegistryEntry & { readonly adapter: K }> {
-  const { kind, claimsUnmarked = false, aroundLoad } = options
+  const { kind, aroundLoad } = options
 
-  const namesThisFramework = (marker: unknown): boolean => {
-    if (!isRecord(marker)) return claimsUnmarked
-    const framework = marker['framework']
-    return framework === kind || (claimsUnmarked && framework === undefined)
-  }
+  // Every build names its framework, so an entry that names none is no adapter's and is rejected
+  // as unrecognised: nothing was deployed before the field existed.
+  const namesThisFramework = (marker: unknown): boolean =>
+    isRecord(marker) && marker['framework'] === kind
 
   return {
     kind,

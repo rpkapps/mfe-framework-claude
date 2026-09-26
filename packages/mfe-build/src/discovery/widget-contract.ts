@@ -9,7 +9,8 @@ import { findExportedExpression, resolveRelativeModule } from './local-modules.t
 import type { ContainerSources } from './sources.ts'
 import {
   calleeName,
-  objectProperty,
+  collectImportedBindings,
+  collectTopLevelBindings,
   positionOf,
   propertyName,
   ts,
@@ -45,20 +46,20 @@ export interface ContractImport {
 
 /** Everything a generated Widget contract entry needs in order to stand alone. */
 export interface WidgetContractSource {
-  readonly inputs: SchemaBinding
-  readonly events: SchemaBinding
+  readonly inputSchema: SchemaBinding
+  readonly outputSchema: SchemaBinding
   /** Top-level declarations copied from the entry, in source order. */
   readonly prelude: readonly string[]
   readonly imports: readonly ContractImport[]
 }
 
 interface WidgetContractReadResult {
-  readonly eventNames: readonly string[]
+  readonly outputNames: readonly string[]
   readonly inputNames: readonly string[]
   /** Absent, never empty: "takes nothing" and "could not be read" differ for a host (§16). */
   readonly inputSchema?: JsonObject
-  /** Absent when the event names cannot be read; an unreadable payload alone is `{}`. */
-  readonly eventSchema?: JsonObject
+  /** Absent when the output names cannot be read; an unreadable payload alone is `{}`. */
+  readonly outputSchema?: JsonObject
   readonly source: WidgetContractSource
 }
 
@@ -96,23 +97,23 @@ export function readWidgetContract(
   const state: CopyState = { prelude: new Map(), imports: new Map(), fileImports: new Set() }
   const context: Ctx = { sourceFile, entryFile, factory, id, imports, topLevel, sources, state }
 
-  const inputs = readSchemaProperty(context, 'inputs')
-  const events = readSchemaProperty(context, 'events')
+  const inputs = readSchemaProperty(context, 'inputSchema')
+  const outputs = readSchemaProperty(context, 'outputSchema')
 
   return {
-    inputNames: readObjectKeys(inputs.expression, inputs.sourceFile, 'inputs'),
-    eventNames: readObjectKeys(events.expression, events.sourceFile, 'events'),
+    inputNames: readObjectKeys(inputs.expression),
+    outputNames: readObjectKeys(outputs.expression),
     ...(() => {
       const inputSchema = readInputSchema(inputs, id)
       return inputSchema === undefined ? {} : { inputSchema }
     })(),
     ...(() => {
-      const eventSchema = readEventSchema(events, id)
-      return eventSchema === undefined ? {} : { eventSchema }
+      const outputSchema = readOutputSchema(outputs, id, sources)
+      return outputSchema === undefined ? {} : { outputSchema }
     })(),
     source: {
-      inputs: inputs.binding,
-      events: events.binding,
+      inputSchema: inputs.binding,
+      outputSchema: outputs.binding,
       prelude: [...state.prelude.values()],
       imports: [...state.imports].map(([module, names]) => ({
         module,
@@ -131,7 +132,7 @@ function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undef
   try {
     const schema = readStaticSchema(inputs.expression, {
       file: inputs.sourceFile.fileName,
-      field: 'inputs',
+      field: 'inputSchema',
       sourceFile: inputs.sourceFile,
     }).jsonSchema
     return schema['type'] === 'object' ? { title: `${id} inputs`, ...schema } : undefined
@@ -141,36 +142,85 @@ function readInputSchema(inputs: ResolvedSchema, id: string): JsonObject | undef
 }
 
 /**
- * The same shape as the inputs, so a host compares an event's payload with another Widget's inputs
- * with one reader. Unreadable is not a build failure, as for the inputs: a payload the build cannot
- * read is `{}`, which JSON Schema reads as "anything", and the provider still validates it.
+ * The same shape as the inputs, so a host compares an output's payload with another Widget's
+ * inputs with one reader. Each payload is read on its own rather than the whole `z.object`, so one
+ * the build cannot read is `{}`, which JSON Schema reads as "anything", instead of losing every
+ * output's; the provider still validates it. No property is listed as required: every output may
+ * never be emitted.
  */
-function readEventSchema(events: ResolvedSchema, id: string): JsonObject | undefined {
-  const node = unwrapExpression(events.expression)
-  if (!ts.isObjectLiteralExpression(node)) return undefined
+function readOutputSchema(
+  outputs: ResolvedSchema,
+  id: string,
+  sources: ContainerSources,
+): JsonObject | undefined {
+  const node = objectShapeLiteral(outputs.expression)
+  if (node === undefined) return undefined
 
   const properties: Record<string, JsonObject> = {}
   for (const property of node.properties) {
-    // A spread or a computed name hides which events exist; a partial list would claim a closed set.
+    // A spread or a computed name hides which outputs exist; a partial list would claim a closed set.
     const name = propertyName(property)
     if (name === null) return undefined
-    properties[name] = ts.isPropertyAssignment(property)
-      ? readPayloadSchema(property.initializer, events.sourceFile, name)
-      : {}
+    const payload = ts.isPropertyAssignment(property)
+      ? property.initializer
+      : ts.isShorthandPropertyAssignment(property)
+        ? property.name
+        : undefined
+    properties[name] =
+      payload === undefined
+        ? {}
+        : readPayloadSchema(followName(payload, outputs.sourceFile, sources), name)
   }
 
-  return { title: `${id} events`, type: 'object', properties, additionalProperties: false }
+  return { title: `${id} outputs`, type: 'object', properties, additionalProperties: false }
+}
+
+/** How deep `followName` goes: a chain this long is a mistake, and a cycle never ends. */
+const MAX_NAME_HOPS = 8
+
+/**
+ * The schema a payload names, so `{ acknowledged }` and `acknowledged: ack` read as the schema
+ * declared for it: a top-level const of the same module, or the export of a module of the
+ * container it is imported from, followed as far as another name. What it cannot follow (a
+ * package's export, a function's result) stays as written, which reads as an unknown payload.
+ */
+function followName(
+  expression: ts.Expression,
+  sourceFile: ts.SourceFile,
+  sources: ContainerSources,
+  hops = 0,
+): ResolvedExpression {
+  const node = unwrapExpression(expression)
+  if (!ts.isIdentifier(node) || hops >= MAX_NAME_HOPS) return { expression: node, sourceFile }
+
+  const local = collectTopLevelBindings(sourceFile).get(node.text)
+  if (local !== undefined) return followName(local, sourceFile, sources, hops + 1)
+
+  const imported = collectImportedBindings(sourceFile).get(node.text)
+  if (imported !== undefined) {
+    const file = resolveRelativeModule(sourceFile.fileName, imported.moduleSpecifier)
+    if (file !== null) {
+      const external = sources.parse(file)
+      const exported = findExportedExpression(external, imported.imported)
+      if (exported !== null) return followName(exported, external, sources, hops + 1)
+    }
+  }
+  return { expression: node, sourceFile }
+}
+
+interface ResolvedExpression {
+  readonly expression: ts.Expression
+  readonly sourceFile: ts.SourceFile
 }
 
 function readPayloadSchema(
-  expression: ts.Expression,
-  sourceFile: ts.SourceFile,
+  { expression, sourceFile }: ResolvedExpression,
   name: string,
 ): JsonObject {
   try {
     return readStaticSchema(expression, {
       file: sourceFile.fileName,
-      field: `events.${name}`,
+      field: `outputSchema.${name}`,
       sourceFile,
     }).jsonSchema
   } catch {
@@ -184,7 +234,7 @@ interface ResolvedSchema {
   readonly sourceFile: ts.SourceFile
 }
 
-function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedSchema {
+function readSchemaProperty(context: Ctx, field: 'inputSchema' | 'outputSchema'): ResolvedSchema {
   const { sourceFile, entryFile, id, imports, topLevel, sources } = context
   const property = optionProperty(context.factory.options, field, topLevel)
   if (property === undefined) {
@@ -200,9 +250,9 @@ function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedS
       observed: 'a Widget declared without one',
       declaredBy: 'The Widget contract',
       repair:
-        field === 'inputs'
-          ? 'Add an inputs schema, for example inputs: z.object({ orderId: z.string() }). Use z.object({}) when the Widget takes none.'
-          : 'Add an events map, for example events: { acknowledged: z.object({}) }. Use {} when the Widget emits none.',
+        field === 'inputSchema'
+          ? 'Add an inputSchema, for example inputSchema: z.object({ orderId: z.string() }). Use z.object({}) when the Widget takes none.'
+          : 'Add an outputSchema, for example outputSchema: z.object({ acknowledged: z.object({}) }). Use z.object({}) when the Widget emits none.',
     })
   }
 
@@ -224,7 +274,7 @@ function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedS
           }
         }
       }
-      const { line, column } = positionOf(sourceFile, property)
+      const { line, column } = positionOf(sourceFile, property.node)
       throw createBuildError({
         code: 'contract/input-mismatch',
         file: entryFile,
@@ -236,7 +286,7 @@ function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedS
         observed: `an import of '${imported.imported}' from '${imported.moduleSpecifier}'`,
         declaredBy: 'Static discovery',
         repair:
-          'Declare the schema as an exported top-level const in a module of this container, for example `export const inputs = z.object({ … })` in src/contracts/<widget>.ts, and import it here.',
+          'Declare the schema as an exported top-level const in a module of this container, for example `export const inputSchema = z.object({ … })` in src/contracts/<widget>.ts, and import it here.',
       })
     }
 
@@ -262,13 +312,22 @@ function readSchemaProperty(context: Ctx, field: 'inputs' | 'events'): ResolvedS
   }
 }
 
-/** A Widget's options may spread a contract object declared beside them, so both are resolved. */
+interface OptionProperty {
+  readonly node: ts.ObjectLiteralElementLike
+  readonly initializer: ts.Expression
+}
+
+/**
+ * A Widget's options may spread a contract object declared beside them, so both are resolved. A
+ * shorthand `{ inputSchema }` is read as the identifier it abbreviates, since that is how an author
+ * passes a schema imported from its own module.
+ */
 function optionProperty(
   options: ts.ObjectLiteralExpression,
   field: string,
   topLevel: ReadonlyMap<string, ts.Expression>,
-): ts.PropertyAssignment | undefined {
-  const direct = objectProperty(options, field)
+): OptionProperty | undefined {
+  const direct = namedProperty(options, field)
   if (direct !== undefined) return direct
 
   for (const property of [...options.properties].reverse()) {
@@ -278,8 +337,24 @@ function optionProperty(
     if (target === undefined) continue
     const object = unwrapExpression(target)
     if (!ts.isObjectLiteralExpression(object)) continue
-    const found = objectProperty(object, field)
+    const found = namedProperty(object, field)
     if (found !== undefined) return found
+  }
+  return undefined
+}
+
+function namedProperty(
+  object: ts.ObjectLiteralExpression,
+  field: string,
+): OptionProperty | undefined {
+  for (const property of object.properties) {
+    if (propertyName(property) !== field) continue
+    if (ts.isPropertyAssignment(property)) {
+      return { node: property, initializer: property.initializer }
+    }
+    if (ts.isShorthandPropertyAssignment(property)) {
+      return { node: property, initializer: property.name }
+    }
   }
   return undefined
 }
@@ -381,30 +456,32 @@ function collectFreeIdentifiers(expression: ts.Expression): readonly string[] {
 }
 
 /** Empty when the shape is not a literal the build can read: inventing names would be worse. */
-function readObjectKeys(
-  expression: ts.Expression,
-  sourceFile: ts.SourceFile,
-  field: 'inputs' | 'events',
-): readonly string[] {
+function readObjectKeys(expression: ts.Expression): readonly string[] {
+  const node = objectShapeLiteral(expression)
+  return node === undefined ? [] : literalKeys(node)
+}
+
+/** The methods of an object schema whose result has other keys than the literal it started from. */
+const KEY_CHANGING_METHODS = new Set(['extend', 'safeExtend', 'merge', 'omit', 'pick', 'and', 'or'])
+
+/**
+ * The literal passed to `z.object(…)`, looking through `.strict()` and friends; none through a
+ * method that adds or drops keys, as the literal would then name the wrong ones.
+ */
+function objectShapeLiteral(expression: ts.Expression): ts.ObjectLiteralExpression | undefined {
   const node = unwrapExpression(expression)
+  if (!ts.isCallExpression(node)) return undefined
 
-  if (ts.isObjectLiteralExpression(node)) return literalKeys(node)
-
-  if (field === 'inputs' && ts.isCallExpression(node)) {
-    const callee = calleeName(node)
-    if (callee !== null && (callee.endsWith('.object') || callee === 'object')) {
-      const first = node.arguments[0]
-      if (first !== undefined && ts.isObjectLiteralExpression(unwrapExpression(first))) {
-        return literalKeys(unwrapExpression(first) as ts.ObjectLiteralExpression)
-      }
-    }
-    // `z.object({ … }).strict()` and friends: look through the chain.
-    if (ts.isPropertyAccessExpression(node.expression)) {
-      return readObjectKeys(node.expression.expression, sourceFile, field)
-    }
+  const callee = calleeName(node)
+  if (callee !== null && (callee.endsWith('.object') || callee === 'object')) {
+    const first = node.arguments[0]
+    const shape = first === undefined ? undefined : unwrapExpression(first)
+    return shape !== undefined && ts.isObjectLiteralExpression(shape) ? shape : undefined
   }
-
-  return []
+  const method = node.expression
+  return ts.isPropertyAccessExpression(method) && !KEY_CHANGING_METHODS.has(method.name.text)
+    ? objectShapeLiteral(method.expression)
+    : undefined
 }
 
 function literalKeys(object: ts.ObjectLiteralExpression): readonly string[] {

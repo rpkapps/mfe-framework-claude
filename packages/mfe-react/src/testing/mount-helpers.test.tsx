@@ -17,8 +17,8 @@ import { createMemoryRuntime, mountApp, mountWidget } from './index.tsx'
 const counter = createWidget({
   id: 'counter-widget',
   version: '1.0.0',
-  inputs: z.object({ label: z.string() }),
-  events: { bumped: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ bumped: z.object({ at: z.string() }) }),
   render: ({ inputs, emit }): ReactNode => (
     <button
       type="button"
@@ -53,7 +53,7 @@ describe('mountWidget', () => {
 
     button.click()
     await waitFor(() => {
-      expect(mounted.events).toEqual([{ name: 'bumped', payload: { at: 'now' } }])
+      expect(mounted.outputs).toEqual([{ name: 'bumped', payload: { at: 'now' } }])
     })
 
     await mounted.dispose()

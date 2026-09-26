@@ -36,19 +36,19 @@ describe('createMfeError message composition', () => {
   it('carries structured fields for exhaustive host handling', () => {
     const cause = new Error('underlying')
     const error = createMfeError({
-      code: 'contract/event-mismatch',
+      code: 'contract/output-mismatch',
       id: 'alert-panel',
       definitionVersion: '1.4.0',
-      operation: "emit event 'acknowledged'",
-      direction: 'event',
+      operation: "emit output 'acknowledged'",
+      direction: 'output',
       path: ['alertId'],
       cause,
     })
 
-    expect(error.code).toBe('contract/event-mismatch')
+    expect(error.code).toBe('contract/output-mismatch')
     expect(error.id).toBe('alert-panel')
     expect(error.definitionVersion).toBe('1.4.0')
-    expect(error.direction).toBe('event')
+    expect(error.direction).toBe('output')
     expect(error.path).toEqual(['alertId'])
     expect(error.cause).toBe(cause)
     expect(isMfeError(error)).toBe(true)

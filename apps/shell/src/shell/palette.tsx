@@ -1,7 +1,7 @@
 /**
  * Applications and their capability pages come from the registry, so the palette gains a
  * destination when a container is deployed and the shell is not rebuilt. The shell registers its
- * own commands exactly as a mounted application does, and both arrive through one snapshot (§26),
+ * own actions exactly as a mounted application does, and both arrive through one snapshot (§26),
  * each with the shortcut the runtime will run it for.
  */
 
@@ -9,7 +9,7 @@ import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from 'react
 import { useNavigate } from '@tanstack/react-router'
 import {
   defaultInputsFor,
-  describeWidgetInputs,
+  describeInputs,
   HOST_SCOPE,
   needsInputPrompt,
   useApps,
@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import {
   AppWindowIcon,
   BanIcon,
+  BotIcon,
   BoxIcon,
   BugIcon,
   CircleHelpIcon,
@@ -55,9 +56,9 @@ import { addTile, tileKey, type DashboardLayout } from './dashboard/layout-store
 import { useDashboardLayout } from './hooks.ts'
 import type { ShellTheme } from './preferences.ts'
 
-type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
+type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
-/** What a shell command's row reads at the moment it is drawn. */
+/** What a shell action's row reads at the moment it is drawn. */
 interface Live {
   readonly theme: ShellTheme
   readonly layout: DashboardLayout
@@ -66,7 +67,7 @@ interface Live {
 /**
  * One row of the palette, whatever produced it. `text` is extra search words. The trailing column
  * is one of two things and never both: `keys` is a shortcut, drawn as key caps; `hint` is a word
- * — a version, a path, a Widget id, a tile count, the reason a command is denied.
+ * — a version, a path, a Widget id, a tile count, the reason an action is denied.
  */
 interface Row {
   readonly id: string
@@ -81,13 +82,14 @@ interface Row {
 }
 
 /**
- * How a shell command is drawn, by the name `shell-commands.ts` registers it under; what it does
+ * How a shell action is drawn, by the name `shell-actions.ts` registers it under; what it does
  * is registered there, so a key and a row run the same thing.
  */
 type HostFace = (live: Live) => Pick<Row, 'icon' | 'text' | 'hint'>
 
 const HOST_FACES: Readonly<Record<string, HostFace>> = {
   registry: () => ({ icon: <LayersIcon />, text: 'loaded rejected entries' }),
+  assistant: () => ({ icon: <BotIcon />, text: 'chat agent ai question selection' }),
   settings: () => ({ icon: <SettingsIcon />, text: 'theme dashboard overrides' }),
   help: () => ({ icon: <CircleHelpIcon />, text: 'keyboard shortcuts' }),
   releases: () => ({ icon: <SparklesIcon />, text: 'what is new release notes' }),
@@ -120,14 +122,14 @@ export function CommandPalette({
   const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
   // The same snapshot the help sheet lists and the key listener reads (§26).
-  const commands = useSyncExternalStore(
-    runtime.commands.subscribe,
-    runtime.commands.getSnapshot,
-    runtime.commands.getSnapshot,
+  const actions = useSyncExternalStore(
+    runtime.actions.subscribe,
+    runtime.actions.getSnapshot,
+    runtime.actions.getSnapshot,
   )
 
   useEffect(() => {
-    if (open) runtime.commands.evaluateAll()
+    if (open) runtime.actions.evaluateAll()
   }, [open, runtime])
 
   const live: Live = { theme, layout }
@@ -138,12 +140,12 @@ export function CommandPalette({
 
   /** A shortcut the runtime refused draws no caps, rather than caps for a key that is dead. */
   const keysFor = (id: string): string | undefined =>
-    commands.find(entry => entry.id === id)?.shortcut
+    actions.find(entry => entry.id === id)?.shortcut
 
   const add = (entry: RegistryEntry): void => {
     // The canvas prompts for a Widget's inputs; the palette cannot, it is closing.
     const needsInputs = needsInputPrompt(entry.contract)
-    const inputs = defaultInputsFor(describeWidgetInputs(entry.contract))
+    const inputs = defaultInputsFor(describeInputs(entry.contract))
     // No canvas is measured from here, so the tile is placed against a nominal one and the
     // canvas refits it to its real width on the way in.
     setLayout(value => addTile(value, { key: tileKey(entry.id), widgetId: entry.id, inputs }))
@@ -155,7 +157,7 @@ export function CommandPalette({
     })
   }
 
-  const commandRow = (entry: CommandEntry): Row => {
+  const actionRow = (entry: ActionEntry): Row => {
     const { allowed } = entry.decision
     const face = entry.definitionId === HOST_SCOPE ? HOST_FACES[entry.name]?.(live) : undefined
     return {
@@ -163,8 +165,8 @@ export function CommandPalette({
       icon: allowed ? <TerminalIcon /> : <BanIcon />,
       label: entry.label,
       ...face,
-      // The trailing column shows the keys when there are any; otherwise a mount command's names
-      // its owner, and a shell command's says what its face says.
+      // The trailing column shows the keys when there are any; otherwise a mount action's names
+      // its owner, and a shell action's says what its face says.
       ...(entry.shortcut === undefined
         ? { hint: face === undefined ? entry.definitionId : face.hint }
         : { keys: entry.shortcut, hint: undefined }),
@@ -173,13 +175,13 @@ export function CommandPalette({
       ...(allowed ? {} : { hint: entry.decision.reason, keys: undefined }),
       id: entry.id,
       isDisabled: !allowed,
-      run: () => void runtime.commands.execute(entry.id),
+      run: () => void runtime.actions.execute(entry.id, { caller: 'palette' }),
     }
   }
 
-  const listed = commands.filter(entry => entry.placements.includes('command-palette'))
-  const host = listed.filter(entry => entry.definitionId === HOST_SCOPE).map(commandRow)
-  const mounted = listed.filter(entry => entry.definitionId !== HOST_SCOPE).map(commandRow)
+  const listed = actions.filter(entry => entry.placements.includes('palette'))
+  const host = listed.filter(entry => entry.definitionId === HOST_SCOPE).map(actionRow)
+  const mounted = listed.filter(entry => entry.definitionId !== HOST_SCOPE).map(actionRow)
 
   const destinations: readonly Row[] = [
     {
@@ -226,10 +228,10 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Search or jump to…"
-      description="Switch application, open a shell surface, or run a command the mounted application registered."
+      description="Switch application, open a shell surface, or run an action the mounted application registered."
     >
       <Command>
-        <CommandInput placeholder="Search applications, pages and commands…" />
+        <CommandInput placeholder="Search applications, pages and actions…" />
         <CommandList renderEmptyState={() => <CommandEmpty>No results found.</CommandEmpty>}>
           <Groups
             groups={[

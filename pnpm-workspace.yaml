@@ -51,15 +51,27 @@ peerDependencyRules:
 # container, moving the React containers' federation runtime off the version the shell shares.
 overrides:
   '@module-federation/runtime-tools@2.9.1': 2.9.0
+  # @ag-ui/client asks for zod 3 but imports only `zod/v4`, which zod 4 exports too; on the
+  # catalog's zod the shell's chat ships one zod instead of two (about 237 kB minified). Taken
+  # from the catalog, so moving zod there moves these with it.
+  '@ag-ui/client>zod': 'catalog:'
+  '@ag-ui/proto>zod': 'catalog:'
   # Where the Tecton design system is checked out. It is not published, so every package declares
   # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
   # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
-  # read it from here, and CI's repository is set in .github/actions/setup/action.yml.
+  # read it from here, and CI's repository is set in .github/actions/setup/action.yml. A link
+  # installs none of Tecton's own dependencies, so the shell declares the ones its components need
+  # (`@shadcn/react` in the catalog and apps/shell/package.json): once Tecton is published and
+  # this line goes, drop those declarations with it.
   '@tecton/react': link:../tecton-ui-1/packages/tecton-react
 
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
 # from every package so the toolchain cannot drift between workspaces.
 catalog:
+  # AG-UI: the client in @company/mfe-agent, the shell's chat (docs/decisions.md §49), and the
+  # event types in tools/agent-dev. Nothing inside a container may import them.
+  '@ag-ui/client': 1.0.0
+  '@ag-ui/core': 1.0.0
   # examples/fieldwork, the Angular container: the versions @company/mfe-nx's generator writes,
   # pinned exactly where it writes a range. Its TypeScript and test toolchain are in the `angular`
   # catalog below, because they differ from this one.
@@ -98,6 +110,9 @@ catalog:
   '@rspack/core': 2.2.6
   '@rspack/dev-server': 2.2.1
   '@rspack/plugin-react-refresh': 2.0.2
+  # The primitives under Tecton's Questionnaire and MessageScroller, which the shell's chat renders.
+  # pnpm does not install a linked package's own dependencies, so the shell declares it.
+  '@shadcn/react': 0.3.1
   '@tailwindcss/postcss': 4.3.3
   '@tailwindcss/vite': 4.3.3
   '@tanstack/eslint-plugin-query': 5.103.1
@@ -137,6 +152,10 @@ catalog:
   jiti: 2.7.0
   jsdom: 30.1.0
   lucide-react: 1.45.0
+  # The shell's chat renders replies as Markdown (GitHub's flavour: tables, lists, strikethrough,
+  # task lists), without raw HTML; it loads with the chat, not with the shell. 9, not the smaller
+  # 7: 7 emphasises inside words (`well_id_here`) and misses GFM's pipeless tables and `www.` links.
+  markdown-to-jsx: 9.10.3
   # Same scope and reason as css-loader above.
   mini-css-extract-plugin: 2.9.2
   next-themes: 0.4.6

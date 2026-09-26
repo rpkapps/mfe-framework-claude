@@ -4,7 +4,7 @@ description: 'Call lazyWidget at module scope, then render the Widget as an ordi
 ---
 
 A Widget you know the id of at build time is an ordinary lazy component. Its inputs are props
-and its events are `onX` props, both typed from the contract.
+and its outputs are `onX` props, both typed from the contract.
 
 ## Steps
 
@@ -32,9 +32,9 @@ time.
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
 Module scope means the top level of a file, outside every function, and the contract is optional:
@@ -51,8 +51,8 @@ Module scope means the top level of a file, outside every function, and the cont
   alertId="a-1001"
   severity="warning"
   pending={<Skeleton className="h-24 w-full" />}
-  onAcknowledged={event => {
-    setAcknowledged(event.acknowledgedAt)
+  onAcknowledged={payload => {
+    setAcknowledged(payload.acknowledgedAt)
   }}
   fallback={({ error, retry }) => (
     <div role="alert">
@@ -116,9 +116,9 @@ update the Widget keeps its last valid inputs on screen and reports the rejectio
 
 ## Related
 
-- [React to a Widget's events](/docs/react-to-widget-events) — handle what it emits.
+- [React to a Widget's outputs](/docs/react-to-widget-outputs) — handle what it emits.
 - [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time) — when the id is a value.
-- [Define inputs and events](/docs/define-inputs-and-events) — the contract you import.
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the contract you import.
 - [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — load a local
   container.
 - [Hooks and components](/docs/reference/hooks-and-components) — every export and its signature.

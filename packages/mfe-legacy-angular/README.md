@@ -90,7 +90,7 @@ reads. No caller has to know the legacy vocabulary.
 | `tags`                   | `tags`                | Empty array when absent                                                                                                                 |
 | `categories`             | `categories`          | Empty array when absent                                                                                                                 |
 | `externalUrl`            | `externalUrl`         |                                                                                                                                         |
-| `routes`                 | `routes`              | Empty array when absent                                                                                                                 |
+| `routes`                 | `legacyRoutes`        | Empty array when absent; named apart from the App-relative `routes` a framework build publishes                                         |
 | `settings.routes`        | `settingsRoutes`      | Flattened to one array                                                                                                                  |
 | —                        | `exposeName`          | Always `./single-spa-app`                                                                                                               |
 | —                        | `navigationOwnership` | Always `shell`                                                                                                                          |

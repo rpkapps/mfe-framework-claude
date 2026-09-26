@@ -35,6 +35,8 @@ type WellDesignCardProps = Omit<React.ComponentProps<typeof Card>, 'children'> &
   isSelected?: boolean
   onSelectedChange?: (selected: boolean) => void
   onView?: (design: WellDesign) => void
+  /** Shows an "Ask the assistant" button beside View. */
+  onAsk?: (design: WellDesign) => void
 }
 
 function WellDesignCard({
@@ -43,6 +45,7 @@ function WellDesignCard({
   isSelected,
   onSelectedChange,
   onView,
+  onAsk,
   size = 'sm',
   ...props
 }: WellDesignCardProps) {
@@ -169,10 +172,15 @@ function WellDesignCard({
         />
       </CardContent>
 
-      <CardFooter>
-        <Button className="w-full" variant="secondary" onPress={() => onView?.(design)}>
+      <CardFooter className="gap-2">
+        <Button className="flex-1" variant="secondary" onPress={() => onView?.(design)}>
           View design
         </Button>
+        {onAsk !== undefined && (
+          <Button variant="ghost" onPress={() => onAsk(design)}>
+            Ask the assistant
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )

@@ -38,6 +38,25 @@ http://localhost:3000
 | `apps/shell`                                                       | 3000      |
 | `examples/operations`, `reports`, `alert-panel`, `insights`, `lab` | 3001–3005 |
 | the stand-in API (`tools/dev/api.mjs`)                             | 3010      |
+| the stand-in agent backend (`tools/agent-dev`)                     | 3011      |
+
+The assistant (⌘I, or the button in the header) talks to the stand-in agent backend. Type `/` in
+its message box for its commands: `/new`, and the actions the page offers the agent. By default it
+is a scripted demo agent that needs no key: say `help` to it for what it understands. To talk to a
+model on your own machine or network instead, behind any OpenAI-compatible server (vLLM, SGLang,
+llama.cpp, Ollama, LM Studio), start it with the server's base URL and the model id:
+
+```sh
+AGENT_DEV_OPENAI_URL=http://192.168.1.20:8000/v1 AGENT_DEV_MODEL=deepseek-v4.1-flash pnpm dev
+```
+
+Add `AGENT_DEV_API_KEY` if the server wants a key, and turn tool calling on in the server: the
+chat works through tool calls. To keep these settings, put them in `tools/agent-dev/.env` (copy
+`tools/agent-dev/.env.example`); the file is git-ignored, and a variable set in the shell wins. `ANTHROPIC_API_KEY` with `AGENT_DEV_MODEL` talks to Anthropic's API
+instead. The shell finds it through `agentUrl` in `apps/shell/.mfe/runtime-config.json`. An image
+the agent shows loads only from the shell's own origin or a `data:image` URL, unless its origin is
+in `agentImageHosts` in the same file, for example `"https://tiles.example.com"` (comma-separated
+origins, `AGENT_IMAGE_HOSTS` in a deployment); any other is shown as its description and host.
 
 </Step>
 

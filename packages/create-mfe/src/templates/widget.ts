@@ -1,6 +1,6 @@
 /**
  * Builds the Widget starter's files. The contract is exported separately from the definition so
- * a consumer gets prop and event inference without needing this container's build. The render
+ * a consumer gets prop and output inference without needing this container's build. The render
  * lives in its own module because a module with any non-component export cannot accept a React
  * Refresh update (§18).
  */
@@ -28,7 +28,7 @@ export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[
 
     packageJsonFile(options, 3103, {
       devDependencies: { '@testing-library/user-event': 'catalog:' },
-      // The build reads the Widget's `inputs`/`events` schemas out of `src/mfe.ts`
+      // The build reads the Widget's `inputSchema`/`outputSchema` out of `src/mfe.ts`
       // and emits a side-effect-free module under `.mfe/`; this is how a consumer
       // reaches it without depending on this container's build.
       exports: { './contracts': `./.mfe/widgets/${id}.contract.ts` },
@@ -47,10 +47,10 @@ import { ${pascal} } from './${id}.tsx'
 // a host can offer this Widget without loading this container.
 //
 // Exported separately so a consumer can import it: with the contract they get
-// inference and consumer-side event validation, without it they get neither.
+// inference and consumer-side output validation, without it they get neither.
 export const ${camel}Contract = {
-  inputs: z.object({ label: z.string() }),
-  events: { activated: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
 }
 
 export const ${camel} = createWidget({
@@ -106,7 +106,7 @@ afterEach(async () => {
   await dispose?.()
 })
 
-it('emits a validated event when activated', async () => {
+it('emits a validated output when activated', async () => {
   const onActivated = vi.fn()
   const rendered = renderWidget(${camel}, { props: { label: 'Run', onActivated } })
   cleanup = rendered.dispose
@@ -143,23 +143,23 @@ ${overrideSection(id, 3103)}
 
 ## Being consumed
 
-Inputs are props, events are \`onX\` props:
+Inputs are props, outputs are \`onX\` props:
 
 \`\`\`tsx
 import { lazyWidget } from '@company/mfe-react'
-import { events, inputs } from '${packageName}/contracts'
+import { inputSchema, outputSchema } from '${packageName}/contracts'
 
-const ${pascal} = lazyWidget('${id}', { contract: { inputs, events } })
+const ${pascal} = lazyWidget('${id}', { contract: { inputSchema, outputSchema } })
 
-<${pascal} label="Run" onActivated={event => console.log(event.at)} />
+<${pascal} label="Run" onActivated={payload => console.log(payload.at)} />
 \`\`\`
 
 The contract argument is optional: with it a consumer gets prop and handler
-inference and consumer-side event validation, without it inputs are
+inference and consumer-side output validation, without it inputs are
 \`Record<string, unknown>\` and payloads are \`unknown\`. A consumer may declare
 its own contract naming only the fields it uses, so adding a field here never
 breaks one. Inputs and payloads must be JSON-serializable; a consumer that needs
-a callback subscribes to an event.
+a callback subscribes to an output.
 `,
     },
   ]

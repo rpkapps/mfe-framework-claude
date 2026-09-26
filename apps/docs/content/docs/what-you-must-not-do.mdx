@@ -24,7 +24,7 @@ Web Storage. Each rule below gives you the reason, the message you will see and 
 | [Import from `@company/mfe-react`, and from nothing else in the framework.](#import-from-companymfe-react-and-nothing-else-in-the-framework) | imports     | Lint                   |
 | [Reference an asset through `new URL(…, import.meta.url)`.](#reference-assets-through-importmetaurl)                                         | imports     | Build                  |
 | [Write the contract and every presentation field as literals.](#keep-the-contract-literal-and-follow-the-naming-rules)                       | contract    | Build                  |
-| [Name ids, events and inputs the way the contract requires.](#keep-the-contract-literal-and-follow-the-naming-rules)                         | contract    | Build, Mount, Registry |
+| [Name ids, outputs and inputs the way the contract requires.](#keep-the-contract-literal-and-follow-the-naming-rules)                        | contract    | Build, Mount, Registry |
 | [Send only what JSON can carry in inputs and payloads.](#keep-the-contract-literal-and-follow-the-naming-rules)                              | contract    | Mount                  |
 | [Call `lazyWidget`, `createApp` and `createWidget` at module scope.](#call-lazywidget-createapp-and-createwidget-at-module-scope)            | mounts      | Lint                   |
 | [Keep the render function in a module that exports only components.](#keep-the-render-function-in-a-module-that-exports-only-components)     | dev loop    | Nothing                |
@@ -103,7 +103,7 @@ Write your routes relative to your boundary. Use `/settings`, never `/operations
 
 ## A Widget does not change the URL, the tab title or the document head
 
-Declare an event in your Widget's `events` contract and `emit` it from the render props. The owning
+Declare an output in your Widget's `outputSchema` and `emit` it from the render props. The owning
 App receives it as `onNavigate`, `onTitle` or another `onX` prop, and acts on it
 ([ask the owning App to navigate](/docs/ask-the-app-to-navigate)).
 
@@ -117,7 +117,7 @@ A Widget does not drive the URL: `history.pushState` navigates the whole page, a
 the owning App and every sibling MFE learn about it only by accident.
 ```
 
-**Fix.** Declare a navigation event and emit it. The App navigates with its boundary router, or the
+**Fix.** Declare a navigation output and emit it. The App navigates with its boundary router, or the
 shell with the host `BoundaryNavigator`.
 
 </Callout>
@@ -187,15 +187,16 @@ Everything an author needs, types included, comes from that one package. Tests i
 `/testing` entry point. Lint blocks the rest, so no framework internal reaches your code and pins
 you to a patch release.
 
-| Blocked import                                  | Why                                                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `@company/mfe-core`                             | It is a framework-internal contract package whose shape changes with the framework.                  |
-| `@company/mfe-runtime`                          | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
-| `react-dom/client`                              | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
-| a deep path, such as `@company/mfe-react/src/*` | A deep import reaches past the entry point into files that change in a patch release.                |
-| `single-spa`, `single-spa-*`                    | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |
-| `@module-federation/*`                          | Module Federation is an implementation detail of the build and of the shell's loader.                |
-| `@opentelemetry/*`, `@grafana/faro*`            | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
+| Blocked import                                           | Why                                                                                                  |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `@company/mfe-core`                                      | It is a framework-internal contract package whose shape changes with the framework.                  |
+| `@company/mfe-runtime`                                   | It is the shell's loader, and an MFE that mounts itself outside the host lifecycle leaks on unmount. |
+| `react-dom/client`                                       | The host owns the React root, so your own `createRoot` breaks unmount and error boundaries.          |
+| a deep path, such as `@company/mfe-react/src/*`          | A deep import reaches past the entry point into files that change in a patch release.                |
+| `single-spa`, `single-spa-*`                             | single-spa is the legacy interop layer, owned by `@company/mfe-legacy-angular`.                      |
+| `@module-federation/*`                                   | Module Federation is an implementation detail of the build and of the shell's loader.                |
+| `@opentelemetry/*`, `@grafana/faro*`                     | Two telemetry SDKs in one page mean two trace contexts and twice the bundle.                         |
+| an AI or agent library, such as `ai` or `@tanstack/ai-*` | The shell's chat talks to the agent. Offer it your actions with `useAction` instead.                 |
 
 Zustand, Redux, MobX, Jotai and `@tanstack/store` are allowed, because an MFE owns its own state.
 
@@ -241,10 +242,10 @@ definition without running it, and only a literal can be read that way.
 | ----------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
 | A definition id holds lower-case letters, digits and single hyphens, as in `alert-panel`. | Build, Mount, Registry | Rename the definition. The id is also your storage prefix and your CSS scope value.      |
 | Two definitions may not share an id.                                                      | Build, Registry        | Give each definition its own id. The registry sets both entries aside.                   |
-| An event name is lower camel case, as in `selectionChanged`.                              | Build, Mount           | Rename the event. Consumers subscribe to it as `onSelectionChanged`.                     |
+| An output name is lower camel case, as in `selectionChanged`.                             | Build, Mount           | Rename the output. Consumers subscribe to it as `onSelectionChanged`.                    |
 | An input may not be called `key`, `ref`, `fallback` or `onSomething`.                     | Build, Mount           | Rename the input. Those names belong to the host.                                        |
-| Inputs and event payloads carry only what JSON can carry.                                 | Mount                  | Send data. A consumer that needs a callback subscribes to an event instead.              |
-| A Widget declares both `inputs` and `events`.                                             | Build                  | Write `inputs: z.object({})` when the Widget takes none.                                 |
+| Inputs and output payloads carry only what JSON can carry.                                | Mount                  | Send data. A consumer that needs a callback subscribes to an output instead.             |
+| A Widget declares both `inputSchema` and `outputSchema`.                                  | Build                  | Write `z.object({})` for the one the Widget does not need.                               |
 | Declare the schema where the build can read it without running the module.                | Build                  | Declare it inline in `src/mfe.ts`, or export it from another module of this container.   |
 | `title`, `description`, `version`, `tags` and `id` are inline literals.                   | Build                  | Write the value inline. Pass `icon` as an imported identifier, which the build resolves. |
 | A container exports at most one App, and exports every definition from its entry.         | Build                  | Split the Apps into separate containers, and add `export` to every definition.           |
@@ -254,9 +255,9 @@ definition without running it, and only a literal can be read that way.
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
-import { events, inputs } from '@example/alert-panel/contracts'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
-export const AlertPanel = lazyWidget('alert-panel', { contract: { inputs, events } })
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
 Module scope means the top level of a file, outside every function. One built during render is a
@@ -347,7 +348,7 @@ visible in `pnpm lint`.
 ## Related
 
 - [Lint rules](/docs/reference/lint-rules) — every rule, with its message in full.
-- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, events, inputs.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — ids, outputs, inputs.
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why each rule exists.
 - [Keep hot updates working](/docs/keep-hot-updates-working) — the module rule in practice.
 - [Error codes](/docs/reference/error-codes) — every code, when it happens, and the fix.

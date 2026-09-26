@@ -21,11 +21,11 @@ Ten boxes, read top to bottom.
 - **The shell** sits at the top. Its subtitle is the list it passes the runtime:
   `adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`.
 - An arrow **registry.json** enters **The neutral runtime**, `@company/mfe-runtime`, which imports
-  no framework and no federation. It holds **Shared services** (storage, commands, navigation,
+  no framework and no federation. It holds **Shared services** (storage, actions, navigation,
   diagnostics), **Federation loader** (`createFederationContainerLoader`) and **One mount path**
   (`mountDefinition`).
 - An arrow **detect, parse** drops into **The adapters**, where exactly one recognises each entry,
-  in any order: **The React adapter** (`mfe.framework 'react'`, or none), **The Angular adapter**
+  in any order: **The React adapter** (`mfe.framework 'react'`), **The Angular adapter**
   (`mfe.framework 'angular'`) and **The legacy Angular adapter** (no `mfe` key, removable).
 - An arrow **defines, mounts** drops from the React adapter to `operations`, a React App with its
   own root, and from the Angular adapter to an Nx container, an Angular App or Widgets.
@@ -61,7 +61,7 @@ registered implicitly: `createMfeRuntime({ adapters })` names every one the shel
 
 | Adapter                       | Recognises an entry when                                     | Mounts it with                   | Removable |
 | ----------------------------- | ------------------------------------------------------------ | -------------------------------- | --------- |
-| `@company/mfe-react`          | its `mfe` marker names `react`, or names no framework        | a React root per mount           | no        |
+| `@company/mfe-react`          | its `mfe` marker names `react`                               | a React root per mount           | no        |
 | `@company/mfe-angular`        | its `mfe` marker names `angular`                             | an Angular application per mount | no        |
 | `@company/mfe-legacy-angular` | it has no `mfe` key, and has a `name` and an `mfManifestUrl` | nothing yet                      | yes       |
 
@@ -121,7 +121,7 @@ tested without single-spa, Angular or a bundler.
 ## What every adapter shares
 
 Shared services come from the runtime and are the same for every adapter. One storage store, one
-command registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per
+action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per
 runtime.
 
 Removal is the point of the legacy adapter. When the last legacy application is migrated, delete the

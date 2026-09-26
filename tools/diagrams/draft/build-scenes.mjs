@@ -887,7 +887,7 @@ async function lifecycle() {
       [909, 130],
       [1034, 130],
     ],
-    label: 'input, or event',
+    label: 'input, or output',
     labelOffset: -16,
   })
 
@@ -905,7 +905,7 @@ async function lifecycle() {
     'mount/failure',
     'app/invalid-router',
     'contract/input-mismatch',
-    'contract/event-mismatch',
+    'contract/output-mismatch',
   ].forEach((name, position) =>
     code(scene, { x: 18 + position * 227, y: 396, w: 213, h: 38, name, size: 11.5 }),
   )
@@ -1319,7 +1319,7 @@ async function adapters() {
     caption: '@company/mfe-runtime — no framework, no federation import',
   })
   const runtimeTiles = [
-    ['Shared services', 'storage, commands, navigation, diagnostics', false],
+    ['Shared services', 'storage, actions, navigation, diagnostics', false],
     ['Federation loader', 'createFederationContainerLoader', true],
     ['One mount path', 'mountDefinition', true],
   ].map(([name, subtitle, subtitleMono], position) =>
@@ -1345,7 +1345,7 @@ async function adapters() {
     caption: 'exactly one recognises each entry; any order',
   })
   const adapterTiles = [
-    ['The React adapter', "mfe.framework 'react', or none", true],
+    ['The React adapter', "mfe.framework 'react'", true],
     ['The Angular adapter', "mfe.framework 'angular'", true],
     ['The legacy Angular adapter', 'no mfe key; removable', false],
   ].map(([name, subtitle, subtitleMono], position) =>

@@ -1,16 +1,16 @@
 /**
  * The React `counter` Widget several scenarios place: a button showing `label: count` that emits
- * `bumped` with the next count, so a host handing the count back sees the event cross both ways.
- * It registers a `reset` command too, so a scenario can count what a Widget registers.
+ * `bumped` with the next count, so a host handing the count back sees the output cross both ways.
+ * It registers a `reset` action too, so a scenario can count what a Widget registers.
  */
 
-import { createWidget, useCommand } from '@company/mfe-react'
+import { createWidget, useAction } from '@company/mfe-react'
 import { createElement as h, useEffect, type ReactNode } from 'react'
 import { z } from 'zod'
 
 export const counterContract = {
-  inputs: z.object({ label: z.string(), count: z.number() }),
-  events: { bumped: z.object({ count: z.number() }) },
+  inputSchema: z.object({ label: z.string(), count: z.number() }),
+  outputSchema: z.object({ bumped: z.object({ count: z.number() }) }),
 }
 
 /**
@@ -25,7 +25,7 @@ export const counter = createWidget({
   version: '2.0.0',
   ...counterContract,
   render: function Counter({ inputs, emit }): ReactNode {
-    useCommand({ name: 'reset', label: 'Reset the counter', execute: () => undefined })
+    useAction({ name: 'reset', label: 'Reset the counter', execute: () => undefined })
     useEffect(() => {
       counterRoots.commits += 1
     })

@@ -9,13 +9,13 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 
 ## Registry and contract codes
 
-| Code                         | When it happens                                                                                                  | Fix                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                    | Rebuild the container. Registry JSON is generated, never hand-written.                          |
-| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                           | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too. |
-| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                    | Rebuild against the shell's major, or upgrade the shell.                                        |
-| `contract/input-mismatch`    | A prop failed the Widget's `inputs` schema, an input name is reserved, or the build could not read the contract. | Send the declared type, or rename the input.                                                    |
-| `contract/event-mismatch`    | An emitted payload failed its schema, or an event name breaks the naming rule.                                   | Check the payload against the schema, or rename the event.                                      |
+| Code                         | When it happens                                                                                                                                                                                                                                                                                 | Fix                                                                                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                                                                                                                                   | Rebuild the container. Registry JSON is generated, never hand-written.                                                                               |
+| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                                                                                                                                                                                                          | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                                                      |
+| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                                                                                                                                                                                                   | Rebuild against the shell's major, or upgrade the shell.                                                                                             |
+| `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
+| `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
 
 <Callout type="error" title="contract/input-mismatch">
 
@@ -27,10 +27,40 @@ alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected
 
 </Callout>
 
+<Callout type="error" title="contract/output-mismatch">
+
+```text
+alert-panel@1.4.0 failed to emit output 'resolved': expected one of the declared outputs (acknowledged, dismissed), received 'resolved', which this Widget does not declare. Add 'resolved' to the outputSchema, or emit a declared output.
+```
+
+**Fix.** Add the output to the Widget's `outputSchema`, or emit one it already declares. The call throws in the Widget's own stack.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch, from an action">
+
+```text
+lab failed to accept input for action 'run-simulation' runs: expected input matching the action’s inputSchema, received ✖ Invalid input: expected number, received string → at runs. Call the action with input its inputSchema accepts.
+```
+
+**Fix.** Call the action with input its `inputSchema` accepts. Nothing ran, and the caller gets the result `invalid` with this error. An action's `outputSchema` mismatch reads the same way and fails the run.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch, from agent context">
+
+```text
+operations failed to publish agent context 'The well design the user has open': expected a value its schema accepts, received ✖ Invalid input: expected string, received number → at id. Publish ids and a short label that match the schema; the agent reads the records themselves through your actions. The context is left out until it is valid.
+```
+
+**Fix.** Publish a value the schema accepts, as JSON of at most 4096 characters. The agent gets no snapshot from that call until you do, and the warning is reported once. An empty `description` throws the same code instead.
+
+</Callout>
+
 <Callout type="error" title="registry/duplicate-id">
 
 ```text
-orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, command attribution and <id>:<key> storage.
+orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, action attribution and <id>:<key> storage.
 ```
 
 **Fix.** Rename one definition and rebuild. The shell sets aside every entry that claimed the id.
@@ -68,16 +98,16 @@ operations failed to attach the access token for https://reports.example.test: e
 
 ## Loading and lifecycle codes
 
-| Code                    | When it happens                                                                                           | Fix                                                                                                |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                                    | Check that the manifest URL is reachable and serves a valid manifest.                              |
-| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                         | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
-| `load/share-conflict`   | Declared, and never raised.                                                                               | A second copy inside one share scope reaches you as a hook reported outside any mount.             |
-| `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                | Check the network panel for the request that never settled, then retry.                            |
-| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or a command threw. | See the two messages below, or fix what the message names.                                         |
-| `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                 | Check what the first render waits on, then retry.                                                  |
-| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                 | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
-| `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                | Check the diagnostics for the cleanup step that did not finish.                                    |
+| Code                    | When it happens                                                                                                                                        | Fix                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                                                                                 | Check that the manifest URL is reachable and serves a valid manifest.                              |
+| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                                                                      | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
+| `load/share-conflict`   | Declared, and never raised.                                                                                                                            | A second copy inside one share scope reaches you as a hook reported outside any mount.             |
+| `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                                                             | Check the network panel for the request that never settled, then retry.                            |
+| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or an action's `execute`, `canExecute` or `needsApproval` threw. | See the two messages below, or fix what the message names.                                         |
+| `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                                                              | Check what the first render waits on, then retry.                                                  |
+| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                                                              | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
+| `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                                                             | Check the diagnostics for the cleanup step that did not finish.                                    |
 
 <Callout type="error" title="mount/failure, outside a mount">
 
@@ -99,14 +129,18 @@ operations failed to attach the access token for https://reports.example.test: e
 
 </Callout>
 
-## Router, command and storage codes
+## Router, action and storage codes
 
-| Code                     | When it happens                                                                                                                                                                   | Fix                                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `app/invalid-base-path`  | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.                                                                         | Pass `basepath: basePath` to `createRouter`.                                                        |
-| `app/invalid-router`     | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                                                                                                  | Forward the history, and spread the context you were given.                                         |
-| `command/duplicate-name` | Two commands in one mount share a name, a registration is invalid, or a command ran after its owner went away. A warning with this code means a shortcut was ignored or collides. | Rename one command, or fix the field the message names. For a shortcut, choose other keys.          |
-| `storage/failure`        | A stored record could not be read, written or removed.                                                                                                                            | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable. |
+| Code                          | When it happens                                                                                                                                                                                                                                    | Fix                                                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `app/invalid-base-path`       | The router's `basepath` is not the `basePath` you were given, or a navigation target could not be parsed.                                                                                                                                          | Pass `basepath: basePath` to `createRouter`.                                                         |
+| `app/invalid-router`          | The history, the `mfe` context or the `queryClient` was not forwarded unchanged.                                                                                                                                                                   | Forward the history, and spread the context you were given.                                          |
+| `action/duplicate-name`       | Two actions in one mount, or two in the host page, share a name.                                                                                                                                                                                   | Rename one action.                                                                                   |
+| `action/invalid-registration` | A registration or an update of one is invalid: its name, label, placement, `effect`, `timeoutMs` or shortcut, an `inputSchema` that is not a `z.object`, or a schema JSON Schema cannot express. So does `register` given the reserved host scope. | Fix the field the message names.                                                                     |
+| `action/shortcut-refused`     | A warning: a shortcut will not fire. It is a Widget's, the host page uses the keys, or another live action claims them.                                                                                                                            | Choose other keys. The action stays in the palette without them.                                     |
+| `action/unavailable`          | An action was run after the mount or chrome that registered it went away, including while an agent's call waited for approval, or it went while a run was queued or running.                                                                       | Run it again once it is registered.                                                                  |
+| `action/timeout`              | An agent's call was still running when its deadline passed: 30 seconds after `execute` started, unless the action's `timeoutMs` says otherwise. Its signal was aborted and the next write ran.                                                     | Pass the `signal` `execute` receives to the request, and settle every promise; or raise `timeoutMs`. |
+| `storage/failure`             | A stored record could not be read, written or removed.                                                                                                                                                                                             | Read what the message names: a schema rejection, a bad declaration, or a store that is unavailable.  |
 
 <Callout type="error" title="app/invalid-base-path">
 
@@ -157,12 +191,12 @@ Every build message names the file, and most name the line and column.
 
 | What the build expected                                    | Fix                                                                        |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| an `inputs` schema, or an `events` map                     | Add both. Use `z.object({})` and `{}` when the Widget takes or emits none. |
+| an `inputSchema` schema, or an `outputSchema` schema       | Add both. Use `z.object({})` when the Widget takes or emits none.          |
 | a schema the build can read without running the module     | Declare the schema as an exported top-level const in this container.       |
 | a schema that does not reach back into the container entry | Move the schema into its own module.                                       |
 | a schema built from imports and top-level declarations     | Declare it at the top level, or move the whole schema into its own module. |
-| a lower-camel-case event name                              | Rename the event.                                                          |
-| event names that map to distinct handler props             | Rename one of them.                                                        |
+| a lower-camel-case output name                             | Rename the output.                                                         |
+| output names that map to distinct handler props            | Rename one of them.                                                        |
 | an input name that is not reserved                         | Rename the input. `key`, `ref`, `fallback` and `onX` belong to the host.   |
 
 ## Build diagnostics: capability routes

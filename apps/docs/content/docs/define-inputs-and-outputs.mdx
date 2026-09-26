@@ -1,0 +1,159 @@
+---
+title: 'Define inputs and outputs'
+description: 'Declare what a Widget takes and what it emits, and publish that contract for consumers.'
+---
+
+A Widget's contract is two Zod object schemas: `inputSchema` is what it takes, `outputSchema` is
+what it emits. They are the same field names a tool or an action declares. `outputSchema` has one
+property per output, and each property's value is that output's payload schema. The schemas give
+you the types inside `render` and the validation at the boundary, so the two cannot drift apart.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Declare the two schemas
+
+```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
+export const alertPanelContract = {
+  inputSchema: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+  }),
+  outputSchema: z.object({
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+    dismissed: z.object({ alertId: z.string() }),
+  }),
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  ...alertPanelContract,
+  render: AlertPanel,
+})
+```
+
+Declare both, even when one is empty: a Widget that takes nothing writes `inputSchema: z.object({})`,
+and one that emits nothing writes `outputSchema: z.object({})`.
+
+</Step>
+
+<Step>
+
+### 2. Follow the naming rules
+
+| Part        | Rule                                                                              |
+| ----------- | --------------------------------------------------------------------------------- |
+| input name  | Lower camel case. `key`, `ref`, `fallback` and any `onX` name belong to the host. |
+| output name | Lower camel case. Your consumer subscribes to it as `onAcknowledged`.             |
+| payload     | JSON only. No functions, class instances, `Date` objects or DOM nodes.            |
+| default     | `.default(…)` on the schema, applied before your `render` runs.                   |
+
+</Step>
+
+<Step>
+
+### 3. Publish the contract for consumers
+
+```json title="examples/alert-panel/package.json"
+"exports": {
+  "./contracts": "./.mfe/widgets/alert-panel.contract.ts"
+}
+```
+
+The build writes one contract module per Widget, and one pattern covers a container that has
+several: `"./contracts/*": "./.mfe/widgets/*.contract.ts"`.
+
+</Step>
+
+<Step>
+
+### 4. Import it in the consumer
+
+```ts title="examples/operations/src/widgets.ts"
+import { lazyWidget } from '@company/mfe-react'
+
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
+```
+
+Declare each schema inline in `src/mfe.ts`, or as an exported top-level `const` in another module
+of the same container.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm run generate` in your container. It writes `.mfe/widgets/<id>.contract.ts`, which
+exports `widgetId`, `inputSchema`, `outputSchema` and the types `Inputs` and `Outputs`;
+`Outputs['acknowledged']` is that output's payload type. Inside `render`, your
+`inputs` prop is already parsed: omit `severity` and it reads `'info'`. The build also copies the
+declaration the consumer imports, which is why it has to be one the build can read without running
+your module.
+
+<Callout type="warning" title="The catalogue says “payload not published”">
+
+The build could not read that output's schema from your source. Write the payload as a plain Zod
+call, such as `z.object({ alertId: z.string() })`, with no `.refine(…)`. The registry then carries
+the payload's schema, and the shell's catalogue shows its fields.
+
+</Callout>
+
+## Errors
+
+<Callout type="error" title="contract/output-mismatch">
+
+```text
+alert-panel failed to declare output 'alert-acknowledged': expected a lower-camel-case output name,
+for example "acknowledged", received "alert-acknowledged".
+```
+
+**Fix.** Rename it to `alertAcknowledged`. The name has to survive the mapping to an `onX` prop.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch">
+
+```text
+alert-panel failed to declare input 'onSelect': expected an input name that is not reserved for
+host control or output handlers, received 'onSelect', which is reserved.
+```
+
+**Fix.** Rename the input. Declare an output instead when you want the consumer to hear about
+something.
+
+</Callout>
+
+<Callout type="error" title="contract/input-mismatch, at build time">
+
+```text
+/home/you/orders/src/mfe.ts:12:3: 'order-row' failed to read the Widget contract field
+'inputSchema': expected an `inputSchema` schema, found a Widget declared without one.
+```
+
+**Fix.** Add the schema. Use `z.object({})` when the Widget takes nothing.
+
+</Callout>
+
+<Callout type="error" title="contract/output-mismatch, at run time">
+
+```text
+alert-panel@1.4.0 failed to emit output 'acknowledged' acknowledgedAt: expected a JSON-serializable
+value, received a Date.
+```
+
+**Fix.** Send `new Date().toISOString()` and declare the field as `z.string()`.
+
+</Callout>
+
+## Related
+
+- [Create a Widget](/docs/create-a-widget) — the declaration these schemas go in.
+- [React to a Widget's outputs](/docs/react-to-widget-outputs) — what the consumer writes.
+- [Naming and contract rules](/docs/reference/naming-and-contract-rules) — every rule in one place.
+- [Error codes](/docs/reference/error-codes) — paste a message in and find it.

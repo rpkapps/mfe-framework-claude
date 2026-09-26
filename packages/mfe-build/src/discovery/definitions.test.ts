@@ -24,8 +24,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string(), compact: z.boolean() }),
-  events: { acknowledged: z.object({ at: z.string() }) },
+  inputSchema: z.object({ orderId: z.string(), compact: z.boolean() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
   render: () => null,
 })
 `
@@ -40,7 +40,7 @@ describe('discoverDefinitions', () => {
     expect(result.widgets).toHaveLength(0)
   })
 
-  it('reads a Widget with its inputs and events', () => {
+  it('reads a Widget with its inputs and outputs', () => {
     const root = createContainer({ 'src/mfe.ts': WIDGET })
     const result = discoverDefinitions(entryOf(root), SYNTAX)
 
@@ -48,8 +48,8 @@ describe('discoverDefinitions', () => {
     expect(result.widgets).toHaveLength(1)
     expect(result.widgets[0]?.id).toBe('order-row')
     expect(result.widgets[0]?.inputNames).toEqual(['orderId', 'compact'])
-    expect(result.widgets[0]?.eventNames).toEqual(['acknowledged'])
-    expect(result.widgets[0]?.contractSource?.inputs.kind).toBe('inline')
+    expect(result.widgets[0]?.outputNames).toEqual(['acknowledged'])
+    expect(result.widgets[0]?.contractSource?.inputSchema.kind).toBe('inline')
   })
 
   it('reads several named Widgets', () => {
@@ -60,15 +60,15 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: {},
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 
 export const orderTotal = createWidget({
   id: 'order-total',
-  inputs: z.object({ total: z.number() }),
-  events: { changed: z.object({ total: z.number() }) },
+  inputSchema: z.object({ total: z.number() }),
+  outputSchema: z.object({ changed: z.object({ total: z.number() }) }),
   render: () => null,
 })
 `,
@@ -92,6 +92,60 @@ export const orderTotal = createWidget({
 
     expect(result.app?.id).toBe('operations')
     expect(result.widgets.map(widget => widget.id)).toEqual(['order-row'])
+  })
+
+  it('reads shorthand schemas imported from their own module', () => {
+    const root = createContainer({
+      'src/contracts/row.ts': `
+import { z } from 'zod'
+
+export const inputSchema = z.object({ orderId: z.string() })
+export const outputSchema = z.object({ acknowledged: z.object({}) })
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+
+import { inputSchema, outputSchema } from './contracts/row.ts'
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, outputSchema, render: () => null })
+`,
+    })
+    const [widget] = discoverDefinitions(entryOf(root), SYNTAX).widgets
+
+    expect(widget?.inputNames).toEqual(['orderId'])
+    expect(widget?.outputNames).toEqual(['acknowledged'])
+    expect(widget?.contractSource?.inputSchema).toMatchObject({
+      kind: 'reexport',
+      exported: 'inputSchema',
+    })
+    expect(widget?.contractSource?.outputSchema.kind).toBe('reexport')
+  })
+
+  it('reads shorthand schemas declared as top-level consts, directly or through a spread', () => {
+    const root = createContainer({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+const inputSchema = z.object({ orderId: z.string() })
+const outputSchema = z.object({ acknowledged: z.object({}) })
+const contract = { outputSchema }
+
+export const orderRow = createWidget({ id: 'order-row', inputSchema, ...contract, render: () => null })
+`,
+    })
+    const [widget] = discoverDefinitions(entryOf(root), SYNTAX).widgets
+
+    expect(widget?.inputNames).toEqual(['orderId'])
+    expect(widget?.outputNames).toEqual(['acknowledged'])
+    expect(widget?.contractSource?.inputSchema).toEqual({
+      kind: 'inline',
+      expression: 'inputSchema',
+    })
+    expect(widget?.contractSource?.outputSchema).toEqual({
+      kind: 'inline',
+      expression: 'outputSchema',
+    })
   })
 
   it('accepts a default export when it is the only definition', () => {
@@ -119,8 +173,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: () => null,
 })
 
@@ -137,8 +191,8 @@ export default createApp({ id: 'operations', routes })
 import { createWidget } from '@acme/mfe-adapter'
 import { z } from 'zod'
 
-export const first = createWidget({ id: 'row', inputs: z.object({}), events: {}, render: () => null })
-export const second = createWidget({ id: 'row', inputs: z.object({}), events: {}, render: () => null })
+export const first = createWidget({ id: 'row', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
+export const second = createWidget({ id: 'row', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
 `,
     })
 
@@ -202,8 +256,8 @@ import { z } from 'zod'
 
 export const row = createWidget({
   id: 'row',
-  inputs: z.object({ key: z.string() }),
-  events: {},
+  inputSchema: z.object({ key: z.string() }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,
@@ -212,7 +266,7 @@ export const row = createWidget({
     expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(/reserved/)
   })
 
-  it('rejects a Widget input that looks like an event handler', () => {
+  it('rejects a Widget input that looks like an output handler', () => {
     const root = createContainer({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -220,17 +274,17 @@ import { z } from 'zod'
 
 export const row = createWidget({
   id: 'row',
-  inputs: z.object({ onSelect: z.string() }),
-  events: {},
+  inputSchema: z.object({ onSelect: z.string() }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,
     })
 
-    expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(/event handler/)
+    expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(/output handler/)
   })
 
-  it('rejects an event name that is not lower camel case', () => {
+  it('rejects an output name that is not lower camel case', () => {
     const root = createContainer({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -238,8 +292,8 @@ import { z } from 'zod'
 
 export const row = createWidget({
   id: 'row',
-  inputs: z.object({}),
-  events: { 'order_placed': z.object({}) },
+  inputSchema: z.object({}),
+  outputSchema: z.object({ 'order_placed': z.object({}) }),
   render: () => null,
 })
 `,
@@ -248,7 +302,7 @@ export const row = createWidget({
     expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(/lower-camel-case/)
   })
 
-  it('rejects two events that map to one handler prop', () => {
+  it('rejects two outputs that map to one handler prop', () => {
     const root = createContainer({
       'src/mfe.ts': `
 import { createWidget } from '@acme/mfe-adapter'
@@ -256,8 +310,8 @@ import { z } from 'zod'
 
 export const row = createWidget({
   id: 'row',
-  inputs: z.object({}),
-  events: { selected: z.object({}), 'selected': z.object({ again: z.boolean() }) },
+  inputSchema: z.object({}),
+  outputSchema: z.object({ selected: z.object({}), 'selected': z.object({ again: z.boolean() }) }),
   render: () => null,
 })
 `,
@@ -272,8 +326,8 @@ export const row = createWidget({
 import { createWidget } from '@acme/mfe-adapter'
 import { z } from 'zod'
 
-const row = createWidget({ id: 'row', inputs: z.object({}), events: {}, render: () => null })
-export const other = createWidget({ id: 'other', inputs: z.object({}), events: {}, render: () => null })
+const row = createWidget({ id: 'row', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
+export const other = createWidget({ id: 'other', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
 `,
     })
 
@@ -286,7 +340,7 @@ export const other = createWidget({ id: 'other', inputs: z.object({}), events: {
 import { createWidget as make } from '@acme/mfe-adapter'
 import { z } from 'zod'
 
-export const row = make({ id: 'row', inputs: z.object({}), events: {}, render: () => null })
+export const row = make({ id: 'row', inputSchema: z.object({}), outputSchema: z.object({}), render: () => null })
 `,
     })
 
@@ -349,8 +403,8 @@ import { z } from 'zod'
 
 export const hidden = createWidget({
   id: 'hidden',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `

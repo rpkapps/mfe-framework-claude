@@ -1,0 +1,266 @@
+---
+title: 'Add an action to the palette'
+description: 'Register an action with useAction, and the shell lists it in the command palette for as long as your component is on the page.'
+---
+
+Apps and Widgets. Call `useAction` and your action appears in the shell's command palette. You
+decide what it does and whether it may run right now. The shell's agent can call it too:
+[Offer an action to the agent](/docs/offer-an-action-to-the-agent) says what to declare for it.
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### 1. Register the action
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+import { useAction } from '@company/mfe-react'
+
+export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
+  const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
+
+  useAction({
+    name: 'acknowledge-alert',
+    label: `Acknowledge alert ${inputs.alertId}`,
+    execute: () => {
+      setState('acknowledged')
+      emit('acknowledged', { alertId: inputs.alertId, acknowledgedAt: new Date().toISOString() })
+    },
+  })
+
+  return <Alert>{/* … */}</Alert>
+}
+```
+
+`name` is letters, digits and hyphens, starting with a letter. The action lives as long as the
+component renders, so leaving the page takes it out of the palette.
+
+</Step>
+
+<Step>
+
+### 2. Say when it may run
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+import { allow, deny, useAction } from '@company/mfe-react'
+
+useAction({
+  name: 'acknowledge-alert',
+  label: `Acknowledge alert ${inputs.alertId}`,
+  canExecute: () =>
+    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
+  execute: () => {
+    setState('acknowledged')
+  },
+})
+```
+
+A denied action stays in the list, greyed out, with your reason beside it. Keep `canExecute` a
+plain read of state you already have, and do the work in `execute`. It decides for every caller,
+but it is not a permission check. Your API still authorizes the request.
+
+</Step>
+
+<Step>
+
+### 3. Run it from your own button
+
+```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+const acknowledge = useAction({
+  name: 'acknowledge-alert',
+  label: `Acknowledge alert ${inputs.alertId}`,
+  canExecute: () =>
+    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
+  execute: () => {
+    setState('acknowledged')
+  },
+})
+
+return <Button onPress={() => void acknowledge()}>Acknowledge</Button>
+```
+
+`useAction` returns a function that runs the action through the palette's checks. It runs this
+component's action, even when the Widget is mounted twice. It never rejects, and resolves to one
+result:
+
+| `status`      | What happened                                                                         |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `executed`    | `execute` ran. `value` holds what it returned.                                        |
+| `denied`      | `canExecute` refused, with its `reason`. The shell also shows the user your reason.   |
+| `declined`    | The user was asked about an agent's call and said no.                                 |
+| `invalid`     | The input did not match `inputSchema`, so nothing ran.                                |
+| `unavailable` | The component that registered the action is gone, or unmounted while the run went on. |
+| `failed`      | `execute` threw, or its value did not match `outputSchema`. `error` says which.       |
+
+In an Angular component, `injectAction` returns the same function. See the
+[Angular adapter](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount).
+
+</Step>
+
+<Step>
+
+### 4. Register App-wide actions from your layout
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+useAction({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  effect: 'read',
+  canExecute: () => allow(),
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+An action registered by a layout route lasts as long as the App is mounted. An action registered
+by a page lasts as long as that page.
+
+</Step>
+
+<Step>
+
+### 5. Give it a shortcut
+
+```tsx title="examples/operations/src/routes/__root.tsx"
+useAction({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  effect: 'read',
+  shortcut: 'o w',
+  canExecute: () => allow(),
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+A chord joins modifiers and one key with `+`: `mod+s`, `alt+enter`. A sequence is chords
+separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
+Spell a named key out: `escape`, `enter`, `space`, `plus`, `arrowup`, `f1`.
+
+The shell runs the action when the keys are pressed, the same way the palette runs it, so
+`canExecute` still decides. The palette shows the keys beside the action, and the help sheet
+lists them.
+
+- **When it fires.** An App's shortcut works while the page is inside that App. A Widget's is
+  ignored, because a Widget does not own the page's keys.
+- **Typing.** A key without <Kbd>Ctrl</Kbd>, <Kbd>⌘</Kbd> or <Kbd>Alt</Kbd> typed into a field
+  stays in the field.
+- **Keys you cannot have.** The shell's own keys are reserved: <Kbd>mod+k</Kbd>, <Kbd>?</Kbd>,
+  <Kbd>mod+j</Kbd> and every sequence starting with <Kbd>g</Kbd>. Pick keys that neither equal nor
+  begin nor extend one of those.
+
+</Step>
+
+</Steps>
+
+## Check it works
+
+Run `pnpm dev` and open the shell at `http://localhost:3000`. Add the Alert panel to the dashboard
+from the palette, under "Add to the dashboard". Open the palette again with <Kbd>⌘</Kbd> <Kbd>K</Kbd>
+or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>, and look under "From the mounted application". The right-hand
+column names the App or Widget that owns the action, and a denied one shows your reason there
+instead. The panel's Acknowledge button runs the same action, so pressing it greys the action out
+in the palette.
+
+## Errors
+
+<Callout type="error" title="expected a name of letters, digits and hyphens">
+
+```text
+alert-panel failed to register action: expected a name of letters, digits and hyphens starting
+with a letter (for example "refresh"), received "acknowledge alert".
+```
+
+**Fix.** Rename the action to `acknowledge-alert`. Spaces, dots and colons are not allowed.
+
+</Callout>
+
+<Callout type="error" title="expected one registration per action name within a mount">
+
+```text
+alert-panel failed to register action 'refresh': expected one registration per action name
+within a mount, received a second registration of 'refresh' in the same mount.
+```
+
+**Fix.** Rename one of the two. Neither is dropped in favour of the other, so the second one
+throws instead.
+
+</Callout>
+
+<Callout type="error" title="expected a non-empty label">
+
+```text
+alert-panel failed to register action 'refresh': expected a non-empty label, received an empty
+string.
+```
+
+**Fix.** Give the action the words you want in the palette. It is the only text the reader sees.
+
+</Callout>
+
+<Callout type="error" title="expected a shortcut such as 'mod+s'">
+
+```text
+operations failed to register action 'open-wells': expected a shortcut such as "mod+s" —
+modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated
+by spaces, such as "g r", received "mod+shift": "mod+shift" is only modifiers, with no key to
+press.
+```
+
+**Fix.** Add the key the modifiers are held with, such as `mod+shift+w`. The message names what it
+could not read.
+
+</Callout>
+
+<Callout type="error" title="expected keys the host page does not use">
+
+```text
+operations failed to register the shortcut 'g w' for action 'open-wells': expected keys the host
+page does not use, received the host page’s '@host:dashboard' (g w) uses them.
+```
+
+**Fix.** Choose other keys. The action stays in the palette; only the shortcut is ignored.
+
+</Callout>
+
+<Callout type="error" title="expected keys no other live action can be pressed for at the same time">
+
+```text
+operations failed to register the shortcut 'mod+e' for action 'export': expected keys no other
+live action can be pressed for at the same time, received 'operations:print' (mod+e) already
+claims them.
+```
+
+**Fix.** Give one of the two different keys. Neither runs while both are registered. Two Apps at
+different URLs may use the same keys, because only one of them is live at a time.
+
+</Callout>
+
+<Callout type="error" title="expected a shortcut from an App or the host page">
+
+```text
+alert-panel failed to register the shortcut 'mod+e' for action 'acknowledge-alert': expected a
+shortcut from an App or the host page, received a shortcut from a Widget, which does not own the
+page’s keys.
+```
+
+**Fix.** Drop the shortcut. If the keys matter, emit an output and let the App that places the
+Widget register the shortcut.
+
+</Callout>
+
+## Related
+
+- [Create a Widget](/docs/create-a-widget) — the container this example lives in.
+- [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — a Widget must
+  not move the page itself.
+- [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — what the agent needs from
+  it.
+- [Hooks and components](/docs/reference/hooks-and-components) — every `useAction` field and result.
+- [Run the shell with your container](/docs/run-the-shell-locally) — how to get the palette on
+  screen.
+- [Error codes](/docs/reference/error-codes) — every message, with its fix.

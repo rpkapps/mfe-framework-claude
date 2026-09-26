@@ -26,11 +26,11 @@ import { injectWidgetEmit } from '../inject/widget-emit.ts'
 import { createMfeTestEnvironment, mountWidget } from '../testing/index.ts'
 
 const alertContract = {
-  inputs: z.object({
+  inputSchema: z.object({
     alertId: z.string(),
     severity: z.enum(['info', 'critical']).optional(),
   }),
-  events: { acknowledged: z.object({ alertId: z.string() }) },
+  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
 }
 
 let destroyedAlerts = 0
@@ -110,13 +110,13 @@ describe('mounting a Widget', () => {
     let validations = 0
     const counted = createWidget({
       id: 'counted',
-      inputs: z.object({
+      inputSchema: z.object({
         alertId: z.string().refine(() => {
           validations += 1
           return true
         }),
       }),
-      events: alertContract.events,
+      outputSchema: alertContract.outputSchema,
       component: AlertComponent,
     })
     const widget = await mountWidget(counted, { inputs: { alertId: 'a-1' } })
@@ -132,7 +132,7 @@ describe('mounting a Widget', () => {
 
     button(widget.element).click()
 
-    expect(widget.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'a-1' } }])
+    expect(widget.outputs).toEqual([{ name: 'acknowledged', payload: { alertId: 'a-1' } }])
   })
 
   it('reports an output payload its contract rejects instead of delivering it', async () => {
@@ -153,12 +153,12 @@ describe('mounting a Widget', () => {
     const widget = await mountWidget(broken, { inputs: { alertId: 'a-1' } })
     await widget.whenStable()
 
-    expect(widget.events).toEqual([])
+    expect(widget.outputs).toEqual([])
     expect(widget.environment.diagnostics.map(({ error }) => error.code)).toEqual([
-      'contract/event-mismatch',
+      'contract/output-mismatch',
     ])
     expect(widget.environment.diagnostics[0]?.error.message).toContain(
-      "broken failed to emit event 'acknowledged' alertId: 7",
+      "broken failed to emit output 'acknowledged' alertId: 7",
     )
   })
 
@@ -194,14 +194,14 @@ describe('mounting a Widget', () => {
 
       emitFromChild?.('acknowledged', { alertId: 'nested' })
 
-      expect(widget.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'nested' } }])
+      expect(widget.outputs).toEqual([{ name: 'acknowledged', payload: { alertId: 'nested' } }])
     })
 
     it('throws at the call site for an event the Widget does not declare', async () => {
       await mountWidget(emitting, { inputs: { alertId: 'a-1' } })
 
       expect(() => emitFromChild?.('dismissed', {})).toThrowError(
-        /emitting failed to emit event 'dismissed': expected one of the declared events \(acknowledged\)/,
+        /emitting failed to emit output 'dismissed': expected one of the declared outputs \(acknowledged\)/,
       )
     })
 
@@ -211,7 +211,7 @@ describe('mounting a Widget', () => {
       expect(() => emitFromChild?.('acknowledged', { alertId: () => 'x' })).toThrowError(
         /expected a JSON-serializable value, received a function/,
       )
-      expect(widget.events).toEqual([])
+      expect(widget.outputs).toEqual([])
     })
   })
 
@@ -249,8 +249,8 @@ describe('mounting a Widget', () => {
     }
     const probe = createWidget({
       id: 'probe',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       component: ProbeComponent,
     })
 
@@ -269,8 +269,8 @@ describe('mounting a Widget', () => {
     await first.dispose()
 
     expect(second.element.querySelector('p')?.textContent).toBe('second:info')
-    expect(first.events).toEqual([])
-    expect(second.events).toEqual([{ name: 'acknowledged', payload: { alertId: 'second' } }])
+    expect(first.outputs).toEqual([])
+    expect(second.outputs).toEqual([{ name: 'acknowledged', payload: { alertId: 'second' } }])
     environment.dispose()
   })
 
@@ -296,8 +296,8 @@ describe('mounting a Widget', () => {
     }
     const scoped = createWidget({
       id: 'scoped',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       component: ScopedComponent,
       // What a container's theming providers do, with no help from the root component.
       providers: [
@@ -317,28 +317,28 @@ describe('mounting a Widget', () => {
     it('names an input the schema declares and the component does not, and the repair', async () => {
       const missingInput = createWidget({
         id: 'missing-input',
-        inputs: alertContract.inputs.extend({ title: z.string() }),
-        events: alertContract.events,
+        inputSchema: alertContract.inputSchema.extend({ title: z.string() }),
+        outputSchema: alertContract.outputSchema,
         component: AlertComponent,
       })
 
       await expect(
         mountWidget(missingInput, { inputs: { alertId: 'a-1', title: 'x' } }),
       ).rejects.toThrowError(
-        /expected an input named "title" on AlertComponent, because the inputs schema declares it, received inputs alertId, severity\. Declare it on the component: `title = input\.required<…>\(\)`/,
+        /expected an input named "title" on AlertComponent, because the inputSchema declares it, received inputs alertId, severity\. Declare it on the component: `title = input\.required<…>\(\)`/,
       )
     })
 
     it('names an event the component has no output for, and the repair', async () => {
       const missingOutput = createWidget({
         id: 'missing-output',
-        inputs: alertContract.inputs,
-        events: { ...alertContract.events, dismissed: z.object({}) },
+        inputSchema: alertContract.inputSchema,
+        outputSchema: alertContract.outputSchema.extend({ dismissed: z.object({}) }),
         component: AlertComponent,
       })
 
       await expect(mountWidget(missingOutput, { inputs: { alertId: 'a-1' } })).rejects.toThrowError(
-        /expected an output named "dismissed" on AlertComponent, because the events schema declares it, received outputs acknowledged\. Declare it on the component: `dismissed = output<…>\(\)`/,
+        /expected an output named "dismissed" on AlertComponent, because the outputSchema declares it, received outputs acknowledged\. Declare it on the component: `dismissed = output<…>\(\)`/,
       )
     })
 
@@ -349,8 +349,8 @@ describe('mounting a Widget', () => {
       }
       const keyed = createWidget({
         id: 'keyed',
-        inputs: z.object({ key: z.string() }),
-        events: {},
+        inputSchema: z.object({ key: z.string() }),
+        outputSchema: z.object({}),
         component: KeyedComponent,
       })
 
@@ -371,14 +371,14 @@ describe('mounting a Widget', () => {
     const picker = createWidget({
       id: 'picker',
       version: '2.0.0',
-      inputs: z.object({ alertId: z.string(), onPick: z.string().optional() }),
-      events: {},
+      inputSchema: z.object({ alertId: z.string(), onPick: z.string().optional() }),
+      outputSchema: z.object({}),
       component: PickerComponent,
     })
 
     /** What the React adapter throws for the same contract, word for word. */
     const RESERVED_MESSAGE =
-      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or event handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
 
     function place(inputs: Readonly<Record<string, unknown>>) {
       const environment = createMfeTestEnvironment({ definitions: [picker] })
@@ -391,7 +391,7 @@ describe('mounting a Widget', () => {
         definitionId: picker.id,
         kind: 'widget',
         inputs,
-        onEvent: () => undefined,
+        onOutput: () => undefined,
         onInputRejected: error => {
           rejectedInputs.push(error)
         },
@@ -458,8 +458,8 @@ describe('mounting a Widget', () => {
       }
       const throwing = createWidget({
         id: 'throwing',
-        inputs: z.object({}),
-        events: {},
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
         component: ThrowingComponent,
       })
 
@@ -495,8 +495,8 @@ describe('mounting a Widget', () => {
       }
       const faulty = createWidget({
         id: 'faulty',
-        inputs: z.object({}),
-        events: {},
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
         component: FaultyComponent,
       })
       const widget = await mountWidget(faulty)
@@ -522,8 +522,8 @@ describe('mounting a Widget', () => {
       }
       const fragile = createWidget({
         id: 'fragile',
-        inputs: z.object({}),
-        events: {},
+        inputSchema: z.object({}),
+        outputSchema: z.object({}),
         component: FragileComponent,
       })
       const environment = createMfeTestEnvironment()

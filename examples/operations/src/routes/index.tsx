@@ -1,5 +1,13 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { allow, deny, useCommand, useStoredState, useTheme, useUser } from '@company/mfe-react'
+import {
+  allow,
+  deny,
+  useAction,
+  useAgentSuggestions,
+  useStoredState,
+  useTheme,
+  useUser,
+} from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Separator } from '@tecton/react/components/separator'
@@ -43,9 +51,9 @@ function Overview(): ReactNode {
     retention: 'browser',
   })
 
-  // Registration is a hook, so this command is in the shell's palette while this route is on screen
+  // Registration is a hook, so this action is in the shell's palette while this route is on screen
   // and gone with it.
-  useCommand({
+  useAction({
     name: 'toggle-density',
     label: `Switch to ${density === 'compact' ? 'comfortable' : 'compact'} density`,
     canExecute: () => (user ? allow() : deny('Sign in to change display preferences.')),
@@ -53,6 +61,12 @@ function Overview(): ReactNode {
       setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
     },
   })
+
+  // Offered by the chat while this page is on screen, before the first message and after each answer.
+  useAgentSuggestions([
+    { message: 'Summarise the alternatives on this page' },
+    { message: 'Open the wells inventory' },
+  ])
 
   return (
     <div className={`flex flex-col gap-6 px-4 md:px-6 ${density === 'compact' ? 'py-4' : 'py-6'}`}>
@@ -133,7 +147,7 @@ function Overview(): ReactNode {
         <PanelContent className="flex flex-col gap-3">
           <p className="text-xs text-muted-foreground">
             The panel below is a Widget served by a different deployment. It is consumed here as an
-            ordinary component: its inputs are props and its events are <code>onX</code> props.
+            ordinary component: its inputs are props and its outputs are <code>onX</code> props.
           </p>
 
           <AlertPanel
@@ -150,8 +164,8 @@ function Overview(): ReactNode {
                 <Skeleton className="h-8 w-40 self-end" />
               </div>
             }
-            onAcknowledged={event => {
-              setAcknowledged(event.acknowledgedAt)
+            onAcknowledged={payload => {
+              setAcknowledged(payload.acknowledgedAt)
             }}
             fallback={({ error, retry }) => (
               <div role="alert" className="rounded-md border border-destructive/40 p-4">

@@ -3,7 +3,7 @@
  * for its share scope instead of resolving a second one (§27).
  */
 
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig, rspack } from '@rsbuild/core'
@@ -70,6 +70,13 @@ export default defineConfig({
     // Deep links below a boundary belong to the mounted App, so every unknown path returns the shell document.
     historyApiFallback: true,
     publicDir: { name: 'public' },
+  },
+
+  resolve: {
+    alias: {
+      // Only the protobuf transport needs it, and the chat never asks for that transport.
+      '@ag-ui/proto$': resolve(here, 'build/ag-ui-proto.ts'),
+    },
   },
 
   tools: {

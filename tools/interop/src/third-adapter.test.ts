@@ -13,7 +13,12 @@
  */
 
 import { angularAdapter } from '@company/mfe-angular/registry'
-import { DynamicWidget, lazyWidget } from '@company/mfe-react'
+import {
+  DynamicWidget,
+  lazyWidget,
+  outputPayloadSchema,
+  type OutputSchema,
+} from '@company/mfe-react'
 import {
   createFederatedAdapter,
   createFederationContainerLoader,
@@ -113,25 +118,28 @@ interface PlainDomWidgetView<I> {
 function createPlainDomWidget<I>(options: {
   readonly id: string
   readonly version: string
-  readonly inputs: z.ZodType<I>
-  readonly events: Record<string, z.ZodType>
+  readonly inputSchema: z.ZodType<I>
+  readonly outputSchema: OutputSchema
   readonly mount: (
     element: HTMLElement,
     inputs: I,
     emit: WidgetMountTarget['emit'],
   ) => PlainDomWidgetView<I>
 }): MountableWidgetDefinition {
-  const contract = { inputs: options.inputs, events: options.events }
+  const contract = { inputSchema: options.inputSchema, outputSchema: options.outputSchema }
 
   const mount = (target: WidgetMountTarget): MountedWidget => {
-    const emit: WidgetMountTarget['emit'] = (event, payload) => {
-      target.emit(event, contract.events[event]?.parse(payload) ?? payload)
+    const emit: WidgetMountTarget['emit'] = (output, payload) => {
+      target.emit(
+        output,
+        outputPayloadSchema(contract.outputSchema, output)?.parse(payload) ?? payload,
+      )
     }
-    const view = options.mount(target.element, options.inputs.parse(target.inputs), emit)
+    const view = options.mount(target.element, options.inputSchema.parse(target.inputs), emit)
 
     return {
       update: inputs => {
-        view.update(options.inputs.parse(inputs))
+        view.update(options.inputSchema.parse(inputs))
       },
       dispose: () => {
         view.dispose()
@@ -214,7 +222,7 @@ const tally = createPlainDomWidget({
 
 /**
  * A plain-DOM App: a heading that follows the runtime's navigator, and a React Widget it places
- * with `mountDefinition` as its child, handing the Widget's own count back down on every event.
+ * with `mountDefinition` as its child, handing the Widget's own count back down on every output.
  */
 const notes = createPlainDomApp({
   id: 'notes',
@@ -242,9 +250,9 @@ const notes = createPlainDomApp({
       kind: 'widget',
       parent: context,
       inputs: { label: 'Nested', count: 1 },
-      onEvent: (event, payload) => {
-        const { count } = counterContract.events.bumped.parse(payload)
-        lastEvent.textContent = `${event} to ${String(count)}`
+      onOutput: (name, payload) => {
+        const { count } = counterContract.outputSchema.shape.bumped.parse(payload)
+        lastEvent.textContent = `${name} to ${String(count)}`
         nested.update({ label: 'Nested', count })
       },
     })
@@ -271,7 +279,7 @@ const registryEntries = [
     container: 'plain_tally',
     shareScopes: ['default', 'plain-dom@1.0.0'],
     version: '1.0.0',
-    contract: { events: bumpedOnly },
+    contract: { outputSchema: bumpedOnly },
   },
   {
     id: 'notes',
@@ -289,7 +297,7 @@ const registryEntries = [
     container: 'react_counter',
     shareScopes: ['default', 'react@19.3.0'],
     version: '2.0.0',
-    contract: { events: bumpedOnly },
+    contract: { outputSchema: bumpedOnly },
   },
 ]
 
@@ -366,7 +374,7 @@ describe('a third adapter, registered beside React and Angular', () => {
       adapter: PLAIN_DOM,
       definitionKind: 'widget',
       container: 'plain_tally',
-      contract: { events: bumpedOnly },
+      contract: { outputSchema: bumpedOnly },
     })
     expect(runtime.registry.entries.get('notes')).toMatchObject({
       adapter: PLAIN_DOM,
@@ -416,7 +424,7 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
     expect(seen.tallyMounts).toBe(1)
   })
 
-  it('delivers its events to the handler prop, and a changed input back into it', async () => {
+  it('delivers its outputs to the handler prop, and a changed input back into it', async () => {
     const { runtime } = createPage()
     const onBumped = vi.fn()
     const page = (count: number): ReactNode =>
@@ -451,7 +459,7 @@ describe.each(reactPlacements)('a plain-DOM Widget placed by React’s %s', (_pl
 })
 
 describe('a plain-DOM Widget placed by Angular’s <mfe-widget>', () => {
-  it('mounts, delivers its events to (event), takes changed inputs and is disposed', async () => {
+  it('mounts, delivers its outputs to (output), takes changed inputs and is disposed', async () => {
     const { runtime, federation } = createPage()
     const { ref, element } = await placeInAngularHost(runtime, 'tally', {
       label: 'Clicks',
@@ -465,7 +473,7 @@ describe('a plain-DOM Widget placed by Angular’s <mfe-widget>', () => {
     ])
 
     fireEvent.click(button)
-    expect(ref.instance.events).toEqual([{ name: 'bumped', payload: { count: 2 } }])
+    expect(ref.instance.outputs).toEqual([{ name: 'bumped', payload: { count: 2 } }])
 
     ref.instance.inputs.set({ label: 'Clicks', count: 2 })
     await within(element).findByRole('button', { name: 'Clicks: 2' })
@@ -505,7 +513,7 @@ describe.each(appHosts)('a plain-DOM App placed by %s', (_host, host) => {
     await within(container).findByRole('heading', { name: 'Notes at /yesterday (depth 1)' })
   })
 
-  it('hosts a React Widget through mountDefinition, one level deeper, with events both ways', async () => {
+  it('hosts a React Widget through mountDefinition, one level deeper, with outputs both ways', async () => {
     const { runtime, federation } = createPage(['/notes'])
     const { container } = await place(runtime)
 

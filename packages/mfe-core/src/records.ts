@@ -1,5 +1,9 @@
 /** Neutral records the host orchestrates without knowing which adapter produced them. */
 
+import type { z } from 'zod'
+
+import type { JsonSchemaObject, JsonSchemaValue } from './definition.ts'
+
 /** An array is a `typeof … === 'object'` too, and never what a record check means by one. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -25,8 +29,40 @@ export function withoutUndefined<T extends Record<string, unknown>>(value: T): C
   return result as Compacted<T>
 }
 
-/** Only `command-palette` is standardized. */
-export type CommandPlacement = 'command-palette'
+/**
+ * Where an action is offered. `'agent'` offers it to the shell's agent as a tool, alongside the
+ * palette: anything a user can reach from the palette, the agent can reach too, unless the action
+ * lists its placements.
+ */
+export type ActionPlacement = 'palette' | 'agent'
+
+/** What an absent `placements` means: every standardized placement. */
+export const DEFAULT_ACTION_PLACEMENTS: readonly ActionPlacement[] = Object.freeze([
+  'palette',
+  'agent',
+])
+
+/**
+ * What a run can change. `'read'` changes no data (it may change what is shown); `'write'`
+ * changes data the user could change back; `'destructive'` changes data they could not. An
+ * undeclared effect counts as `'write'`, so an agent's call to it is confirmed by the user.
+ */
+export type ActionEffect = 'read' | 'write' | 'destructive'
+
+export const ACTION_EFFECTS: readonly ActionEffect[] = Object.freeze([
+  'read',
+  'write',
+  'destructive',
+])
+
+/** One object schema of the named values a call takes, the same field a Widget's contract has. */
+export type ActionInputSchema = z.ZodObject<Readonly<Record<string, z.ZodType>>>
+
+/**
+ * A method's parameter rather than a function property's, so an action with a narrower input is
+ * still an `ActionRegistration`: the registry validates the input before this ever reads it.
+ */
+type ApprovalCheck<Input> = { check(input: Input): boolean }['check']
 
 export type Decision =
   { readonly allowed: true } | { readonly allowed: false; readonly reason: string }
@@ -41,29 +77,94 @@ export function deny(reason: string): Decision {
   return { allowed: false, reason }
 }
 
-export interface CommandRegistration {
+/**
+ * What `execute` is told about its run besides the input. `signal` aborts when the run is given
+ * up on: an agent's call passed its deadline, the registration went away with its mount or
+ * component, or the caller stopped waiting (the chat's Stop). The run has resolved by then and
+ * whatever `execute` still returns is dropped, so the work should stop rather than finish unseen:
+ * hand the signal to `fetch`, or check it between steps.
+ */
+export interface ActionExecutionContext {
+  readonly signal: AbortSignal
+}
+
+/**
+ * One operation every caller shares: the palette, a shortcut, the App's own UI and the agent. The
+ * fields that hold a schema end in `Schema`; they are the names a tool definition uses, so an
+ * action maps onto one field for field.
+ */
+export interface ActionRegistration<
+  Input extends ActionInputSchema = ActionInputSchema,
+  Output = unknown,
+> {
   readonly name: string
+  /** The menu text. */
   readonly label: string
-  readonly execute: () => void | Promise<void>
+  /** Written for the agent: what the action does and when to use it. */
+  readonly description?: string
+  /**
+   * The values a call takes, validated before `execute` runs; a call that does not match is
+   * refused without running. Absent means the action takes none. Declare it at module scope: the
+   * registry converts it to JSON Schema whenever its identity changes.
+   */
+  readonly inputSchema?: Input
+  /** The value a call returns, checked after `execute`; the result carries what it parsed. */
+  readonly outputSchema?: z.ZodType<Output>
+  /** Undeclared counts as `'write'`. */
+  readonly effect?: ActionEffect
+  /**
+   * Whether an agent's call waits for the user's approval. Absent, a `'read'` action runs and any
+   * other asks; `false` never asks, and a check asks for the calls it returns `true` for (an amount
+   * above a threshold, an external recipient). A user who runs the action is its approval.
+   */
+  readonly needsApproval?: boolean | ApprovalCheck<z.output<Input>>
+  /** An agent's writes run one at a time, unless this is set. Reads never wait. */
+  readonly parallelSafe?: boolean
+  /**
+   * How long an agent's call may run, in milliseconds, from the moment `execute` starts: then it
+   * fails with `action/timeout`, its signal aborts, and the next write in the queue runs. Defaults
+   * to 30 seconds. Only an agent's calls have one: a user sees their own run, and the host's code
+   * can pass a signal of its own.
+   */
+  readonly timeoutMs?: number
+  /** Whether the agent carries on once it has the result. Defaults to `true`. */
+  readonly followUp?: boolean
+  /**
+   * Receives the validated input, and a signal that aborts when the run is given up on. What it
+   * returns, once awaited, is the `value` of the run's result.
+   */
+  execute(input: z.output<Input>, context: ActionExecutionContext): Output | Promise<Output>
   /** A pure synchronous read of reactive state; never an authorization boundary. */
   readonly canExecute?: () => Decision
-  readonly placements?: readonly CommandPlacement[]
+  /**
+   * The surfaces that list the action; `[]` lists it nowhere. Absent means every standardized
+   * placement. They say nothing about `shortcut`: an action's keys work whatever its placements.
+   */
+  readonly placements?: readonly ActionPlacement[]
   /**
    * A key chord such as `'mod+s'`, or a sequence of chords separated by spaces such as `'g r'`.
-   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The command runs through the same path the
-   * palette uses, so `canExecute` still decides. Only an App's commands and the host page's get
-   * one: a Widget's is ignored, as is one the host page already uses.
+   * `mod` is ⌘ on Apple platforms and Ctrl elsewhere. The action runs through the same path the
+   * palette uses, so `canExecute` still decides, and it runs whatever `placements` lists. Only an
+   * App's actions and the host page's get one: a Widget's is ignored, as is one the host page
+   * already uses.
    */
   readonly shortcut?: string
 }
 
 /** `id` is the runtime-qualified `<definitionId>:<name>`; authors provide only the local `name`. */
-export interface CommandEntry {
+export interface ActionEntry {
   readonly id: string
   readonly definitionId: string
   readonly name: string
   readonly label: string
-  readonly placements: readonly CommandPlacement[]
+  readonly description?: string
+  readonly placements: readonly ActionPlacement[]
+  readonly effect: ActionEffect
+  /** The registration's `inputSchema` as JSON Schema, which is what a tool list sends. */
+  readonly inputSchema?: JsonSchemaObject
+  /** The registration's `outputSchema` as JSON Schema. */
+  readonly outputSchema?: JsonSchemaObject
+  readonly followUp: boolean
   readonly decision: Decision
   /**
    * The registration's shortcut in its normalized spelling (`'mod+shift+k'`, `'g r'`), present
@@ -72,15 +173,92 @@ export interface CommandEntry {
   readonly shortcut?: string
 }
 
-/** Compares only what the palette displays, so closure identity changes are invisible. */
-export function commandEntryEqual(a: CommandEntry, b: CommandEntry): boolean {
+/**
+ * Compares everything an entry publishes, so closure identity changes are invisible and a changed
+ * description or schema still reaches the agent's tool list.
+ */
+export function actionEntryEqual(a: ActionEntry, b: ActionEntry): boolean {
   if (a === b) return true
   if (a.id !== b.id || a.label !== b.label || a.shortcut !== b.shortcut) return false
+  if (a.description !== b.description || a.effect !== b.effect || a.followUp !== b.followUp) {
+    return false
+  }
   if (a.decision.allowed !== b.decision.allowed) return false
   if (!a.decision.allowed && !b.decision.allowed && a.decision.reason !== b.decision.reason) {
     return false
   }
-  return arrayEqual(a.placements, b.placements)
+  return (
+    arrayEqual(a.placements, b.placements) &&
+    jsonEqual(a.inputSchema, b.inputSchema) &&
+    jsonEqual(a.outputSchema, b.outputSchema)
+  )
+}
+
+/** Deep equality over JSON values, which is all a published schema holds. */
+export function jsonEqual(a: JsonSchemaValue | undefined, b: JsonSchemaValue | undefined): boolean {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (isJsonArray(a) || isJsonArray(b)) {
+    if (!isJsonArray(a) || !isJsonArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => jsonEqual(item, b[index]))
+  }
+  const left: JsonSchemaObject = a
+  const right: JsonSchemaObject = b
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  return keys.every(key => Object.hasOwn(right, key) && jsonEqual(left[key], right[key]))
+}
+
+/**
+ * A small, typed snapshot of what a mount has selected or focused, sent with each of the agent's
+ * turns: stable ids and a short label, never whole records and never secrets. The agent reads the
+ * records themselves through the App's read actions, so it acts on live data.
+ */
+export interface AgentContextRegistration<Schema extends z.ZodType = z.ZodType> {
+  /** Tells the model what the value is, such as "The wells the user has selected". */
+  readonly description: string
+  /** Parses `value`; what it parsed is what the agent receives. */
+  readonly schema: Schema
+  readonly value: z.input<Schema>
+}
+
+/** One published snapshot. `definitionId` is the reserved host scope for the host page's own. */
+export interface AgentContextEntry {
+  readonly definitionId: string
+  readonly description: string
+  readonly value: JsonSchemaValue
+  /** When the value last changed, as an ISO timestamp, so the agent can tell a stale one. */
+  readonly capturedAt: string
+}
+
+/** A click that becomes a chat turn. */
+export interface AgentPrompt {
+  /** What the user sees in the chat. */
+  readonly message: string
+  /** Sent with the turn but not shown: ids and labels, as agent context holds. */
+  readonly context?: JsonSchemaValue
+  /** `false` fills the composer for the user to review and send. Defaults to `true`. */
+  readonly submit?: boolean
+}
+
+/**
+ * A prompt a mount offers the user as a way to start or carry on the conversation, shown by the
+ * chat as a chip while the mount lives. Pressed, it is handed to the chat as a prompt would be.
+ */
+export interface AgentSuggestion extends AgentPrompt {
+  /** What the chip says, when shorter than the message. */
+  readonly label?: string
+}
+
+/** One published suggestion: whose, and with `submit` settled. */
+export interface AgentSuggestionEntry extends AgentSuggestion {
+  readonly definitionId: string
+  readonly submit: boolean
+}
+
+/** `Array.isArray` narrows to `any[]`; a JSON value's array holds JSON values. */
+function isJsonArray(value: JsonSchemaValue): value is readonly JsonSchemaValue[] {
+  return Array.isArray(value)
 }
 
 /** The identifier field is `key`; `id` stays reserved for definition identity. */
@@ -144,7 +322,7 @@ export interface BoundaryLocation {
 
 /**
  * Whether `pathname` is an App's own boundary or a path below it; `basePath` may carry a trailing
- * slash. The one containment test every navigator, router and boundary-aware command shares.
+ * slash. The one containment test every navigator, router and boundary-aware action shares.
  */
 export function isWithinBoundary(basePath: string, pathname: string): boolean {
   const boundary = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath

@@ -85,20 +85,30 @@ export class BreadcrumbStore {
     this.#contributions.set(mountToken, contribution)
 
     let active = true
+    // `removeMount` may have taken the contribution already, before its owner's cleanup ran.
+    const live = (): boolean => active && this.#contributions.get(mountToken) === contribution
     return {
       update: items => {
-        if (!active) return
+        if (!live()) return
         if (breadcrumbTrailEqual(contribution.routeItems, items)) return
         contribution.routeItems = items
         this.#compose()
       },
       remove: () => {
-        if (!active) return
+        if (!live()) return
         active = false
         this.#contributions.delete(mountToken)
         this.#compose()
       },
     }
+  }
+
+  /**
+   * A mount's crumbs, and any override inside it, go with it, whether or not the component that
+   * contributed them has run its cleanup yet.
+   */
+  removeMount(mountToken: string): void {
+    if (this.#contributions.delete(mountToken)) this.#compose()
   }
 
   /**

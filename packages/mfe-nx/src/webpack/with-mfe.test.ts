@@ -18,7 +18,7 @@ import { z } from 'zod'
 
 class PanelComponent {}
 
-export const panel = createWidget({ id: 'panel', inputs: z.object({}), events: {}, component: PanelComponent })
+export const panel = createWidget({ id: 'panel', inputSchema: z.object({}), outputSchema: z.object({}), component: PanelComponent })
 `
 
 class AngularOwnPlugin implements WebpackPluginInstance {

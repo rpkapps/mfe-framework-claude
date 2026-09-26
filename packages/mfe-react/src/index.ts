@@ -49,7 +49,11 @@ export {
   useScopeRoot,
   useTelemetry,
 } from './hooks/services.ts'
-export { useCommand } from './hooks/use-command.ts'
+export { useAction } from './hooks/use-action.ts'
+export { useAgentContext, useAgentPrompt, useAgentSuggestions } from './hooks/use-agent-context.ts'
+
+/** What the run `useAction` returns resolves to, and its type. */
+export type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
 export { useBreadcrumbs } from './hooks/use-breadcrumbs.ts'
 export {
   useNavigationBlock,
@@ -79,11 +83,18 @@ export {
 export {
   allow,
   deny,
+  type ActionEffect,
+  type ActionInputSchema,
+  type ActionPlacement,
+  type ActionRegistration,
+  type AgentContextEntry,
+  type AgentContextRegistration,
+  type AgentPrompt,
+  type AgentSuggestion,
+  type AgentSuggestionEntry,
   type BreadcrumbItem,
   type CapabilityDeclaration,
   type CapabilityDescriptor,
-  type CommandPlacement,
-  type CommandRegistration,
   type Decision,
   type MfeError,
   type MfeErrorCode,
@@ -93,6 +104,7 @@ export {
   type ShellTheme,
   type ShellUser,
   type StorageKeyOptions,
+  type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
   type JsonSchemaObject,
@@ -100,7 +112,7 @@ export {
   /* An author reads these inside `useNavigationBlock`, so they belong on the author surface. */
   type BoundaryLocation,
   type NavigationIntent,
-  type PublishedWidgetContract,
+  type PublishedContract,
   /* What a shell author needs to write or register an adapter of their own. */
   type MfeAdapter,
   type Registry,
@@ -129,15 +141,15 @@ export { reactAdapter, type ReactRegistryEntry } from './registry/react-adapter.
 export { withStyleRoot, type MfeStyleRoot, type StyleRootProps } from './style-root.ts'
 export type { MfeMount, MfeRuntime } from './runtime.ts'
 
-/** The one walk over a Widget's published inputs and events, for a host composing the registry (§28). */
+/** The one walk over a Widget's published inputs and outputs, for a host composing the registry (§28). */
 export {
   coerceInputs,
   defaultInputsFor,
-  describeWidgetEvents,
-  describeWidgetInputs,
+  describeOutputs,
+  describeInputs,
   needsInputPrompt,
   type BuildProvenance,
-  type WidgetEvent,
+  type WidgetOutput,
   type WidgetInputField,
   type WidgetInputKind,
   type WidgetInputType,
@@ -155,8 +167,9 @@ export {
 
 /** Re-exported from the core because a host depends on this package, not on the core. */
 export {
-  eventNameToHandlerProp,
   HOST_SCOPE,
+  outputNameToHandlerProp,
+  outputPayloadSchema,
   type CapabilityName,
   type IconData,
   type IconNode,

@@ -1,0 +1,520 @@
+/**
+ * Registering an action from the host's own chrome, which used to be impossible: the registry is
+ * keyed by a mount token and the host has none (§26).
+ */
+
+import { render, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { allow, deny, HOST_SCOPE, type ActionRegistration } from '@company/mfe-core'
+import type { ActionExecutionResult, ActionRun } from '@company/mfe-runtime'
+import { z } from 'zod'
+
+import { MfeMountProvider } from '../mount-context.tsx'
+import { MfeProvider } from '../runtime-context.tsx'
+import { createMfeTestEnvironment, type MfeTestEnvironment } from '../testing/index.tsx'
+import { useAction } from './use-action.ts'
+
+let environment: MfeTestEnvironment | null = null
+
+afterEach(async () => {
+  vi.restoreAllMocks()
+  const current = environment
+  environment = null
+  await current?.dispose()
+})
+
+function Chrome({ registration }: { readonly registration: ActionRegistration }): ReactNode {
+  useAction(registration)
+  return null
+}
+
+function hostOnly(created: MfeTestEnvironment, children: ReactNode): ReactNode {
+  return <MfeProvider runtime={created.runtime}>{children}</MfeProvider>
+}
+
+describe('useAction outside a mount', () => {
+  it('registers in the reserved host scope', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+
+    render(
+      hostOnly(
+        created,
+        <Chrome registration={{ name: 'settings', label: 'Open settings', execute: () => {} }} />,
+      ),
+    )
+
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
+      { id: '@host:settings', definitionId: HOST_SCOPE, label: 'Open settings' },
+    ])
+  })
+
+  it('runs the host action through the same execute the palette calls', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const execute = vi.fn()
+
+    render(
+      hostOnly(created, <Chrome registration={{ name: 'settings', label: 'Settings', execute }} />),
+    )
+
+    await expect(
+      created.runtime.actions.execute('@host:settings', { caller: 'palette' }),
+    ).resolves.toEqual({
+      status: 'executed',
+    })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  /** A denied action is shown with its owner's reason rather than hidden, whoever owns it. */
+  it('publishes the host’s own denial, and refuses to run', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const execute = vi.fn()
+
+    render(
+      hostOnly(
+        created,
+        <Chrome
+          registration={{
+            name: 'clear-dashboard',
+            label: 'Clear the dashboard canvas',
+            canExecute: () => deny('The dashboard canvas is already empty.'),
+            execute,
+          }}
+        />,
+      ),
+    )
+
+    expect(created.runtime.actions.getSnapshot()[0]?.decision).toEqual({
+      allowed: false,
+      reason: 'The dashboard canvas is already empty.',
+    })
+    await expect(
+      created.runtime.actions.execute('@host:clear-dashboard', { caller: 'palette' }),
+    ).resolves.toMatchObject({
+      status: 'denied',
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('republishes the decision when the state it reads changes', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+
+    function Canvas(): ReactNode {
+      const [tiles, setTiles] = useState(0)
+      useAction({
+        name: 'clear-dashboard',
+        label: 'Clear the dashboard canvas',
+        canExecute: () => (tiles === 0 ? deny('Nothing on the canvas.') : allow()),
+        execute: () => {},
+      })
+
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            setTiles(1)
+          }}
+        >
+          add
+        </button>
+      )
+    }
+
+    const view = render(hostOnly(created, <Canvas />))
+    expect(created.runtime.actions.getSnapshot()[0]?.decision.allowed).toBe(false)
+
+    view.getByRole('button').click()
+
+    // Published from the effect that runs after every commit, so the palette's snapshot follows.
+    await waitFor(() => {
+      expect(created.runtime.actions.getSnapshot()[0]?.decision.allowed).toBe(true)
+    })
+  })
+
+  it('removes the host action when the chrome that registered it unmounts', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+
+    const view = render(
+      hostOnly(
+        created,
+        <Chrome registration={{ name: 'help', label: 'Help', execute: () => {} }} />,
+      ),
+    )
+    expect(created.runtime.actions.size).toBe(1)
+
+    view.unmount()
+
+    expect(created.runtime.actions.size).toBe(0)
+  })
+
+  /** A mount keeps registering exactly as it did; the scope is what differs. */
+  it('still registers under the definition when there is a mount', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'reports' })
+    const created = environment
+    const Mounted = created.wrapper
+
+    render(
+      <Mounted>
+        <Chrome registration={{ name: 'refresh', label: 'Refresh', execute: () => {} }} />
+      </Mounted>,
+    )
+
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
+      { id: 'reports:refresh', definitionId: 'reports' },
+    ])
+  })
+})
+
+describe('useAction with a shortcut', () => {
+  function press(init: KeyboardEventInit & { key: string }, created: MfeTestEnvironment) {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    return created.runtime.actions.handleKeyDown(event)
+  }
+
+  it('passes the shortcut through, and the host’s key press runs the App’s action', () => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Win32')
+    environment = createMfeTestEnvironment({
+      definitionId: 'reports',
+      basePath: '/reports',
+      initialEntries: ['/reports'],
+    })
+    const created = environment
+    const Mounted = created.wrapper
+    const execute = vi.fn()
+
+    render(
+      <Mounted>
+        <Chrome registration={{ name: 'export', label: 'Export', shortcut: 'Mod+E', execute }} />
+      </Mounted>,
+    )
+
+    expect(created.runtime.actions.getSnapshot()).toMatchObject([
+      { id: 'reports:export', shortcut: 'mod+e' },
+    ])
+    expect(press({ key: 'e', ctrlKey: true }, created).status).toBe('matched')
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows a re-render that changes the shortcut', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+
+    const view = render(
+      hostOnly(
+        created,
+        <Chrome registration={{ name: 'help', label: 'Help', shortcut: '?', execute: () => {} }} />,
+      ),
+    )
+    view.rerender(
+      hostOnly(
+        created,
+        <Chrome
+          registration={{ name: 'help', label: 'Help', shortcut: 'f1', execute: () => {} }}
+        />,
+      ),
+    )
+
+    expect(created.runtime.actions.getSnapshot()[0]?.shortcut).toBe('f1')
+  })
+
+  it('keeps a Widget’s action but not its shortcut', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+
+    render(
+      <Mounted>
+        <Chrome
+          registration={{ name: 'export', label: 'Export', shortcut: 'mod+e', execute: () => {} }}
+        />
+      </Mounted>,
+    )
+
+    expect(created.runtime.actions.getSnapshot()[0]).not.toHaveProperty('shortcut')
+    expect(created.diagnostics.map(record => record.error.message).join('\n')).toContain(
+      'a shortcut from a Widget',
+    )
+  })
+})
+
+describe('the run useAction returns', () => {
+  const refundInput = z.object({ orderId: z.string(), amount: z.number().positive() })
+
+  it('runs the action as the App’s own UI, through the same validation', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders' })
+    const created = environment
+    const Mounted = created.wrapper
+    const execute = vi.fn(({ amount }: { readonly amount: number }) => ({ refunded: amount }))
+    const runs: ActionRun<typeof refundInput, { refunded: number }>[] = []
+
+    function Refund(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'refund',
+          label: 'Refund an order',
+          inputSchema: refundInput,
+          execute,
+        }),
+      )
+      return null
+    }
+    render(
+      <Mounted>
+        <Refund />
+      </Mounted>,
+    )
+
+    const run = runs.at(-1)
+    const executed: ActionExecutionResult<{ refunded: number }> | undefined = await run?.({
+      orderId: 'A-1',
+      amount: 5,
+    })
+    expect(executed).toEqual({ status: 'executed', value: { refunded: 5 } })
+
+    const invalid = await run?.({ orderId: 'A-1', amount: -5 })
+    expect(invalid?.status).toBe('invalid')
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('keeps its identity across renders, so it can be a dependency', () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const runs: unknown[] = []
+
+    function Chrome2(): ReactNode {
+      runs.push(useAction({ name: 'help', label: 'Help', execute: () => {} }))
+      return null
+    }
+    const view = render(hostOnly(created, <Chrome2 />))
+    view.rerender(hostOnly(created, <Chrome2 />))
+
+    expect(runs).toHaveLength(2)
+    expect(runs[0]).toBe(runs[1])
+  })
+
+  it('calls as the App’s own UI, so a denial reaches the user', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const runs: ActionRun[] = []
+
+    function Clear(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'clear',
+          label: 'Clear',
+          canExecute: () => deny('Nothing to clear.'),
+          execute: () => {},
+        }),
+      )
+      return null
+    }
+    render(hostOnly(created, <Clear />))
+
+    await expect(runs.at(-1)?.()).resolves.toEqual({
+      status: 'denied',
+      reason: 'Nothing to clear.',
+    })
+    expect(created.telemetry.frameworkRecords('run action')).toMatchObject([
+      {
+        attributes: {
+          'action.id': '@host:clear',
+          'action.caller': 'ui',
+          'action.outcome': 'denied',
+        },
+      },
+    ])
+  })
+
+  it('runs its own mount’s action when another mount of the definition has the same name', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    created.runtime.actions.register(
+      { definitionId: 'alerts', mountToken: 'other-mount', kind: 'widget', basePath: '' },
+      { name: 'acknowledge', label: 'Acknowledge', execute: () => 'other' },
+    )
+    const runs: ActionRun[] = []
+
+    function Acknowledge(): ReactNode {
+      runs.push(useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' }))
+      return null
+    }
+    render(
+      <Mounted>
+        <Acknowledge />
+      </Mounted>,
+    )
+
+    await expect(runs.at(-1)?.()).resolves.toEqual({ status: 'executed', value: 'mine' })
+  })
+
+  it('runs its own mount’s action when a child calls it from an effect, before it registered', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    created.runtime.actions.register(
+      { definitionId: 'alerts', mountToken: 'other-mount', kind: 'widget', basePath: '' },
+      { name: 'acknowledge', label: 'Acknowledge', execute: () => 'other' },
+    )
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function Parent(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' })
+      return <Child run={run} />
+    }
+    render(
+      <Mounted>
+        <Parent />
+      </Mounted>,
+    )
+
+    await expect(result).resolves.toEqual({ status: 'executed', value: 'mine' })
+  })
+
+  /**
+   * Outside `act`, a concurrent root runs the commit's passive effects in a later task, so a run
+   * from a child's layout effect outlasts a microtask before its component registers; by its
+   * reconstructed id it would have reached the first mount's action.
+   */
+  it('runs its own mount’s action when a child calls it from a layout effect in a second mount', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const FirstMount = created.wrapper
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Alert({ answer }: { readonly answer: string }): ReactNode {
+      useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => answer })
+      return null
+    }
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useLayoutEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function CallingAlert(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'second' })
+      return <Child run={run} />
+    }
+    render(
+      <FirstMount>
+        <Alert answer="first" />
+      </FirstMount>,
+    )
+
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean | undefined }
+    const previous = actEnvironment.IS_REACT_ACT_ENVIRONMENT
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false
+    const root = createRoot(document.createElement('div'))
+    try {
+      root.render(
+        <MfeProvider runtime={created.runtime}>
+          <MfeMountProvider mount={{ ...created.mount, mountToken: 'alerts#second' }}>
+            <CallingAlert />
+          </MfeMountProvider>
+        </MfeProvider>,
+      )
+      await vi.waitFor(() => {
+        expect(result).toBeDefined()
+      })
+
+      await expect(result).resolves.toEqual({ status: 'executed', value: 'second' })
+      expect(created.runtime.actions.getSnapshot().map(entry => entry.id)).toEqual([
+        'alerts:acknowledge',
+        'alerts:acknowledge-2',
+      ])
+    } finally {
+      root.unmount()
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = previous
+    }
+  })
+
+  /** StrictMode registers, removes and registers again; the run waits for the one that stays. */
+  it('runs the registration StrictMode kept when a child called it before either', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'alerts', kind: 'widget' })
+    const created = environment
+    const Mounted = created.wrapper
+    let result: Promise<ActionExecutionResult> | undefined
+
+    function Child({ run }: { readonly run: ActionRun }): ReactNode {
+      useLayoutEffect(() => {
+        result ??= run()
+      }, [run])
+      return null
+    }
+    function Parent(): ReactNode {
+      const run = useAction({ name: 'acknowledge', label: 'Acknowledge', execute: () => 'mine' })
+      return <Child run={run} />
+    }
+    render(
+      <Mounted>
+        <Parent />
+      </Mounted>,
+      { reactStrictMode: true },
+    )
+
+    await expect(result).resolves.toEqual({ status: 'executed', value: 'mine' })
+  })
+
+  it('resolves unavailable once the component that registered it is gone', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'shell' })
+    const created = environment
+    const runs: ActionRun[] = []
+
+    function Help(): ReactNode {
+      runs.push(useAction({ name: 'help', label: 'Help', execute: () => {} }))
+      return null
+    }
+    const view = render(hostOnly(created, <Help />))
+    view.unmount()
+
+    await expect(runs.at(-1)?.()).resolves.toMatchObject({ status: 'unavailable' })
+  })
+
+  it('hands execute a signal that aborts when the component unmounts mid-run', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'orders' })
+    const created = environment
+    const Mounted = created.wrapper
+    const signals: AbortSignal[] = []
+    const runs: ActionRun[] = []
+
+    function Save(): ReactNode {
+      runs.push(
+        useAction({
+          name: 'save',
+          label: 'Save',
+          execute: (_input, { signal }) => {
+            signals.push(signal)
+            return new Promise<never>(() => undefined)
+          },
+        }),
+      )
+      return null
+    }
+    const view = render(
+      <Mounted>
+        <Save />
+      </Mounted>,
+    )
+
+    const running = runs.at(-1)?.()
+    expect(signals).toHaveLength(1)
+    expect(signals[0]?.aborted).toBe(false)
+    view.unmount()
+
+    await expect(running).resolves.toMatchObject({ status: 'unavailable' })
+    expect(signals[0]?.aborted).toBe(true)
+  })
+})

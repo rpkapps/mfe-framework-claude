@@ -35,8 +35,8 @@ afterEach(async () => {
 const counterWidget = createWidget({
   id: 'counter-widget',
   version: '1.0.0',
-  inputs: z.object({ label: z.string(), count: z.number().default(0) }),
-  events: { bumped: z.object({ to: z.number() }) },
+  inputSchema: z.object({ label: z.string(), count: z.number().default(0) }),
+  outputSchema: z.object({ bumped: z.object({ to: z.number() }) }),
   render: ({ inputs, emit }) => (
     <button type="button" onClick={() => emit('bumped', { to: inputs.count + 1 })}>
       {inputs.label}: {inputs.count}
@@ -46,7 +46,10 @@ const counterWidget = createWidget({
 
 /** Built at module scope, as the contract requires for a stable identity. */
 const CounterWidget = lazyWidget('counter-widget', {
-  contract: { inputs: counterWidget.contract.inputs, events: counterWidget.contract.events },
+  contract: {
+    inputSchema: counterWidget.contract.inputSchema,
+    outputSchema: counterWidget.contract.outputSchema,
+  },
 })
 
 function buildChildApp(observed: { basePath?: string; signalAborted?: boolean }) {
@@ -152,8 +155,8 @@ describe('consuming a Widget', () => {
 
     const boundaryProbe = createWidget({
       id: 'boundary-probe',
-      inputs: z.object({}),
-      events: {},
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
       render: function Probe() {
         observedBasePath = useBasePath()
         return <span data-testid="probe">ready</span>

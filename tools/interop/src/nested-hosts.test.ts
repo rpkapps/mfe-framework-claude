@@ -1,6 +1,6 @@
 /**
  * Three levels on one page: a React host places an Angular App, and that App places a React Widget
- * with `<mfe-widget>`. Each level mounts the next through the neutral contract, so depth, events
+ * with `<mfe-widget>`. Each level mounts the next through the neutral contract, so depth, outputs
  * and teardown have to carry across both framework boundaries, and disposing the outermost host
  * has to leave nothing of any level behind.
  */
@@ -8,10 +8,10 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core'
 import {
   createApp,
-  injectCommand,
+  injectAction,
   injectMfeMount,
   MfeWidgetComponent,
-  type MfeWidgetEvent,
+  type MfeWidgetOutput,
 } from '@company/mfe-angular'
 import { AppHost } from '@company/mfe-react'
 import { renderSuspending } from '@company/mfe-react/testing'
@@ -37,7 +37,7 @@ const applications = applicationCensus()
   imports: [MfeWidgetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<h1>Workbench at depth {{ depth }}</h1>
-    <mfe-widget widgetId="counter" [inputs]="counterInputs()" (event)="received($event)" />
+    <mfe-widget widgetId="counter" [inputs]="counterInputs()" (output)="received($event)" />
     <p>{{ lastEvent() }}</p>`,
 })
 class WorkbenchComponent {
@@ -46,12 +46,12 @@ class WorkbenchComponent {
   readonly lastEvent = signal('no event yet')
 
   constructor() {
-    injectCommand({ name: 'refresh', label: 'Refresh the workbench', execute: () => undefined })
+    injectAction({ name: 'refresh', label: 'Refresh the workbench', execute: () => undefined })
   }
 
-  /** Hands the Widget's own count back to it, so the event crosses down as well as up. */
-  received(event: MfeWidgetEvent): void {
-    const { count } = counterContract.events.bumped.parse(event.payload)
+  /** Hands the Widget's own count back to it, so the output crosses down as well as up. */
+  received(event: MfeWidgetOutput): void {
+    const { count } = counterContract.outputSchema.shape.bumped.parse(event.payload)
     this.lastEvent.set(`${event.name} to ${String(count)}`)
     this.counterInputs.set({ label: 'Nested', count })
   }
@@ -100,7 +100,7 @@ describe('a React Widget inside an Angular App inside a React host', () => {
     ])
   })
 
-  it('delivers the React Widget’s events to the Angular App, and the App’s answer back down', async () => {
+  it('delivers the React Widget’s outputs to the Angular App, and the App’s answer back down', async () => {
     await renderThreeLevels()
 
     fireEvent.click(screen.getByRole('button', { name: 'Nested: 1' }))
@@ -116,7 +116,7 @@ describe('a React Widget inside an Angular App inside a React host', () => {
     expect(counterRoots.live).toBe(1)
     expect(overlayRootCount()).toBe(2)
     await waitFor(() => {
-      expect(runtime.commands.size).toBe(2)
+      expect(runtime.actions.size).toBe(2)
     })
     expect(runtime.navigator.blockerCount).toBe(1)
     expect(runtime.breadcrumbs.contributionCount).toBe(1)

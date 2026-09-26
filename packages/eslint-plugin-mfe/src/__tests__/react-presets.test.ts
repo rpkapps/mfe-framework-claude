@@ -144,4 +144,25 @@ describe('author preset', () => {
       expect(pattern.message).toContain('@company/mfe-react')
     }
   })
+
+  it('keeps agent libraries out of an App or Widget, pointing at useAction', () => {
+    const entry = preset.find(config => config.name === 'mfe/author/boundaries')?.rules?.[
+      '@typescript-eslint/no-restricted-imports'
+    ]
+    const [, options] = entry as [
+      string,
+      {
+        paths: { name: string; message: string }[]
+        patterns: { group: string[]; message: string; allowTypeImports?: boolean }[]
+      },
+    ]
+    for (const name of ['ai', 'openai', 'langchain']) {
+      expect(options.paths.find(path => path.name === name)?.message, name).toContain('useAction()')
+    }
+    const agent = options.patterns.find(pattern => pattern.group.includes('@tanstack/ai-*'))
+    expect(agent?.group).toEqual(
+      expect.arrayContaining(['@tanstack/ai', 'ai/*', '@ai-sdk/*', '@ag-ui/*', '@copilotkit/*']),
+    )
+    expect(agent?.allowTypeImports).toBe(false)
+  })
 })

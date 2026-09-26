@@ -199,8 +199,8 @@ import { z } from 'zod'
 import { AlertPanelComponent } from './alert-panel.component'
 
 export const alertPanelContract = {
-  inputs: z.object({ label: z.string() }),
-  events: { activated: z.object({ at: z.string() }) },
+  inputSchema: z.object({ label: z.string() }),
+  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
 }
 
 export const alertPanel = createWidget({
@@ -231,10 +231,12 @@ export class AlertPanelComponent {
 ```
 
 The component is the contract: **every input key is a component input, and
-every event is a component output of the same public name.** The mount checks
+every property of the `outputSchema` is a component output of the same public
+name.** The mount checks
 that with `reflectComponentType` before creating anything, and a mismatch
 rejects the mount with the missing member and the line to add. The component may
-declare further inputs, which keep their defaults. `input()`/`output()` and
+declare further inputs, which keep their defaults. Required-ness in the
+`outputSchema` is ignored: any output may never be emitted. `input()`/`output()` and
 `@Input()`/`@Output()` both work.
 
 Inputs are validated against the schema — serializability first — before the
@@ -242,7 +244,7 @@ first render; invalid first inputs reject the mount. A later update is compared
 with the last one, validated, and set on the live component for the keys that
 changed; a rejected update keeps the last valid inputs, reaches the shell's
 diagnostics and the host's `onInputRejected`. Every payload is validated against
-its event schema before the host sees it. An output's payload that fails is
+its output's schema before the host sees it. An output's payload that fails is
 reported rather than thrown, because Angular's output machinery would swallow or
 defer the throw; `injectWidgetEmit()`, which any component inside the Widget can
 use, throws at the call site.
@@ -252,33 +254,104 @@ use, throws at the call site.
 All of them are called in an injection context — a constructor or a field
 initialiser — and clean up with the injector that created them.
 
-| Function                                          | Gives                                                                  | Outside a mount   |
-| ------------------------------------------------- | ---------------------------------------------------------------------- | ----------------- |
-| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                               | host scope        |
-| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws        | host scope        |
-| `injectCommand(registration \| () => …)`          | a palette command; a factory re-publishes when the signals it reads do | host scope        |
-| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override        | host crumbs, at 0 |
-| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`     | throws            |
-| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                          | throws            |
-| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle     | throws            |
-| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                           | throws            |
-| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)     | runtime only      |
+| Function                                          | Gives                                                               | Outside a mount   |
+| ------------------------------------------------- | ------------------------------------------------------------------- | ----------------- |
+| `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                            | host scope        |
+| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws     | host scope        |
+| `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
+| `injectAgentContext(registration \| () => …)`     | nothing; a factory re-publishes when the signals it reads do        | host scope        |
+| `injectAgentPrompt()`                             | a function that hands a prompt to the shell's chat                  | host scope        |
+| `injectAgentSuggestions(suggestions)`             | prompts the chat offers while the injector lives                    | host scope        |
+| `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override     | host crumbs, at 0 |
+| `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
+| `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
+| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle  | throws            |
+| `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                        | throws            |
+| `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)  | runtime only      |
 
-**A command's shortcut.** `injectCommand` passes the registration through as it
+**An action and its run.** `injectAction` takes the registration `useAction`
+takes. It publishes the action to the palette and, unless its `placements` say
+otherwise, to the shell's agent as a tool. `description` is written for the
+agent, `inputSchema` (one `z.object`, at module scope) parses every call's input
+before `execute` receives it, and `outputSchema` checks the returned value.
+`effect` is `'read'`, `'write'` or `'destructive'`; an undeclared one counts as
+`'write'`, so the agent asks the user before each call.
+`execute(input, { signal })` also receives a signal that aborts when the run is
+given up: an agent's call ran past its deadline (`timeoutMs`, 30 seconds by
+default, counted from when `execute` starts; it then fails with
+`action/timeout`), the injector was destroyed while it ran (`unavailable`), or
+the user pressed Stop in the chat (`cancelled`). Whatever `execute` returns
+after that is dropped, so pass the signal on: to `fetch`, or to an `HttpClient`
+request through `takeUntil(fromEvent(signal, 'abort'))`. It returns an
+`ActionRun` with the caller `'ui'`, for the component's own button, so a click
+shares `canExecute`, validation and the denial notice with every other caller.
+It runs this injector's registration, even when another mount of the
+definition registered the same name, and never rejects. After the component is
+destroyed, or as it is destroyed mid-run, the run resolves `unavailable`. The
+package exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
+`ActionExecutionResult` as types.
+
+```ts
+@Component({
+  selector: 'fieldwork-overview',
+  template: `<p-button label="Log inspection" (onClick)="logInspectionAction()" />`,
+})
+export class OverviewComponent {
+  protected readonly padId = signal<string | null>(null)
+  protected readonly logInspectionAction: ActionRun
+
+  constructor() {
+    this.logInspectionAction = injectAction(() => ({
+      name: 'log-inspection',
+      label: 'Fieldwork: log an inspection at the chosen pad',
+      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
+      canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
+      execute: () => this.logInspection(),
+    }))
+  }
+}
+```
+
+**An action's shortcut.** `injectAction` passes the registration through as it
 is, so `shortcut` works as in any adapter: a chord such as `'mod+s'` or a
 sequence such as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. The host
-reads every key once and runs the command through the palette's path, so
+reads every key once and runs the action through the palette's path, so
 `canExecute` still decides. An App's shortcut fires while the page is inside the
 App's boundary; a Widget's is ignored, and so is one the host page already uses,
 each with a diagnostic.
 
 ```ts
-injectCommand({
+injectAction({
   name: 'export',
   label: 'Export the insights',
   shortcut: 'mod+e',
   execute: () => this.export(),
 })
+```
+
+**What the agent is told.** `injectAgentContext` takes the registration
+`useAgentContext` takes, or a factory that returns one: `description`, `schema`
+and `value`. It publishes a small snapshot of what is selected or open, which
+the shell's agent receives with each turn: ids and a short label, JSON of at
+most 4096 characters, never whole records or secrets. A factory runs again when
+a signal it reads changes, and an equal value publishes nothing. An invalid
+value is left out and reported once as a warning. The snapshot goes when the
+injector is destroyed or the mount is disposed. `injectAgentPrompt()` returns a
+function that hands `{ message, context?, submit? }` to the shell's chat and
+returns whether a chat took it; `false` when the shell has no chat.
+`injectAgentSuggestions` offers up to three such prompts, as a list or a factory
+of signals, which the chat shows as chips while the injector lives. The package
+exports `AgentContextEntry`, `AgentContextRegistration`, `AgentPrompt` and
+`AgentSuggestion` as types.
+
+```ts
+const selectedPad = z.object({ id: z.string(), name: z.string() }).nullable()
+
+injectAgentContext(() => ({
+  description: 'The well pad the user has chosen, or null before they choose one',
+  schema: selectedPad,
+  value: this.pad(),
+}))
 ```
 
 **The mount's elements.** `injectMfeMount()` carries the two elements the
@@ -344,7 +417,7 @@ bootstrapApplication(ShellComponent, {
   [inputs]="{ label: 'Acknowledge' }"
   [contract]="alertPanelContract"
   [pending]="loading"
-  (event)="onWidgetEvent($event)"
+  (output)="onWidgetOutput($event)"
   (failed)="error = $event"
 />
 <mfe-app-host appId="reports" basePath="/reports" />
@@ -365,8 +438,9 @@ Both components keep what the runtime decides out of the host's hands:
 - **Nesting.** Inside a mount, a placed definition is one level deeper than the
   mount it sits in and is disposed with it.
 
-`<mfe-widget>` validates events against a `contract` it is given and reports,
-rather than delivers, one that fails. Inside an App,
+`<mfe-widget>` emits each output through `(output)` as an `MfeWidgetOutput`
+(`{ name, payload }`). It validates outputs against a `contract` it is given
+and reports, rather than delivers, one that fails. Inside an App,
 `mfeAppRoute({ appId, path: 'reports' })` delegates everything below a prefix to
 another App: the boundary is the parent's boundary joined with the matched
 prefix, and the nested App is one level deeper. A routed `<mfe-app-host>` tells
@@ -394,7 +468,7 @@ import { mountWidget } from '@company/mfe-angular/testing'
 
 const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
 widget.element.querySelector('button')?.click()
-expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
+expect(widget.outputs).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
 ```
 
 `mountWidget` and `mountApp` place the definition through the runtime's
@@ -403,7 +477,7 @@ expect(widget.events).toEqual([{ name: 'activated', payload: { at: expect.any(St
 it but memory. They resolve once the first render has settled and return the
 scope root the runtime created (`element`), the environment, the mount's
 injector, `whenStable()`, `dispose()` and, for a Widget, `update(inputs)`, the
-delivered `events` and the `rejectedInputs`; a mount that fails rejects with its
+delivered `outputs` and the `rejectedInputs`; a mount that fails rejects with its
 error and leaves nothing behind. Given an `environment` of your own, list the
 definition in its `definitions`, as a shell's registry lists what it mounts.
 For a host component, `createHostApplication(environment)` boots a zoneless

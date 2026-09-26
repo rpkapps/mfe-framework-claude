@@ -100,7 +100,7 @@ describe('share scopes', () => {
     ])
   })
 
-  it('leaves them absent for an entry built before framework scopes', () => {
+  it('leaves them absent for an entry written by hand that names none', () => {
     expect('shareScopes' in parse(entry())).toBe(false)
   })
 
@@ -134,8 +134,14 @@ describe('the framework version the container was built for', () => {
  */
 describe('published Widget contract', () => {
   const contract = {
-    events: {
-      title: 'alert-panel events',
+    inputSchema: {
+      type: 'object',
+      properties: { alertId: { type: 'string' }, severity: { enum: ['info', 'critical'] } },
+      required: ['alertId'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      title: 'alert-panel outputs',
       type: 'object',
       properties: {
         acknowledged: {
@@ -148,15 +154,9 @@ describe('published Widget contract', () => {
       },
       additionalProperties: false,
     },
-    inputs: {
-      type: 'object',
-      properties: { alertId: { type: 'string' }, severity: { enum: ['info', 'critical'] } },
-      required: ['alertId'],
-      additionalProperties: false,
-    },
   }
 
-  it('carries the inputs and events schemas through to the entry', () => {
+  it('carries the inputSchema and the outputSchema through to the entry', () => {
     const parsed = parse(entry({ id: 'alert-panel', kind: 'widget', contract }))
 
     expect(parsed.contract).toEqual(contract)
@@ -166,13 +166,17 @@ describe('published Widget contract', () => {
    * "Takes nothing" and "the build could not read the schema" call for different behaviour in a
    * catalogue, so an unread schema is absent rather than empty.
    */
-  it('accepts a contract that publishes events without an inputs schema', () => {
+  it('accepts a contract that publishes an outputSchema without an inputSchema', () => {
     const parsed = parse(
-      entry({ id: 'alert-panel', kind: 'widget', contract: { events: contract.events } }),
+      entry({
+        id: 'alert-panel',
+        kind: 'widget',
+        contract: { outputSchema: contract.outputSchema },
+      }),
     )
 
-    expect(parsed.contract).toEqual({ events: contract.events })
-    expect(parsed.contract && 'inputs' in parsed.contract).toBe(false)
+    expect(parsed.contract).toEqual({ outputSchema: contract.outputSchema })
+    expect(parsed.contract && 'inputSchema' in parsed.contract).toBe(false)
   })
 
   it('accepts a contract that publishes neither schema', () => {
@@ -181,34 +185,15 @@ describe('published Widget contract', () => {
     expect(parsed.contract).toEqual({})
   })
 
-  /** A shell is deployed before the containers it reads are rebuilt. */
-  it('reads the event names an older build published as events with unknown payloads', () => {
-    const parsed = parse(
-      entry({
-        id: 'alert-panel',
-        kind: 'widget',
-        contract: { events: ['acknowledged', 'dismissed'] },
-      }),
-    )
-
-    expect(parsed.contract).toEqual({
-      events: {
-        type: 'object',
-        properties: { acknowledged: {}, dismissed: {} },
-        additionalProperties: false,
-      },
-    })
-  })
-
   it('rejects a Widget contract on an App', () => {
-    expect(rejection(entry({ contract })).message).toContain('An App has no inputs and no events')
+    expect(rejection(entry({ contract })).message).toContain('An App has no inputs and no outputs')
   })
 
-  it('rejects a contract whose events are neither a schema nor names', () => {
-    for (const events of [[{}], 'acknowledged']) {
+  it('rejects an outputSchema that is not a schema', () => {
+    for (const outputSchema of [['acknowledged'], 'acknowledged']) {
       expect(
-        rejection(entry({ id: 'alert-panel', kind: 'widget', contract: { events } })).message,
-      ).toContain('a JSON Schema object with one property per event')
+        rejection(entry({ id: 'alert-panel', kind: 'widget', contract: { outputSchema } })).message,
+      ).toContain('a JSON Schema object, or nothing when the build could not read one')
     }
   })
 
@@ -216,6 +201,27 @@ describe('published Widget contract', () => {
     expect(
       rejection(entry({ id: 'alert-panel', kind: 'widget', contract: 'acknowledged' })).code,
     ).toBe('registry/invalid-entry')
+  })
+})
+
+describe('routes', () => {
+  it('carries an App’s routes, with their search params, through to the entry', () => {
+    const search = { type: 'object', properties: { site: { type: 'string' } } }
+    const parsed = parse(entry({ routes: [{ path: '/' }, { path: '/wells/:wellId', search }] }))
+
+    expect(parsed.routes).toEqual([{ path: '/' }, { path: '/wells/:wellId', search }])
+  })
+
+  it('rejects a Widget that publishes routes, since it owns no URL', () => {
+    const error = rejection(entry({ id: 'alert-panel', kind: 'widget', routes: [{ path: '/' }] }))
+
+    expect(error.message).toContain('no routes on a Widget')
+  })
+
+  it('rejects a path that is not App-relative', () => {
+    expect(rejection(entry({ routes: [{ path: 'wells' }] })).message).toContain(
+      'an App-relative path starting with /',
+    )
   })
 })
 
@@ -385,12 +391,12 @@ describe('an adapter for one framework’s federation builds', () => {
     expect(adapter.detect('not an entry')).toBe(false)
   })
 
-  it('also claims an entry that names no framework, when asked to', () => {
-    const adapter = createFederatedAdapter({ kind: 'react', claimsUnmarked: true })
+  /** Every build names its framework; nothing was deployed from before it did. */
+  it('claims no entry that names no framework', () => {
+    const adapter = createFederatedAdapter({ kind: 'react' })
 
-    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(true)
-    expect(adapter.detect(marked('broken'))).toBe(true)
-    expect(adapter.detect(marked({ contractMajor: 1, framework: 'angular' }))).toBe(false)
+    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(false)
+    expect(adapter.detect(marked('broken'))).toBe(false)
     expect(adapter.detect({ id: 'reports' })).toBe(false)
   })
 

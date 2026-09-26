@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
 import {
+  createAuthenticatedFetch,
   createBrowserNavigationBridge,
   createFederationContainerLoader,
   createMfeRuntime,
@@ -27,7 +28,9 @@ import { toast } from 'sonner'
 
 import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
+import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
+import { routerNavigation } from './shell/navigation.ts'
 import { preferredTheme } from './shell/preferences.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
@@ -75,11 +78,13 @@ const session = shellSession()
 const telemetry = telemetryProvider()
 const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry)])
 
+// With sign-in off there is no identity provider, so development tokens stand in.
+const tokens = session.mode === 'oidc' ? session.tokens : createDevSession()
+
 // Before any remote is registered: one session for the page keeps refresh single-flight across
 // every mount, and a container's generated #mfe/fetch resolves it at its first request (§10).
 installShellAuth({
-  // With sign-in off there is no identity provider, so development tokens stand in.
-  tokens: session.mode === 'oidc' ? session.tokens : createDevSession(),
+  tokens,
   diagnostics,
   isDevelopment: process.env['NODE_ENV'] !== 'production',
 })
@@ -109,7 +114,7 @@ const { runtime, activeOverrides } = createMfeRuntime({
   navigationBridge: createBrowserNavigationBridge(),
   diagnostics,
   ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
-  notifyCommandDenial: notice => toast.warning(notice.label, { description: notice.reason }),
+  notifyActionDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })
 
 notices.overrides = activeOverrides
@@ -117,6 +122,30 @@ notices.overrides = activeOverrides
 // Built once, because TanStack re-initialises a router it has not seen and remounts everything
 // under the boundary with it.
 const router = createShellRouter()
+
+// The chat, when the deployment names an agent backend; its code loads on first use. Its requests
+// go through the request boundary, so the backend receives the user's token and nothing else does.
+const { config } = await import('#mfe/config')
+const agentUrl =
+  config.agentUrl === undefined ? undefined : new URL(config.agentUrl, window.location.href)
+installShellChat(
+  agentUrl === undefined
+    ? null
+    : new LazyShellChat({
+        runtime,
+        url: agentUrl.href,
+        fetch: createAuthenticatedFetch({
+          id: 'shell-agent',
+          allowedOrigins: [agentUrl.origin],
+          tokens,
+          diagnostics,
+          isDevelopment: process.env['NODE_ENV'] !== 'production',
+        }),
+        // The router's own navigation, so an App's blockers hold the page for the agent too.
+        go: routerNavigation(router, runtime),
+        ...(config.agentImageHosts === undefined ? {} : { imageHosts: config.agentImageHosts }),
+      }),
+)
 
 // Hot reload re-executes this module, and a second createRoot on the same container orphans the first.
 declare global {

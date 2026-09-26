@@ -187,6 +187,12 @@ the two adapters say about themselves, and not because of where a shell put them
 in a list. The shell in this repository registers the legacy adapter, so a legacy
 entry in its registry is read rather than rejected.
 
+**Amendment (§53):** `reactAdapter.detect` no longer recognises an entry whose
+`mfe` marker names no framework. It recognises one that names React, however
+malformed the rest is, so a typo still fails in the React adapter rather than
+being read as legacy; a marker without a framework is no adapter's, and the entry
+is rejected as unrecognised, which fails just as loudly.
+
 ---
 
 ## 10. The framework owns no session; the shell installs one and the container binds to it
@@ -321,12 +327,19 @@ schema, instead of a list of names. A host wiring Widgets in sequence, one
 Widget's event feeding the next one's inputs, has to compare a payload with an
 input schema before either container loads, and one shape means one reader:
 `describeWidgetEvents` walks each payload with the code `describeWidgetInputs`
-uses (§28). A payload the build cannot read is `{}`, "anything", and the name
-stays. `events` is absent only when the names themselves cannot be read. A spread
+uses (§28). A payload written as a name, `{ acknowledged }` or
+`acknowledged: ack`, is followed to the top-level const or the container
+module's export it names. A payload the build cannot read is `{}`, "anything",
+and the name stays. `events` is absent only when the names themselves cannot be read. A spread
 or a computed key in the events map counts as that, since a partial set would
 claim to be closed. The host still accepts the old list of names, read as those
 events with unknown payloads, so a shell is deployed first and the containers
 rebuilt in any order after it, without a contract major.
+
+**Amendment (2026-09-25):** the published fields are `inputSchema` and
+`outputSchema`, the names the authored contract now uses (§41), and a Widget's
+events are its outputs. The old list of names is no longer accepted: nothing was
+deployed, and the field it lived in no longer exists.
 
 ---
 
@@ -588,8 +601,9 @@ React-bound candidate goes in `react@<the React the host installed>`, and
 `@company/mfe-core` and `@company/mfe-runtime` stay in `default`. Those two are read
 beside `@company/mfe-react`, where the adapter's own imports resolve, and installed
 versions are read by walking `node_modules` rather than through whatever `NODE_PATH`
-the bundler runs with — which is also why `recharts`, held only by the design
-system's own install, is no longer shared by the shell. The policy is still written
+the bundler runs with, so a design-system dependency the shell does not install itself
+is not shared by it (`recharts` was not, until the chat's charts made it a dependency of
+the shell). The policy is still written
 once and applied to both sides. What is new is the other half of the handshake: a
 container's build publishes the scopes its shares live in as `shareScopes`, the
 registry entry carries them, and the federation loader registers the remote with
@@ -619,6 +633,11 @@ the emitter. A host knows event names only as strings, so `DynamicWidget` gains
 
 **Cost:** which control to draw stays in the host, since picking a select for an
 enum would ship a control set (§22).
+
+**Amendment (2026-09-25):** the readers are `describeInputs` and
+`describeOutputs`, over a `PublishedContract`, and `DynamicWidget`'s catch-all is
+`onOutput` (§41). `describeOutputs` does not read `required`: every output may
+never be emitted, so whether a property is required means nothing.
 
 ---
 
@@ -840,8 +859,9 @@ measured. A React container slower than the load deadline now fails with
 `load/timeout` where it used to wait. A container on another React version brings
 its own `sonner`, so its toasts never reach the shell's `Toaster`. `strictVersion`
 inside a scope still rejects a container whose version of a scoped package the
-loaded copy does not satisfy, a minor apart included. `recharts` is no longer shared
-by the shell. And `shareScopes` couples the registry to the build: an entry without
+loaded copy does not satisfy, a minor apart included. The shell shares only what it
+installs, so the design system's `recharts` was not shared until the chat's charts made
+it a dependency of the shell. And `shareScopes` couples the registry to the build: an entry without
 it shares in `default` alone and runs on its own React.
 
 ---
@@ -969,6 +989,21 @@ recognised by `code` or `error` with `state` there. The return path travels as t
 request's state and only a path on this origin is honoured. The ID token's claims fill
 `shellState.user` and `groups` (the claim named by `OIDC_GROUPS_CLAIM`).
 
+**The header's photo is fetched by the shell, with a token no container sees.** The
+identity provider puts a Microsoft Graph photo URL (`entraid_avatar`) and an Entra access
+token for Graph (`entraid_access_token`) in the profile. An `<img>` cannot send a bearer
+token, so `auth/avatar.ts` fetches the photo with it and the user menu shows it as an
+image URL. It is not part of the boot: the menu shows initials until the photo arrives,
+and keeps them when there is none, Graph refuses or the answer is not an image. The token
+goes to that URL only, and only when it is on `https://graph.microsoft.com`; it is not in
+`shellState`, which every container reads, and the request boundary never sends it,
+because it is not the shell's token. The Entra token lasts about an hour while a reload
+restores the session with the profile it signed in with, so the photo is kept for the tab
+in `sessionStorage` (`shell.avatar:<sub>`), cropped and shrunk to 96 px, a few kilobytes,
+and removed on sign-out. The Entra tokens in the profile are still readable by any script
+on the page, containers included, as the rest of the session is; an avatar endpoint on the
+identity provider's side would let the profile carry none.
+
 **The configuration is read at run time, not built in.** One build serves every
 environment: the shell declares its five values in `src/mfe.config.ts` and reads them
 through the framework's `#mfe/config`, in its Zod-free form for a host (§37), and a
@@ -996,6 +1031,22 @@ configuration is read with a request of its own, because taking the preload woul
 entry's read back to the network. Each loader draws in a worker through an `OffscreenCanvas`,
 so it keeps its frame rate while the entry parses and boots on the main thread, and the boot no longer shares that thread with it:
 under a 4× CPU throttle the shell was ready in 2.8–3.4 s rather than 4.4–5.1 s with the well log drawn on the main thread. It fades out once React commits the first frame, as the shell fades in beneath it. The loading screen stays up for a minimum time once drawn (`loaderMinDuration`, a second), and a boot faster than that waits, hidden, until it has passed: a fast load is a moment slower rather than a flash of a drawing that is gone before it reads. The choice and the minimum are plain exports of `src/mfe.config.ts`, built into the page, rather than runtime settings with defaults: generating seeds a development copy of the runtime configuration with every declared default and never changes a value it seeded, so an edit to a default would never reach a developer's page. `SHELL_LOADER` stays, without a default, for a deployment to choose another.
+
+When sign-in, the configuration or the boot fails, the loader does not stop where it stands: it
+loads one chunk, the failure page (`src/failure/`), which renders Tecton's page-state block
+(`src/blocks/page-state`, installed from the `@tecton` registry) with the status, the code, what
+happened, the reason as given, and the one way forward: sign in again, try again or reload. The
+page is painted hidden above the loader, then the two cross-fade, and focus goes to the way
+forward, or to the title when there is none. Pressed, the way forward says where the page is
+going (`Redirecting…`) and takes no second press; when that fails too, as signing in again does
+against an identity provider that is down, the new failure replaces the page's and focus goes to
+its title. The chunk holds React, Tecton's classes and the block, and nothing behind sign-in: no
+registry, no container, no token. Nor React Aria, which is shared and so never tree-shaken: the
+page's two buttons are native ones with Tecton's button classes, which keeps the failure's own
+download at about 137 kB gzipped where a Tecton `Button` made it 405 kB. When it cannot load
+either, on a network that is gone, the loader says the same in its own words, which a later
+failure replaces in the same way, as does index.html's handler for a script or stylesheet that
+failed to load, since a chunk would not load then.
 
 **Cost:** the refresh token sits in `sessionStorage` until the tab closes, so script
 running in the page could read it for that long rather than only use it; DPoP, where the
@@ -1104,3 +1155,661 @@ placeholder tokens) and the font (373 kB) even when its container uses neither.
 `pnpm verify:page` checks that the tokens and the font were in place when PrimeNG's
 first button was inserted, that the tokens follow the dark class, and that a page
 with no Angular container never loads them.
+
+---
+
+## 39. Commands are actions, and placements do not decide an action's keys
+
+**Status:** decided; the first step of the agentic plan (`agentic-plan.md`).
+
+A registration is a typed operation that any caller runs: the palette, a shortcut, the
+App's own button and, next, an agent. "Command" read as a palette entry, and in CQRS as
+a write only, where reads (fetch the selected records) matter as much. So
+`CommandRegistration`, `CommandEntry`, `CommandRegistry`, `useCommand`, `injectCommand`
+and `runtime.commands` are `ActionRegistration`, `ActionEntry`, `ActionRegistry`,
+`useAction`, `injectAction` and `runtime.actions`; the placement `'command-palette'` is
+`'palette'`, and the error code `command/duplicate-name` is `action/duplicate-name`.
+Nothing is deployed, so there is no alias. The surface keeps its name: the shell's
+command palette lists applications, pages and actions, and is built from the design
+system's `Command` component. §26 and §35 are unchanged but for the names.
+
+`placements` says which surfaces list an action, and nothing else. An action's keys
+work whatever it lists, `[]` included: the shell's actions that open the palette, the
+developer tools and the dashboard list nowhere, since the palette is the one or
+reaches the others as destinations, and each says why beside its empty list. Once
+`'agent'` is a placement that "listed nowhere" is a decision each action states,
+rather than a keys-only constant that would also hide it from the agent unnoticed.
+
+**Cost:** "action" is taken twice nearby: React 19 calls an async transition an
+Action (`useActionState`, `<form action>`), and the design system has an `ActionBar`.
+The docs say "action" for ours and name the others in full where both appear.
+
+---
+
+## 40. Every caller runs an action through one executor, and says who it is
+
+**Status:** decided; step 1 of the agentic plan.
+
+The registry ran an action itself, between registration bookkeeping and shortcut
+matching. The agent needs more steps between "may it run" and "run it" — validate the
+input, ask for approval, hold a write while another runs — and a record of who acted
+afterwards, and each step must hold for every caller or the agent gets a path the
+palette does not. So running moved into `action-executor.ts`, as ordered steps:
+decide (`canExecute`), then execute. Validating the input, approval and serializing
+writes land between them, and audit after, each in the commit that adds the field it
+reads; the registry keeps scopes, entries and keys, and hands the executor every run,
+from `execute` and from `handleKeyDown` alike.
+
+`execute(id)` became `execute(id, { caller })`, with `caller` one of `'palette'`,
+`'shortcut'`, `'ui'` and `'agent'`, required so no caller is recorded by default. A
+key press states `'shortcut'` itself. An `executed` result carries the `value`
+`execute` returned, once awaited, so `ActionRegistration.execute` is `() => unknown`
+where it was `() => void | Promise<void>`. The call takes no `input` yet: it arrives
+with `inputSchema`, so there is never a path that hands an action unvalidated input.
+
+A denial goes back to every caller in the result, and to `notifyActionDenial`, which
+carries the caller, only when a user asked. An agent's denial is not also a toast: the
+agent tells the user in its own words, in the chat.
+
+**Cost:** every caller names itself, which the palette's one call site and the tests
+had to learn, and an action's `execute` may now return anything, which no reader
+checks until `outputSchema` exists.
+
+---
+
+## 41. A Widget's contract is `inputSchema` and `outputSchema`, and its events are outputs
+
+**Status:** decided; step 2 of the agentic plan.
+
+Actions (§39) take an `inputSchema` and return a value described by an
+`outputSchema`: the names TanStack AI, the AI SDK, MCP and WebMCP give a tool's
+two schemas. A Widget's contract used `inputs` for the schema, which is also the
+name of the values `render` receives, and `events` for a plain record of payload
+schemas. So a Widget now declares the same two fields. `inputSchema` is unchanged
+but for its name. `outputSchema` is one `z.object` with a property per output,
+each that output's payload schema, which is the shape the registry already
+published (§16's amendment), so the authored and the published contract are one
+thing and the build, the provider boundary and the Angular check read one schema.
+"Event" left the vocabulary with it: a Widget emits outputs, as an Angular
+component does through its `output()`s. `emit(name, payload)` and the `onX` props
+stay, as Angular keeps "emit" and event binding for its outputs. So:
+`DynamicWidget`'s `onEvent` is `onOutput`, `<mfe-widget>`'s `(event)` is
+`(output)`, the error code `contract/event-mismatch` is `contract/output-mismatch`
+with direction `'output'`, the testing helpers' `events` are `outputs`, and the
+generated contract module exports `inputSchema`, `outputSchema`, `Inputs` and
+`Outputs`. Nothing is deployed, so there is no alias.
+
+The two `outputSchema`s differ in what they describe, following from the kind: an
+action's is the one value a call returns, a Widget's has a property per output,
+each emitted any number of times, or never, while it is mounted. So no reader of
+a Widget's `outputSchema` looks at whether a property is required, and the
+agentic plan's rule holds where the two meet: a Widget's `outputSchema` is never
+a tool's `outputSchema`.
+
+The plan's other half of this step, moving the build's schema reader into a
+neutral module for actions and routes, was not needed. The reader is already
+neutral (`config/zod-static.ts`, `readStaticSchema`); what stays in
+`widget-contract.ts` is finding the two fields in `createWidget`'s options. An
+action's schema is a live Zod object in the page, which the chat host converts
+at run time, so the build never reads one, and published routes (the plan's D)
+call `readStaticSchema` directly.
+
+**Cost:** `outputSchema` must be a `z.object`, so a Widget that emits nothing
+writes `z.object({})` where it wrote `{}`, and `createWidget` refuses anything
+without a `shape`. Typing an output's payload reads through the shape
+(`z.infer<(typeof outputSchema)['shape']['acknowledged']>`), which the generated
+`Outputs` type spells out so a consumer never has to.
+
+---
+
+## 42. An action declares what the agent needs, and the executor checks it for every caller
+
+**Status:** decided; step 3 and feature A of the agentic plan.
+
+An action becomes a tool the shell's agent can call, so it declares what a tool
+definition holds, in the names one uses: `description` (for the model; `label`
+stays the menu text), `inputSchema` (one `z.object`, the field a Widget's contract
+has) and `outputSchema` (the one value a call returns). It also declares its risk:
+`effect` is `'read'`, `'write'` or `'destructive'`, undeclared counting as
+`'write'`, and `needsApproval` is a boolean or a check of the input. `parallelSafe`
+lets an agent's write run beside another, and `followUp: false` tells the agent to
+stop once it has the result. `'agent'` is a placement, and one of the defaults, for
+a Widget's actions as for an App's: anything a user can reach from the palette, the
+agent can reach too, and an action that should not be offered lists its placements.
+
+The executor's steps (§40) gain what they read. Every caller's input is parsed with
+the `inputSchema` (absent is `z.object({})`), and a mismatch returns `invalid`,
+reported with `contract/input-mismatch`, without running; `execute` receives what was
+parsed. A value that fails the `outputSchema` fails the run with
+`contract/output-mismatch`. For an agent's call alone, the executor refuses an action
+not placed for the agent, then rules on approval: a read runs, anything else asks,
+unless `needsApproval` says otherwise, and the host's `actionApprovalPolicy` may
+approve, deny with a reason, or ask instead. A policy that throws denies, since it may
+exist to refuse what the user could otherwise approve. Asking goes to the approver the
+chat sets with `actions.setApprover`; with none, the call is denied rather than run,
+and a user who says no returns `declined`. An agent's writes then run one at a time,
+unless `parallelSafe`, and a call that waited is looked at again before it runs, so a
+mount that went away returns `unavailable`, and a placement or a `canExecute` that
+changed denies. A user who runs an action is its approval, and a user's run may itself
+run another action, which a queue would deadlock, so neither step applies to the
+palette, a shortcut or the App's own UI.
+
+`useAction` and `injectAction` return a run with the caller `'ui'`, so the App's own
+button shares validation, approval and audit with every other caller, and the result
+is typed by the action's schemas. The run goes through the registration's own handle
+(`ActionRegistrationHandle.execute`), not its id: two mounts of one definition may
+each register a name, and the second is `<definitionId>:<name>-2` (then `-3`), so the
+palette and the agent see two actions and a run by id reaches the mount it names. A
+React run made before its component registered, from a child's layout effect or from
+a passive effect a concurrent root flushes in a later task, waits for that
+registration rather than guessing the id, which could be another mount's. A
+removed handle runs nothing and returns `unavailable`. A run's promise never rejects:
+a hook or a schema that throws makes it `failed`, audited like any other. The
+published entry carries `description`, `effect`, `followUp` and both schemas as JSON
+Schema, converted by the schema's own `toJSONSchema` (the container's Zod, not the
+runtime's) only when its identity changes, and `actionEntryEqual` compares all of
+them, so a changed description reaches the agent's tool list and an equal schema
+declared again inline publishes nothing. A schema JSON Schema cannot express is
+refused at registration and on an update, since the agent could not call the action.
+
+A queue is only as good as its slowest member: a write whose `execute` never settles
+(a forgotten promise, a request with no timeout, a component unmounting mid-save)
+held every later agent write, and the chat's turn with it, for good. So a run can be
+given up, three ways, and `execute(input, { signal })` receives a signal that aborts
+when it is:
+
+- **The deadline.** An agent's call fails with `action/timeout` once `execute` has run
+  for the action's `timeoutMs`, 30 seconds unless it says otherwise (a positive number
+  of milliseconds, checked at registration). It is reported to the diagnostics and
+  audited, and the queue moves on. The deadline starts when `execute` does, not when
+  the call was asked for: waiting on the user is not the App's time, and a write
+  behind a hung one then waits at most that one's deadline before its own full budget
+  starts. Only an agent's calls have one, reads and `parallelSafe` writes included,
+  since the turn waits on each. A user's run has none, as the user sees it and it
+  never queues, and the host's own code passes a signal when it wants a limit.
+- **Release on unmount.** When a registration goes (its component's cleanup, its
+  mount's `removeMount`, the registry's disposal), every run of it still queued or
+  running resolves `unavailable`, whoever called it, and the queue moves on. A call
+  still waiting on the user is looked at again when they answer, as before.
+- **The caller's signal.** `ActionCall` takes a `signal`; the chat's Stop already
+  aborts the one each page tool receives, and `actionTools` passes it on. A run
+  aborted before it starts runs nothing, and one queued or running resolves
+  `cancelled` with a reason: a seventh outcome, since the user chose it and it is
+  neither a refusal nor a failure. A stop while the user was asked is `cancelled`
+  too, although the chat answers its card as declined.
+
+Whichever comes first is the run's result, audited once. The action's signal aborts
+with the timeout's or the removal's error, or the caller's reason, and whatever
+`execute` returns or throws afterwards is dropped, never reported as a success, a
+failure or an output mismatch: the call has already been answered.
+
+Actions still live in the page and last as long as their mount: they are not server
+actions and cannot run headless, and `canExecute` is still a read of UI state, never
+an authorization boundary. The server authorizes.
+
+**Cost:** an action with no declared effect asks before the agent runs it, so the
+shell and the examples mark their panel openers and navigation `'read'`; a schema
+declared inline is converted again on every commit; and an action's type carries two
+parameters, erased where the registry stores it. A write given up at its deadline may
+still finish in the background, after the next one started, when its `execute`
+ignores the signal: the queue orders what the agent waits on, not what the App does.
+
+---
+
+## 43. An action's failures each have a code of their own
+
+**Status:** decided; amends §35's cost.
+
+Every failure the action registry raised carried `action/duplicate-name`: a duplicate
+name, an invalid name, label, placement, effect, shortcut or schema, a shortcut it
+refused, and a run of an action that had gone away. §35 reused the code rather than
+widen the closed union (§7), when shortcuts were its only addition. §42 added the
+effect and the schemas, and an agent reads `unavailable` as "list the tools again", so
+a code that names a fifth of its cases now misleads both the reader and the code that
+branches on it. The union widens, deliberately:
+
+- `action/duplicate-name` — two registrations of one name in a scope, and nothing else.
+- `action/invalid-registration` — a field the registry cannot accept, thrown at
+  `register` or `update`: the name, the label, a placement, the effect, a `timeoutMs`
+  (§42), a shortcut it cannot read, an `inputSchema` that is not a `z.object`, a schema JSON Schema cannot
+  express, or `register` given the reserved host scope.
+- `action/shortcut-refused` — a warning that a shortcut will not fire: a Widget's, one
+  the host page uses, or one another live action claims.
+- `action/unavailable` — a run of an action no longer registered, from `execute`, from
+  its own handle once removed, or after an agent's call waited while its mount went away
+  (which reported `mount/failure`), and a run still queued or running when it went (§42).
+- `action/timeout` — an agent's call whose `execute` ran past its deadline (§42), added
+  with the deadline rather than reusing `mount/timeout`, which names a mount that did
+  not come up.
+
+**Cost:** three more codes in the union, each with a row on the error codes page.
+
+---
+
+## 44. A disposed mount is cleared from every store at once
+
+**Status:** decided; step 6 of the agentic plan.
+
+The action registry, the navigator's blockers and the breadcrumb store each keep
+records per mount. Disposing a mount cleared the first two, while a mount's crumbs
+went only when the component that contributed them ran its cleanup, so for a moment,
+or for good if that cleanup never ran, the trail still named a mount that was gone.
+The agent-context store (plan B) will be the fourth such store, and a snapshot of a
+disposed mount's selection is context the agent would act on.
+
+So each store has `removeMount(token)`, and `mountScopedStores(runtime)` in
+`mount/mount-context.ts` lists them; disposal clears every one before it aborts the
+mount's signal, as it cleared actions before. A handle whose records `removeMount`
+already took does nothing afterwards, so the owner's late cleanup cannot publish
+again. There is still no generic store: what the three share is `removeMount`, not
+their logic. A test lists every runtime member with a `removeMount` and fails when
+one is missing from the list, so a new store cannot be forgotten.
+
+**Cost:** one more list to keep, which the test keeps honest.
+
+---
+
+## 45. Apps, Widgets and framework packages never import an agent library
+
+**Status:** decided; step 7 of the agentic plan.
+
+The shell's chat is the one place that talks to the agent (plan E). A hook from an
+agent library inside a mount could not reach it anyway, as every mount renders in a
+root of its own (the wall §35 hit with shortcuts), and a container that bundled one
+would be rebuilt with every change to it and would add it to the shared scope. What a
+mount offers the agent is its actions, through `useAction` or `injectAction`.
+
+So the author presets (`react.author`, `angular`) and the `framework` preset, in every
+package zone, reject the AI and agent libraries and the model providers' SDKs, type
+imports included: `ai`, `openai` and `langchain` as exact paths, and `@tanstack/ai`,
+`@tanstack/ai-*`, `ai/*`, `@ai-sdk/*`, `@ag-ui/*`, `@copilotkit/*`,
+`@anthropic-ai/*`, `openai/*`, `@google/genai`, `langchain/*`, `@langchain/*` and
+`@mastra/*` as patterns. The bare names are paths because, as a pattern, `ai` would
+match any import whose last segment is `ai`, `./ai` included. The `application()`
+preset, which the shell uses, leaves them allowed: E confines the library to the
+chat module there. `pnpm boundaries` checks the same list in the manifests and sources
+of the core, the runtime, the adapters and the developer tools, and every one but
+`@ag-ui/*` in `@company/mfe-agent`. A team's own backend is not linted by these presets
+and may use whatever it likes.
+
+**Cost:** a list of package names to keep current as libraries appear; one that is
+missing is let through, not refused.
+
+---
+
+## 46. What the agent knows of the page travels with each turn, and goes with its mount
+
+**Status:** decided; feature B of the agentic plan.
+
+The agent acts on what the user is looking at, so each turn carries it, in the layers
+Agent-Native's context awareness uses. `runtime.agentContext` (`AgentContextStore`)
+holds them, and `read()` assembles them when a turn is sent:
+
+- **The URL.** The page's path and search params, and every mounted App whose boundary
+  holds the page with its own path below it, outermost first. The mount context records
+  each App's boundary as it creates it, so no author does anything, and filters worth
+  sharing belong in the search params, where the agent sees them and changes them by
+  navigating.
+- **Selections.** `useAgentContext({ description, schema, value })` and
+  `injectAgentContext` publish a small snapshot of what is selected or focused, as
+  CopilotKit's hook of the same name does: `description` tells the model what the value
+  is, the schema parses it, and what it parsed is what the agent gets, with a
+  `capturedAt` that changes when the value does. It must be JSON of at most 4096
+  characters: ids and a label, never whole records and never secrets. A value that is
+  not is left out and reported once, as a warning with `contract/input-mismatch`. An
+  empty `description` throws at registration; an update that empties it is left out and
+  reported the same way. The
+  agent reads the records themselves through the App's read actions (§42), so it acts
+  on live data rather than on a copy taken at render.
+- **Prompt handoff.** `useAgentPrompt()` and `injectAgentPrompt()` return a function
+  that hands `{ message, context, submit }` to the chat, so a click becomes a turn:
+  `message` is shown, `context` is sent but not shown, and `submit: false` fills the
+  composer for the user to review. It answers whether a chat took it; until the shell
+  has one (E), none does.
+
+A selection belongs to its mount, as an action does, and the store is on the list of
+mount-scoped stores (§44), so disposing a mount takes its selections and its boundary
+with it, and the agent never acts on what a gone mount had selected. Outside a mount it
+is the host page's own. Sending the page's selected text with ⌘I is the chat's own
+input, and lands with it in E.
+
+**Cost:** a mount states its selection twice, in its own state and in the snapshot,
+and the size limit refuses a large value where truncating it would have sent something.
+
+---
+
+## 47. Every action run is audited, and the host's backend stores it
+
+**Status:** decided; feature C of the agentic plan.
+
+Once an agent can act, "who did this" has three answers where it had one, so the
+executor's last step (§40) records every run, whatever its outcome and whoever asked,
+a call to an action that is gone included. `ActionAuditRecord` holds the action and
+its owner, the `actor` (`'user'`; `'agent'`, which acts on the signed-in user's behalf;
+or `'system'`, the host's own code, a new caller that no user asked for and so is
+neither told of a denial nor asked to approve), the `caller`, the signed-in `userId`,
+the chat thread and turn an agent's call passes as `turn`, the `outcome` with its
+`reason` or error code, the input, `startedAt` and `durationMs`, approval and waiting
+included.
+
+The input is recorded as the caller sent it, which is what an audit asks about, with
+credentials replaced by `[redacted]`: every value under a key whose words name one
+(`password`, `apiKey`, `x-api-key`, `client_secret`, `sessionId`; `author` and
+`compass` are not caught), and every string that is a bearer or basic header (the
+scheme and one token, so a sentence that starts with "Basic" is kept), a JWT or a PEM
+private key, whatever its key. Matching on the key's words rather than on
+substrings keeps redaction from eating ordinary fields.
+
+The runtime reports each record to the telemetry provider as a `framework` record
+(operation `run action`, `info` when it ran and `warn` otherwise, attributed to the
+action's owner), which is the existing path to the shell's telemetry, and hands it to
+the host's `auditAction`. Storing it, and for how long, is the backend's job; the page
+keeps nothing. A sink that throws is reported and the run's result stands.
+
+**Amendment (§50):** the audit trail is not stored, by the page, the shell or the agent
+backend. It travels as telemetry: the `run action` records reach the shell's telemetry
+provider, and the shell's Faro and OpenTelemetry pipeline will carry them once it is
+connected. The shell sets no `auditAction`.
+
+**Cost:** a telemetry record per action run, palette and keys included; a host whose
+telemetry volume matters filters `run action` records by level. Redaction by pattern
+lets a credential under an unremarkable key through; an action should not take one.
+
+---
+
+## 48. An App's build publishes its routes, in one path syntax for every router
+
+**Status:** decided; feature D of the agentic plan.
+
+The agent navigates, and a host cannot generate a navigate tool from Apps it has not
+loaded, so the build publishes each App's routes into its registry entry, as it
+publishes capability routes (§16): `routes: [{ path, search? }]`, App-only, sorted by
+path. A container profile finds them (`readRoutes`, beside `readCapabilities`), and the
+neutral build dedupes and sorts them. The registry refuses routes on a Widget, which
+owns no URL, and a path that is not App-relative.
+
+`path` is written one way whatever the router: `:name`, `:name?` and `*`, as
+`URLPattern` writes them, so a host and an agent read one syntax. The React integration
+reads every `createFileRoute('<path>')` in the routes directory, skipping the files
+TanStack Router's generator skips (a `-` prefix, a colocated `*.test.*` or `*.spec.*`),
+and writes TanStack Router's own syntax in that one (`$id` and `{$id}`, `{-$id}`, `$`
+and `{$}`), dropping the segments a pathless layout (`_auth`) or a group (`(admin)`)
+adds nothing for. Such a layout is not a destination, so it is not listed itself, but
+the index route inside it is (`/_auth/` is `/`). The Angular integration walks the
+array `createApp` receives through inline `children`, publishing each route with a
+component, and leaves out redirects, `**`, routes with a `matcher` or on a named outlet,
+and what a lazy `loadChildren` declares.
+
+`search` is the JSON Schema of the params a route reads, merged over those of the
+routes it is nested in and of the root route, since TanStack Router validates them all
+(an index route is nested in the route of its own path, and nothing is nested in it):
+read with the static reader (§37, §41) from `validateSearch`, through a module-level
+`const` or `zodValidator(…)`. A schema the build cannot read leaves the route published
+without `search` rather than failing the build, as it only helps the agent fill params
+in. Angular's router declares no search params, so its routes carry none.
+
+The legacy Angular adapter's own `routes` (shell paths from a legacy config) became
+`legacyRoutes`, so the neutral field means one thing. The developer tools list an
+entry's route paths.
+
+**Cost:** code-based routes (`createRoute`) and routes behind `loadChildren` are not
+published, and the navigate tool cannot offer them; a route whose path is computed is
+not either, nor one with a parameter that shares its segment with a prefix or a suffix
+(`{$id}.json`), which the neutral syntax cannot write, nor an Angular route with a
+`matcher` or on a named outlet.
+
+---
+
+## 49. The shell talks to the agent through `@company/mfe-agent`, on the plain AG-UI client with TanStack AI's API
+
+**Status:** decided; the first part of E in the agentic plan, after the AG-UI spike.
+
+The spike (`docs/agent-spike.md`; its code is removed) ran TanStack AI's client and the plain
+AG-UI client against a TanStack AI backend, a backend that speaks only the spec, and Agent
+Framework's .NET host.
+TanStack AI's client worked with its own backend only. Against the others it left a page tool's
+call unrun, it never sent AG-UI `context`, and it could answer another backend's interrupt only
+through an escape hatch it calls unsafe. The plain client (`@ag-ui/client` 1.0) worked against
+all three. It sends `context` and keeps history as AG-UI messages, the format the plan stores.
+
+So the chat runs on the plain client, in a package of its own. It is named for the agent, not the
+chat, because its job is the page's connection to the agent: the chat UI lives in the shell, and
+exposing the same actions to browser agents (WebMCP, G) belongs beside it. `@company/mfe-agent` copies TanStack
+AI's public API, not its code: `ChatClient`, `UIMessage` with `parts`, the tool-call
+states from `awaiting-input` to `complete`, and interrupts resolved with `resolveInterrupt`. That
+API is well designed, and its documentation reads across. It differs where our design does:
+
+- **No React binding.** TanStack AI's `useChat` is not copied: the shell, its one consumer, holds
+  the client outside React and reads it with `useSyncExternalStore`, so a binding would be a
+  second way in that nothing uses, and a React dependency for a package that needs none.
+- **Tools** come from the action registry through `actionTools(runtime.actions)`, and are read
+  again before every run.
+- **History** is AG-UI messages; `parts` is the view of them.
+- **Approvals.** The pipeline's approval step (`approvalsIn(chat.requestApproval)`) and a
+  backend's approval interrupt land in the same `interrupts` list, so one card serves both.
+- **Resuming.** One resume payload, `{ approved, toolCall }`, answers TanStack AI's backend and
+  Agent Framework's alike.
+- **Page tools.** A page tool's call is answered as a tool message whether the backend left it
+  pending (the spec) or stopped on an interrupt for it (TanStack AI's backend does). An interrupt
+  on a page tool always means "run it", because the pipeline, not the backend, asks for a page
+  action's approval; so the client needs no knowledge of TanStack AI's interrupt metadata.
+
+The package is the one framework package allowed to import an agent library, and only
+`@ag-ui/*`. Its lint zone and `pnpm boundaries` keep every other one out, so a backend stays
+swappable. The author presets reject `@company/mfe-agent` in containers, and the core, the
+runtime and the adapters may not depend on it. TanStack AI remains a good choice for a
+TypeScript backend's loop.
+
+**Cost:** the shell carries `@ag-ui/client` and its dependencies (`rxjs`, `uuid`,
+`fast-json-patch`). It asks for `zod` 3 but imports only `zod/v4`, which zod 4 exports too, so
+a pnpm override gives it the catalog's zod 4 and the shell ships one zod, not two (about 237 kB
+minified). We own the chat's state instead of taking TanStack AI's; the part of its
+API we copied is what we maintain. Agent Framework 1.22-preview raises no approval interrupt for
+its own tool while the page declares tools, so a .NET backend's domain tools cannot ask for
+approval until that is fixed upstream (`docs/agent-spike.md`, finding 10).
+
+---
+
+## 50. The chat is the shell's: one conversation for the page, beside the mounted App
+
+**Status:** decided; E of the agentic plan.
+
+`apps/shell/src/chat` is the chat. `ShellChat` holds one conversation for the page, outside React
+and for as long as the runtime, over `@company/mfe-agent` (§49), so closing the panel or crossing
+the breakpoint loses nothing. On a wide screen it is an aside beside the main area, in a split
+whose first panel is always the page, so opening, closing and resizing it never remounts the App
+mounted there; on a narrow one, a sheet. The aside is dragged, or moved with the arrow keys on its
+handle, between 20rem and whatever leaves the page 30rem; Enter or a double-click on the handle
+returns it to 26rem, and the width the user last chose is remembered in the browser (`@host`
+stored state). A full-width button widens it as far as the page allows, and back. The header's Assistant
+button and ⌘/Ctrl+I open it, and closing the aside returns focus to the button. Its backend is `AGENT_URL` in the shell's runtime configuration;
+without one the panel says the assistant is not configured. Its requests go through the request
+boundary (`createAuthenticatedFetch`), so the backend alone receives the user's token.
+
+- **Tools.** The page's actions (read again before every run), and the shell's own: a navigate
+  tool from the published routes (§48), which asks the mounted Apps' blockers first, as a link
+  does (§20), then moves the router past them and answers with where the page landed, or that an
+  App held it (a path with `?`, `#` or `..` is refused; search params go in `search`); the render
+  tools of §51; and `ask_user`. Above 24 tools the client declares the shell's own, those discovered in the
+  conversation and `discover_tools`, which names the rest (`withToolDiscovery`, after TanStack AI's
+  lazy tool discovery).
+- **Approvals.** The pipeline's approver opens the chat and asks there, in the one card that also
+  answers a backend's approval interrupt.
+- **Focus.** When the assistant stops to ask (an approval, a backend's question, `ask_user`), focus
+  moves to the question only if the user is waiting on it: in the chat's empty message box, on one
+  of its buttons, or nowhere. The card takes focus, not its first button, so a stray Enter
+  approves nothing. A user writing the next message or working in the App keeps their focus and
+  hears the question announced with the way to it: Shift+Tab from the message box for a card
+  pinned above it, the end of the conversation for `ask_user`'s questions. Once it is
+  answered, focus moves to the next question waiting or back to the message box. An error is a
+  `role="alert"` and leaves focus where it is.
+- **Tool calls** render in three stages: inputs arriving, running (or waiting on approval), done
+  with the result. The shell's own tools render as what they show; any other call is one generic
+  card with the action's label, its stage, and its inputs and result behind a disclosure.
+- **Prompts.** A mount's `useAgentPrompt` becomes a turn whose context is sent unseen (as the
+  turn's AG-UI `context`), or, with `submit: false`, a draft with that context as a chip the user
+  can remove.
+- **Selected text.** ⌘/Ctrl+I quotes the page's selection into the next message, as Markdown
+  (`> `), rather than sending it unseen: the user sees what they asked about, and it stays in the
+  conversation for later turns.
+- **Slash commands.** A `/` at the start of the composer lists `/new` (a new conversation), then the
+  actions the page offers the agent, the mounted Apps' first and the shell's after, one word each.
+  Picking an action does not run it: it becomes a chip that sends the tool's name as the turn's
+  context, with the action's label as the text, so the model fills the inputs, the approval card
+  still asks, and the conversation keeps the result. Running an action straight away is the
+  palette's (§26), so the chat does not become a second palette.
+- **Replies** are Markdown, GitHub's flavour, with no raw HTML. A link to a page of the application
+  goes through the router and the Apps' blockers, as a link on the page does (§20); any other opens
+  in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
+  URL the model chose (issue [#31](https://github.com/rpkapps/mfe-framework-claude/issues/31)).
+- **Messages.** A reply can be copied, and the last one asked for again. A question can be edited:
+  the replies after it go and it is asked again, its quote kept. What the calls in the replies that
+  go showed goes with them (§51). A reply the user stopped says Stopped. ArrowUp and ArrowDown in
+  the composer step through what the user sent in this tab.
+- **Agent context** is the runtime's (§46), plus the latest output of each Widget shown in the
+  chat (§51).
+- **Boundaries.** Lint confines the agent libraries to `apps/shell/src/chat`
+  (`repo/shell-chat-module`), so a backend or client swap touches that directory alone.
+- **Loading.** Only the panel's state is on the boot path: `chat/instance.ts` (which sets the
+  prompt handler and the approver at boot), `panel.ts`, `panel-hooks.ts` and `lazy-panel.tsx`.
+  `ShellChat` with its tools, `@company/mfe-agent` and `@ag-ui/client`, and the panel's UI load on
+  first use: the panel opening, a mount's prompt (the panel opens at once), an approval, or the
+  pointer or focus reaching the Assistant button. `recharts` loads with the first chart. A load
+  that fails says so in the panel, with Try again. A part of the conversation that throws as it
+  renders says, in its place, that it could not be shown, and the rest carries on; since the
+  conversation outlives the panel, trying again would throw again. Anything else below the header
+  that throws offers a new conversation instead. The same lint rule keeps the rest of the chat
+  out of the shell's other modules, so nothing puts it back on the boot path.
+
+`@company/mfe-agent` grew what the chat needed: `sendMessage(text, { context, forwardedProps })`
+for a turn's own context; `followUp` on a tool, `false` or a function of the result, which ends
+the turn once every call is answered by a tool that does not follow up, and sends the answers with
+the next run; an abort signal for a tool that waits, such as `ask_user`, so stopping a turn never
+hangs; and `withToolDiscovery`. Turns queue, so one run is in flight at a time, and a turn runs the
+page's tools one at a time, so a pipeline approval belongs to the one call running. Every interrupt
+the last run ended on that nobody answered is resumed as cancelled by the next run, as the spec
+requires; `clear()` starts a thread with none. A throw from `tools`, a `followUp` function or the
+connection's headers fails the turn, as a failed run does, rather than rejecting `sendMessage`;
+`onError` is called once, and a handler that throws leaves the turn's error in place. Every call
+ends with a result, because a model API rejects a request with a call that has none: a pending
+call to a tool the page does not have (a made-up name, or one discovery has not declared) is
+answered with an error and the turn runs again, within its run limit, so the model can recover;
+and a failed turn answers the calls it left open as failed, except one a backend's interrupt
+holds, which the backend answers when it is resumed.
+`editMessage(id, text)` cuts the history back to a question and asks it again, on the same thread,
+with the options the edit is given. `reload()` asks the last question again with the context and
+forwarded props it was sent with, so Ask again repeats a prompt's or an A2UI press's turn whole.
+What a run sends is limited, the transcript is not: the last six turns go whole, and in older ones
+a tool result over 2,000 characters is replaced by a note of its size and reasoning is left out, so
+a long conversation stays within a model's context (`history`, or a function of the messages).
+
+The backend's owner is still open. `tools/agent-dev`, which `pnpm dev` starts, stands in: a
+spec-only AG-UI server with a scripted demo agent that exercises every path of the chat with no key
+and no network; a model behind any OpenAI-compatible server, a local open-weight one included
+(vLLM, SGLang, llama.cpp, Ollama), with its reasoning shown as thinking; or Anthropic's Messages API.
+It is not what a deployment runs.
+
+The message box is Tecton's `Composer` (tecton-ui-1, `src/tecton/composer.tsx`): upstream shadcn
+has the conversation components but no composer. It follows the survey in tecton-ui-1's
+`docs/research/composer.md`: Enter sends, Shift+Enter is a new line, ⌘/Ctrl+Enter always sends,
+nothing sends while an IME composes, Escape stops a reply, ArrowUp and ArrowDown step through the
+prompts sent, keeping the draft, `/` lists commands, the textarea stays enabled while a reply streams, and Send and Stop are two named buttons
+that swap with focus following.
+
+**Cost:** the chat is a download on first use, about 103 kB compressed, and the first chart about
+140 kB more; loading them lazily took about 238 kB compressed off the boot path. A navigate call is
+refused for a path
+no published route matches, so an App's code-based routes are out of the agent's reach (§48). The
+conversation lives in memory: a reload starts a new one. Formatting replies adds markdown-to-jsx
+9, about 28 kB compressed, to the chat's download, not to the boot path; react-markdown and
+remark-gfm, which it replaced, took 16 kB more. Its 7.x line is a quarter of the size, but it
+emphasises inside a word such as `well_id_here`, which replies are full of, and misses GFM's
+pipeless tables and `www.` links.
+
+---
+
+## 51. A result is UI only when its tool says so, and the UI is a Widget, a built-in renderer or A2UI
+
+**Status:** decided; F of the agentic plan.
+
+The chat never guesses from a result's shape that it could be drawn, and never takes HTML or script
+from one. A tool the shell declares for the purpose is what draws:
+
+- **`render_widget`**, from the published contracts (§16): `{ widgetId, inputs }`, with each
+  Widget's input schema a variant of `inputs`, titled with its id. The chat shows a skeleton while
+  the inputs arrive, then `<DynamicWidget>`; the provider validates the inputs as it does anywhere,
+  and the host's props are never taken from them. Its result is only that the Widget was shown.
+- **`show_table`, `show_chart`, `show_summary`**: the built-in renderers, for data the agent
+  already has. Their schemas are Zod in the shell, and they draw with Tecton's `Table`, `Chart` and
+  `Card`; a chart also lists its figures in a table behind a disclosure. They live with the tools,
+  not in Tecton as the plan first had it, because their schemas are the tools' contract and Tecton
+  knows nothing of agents. Their descriptions say not to show figures that came from nowhere.
+- **`ask_user`**: questions shown as Tecton's `Questionnaire`; submitting answers the call,
+  declining, stopping the turn or clearing the chat answers it declined.
+- **`render_a2ui`**: one-off UI in A2UI v0.9 (https://a2ui.org) from a catalogue the shell
+  provides, a subset of A2UI's basic catalogue drawn with Tecton (Text, Column, Row, List, Card,
+  Divider, Button, TextField, CheckBox, ChoicePicker, Image, Icon). Its input is the AG-UI A2UI
+  middleware's, `{ surfaceId, components, data? }`, or raw messages; the host stamps the catalogue
+  id. Only data crosses: values are literals, paths into the surface's data model, or calls of the
+  few functions the client implements, and a link opens over http(s) only. A path reads only the
+  data's own members, and a write to `__proto__` or past the end of an array changes nothing.
+
+Each of these ends the turn once shown (`followUp` as a function): the result is for the user. One
+the chat refused (an unknown Widget, inputs its schema rejects, a component outside the catalogue)
+lets the agent hear why and correct the call.
+
+A Widget in the chat hands values back two ways. Passively: the latest payload of each output of
+each Widget shown is agent context for later turns, newest first, in at most 4096 characters of
+JSON: a payload that is not JSON, or does not fit, is left out. A Widget is shown while its call is
+in the conversation: once Ask again or an edit cuts the call, its outputs leave the context. So it
+is with A2UI: what a cut call did to a surface is undone, the user's input since with it, and a
+surface it created goes, so the call that replaces it creates it again and is where it is drawn.
+Explicitly: from the user's own press, through `useAgentPrompt`, as the well-design Widget's "Ask
+the assistant" does; never from a timer or an error handler. An A2UI Button's event is the same
+kind: a new turn, sent unseen as context and as the middleware's `forwardedProps.a2uiAction`.
+
+An A2UI `Image` loads only from an allowlist (#31). An image is fetched as soon as it is drawn, with
+no press from the user, so an agent steered by text it read (a prompt injection) could put page data
+in the query of an image URL on its own server and have the browser send it. An `Image` loads when
+its URL is on the shell's own origin, is a `data:image/…` URL (which fetches nothing; any other
+`data:` is refused), or is on an origin the deployment lists in `AGENT_IMAGE_HOSTS` (field
+`agentImageHosts`): comma-separated origins, scheme, host and optional port with no path, matched
+exactly, no wildcards, and none by default. A value with an entry of any other form fails the
+start-up check, like any other setting, rather than being read loosely. Any other image is drawn as
+text, its description and the host it would have come from, with no element that fetches it, and one
+that loads sends no referrer. Click-to-load was the alternative: it keeps every image one press
+away, but that press still sends the URL wherever the agent chose, leaving the call to the user at
+each image; the deployment's list was chosen instead. A reply's Markdown images stay unloaded
+whatever the list says, and a Button's `openUrl` and a reply's links are left as they are: each
+opens only on the user's press.
+
+**Cost:** A2UI's `Tabs`, `Modal`, `Slider`, `DateTimeInput` and media components are not in the
+catalogue yet, nor its `ACTIVITY_SNAPSHOT` transport; an agent behind the middleware that only
+sends activity events draws nothing here.
+
+---
+
+## 52. A mount suggests prompts while it lives
+
+**Status:** decided; the "later" of E in the agentic plan.
+
+`useAgentSuggestions([{ message, label?, context?, submit? }])` and `injectAgentSuggestions` offer
+up to three prompts per mount, kept by the agent-context store and dropped with their mount (§44),
+like a selection. The chat shows them before the first message, beside its own starters, and after
+each answer while nothing waits on the user, a prompt two mounts offer (two of one Widget) once,
+as the first offered it. Pressed, one is handed on as that mount's prompt.
+A suggestion that is empty, not JSON or too long is left out and reported once, as a selection is.
+
+---
+
+## 53. Nothing carries a path for builds from before a field existed
+
+**Status:** decided; step 5 of the agentic plan.
+
+Nothing is deployed, so no adapter claims an entry whose `mfe` marker names no framework (the React
+adapter did, for builds from before `framework`), a container descriptor always names its
+`framework` and `shareScopes`, and the development registry refuses a build that does not. An
+entry that names no framework is no adapter's and is rejected as unrecognised, which still fails
+loudly; one that names its framework stays with that adapter however broken the rest is (§9).
+`shareScopes` stays optional on a registry entry: one written by hand, for a test or a fixture,
+names none, and `default` alone is right for it.

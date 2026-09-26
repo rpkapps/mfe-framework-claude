@@ -1,4 +1,4 @@
-/** The shortcut list is the live command snapshot rather than a table written here, so it gains and loses rows as you navigate (§26). */
+/** The shortcut list is the live action snapshot rather than a table written here, so it gains and loses rows as you navigate (§26). */
 
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
@@ -26,7 +26,7 @@ import {
 
 import { shellUi } from './ui-store.ts'
 
-type CommandEntry = ReturnType<MfeRuntime['commands']['getSnapshot']>[number]
+type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
 const CONCEPTS: readonly {
   readonly icon: typeof AppWindowIcon
@@ -50,8 +50,8 @@ const CONCEPTS: readonly {
   },
   {
     icon: TerminalIcon,
-    title: 'Commands come from the mount that owns them',
-    body: 'The palette lists them and runs them; the application that registered a command decides whether it may run, and a denied one stays listed with its reason.',
+    title: 'Actions come from the mount that owns them',
+    body: 'The palette lists them and runs them; the application that registered an action decides whether it may run, and a denied one stays listed with its reason.',
   },
 ]
 
@@ -63,17 +63,17 @@ export function HelpSheet({
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
   const runtime = useMfeRuntime('the shell help sheet')
-  const commands = useSyncExternalStore(
-    runtime.commands.subscribe,
-    runtime.commands.getSnapshot,
-    runtime.commands.getSnapshot,
+  const actions = useSyncExternalStore(
+    runtime.actions.subscribe,
+    runtime.actions.getSnapshot,
+    runtime.actions.getSnapshot,
   )
   const apps = useApps()
   const navigate = useNavigate()
 
   // Only the keys that can fire: the runtime leaves a refused shortcut off its entry.
-  const shortcuts = commands.filter(entry => entry.shortcut !== undefined)
-  const groups = new Map<string, CommandEntry[]>()
+  const shortcuts = actions.filter(entry => entry.shortcut !== undefined)
+  const groups = new Map<string, ActionEntry[]>()
   for (const entry of shortcuts) {
     const group =
       entry.definitionId === HOST_SCOPE

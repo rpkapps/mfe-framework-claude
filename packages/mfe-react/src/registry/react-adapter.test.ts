@@ -1,6 +1,6 @@
 /**
  * The React adapter against the entries a framework build publishes: `detect` stays loose so a
- * broken framework entry never falls to another adapter, and `parse` names the field that broke.
+ * broken React entry never falls to another adapter, and `parse` names the field that broke.
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -14,7 +14,7 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1 },
+    mfe: { contractMajor: 1, framework: 'react' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     container: 'example_reports',
     ...overrides,
@@ -41,15 +41,11 @@ describe('detect', () => {
   })
 
   /** A typo in framework metadata must fail rather than quietly change how an app loads (§9). */
-  describe('recognises a framework entry however malformed its version marker is', () => {
+  describe('recognises a React entry however malformed its version marker is', () => {
     const malformed: readonly (readonly [string, unknown])[] = [
-      ['a contract major of the wrong type', { contractMajor: 'one' }],
-      ['an unsupported contract major', { contractMajor: 99 }],
-      ['an empty marker object', {}],
-      ['a marker that is a string', 'v1'],
-      ['a marker that is null', null],
-      ['a marker that is undefined', undefined],
-      ['a marker that is an array', []],
+      ['a contract major of the wrong type', { contractMajor: 'one', framework: 'react' }],
+      ['an unsupported contract major', { contractMajor: 99, framework: 'react' }],
+      ['no contract major', { framework: 'react' }],
     ]
 
     for (const [description, mfe] of malformed) {
@@ -59,16 +55,28 @@ describe('detect', () => {
     }
   })
 
+  /** It is no adapter's, so the registry rejects it as unrecognised, which also fails loudly. */
+  describe('does not recognise an entry whose marker names no framework', () => {
+    const unnamed: readonly (readonly [string, unknown])[] = [
+      ['a marker without a framework', { contractMajor: 1 }],
+      ['an empty marker object', {}],
+      ['a marker that is a string', 'v1'],
+      ['a marker that is null', null],
+      ['a marker that is an array', []],
+    ]
+
+    for (const [description, mfe] of unnamed) {
+      it(`does not recognise an entry with ${description}`, () => {
+        expect(reactAdapter.detect(entry({ mfe }))).toBe(false)
+      })
+    }
+  })
+
   describe('the framework the entry names', () => {
     it('recognises an entry that names React', () => {
       expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'react' } }))).toBe(
         true,
       )
-    })
-
-    /** Every React build before the field existed published exactly this marker. */
-    it('recognises an entry that names no framework at all', () => {
-      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1 } }))).toBe(true)
     })
 
     /** That entry belongs to its own adapter; reading it here would make both claim it. */
@@ -82,12 +90,6 @@ describe('detect', () => {
       expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'vue' } }))).toBe(
         false,
       )
-    })
-
-    it('reads an entry that names React exactly like one that names nothing', () => {
-      const named = parse(entry({ mfe: { contractMajor: 1, framework: 'react' } }))
-
-      expect(named).toEqual(parse(entry()))
     })
   })
 

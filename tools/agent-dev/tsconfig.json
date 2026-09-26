@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": ["node"],
+    // Node runs these files as they are, stripping the types, so nothing may need a transform.
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src/**/*"]
+}

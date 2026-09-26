@@ -1,7 +1,11 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
 import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
-import type { CapabilityDescriptor, ExportedDefinitionDescriptor } from '@company/mfe-core'
+import type {
+  CapabilityDescriptor,
+  ExportedDefinitionDescriptor,
+  PublishedRoute,
+} from '@company/mfe-core'
 
 import { summarizeSchema, type JsonObject, type JsonValue } from '../config/zod-static.ts'
 import {
@@ -36,6 +40,7 @@ export function containerDescriptor(
   context: GenerateContext,
   capabilities: readonly CapabilityDescriptor[],
   buildHash: string,
+  routes: readonly PublishedRoute[] = [],
 ): ContainerDescriptor {
   const definitions = context.discovery.definitions.map(definition => {
     const appCapabilities = definition.kind === 'app' && capabilities.length > 0 ? capabilities : []
@@ -48,13 +53,18 @@ export function containerDescriptor(
       ...(definition.tags === undefined ? {} : { tags: definition.tags }),
       ...(definition.icon === undefined ? {} : { icon: definition.icon }),
       ...(appCapabilities.length > 0 ? { capabilities: appCapabilities } : {}),
+      ...(definition.kind === 'app' && routes.length > 0 ? { routes } : {}),
       // A Widget publishes what it takes and emits so a host can catalogue and wire it; an App
       // takes a URL (§16).
       ...(definition.kind === 'widget'
         ? {
             contract: {
-              ...(definition.eventSchema === undefined ? {} : { events: definition.eventSchema }),
-              ...(definition.inputSchema === undefined ? {} : { inputs: definition.inputSchema }),
+              ...(definition.inputSchema === undefined
+                ? {}
+                : { inputSchema: definition.inputSchema }),
+              ...(definition.outputSchema === undefined
+                ? {}
+                : { outputSchema: definition.outputSchema }),
             },
           }
         : {}),

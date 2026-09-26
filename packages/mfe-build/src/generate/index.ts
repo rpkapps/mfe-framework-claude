@@ -2,7 +2,7 @@
 
 import { readFileSync } from 'node:fs'
 
-import type { CapabilityDescriptor, ContainerDescriptor } from '@company/mfe-core'
+import type { CapabilityDescriptor, PublishedRoute, ContainerDescriptor } from '@company/mfe-core'
 
 import {
   containerDescriptor,
@@ -37,6 +37,7 @@ export interface GeneratedOutput {
 export function generateContainerFiles(
   context: GenerateContext,
   capabilities: readonly CapabilityDescriptor[],
+  routes: readonly PublishedRoute[] = [],
 ): GeneratedOutput {
   const base: GeneratedFile[] = [
     gitignoreFile(context),
@@ -72,7 +73,7 @@ export function generateContainerFiles(
     ...context,
     options: { ...context.options, buildTime: recordedBuildTime(context, buildHash) },
   }
-  const descriptor = containerDescriptor(recorded, capabilities, buildHash)
+  const descriptor = containerDescriptor(recorded, capabilities, buildHash, routes)
 
   const files = [
     ...base,

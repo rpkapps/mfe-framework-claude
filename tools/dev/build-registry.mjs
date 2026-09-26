@@ -24,6 +24,13 @@ async function readJson(file) {
 
 /** One registry entry per definition the container exports. */
 function entriesFor(published, presentation, origin) {
+  // Every build names its framework and share scopes; nothing was deployed from before they did.
+  if (published.framework === undefined || published.shareScopes === undefined) {
+    throw new Error(
+      `${published.container}: its build names no framework or share scopes. Rebuild the container.`,
+    )
+  }
+
   return published.definitions.map(definition => {
     const expose = published.entries?.[definition.id]
     if (typeof expose !== 'string') {
@@ -38,16 +45,17 @@ function entriesFor(published, presentation, origin) {
       // The framework picks the adapter that reads the entry, so it travels in the marker.
       mfe: {
         contractMajor: published.contractMajor,
-        ...(published.framework === undefined ? {} : { framework: published.framework }),
+        framework: published.framework,
       },
       manifestUrl: new URL(published.manifestUrl, origin).href,
       container: published.container,
       expose,
       // A host registers the container with exactly these, so it links the framework scope its
-      // shares live in; a container built before framework scopes shares in `default` alone.
-      ...(published.shareScopes === undefined ? {} : { shareScopes: published.shareScopes }),
+      // shares live in.
+      shareScopes: published.shareScopes,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
+      ...(definition.routes === undefined ? {} : { routes: definition.routes }),
       // The widget catalogue renders a form from this before anything is loaded, so it has to
       // be in the registry rather than behind a container fetch (§16).
       ...(definition.contract === undefined ? {} : { contract: definition.contract }),

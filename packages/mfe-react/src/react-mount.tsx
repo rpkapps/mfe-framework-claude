@@ -167,8 +167,8 @@ export function mountWidget(
 
   // Built once, so a re-render never hands the Widget a new channel; the provider's own
   // validation runs in `WidgetMount` before either is called.
-  const emit = (event: string, payload: unknown): void => {
-    target.emit(event, payload)
+  const emit = (output: string, payload: unknown): void => {
+    target.emit(output, payload)
   }
   const onInputRejected = (error: MfeError): void => {
     target.onInputRejected?.(error)

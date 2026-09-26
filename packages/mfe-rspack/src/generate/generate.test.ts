@@ -282,6 +282,8 @@ describe('the registry entry the build publishes', () => {
           capabilities: [
             { name: 'settings', label: 'Order settings', icon: 'gear', path: '/settings' },
           ],
+          // Every file route, so the shell can navigate there before the App is loaded.
+          routes: [{ path: '/settings' }],
         },
       ],
       build: { hash: plan.generated.buildHash, time: BUILD_TIME },
@@ -296,8 +298,8 @@ import { z } from 'zod'
 
 export const orderRow = createWidget({
   id: 'order-row',
-  inputs: z.object({ orderId: z.string() }),
-  events: {},
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({}),
   render: () => null,
 })
 `,

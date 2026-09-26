@@ -16,11 +16,14 @@ import {
 } from './shared.ts'
 import { reactCorrectness } from './react-support.ts'
 import {
+  AGENT_PACKAGE_AGENT_LIBRARIES,
+  FRAMEWORK_AGENT_LIBRARIES,
   MODULE_FEDERATION_PATTERN,
   STATE_PATHS,
   TELEMETRY_PATTERNS,
   neutralPackagePaths,
   restrictedImports,
+  type RestrictedImports,
   type RestrictedPath,
   type RestrictedPattern,
 } from './restricted-imports.ts'
@@ -30,6 +33,12 @@ export type FrameworkPresetOptions = PresetOptions
 
 const SIBLING =
   'Package boundary: the legacy adapter is a sibling of the React adapter, not a consumer of it. Share code through @company/mfe-core.'
+
+const SINGLE_SPA: RestrictedPath = {
+  name: 'single-spa',
+  message:
+    'Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract.',
+}
 
 const CORE_STATELESS =
   '@company/mfe-core holds contracts only — types, constants and pure validation. Stateful code (a class other than an Error subclass, module-scope mutable bindings, a timer, or a browser global) belongs in @company/mfe-runtime.'
@@ -93,21 +102,23 @@ function packageZones(
   extraPaths: readonly RestrictedPath[],
   extraPatterns: readonly RestrictedPattern[],
 ): Linter.Config[] {
-  const basePaths = [...STATE_PATHS, ...extraPaths]
-  const basePatterns = [...TELEMETRY_PATTERNS, ...extraPatterns]
-
+  /**
+   * `agentLibraries` is the ban every zone carries; the agent package, the framework's one door
+   * to the agent, passes one that lets AG-UI through and nothing else.
+   */
   const zone = (
     pkg: string,
     paths: readonly RestrictedPath[],
     patterns: readonly RestrictedPattern[],
+    agentLibraries: RestrictedImports = FRAMEWORK_AGENT_LIBRARIES,
   ): Linter.Config => ({
     name: `mfe/zone/${pkg}`,
     files: intersectFiles(files, `**/packages/${pkg}/**`),
     plugins: typeScriptPlugins,
     rules: {
       '@typescript-eslint/no-restricted-imports': restrictedImports(
-        [...paths, ...basePaths],
-        patterns,
+        [...paths, ...STATE_PATHS, ...agentLibraries.paths, ...extraPaths],
+        [...TELEMETRY_PATTERNS, ...agentLibraries.patterns, ...patterns, ...extraPatterns],
       ),
     },
   })
@@ -128,7 +139,7 @@ function packageZones(
             'Package boundary: the React adapter depends on the core, never the other way round. Keep React-shaped code in @company/mfe-react.',
         },
       ],
-      [...basePatterns, MODULE_FEDERATION_PATTERN],
+      [MODULE_FEDERATION_PATTERN],
     ),
     zone(
       'mfe-runtime',
@@ -140,19 +151,9 @@ function packageZones(
             'Package boundary: the host mounts adapters through the neutral lifecycle contract in @company/mfe-core. Importing the React adapter would make React a host dependency and break the Angular adapter.',
         },
       ],
-      [...basePatterns, MODULE_FEDERATION_PATTERN],
+      [MODULE_FEDERATION_PATTERN],
     ),
-    zone(
-      'mfe-react',
-      [
-        {
-          name: 'single-spa',
-          message:
-            'Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract.',
-        },
-      ],
-      basePatterns,
-    ),
+    zone('mfe-react', [SINGLE_SPA], []),
     zone(
       'mfe-legacy-angular',
       [
@@ -164,7 +165,20 @@ function packageZones(
         },
         { name: '@company/mfe-react', message: SIBLING },
       ],
-      basePatterns,
+      [],
+    ),
+    zone(
+      'mfe-agent',
+      [
+        {
+          name: '@company/mfe-react',
+          message:
+            'Package boundary: the agent package is adapter-neutral; its React binding needs React alone, and the shell hands it the runtime.',
+        },
+        SINGLE_SPA,
+      ],
+      [MODULE_FEDERATION_PATTERN],
+      AGENT_PACKAGE_AGENT_LIBRARIES,
     ),
     zone(
       'mfe-devtools',
@@ -174,13 +188,9 @@ function packageZones(
           message:
             'Package boundary: the developer tools read the runtime, never the build integration.',
         },
-        {
-          name: 'single-spa',
-          message:
-            'Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract.',
-        },
+        SINGLE_SPA,
       ],
-      basePatterns,
+      [],
     ),
   ]
 }
@@ -202,8 +212,8 @@ export function framework(options: FrameworkPresetOptions = {}): Linter.Config[]
       plugins: typeScriptPlugins,
       rules: {
         '@typescript-eslint/no-restricted-imports': restrictedImports(
-          [...STATE_PATHS, ...extraPaths],
-          [...TELEMETRY_PATTERNS, ...extraPatterns],
+          [...STATE_PATHS, ...FRAMEWORK_AGENT_LIBRARIES.paths, ...extraPaths],
+          [...TELEMETRY_PATTERNS, ...FRAMEWORK_AGENT_LIBRARIES.patterns, ...extraPatterns],
         ),
       },
     },

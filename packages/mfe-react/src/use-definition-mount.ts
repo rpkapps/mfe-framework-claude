@@ -41,10 +41,10 @@ export interface WidgetPlacement {
   readonly kind: 'widget'
   readonly definitionId: string
   readonly inputs: Inputs
-  /** Read when an event arrives rather than when the mount is made, so it may change freely. */
-  readonly onEvent: (event: string, payload: unknown) => void
-  /** The consumer's own view of the events, when it imported the Widget's contract. */
-  readonly consumerEvents?: WidgetContract['events'] | undefined
+  /** Read when an output arrives rather than when the mount is made, so it may change freely. */
+  readonly onOutput: (output: string, payload: unknown) => void
+  /** The consumer's own view of the outputs, when it imported the Widget's contract. */
+  readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
 }
 
 export type Placement = AppPlacement | WidgetPlacement
@@ -92,16 +92,16 @@ function open(
     return mountDefinition({ ...base, kind: 'app', basePath: placement.basePath })
   }
 
-  const { consumerEvents } = placement
+  const { consumerOutputs } = placement
   return mountDefinition({
     ...base,
     kind: 'widget',
     inputs: placement.inputs,
-    onEvent: (event, payload) => {
+    onOutput: (output, payload) => {
       const latest = committed.current
-      if (latest.kind === 'widget') latest.onEvent(event, payload)
+      if (latest.kind === 'widget') latest.onOutput(output, payload)
     },
-    ...withoutUndefined({ consumerEvents }),
+    ...withoutUndefined({ consumerOutputs }),
   })
 }
 
@@ -125,7 +125,7 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
 
   const { kind, definitionId } = placement
   const basePath = placement.kind === 'app' ? placement.basePath : undefined
-  const consumerEvents = placement.kind === 'widget' ? placement.consumerEvents : undefined
+  const consumerOutputs = placement.kind === 'widget' ? placement.consumerOutputs : undefined
 
   useEffect(() => {
     const host = element.current
@@ -140,10 +140,10 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
       // A failed disposal is reported by the runtime; nothing here can act on it.
       void created.dispose().catch(() => undefined)
     }
-    // `kind`, `definitionId`, `basePath` and `consumerEvents` reach `open` through `committed`;
+    // `kind`, `definitionId`, `basePath` and `consumerOutputs` reach `open` through `committed`;
     // they are listed because they are what the mount is derived from, and a change of any of
     // them is a different mount.
-  }, [runtime, parent, kind, definitionId, basePath, consumerEvents])
+  }, [runtime, parent, kind, definitionId, basePath, consumerOutputs])
 
   const inputs = useStableInputs(placement.kind === 'widget' ? placement.inputs : null)
   useEffect(() => {

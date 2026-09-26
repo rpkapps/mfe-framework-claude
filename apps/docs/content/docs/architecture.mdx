@@ -121,7 +121,7 @@ Ten boxes, read top to bottom.
   `adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`. An arrow **registry.json**
   enters **The neutral runtime**, `@company/mfe-runtime`, which imports no framework and no
   federation.
-- The runtime holds **Shared services** (storage, commands, navigation, diagnostics), **Federation
+- The runtime holds **Shared services** (storage, actions, navigation, diagnostics), **Federation
   loader** and **One mount path**, `mountDefinition`.
 - An arrow **detect, parse** drops into **The adapters**, where exactly one recognises each entry:
   the React adapter, the Angular adapter and the removable legacy Angular adapter.
@@ -140,7 +140,7 @@ adapter and mounted the same way, so a React page and an Angular container meet 
 runtime. An existing single-spa Angular application names no framework, and a removable legacy
 adapter reads it. Nothing falls back on its own. An entry that names a framework stays with that
 framework's adapter, even when a field in it is wrong, and it is set aside with a reason. Storage,
-commands, navigation and diagnostics come from the runtime, so every kind behaves alike.
+actions, navigation and diagnostics come from the runtime, so every kind behaves alike.
 
 ## Related
 

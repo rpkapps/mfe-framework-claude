@@ -3,7 +3,7 @@
  * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -14,11 +14,6 @@ import {
   type BreadcrumbItem,
   type RegistryEntry,
 } from '@company/mfe-react'
-import {
-  boundaryDefinitionId,
-  createNavigationIntent,
-  parseBoundaryLocation,
-} from '@company/mfe-react/host'
 import { MfeDevtools } from '@company/mfe-devtools'
 import {
   Breadcrumb,
@@ -52,12 +47,12 @@ import {
   AppShellCommandTrigger,
   AppShellDivider,
   AppShellHeader,
-  AppShellMain,
   AppShellNav,
   AppShellOverflow,
   AppShellUserMenu,
 } from '@tecton/react/tecton/app-shell'
 import {
+  BotIcon,
   BugIcon,
   CircleHelpIcon,
   ClipboardCopyIcon,
@@ -71,16 +66,20 @@ import {
 import { toast } from 'sonner'
 
 import { shellSession } from '../auth/gate.ts'
+import { useChatPanel, useShellChat } from '../chat/panel-hooks.ts'
+import { ChatSheet, ChatSplit, ChatUnavailableSheet } from '../chat/lazy-panel.tsx'
+import { ASSISTANT_BUTTON_ID } from '../chat/panel.ts'
 
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { HelpSheet } from './help-sheet.tsx'
 import {
   useActiveApp,
   useAnnounceShellNavigation,
-  useCommandShortcuts,
-  useShellCommands,
+  useActionShortcuts,
+  useShellActions,
   useShellSurface,
 } from './hooks.ts'
+import { negotiateNavigation } from './navigation.ts'
 import { CommandPalette } from './palette.tsx'
 import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
@@ -128,10 +127,10 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // through the same hook.
   const theme = useTheme()
   useAnnounceShellNavigation()
-  // The shell's own commands and their keys, and the one listener every command's keys go
+  // The shell's own actions and their keys, and the one listener every action's keys go
   // through — a mounted App's included, which renders in a React root of its own.
-  useShellCommands()
-  useCommandShortcuts()
+  useShellActions()
+  useActionShortcuts()
 
   useEffect(() => {
     // `dark` is what the design system's variant keys off.
@@ -145,21 +144,8 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   // `action` is forwarded rather than dropped, because refusing the back button while allowing a
   // redirect is a distinction an App is entitled to make.
   useBlocker({
-    shouldBlockFn: async ({ current, next, action }) => {
-      const outcome = await runtime.navigator.requestNavigation(
-        createNavigationIntent(
-          parseBoundaryLocation(current.pathname),
-          parseBoundaryLocation(next.pathname),
-          // Derived the same way the chrome derives it, so the two cannot disagree about which
-          // App this negotiates with.
-          `/${boundaryDefinitionId(current.pathname) ?? ''}`,
-          action,
-        ),
-        // The router commits when this resolves false, so there is nothing to commit here.
-        () => {},
-      )
-      return outcome === 'blocked'
-    },
+    shouldBlockFn: async ({ current, next, action }) =>
+      (await negotiateNavigation(runtime, current.pathname, next.pathname, action)) === 'blocked',
     // Asked of the blockers rather than counted, so an App that says `enableBeforeUnload: false`
     // is not overruled by the shell.
     enableBeforeUnload: () => runtime.navigator.wantsUnloadPrompt(),
@@ -173,8 +159,9 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
         <AriaRouterProvider navigate={to => void navigate({ to })}>
           <Header />
         </AriaRouterProvider>
-        <AppShellBody className="flex-col">
-          <AppShellMain className="flex">{children}</AppShellMain>
+        <AppShellBody>
+          {/* The page is the split's first panel and the chat is added after it, so opening it never remounts the App mounted there. */}
+          <ChatSplit>{children}</ChatSplit>
         </AppShellBody>
       </AppShell>
 
@@ -184,11 +171,45 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
       <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
       <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
+      <ChatSheet />
+      <ChatUnavailableSheet isOpen={surface === 'assistant'} onOpenChange={closeOnDismiss} />
       {/* Not a member of `ShellSurface`: the developer tools own their open state and are not modal (§22). */}
       <MfeDevtools />
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
     </>
+  )
+}
+
+/** Opens and closes the assistant; pressed while it is open, it closes, as the aside's own button does. */
+function AssistantAction(): ReactNode {
+  const chat = useShellChat()
+  const panel = useChatPanel(chat)
+  return (
+    <AppShellAction
+      id={ASSISTANT_BUTTON_ID}
+      label="Assistant"
+      shortcut="mod+i"
+      {...(chat === null
+        ? {}
+        : {
+            'aria-pressed': panel.open,
+            // The chat's code loads on first use; reaching for the button starts it early.
+            onHoverStart: () => {
+              chat.preload()
+            },
+            onFocus: () => {
+              chat.preload()
+            },
+          })}
+      onPress={() => {
+        if (chat === null) shellUi.toggle('assistant')
+        else if (panel.open) chat.panel.hide()
+        else chat.panel.focus()
+      }}
+    >
+      <BotIcon />
+    </AppShellAction>
   )
 }
 
@@ -220,6 +241,23 @@ function SignOutItem(): ReactNode {
   )
 }
 
+/** The user's photo once it has loaded, or nothing, when the menu shows initials. */
+function useAvatar(): string | undefined {
+  const session = shellSession()
+  const [image, setImage] = useState<string>()
+  useEffect(() => {
+    if (session.mode !== 'oidc') return undefined
+    let current = true
+    void session.avatar.then(url => {
+      if (current) setImage(url)
+    })
+    return () => {
+      current = false
+    }
+  }, [session])
+  return image
+}
+
 function Header(): ReactNode {
   const runtime = useMfeRuntime('the shell header')
   const navigate = useNavigate()
@@ -228,6 +266,7 @@ function Header(): ReactNode {
   const theme = useTheme()
   // Subscribed rather than read off the store: a bare `getUser()` is a snapshot nothing re-runs.
   const user = useUser()
+  const avatar = useAvatar()
 
   const current = active === null ? DASHBOARD : appFace(active.id, active.entry)
 
@@ -307,6 +346,7 @@ function Header(): ReactNode {
         >
           Search or jump to…
         </AppShellCommandTrigger>
+        <AssistantAction />
         <AppShellAction
           label="Help"
           shortcut="?"
@@ -374,7 +414,13 @@ function Header(): ReactNode {
           </DropdownMenuGroup>
         </AppShellOverflow>
 
-        <AppShellUserMenu user={{ name: user?.name ?? 'Unknown', initials }}>
+        <AppShellUserMenu
+          user={{
+            name: user?.name ?? 'Unknown',
+            initials,
+            ...(avatar === undefined ? {} : { image: avatar }),
+          }}
+        >
           <DropdownMenuGroup>
             <DropdownMenuItem
               textValue="Switch theme"

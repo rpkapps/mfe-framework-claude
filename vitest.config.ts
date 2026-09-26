@@ -86,6 +86,22 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'agent',
+          root: './packages/mfe-agent',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'agent-dev',
+          root: './tools/agent-dev',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        test: {
           name: 'rspack',
           root: './packages/mfe-rspack',
           environment: 'node',
@@ -161,7 +177,10 @@ export default defineConfig({
           root: './apps/shell',
           environment: 'node',
           include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
+          // The chat's Markdown is rendered with Tecton parts, which must share the shell's React.
+          server: tectonServerForTests,
         },
+        resolve: tectonResolveForTests,
       },
       {
         test: {

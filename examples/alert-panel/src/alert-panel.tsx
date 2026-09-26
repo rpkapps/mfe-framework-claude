@@ -1,7 +1,7 @@
 /** Every export here is a component, so React Refresh replaces this module in place instead of
  * reloading the page (§18). */
 
-import type { WidgetRenderProps } from '@company/mfe-react'
+import { allow, deny, useAction, type WidgetRenderProps } from '@company/mfe-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { CheckIcon, InfoIcon, OctagonAlertIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
@@ -21,6 +21,21 @@ export function AlertPanel({
 }: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
   const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
   const { label, variant, Icon } = SEVERITY[inputs.severity]
+
+  // In the palette while this Widget is mounted, and the button below runs the same action. A page
+  // that shows two alerts registers the name twice; the runtime gives the second its own id
+  // (`alert-panel:acknowledge-2`), and the label says which alert each entry is for.
+  const acknowledge = useAction({
+    name: 'acknowledge',
+    label: `Acknowledge alert ${inputs.alertId}`,
+    description: 'Marks this alert as seen by the user, and tells the App that placed it.',
+    canExecute: () =>
+      state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
+    execute: () => {
+      setState('acknowledged')
+      emit('acknowledged', { alertId: inputs.alertId, acknowledgedAt: new Date().toISOString() })
+    },
+  })
 
   if (state === 'dismissed') {
     return (
@@ -49,11 +64,7 @@ export function AlertPanel({
           size="sm"
           isDisabled={state === 'acknowledged'}
           onPress={() => {
-            setState('acknowledged')
-            emit('acknowledged', {
-              alertId: inputs.alertId,
-              acknowledgedAt: new Date().toISOString(),
-            })
+            void acknowledge()
           }}
         >
           <CheckIcon data-icon="inline-start" />

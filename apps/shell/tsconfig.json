@@ -31,5 +31,5 @@
       "sonner": ["./node_modules/sonner"]
     }
   },
-  "include": ["src", "scripts", "tests", ".mfe/**/*", "rsbuild.config.ts"]
+  "include": ["src", "scripts", "build", "tests", ".mfe/**/*", "rsbuild.config.ts"]
 }

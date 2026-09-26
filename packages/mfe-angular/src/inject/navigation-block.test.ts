@@ -26,8 +26,8 @@ class FormComponent {}
 
 const formWidget = createWidget({
   id: 'order-form',
-  inputs: z.object({}),
-  events: {},
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
   component: FormComponent,
 })
 

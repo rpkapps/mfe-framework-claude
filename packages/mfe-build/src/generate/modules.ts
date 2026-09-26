@@ -474,11 +474,17 @@ function widgetContractModule(
   const schemaLines: string[] = []
   const exportLines: string[] = []
 
-  for (const field of ['inputs', 'events'] as const) {
+  for (const field of ['inputSchema', 'outputSchema'] as const) {
     const binding = source[field]
     if (binding.kind === 'reexport') {
       const alias = binding.exported === field ? field : `${binding.exported} as ${field}`
       importLines.push(`import { ${alias} } from ${quote(relativeSpecifier(file, binding.file))}`)
+      exportLines.push(`export { ${field} }`)
+      continue
+    }
+    // A schema already bound under the field's own name, as `{ inputSchema }` over a top-level
+    // const is, is declared by the prelude; binding it again would redeclare it.
+    if (binding.expression === field) {
       exportLines.push(`export { ${field} }`)
       continue
     }
@@ -488,16 +494,14 @@ function widgetContractModule(
   const zod = zodBinding(source.imports, boundNames)
   if (zod.importLine !== null) importLines.unshift(zod.importLine)
 
-  const eventsType =
-    widget.eventNames.length === 0
-      ? 'export type Events = Record<never, never>'
-      : [
-          'export type Events = {',
-          ...widget.eventNames.map(
-            name => `  readonly ${name}: ${zod.local}.infer<(typeof events)[${quote(name)}]>`,
-          ),
-          '}',
-        ].join('\n')
+  // Mapped over the shape rather than listing the names the build read, so an output declared
+  // through a spread or `.extend(…)` is typed too.
+  const shape = "(typeof outputSchema)['shape']"
+  const outputsType = [
+    'export type Outputs = {',
+    `  readonly [Name in keyof ${shape}]: ${zod.local}.infer<${shape}[Name]>`,
+    '}',
+  ].join('\n')
 
   return {
     path: file,
@@ -513,7 +517,7 @@ function widgetContractModule(
       [...source.prelude].join('\n'),
       schemaLines.join('\n'),
       exportLines.join('\n'),
-      [`export type Inputs = ${zod.local}.infer<typeof inputs>`, '', eventsType].join('\n'),
+      [`export type Inputs = ${zod.local}.infer<typeof inputSchema>`, '', outputsType].join('\n'),
     ]),
   }
 }

@@ -1,10 +1,10 @@
 ---
 title: 'Render a Widget chosen at run time'
-description: 'Render DynamicWidget when the Widget id is a value, and hear every event by name.'
+description: 'Render DynamicWidget when the Widget id is a value, and hear every output by name.'
 ---
 
 When the id is a value rather than a name in your source, render `DynamicWidget`. It takes the id
-as a prop and delivers every declared event by name.
+as a prop and delivers every declared output by name.
 
 ## Steps
 
@@ -35,7 +35,7 @@ import { DynamicWidget } from '@company/mfe-react'
 ;<DynamicWidget
   widgetId={tile.widgetId}
   {...tile.inputs}
-  onEvent={onEvent}
+  onOutput={onOutput}
   pending={<MountingSkeleton />}
   fallback={({ error, retry }) => (
     <div role="alert">
@@ -53,16 +53,16 @@ every input it is handed.
 
 <Step>
 
-### 3. Handle every event by name
+### 3. Handle every output by name
 
 ```tsx
-const onEvent = useCallback((name: string, payload: unknown) => {
-  setEvents(current => [{ name, payload, at: Date.now() }, ...current])
+const onOutput = useCallback((name: string, payload: unknown) => {
+  setOutputs(current => [{ name, payload, at: Date.now() }, ...current])
 }, [])
 ```
 
-`onEvent` receives each declared event as a name and a payload. Call
-`describeWidgetEvents(entry.contract)` to list the names and each payload's fields.
+`onOutput` receives each declared output as a name and a payload. Call
+`describeOutputs(entry.contract)` to list the names and each payload's fields.
 
 </Step>
 
@@ -72,7 +72,7 @@ const onEvent = useCallback((name: string, payload: unknown) => {
 
 Run `pnpm dev` and open the shell at `http://localhost:3000`. Add a Widget from the dashboard
 catalogue, fill in its inputs, and watch the activity list record what it emits. The inputs dialog
-comes from `contract.inputs`, and each event's tooltip from `contract.events`. Change `widgetId`
+comes from `contract.inputSchema`, and each output's tooltip from `contract.outputSchema`. Change `widgetId`
 and the old mount is replaced rather than handed the new Widget's inputs.
 
 ## Errors
@@ -103,6 +103,6 @@ list of choices.
 ## Related
 
 - [Render a Widget inside your App](/docs/render-a-widget) — when you know the id at build time.
-- [React to a Widget's events](/docs/react-to-widget-events) — typed handlers, one per event.
+- [React to a Widget's outputs](/docs/react-to-widget-outputs) — typed handlers, one per output.
 - [Registry entry](/docs/reference/registry-entry) — every field you can read.
 - [Hooks and components](/docs/reference/hooks-and-components) — `useWidgets` and `DynamicWidget`.
