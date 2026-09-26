@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,7 +26,7 @@ import type { TreePage, TreeSidebarSection } from '../lib/tree.ts'
 import type * as PageTree from 'fumadocs-core/page-tree'
 
 const itemClassName =
-  'relative h-auto min-h-[30px] w-fit overflow-visible border border-transparent text-[0.8rem] font-medium after:absolute after:inset-x-0 after:-inset-y-1 after:z-0 after:rounded-md data-[active=true]:border-accent data-[active=true]:bg-accent'
+  'relative h-auto min-h-[30px] w-fit overflow-visible border border-transparent text-[0.8rem] font-medium after:absolute after:inset-x-0 after:-inset-y-1 after:z-0 after:rounded-md data-active:border-accent data-active:bg-accent'
 
 function SidebarLink({
   href,
@@ -39,7 +39,13 @@ function SidebarLink({
 }) {
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton href={href} isActive={active} className={itemClassName}>
+      <SidebarMenuButton
+        // Exact: the router's own active match (which sets `aria-current`) would otherwise also
+        // claim `/docs` on every page under it.
+        render={<Link to={href} activeOptions={{ exact: true }} />}
+        isActive={active}
+        className={itemClassName}
+      >
         <span className="absolute inset-0 flex w-(--sidebar-menu-width) bg-transparent" />
         {children}
       </SidebarMenuButton>
@@ -83,17 +89,22 @@ function SidebarFolder({ folder, pathname }: { folder: PageTree.Folder; pathname
   )
 
   return (
-    <Collapsible isExpanded={isOpen} onExpandedChange={setOpen} data-slot="sidebar-folder">
-      <SidebarMenuItem>
-        <SidebarMenuButton slot="trigger" className={cn(itemClassName, 'gap-1.5 pr-2')}>
-          <span className="absolute inset-0 flex w-(--sidebar-menu-width) bg-transparent" />
-          {nodeName(folder)}
-          <ChevronRightIcon
-            aria-hidden="true"
-            className={cn('text-muted-foreground transition-transform', isOpen && 'rotate-90')}
-          />
-        </SidebarMenuButton>
-      </SidebarMenuItem>
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setOpen}
+      render={<SidebarMenuItem />}
+      data-slot="sidebar-folder"
+    >
+      <CollapsibleTrigger
+        render={<SidebarMenuButton className={cn(itemClassName, 'gap-1.5 pr-2')} />}
+      >
+        <span className="absolute inset-0 flex w-(--sidebar-menu-width) bg-transparent" />
+        {nodeName(folder)}
+        <ChevronRightIcon
+          aria-hidden="true"
+          className={cn('text-muted-foreground transition-transform', isOpen && 'rotate-90')}
+        />
+      </CollapsibleTrigger>
       <CollapsibleContent>
         <SidebarMenu className="mt-0.5 gap-0.5 border-l border-border-subtle pl-3">
           {pages.map(page => (
@@ -129,9 +140,9 @@ function SidebarSection({
 
   return (
     <SidebarGroup className={className}>
-      <Collapsible isExpanded={isOpen} onExpandedChange={setOpen} data-slot="sidebar-section">
+      <Collapsible open={isOpen} onOpenChange={setOpen} data-slot="sidebar-section">
         <SidebarGroupLabel
-          elementType={CollapsibleTrigger}
+          render={<CollapsibleTrigger />}
           className="w-fit cursor-pointer gap-1.5 pr-2 font-medium text-muted-foreground hover:text-foreground"
         >
           {section.label}
@@ -175,7 +186,7 @@ export function DocsSidebar({
   React.useLayoutEffect(() => {
     const container = contentRef.current
     if (!container) return
-    const active = container.querySelector<HTMLElement>('[data-active="true"]')
+    const active = container.querySelector<HTMLElement>('[data-sidebar="menu-button"][data-active]')
     if (!active) return
 
     const containerRect = container.getBoundingClientRect()

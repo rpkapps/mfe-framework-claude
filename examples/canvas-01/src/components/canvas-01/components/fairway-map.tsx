@@ -1,3 +1,5 @@
+'use client'
+
 import * as React from 'react'
 import { cn } from 'cn'
 
@@ -20,6 +22,10 @@ const extent = { width: 1000, height: 600 }
  * Stand-in for the map engine: an SVG fairway map with sub-basin and
  * terrace fills, survey outlines, field polygons and hatched prospect
  * areas. Colours come from the chart tokens so it follows the theme.
+ *
+ * With `onSelect`, every field and prospect is a toggle button (Tab to it,
+ * Enter or Space to select it, again to clear it), so the map works without
+ * a pointer; the surveys and the geology stay decorative.
  */
 function FairwayMap({
   className,
@@ -40,7 +46,7 @@ function FairwayMap({
       viewBox={`${(extent.width - width) / 2} ${(extent.height - height) / 2} ${width} ${height}`}
       preserveAspectRatio="xMidYMid slice"
       className={cn('size-full select-none', className)}
-      role="img"
+      role="group"
       aria-label="Fairway map"
       {...props}
     >
@@ -100,7 +106,7 @@ function FairwayMap({
 
       {/* Survey outlines */}
       {surveys.map(survey => (
-        <g key={survey.id} className="text-muted-foreground">
+        <g key={survey.id} className="text-muted-foreground" aria-hidden>
           <polygon
             points={survey.points}
             fill="none"
@@ -131,8 +137,25 @@ function FairwayMap({
             key={feature.id}
             data-kind={feature.kind}
             data-selected={isSelected || undefined}
-            className={cn('cursor-pointer', onSelect && 'hover:opacity-90')}
-            onClick={() => onSelect?.(isSelected ? null : feature.id)}
+            className={cn(
+              'group/feature outline-none',
+              onSelect && 'cursor-pointer hover:opacity-90',
+            )}
+            {...(onSelect === undefined
+              ? {}
+              : {
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-label': feature.name,
+                  'aria-pressed': isSelected,
+                  onClick: () => onSelect(isSelected ? null : feature.id),
+                  onKeyDown: (event: React.KeyboardEvent) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onSelect(isSelected ? null : feature.id)
+                    }
+                  },
+                })}
           >
             <polygon
               points={feature.points}
@@ -143,6 +166,8 @@ function FairwayMap({
               strokeOpacity={isSelected ? 1 : 0.7}
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
+              // The focus ring of a shape: SVG draws no outline on a <g>.
+              className="group-focus-visible/feature:stroke-ring group-focus-visible/feature:stroke-3 group-focus-visible/feature:[stroke-opacity:1]"
             />
             <text
               x={feature.label[0]}
@@ -150,6 +175,8 @@ function FairwayMap({
               textAnchor="middle"
               className="fill-foreground font-mono"
               style={{ fontSize: 12 / scale }}
+              // The button carries the name when the shape is interactive.
+              aria-hidden={onSelect ? true : undefined}
             >
               {feature.name}
             </text>

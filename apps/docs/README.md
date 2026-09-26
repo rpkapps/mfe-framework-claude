@@ -238,7 +238,7 @@ every component: `Sidebar`, `Command`, `Button`, `LinkButton`, `Collapsible`, `A
 `Sheet`, `DropdownMenu`, `Kbd`, `Separator`.
 
 `@tecton/react` is a `link:` to the checkout beside this repository, which resolves its own peers
-from that checkout. `vite.config.ts` therefore deduplicates `react`, `react-dom`,
-`react-aria-components`, `next-themes`, `cn` and `lucide-react` onto this package's copies, and
-`tsconfig.json` maps the same specifiers for TypeScript. Without both, a second React Aria breaks
-every context the design system reads — the router provider, the sidebar, the command palette.
+from that checkout. `vite.config.ts` therefore deduplicates `react`, `react-dom`, `@base-ui/react`,
+`next-themes`, `cn` and `lucide-react` onto this package's copies, and `tsconfig.json` maps the same
+specifiers for TypeScript. Without both, a second Base UI breaks every context the design system
+reads — the sidebar, the menus, the dialogs.

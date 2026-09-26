@@ -1,6 +1,6 @@
 ---
 title: 'Use the design system'
-description: 'Import Tecton components by subpath, handle presses with onPress, and colour with tokens.'
+description: 'Import Tecton components by subpath, use their prop names, and colour with tokens.'
 ---
 
 The design system is a dependency your container and the shell both take. Its components read the
@@ -41,13 +41,17 @@ There is no barrel import. Tecton's own compositions sit under `@tecton/react/te
 
 </Step>
 <Step>
-### 3. Handle a press with `onPress`
+### 3. Use the design system's prop names
 
 ```tsx title="examples/operations/src/routes/index.tsx"
-<Button onPress={() => setDensity('compact')}>Compact density</Button>
+<Button onClick={() => setDensity('compact')}>Compact density</Button>
 ```
 
-The controls are built on React Aria. A `Button` with `onClick` looks right and does nothing.
+A control takes `onClick` and `disabled`, a checkbox or switch `checked` and `onCheckedChange`, a
+select or tabs `value` and `onValueChange`, and an overlay `open` and `onOpenChange`. An overlay is
+a root, a trigger and a content part: pass your button to the trigger as
+`render={<Button … />}` rather than nesting one inside it. `pnpm exec tecton docs <component>`
+prints each component's props.
 
 </Step>
 <Step>

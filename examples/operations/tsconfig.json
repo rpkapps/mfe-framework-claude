@@ -5,7 +5,7 @@
     /*
      * @tecton/react ships built `.d.ts` files now, but it is still a
      * `link:`ed checkout, so TypeScript resolves the symlink to the checkout
-     * itself. The packages its files import bare (react, react-aria-components,
+     * itself. The packages its files import bare (react, @base-ui/react,
      * recharts, …) have to be pointed back at this workspace's copies. This is
      * the type-level counterpart of `tectonResolve` in the build.
      */
@@ -18,13 +18,11 @@
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],
       "react-dom/client": ["./node_modules/@types/react-dom/client"],
-      "react-aria": ["./node_modules/react-aria"],
-      "react-aria/*": ["./node_modules/react-aria/*"],
-      "react-aria-components": ["./node_modules/react-aria-components"],
+      "@base-ui/react": ["./node_modules/@base-ui/react"],
+      "@base-ui/react/*": ["./node_modules/@base-ui/react/*"],
       "react-resizable-panels": ["./node_modules/react-resizable-panels"],
       "class-variance-authority": ["./node_modules/class-variance-authority"],
       "cn": ["./node_modules/cn"],
-      "lucide-react": ["./node_modules/lucide-react"],
       "recharts": ["./node_modules/recharts"]
     }
   },

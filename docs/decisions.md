@@ -1123,7 +1123,7 @@ forward, or to the title when there is none. Pressed, the way forward says where
 going (`Redirecting…`) and takes no second press; when that fails too, as signing in again does
 against an identity provider that is down, the new failure replaces the page's and focus goes to
 its title. The chunk holds React, Tecton's classes and the block, and nothing behind sign-in: no
-registry, no container, no token. Nor React Aria, which is shared and so never tree-shaken: the
+registry, no container, no token. Nor Base UI, which is shared and so never tree-shaken: the
 page's two buttons are native ones with Tecton's button classes, which keeps the failure's own
 download at about 137 kB gzipped where a Tecton `Button` made it 405 kB. When it cannot load
 either, on a network that is gone, the loader says the same in its own words, which a later

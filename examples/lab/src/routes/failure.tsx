@@ -33,7 +33,7 @@ function Failure(): ReactNode {
         <div>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               setThrowOnRender(true)
             }}
           >

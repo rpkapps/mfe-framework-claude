@@ -69,8 +69,8 @@ function OneAlert({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>
         <Button
           variant="ghost"
           size="sm"
-          isDisabled={state === 'acknowledged'}
-          onPress={() => {
+          disabled={state === 'acknowledged'}
+          onClick={() => {
             void acknowledge()
           }}
         >
@@ -81,7 +81,7 @@ function OneAlert({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>
           variant="ghost"
           size="icon-sm"
           aria-label={`Dismiss alert ${inputs.alertId}`}
-          onPress={() => {
+          onClick={() => {
             setState('dismissed')
             emit('dismissed', { alertId: inputs.alertId })
           }}

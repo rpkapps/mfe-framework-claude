@@ -31,7 +31,6 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@tecton/react/components/command'
-import { ShortcutKeys } from '@tecton/react/tecton/shortcuts'
 import { toast } from 'sonner'
 import {
   AppWindowIcon,
@@ -55,6 +54,7 @@ import {
 import { addTile, tileKey, type DashboardLayout } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
 import type { ShellTheme } from './preferences.ts'
+import { ShortcutKeys } from './shortcut-keys.tsx'
 
 type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
@@ -77,7 +77,7 @@ interface Row {
   /** Registry syntax, as the shortcut itself is written: `g r`, `mod+j`. */
   readonly keys?: string | undefined
   readonly hint?: string | undefined
-  readonly isDisabled?: boolean
+  readonly disabled?: boolean
   readonly run: () => void
 }
 
@@ -174,7 +174,7 @@ export function CommandPalette({
       // listing it rather than hiding it.
       ...(allowed ? {} : { hint: entry.decision.reason, keys: undefined }),
       id: entry.id,
-      isDisabled: !allowed,
+      disabled: !allowed,
       run: () => void runtime.actions.execute(entry.id, { caller: 'palette' }),
     }
   }
@@ -232,7 +232,8 @@ export function CommandPalette({
     >
       <Command>
         <CommandInput placeholder="Search applications, pages and actions…" />
-        <CommandList renderEmptyState={() => <CommandEmpty>No results found.</CommandEmpty>}>
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
           <Groups
             groups={[
               ['Go to', destinations],
@@ -266,10 +267,10 @@ function Groups({
           {rows.map(row => (
             <CommandItem
               key={row.id}
-              id={row.id}
-              textValue={`${row.label} ${row.text}`}
-              isDisabled={row.isDisabled === true}
-              onAction={() => {
+              value={row.id}
+              keywords={[row.label, row.text]}
+              disabled={row.disabled === true}
+              onSelect={() => {
                 dismiss()
                 row.run()
               }}

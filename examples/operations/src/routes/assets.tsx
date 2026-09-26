@@ -92,8 +92,8 @@ function Assets(): ReactNode {
           <Button
             variant="outline"
             size="sm"
-            isDisabled={isFetching}
-            onPress={() => {
+            disabled={isFetching}
+            onClick={() => {
               void refetch()
             }}
           >
@@ -132,18 +132,17 @@ function Assets(): ReactNode {
         <PanelContent className="p-0">
           <div className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-3 py-2">
             <Select
-              className="w-40"
-              selectedKey={site}
-              onSelectionChange={key => {
-                void navigate({ to: '/assets', search: { site: String(key) as typeof site } })
+              value={site}
+              onValueChange={(next: typeof site | null) => {
+                if (next !== null) void navigate({ to: '/assets', search: { site: next } })
               }}
             >
-              <SelectTrigger aria-label="Site">
+              <SelectTrigger aria-label="Site" className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {SITES.map(option => (
-                  <SelectItem key={option} id={option} textValue={option}>
+                  <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>
                 ))}
@@ -156,43 +155,49 @@ function Assets(): ReactNode {
 
           <Table aria-label={`Assets at site ${site}`}>
             <TableHeader>
-              <TableHead id="name" isRowHeader>
-                Asset
-              </TableHead>
-              {/*
-               * The tag folds under the name below `sm`, because a three-column table at 390px
-               * either scrolls sideways or squeezes every column to two characters.
-               */}
-              <TableHead id="id" className="hidden sm:table-cell">
-                Tag
-              </TableHead>
-              <TableHead id="status">Status</TableHead>
+              <TableRow>
+                <TableHead>Asset</TableHead>
+                {/*
+                 * The tag folds under the name below `sm`, because a three-column table at 390px
+                 * either scrolls sideways or squeezes every column to two characters.
+                 */}
+                <TableHead className="hidden sm:table-cell">Tag</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
             </TableHeader>
-            <TableBody
-              renderEmptyState={() => (
-                <Empty className="py-10">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <PackageSearchIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>No assets at site {site}</EmptyTitle>
-                    <EmptyDescription>
-                      Nothing is registered against this site. Pick another one above.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
+            <TableBody>
+              {data.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="whitespace-normal">
+                    <Empty className="py-10">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <PackageSearchIcon />
+                        </EmptyMedia>
+                        <EmptyTitle>No assets at site {site}</EmptyTitle>
+                        <EmptyDescription>
+                          Nothing is registered against this site. Pick another one above.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  </TableCell>
+                </TableRow>
               )}
-            >
               {data.map(asset => (
-                <TableRow key={asset.id} id={asset.id}>
-                  <TableCell>
+                <TableRow key={asset.id}>
+                  {/* The asset's name names its row, so a screen reader reads it with every cell. */}
+                  <th
+                    scope="row"
+                    data-slot="table-cell"
+                    className="px-4 py-3 text-start align-middle font-normal whitespace-nowrap"
+                  >
                     <span className="flex flex-col">
                       <span className="font-medium">{asset.name}</span>
                       <span className="font-mono text-xs text-muted-foreground sm:hidden">
                         {asset.id}
                       </span>
                     </span>
-                  </TableCell>
+                  </th>
                   <TableCell className="hidden sm:table-cell">
                     <span className="font-mono text-xs text-muted-foreground">{asset.id}</span>
                   </TableCell>

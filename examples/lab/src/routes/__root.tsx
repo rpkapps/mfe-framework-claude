@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
 import type { MfeRouterContext } from '@company/mfe-react'
-import { ScrollArea } from '@tecton/react/components/scroll-area'
+import { ScrollArea, ScrollBar } from '@tecton/react/components/scroll-area'
 import type { LucideIcon } from 'lucide-react'
 import {
   ActivityIcon,
@@ -57,7 +57,7 @@ function LabLayout(): ReactNode {
         aria-label="Framework features"
         className="shrink-0 border-b border-border-subtle md:hidden"
       >
-        <ScrollArea className="overflow-x-auto overflow-y-hidden">
+        <ScrollArea>
           <ul className="flex w-max gap-1 p-2">
             {NAV.map(item => (
               <li key={item.to}>
@@ -75,6 +75,7 @@ function LabLayout(): ReactNode {
               </li>
             ))}
           </ul>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </nav>
 

@@ -39,7 +39,7 @@ function Telemetry(): ReactNode {
       <LabSection title="A span around some work" note="tracer.startActiveSpan">
         <div className="flex flex-wrap gap-2">
           <Button
-            onPress={() => {
+            onClick={() => {
               telemetry.tracer.startActiveSpan('lab.compute', span => {
                 span.setAttribute('lab.rows', 128)
                 span.setStatus({ code: SpanStatusCode.OK })
@@ -52,7 +52,7 @@ function Telemetry(): ReactNode {
           </Button>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               telemetry.tracer.startActiveSpan('lab.failing', span => {
                 span.setStatus({ code: SpanStatusCode.ERROR, message: 'Deliberate failure' })
                 span.end()
@@ -69,7 +69,7 @@ function Telemetry(): ReactNode {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               telemetry.info('Lab said hello', { where: 'telemetry page' })
               note('info — Lab said hello')
             }}
@@ -78,7 +78,7 @@ function Telemetry(): ReactNode {
           </Button>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               telemetry.warn('Lab is about to do something odd', { deliberate: true })
               note('warn — Lab is about to do something odd', 'warning')
             }}

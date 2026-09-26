@@ -13,14 +13,18 @@ import {
   PanelHeader,
   PanelTitle,
 } from '@tecton/react/tecton/panel'
-import { DropdownMenuItem, DropdownMenuLabel } from '@tecton/react/components/dropdown-menu'
-import { PortalProvider } from '@tecton/react/tecton/portal'
+import {
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@tecton/react/components/dropdown-menu'
+import { TectonProvider } from '@tecton/react/tecton/provider'
 import { OverflowDivider, OverflowItem, OverflowMenu, Toolbar } from '@tecton/react/tecton/overflow'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { Toggle } from '@tecton/react/components/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
-  CheckIcon,
   LayersIcon,
   PanelBottomIcon,
   PanelLeftIcon,
@@ -95,7 +99,7 @@ function DevtoolsTrigger({ hasOverrides }: { readonly hasOverrides: boolean }): 
       aria-expanded={false}
       data-mfe-devtools-trigger
       className="fixed bottom-4 left-4 z-[2147483000] size-11 rounded-full shadow-lg ring-1 ring-border-subtle"
-      onPress={() => {
+      onClick={() => {
         devtools.toggle()
       }}
     >
@@ -125,7 +129,7 @@ function DevtoolsDock({
   const overlays = useOverlayLayer()
 
   return (
-    <PortalProvider container={overlays}>
+    <TectonProvider portalContainer={overlays}>
       <ResizeHandle side={side} size={size} />
 
       <Panel
@@ -139,9 +143,9 @@ function DevtoolsDock({
       >
         {/* Wrapped so the list can sit in the header: `Tabs` needs an ancestor in common, not siblings. */}
         <Tabs
-          selectedKey={tab}
-          onSelectionChange={key => {
-            devtools.setTab(String(key) as DevtoolsTab)
+          value={tab}
+          onValueChange={(value: DevtoolsTab) => {
+            devtools.setTab(value)
           }}
           className="flex min-h-0 flex-1 flex-col gap-0"
         >
@@ -163,11 +167,11 @@ function DevtoolsDock({
               aria-label="Developer tools"
               className="shrink-0 p-0.5 group-data-horizontal/tabs:h-7"
             >
-              <TabsTrigger id="overrides">
+              <TabsTrigger value="overrides">
                 <SlidersHorizontalIcon />
                 <span className="@max-lg:sr-only">Overrides</span>
               </TabsTrigger>
-              <TabsTrigger id="registry">
+              <TabsTrigger value="registry">
                 <LayersIcon />
                 <span className="@max-lg:sr-only">Registry</span>
               </TabsTrigger>
@@ -183,28 +187,27 @@ function DevtoolsDock({
                 {/* A view option rather than a tool state, so it sits with the dock control and
                     ahead of it: it acts on the page, which is what is being looked at. */}
                 <OverflowItem
-                  id="outline"
+                  value="outline"
                   label={OUTLINE_LABEL}
                   labelBehavior="keep"
                   overflow={
-                    <DropdownMenuItem
-                      id="outline"
-                      onAction={() => {
-                        devtools.setOutline(!outline)
+                    <DropdownMenuCheckboxItem
+                      checked={outline}
+                      onCheckedChange={checked => {
+                        devtools.setOutline(checked)
                       }}
                     >
                       <SquareDashedIcon />
                       {OUTLINE_LABEL}
-                      {outline ? <CheckIcon aria-hidden className="ml-auto size-4" /> : null}
-                    </DropdownMenuItem>
+                    </DropdownMenuCheckboxItem>
                   }
                 >
                   <Toggle
                     size="sm"
                     aria-label={OUTLINE_LABEL}
-                    isSelected={outline}
-                    onChange={isSelected => {
-                      devtools.setOutline(isSelected)
+                    pressed={outline}
+                    onPressedChange={pressed => {
+                      devtools.setOutline(pressed)
                     }}
                   >
                     <SquareDashedIcon />
@@ -212,42 +215,38 @@ function DevtoolsDock({
                 </OverflowItem>
 
                 <OverflowItem
-                  id="dock"
+                  value="dock"
                   label="Panel position"
                   labelBehavior="keep"
                   className="max-sm:hidden"
                   overflow={
-                    <>
+                    <DropdownMenuRadioGroup
+                      value={side}
+                      onValueChange={(next: DevtoolsSide) => {
+                        devtools.setSide(next)
+                      }}
+                    >
                       <DropdownMenuLabel>Panel position</DropdownMenuLabel>
                       {SIDES.map(candidate => {
                         const Icon = SIDE_ICON[candidate]
                         return (
-                          <DropdownMenuItem
-                            key={candidate}
-                            id={candidate}
-                            onAction={() => {
-                              devtools.setSide(candidate)
-                            }}
-                          >
+                          <DropdownMenuRadioItem key={candidate} value={candidate} closeOnClick>
                             <Icon />
                             {SIDE_LABEL[candidate]}
-                            {candidate === side ? (
-                              <CheckIcon aria-hidden className="ml-auto size-4" />
-                            ) : null}
-                          </DropdownMenuItem>
+                          </DropdownMenuRadioItem>
                         )
                       })}
-                    </>
+                    </DropdownMenuRadioGroup>
                   }
                 >
                   <ToggleGroup
                     aria-label="Panel position"
-                    selectionMode="single"
                     size="sm"
-                    selectedKeys={[side]}
-                    onSelectionChange={keys => {
-                      const next = [...keys][0]
-                      if (typeof next === 'string') devtools.setSide(next as DevtoolsSide)
+                    value={[side]}
+                    onValueChange={value => {
+                      // Pressing the pressed side keeps it: the panel is always docked somewhere.
+                      const next = SIDES.find(candidate => candidate === value[0])
+                      if (next !== undefined) devtools.setSide(next)
                     }}
                   >
                     {SIDES.map(candidate => {
@@ -255,7 +254,7 @@ function DevtoolsDock({
                       return (
                         <ToggleGroupItem
                           key={candidate}
-                          id={candidate}
+                          value={candidate}
                           aria-label={SIDE_LABEL[candidate]}
                         >
                           <Icon />
@@ -272,7 +271,7 @@ function DevtoolsDock({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Close the developer tools"
-                  onPress={() => {
+                  onClick={() => {
                     devtools.close()
                   }}
                 >
@@ -284,16 +283,16 @@ function DevtoolsDock({
 
           <PanelContent className="flex min-h-0 flex-1 flex-col p-0">
             {/* The panes do not scroll; each tab does, so a pinned footer stays out of the scrolling region. */}
-            <TabsContent id="overrides" className="flex min-h-0 flex-1 flex-col">
+            <TabsContent value="overrides" className="flex min-h-0 flex-1 flex-col">
               <OverridesTab />
             </TabsContent>
-            <TabsContent id="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
+            <TabsContent value="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
               <RegistryTab />
             </TabsContent>
           </PanelContent>
         </Tabs>
       </Panel>
-    </PortalProvider>
+    </TectonProvider>
   )
 }
 

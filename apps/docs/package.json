@@ -13,6 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-router": "catalog:docs",
     "@tanstack/react-start": "catalog:",
@@ -23,7 +24,6 @@
     "lucide-react": "catalog:",
     "next-themes": "catalog:",
     "react": "catalog:",
-    "react-aria-components": "catalog:",
     "react-dom": "catalog:",
     "shiki": "catalog:",
     "tailwindcss": "catalog:"

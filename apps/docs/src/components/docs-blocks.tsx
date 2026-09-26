@@ -5,7 +5,11 @@ import { Link } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
-import { Collapsible, CollapsibleContent } from '@tecton/react/components/collapsible'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@tecton/react/components/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { cn } from 'cn'
 import { AlertTriangleIcon, ChevronDownIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react'
@@ -90,14 +94,17 @@ export function Details({
   return (
     <Collapsible
       data-slot="details"
-      isExpanded={isOpen}
-      onExpandedChange={setIsOpen}
+      open={isOpen}
+      onOpenChange={setIsOpen}
       className={cn('mt-6 overflow-hidden rounded-xl border border-border-subtle', className)}
     >
-      <Button
-        slot="trigger"
-        variant="ghost"
-        className="not-typeset h-auto w-full justify-between gap-3 px-4 py-3 text-left font-medium"
+      <CollapsibleTrigger
+        render={
+          <Button
+            variant="ghost"
+            className="not-typeset h-auto w-full justify-between gap-3 px-4 py-3 text-left font-medium"
+          />
+        }
       >
         {summary}
         <ChevronDownIcon
@@ -107,7 +114,7 @@ export function Details({
             isOpen && 'rotate-180',
           )}
         />
-      </Button>
+      </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="typeset border-t border-border-subtle px-4 py-3 text-sm">{children}</div>
       </CollapsibleContent>
@@ -152,7 +159,7 @@ export function DocsTabs({
   defaultValue,
   className,
   ...props
-}: Omit<React.ComponentProps<typeof Tabs>, 'children'> & {
+}: Omit<React.ComponentProps<typeof Tabs>, 'children' | 'defaultValue'> & {
   items?: string[]
   children: React.ReactNode
   defaultValue?: string
@@ -163,7 +170,7 @@ export function DocsTabs({
   return (
     <Tabs
       data-not-typeset
-      {...(initial === undefined ? {} : { defaultSelectedKey: initial })}
+      {...(initial === undefined ? {} : { defaultValue: initial })}
       className={cn('relative mt-6 w-full gap-4', className)}
       {...props}
     >
@@ -174,8 +181,8 @@ export function DocsTabs({
         {values.map(value => (
           <TabsTrigger
             key={value}
-            id={value}
-            className="h-auto px-0 pb-3 text-base font-medium text-muted-foreground hover:text-foreground data-selected:text-foreground"
+            value={value}
+            className="h-auto px-0 pb-3 text-base font-medium text-muted-foreground hover:text-foreground data-active:text-foreground"
           >
             {value}
           </TabsTrigger>
@@ -190,10 +197,10 @@ export function DocsTab({
   value,
   className,
   ...props
-}: Omit<React.ComponentProps<typeof TabsContent>, 'id'> & { value: string }) {
+}: Omit<React.ComponentProps<typeof TabsContent>, 'value'> & { value: string }) {
   return (
     <TabsContent
-      id={value}
+      value={value}
       className={cn(
         'relative *:[figure]:first:mt-0 [&>.steps]:mt-6 [&>[data-rehype-pretty-code-figure]:first-child]:mt-0',
         className,

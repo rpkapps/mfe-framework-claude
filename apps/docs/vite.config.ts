@@ -163,12 +163,12 @@ export default defineConfig({
   resolve: {
     alias: [{ find: '@', replacement: here('./src') }],
     /*
-     * `@tecton/react` is a `link:`ed checkout with a node_modules of its own, so React, React Aria
-     * and the theme provider would resolve twice — two React copies break hooks, and two React Aria
-     * copies break every context the design system reads (the router provider, the sidebar, the
-     * command palette). Deduplicating pins all of them to this package's copies.
+     * `@tecton/react` is a `link:`ed checkout with a node_modules of its own, so React, Base UI
+     * and the theme provider would resolve twice — two React copies break hooks, and two Base UI
+     * copies break every context the design system reads (the sidebar, the menus, the dialogs).
+     * Deduplicating pins all of them to this package's copies.
      */
-    dedupe: ['react', 'react-dom', 'react-aria-components', 'next-themes', 'cn', 'lucide-react'],
+    dedupe: ['react', 'react-dom', '@base-ui/react', 'next-themes', 'cn', 'lucide-react'],
   },
 
   plugins: [

@@ -27,7 +27,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@tecton/react/components/empty'
-import { Sheet, SheetTitle } from '@tecton/react/components/sheet'
+import { Sheet, SheetContent, SheetTitle } from '@tecton/react/components/sheet'
 import {
   AppShellMain,
   AppShellSplit,
@@ -60,7 +60,7 @@ function Frame({ onClose, children }: FrameProps & { readonly children: ReactNod
       <PanelHeader>
         <PanelTitle>Assistant</PanelTitle>
         <PanelActions>
-          <Button variant="ghost" size="icon-sm" aria-label="Close the assistant" onPress={onClose}>
+          <Button variant="ghost" size="icon-sm" aria-label="Close the assistant" onClick={onClose}>
             <XIcon />
           </Button>
         </PanelActions>
@@ -128,7 +128,7 @@ class LoadBoundary extends Component<
             <Button
               variant="outline"
               size="sm"
-              onPress={() => {
+              onClick={() => {
                 ChatPanel = lazyChatPanel()
                 this.setState({ failed: false })
               }}
@@ -289,57 +289,52 @@ export function ChatSheet(): ReactNode {
 
   return (
     <Sheet
-      isOpen={panel.open}
+      open={panel.open}
       onOpenChange={open => {
         if (!open) chat.panel.hide()
       }}
-      side="right"
-      showCloseButton={false}
-      className="w-full p-0 sm:max-w-md"
     >
-      <SheetTitle className="sr-only">Assistant</SheetTitle>
-      <LazyChatPanel
-        chat={chat}
-        onClose={() => {
-          chat.panel.hide()
-        }}
-      />
+      <SheetContent side="right" showCloseButton={false} className="w-full p-0 sm:max-w-md">
+        <SheetTitle className="sr-only">Assistant</SheetTitle>
+        <LazyChatPanel
+          chat={chat}
+          onClose={() => {
+            chat.panel.hide()
+          }}
+        />
+      </SheetContent>
     </Sheet>
   )
 }
 
 /** When no backend is configured, a sheet that says so, opened by the same button. */
 export function ChatUnavailableSheet({
-  isOpen,
+  open,
   onOpenChange,
 }: {
-  readonly isOpen: boolean
+  readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
   return (
-    <Sheet
-      isOpen={isOpen}
-      onOpenChange={onOpenChange}
-      side="right"
-      showCloseButton={false}
-      className="w-full p-0 sm:max-w-md"
-    >
-      <SheetTitle className="sr-only">Assistant</SheetTitle>
-      <Frame
-        onClose={() => {
-          onOpenChange(false)
-        }}
-      >
-        <Empty className="border-0">
-          <EmptyHeader>
-            <EmptyTitle>The assistant is not configured</EmptyTitle>
-            <EmptyDescription>
-              This deployment names no agent backend. Set AGENT_URL in the shell’s runtime
-              configuration to the address that takes its AG-UI runs.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </Frame>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" showCloseButton={false} className="w-full p-0 sm:max-w-md">
+        <SheetTitle className="sr-only">Assistant</SheetTitle>
+        <Frame
+          onClose={() => {
+            onOpenChange(false)
+          }}
+        >
+          <Empty className="border-0">
+            <EmptyHeader>
+              <EmptyTitle>The assistant is not configured</EmptyTitle>
+              <EmptyDescription>
+                This deployment names no agent backend. Set AGENT_URL in the shell’s runtime
+                configuration to the address that takes its AG-UI runs.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </Frame>
+      </SheetContent>
     </Sheet>
   )
 }

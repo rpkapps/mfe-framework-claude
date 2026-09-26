@@ -7,7 +7,13 @@ import { useId, useState, type ReactNode } from 'react'
 import { coerceInputs, type RegistryEntry } from '@company/mfe-react'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@tecton/react/components/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@tecton/react/components/dialog'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { Input } from '@tecton/react/components/input'
 import {
@@ -74,46 +80,47 @@ export function InputsDialog({
 
   return (
     <Dialog
-      isOpen
+      open
       onOpenChange={open => {
         if (!open) onCancel()
       }}
-      className="sm:max-w-lg"
     >
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-        <p className="text-xs text-muted-foreground">
-          {entry.id}
-          {entry.version === undefined ? '' : ` · ${entry.version}`} · these become the Widget’s
-          props, and it validates them itself.
-        </p>
-      </DialogHeader>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            {entry.id}
+            {entry.version === undefined ? '' : ` · ${entry.version}`} · these become the Widget’s
+            props, and it validates them itself.
+          </p>
+        </DialogHeader>
 
-      <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
-        {fields === null ? (
-          <UnreadableSchema value={raw} error={rawError} onChange={setRaw} />
-        ) : fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground">This Widget takes no inputs.</p>
-        ) : (
-          fields.map(field => (
-            <SchemaField
-              key={field.name}
-              field={field}
-              value={values[field.name]}
-              onChange={value => {
-                set(field.name, value)
-              }}
-            />
-          ))
-        )}
-      </div>
+        <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
+          {fields === null ? (
+            <UnreadableSchema value={raw} error={rawError} onChange={setRaw} />
+          ) : fields.length === 0 ? (
+            <p className="text-sm text-muted-foreground">This Widget takes no inputs.</p>
+          ) : (
+            fields.map(field => (
+              <SchemaField
+                key={field.name}
+                field={field}
+                value={values[field.name]}
+                onChange={value => {
+                  set(field.name, value)
+                }}
+              />
+            ))
+          )}
+        </div>
 
-      <DialogFooter>
-        <Button variant="outline" onPress={onCancel}>
-          Cancel
-        </Button>
-        <Button onPress={confirm}>{confirmLabel}</Button>
-      </DialogFooter>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={confirm}>{confirmLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -136,10 +143,9 @@ function SchemaField({
   readonly onChange: (value: unknown) => void
 }): ReactNode {
   const id = useId()
-  const labelId = `${id}-label`
 
   const label = (
-    <FieldLabel id={labelId} htmlFor={id}>
+    <FieldLabel htmlFor={id}>
       {field.name}
       {field.required ? null : (
         <Badge variant="secondary" size="default">
@@ -162,7 +168,13 @@ function SchemaField({
           {label}
           {description}
         </FieldContent>
-        <Switch id={id} isSelected={value === true} onChange={onChange} />
+        <Switch
+          id={id}
+          checked={value === true}
+          onCheckedChange={checked => {
+            onChange(checked)
+          }}
+        />
       </Field>
     )
   }
@@ -171,21 +183,18 @@ function SchemaField({
     return (
       <Field>
         {label}
-        {/* React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`. */}
         <Select
-          aria-labelledby={labelId}
-          className="w-full"
-          selectedKey={typeof value === 'string' ? value : null}
-          onSelectionChange={key => {
-            onChange(key === null ? '' : String(key))
+          value={typeof value === 'string' ? value : null}
+          onValueChange={next => {
+            onChange(next ?? '')
           }}
         >
-          <SelectTrigger id={id}>
+          <SelectTrigger id={id} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {(field.options ?? []).map(option => (
-              <SelectItem key={option} id={option} textValue={option}>
+              <SelectItem key={option} value={option}>
                 {option}
               </SelectItem>
             ))}

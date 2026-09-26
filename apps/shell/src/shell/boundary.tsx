@@ -78,7 +78,7 @@ function MountFailure({
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button variant="outline" onPress={retry}>
+          <Button variant="outline" onClick={retry}>
             <RotateCcwIcon /> Retry
           </Button>
           <code className="font-mono text-xs text-muted-foreground">{error.code}</code>

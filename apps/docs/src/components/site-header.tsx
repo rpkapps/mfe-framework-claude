@@ -4,7 +4,13 @@ import * as React from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@tecton/react/components/button'
 import { Separator } from '@tecton/react/components/separator'
-import { Sheet, SheetHeader, SheetTitle, SheetTrigger } from '@tecton/react/components/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@tecton/react/components/sheet'
 import { cn } from 'cn'
 import { BoxesIcon } from 'lucide-react'
 
@@ -87,14 +93,18 @@ function MobileNav({
   const sections = getSections(tree, 'Start here')
 
   return (
-    <SheetTrigger isOpen={open} onOpenChange={setOpen}>
-      <Button
-        variant="ghost"
-        className={cn(
-          'extend-touch-target h-8 touch-manipulation items-center justify-start gap-2.5 p-0! hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-0 active:bg-transparent',
-          className,
-        )}
-        aria-label="Toggle menu"
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger
+        render={
+          <Button
+            variant="ghost"
+            className={cn(
+              'extend-touch-target h-8 touch-manipulation items-center justify-start gap-2.5 p-0! hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-0 active:bg-transparent',
+              className,
+            )}
+            aria-label="Toggle menu"
+          />
+        }
       >
         <div className="relative flex h-8 w-4 items-center justify-center">
           <div className="relative size-4">
@@ -113,8 +123,8 @@ function MobileNav({
           </div>
         </div>
         <span className="flex h-8 items-center text-lg leading-none font-medium">Menu</span>
-      </Button>
-      <Sheet side="left" className="w-80 overflow-y-auto">
+      </SheetTrigger>
+      <SheetContent side="left" className="w-80 overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <BoxesIcon className="size-5" />
@@ -135,7 +145,7 @@ function MobileNav({
             </div>
           ))}
         </div>
-      </Sheet>
-    </SheetTrigger>
+      </SheetContent>
+    </Sheet>
   )
 }

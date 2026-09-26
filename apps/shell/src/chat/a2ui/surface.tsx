@@ -11,9 +11,14 @@ import { useId, useSyncExternalStore, type ReactNode } from 'react'
 import { Button } from '@tecton/react/components/button'
 import { Card, CardContent } from '@tecton/react/components/card'
 import { Checkbox } from '@tecton/react/components/checkbox'
-import { Field } from '@tecton/react/components/field'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@tecton/react/components/field'
 import { Input } from '@tecton/react/components/input'
-import { Label } from '@tecton/react/components/label'
 import { RadioGroup, RadioGroupItem } from '@tecton/react/components/radio-group'
 import { Separator } from '@tecton/react/components/separator'
 import { Textarea } from '@tecton/react/components/textarea'
@@ -41,7 +46,6 @@ import {
   XIcon,
   type LucideIcon,
 } from 'lucide-react'
-import { CheckboxGroup, TextField } from 'react-aria-components'
 
 import type { A2uiUserAction } from '../shell-chat.ts'
 
@@ -232,8 +236,8 @@ function Component({
         <Button
           size="sm"
           variant={variant}
-          isDisabled={!checksPass(component['checks'], scope)}
-          onPress={() => {
+          disabled={!checksPass(component['checks'], scope)}
+          onClick={() => {
             if (!isObject(action)) return
             if (isObject(action['event']) && typeof action['event']['name'] === 'string') {
               const context = isObject(action['event']['context']) ? action['event']['context'] : {}
@@ -265,26 +269,8 @@ function Component({
       )
     }
 
-    case 'TextField': {
-      const target = boundPath(component['value'], scope)
-      const value = resolveText(component['value'], scope)
-      const variant = component['variant']
-      return (
-        <TextField
-          className="flex flex-col gap-1.5"
-          value={value}
-          isReadOnly={target === undefined}
-          isInvalid={!checksPass(component['checks'], scope)}
-          type={variant === 'obscured' ? 'password' : variant === 'number' ? 'number' : 'text'}
-          onChange={next => {
-            if (target !== undefined) handlers.write(target, next)
-          }}
-        >
-          <Label>{label}</Label>
-          {variant === 'longText' ? <Textarea /> : <Input />}
-        </TextField>
-      )
-    }
+    case 'TextField':
+      return <TextFieldView component={component} scope={scope} handlers={handlers} label={label} />
 
     case 'CheckBox':
       return <CheckBoxView component={component} scope={scope} handlers={handlers} label={label} />
@@ -358,6 +344,45 @@ interface InputViewProps {
   readonly label: string
 }
 
+/** A labelled input, or a textarea for long text; a failed check marks it invalid. */
+function TextFieldView({ component, scope, handlers, label }: InputViewProps): ReactNode {
+  const id = useId()
+  const target = boundPath(component['value'], scope)
+  const variant = component['variant']
+  const invalid = !checksPass(component['checks'], scope)
+  const control = {
+    id,
+    value: resolveText(component['value'], scope),
+    readOnly: target === undefined,
+    'aria-invalid': invalid || undefined,
+  }
+  const write = (next: string): void => {
+    if (target !== undefined) handlers.write(target, next)
+  }
+
+  return (
+    <Field className="gap-1.5" data-invalid={invalid || undefined}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {variant === 'longText' ? (
+        <Textarea
+          {...control}
+          onChange={event => {
+            write(event.target.value)
+          }}
+        />
+      ) : (
+        <Input
+          {...control}
+          type={variant === 'obscured' ? 'password' : variant === 'number' ? 'number' : 'text'}
+          onChange={event => {
+            write(event.target.value)
+          }}
+        />
+      )}
+    </Field>
+  )
+}
+
 /** Tecton's checkbox beside its label, as its own examples compose it. */
 function CheckBoxView({ component, scope, handlers, label }: InputViewProps): ReactNode {
   const id = useId()
@@ -366,21 +391,26 @@ function CheckBoxView({ component, scope, handlers, label }: InputViewProps): Re
     <Field orientation="horizontal">
       <Checkbox
         id={id}
-        isSelected={resolve(component['value'], scope) === true}
-        isReadOnly={target === undefined}
-        onChange={next => {
+        checked={resolve(component['value'], scope) === true}
+        readOnly={target === undefined}
+        onCheckedChange={next => {
           if (target !== undefined) handlers.write(target, next)
         }}
       />
-      <Label htmlFor={id}>{label}</Label>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
     </Field>
   )
 }
 
-/** One choice (radio buttons) or several (checkboxes); the value is always an array. */
+/**
+ * One choice (radio buttons) or several (checkboxes); the value is always an array. The set is
+ * named by its legend, or as "Choices" when the agent gave it no label, so it is never anonymous.
+ */
 function ChoiceView({ component, scope, handlers, label }: InputViewProps): ReactNode {
   const id = useId()
+  const legendId = `${id}-legend`
   const target = boundPath(component['value'], scope)
+  const readOnly = target === undefined
   const current = resolve(component['value'], scope)
   const selected = Array.isArray(current) ? current.map(String) : []
   const options = Array.isArray(component['options'])
@@ -390,48 +420,70 @@ function ChoiceView({ component, scope, handlers, label }: InputViewProps): Reac
           : [],
       )
     : []
-  const legend = label === '' ? null : <Label>{label}</Label>
+  const legend =
+    label === '' ? null : (
+      <FieldLegend id={legendId} variant="label" className="mb-0">
+        {label}
+      </FieldLegend>
+    )
+  const name = label === '' ? { 'aria-label': 'Choices' } : { 'aria-labelledby': legendId }
 
   if (component['variant'] === 'multipleSelection') {
     return (
-      <CheckboxGroup
-        className="flex flex-col gap-2"
-        value={selected}
-        isReadOnly={target === undefined}
-        {...(label === '' ? { 'aria-label': 'Choices' } : {})}
-        onChange={next => {
-          if (target !== undefined) handlers.write(target, next)
-        }}
-      >
+      <FieldSet className="gap-2" {...(label === '' ? name : {})}>
         {legend}
-        {options.map((option, index) => (
-          <Field key={option.value} orientation="horizontal">
-            <Checkbox id={`${id}-${String(index)}`} value={option.value} />
-            <Label htmlFor={`${id}-${String(index)}`}>{option.label}</Label>
-          </Field>
-        ))}
-      </CheckboxGroup>
+        <FieldGroup className="gap-2">
+          {options.map((option, index) => (
+            <Field key={option.value} orientation="horizontal">
+              <Checkbox
+                id={`${id}-${String(index)}`}
+                checked={selected.includes(option.value)}
+                readOnly={readOnly}
+                onCheckedChange={checked => {
+                  if (target === undefined) return
+                  // A new choice goes last, so the array keeps the order the user chose in.
+                  handlers.write(
+                    target,
+                    checked
+                      ? [...selected.filter(value => value !== option.value), option.value]
+                      : selected.filter(value => value !== option.value),
+                  )
+                }}
+              />
+              <FieldLabel htmlFor={`${id}-${String(index)}`}>{option.label}</FieldLabel>
+            </Field>
+          ))}
+        </FieldGroup>
+      </FieldSet>
     )
   }
 
-  return (
+  const radios = (
     <RadioGroup
       className="gap-2"
       value={selected[0] ?? null}
-      isReadOnly={target === undefined}
-      {...(label === '' ? { 'aria-label': 'Choices' } : {})}
-      onChange={next => {
-        if (target !== undefined) handlers.write(target, [next])
+      readOnly={readOnly}
+      {...name}
+      onValueChange={next => {
+        if (target !== undefined) handlers.write(target, [String(next)])
       }}
     >
-      {legend}
       {options.map((option, index) => (
-        <div key={option.value} className="flex items-center gap-3">
+        <Field key={option.value} orientation="horizontal">
           <RadioGroupItem id={`${id}-${String(index)}`} value={option.value} />
-          <Label htmlFor={`${id}-${String(index)}`}>{option.label}</Label>
-        </div>
+          <FieldLabel htmlFor={`${id}-${String(index)}`}>{option.label}</FieldLabel>
+        </Field>
       ))}
     </RadioGroup>
+  )
+  // Without a legend the radio group, named "Choices", is the only group: a fieldset around it
+  // would be a second, unnamed one.
+  if (legend === null) return radios
+  return (
+    <FieldSet className="gap-2">
+      {legend}
+      {radios}
+    </FieldSet>
   )
 }
 

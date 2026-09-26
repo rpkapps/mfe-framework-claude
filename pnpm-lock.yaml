@@ -73,6 +73,9 @@ catalogs:
     '@babel/core':
       specifier: 8.0.5
       version: 8.0.5
+    '@base-ui/react':
+      specifier: 1.8.0
+      version: 1.8.0
     '@changesets/cli':
       specifier: 3.0.3
       version: 3.0.3
@@ -247,9 +250,6 @@ catalogs:
     react:
       specifier: 19.3.0
       version: 19.3.0
-    react-aria-components:
-      specifier: 1.21.1
-      version: 1.21.1
     react-dom:
       specifier: 19.3.0
       version: 19.3.0
@@ -368,6 +368,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.0(@types/node@22.19.2)(esbuild@0.28.2)(jiti@2.7.0)(less@4.5.1)(sass-embedded@1.104.1)(sass@1.104.1)(terser@5.51.2)(yaml@2.9.1))
@@ -398,9 +401,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria-components:
-        specifier: 'catalog:'
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -441,6 +441,9 @@ importers:
 
   apps/shell:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-agent':
         specifier: workspace:*
         version: link:../../packages/mfe-agent
@@ -504,9 +507,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-aria-components:
         specifier: ^1.21.1
         version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -586,6 +586,9 @@ importers:
 
   examples/alert-panel:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -604,12 +607,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -653,6 +650,9 @@ importers:
 
   examples/canvas-01:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -674,12 +674,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -829,6 +823,9 @@ importers:
 
   examples/insights:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -847,9 +844,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-aria-components:
         specifier: ^1.21.1
         version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -905,6 +899,9 @@ importers:
 
   examples/lab:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -932,12 +929,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -993,6 +984,9 @@ importers:
 
   examples/loaders:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -1017,12 +1011,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -1063,6 +1051,9 @@ importers:
 
   examples/operations:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -1093,9 +1084,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-aria-components:
         specifier: ^1.21.1
         version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1151,6 +1139,9 @@ importers:
 
   examples/reports:
     dependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@company/mfe-react':
         specifier: workspace:*
         version: link:../../packages/mfe-react
@@ -1178,12 +1169,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria:
-        specifier: 3.52.1
-        version: 3.52.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -1416,6 +1401,9 @@ importers:
         specifier: link:../../../tecton-ui-1/packages/tecton-react
         version: link:../../../tecton-ui-1/packages/tecton-react
     devDependencies:
+      '@base-ui/react':
+        specifier: 'catalog:'
+        version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2
@@ -1446,9 +1434,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.3.0
-      react-aria-components:
-        specifier: ^1.21.1
-        version: 1.21.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react-dom:
         specifier: 'catalog:'
         version: 19.3.0(react@19.3.0)
@@ -2682,6 +2667,33 @@ packages:
   '@babel/types@8.0.5':
     resolution: {integrity: sha512-eVdMqi3ej5aHhyQ2Si6yD2cAWeV8FJK9UrhK5aL0Sd8hu5GhT+YswhVNbVheOGVYMg8kuGuMaUpkB3stjj4z8A==}
     engines: {node: ^22.18.0 || >=24.11.0}
+
+  '@base-ui/react@1.8.0':
+    resolution: {integrity: sha512-P0/1sxo6SBVZOklKMIedvTWqw2s2IQzi9x5bIVsXu980cuSOD4NeuRSs+/L7LZQfDkZP/uRZyGPyfFl/B1oH+Q==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@date-fns/tz': ^1.2.0
+      '@types/react': ^17 || ^18 || ^19
+      date-fns: ^4.0.0
+      react: ^17 || ^18 || ^19
+      react-dom: ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@date-fns/tz':
+        optional: true
+      '@types/react':
+        optional: true
+      date-fns:
+        optional: true
+
+  '@base-ui/utils@0.4.0':
+    resolution: {integrity: sha512-bO9fz25kKtPf+aZVyfQrC0PDmJdmVni31W2hCS5/Owb+inwdIL3XU26pCPRPlt4LSxZrBgLwubXQXQlKaFEZzw==}
+    peerDependencies:
+      '@types/react': ^17 || ^18 || ^19
+      react: ^17 || ^18 || ^19
+      react-dom: ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
@@ -10468,6 +10480,9 @@ packages:
   reselect@5.1.1:
     resolution: {integrity: sha512-K/BG6eIky/SBpzfHZv/dd+9JBFiS4SWV7FIujVyJRux6e45+73RaUHXLmIR1f7WOMaQ0U1km6qwklRQxpJJY0w==}
 
+  reselect@5.3.0:
+    resolution: {integrity: sha512-XGoLeRAVzUTcJ1qkxPQhDJyIZ5d6zzZD9nT7AEZOaaU9UbWclhycElmhO+VD5bFeLuzhPBaOV2oXC8uG35ZSpg==}
+
   resolve-from@4.0.0:
     resolution: {integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==}
     engines: {node: '>=4'}
@@ -14077,6 +14092,29 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 8.0.0
       '@babel/helper-validator-identifier': 8.0.4
+
+  '@base-ui/react@1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@base-ui/utils': 0.4.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@floating-ui/react-dom': 2.1.9(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@floating-ui/utils': 0.2.12
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+      use-sync-external-store: 1.7.0(react@19.3.0)
+    optionalDependencies:
+      '@types/react': 19.3.0
+
+  '@base-ui/utils@0.4.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      '@babel/runtime': 7.29.7
+      '@floating-ui/utils': 0.2.12
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
+      reselect: 5.3.0
+      use-sync-external-store: 1.7.0(react@19.3.0)
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   '@bcoe/v8-coverage@1.0.2': {}
 
@@ -22768,6 +22806,8 @@ snapshots:
   requires-port@1.0.0: {}
 
   reselect@5.1.1: {}
+
+  reselect@5.3.0: {}
 
   resolve-from@4.0.0: {}
 

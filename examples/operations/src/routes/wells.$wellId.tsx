@@ -82,7 +82,7 @@ function WellDetail(): ReactNode {
             </EmptyHeader>
             <Button
               variant="outline"
-              onPress={() => {
+              onClick={() => {
                 void navigate({ to: '/wells' })
               }}
             >
@@ -113,7 +113,7 @@ function WellDetail(): ReactNode {
           <Button
             variant="outline"
             size="sm"
-            onPress={() => {
+            onClick={() => {
               // Whether a chat took it: the shell may have none.
               setUnanswered(
                 !prompt({
@@ -131,7 +131,7 @@ function WellDetail(): ReactNode {
           <Button
             variant="outline"
             size="sm"
-            onPress={() => {
+            onClick={() => {
               void navigate({ to: '/wells' })
             }}
           >

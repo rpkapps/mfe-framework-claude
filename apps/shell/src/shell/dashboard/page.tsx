@@ -222,13 +222,13 @@ export function DashboardPage(): ReactNode {
           {/* Each restore control sits at the edge the panel collapsed into, so it reads as that
               panel rather than as a canvas tool. */}
           {collapsed.catalogue ? (
-            <CanvasOverlay position="left">
+            <CanvasOverlay position="start">
               <CanvasToolbar orientation="vertical" aria-label="Catalogue">
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Show the catalogue"
-                  onPress={() => cataloguePanel.current?.expand()}
+                  onClick={() => cataloguePanel.current?.expand()}
                 >
                   <ChevronsRightIcon />
                 </Button>
@@ -236,13 +236,13 @@ export function DashboardPage(): ReactNode {
             </CanvasOverlay>
           ) : null}
           {collapsed.activity ? (
-            <CanvasOverlay position="right">
+            <CanvasOverlay position="end">
               <CanvasToolbar orientation="vertical" aria-label="Activity">
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Show the activity feed"
-                  onPress={() => activityPanel.current?.expand()}
+                  onClick={() => activityPanel.current?.expand()}
                 >
                   <ChevronsLeftIcon />
                 </Button>
@@ -250,13 +250,13 @@ export function DashboardPage(): ReactNode {
             </CanvasOverlay>
           ) : null}
           {tiles.length === 0 ? null : (
-            <CanvasOverlay position="top-right">
+            <CanvasOverlay position="top-end">
               <CanvasToolbar orientation="horizontal" aria-label="Canvas">
                 <Toggle
                   size="sm"
                   aria-label="Snap tiles to the top"
-                  isSelected={snapToTop}
-                  onChange={next => {
+                  pressed={snapToTop}
+                  onPressedChange={next => {
                     setSnapToTop(next)
                     // Turning it on closes the gaps that are already there, or the setting would
                     // look like it had done nothing until the next drag.
@@ -448,7 +448,7 @@ function CataloguePanel({
             {widgets.length}
           </Badge>
           {hasTiles ? (
-            <Button variant="ghost" size="icon-sm" aria-label="Clear the canvas" onPress={onClear}>
+            <Button variant="ghost" size="icon-sm" aria-label="Clear the canvas" onClick={onClear}>
               <Trash2Icon />
             </Button>
           ) : null}
@@ -457,7 +457,7 @@ function CataloguePanel({
             size="icon-sm"
             aria-label="Hide the catalogue"
             className="hidden lg:inline-flex"
-            onPress={onCollapse}
+            onClick={onCollapse}
           >
             <ChevronsLeftIcon />
           </Button>
@@ -518,7 +518,7 @@ function ActivityFeed({
               <Badge variant="secondary" size="default">
                 {outputs.length}
               </Badge>
-              <Button variant="ghost" size="icon-sm" aria-label="Clear outputs" onPress={onClear}>
+              <Button variant="ghost" size="icon-sm" aria-label="Clear outputs" onClick={onClear}>
                 <Trash2Icon />
               </Button>
             </>
@@ -528,7 +528,7 @@ function ActivityFeed({
             size="icon-sm"
             aria-label="Hide the activity feed"
             className="hidden lg:inline-flex"
-            onPress={onCollapse}
+            onClick={onCollapse}
           >
             <ChevronsRightIcon />
           </Button>

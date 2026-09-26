@@ -150,7 +150,7 @@ export function useTileDrag(
 
 /**
  * The keyboard equivalent of the two gestures. A tile that can only be placed with a pointer is
- * a tile some people cannot place at all, and the rest of this shell is React Aria.
+ * a tile some people cannot place at all, and the rest of this shell works from the keyboard.
  */
 export function tileKeyboardMove(
   key: string,

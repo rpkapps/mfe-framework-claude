@@ -16,11 +16,13 @@ import { Button } from '@tecton/react/components/button'
 import { Checkbox } from '@tecton/react/components/checkbox'
 import {
   DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@tecton/react/components/dropdown-menu'
 import { Meter } from '@tecton/react/tecton/meter'
+import { useLocale } from '@tecton/react/tecton/provider'
 
 import { formatFirstOil, riskLabel, statusMeta } from '../data'
 import type { FieldDevelopmentAlternative } from '../data'
@@ -47,14 +49,15 @@ function MonoValue({
   digits?: number
   prefix?: string
 }) {
+  const { locale } = useLocale()
   return (
     <span className={cn('font-mono tabular-nums', className)}>
       {prefix}
-      {value.toLocaleString(undefined, {
+      {value.toLocaleString(locale, {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
       })}
-      {unit && <span className="ml-1 text-[0.85em] text-muted-foreground">{unit}</span>}
+      {unit && <span className="ms-1 text-[0.85em] text-muted-foreground">{unit}</span>}
     </span>
   )
 }
@@ -70,8 +73,30 @@ function createFdaColumns(callbacks: ColumnCallbacks = {}) {
   return columns.columns([
     columns.display({
       id: 'select',
-      header: () => <Checkbox slot="selection" aria-label="Select all rows" />,
-      cell: () => <Checkbox slot="selection" aria-label="Select row" />,
+      header: ({ table }) => {
+        // Checked when every row is selected, mixed when some are.
+        const rows = table.getRowModel().rows
+        const all = rows.length > 0 && rows.every(row => row.getIsSelected())
+        const some = table.getSelectedRowModel().rows.length > 0
+        return (
+          <Checkbox
+            aria-label="Select all rows"
+            checked={all}
+            indeterminate={some && !all}
+            onCheckedChange={checked => {
+              if (checked) table.toggleAllRowsSelected(true)
+              else table.setRowSelection({})
+            }}
+          />
+        )
+      },
+      cell: ({ row }) => (
+        <Checkbox
+          aria-label={`Select row ${row.original.code}`}
+          checked={row.getIsSelected()}
+          onCheckedChange={checked => row.toggleSelected(checked)}
+        />
+      ),
       enableSorting: false,
     }),
     columns.display({
@@ -152,15 +177,23 @@ function createFdaColumns(callbacks: ColumnCallbacks = {}) {
       enableSorting: false,
       cell: ({ row }) => (
         <span className="flex justify-end">
-          <DropdownMenuTrigger>
-            <Button variant="ghost" size="icon-xs" aria-label={`Actions for ${row.original.code}`}>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`Actions for ${row.original.code}`}
+                />
+              }
+            >
               <MoreVerticalIcon />
-            </Button>
-            <DropdownMenu placement="bottom end">
-              <DropdownMenuItem onAction={() => callbacks.onOpen?.(row.original)}>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end">
+              <DropdownMenuItem onClick={() => callbacks.onOpen?.(row.original)}>
                 <PencilIcon /> Open
               </DropdownMenuItem>
-              <DropdownMenuItem onAction={() => callbacks.onDuplicate?.(row.original)}>
+              <DropdownMenuItem onClick={() => callbacks.onDuplicate?.(row.original)}>
                 <CopyIcon /> Duplicate
               </DropdownMenuItem>
               <DropdownMenuItem>
@@ -169,12 +202,12 @@ function createFdaColumns(callbacks: ColumnCallbacks = {}) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onAction={() => callbacks.onDelete?.(row.original)}
+                onClick={() => callbacks.onDelete?.(row.original)}
               >
                 <TrashIcon /> Delete
               </DropdownMenuItem>
-            </DropdownMenu>
-          </DropdownMenuTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       ),
     }),

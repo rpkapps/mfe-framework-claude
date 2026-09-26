@@ -57,7 +57,7 @@ Module scope means the top level of a file, outside every function, and the cont
   fallback={({ error, retry }) => (
     <div role="alert">
       <p>{error.message}</p>
-      <Button onPress={retry}>Retry</Button>
+      <Button onClick={retry}>Retry</Button>
     </div>
   )}
 />

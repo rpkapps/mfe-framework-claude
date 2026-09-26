@@ -1,12 +1,13 @@
 'use client'
 
+import { Button } from '@tecton/react/components/button'
 import {
   DropdownMenu,
-  DropdownMenuGroup,
-  DropdownMenuItem,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@tecton/react/components/dropdown-menu'
-import { Button } from '@tecton/react/components/button'
 import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
@@ -14,31 +15,31 @@ export function ModeToggle() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <DropdownMenuTrigger>
-      <Button variant="ghost" size="icon-sm" aria-label="Toggle theme">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon-sm" aria-label="Toggle theme" />}
+      >
         <SunIcon className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
         <MoonIcon className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-      </Button>
-      <DropdownMenu placement="bottom end" className="w-36">
-        <DropdownMenuGroup
-          selectionMode="single"
-          selectedKeys={theme === undefined ? [] : [theme]}
-          onSelectionChange={keys => {
-            const next = keys === 'all' ? undefined : [...keys][0]
-            if (typeof next === 'string') setTheme(next)
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuRadioGroup
+          value={theme ?? ''}
+          onValueChange={(value: string) => {
+            setTheme(value)
           }}
         >
-          <DropdownMenuItem id="dark">
+          <DropdownMenuRadioItem value="dark" closeOnClick>
             <MoonIcon /> Dark
-          </DropdownMenuItem>
-          <DropdownMenuItem id="light">
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light" closeOnClick>
             <SunIcon /> Light
-          </DropdownMenuItem>
-          <DropdownMenuItem id="system">
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system" closeOnClick>
             <MonitorIcon /> System
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenu>
-    </DropdownMenuTrigger>
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

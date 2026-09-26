@@ -43,7 +43,7 @@ function Breadcrumbs(): ReactNode {
         <div>
           <Button
             variant={override ? 'default' : 'outline'}
-            onPress={() => {
+            onClick={() => {
               setOverride(current => !current)
             }}
           >

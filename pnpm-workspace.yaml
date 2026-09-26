@@ -60,9 +60,9 @@ overrides:
   # `"@tecton/react": "*"` and this line links them all to the one checkout. To move it, change
   # this path (relative to this file) and run `pnpm install`: the tools, the Vitest config and CI
   # read it from here, and CI's repository is set in .github/actions/setup/action.yml. A link
-  # installs none of Tecton's own dependencies, so the shell declares the ones its components need
-  # (`@shadcn/react` in the catalog and apps/shell/package.json): once Tecton is published and
-  # this line goes, drop those declarations with it.
+  # installs none of Tecton's own dependencies, so each package that renders it declares the ones
+  # that must be this workspace's copy (`@base-ui/react`, `@shadcn/react` in the catalog below):
+  # once Tecton is published and this line goes, drop those declarations with it.
   '@tecton/react': link:../tecton-ui-1/packages/tecton-react
 
 # §10.10 / §17.6: one pinned version per dependency, referenced as `catalog:`
@@ -91,6 +91,10 @@ catalog:
   '@angular/platform-browser': 19.2.25
   '@angular/router': 19.2.25
   '@babel/core': 8.0.5
+  # The primitives Tecton's components are built on. pnpm does not install a linked package's own
+  # dependencies, so every package that renders Tecton declares it, and so shares one copy of it
+  # (`@tecton/react/federation/shared`); application code never imports it.
+  '@base-ui/react': 1.8.0
   '@changesets/cli': 3.0.3
   '@excalidraw/excalidraw': 0.18.1
   # The shell's page-wide Angular assets (apps/shell/src/angular): the font file Material Symbols
@@ -177,6 +181,8 @@ catalog:
   prettier: 3.9.8
   primeng: 19.1.4
   react: 19.3.0
+  # What Tecton's TreeView and Chip are built on internally, shared as `@base-ui/react` is above.
+  # Only a package that renders one of them (or the Composer, which renders Chip) declares it.
   'react-aria-components': 1.21.1
   react-dom: 19.3.0
   rxjs: 7.8.2

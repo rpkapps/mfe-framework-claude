@@ -242,7 +242,7 @@ function PageStateFigure({
     <div
       data-slot="page-state-figure"
       className={cn(
-        "relative flex items-center justify-center overflow-hidden border-b border-border-subtle bg-card max-lg:h-64 lg:border-b-0 lg:border-l",
+        "relative flex items-center justify-center overflow-hidden border-b border-border-subtle bg-card max-lg:h-64 lg:border-s lg:border-b-0",
         "bg-[radial-gradient(var(--border-subtle)_1px,transparent_1px)] bg-[size:20px_20px]",
         className
       )}

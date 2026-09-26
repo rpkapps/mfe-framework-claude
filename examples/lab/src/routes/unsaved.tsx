@@ -4,6 +4,7 @@ import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
   Dialog,
+  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -114,13 +115,13 @@ function Unsaved(): ReactNode {
         </Field>
 
         <div className="flex flex-wrap gap-2">
-          <Button isDisabled={!isDirty} onPress={save}>
+          <Button disabled={!isDirty} onClick={save}>
             <SaveIcon /> Save
           </Button>
           <Button
             variant="outline"
-            isDisabled={!isDirty}
-            onPress={() => {
+            disabled={!isDirty}
+            onClick={() => {
               setDraft(saved)
             }}
           >
@@ -187,50 +188,51 @@ function Unsaved(): ReactNode {
        * dialog is still working.
        */}
       <Dialog
-        isOpen={blocker.status === 'blocked'}
-        isDismissable={false}
-        showCloseButton={false}
+        open={blocker.status === 'blocked'}
+        disablePointerDismissal
         onOpenChange={open => {
           if (!open) blocker.reset?.()
         }}
       >
-        <DialogHeader>
-          <DialogTitle>Leave with unsaved changes?</DialogTitle>
-          <DialogDescription>
-            {target === null
-              ? null
-              : leavesApp
-                ? `This page has edits that are not saved. Going to ${target.pathname} leaves this application and discards them.`
-                : `This page has edits that are not saved. Going to ${target.pathname} discards them.`}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button
-            variant="outline"
-            onPress={() => {
-              blocker.reset?.()
-            }}
-          >
-            Keep editing
-          </Button>
-          <Button
-            variant="outline"
-            onPress={() => {
-              save()
-              blocker.proceed?.()
-            }}
-          >
-            <SaveIcon /> Save and leave
-          </Button>
-          <Button
-            variant="destructive"
-            onPress={() => {
-              blocker.proceed?.()
-            }}
-          >
-            Discard and leave
-          </Button>
-        </div>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Leave with unsaved changes?</DialogTitle>
+            <DialogDescription>
+              {target === null
+                ? null
+                : leavesApp
+                  ? `This page has edits that are not saved. Going to ${target.pathname} leaves this application and discards them.`
+                  : `This page has edits that are not saved. Going to ${target.pathname} discards them.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                blocker.reset?.()
+              }}
+            >
+              Keep editing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                save()
+                blocker.proceed?.()
+              }}
+            >
+              <SaveIcon /> Save and leave
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                blocker.proceed?.()
+              }}
+            >
+              Discard and leave
+            </Button>
+          </div>
+        </DialogContent>
       </Dialog>
     </LabPage>
   )

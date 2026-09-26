@@ -21,6 +21,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@company/mfe-react": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
@@ -28,8 +29,6 @@
     "cn": "^0.2.6",
     "lucide-react": "^1.45.0",
     "react": "catalog:",
-    "react-aria": "3.52.1",
-    "react-aria-components": "^1.21.1",
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.12.4",
     "zod": "catalog:"

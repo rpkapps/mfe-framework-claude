@@ -17,7 +17,7 @@ import {
   EmptyTitle,
 } from '@tecton/react/components/empty'
 import { Toggle as ToggleButton } from '@tecton/react/components/toggle'
-import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   Composer,
   ComposerAttachments,
@@ -140,25 +140,26 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
           items={panel.attachments.map(attachment => {
             const Icon = ATTACHMENT_ICONS[attachment.kind]
             return {
-              id: attachment.id,
+              value: attachment.id,
               label: attachment.label,
               description: attachment.description,
-              icon: <Icon aria-hidden />,
+              // Marked as the chip's inline icon, the only mark the chip sizes an icon by.
+              icon: <Icon data-icon="inline-start" aria-hidden />,
             }
           })}
           onRemove={id => {
-            chat.panel.detach(String(id))
+            chat.panel.detach(id)
           }}
         />
         <ComposerCommands
           items={commands}
           onCommand={(item, composer) => {
-            if (item.id === NEW_CONVERSATION.id) {
+            if (item.value === NEW_CONVERSATION.value) {
               chat.newConversation()
               return
             }
             // One the list no longer holds, because its action went with its mount, does nothing.
-            const action = commands.find(candidate => candidate.id === item.id)?.action
+            const action = commands.find(candidate => candidate.value === item.value)?.action
             if (action === undefined) return
             chat.panel.attach(actionAttachment(action))
             // Enter sends it as it is; the user may add what the action should act on.
@@ -170,7 +171,7 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
           <ComposerSubmit />
         </ComposerToolbar>
       </ComposerField>
-      <ComposerHint isVisible={false} />
+      <ComposerHint visible={false} />
       <ComposerStatusMessage />
       <FocusOnRequest chat={chat} />
     </Composer>
@@ -222,7 +223,7 @@ function ConversationNotShown({ chat }: { readonly chat: ShellChat }): ReactNode
         <Button
           variant="outline"
           size="sm"
-          onPress={() => {
+          onClick={() => {
             chat.newConversation()
           }}
         >
@@ -252,43 +253,55 @@ export function ChatPanel({
         <BotIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <PanelTitle>Assistant</PanelTitle>
         <PanelActions>
-          <TooltipTrigger>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="New conversation"
-              onPress={() => {
-                chat.newConversation()
-              }}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="New conversation"
+                  onClick={() => {
+                    chat.newConversation()
+                  }}
+                />
+              }
             >
               <SquarePenIcon />
-            </Button>
-            <Tooltip>New conversation</Tooltip>
-          </TooltipTrigger>
+            </TooltipTrigger>
+            <TooltipContent>New conversation</TooltipContent>
+          </Tooltip>
           {width !== undefined && (
-            <TooltipTrigger>
-              <ToggleButton
-                size="sm"
-                aria-label="Full width"
-                isSelected={width.wide}
-                onChange={width.toggleWide}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <ToggleButton
+                    size="sm"
+                    aria-label="Full width"
+                    pressed={width.wide}
+                    onPressedChange={width.toggleWide}
+                  />
+                }
               >
                 {width.wide ? <Minimize2Icon /> : <Maximize2Icon />}
-              </ToggleButton>
-              <Tooltip>{width.wide ? 'Back to the side' : 'Full width'}</Tooltip>
-            </TooltipTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{width.wide ? 'Back to the side' : 'Full width'}</TooltipContent>
+            </Tooltip>
           )}
-          <TooltipTrigger>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close the assistant"
-              onPress={onClose}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close the assistant"
+                  onClick={onClose}
+                />
+              }
             >
               <XIcon />
-            </Button>
-            <Tooltip>Close</Tooltip>
-          </TooltipTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Close</TooltipContent>
+          </Tooltip>
         </PanelActions>
       </PanelHeader>
 

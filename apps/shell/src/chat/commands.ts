@@ -12,7 +12,8 @@ import type { ActionEntry } from './hooks.ts'
 import type { ChatAttachment } from './panel.ts'
 
 export interface ChatCommand {
-  readonly id: string
+  /** The command's identity, as the composer's command list keys it. */
+  readonly value: string
   readonly command: string
   readonly label: string
   readonly description?: string
@@ -22,7 +23,7 @@ export interface ChatCommand {
 }
 
 export const NEW_CONVERSATION: ChatCommand = {
-  id: 'chat:new',
+  value: 'chat:new',
   command: 'new',
   label: 'Start a new conversation',
   group: 'Chat',
@@ -51,7 +52,7 @@ export function chatCommands(actions: readonly ActionEntry[]): ChatCommand[] {
     for (let n = 2; taken.has(typed); n += 1) typed = `${base}-${String(n)}`
     taken.add(typed)
     return {
-      id: `action:${entry.id}`,
+      value: `action:${entry.id}`,
       command: typed,
       label: entry.label,
       ...(entry.definitionId === HOST_SCOPE ? {} : { description: entry.definitionId }),

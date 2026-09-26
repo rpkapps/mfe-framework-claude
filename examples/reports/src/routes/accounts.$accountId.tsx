@@ -65,7 +65,7 @@ function AccountReport(): ReactNode {
             </EmptyHeader>
             <Button
               variant="outline"
-              onPress={() => {
+              onClick={() => {
                 void navigate({ to: '/' })
               }}
             >
@@ -137,21 +137,21 @@ function AccountReport(): ReactNode {
             <Meter
               label="Risk score"
               value={alternative.risk}
-              maxValue={100}
+              max={100}
               color="auto"
               valueLabel={`${String(alternative.risk)} / 100`}
             />
             <Meter
               label="NPV against the best case"
               value={alternative.npv}
-              maxValue={Math.max(...alternatives.map(candidate => candidate.npv))}
+              max={Math.max(...alternatives.map(candidate => candidate.npv))}
               color="success"
               valueLabel={`$${alternative.npv.toFixed(1)}MM`}
             />
             <Meter
               label="CAPEX against the heaviest case"
               value={alternative.capex}
-              maxValue={Math.max(...alternatives.map(candidate => candidate.capex))}
+              max={Math.max(...alternatives.map(candidate => candidate.capex))}
               color="warning"
               valueLabel={`$${alternative.capex.toFixed(1)}MM`}
             />
@@ -184,7 +184,7 @@ function AccountReport(): ReactNode {
       <div>
         <Button
           variant="outline"
-          onPress={() => {
+          onClick={() => {
             void navigate({ to: '/' })
           }}
         >

@@ -9,7 +9,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { Textarea } from '@tecton/react/components/textarea'
-import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@tecton/react/components/tooltip'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { CircleStopIcon, PencilIcon, RotateCcwIcon } from 'lucide-react'
 
@@ -35,7 +35,7 @@ function Row({
       className={`flex items-center gap-0.5 transition-opacity ${align === 'end' ? 'self-end' : ''} ${
         shown
           ? ''
-          : 'opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 has-[[data-pressed]]:opacity-100'
+          : 'opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 has-[:active]:opacity-100'
       }`}
     >
       {children}
@@ -59,19 +59,23 @@ export function ReplyActions({
     <Row shown={last} label="Reply actions">
       {text !== '' && <CopyButton value={text} size="icon-xs" aria-label="Copy the reply" />}
       {last && idle && (
-        <TooltipTrigger>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Ask again"
-            onPress={() => {
-              void chat.client.reload()
-            }}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Ask again"
+                onClick={() => {
+                  void chat.client.reload()
+                }}
+              />
+            }
           >
             <RotateCcwIcon />
-          </Button>
-          <Tooltip>Ask again</Tooltip>
-        </TooltipTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Ask again</TooltipContent>
+        </Tooltip>
       )}
     </Row>
   )
@@ -97,7 +101,7 @@ export function ReplyFailed({
         <Button
           variant="outline"
           size="xs"
-          onPress={() => {
+          onClick={() => {
             void chat.client.reload()
           }}
         >
@@ -129,12 +133,21 @@ export function QuestionActions({
   return (
     <Row shown={false} align="end" label="Message actions">
       <CopyButton value={text} size="icon-xs" aria-label="Copy your message" />
-      <TooltipTrigger>
-        <Button variant="ghost" size="icon-xs" aria-label="Edit your message" onPress={onEdit}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Edit your message"
+              onClick={onEdit}
+            />
+          }
+        >
           <PencilIcon />
-        </Button>
-        <Tooltip>Edit</Tooltip>
-      </TooltipTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Edit</TooltipContent>
+      </Tooltip>
     </Row>
   )
 }
@@ -205,13 +218,13 @@ export function EditQuestion({
         <Button
           variant="ghost"
           size="sm"
-          onPress={() => {
+          onClick={() => {
             onDone(false)
           }}
         >
           Cancel
         </Button>
-        <Button type="submit" size="sm" isDisabled={draft.trim() === ''}>
+        <Button type="submit" size="sm" disabled={draft.trim() === ''}>
           Ask again
         </Button>
       </div>

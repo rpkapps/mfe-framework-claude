@@ -50,7 +50,7 @@ export function RouteError({ error, reset }: { error: unknown; reset: () => void
         <EmptyContent>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               void retry()
             }}
           >

@@ -58,8 +58,8 @@ function Config(): ReactNode {
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            isDisabled={probe.isFetching}
-            onPress={() => {
+            disabled={probe.isFetching}
+            onClick={() => {
               void probe.refetch()
             }}
           >

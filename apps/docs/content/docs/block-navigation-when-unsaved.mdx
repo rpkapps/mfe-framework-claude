@@ -36,12 +36,20 @@ the framework asks it about both.
 ### 2. Draw your own confirmation
 
 ```tsx title="examples/lab/src/routes/unsaved.tsx"
-<Dialog isOpen={blocker.status === 'blocked'} isDismissable={false}>
-  <DialogTitle>Leave with unsaved changes?</DialogTitle>
-  <Button onPress={() => blocker.reset?.()}>Keep editing</Button>
-  <Button variant="destructive" onPress={() => blocker.proceed?.()}>
-    Discard and leave
-  </Button>
+<Dialog
+  open={blocker.status === 'blocked'}
+  disablePointerDismissal
+  onOpenChange={open => {
+    if (!open) blocker.reset?.()
+  }}
+>
+  <DialogContent showCloseButton={false}>
+    <DialogTitle>Leave with unsaved changes?</DialogTitle>
+    <Button onClick={() => blocker.reset?.()}>Keep editing</Button>
+    <Button variant="destructive" onClick={() => blocker.proceed?.()}>
+      Discard and leave
+    </Button>
+  </DialogContent>
 </Dialog>
 ```
 

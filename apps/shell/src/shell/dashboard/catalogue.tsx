@@ -26,8 +26,8 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from '@tecton/react/components/input-group'
-import { Popover, PopoverTrigger } from '@tecton/react/components/popover'
-import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
+import { Popover, PopoverContent, PopoverTrigger } from '@tecton/react/components/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@tecton/react/components/tooltip'
 import { Chip, ChipGroup, ChipList } from '@tecton/react/tecton/chip'
 import { BoxIcon, PlusIcon, SearchIcon, XIcon, ZapIcon } from 'lucide-react'
 
@@ -107,7 +107,7 @@ export function Catalogue({ widgets, onAdd }: CatalogueProps): ReactNode {
             <InputGroupButton
               size="icon-xs"
               aria-label="Clear the search"
-              onPress={() => {
+              onClick={() => {
                 setQuery('')
               }}
             >
@@ -121,9 +121,9 @@ export function Catalogue({ widgets, onAdd }: CatalogueProps): ReactNode {
         <ChipGroup
           aria-label="Filter by tag"
           selectionMode="multiple"
-          selectedKeys={selectedTags}
-          onSelectionChange={keys => {
-            setSelectedTags(keys === 'all' ? new Set(tags) : new Set([...keys].map(String)))
+          value={[...selectedTags]}
+          onValueChange={values => {
+            setSelectedTags(new Set(values))
           }}
         >
           {/* Solid rather than outlined: nine outlined pills read as nine competing buttons, and
@@ -131,7 +131,7 @@ export function Catalogue({ widgets, onAdd }: CatalogueProps): ReactNode {
               lets `data-selected`'s ring be the only strong edge in the group. */}
           <ChipList className="flex flex-wrap gap-1">
             {tags.map(tag => (
-              <Chip key={tag} id={tag} variant="secondary">
+              <Chip key={tag} value={tag} variant="secondary">
                 {tag}
               </Chip>
             ))}
@@ -154,7 +154,7 @@ export function Catalogue({ widgets, onAdd }: CatalogueProps): ReactNode {
             <Button
               variant="outline"
               size="sm"
-              onPress={() => {
+              onClick={() => {
                 setQuery('')
                 setSelectedTags(new Set())
               }}
@@ -205,19 +205,23 @@ function CatalogueItem({
 
       {/* The name is the disclosure. A separate info button cost a third of the row's width in a
           panel this narrow, and the name had to truncate to two words to make room for it. */}
-      <PopoverTrigger>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-w-0 flex-1 justify-start"
-          aria-label={`${name}. What it takes and emits.`}
+      <Popover>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 flex-1 justify-start"
+              aria-label={`${name}. What it takes and emits.`}
+            />
+          }
         >
           <span className="truncate">{name}</span>
-        </Button>
-        <Popover className="w-80 p-3">
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-3">
           <ContractDetail entry={entry} />
-        </Popover>
-      </PopoverTrigger>
+        </PopoverContent>
+      </Popover>
 
       {entry.overridden === true ? (
         <Badge variant="warning" appearance="outline">
@@ -229,7 +233,7 @@ function CatalogueItem({
         variant="ghost"
         size="icon-sm"
         aria-label={`Add ${name} to the dashboard`}
-        onPress={() => {
+        onClick={() => {
           onAdd(entry)
         }}
       >
@@ -306,23 +310,28 @@ function Contract({
             <span className="text-muted-foreground">nothing</span>
           ) : (
             fields.map(field => (
-              <TooltipTrigger key={field.name}>
-                <Badge
-                  variant="outline"
-                  // A tooltip's trigger has to be focusable and have a role React Aria accepts.
-                  render={props => (
-                    <span {...props} tabIndex={0} role="img" aria-label={field.name} />
-                  )}
-                  className={field.required ? 'border-border-strong' : 'text-muted-foreground'}
+              <Tooltip key={field.name}>
+                <TooltipTrigger
+                  render={
+                    // Focusable, so the tooltip opens from the keyboard too; a role, because a
+                    // name on a bare span is not announced.
+                    <Badge
+                      variant="outline"
+                      tabIndex={0}
+                      role="img"
+                      aria-label={field.name}
+                      className={field.required ? 'border-border-strong' : 'text-muted-foreground'}
+                    />
+                  }
                 >
                   {field.name}
                   {field.required ? <span aria-hidden>*</span> : null}
-                </Badge>
-                <Tooltip>
+                </TooltipTrigger>
+                <TooltipContent>
                   {field.typeLabel}
                   {field.required ? ' · required' : ' · optional'}
-                </Tooltip>
-              </TooltipTrigger>
+                </TooltipContent>
+              </Tooltip>
             ))
           )}
         </dd>
@@ -337,18 +346,22 @@ function Contract({
             <span className="text-muted-foreground">nothing</span>
           ) : (
             outputs.map(output => (
-              <TooltipTrigger key={output.name}>
-                <Badge
-                  variant="info"
-                  appearance="outline"
-                  render={props => (
-                    <span {...props} tabIndex={0} role="img" aria-label={output.name} />
-                  )}
+              <Tooltip key={output.name}>
+                <TooltipTrigger
+                  render={
+                    <Badge
+                      variant="info"
+                      appearance="outline"
+                      tabIndex={0}
+                      role="img"
+                      aria-label={output.name}
+                    />
+                  }
                 >
                   <ZapIcon aria-hidden data-icon="inline-start" /> {output.name}
-                </Badge>
-                <Tooltip>{output.payloadLabel}</Tooltip>
-              </TooltipTrigger>
+                </TooltipTrigger>
+                <TooltipContent>{output.payloadLabel}</TooltipContent>
+              </Tooltip>
             ))
           )}
         </dd>

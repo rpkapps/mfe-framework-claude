@@ -81,7 +81,7 @@ function Actions(): ReactNode {
               When this is off, &ldquo;Run the simulation&rdquo; is denied with a reason.
             </FieldDescription>
           </FieldContent>
-          <Switch id={`${id}-armed`} isSelected={armed} onChange={setArmed} />
+          <Switch id={`${id}-armed`} checked={armed} onCheckedChange={setArmed} />
         </Field>
       </LabSection>
 
@@ -94,7 +94,7 @@ function Actions(): ReactNode {
         <Button
           variant="outline"
           className="self-start"
-          onPress={() => {
+          onClick={() => {
             void runSimulation({ runs: 10 }).then(result => {
               if (result.status !== 'executed') record(`Not run: ${result.status}`)
             })

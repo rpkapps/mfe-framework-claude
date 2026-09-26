@@ -31,7 +31,7 @@ import type { SortedResult } from 'fumadocs-core/search'
 const client = staticClient({ from: '/api/search' })
 
 const itemClassName =
-  'h-auto items-start rounded-md border border-transparent px-3! py-2! font-normal data-focused:border-input data-focused:bg-input/50 data-selected:border-input data-selected:bg-input/50'
+  'h-auto items-start rounded-md border border-transparent px-3! py-2! font-normal data-selected:border-input data-selected:bg-input/50'
 
 /** Lifted off the footer strip the caps sit on, which already carries their own `bg-muted`. */
 const capClassName = 'border bg-background'
@@ -137,10 +137,7 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
       const isShortcut =
         (event.key === 'k' && (event.metaKey || event.ctrlKey)) || event.key === '/'
       if (!isShortcut) return
-      // `activeElement` as well as the target: React Aria re-dispatches this dialog's own
-      // keydown onto the focused option, so a `/` typed into the search field arrives here
-      // aimed at something that is not a field, and used to close the dialog.
-      if (isEditable(event.target) || isEditable(document.activeElement)) return
+      if (isEditable(event.target)) return
       event.preventDefault()
       setOpen(isOpen => !isOpen)
     }
@@ -171,20 +168,13 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
   )
   const isSearching = search.trim().length > 0
 
-  // React Aria acts on a key, so the destination of every rendered row is looked up here.
-  const urls = React.useMemo(() => {
-    const map = new Map<string, string>()
-    for (const section of browse) for (const item of section.items) map.set(item.id, item.url)
-    for (const group of groups) {
-      map.set(group.id, group.url)
-      for (const hit of group.hits) map.set(hit.id, hit.url)
-    }
-    return map
-  }, [browse, groups])
-
-  const close = () => {
+  const go = (url: string) => {
     setOpen(false)
     setSearch('')
+    // A heading or text hit carries its anchor; the router takes the two apart.
+    const [pathname, hash] = url.split('#')
+    if (pathname === undefined) return
+    void navigate(hash === undefined ? { to: pathname } : { to: pathname, hash })
   }
 
   return (
@@ -192,7 +182,7 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
       <Button
         variant="outline"
         className="relative h-8 w-full justify-start rounded-lg border-none bg-muted pl-3 font-normal text-foreground shadow-none transition-colors hover:bg-muted/50 md:w-48 lg:w-40 xl:w-64 dark:bg-card"
-        onPress={() => {
+        onClick={() => {
           setOpen(true)
         }}
         aria-label="Search documentation"
@@ -211,39 +201,30 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
         className="top-[15%] rounded-xl! border-none bg-popover bg-clip-padding p-2! pb-11! shadow-2xl ring-4 ring-border/60"
       >
         <Command
-          inputValue={search}
-          onInputChange={setSearch}
           /* The index already decided what matches; a second, substring filter over the rendered
              rows would throw away every hit whose words are not in its snippet. */
-          filter={() => true}
+          shouldFilter={false}
           className="rounded-none bg-transparent **:data-[slot=command-input-wrapper]:p-0 **:data-[slot=command-input-wrapper]:pb-1 **:data-[slot=input-group]:h-9! **:data-[slot=input-group]:rounded-md! **:data-[slot=input-group]:border-input **:data-[slot=input-group]:bg-input/50"
         >
-          <CommandInput placeholder="Search documentation..." />
-          <CommandList
-            className="no-scrollbar max-h-[60svh] min-h-80 scroll-pt-2 scroll-pb-1.5"
-            onAction={key => {
-              const url = urls.get(String(key))
-              close()
-              if (url === undefined) return
-              // A heading or text hit carries its anchor; the router takes the two apart.
-              const [pathname, hash] = url.split('#')
-              if (pathname === undefined) return
-              void navigate(hash === undefined ? { to: pathname } : { to: pathname, hash })
-            }}
-            renderEmptyState={() => (
-              <CommandEmpty className="py-12 text-center text-sm text-muted-foreground">
-                {query.isLoading ? 'Searching…' : `No results for “${search}”.`}
-              </CommandEmpty>
-            )}
-          >
+          <CommandInput
+            placeholder="Search documentation..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList className="no-scrollbar max-h-[60svh] min-h-80 scroll-pt-2 scroll-pb-1.5">
+            <CommandEmpty className="py-12 text-center text-sm text-muted-foreground">
+              {query.isLoading ? 'Searching…' : `No results for “${search}”.`}
+            </CommandEmpty>
             {!isSearching &&
               browse.map(section => (
                 <CommandGroup key={section.id} heading={section.heading} className={groupClassName}>
                   {section.items.map(item => (
                     <CommandItem
                       key={item.id}
-                      id={item.id}
-                      textValue={item.label}
+                      value={item.id}
+                      onSelect={() => {
+                        go(item.url)
+                      }}
                       className={cn(itemClassName, 'h-9 items-center py-0! font-medium')}
                     >
                       <ArrowRightIcon />
@@ -257,8 +238,10 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
                 <CommandGroup key={group.id} heading={group.page} className={groupClassName}>
                   <CommandItem
                     key={group.id}
-                    id={group.id}
-                    textValue={group.page}
+                    value={group.id}
+                    onSelect={() => {
+                      go(group.url)
+                    }}
                     className={itemClassName}
                   >
                     <FileTextIcon className="mt-0.5" />
@@ -269,8 +252,10 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
                   {group.hits.map(hit => (
                     <CommandItem
                       key={hit.id}
-                      id={hit.id}
-                      textValue={hit.content}
+                      value={hit.id}
+                      onSelect={() => {
+                        go(hit.url)
+                      }}
                       className={itemClassName}
                     >
                       {hit.type === 'heading' ? (

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { LinkButton } from '@tecton/react/components/button'
+import { LinkButton } from '@tecton/react/tecton/link'
 import { ArrowRightIcon } from 'lucide-react'
 
 import { siteConfig } from '../../lib/site.ts'
