@@ -18,6 +18,10 @@ import {
   provideMfeNavigationBlockers,
   registerAppNavigationBlocker,
 } from '../routing/navigation-blockers.ts'
+import {
+  provideSettledNavigations,
+  reportNavigationFailures,
+} from '../routing/navigation-failures.ts'
 import { disposedWhileMounting, MountErrorHandler, runMountApplication } from './mount-providers.ts'
 
 /** `Location` strips this prefix from every path the strategy reads, as it would a real base href. */
@@ -49,6 +53,7 @@ export async function mountApp(
         ...definition.routerFeatures,
         withDisabledInitialNavigation(),
       ),
+      provideSettledNavigations(definition.routerFeatures),
       { provide: APP_BASE_HREF, useValue: location.getBaseHref() },
       { provide: LocationStrategy, useValue: location },
       provideMfeNavigationBlockers(),
@@ -63,6 +68,8 @@ export async function mountApp(
     },
     start: (_rendered, { injector }) => {
       const router = injector.get(Router)
+      // Before the first navigation starts, so its failure fails the mount.
+      const stopReportingFailures = reportNavigationFailures(router, context, target.onFailure)
       const stopBlocking = registerAppNavigationBlocker({
         context,
         injector,
@@ -81,6 +88,7 @@ export async function mountApp(
       return () => {
         stopBlocking()
         stopBreadcrumbs()
+        stopReportingFailures()
       }
     },
     release: () => {

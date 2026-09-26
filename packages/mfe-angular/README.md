@@ -134,6 +134,21 @@ and never touches `window.history`; `APP_BASE_HREF` is the boundary, and
 is outside its boundary waits for the page to arrive instead of routing a path it
 does not own.
 
+**A failed navigation** — a `loadComponent` or `loadChildren` chunk that did not
+load, a guard or a resolver that threw — never reaches Angular's `ErrorHandler`;
+the router sends it to the navigation's promise and a `NavigationError` event,
+which the mount reads. Until the App has completed its first navigation its
+outlet is empty, so a failure then is the mount's fatal failure, through the
+target's `onFailure`: the host shows its error state and can offer a retry.
+After that the App stays on the route it was showing and the failure is reported
+to the shell's diagnostics as `mount/failure`, without the URL's query or
+fragment. The mount sets the router's `resolveNavigationPromiseOnError`, keeping
+the App's other `withRouterConfig` options, because the router starts the first
+navigation and every one the bridge reports without holding their promises: a
+failed `router.navigate()` resolves `false` rather than rejecting. A
+`withNavigationErrorHandler` that returns a `RedirectCommand` recovers the
+navigation, and nothing is reported.
+
 `createApp` also takes `component` (a root of your own; it must render a
 `<router-outlet />`, and defaults to one that renders only that),
 `routerFeatures` (`withComponentInputBinding()` and the like — the mount owns
