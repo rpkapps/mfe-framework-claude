@@ -836,6 +836,40 @@ describe('performance gates', () => {
     expect(local.calls.reads).toBeGreaterThan(readsAfterBind)
   })
 
+  /** React releases a binding before it unsubscribes from it, so the unsubscribe is the last hold. */
+  it('tears the key down when the last subscriber leaves after the last release', () => {
+    const { store } = harness()
+    track(store)
+    const held = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'dark' })
+    const unsubscribe = held.subscribe(vi.fn())
+
+    held.release()
+    unsubscribe()
+
+    expect(() =>
+      store.bind(ORDERS, { name: 'theme', schema: z.enum(['light', 'dark', 'sepia']) }).release(),
+    ).not.toThrow()
+  })
+
+  it('keeps a newer entry for the key when a stale subscriber leaves', () => {
+    const { store } = harness()
+    track(store)
+    const stale = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    const unsubscribeStale = stale.subscribe(vi.fn())
+    const unsubscribeAgain = stale.subscribe(vi.fn())
+    stale.release()
+    unsubscribeStale()
+    unsubscribeAgain()
+    const current = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'dark' })
+
+    unsubscribeStale()
+
+    expect(() =>
+      store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' }),
+    ).toThrow(/defaultValue/)
+    current.release()
+  })
+
   it('re-reads once after a key binding is torn down and re-created', () => {
     const { store, local } = harness()
     track(store)

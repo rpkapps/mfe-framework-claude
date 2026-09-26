@@ -612,7 +612,13 @@ export class MfeStorageStore {
       raw: null,
       snapshot: defaultSnapshot,
       getSnapshot: () => entry.snapshot,
-      subscribe: (listener: Listener) => this.#listeners.subscribe(entryKey, listener),
+      subscribe: (listener: Listener) => {
+        const unsubscribe = this.#listeners.subscribe(entryKey, listener)
+        return () => {
+          unsubscribe()
+          this.#evictIfUnused(entry)
+        }
+      },
       read: () => this.#readValue(entry, false, declaration.declaresDefault),
       set: (next: unknown, options?: StorageWriteOptions) => {
         this.#setValue(entry, next, options)
@@ -674,9 +680,18 @@ export class MfeStorageStore {
 
   #releaseEntry(entry: KeyEntry): void {
     entry.bindings -= 1
+    this.#evictIfUnused(entry)
+  }
+
+  /**
+   * Whichever of the last release and the last unsubscribe comes second drops the entry, so a
+   * later consumer may declare the key afresh. Only this entry: an unsubscribe that outlived it
+   * must not drop a newer one bound under the same key.
+   */
+  #evictIfUnused(entry: KeyEntry): void {
     if (entry.bindings > 0) return
     if (this.#listeners.listenerCount(entry.entryKey) > 0) return
-    this.#entries.delete(entry.entryKey)
+    if (this.#entries.get(entry.entryKey) === entry) this.#entries.delete(entry.entryKey)
   }
 
   #invalidateCache(entry: KeyEntry): void {

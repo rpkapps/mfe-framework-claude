@@ -60,7 +60,7 @@ export function useStoredState<T>(
 
   const definitionId = mount?.definitionId
 
-  const binding = useMemo(
+  const open = useCallback(
     () =>
       definitionId === undefined
         ? storage.bindHost<T>({ name, storage: area, schema, ...declaration })
@@ -68,25 +68,70 @@ export function useStoredState<T>(
     [storage, definitionId, name, area, schema, declaration],
   )
 
-  return useBoundValue(binding)
+  return useBoundValue(open)
 }
 
-/** Everything the hook does once it holds a binding — the same in either scope. */
-function useBoundValue<T>(binding: BoundStorageKey<T>): readonly [T, StoredStateSetter<T>] {
-  useEffect(() => () => binding.release(), [binding])
+interface HeldBinding<T> {
+  readonly open: () => BoundStorageKey<T>
+  readonly binding: BoundStorageKey<T>
+}
 
-  const subscribe = useCallback((listener: () => void) => binding.subscribe(listener), [binding])
-  const getSnapshot = useCallback(() => binding.getSnapshot(), [binding])
+/**
+ * Everything the hook does once it can open a binding — the same in either scope. A binding is
+ * held only from subscribe to unsubscribe, which React pairs even when it replays effects under
+ * StrictMode; one taken during render would stay open whenever React discarded that render.
+ */
+function useBoundValue<T>(open: () => BoundStorageKey<T>): readonly [T, StoredStateSetter<T>] {
+  const held = useRef<HeldBinding<T> | null>(null)
+
+  // Read through a binding released at once, so the key stays open only while it is subscribed.
+  const initial = useMemo(() => {
+    const binding = open()
+    const snapshot = binding.getSnapshot()
+    binding.release()
+    return snapshot
+  }, [open])
+
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const binding = open()
+      const entry = { open, binding }
+      held.current = entry
+      const unsubscribe = binding.subscribe(listener)
+      return () => {
+        unsubscribe()
+        binding.release()
+        if (held.current === entry) held.current = null
+      }
+    },
+    [open],
+  )
+  // Until the subscription for this key is in place, the held binding, if any, is another key's.
+  const getSnapshot = useCallback(() => {
+    const current = held.current
+    return current !== null && current.open === open ? current.binding.getSnapshot() : initial
+  }, [open, initial])
   const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
   // Updated after commit, so the setter identity survives a rebinding without a mid-render read.
-  const current = useRef(binding)
+  const latestOpen = useRef(open)
   useEffect(() => {
-    current.current = binding
-  }, [binding])
+    latestOpen.current = open
+  }, [open])
 
   const set = useCallback<StoredStateSetter<T>>(next => {
-    current.current.set(next)
+    const binding = held.current?.binding
+    if (binding !== undefined) {
+      binding.set(next)
+      return
+    }
+    // A child's mount effect runs before this component subscribes, and may already write.
+    const transient = latestOpen.current()
+    try {
+      transient.set(next)
+    } finally {
+      transient.release()
+    }
   }, [])
 
   if (value.status === 'error') throw value.error

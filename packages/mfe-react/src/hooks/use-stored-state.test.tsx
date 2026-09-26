@@ -6,7 +6,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useState, type ReactNode } from 'react'
+import { StrictMode, useState, type ReactNode } from 'react'
 import { createMfeError, HOST_SCOPE, type Diagnostic } from '@company/mfe-core'
 import {
   createMfeRuntime,
@@ -275,6 +275,78 @@ describe('the binding a render owns', () => {
         })
         .release(),
     ).not.toThrow()
+  })
+
+  it('leaves nothing open after unmount, so the key can be declared afresh', () => {
+    const { handle, storage } = wire()
+
+    render(
+      <MfeProvider runtime={handle.runtime}>
+        <ThemeToggle />
+      </MfeProvider>,
+    ).unmount()
+
+    // A surviving entry would reject a different schema object or default.
+    expect(() =>
+      storage
+        .bindHost({ name: 'theme', schema: z.enum(['light', 'dark']), defaultValue: 'light' })
+        .release(),
+    ).not.toThrow()
+  })
+
+  it('leaves nothing open after a StrictMode mount and unmount', () => {
+    const { handle, storage } = wire()
+
+    render(
+      <StrictMode>
+        <MfeProvider runtime={handle.runtime}>
+          <ThemeToggle />
+        </MfeProvider>
+      </StrictMode>,
+    ).unmount()
+
+    expect(() =>
+      storage
+        .bindHost({ name: 'theme', schema: z.enum(['light', 'dark']), defaultValue: 'light' })
+        .release(),
+    ).not.toThrow()
+  })
+
+  it('leaves nothing open after a render that threw', () => {
+    localStorage.setItem('@host:theme', JSON.stringify({ v: 1, r: 'browser', d: 'sepia' }))
+    const { handle, storage } = wire()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    expect(() =>
+      render(
+        <MfeProvider runtime={handle.runtime}>
+          <ThemeToggle />
+        </MfeProvider>,
+      ),
+    ).toThrow()
+
+    expect(() =>
+      storage.bindHost({ name: 'theme', schema: z.enum(['light', 'dark', 'sepia']) }).release(),
+    ).not.toThrow()
+  })
+
+  it('keeps two components on one key in step under StrictMode', async () => {
+    const { handle } = wire()
+
+    const view = render(
+      <StrictMode>
+        <MfeProvider runtime={handle.runtime}>
+          <ThemeToggle />
+          <ThemeToggle />
+        </MfeProvider>
+      </StrictMode>,
+    )
+
+    const [first, second] = screen.getAllByRole('button')
+    await userEvent.click(first as HTMLElement)
+
+    expect([first?.textContent, second?.textContent]).toEqual(['light', 'light'])
+    view.unmount()
   })
 
   it('keeps one binding, and one setter, across renders that change other state', async () => {
