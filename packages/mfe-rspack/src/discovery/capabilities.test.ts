@@ -41,6 +41,32 @@ describe('extractCapabilities', () => {
     ])
   })
 
+  it('publishes the path the route serves, without the layouts and groups it sits in', () => {
+    const capabilities = capabilitiesOf({
+      'src/routes/_auth/settings.tsx': route(
+        '/_auth/settings',
+        "{ capability: { name: 'settings', label: 'Settings' } }",
+      ),
+      'src/routes/(support)/help/$topic.tsx': route(
+        '/(support)/help/$topic',
+        "{ capability: { name: 'help', label: 'Help' } }",
+      ),
+    })
+
+    expect(capabilities.map(capability => capability.path)).toEqual(['/settings', '/help/:topic'])
+  })
+
+  it('rejects a marked route whose path the published syntax cannot write', () => {
+    expect(() =>
+      capabilitiesOf({
+        'src/routes/files/{$name}.json.tsx': route(
+          '/files/{$name}.json',
+          "{ capability: { name: 'settings', label: 'Settings' } }",
+        ),
+      }),
+    ).toThrow("found '/files/{$name}.json'")
+  })
+
   it('ignores routes without a capability marker', () => {
     const capabilities = capabilitiesOf({
       'src/routes/index.tsx': route('/', "{ title: 'Home' }"),
