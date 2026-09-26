@@ -13,6 +13,7 @@ import {
   resolveText,
   safeUrl,
   setAt,
+  type JsonValue,
   type Surfaces,
 } from './model.ts'
 
@@ -192,6 +193,8 @@ describe('AGENT_IMAGE_HOSTS', () => {
 
 describe('values', () => {
   const scope = { data: { email: 'a@b.co', count: 3, tags: [] }, path: '/' }
+  const regex = (pattern: string, value: string): JsonValue =>
+    resolve({ call: 'regex', args: { pattern, value } }, scope)
 
   it('are literals, paths, or calls of the functions the client implements', () => {
     expect(resolve('Hello', scope)).toBe('Hello')
@@ -203,6 +206,27 @@ describe('values', () => {
       resolveText({ call: 'formatString', args: { value: 'You have ${/count} items' } }, scope),
     ).toBe('You have 3 items')
     expect(resolve({ call: 'eval', args: { code: 'alert(1)' } }, scope)).toBeNull()
+  })
+
+  it('check a value against a pattern', () => {
+    expect(regex('^\\d{3}-\\d{4}$', '555-0100')).toBe(true)
+    expect(regex('^[A-Z]{2}(\\d{4})?$', 'NO')).toBe(true)
+    expect(regex('^[A-Z]{2}$', 'no')).toBe(false)
+    expect(regex('(', 'a')).toBe(false)
+  })
+
+  it('fail a pattern that could backtrack for seconds, rather than run it', () => {
+    const started = performance.now()
+    expect(regex('^(a+)+$', `${'a'.repeat(28)}!`)).toBe(false)
+    expect(regex('^(?:a*)*$', `${'a'.repeat(28)}!`)).toBe(false)
+    expect(regex('^((a)+b?)*$', 'a')).toBe(false)
+    expect(regex('^(a|aa)+$', 'a')).toBe(false)
+    expect(regex('^(\\d{2}){2,}$', '1234')).toBe(false)
+    expect(performance.now() - started).toBeLessThan(100)
+
+    expect(regex(`^${'a'.repeat(201)}$`, 'a'.repeat(201))).toBe(false)
+    expect(regex('^a*$', 'a'.repeat(1001))).toBe(false)
+    expect(regex('^a*$', 'a'.repeat(1000))).toBe(true)
   })
 
   it('pass checks only when every condition holds', () => {

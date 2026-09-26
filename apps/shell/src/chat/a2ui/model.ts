@@ -187,6 +187,53 @@ function text(value: JsonValue | undefined): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
+/**
+ * A `regex` check runs the agent's pattern on the page's thread while the surface renders, so a
+ * pattern that backtracks exponentially (`^(a+)+$` against a few dozen characters takes seconds)
+ * freezes the whole shell. The pattern and the value it tests are capped in length, and a pattern
+ * with a repeated group that itself repeats or alternates, the shape behind that blow-up, is
+ * refused. Either way the check fails, as it does for a pattern that does not compile.
+ */
+const MAX_PATTERN_LENGTH = 200
+const MAX_TESTED_LENGTH = 1000
+
+/** A quantifier after a group that makes it repeat without bound: `*`, `+` or `{n,…}`. */
+const REPEATS = /^(?:[*+]|\{\d+(?:,\d*)?\})/
+
+function isBoundedPattern(pattern: string): boolean {
+  if (pattern.length > MAX_PATTERN_LENGTH) return false
+  // Per open group: whether it holds a quantifier or an alternation.
+  const groups: { varies: boolean }[] = [{ varies: false }]
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index]
+    const group = groups.at(-1)
+    if (group === undefined) return false
+    if (char === '\\') {
+      index += 1
+    } else if (char === '[') {
+      // A class is one atom: skip to its unescaped end.
+      index += 1
+      while (index < pattern.length && pattern[index] !== ']') {
+        if (pattern[index] === '\\') index += 1
+        index += 1
+      }
+    } else if (char === '(') {
+      groups.push({ varies: false })
+      // `(?:`, `(?=`, `(?<name>`: the `?` there is not a quantifier.
+      if (pattern[index + 1] === '?') index += 1
+    } else if (char === ')') {
+      const closed = groups.pop()
+      const parent = groups.at(-1)
+      if (closed === undefined || parent === undefined) return false
+      if (closed.varies && REPEATS.test(pattern.slice(index + 1))) return false
+      parent.varies ||= closed.varies
+    } else if (char === '*' || char === '+' || char === '?' || char === '{' || char === '|') {
+      group.varies = true
+    }
+  }
+  return true
+}
+
 /** The catalogue's functions this client implements; any other call resolves to null. */
 const FUNCTIONS: Readonly<Record<string, Fn>> = {
   required: (args, scope) => {
@@ -200,9 +247,11 @@ const FUNCTIONS: Readonly<Record<string, Fn>> = {
   },
   regex: (args, scope) => {
     const pattern = resolve(args['pattern'], scope)
-    if (typeof pattern !== 'string') return false
+    const value = text(resolve(args['value'], scope))
+    if (typeof pattern !== 'string' || !isBoundedPattern(pattern)) return false
+    if (value.length > MAX_TESTED_LENGTH) return false
     try {
-      return new RegExp(pattern).test(text(resolve(args['value'], scope)))
+      return new RegExp(pattern).test(value)
     } catch {
       return false
     }
