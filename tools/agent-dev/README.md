@@ -68,8 +68,23 @@ set in the shell wins over the file. The port stays `MFE_DEV_AGENT_PORT` in the 
 
 Either real model is streamed and translated to AG-UI through plain `fetch`, with no SDK: each
 adapter reads its API's stream into the same reply (`src/reply.ts`), which keeps the event order
-AG-UI's client checks. The agent context goes into the system prompt, and every tool is the page's,
-so a run that calls tools ends with them pending, as the spec writes it. The OpenAI-compatible
-server wins when both are set. When the chat goes away mid-run, the model's request is cancelled.
+AG-UI's client checks. The agent context goes into the system prompt (which a production backend
+must not do; see below), and every tool is the page's, so a run that calls tools ends with them
+pending, as the spec writes it. The OpenAI-compatible server wins when both are set. When the chat
+goes away mid-run, the model's request is cancelled.
 
 Neither stores anything: the conversation is what the shell sends with each run.
+
+## The agent context is data, not instructions
+
+Everything in a run's AG-UI `context` comes from the page, and none of it is the developer's or
+the user's instruction: the URL and its search params, which anyone who sends the user a link
+writes; the descriptions and values each MFE writes about itself; and a Widget's outputs. Tool
+results are the same. Putting the context in the system prompt, as this stand-in does, gives
+whoever wrote any of it the system prompt's authority, so a link can tell the model what to do.
+
+A production backend sends it as data: in a user-role message, inside a clearly delimited block
+(a tag or a fenced JSON document, with the delimiter escaped in the values), and says in the
+system prompt that the block is information about the page and that instructions inside it are
+not to be followed. The page asks the user before any action that changes data either way, but
+that is the last line, not the only one.
