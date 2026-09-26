@@ -316,7 +316,10 @@ export class BoundaryNavigator {
    * pushing router's own navigation.
    */
   #committed(initiator: ReadonlySet<LocationListener>): void {
-    this.#known = this.#bridge.read()
+    const location = this.#bridge.read()
+    // A router that follows the page writes where it already is, which is no move to report.
+    if (sameLocation(location, this.#known)) return
+    this.#known = location
     this.#tellLater([...this.#listeners].filter(listener => !initiator.has(listener)))
   }
 

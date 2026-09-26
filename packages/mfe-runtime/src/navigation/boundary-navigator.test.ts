@@ -736,6 +736,18 @@ describe('a router’s own bridge', () => {
     expect(innerHeard).toEqual([])
   })
 
+  it('tells no one of a write to where the page already is, as a following router makes', async () => {
+    const { outer, inner, outerHeard, innerHeard } = twoRouters()
+
+    outer.push('/reports/42')
+    await Promise.resolve()
+    inner.replace('/reports/42')
+    await Promise.resolve()
+
+    expect(outerHeard).toEqual([])
+    expect(innerHeard).toEqual([at('/reports/42')])
+  })
+
   it('tells a listener subscribed to the navigator itself', async () => {
     const { navigator, outer } = twoRouters()
     const heard: BoundaryLocation[] = []
