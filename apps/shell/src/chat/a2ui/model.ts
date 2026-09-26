@@ -322,13 +322,22 @@ export function checksPass(checks: unknown, scope: Scope): boolean {
   return checks.every(check => !isObject(check) || resolve(check['condition'], scope) === true)
 }
 
-/** The children of a component: a list of ids, or a template repeated per item of an array. */
+/**
+ * The children of a component: a list of ids, or a template repeated per item of an array. At most
+ * `limit` of them, so a count that stops early never lists every item of a long array first.
+ */
 export function childrenOf(
   children: unknown,
   scope: Scope,
+  limit = Infinity,
 ): readonly { readonly id: string; readonly scope: Scope }[] {
+  const listed: { readonly id: string; readonly scope: Scope }[] = []
   if (Array.isArray(children)) {
-    return children.flatMap(id => (typeof id === 'string' ? [{ id, scope }] : []))
+    for (const id of children as readonly unknown[]) {
+      if (listed.length >= limit) break
+      if (typeof id === 'string') listed.push({ id, scope })
+    }
+    return listed
   }
   if (
     isObject(children) &&
@@ -339,12 +348,44 @@ export function childrenOf(
     const items = getAt(scope.data, path)
     if (!Array.isArray(items)) return []
     const id = children['componentId']
-    return items.map((_, index) => ({
-      id,
-      scope: { data: scope.data, path: `${path}/${String(index)}` },
-    }))
+    for (let index = 0; index < Math.min(items.length, limit); index += 1) {
+      listed.push({ id, scope: { data: scope.data, path: `${path}/${String(index)}` } })
+    }
   }
-  return []
+  return listed
+}
+
+/** How deep a surface draws: a component this many ids below the root is not drawn. */
+export const MAX_DEPTH = 32
+
+/**
+ * How many components a surface may draw. A list may name one id twice, so each level can
+ * multiply what the one below it draws: a payload that grows linearly would otherwise draw
+ * exponentially many components, and freeze the page doing it.
+ */
+export const MAX_DRAWN = 1000
+
+/**
+ * How many components drawing `surface` renders, up to `MAX_DRAWN + 1`, walked as the surface
+ * walks them: from `root`, never an id already above on the branch, never below `MAX_DEPTH`. A
+ * component's `children` and `child` both count, whichever component holds them, so the count is
+ * never less than what is drawn.
+ */
+export function drawnCount(surface: Surface): number {
+  let count = 0
+  const visit = (id: string, scope: Scope, path: readonly string[]): void => {
+    const component = surface.components.get(id)
+    if (component === undefined || path.includes(id) || path.length > MAX_DEPTH) return
+    if (count > MAX_DRAWN) return
+    count += 1
+    const inner = [...path, id]
+    for (const child of childrenOf(component['children'], scope, MAX_DRAWN + 1 - count)) {
+      visit(child.id, child.scope, inner)
+    }
+    if (typeof component['child'] === 'string') visit(component['child'], scope, inner)
+  }
+  visit('root', { data: surface.data, path: '/' }, [])
+  return count
 }
 
 // ─── Messages ─────────────────────────────────────────────────────────────────

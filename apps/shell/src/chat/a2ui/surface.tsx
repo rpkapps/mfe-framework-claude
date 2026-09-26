@@ -2,6 +2,7 @@
  * An A2UI surface drawn with Tecton: each catalogue component maps onto the Tecton component that
  * does the same job. Only what the catalogue names is drawn; an unknown or missing id draws
  * nothing, as the spec asks, and an id reached twice on one branch stops there rather than loop.
+ * A surface that would draw more than `MAX_DRAWN` components is not drawn at all.
  * Text is text, never HTML, and a link opens only over http(s). An Image loads only from where
  * `imageSource` allows; any other is drawn as its description and host, and fetches nothing.
  */
@@ -48,7 +49,10 @@ import {
   boundPath,
   checksPass,
   childrenOf,
+  drawnCount,
   imageSource,
+  MAX_DEPTH,
+  MAX_DRAWN,
   resolve,
   resolveText,
   safeUrl,
@@ -154,7 +158,7 @@ function textOfChild(surface: Surface, id: unknown, scope: Scope): string {
 
 function Node({ surface, id, scope, handlers, imageOrigins, path }: NodeProps): ReactNode {
   const component = surface.components.get(id)
-  if (component === undefined || path.includes(id) || path.length > 32) return null
+  if (component === undefined || path.includes(id) || path.length > MAX_DEPTH) return null
   const inner = { surface, scope, handlers, imageOrigins, path: [...path, id] }
   return <Component component={component} {...inner} />
 }
@@ -446,6 +450,18 @@ export function A2uiSurface({
   const all = useSyncExternalStore(surfaces.subscribe, surfaces.getSnapshot, surfaces.getSnapshot)
   const surface = all.get(surfaceId)
   if (surface === undefined) return null
+  // The render tool refuses a surface this large; what the user writes into one can still grow a
+  // template's array past it.
+  if (drawnCount(surface) > MAX_DRAWN) {
+    return (
+      <p
+        data-slot="chat-a2ui-too-large"
+        className="rounded-lg border border-dashed border-border-subtle px-3 py-2 text-xs text-muted-foreground"
+      >
+        Not shown: this would draw more than {MAX_DRAWN} components.
+      </p>
+    )
+  }
   return (
     <div
       data-slot="chat-a2ui-surface"

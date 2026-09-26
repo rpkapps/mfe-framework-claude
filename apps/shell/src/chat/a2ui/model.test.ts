@@ -6,14 +6,19 @@ import {
   applyMessages,
   checksPass,
   childrenOf,
+  drawnCount,
   getAt,
   imageOrigins,
   imageSource,
+  MAX_DEPTH,
+  MAX_DRAWN,
   resolve,
   resolveText,
   safeUrl,
   setAt,
+  type A2uiComponent,
   type JsonValue,
+  type Surface,
   type Surfaces,
 } from './model.ts'
 
@@ -251,6 +256,61 @@ describe('children', () => {
     expect(
       childrenOf({ componentId: 'row', path: '/rows' }, scope).map(child => child.scope.path),
     ).toEqual(['/rows/0', '/rows/1'])
+  })
+
+  it('stop at a limit, counting only ids', () => {
+    const scope = { data: { rows: Array.from({ length: 1e5 }, () => ({})) }, path: '/' }
+    expect(childrenOf([1, 'x', null, 'y', 'z'], scope, 2).map(child => child.id)).toEqual([
+      'x',
+      'y',
+    ])
+    expect(childrenOf({ componentId: 'row', path: '/rows' }, scope, 3)).toHaveLength(3)
+  })
+})
+
+describe('what a surface draws', () => {
+  const surface = (components: readonly A2uiComponent[], data: JsonValue = {}): Surface => ({
+    surfaceId: 's',
+    catalogId: 'c',
+    components: new Map(components.map(component => [component.id, component])),
+    data,
+  })
+
+  it('counts from the root through children, templates and a child, once per branch', () => {
+    const drawn = surface(
+      [
+        { id: 'root', component: 'Column', children: ['card', 'list', 'root', 'missing'] },
+        { id: 'card', component: 'Card', child: 'text' },
+        { id: 'list', component: 'List', children: { componentId: 'text', path: '/rows' } },
+        { id: 'text', component: 'Text', text: 'x' },
+        { id: 'unreached', component: 'Text', text: 'y' },
+      ],
+      { rows: [1, 2, 3] },
+    )
+    expect(drawnCount(drawn)).toBe(1 + 2 + 1 + 3)
+  })
+
+  it('stops just past the budget, however far an id named twice would multiply', () => {
+    const components: A2uiComponent[] = Array.from({ length: MAX_DEPTH }, (_, level) => ({
+      id: level === 0 ? 'root' : `l${String(level)}`,
+      component: 'Column',
+      children: Array.from({ length: 10 }, () => `l${String(level + 1)}`),
+    }))
+    const started = performance.now()
+    expect(drawnCount(surface(components))).toBe(MAX_DRAWN + 1)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
+  it('stops past the budget without listing every item of a long array per component', () => {
+    const rows = Array.from({ length: 1e5 }, () => ({}))
+    const components: A2uiComponent[] = Array.from({ length: MAX_DEPTH }, (_, level) => ({
+      id: level === 0 ? 'root' : `l${String(level)}`,
+      component: 'List',
+      children: { componentId: `l${String(level + 1)}`, path: '/rows' },
+    }))
+    const started = performance.now()
+    expect(drawnCount(surface(components, { rows }))).toBe(MAX_DRAWN + 1)
+    expect(performance.now() - started).toBeLessThan(1000)
   })
 })
 

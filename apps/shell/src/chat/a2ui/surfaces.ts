@@ -8,7 +8,9 @@ import { Store } from '../panel.ts'
 
 import {
   applyMessages,
+  drawnCount,
   isReady,
+  MAX_DRAWN,
   setAt,
   type A2uiError,
   type JsonValue,
@@ -38,7 +40,10 @@ export class A2uiSurfaces extends Store<Surfaces> {
     return this.#createdBy.get(surfaceId)
   }
 
-  /** Applies the messages, or nothing when one is refused or `drawn` would be left without a root. */
+  /**
+   * Applies the messages, or nothing when one is refused, `drawn` would be left without a root or
+   * a surface they change would draw more than `MAX_DRAWN` components.
+   */
   apply(
     toolCallId: string,
     messages: readonly unknown[],
@@ -55,6 +60,17 @@ export class A2uiSurfaces extends Store<Surfaces> {
         surfaceId: surface.surfaceId,
         path: '/components',
         message: 'One component must have the id "root".',
+      }
+    }
+    for (const [surfaceId, next] of applied.surfaces) {
+      if (before.get(surfaceId) === next || !isReady(next)) continue
+      if (drawnCount(next) > MAX_DRAWN) {
+        return {
+          code: 'VALIDATION_FAILED',
+          surfaceId,
+          path: '/components',
+          message: `The surface would draw more than ${String(MAX_DRAWN)} components. Name each id once in a list, and repeat a template over fewer items.`,
+        }
       }
     }
     for (const surfaceId of new Set([...before.keys(), ...applied.surfaces.keys()])) {
