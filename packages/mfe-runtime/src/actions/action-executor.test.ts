@@ -14,6 +14,7 @@ import {
   DEFAULT_ACTION_TIMEOUT_MS,
   type ActionExecutionResult,
   type ApprovalRequest,
+  type ApprovalRuling,
 } from './action-executor.ts'
 import { codesOf, recordingDiagnostics } from '../__tests__/harness.ts'
 
@@ -817,6 +818,33 @@ describe('host hooks that throw', () => {
     expect(execute).not.toHaveBeenCalled()
     expect(codesOf(records)).toEqual(['mount/failure'])
   })
+
+  it.each([
+    ['false', false, 'false'],
+    ["'deny'", 'deny', '"deny"'],
+    ['a number', 42, '42'],
+    ['an object with no reason', { deny: 42 }, 'an object with no deny reason'],
+  ])(
+    'denies an agent call when the approval policy returns %s, and reports it',
+    async (_label, ruling, observed) => {
+      const { register, registry, records } = setup({
+        approvalPolicy: () => ruling as unknown as ApprovalRuling,
+      })
+      registry.setApprover(() => Promise.resolve(true))
+      const execute = vi.fn()
+      register({ effect: 'read', execute })
+
+      const result = await registry.execute('orders:refund', { caller: 'agent' })
+
+      expect(result).toEqual({
+        status: 'denied',
+        reason: 'The host’s approval policy failed, so the call was not run.',
+      })
+      expect(execute).not.toHaveBeenCalled()
+      expect(codesOf(records)).toEqual(['mount/failure'])
+      expect(records[0]?.error.message).toContain(observed)
+    },
+  )
 
   it('ends a run whose denial notifier throws in a result, and audits it', async () => {
     const audited = vi.fn()
