@@ -308,6 +308,50 @@ describe('the storage session', () => {
     expect(mint).toHaveBeenCalledTimes(1)
   })
 
+  it('establishes the generation a transition minted when the page reloads', () => {
+    const minted = ['gen-a', 'gen-b']
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      nextSessionGeneration: () => minted.shift() ?? 'gen-c',
+    })
+    created.runtime.shellState.apply({ groups: ['ops', 'admins'] })
+    created.dispose()
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['admins', 'ops'], theme: 'dark' },
+      nextSessionGeneration: () => 'gen-c',
+    })
+
+    expect(handle.runtime.storage.sessionGeneration).toBe('gen-b')
+  })
+
+  it('mints a new generation when the page reloads with other groups', () => {
+    const created = createMfeRuntime({ ...baseOptions(), nextSessionGeneration: () => 'gen-a' })
+    created.dispose()
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['finance'], theme: 'dark' },
+      nextSessionGeneration: () => 'gen-b',
+    })
+
+    expect(handle.runtime.storage.sessionGeneration).toBe('gen-b')
+  })
+
+  it('keeps the session when the groups are only reordered', () => {
+    const mint = vi.fn(() => 'gen-2')
+    const { runtime } = create({
+      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['ops', 'admins'], theme: 'dark' },
+      nextSessionGeneration: mint,
+    })
+
+    runtime.shellState.apply({ groups: ['admins', 'ops'] })
+
+    expect(runtime.storage.sessionGeneration).toBe('gen-1')
+    expect(mint).not.toHaveBeenCalled()
+  })
+
   it('retires the session when the groups change', () => {
     const { runtime } = create({ nextSessionGeneration: () => 'gen-2' })
 

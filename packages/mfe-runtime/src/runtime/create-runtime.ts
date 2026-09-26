@@ -29,7 +29,11 @@ import {
 import { findConflictingContainerOverrides, readDevOverrides } from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import { establishSessionGeneration, mintSessionGeneration } from '../storage/session-generation.ts'
+import {
+  establishSessionGeneration,
+  mintSessionGeneration,
+  recordSessionGeneration,
+} from '../storage/session-generation.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
@@ -102,6 +106,11 @@ export interface MfeRuntimeHandle {
 /** A page with nobody signed in still fences its own session-retained writes. */
 const ANONYMOUS_IDENTITY = '@anonymous'
 
+/** Identity is opaque and compared for equality, so an anonymous page still has one. */
+function identityOf(state: ShellState): string {
+  return state.user?.id ?? ANONYMOUS_IDENTITY
+}
+
 /** This map only exists to find a conflict, never to load anything. */
 function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<string, string> {
   const byId = new Map<string, string>()
@@ -145,11 +154,14 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
   const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
   const storage = new MfeStorageStore({
     diagnostics,
+    groups: shellState.getGroups(),
     ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
   })
-  if (options.sessionGeneration === undefined) {
-    // Identity is opaque and compared for equality, so an anonymous page still gets one.
-    establishSessionGeneration(storage, shellState.getUser()?.id ?? ANONYMOUS_IDENTITY, {
+  // A shell that supplies the generation keeps its own record of it.
+  const ownsSessionRecord = options.sessionGeneration === undefined
+  if (ownsSessionRecord) {
+    const state = shellState.getSnapshot()
+    establishSessionGeneration(storage, identityOf(state), state.groups, {
       mint: nextSessionGeneration,
     })
   }
@@ -168,6 +180,11 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     actionApprovalPolicy: options.actionApprovalPolicy,
     auditAction: options.auditAction,
     nextSessionGeneration,
+    onSessionRotated: ownsSessionRecord
+      ? (next, generation) => {
+          recordSessionGeneration(storage, identityOf(next), next.groups, generation)
+        }
+      : undefined,
   })
 
   return {

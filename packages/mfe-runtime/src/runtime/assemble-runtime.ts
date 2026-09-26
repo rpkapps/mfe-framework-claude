@@ -12,6 +12,7 @@ import {
   type MfeAdapter,
   type NavigationBridge,
   type Registry,
+  type ShellState,
   type TelemetryProvider,
 } from '@company/mfe-core'
 
@@ -61,6 +62,8 @@ export interface RuntimeParts {
   readonly auditAction?: ActionAuditSink | undefined
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration: () => string
+  /** Told of each generation a transition minted, for a runtime that persists the one in force. */
+  readonly onSessionRotated?: ((next: ShellState, generation: string) => void) | undefined
 }
 
 export interface AssembledRuntime {
@@ -119,12 +122,15 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     if (!requiresSessionRetirement(change.transitions)) return
 
     const identity = change.transitions.find(transition => transition.kind === 'identity')
-    storage.applySessionTransition(
+    const result = storage.applySessionTransition(
       identity
         ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
         : { kind: 'groups', groups: change.next.groups },
       parts.nextSessionGeneration(),
     )
+    if (result.outcome === 'invalidated' && result.generation !== null) {
+      parts.onSessionRotated?.(change.next, result.generation)
+    }
   })
 
   const runtime: MfeRuntime = {
