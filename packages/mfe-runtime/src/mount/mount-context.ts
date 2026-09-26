@@ -73,6 +73,11 @@ export interface CreateMountContextOptions {
 
 export interface MountContextHandle {
   readonly context: MountContext
+  /**
+   * Aborts `context.signal` and nothing else, for a mount torn down while its definition is still
+   * mounting: an adapter that stops on abort can end that mount, which `dispose` waits on.
+   */
+  abort(): void
   /** Tears down everything this mount owns; the ordering is deliberate. */
   dispose(): Promise<void>
 }
@@ -128,6 +133,7 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
 
   return {
     context,
+    abort: () => disposal.abort(),
     dispose: async () => {
       // Registrations go first, so a disposed mount cannot appear in the palette mid-teardown.
       for (const store of mountScopedStores(runtime)) store.removeMount(mountToken)
