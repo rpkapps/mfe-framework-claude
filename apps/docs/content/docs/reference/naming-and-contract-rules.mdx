@@ -37,7 +37,7 @@ Two outputs must also map to two different handler props. The build names both o
 
 ## Reserved input names
 
-A Widget may not declare an input called `key`, `ref` or `fallback`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to outputs.
+A Widget may not declare an input called `key`, `ref`, `fallback` or `pending`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to outputs.
 
 ```ts
 // Rejected: onSelect is an output handler's name.

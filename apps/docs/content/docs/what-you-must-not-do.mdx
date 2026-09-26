@@ -243,7 +243,7 @@ definition without running it, and only a literal can be read that way.
 | A definition id holds lower-case letters, digits and single hyphens, as in `alert-panel`. | Build, Mount, Registry | Rename the definition. The id is also your storage prefix and your CSS scope value.      |
 | Two definitions may not share an id.                                                      | Build, Registry        | Give each definition its own id. The registry sets both entries aside.                   |
 | An output name is lower camel case, as in `selectionChanged`.                             | Build, Mount           | Rename the output. Consumers subscribe to it as `onSelectionChanged`.                    |
-| An input may not be called `key`, `ref`, `fallback` or `onSomething`.                     | Build, Mount           | Rename the input. Those names belong to the host.                                        |
+| An input may not be called `key`, `ref`, `fallback`, `pending` or `onSomething`.          | Build, Mount           | Rename the input. Those names belong to the host.                                        |
 | Inputs and output payloads carry only what JSON can carry.                                | Mount                  | Send data. A consumer that needs a callback subscribes to an output instead.             |
 | A Widget declares both `inputSchema` and `outputSchema`.                                  | Build                  | Write `z.object({})` for the one the Widget does not need.                               |
 | Declare the schema where the build can read it without running the module.                | Build                  | Declare it inline in `src/mfe.ts`, or export it from another module of this container.   |

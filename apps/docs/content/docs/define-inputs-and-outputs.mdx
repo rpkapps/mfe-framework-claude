@@ -44,12 +44,12 @@ and one that emits nothing writes `outputSchema: z.object({})`.
 
 ### 2. Follow the naming rules
 
-| Part        | Rule                                                                              |
-| ----------- | --------------------------------------------------------------------------------- |
-| input name  | Lower camel case. `key`, `ref`, `fallback` and any `onX` name belong to the host. |
-| output name | Lower camel case. Your consumer subscribes to it as `onAcknowledged`.             |
-| payload     | JSON only. No functions, class instances, `Date` objects or DOM nodes.            |
-| default     | `.default(…)` on the schema, applied before your `render` runs.                   |
+| Part        | Rule                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| input name  | Lower camel case. `key`, `ref`, `fallback`, `pending` and any `onX` name belong to the host. |
+| output name | Lower camel case. Your consumer subscribes to it as `onAcknowledged`.                        |
+| payload     | JSON only. No functions, class instances, `Date` objects or DOM nodes.                       |
+| default     | `.default(…)` on the schema, applied before your `render` runs.                              |
 
 </Step>
 

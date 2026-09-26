@@ -110,7 +110,7 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 | Field    | Type                        | What it is                                                        |
 | -------- | --------------------------- | ----------------------------------------------------------------- |
-| `inputs` | `ContractInputs<C>`         | The validated props, typed from your `inputSchema`.               |
+| `inputs` | `ContractParsedInputs<C>`   | The validated props, typed from your `inputSchema`.               |
 | `emit`   | `(output, payload) => void` | Sends one declared output. The payload is validated at this call. |
 
 ## What each factory returns

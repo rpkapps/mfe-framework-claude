@@ -291,6 +291,9 @@ definition's `mount` runs once — pinned by `app-host.test.tsx`. The rule is th
 one, held by a handle instead of a context: what an effect creates, that effect's
 cleanup ends.
 
+**Amendment (2026-09-26):** an App's router factory runs in a memo, which StrictMode calls twice
+in development, so it may run twice for one mount and must build the router and do nothing else.
+
 ---
 
 ## 15. A host composing the registry cannot call `lazyWidget`
@@ -1057,6 +1060,11 @@ session early; revocation takes effect at the next renewal, so access tokens sho
 short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
 parallel with the entry.
 
+**Amendment (2026-09-26):** when the identity provider cannot be reached as the session is lost,
+the failure page says so over the running shell, since a shell without a token can do nothing, and
+trying again reloads into a fresh sign-in. A renewal that fails for want of a network ends the
+session too: keeping it would leave requests going out without a token and nothing to say why.
+
 ---
 
 ## 37. A host's `#mfe/config` validates without Zod; a container's still runs the author's schema
@@ -1259,6 +1267,13 @@ writes `z.object({})` where it wrote `{}`, and `createWidget` refuses anything
 without a `shape`. Typing an output's payload reads through the shape
 (`z.infer<(typeof outputSchema)['shape']['acknowledged']>`), which the generated
 `Outputs` type spells out so a consumer never has to.
+
+**Amendment (2026-09-26):** a contract is typed from each end of its schemas. What a consumer
+passes and what an `emit` takes are what the schema accepts (`z.input`), so a field with a default
+is optional to pass; what `render` receives and what a handler is given are what it produces.
+`ContractInputs` and `ContractOutputs` are the consumer's view, `ContractParsedInputs` and
+`ContractEmitPayloads` the Widget's. `pending`, the Widget hosts' loading slot, joins the reserved
+input names.
 
 ---
 
@@ -1786,6 +1801,11 @@ opens only on the user's press.
 **Cost:** A2UI's `Tabs`, `Modal`, `Slider`, `DateTimeInput` and media components are not in the
 catalogue yet, nor its `ACTIVITY_SNAPSHOT` transport; an agent behind the middleware that only
 sends activity events draws nothing here.
+
+**Amendment (2026-09-26):** nothing an agent sends runs unbounded on the page's thread. An A2UI
+surface draws at most 1000 components, and the render tool refuses a larger one; a `regex` check
+refuses long patterns, long values and nested repetition; function and table lookups use own
+members only.
 
 ---
 

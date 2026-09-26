@@ -47,7 +47,7 @@ export default createApp({
 })
 ```
 
-`router` is a factory the framework calls once per mount. Forward all three arguments: `basePath`
+`router` is a factory the framework calls for each mount, twice in development under StrictMode, so it builds the router and does nothing else. Forward all three arguments: `basePath`
 as `basepath`, the `history` as it arrived, and the `context` spread into your own. Add your own
 top-level context keys freely.
 

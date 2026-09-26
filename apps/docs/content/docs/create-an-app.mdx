@@ -106,8 +106,8 @@ example "alert-panel"), received "Order_Book".
 orders failed to create App definition: expected a router factory function, received nothing.
 ```
 
-**Fix.** Pass `router: makeRouter`, the factory itself. It runs once per mount, not once per
-module.
+**Fix.** Pass `router: makeRouter`, the factory itself. It runs for each mount, not once per
+module, and twice in development under StrictMode.
 
 </Callout>
 
