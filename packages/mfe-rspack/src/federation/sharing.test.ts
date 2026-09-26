@@ -71,6 +71,8 @@ describe('the React sharing policy', () => {
       '@company/mfe-runtime',
       // A second copy of these in one React version makes every framework hook fail with
       // "rendered outside any mount".
+      'react',
+      'react-dom',
       '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
@@ -78,9 +80,8 @@ describe('the React sharing policy', () => {
       'react/jsx-runtime',
       'react/compiler-runtime',
       'react-dom/client',
-      // Then `@tecton/react/federation/shared` in its own order, less the design system itself.
-      'react',
-      'react-dom',
+      // Then `@tecton/react/federation/shared` in its own order, less the design system itself
+      // and what the adapter already decides.
       'sonner',
       'react-aria-components',
       'recharts',

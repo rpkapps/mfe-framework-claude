@@ -25,7 +25,11 @@ export const REACT_ANCHOR = 'react'
 
 // These carry React context across the boundary, so a second copy in one React version makes
 // every hook fail with "rendered outside any mount" while both copies look correct on their own.
+// React itself is listed here rather than left to the design system's contract, which also names
+// it: the adapter needs one React per scope whatever a design system says.
 const REACT_BOUND_POLICY: SharingPolicies = {
+  react: SINGLETON,
+  'react-dom': SINGLETON,
   [REACT_ADAPTER]: SINGLETON,
   '@tanstack/react-router': SINGLETON,
   '@tanstack/react-query': SINGLETON,
@@ -54,9 +58,13 @@ const DESIGN_SYSTEM_PACKAGE = '@tecton/react'
 // requests) and broke even when navigating between applications. Nothing in it needs one copy
 // per page: each container renders in a React root of its own, and the design system keeps no
 // module state. Its dependencies that do stay shared: `sonner`'s toast queue above all.
+//
+// What the adapter already decides is left out too, so the adapter's policy for React is the one
+// that applies, and a contract that relaxed or dropped React could not change it.
 const DESIGN_SYSTEM_POLICY: SharingPolicies = Object.fromEntries(
   Object.entries(designSystemShared)
     .filter(([name]) => packageOf(name) !== DESIGN_SYSTEM_PACKAGE)
+    .filter(([name]) => !Object.hasOwn(REACT_BOUND_POLICY, name))
     .map(([name, policy]): [string, SharingPolicy] => [
       name,
       {
