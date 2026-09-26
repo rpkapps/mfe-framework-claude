@@ -23,10 +23,10 @@ export const REACT_FRAMEWORK = 'react'
 /** The package whose installed version names the scope: `react@19.3.0`. */
 export const REACT_ANCHOR = 'react'
 
-// These carry React context across the boundary, so a second copy in one React version makes
-// every hook fail with "rendered outside any mount" while both copies look correct on their own.
-// React itself is listed here rather than left to the design system's contract, which also names
-// it: the adapter needs one React per scope whatever a design system says.
+// These carry React context or module state across the boundary, so a second copy in one React
+// version makes every hook fail with "rendered outside any mount" while both copies look correct
+// on their own. React itself is listed here rather than left to the design system's contract,
+// which also names it: the adapter needs one React per scope whatever a design system says.
 const REACT_BOUND_POLICY: SharingPolicies = {
   react: SINGLETON,
   'react-dom': SINGLETON,
@@ -41,6 +41,10 @@ const REACT_BOUND_POLICY: SharingPolicies = {
   'react/jsx-runtime': SINGLETON,
   'react/compiler-runtime': SINGLETON,
   'react-dom/client': SINGLETON,
+  // The toast queue is module state: a container with a copy of its own queues toasts that the
+  // shell's `Toaster` never reads. The design system's contract shares it without a singleton,
+  // being written for applications that share no scope, and inside one scope a singleton is safe.
+  sonner: SINGLETON,
 }
 
 /** The design system itself, which its contract offers to share and this adapter does not. */
@@ -57,7 +61,7 @@ const DESIGN_SYSTEM_PACKAGE = '@tecton/react'
 // cold load everywhere (the median page 16% sooner, 9% on a slow link, on a third of the JS
 // requests) and broke even when navigating between applications. Nothing in it needs one copy
 // per page: each container renders in a React root of its own, and the design system keeps no
-// module state. Its dependencies that do stay shared: `sonner`'s toast queue above all.
+// module state. What stays shared from it is its dependencies, `sonner` among them.
 //
 // What the adapter already decides is left out too, so the adapter's policy for React is the one
 // that applies, and a contract that relaxed or dropped React could not change it.

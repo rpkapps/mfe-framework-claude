@@ -80,9 +80,10 @@ describe('the React sharing policy', () => {
       'react/jsx-runtime',
       'react/compiler-runtime',
       'react-dom/client',
+      // The toast queue, which the shell's `Toaster` reads.
+      'sonner',
       // Then `@tecton/react/federation/shared` in its own order, less the design system itself
       // and what the adapter already decides.
-      'sonner',
       'react-aria-components',
       'recharts',
     ])
