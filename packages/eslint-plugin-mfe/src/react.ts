@@ -7,13 +7,14 @@
  */
 
 import type { Linter } from 'eslint'
+import { meta } from './plugin.ts'
 import { author, DEFAULT_ROUTER_FILES, type AuthorPresetOptions } from './configs/react-author.ts'
 
 export { author }
 export { DEFAULT_ROUTER_FILES }
 export type { AuthorPresetOptions }
 
-export const meta = { name: '@company/eslint-plugin-mfe', version: '0.1.0' } as const
+export { meta }
 
 /** Lazy: building this eagerly at import time would require the React peers just to import the subpath. */
 export const configs: { readonly author: Linter.Config[] } = Object.defineProperty({}, 'author', {

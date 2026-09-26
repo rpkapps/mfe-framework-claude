@@ -7,6 +7,7 @@
  */
 
 import type { Linter } from 'eslint'
+import { meta } from './plugin.ts'
 import {
   angular,
   DEFAULT_ANGULAR_TEMPLATE_FILES,
@@ -17,7 +18,7 @@ export { angular }
 export { DEFAULT_ANGULAR_TEMPLATE_FILES }
 export type { AngularPresetOptions }
 
-export const meta = { name: '@company/eslint-plugin-mfe', version: '0.1.0' } as const
+export { meta }
 
 /** Lazy: building this eagerly at import time would require the Angular peers just to import the subpath. */
 export const configs: { readonly angular: Linter.Config[] } = Object.defineProperty({}, 'angular', {

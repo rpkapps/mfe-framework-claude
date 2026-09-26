@@ -1,6 +1,8 @@
 import type { Linter } from 'eslint'
 import { describe, expect, it } from 'vitest'
+import { angular } from '../angular.ts'
 import plugin, { application, configs, framework, rules, tooling } from '../index.ts'
+import { author } from '../react.ts'
 import {
   configuredRuleIds,
   expectAcceptedByEslint,
@@ -46,6 +48,23 @@ describe('plugin surface', () => {
     expect(plugin.framework).toBe(framework)
     expect(plugin.tooling).toBe(tooling)
     expect(plugin.application).toBe(application)
+  })
+
+  it('is the one object every preset registers as `mfe`', () => {
+    const presets = [
+      framework(),
+      tooling(),
+      application({ adapterModules: ['@company/mfe-react'] }),
+      author(),
+      angular(),
+    ]
+    const registered = presets
+      .flat()
+      .map(config => config.plugins?.['mfe'])
+      .filter(object => object !== undefined)
+
+    expect(registered.length).toBeGreaterThan(0)
+    for (const object of registered) expect(object).toBe(plugin)
   })
 
   it('does not export a React or Angular author preset from the neutral entry', () => {
