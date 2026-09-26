@@ -3,7 +3,7 @@
 import { defaultExposePath, FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
 
 import type { ConfigSource } from '../config/config-source.ts'
-import { summarizeSchema } from '../config/zod-static.ts'
+import { summarizeSchema, type StaticSchema } from '../config/zod-static.ts'
 import type { DiscoveredDefinition, DiscoveryResult } from '../discovery/definitions.ts'
 import type {
   ContractImport,
@@ -58,7 +58,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
     field =>
       `  { field: ${quote(field.field)}, envVar: ${quote(field.envVar)}, expected: ${quote(
         summarizeSchema(field.schema),
-      )} },`,
+      )}${field.api ? ', api: true' : ''} },`,
   )
   const fieldUnion =
     source.fields.length === 0
@@ -101,6 +101,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
         `  readonly field: ${fieldUnion}`,
         '  readonly envVar: string',
         '  readonly expected: string',
+        '  readonly api?: true',
         '}',
         '',
         'const FIELDS: readonly FieldSpec[] = [',
@@ -284,10 +285,31 @@ const CONFIG_VALIDATE = [
   "        `Set ${spec.envVar} in the deployment that writes this container's runtime configuration, then reload the page.`,",
   '      )',
   '    }',
+  '    if (spec.api === true && result.data !== undefined && !isHttpUrl(result.data)) {',
+  '      fail(',
+  "        'config/invalid',",
+  '        `validate ${spec.field}`,',
+  "        'an absolute http(s) URL, because it is declared with { api: true }',",
+  '        JSON.stringify(result.data),',
+  '        `Set ${spec.envVar} to the full URL of the API, scheme included, then reload the page. Only an http(s) origin can be matched against a request.`,',
+  '      )',
+  '    }',
   '    parsed[spec.field] = result.data',
   '  }',
   '',
   '  return Object.freeze(parsed) as MfeConfig',
+  '}',
+  '',
+  "// Zod's URL schema also accepts a mailto: or a file: URL, neither of which has an",
+  '// origin a request can be matched against.',
+  'function isHttpUrl(value: unknown): boolean {',
+  "  if (typeof value !== 'string') return false",
+  '  try {',
+  '    const { protocol } = new URL(value)',
+  "    return protocol === 'http:' || protocol === 'https:'",
+  '  } catch {',
+  '    return false',
+  '  }',
   '}',
 ].join('\n')
 
@@ -299,10 +321,28 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
   const baseField = apiFields[0]
 
+  // `#mfe/config` has already checked each value is an absolute http(s) URL; an optional one the
+  // deployment left unset declares no origin and no base.
   const origins =
     apiFields.length === 0
       ? '[]'
-      : ['[', ...apiFields.map(field => `  new URL(config.${field.field}).origin,`), ']'].join('\n')
+      : [
+          '[',
+          ...apiFields.map(({ field, schema }) =>
+            mayBeUnset(schema)
+              ? `  ...(config.${field} === undefined ? [] : [new URL(config.${field}).origin]),`
+              : `  new URL(config.${field}).origin,`,
+          ),
+          ']',
+        ].join('\n')
+  const base =
+    baseField === undefined
+      ? []
+      : mayBeUnset(baseField.schema)
+        ? [
+            `  ...(config.${baseField.field} === undefined ? {} : { apiBaseUrl: config.${baseField.field} }),`,
+          ]
+        : [`  apiBaseUrl: config.${baseField.field},`]
 
   return {
     path: generatedPath(context.options.generatedDir, 'fetch.ts'),
@@ -324,7 +364,7 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
         ' */',
         'const transport = createContainerTransport({',
         `  id: ${quote(containerId(context))},`,
-        ...(baseField === undefined ? [] : [`  apiBaseUrl: config.${baseField.field},`]),
+        ...base,
         '  apiOrigins,',
         '})',
         '',
@@ -332,6 +372,11 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
       ].join('\n'),
     ]),
   }
+}
+
+/** A field with no default the deployment may omit, which then reads as `undefined`. */
+function mayBeUnset(schema: StaticSchema): boolean {
+  return schema.optional && !schema.hasDefault
 }
 
 export function metaModule(context: GenerateContext, buildHash: string): GeneratedFile {

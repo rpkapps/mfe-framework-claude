@@ -387,6 +387,17 @@ describe('#mfe/config', () => {
     expect(source).toContain("{ field: 'pageSize', envVar: 'PAGE_SIZE'")
   })
 
+  it('checks that an API origin is an absolute http(s) URL, past what its URL schema checks', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
+    const source = fileFor('config.ts')
+
+    expect(source).toMatch(/envVar: 'API_BASE_URL', expected: '[^']*', api: true \}/)
+    expect(source).not.toMatch(/envVar: 'OIDC_ISSUER', expected: '[^']*', api: true/)
+    expect(source).toContain(
+      'if (spec.api === true && result.data !== undefined && !isHttpUrl(result.data)) {',
+    )
+  })
+
   it('rejects keys the container never declared', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
@@ -434,6 +445,59 @@ describe('#mfe/fetch', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
     expect(fileFor('fetch.ts')).toContain('apiBaseUrl: config.apiBaseUrl,')
+  })
+
+  it('declares no origin and no base for an optional API origin the deployment left unset', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': `
+import { env } from '@acme/mfe-plugin'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.url().optional(), { api: true }),
+  searchUrl: env('SEARCH_URL', z.url().default('https://search.example.test'), { api: true }),
+}
+`,
+    })
+    const source = fileFor('fetch.ts')
+
+    expect(source).toContain(
+      '...(config.apiBaseUrl === undefined ? [] : [new URL(config.apiBaseUrl).origin]),',
+    )
+    expect(source).toContain('new URL(config.searchUrl).origin,')
+    expect(source).not.toContain('...(config.searchUrl')
+    expect(source).toContain(
+      '...(config.apiBaseUrl === undefined ? {} : { apiBaseUrl: config.apiBaseUrl }),',
+    )
+  })
+
+  it('refuses an API origin whose schema admits a relative URL', () => {
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG.replace(
+        "env('API_BASE_URL', z.string().url(), { api: true })",
+        "env('API_BASE_URL', z.string(), { api: true })",
+      ),
+    })
+
+    expect(() => planContainer(TEST_PROFILE, { containerRoot: root })).toThrow(
+      "'apiBaseUrl' failed to read the configuration field 'apiBaseUrl': expected a URL schema, because { api: true } declares the value an API origin, found a string.",
+    )
+  })
+
+  it('refuses an API origin whose default is not an absolute http(s) URL', () => {
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG.replace(
+        "env('API_BASE_URL', z.string().url(), { api: true })",
+        "env('API_BASE_URL', z.string().url().default('/api'), { api: true })",
+      ),
+    })
+
+    expect(() => planContainer(TEST_PROFILE, { containerRoot: root })).toThrow(
+      'expected a default that is an absolute http(s) URL, because { api: true } declares an API origin, found "/api".',
+    )
   })
 
   it('binds an empty allowlist and no base when the container declares no API origin', () => {

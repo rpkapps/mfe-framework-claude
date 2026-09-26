@@ -25,6 +25,8 @@ export interface ConfigFieldSpec {
   readonly transforms?: readonly StringTransform[]
   /** `z.coerce.string()`, `.number()` or `.boolean()`: converts as Zod does before checking. */
   readonly coerce?: 'string' | 'number' | 'boolean'
+  /** Declared with `{ api: true }`, so a value it has must be an absolute http(s) URL. */
+  readonly api?: boolean
 }
 
 export type FieldCheck =
@@ -219,5 +221,23 @@ export function checkConfigField(spec: ConfigFieldSpec, raw: unknown): FieldChec
   }
 
   const problem = checkValue(spec.schema, value, spec.field)
-  return problem === null ? { ok: true, value } : { ok: false, problem }
+  if (problem !== null) return { ok: false, problem }
+  if (spec.api === true && value !== undefined && !isHttpUrl(value)) {
+    return { ok: false, problem: `${show(value)}, which is not an absolute http(s) URL` }
+  }
+  return { ok: true, value }
+}
+
+/**
+ * Whether a value can be an API origin: only an http(s) URL has an origin a request can be matched
+ * against, and a relative one has none at all.
+ */
+export function isHttpUrl(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  try {
+    const { protocol } = new URL(value)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
 }

@@ -15,8 +15,9 @@ import {
   ts,
   unwrapExpression,
 } from '../discovery/ts-ast.ts'
+import { isHttpUrl } from './check.ts'
 import { ENV_NAME_RULE } from './env.ts'
-import { readStaticSchema, type StaticSchema } from './zod-static.ts'
+import { readStaticSchema, summarizeSchema, type StaticSchema } from './zod-static.ts'
 
 const CONFIG_MODULE_NAME = 'src/mfe.config.ts'
 
@@ -180,11 +181,52 @@ function readField(
     })
   }
 
-  return {
-    field,
-    envVar,
-    api: readApiFlag(sourceFile, file, field, call.arguments[2]),
-    schema: readStaticSchema(schemaExpression, { file, field, sourceFile }),
+  const api = readApiFlag(sourceFile, file, field, call.arguments[2])
+  const schema = readStaticSchema(schemaExpression, { file, field, sourceFile })
+  if (api) checkApiSchema(sourceFile, file, field, envVar, schemaExpression, schema)
+
+  return { field, envVar, api, schema }
+}
+
+/**
+ * An API origin is where the session token may be sent and what a relative request resolves
+ * against, so it is an absolute http(s) URL: `/api` has no origin, and `#mfe/fetch` would fail to
+ * load on it. The schema says it is a URL, and the runtime check adds the scheme.
+ */
+function checkApiSchema(
+  sourceFile: ts.SourceFile,
+  file: string,
+  field: string,
+  envVar: string,
+  schemaExpression: ts.Expression,
+  schema: StaticSchema,
+): void {
+  const { line, column } = positionOf(sourceFile, schemaExpression)
+  const location = { code: 'config/invalid' as const, file, line, column, id: field }
+  const operation = `read the configuration field '${field}'`
+
+  if (schema.jsonSchema['type'] !== 'string' || schema.jsonSchema['format'] !== 'uri') {
+    throw createBuildError({
+      ...location,
+      operation,
+      expected: 'a URL schema, because { api: true } declares the value an API origin',
+      observed: summarizeSchema(schema),
+      declaredBy: 'The configuration contract',
+      repair: `Declare it as a URL, for example env('${envVar}', z.url(), { api: true }). A relative value such as /api has no origin a request can be matched against.`,
+    })
+  }
+
+  if (schema.defaultValue !== undefined && !isHttpUrl(schema.defaultValue)) {
+    throw createBuildError({
+      ...location,
+      operation,
+      expected:
+        'a default that is an absolute http(s) URL, because { api: true } declares an API origin',
+      observed: JSON.stringify(schema.defaultValue),
+      declaredBy: 'The configuration contract',
+      repair:
+        "Write the full URL, scheme included, for example .default('https://api.example.test/v1/'), or drop the default and let each deployment set it.",
+    })
   }
 }
 

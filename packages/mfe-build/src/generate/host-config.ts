@@ -118,6 +118,7 @@ function hostConfigModule(context: HostConfigContext): GeneratedFile {
     ...(field.schema.defaultValue === undefined ? {} : { defaultValue: field.schema.defaultValue }),
     ...(field.schema.transforms === undefined ? {} : { transforms: field.schema.transforms }),
     ...(field.schema.coerce === undefined ? {} : { coerce: field.schema.coerce }),
+    ...(field.api ? { api: true } : {}),
   }))
 
   return {
