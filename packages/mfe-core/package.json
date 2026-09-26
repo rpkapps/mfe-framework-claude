@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "zod": "catalog:"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

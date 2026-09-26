@@ -31,8 +31,8 @@
   "peerDependencies": {
     "@tecton/react": "*",
     "lucide-react": "^1.45.0",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tecton/react": "*",

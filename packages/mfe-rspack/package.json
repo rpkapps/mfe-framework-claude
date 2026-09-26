@@ -47,16 +47,11 @@
     "babel-plugin-react-compiler": "catalog:"
   },
   "peerDependencies": {
-    "@rsbuild/core": "catalog:",
-    "@rspack/core": "catalog:",
+    "@rsbuild/core": "^2.2.0",
+    "@rspack/core": "^2.2.0",
     "@tecton/react": ">=0.1.0",
-    "typescript": "catalog:",
-    "zod": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "@tecton/react": {
-      "optional": true
-    }
+    "typescript": ">=5.5.0 <7.0.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@company/mfe-runtime": "workspace:*",

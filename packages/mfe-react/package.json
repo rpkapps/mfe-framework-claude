@@ -53,11 +53,11 @@
     "@company/mfe-runtime": "workspace:*"
   },
   "peerDependencies": {
-    "@tanstack/react-query": "catalog:",
-    "@tanstack/react-router": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "zod": "catalog:"
+    "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-router": "^1.170.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@tanstack/react-query": "catalog:",

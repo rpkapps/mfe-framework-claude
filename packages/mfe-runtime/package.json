@@ -43,7 +43,7 @@
     "@company/mfe-core": "workspace:*"
   },
   "peerDependencies": {
-    "zod": "catalog:"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

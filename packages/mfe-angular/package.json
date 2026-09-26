@@ -56,12 +56,12 @@
     "@company/mfe-runtime": "workspace:*"
   },
   "peerDependencies": {
-    "@angular/common": "catalog:",
-    "@angular/core": "catalog:",
-    "@angular/platform-browser": "catalog:",
-    "@angular/router": "catalog:",
-    "rxjs": "catalog:",
-    "zod": "catalog:"
+    "@angular/common": "^19.2.0",
+    "@angular/core": "^19.2.0",
+    "@angular/platform-browser": "^19.2.0",
+    "@angular/router": "^19.2.0",
+    "rxjs": "^7.4.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@angular/common": "catalog:",
