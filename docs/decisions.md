@@ -805,6 +805,16 @@ starts itself. **Cost:** an App's own `router.navigate()` resolves `false` on fa
 rejecting, and the App's `withRouterConfig` options are carried over by reading the feature's
 providers, which a router upgrade could change.
 
+**Second amendment (2026-09-26):** every framework package but `@company/eslint-plugin-mfe`
+publishes `dist/` under `types` and `default` and names its source under `mfe-source`, and a bin
+is compiled JavaScript: Node refuses TypeScript under `node_modules`. What Node loads natively in
+this repository, `rsbuild.config.ts` and `mfe-generate` through `@company/mfe-rspack` and the
+`@company/mfe-build` and `@company/mfe-core` behind it, is built by `build:stale` first. The lint
+plugin stays on source because ESLint loads a TypeScript config through jiti, which resolves no
+custom condition, so an editor would otherwise lint against a `dist/` that is missing or stale.
+Peers are supported ranges, never `catalog:`, which publishes the catalog's exact version, and
+`engines.node` states the Node each package runs on.
+
 ---
 
 ## 32. `@company/mfe-host` is `@company/mfe-runtime`, the core holds contracts only, and an application imports only its adapter

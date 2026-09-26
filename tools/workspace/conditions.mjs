@@ -5,8 +5,8 @@
  * and the suites without a build; a published consumer never sets it and gets `dist/`.
  *
  * Two things still read `dist/`. Node never sets the condition, so the build tooling a config or a
- * CLI loads natively, `@company/mfe-build` and `@company/mfe-core`, is built by the root scripts
- * that start it. And examples/fieldwork, an Angular container in an Nx workspace of its own, is
+ * CLI loads natively, `@company/mfe-rspack` and the `@company/mfe-build` and `@company/mfe-core`
+ * behind it, is built by the root scripts that start it. And examples/fieldwork, an Angular container in an Nx workspace of its own, is
  * built the way a consumer builds it, because the Angular compiler emits nothing for a file reached
  * through `node_modules`; its scripts build what it depends on. Both go through `build:stale`,
  * which leaves a current `dist/` alone (require-built.mjs), so one never rewrites a `dist/` while

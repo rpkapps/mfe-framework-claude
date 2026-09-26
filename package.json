@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" run build",
-    "build:stale": "pnpm --filter \"@company/mfe-build...\" --filter \"@example/fieldwork^...\" run build:stale",
+    "build:stale": "pnpm --filter \"@company/mfe-rspack...\" --filter \"@example/fieldwork^...\" run build:stale",
     "check": "pnpm run build && pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test",
     "generate": "pnpm run build:stale && pnpm -r run generate && node tools/dev/build-registry.mjs",
     "format": "prettier --write .",
