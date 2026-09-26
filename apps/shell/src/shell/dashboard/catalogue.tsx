@@ -309,7 +309,10 @@ function Contract({
               <TooltipTrigger key={field.name}>
                 <Badge
                   variant="outline"
-                  render={props => <span {...props} tabIndex={0} />}
+                  // A tooltip's trigger has to be focusable and have a role React Aria accepts.
+                  render={props => (
+                    <span {...props} tabIndex={0} role="img" aria-label={field.name} />
+                  )}
                   className={field.required ? 'border-border-strong' : 'text-muted-foreground'}
                 >
                   {field.name}
@@ -338,7 +341,9 @@ function Contract({
                 <Badge
                   variant="info"
                   appearance="outline"
-                  render={props => <span {...props} tabIndex={0} />}
+                  render={props => (
+                    <span {...props} tabIndex={0} role="img" aria-label={output.name} />
+                  )}
                 >
                   <ZapIcon aria-hidden data-icon="inline-start" /> {output.name}
                 </Badge>
