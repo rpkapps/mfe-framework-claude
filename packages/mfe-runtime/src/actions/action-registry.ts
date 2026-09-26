@@ -328,6 +328,15 @@ export class ActionRegistry {
       return UNMATCHED
     }
 
+    // A held key repeats, and each press is meant to run its action once. The repeat is still
+    // claimed when it is a shortcut's, so the browser does not act on a held mod+s either, and it
+    // leaves a sequence where it was.
+    if (event.repeat) {
+      const held = matchSequence([pressed], this.#liveShortcuts(inField), this.#apple)
+      if (held.kind === 'complete') event.preventDefault()
+      return UNMATCHED
+    }
+
     const now = Date.now()
     const earlier = now - this.#pressedAt > SEQUENCE_TIMEOUT_MS ? [] : this.#pressed
     this.#pressedAt = now

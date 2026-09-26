@@ -168,14 +168,43 @@ export function parseShortcut(source: string): ShortcutParseResult {
   return { ok: true, shortcut: { source: chords.map(formatChord).join(' '), chords } }
 }
 
-/** `null` for a modifier pressed on its own, which is never a step of a shortcut. */
-export function chordFromEvent(event: KeyboardEvent): PressedChord | null {
-  const lowered = event.key.toLowerCase()
-  if (MODIFIER_KEYS.has(lowered)) return null
+/** A letter or digit as its key is named on every layout: `KeyA` is `a`, `Digit1` is `1`. */
+function physicalKeyOf(event: KeyboardEvent): string | undefined {
+  if (typeof event.code !== 'string') return undefined
+  const match = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(event.code)
+  return (match?.[1] ?? match?.[2])?.toLowerCase()
+}
 
-  let key = lowered
-  if (lowered === ' ') key = 'space'
-  else if (lowered === '+') key = 'plus'
+/**
+ * A shortcut's letters and digits name keys rather than what a layout types on them. On a
+ * Cyrillic layout `mod+k` types `л`, and on a Mac Option types another character, or starts a
+ * dead key, on nearly every letter, so neither would ever match; the physical key is read
+ * instead, which is the letter or digit that key types on a Latin layout. Ctrl with Alt is left
+ * alone, because Windows reports AltGr that way and the symbol it types is what the user meant.
+ */
+function keyOf(typed: string, event: KeyboardEvent): string | undefined {
+  if (typed === ' ') return 'space'
+  if (typed === '+') return 'plus'
+  if (NAMED_KEYS.has(typed)) return typed
+
+  const physical = physicalKeyOf(event)
+  const printable = /^[\x21-\x7e]$/.test(typed)
+  if (physical !== undefined && (!printable || (event.altKey && !event.ctrlKey))) return physical
+  return typed === '' ? undefined : typed
+}
+
+/**
+ * `null` for a modifier pressed on its own, which is never a step of a shortcut, for a key an
+ * input method is composing, and for a synthetic keydown that names no key, which a browser's
+ * autofill sends.
+ */
+export function chordFromEvent(event: KeyboardEvent): PressedChord | null {
+  if (event.isComposing) return null
+  const typed = typeof event.key === 'string' ? event.key.toLowerCase() : ''
+  if (MODIFIER_KEYS.has(typed)) return null
+
+  const key = keyOf(typed, event)
+  if (key === undefined) return null
 
   return {
     key,
