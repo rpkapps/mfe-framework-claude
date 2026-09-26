@@ -147,20 +147,16 @@ export function SettingsSheet({
               </p>
               <ItemGroup className="gap-1">
                 {capabilities.map(({ app, capability }) => (
+                  // With `href` the row is a React Aria link, so Enter opens it too, and the router
+                  // provider around the shell's surfaces keeps that a client-side navigation.
                   <Item
                     key={`${app.id}:${capability.name}`}
+                    href={`/${app.id}/${capability.path.replace(/^\//, '')}`}
+                    onPress={() => {
+                      shellUi.close()
+                    }}
                     variant="muted"
                     size="sm"
-                    role="button"
-                    tabIndex={0}
-                    className="cursor-pointer hover:bg-accent"
-                    onClick={() => {
-                      shellUi.close()
-                      void navigate({
-                        to: '/$appId/$',
-                        params: { appId: app.id, _splat: capability.path.replace(/^\//, '') },
-                      })
-                    }}
                   >
                     <ItemMedia variant="icon">
                       <ExternalLinkIcon aria-hidden className="text-muted-foreground" />
