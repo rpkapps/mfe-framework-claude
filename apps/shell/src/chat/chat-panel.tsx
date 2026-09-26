@@ -143,7 +143,8 @@ function ChatComposer({ chat }: { readonly chat: ShellChat }): ReactNode {
               value: attachment.id,
               label: attachment.label,
               description: attachment.description,
-              icon: <Icon aria-hidden />,
+              // Marked as the chip's inline icon, the only mark the chip sizes an icon by.
+              icon: <Icon data-icon="inline-start" aria-hidden />,
             }
           })}
           onRemove={id => {
