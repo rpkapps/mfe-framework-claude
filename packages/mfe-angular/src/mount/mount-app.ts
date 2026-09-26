@@ -32,7 +32,11 @@ export async function mountApp(
   const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
-  const location = new BoundaryLocationStrategy(context.runtime.navigator, baseHrefOf(context))
+  // A bridge of its own, so the other Apps on the page hear where this router takes it.
+  const location = new BoundaryLocationStrategy(
+    context.runtime.navigator.createBridge(),
+    baseHrefOf(context),
+  )
 
   const { dispose, whenStable } = await runMountApplication({
     definition,

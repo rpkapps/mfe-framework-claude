@@ -175,6 +175,29 @@ describe('requestNavigation', () => {
     expect(navigator.isNegotiating).toBe(false)
   })
 
+  it('releases what it held when the commit throws, rather than going deaf', async () => {
+    const bridge = createRecordingBridge()
+    const navigator = new BoundaryNavigator({ bridge })
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+    const heard: BoundaryLocation[] = []
+    navigator.subscribe(location => heard.push(location))
+
+    const negotiation = navigator.requestNavigation(INTENT, () => {
+      throw new Error('the host router failed')
+    })
+    bridge.listeners[0]?.({ pathname: '/billing', search: '', hash: '' })
+    await Promise.resolve()
+    answer.resolve('proceed')
+
+    await expect(negotiation).rejects.toThrow('the host router failed')
+    expect(heard).toHaveLength(1)
+  })
+
   it('accepts a new request once the previous negotiation finished', async () => {
     const order: string[] = []
     const navigator = createNavigator()
@@ -626,11 +649,14 @@ describe('announce', () => {
     expect(heard).toEqual(['/reports'])
   })
 
-  it('treats a push through the navigator as known, and still announces a return from it', () => {
-    const { bridge, navigator, heard } = announcing()
+  it('treats a push through a router’s bridge as known, and still announces a return from it', () => {
+    const { bridge, navigator } = announcing()
+    const router = navigator.createBridge()
+    const heard: string[] = []
+    router.subscribe(location => heard.push(location.pathname))
 
     // A mounted App navigates inside its boundary; it already knows where it went.
-    navigator.push('/reports/42')
+    router.push('/reports/42')
     navigator.announce()
     expect(heard).toEqual([])
 
@@ -669,6 +695,123 @@ describe('announce', () => {
     navigator.announce()
 
     expect(heard).toEqual([])
+  })
+})
+
+/** Nested Apps share the page, so where one router takes it the others must hear. */
+describe('a router’s own bridge', () => {
+  const at = (pathname: string): BoundaryLocation => ({ pathname, search: '', hash: '' })
+
+  function twoRouters(initial = '/reports') {
+    const bridge = createMemoryNavigationBridge([initial])
+    const navigator = new BoundaryNavigator({ bridge })
+    const outer = navigator.createBridge()
+    const inner = navigator.createBridge()
+    const outerHeard: BoundaryLocation[] = []
+    const innerHeard: BoundaryLocation[] = []
+    outer.subscribe(location => outerHeard.push(location))
+    inner.subscribe(location => innerHeard.push(location))
+    return { bridge, navigator, outer, inner, outerHeard, innerHeard }
+  }
+
+  it('tells the other router of a push exactly once, and not the one that pushed', async () => {
+    const { bridge, outer, outerHeard, innerHeard } = twoRouters()
+
+    outer.push('/reports/42', { __TSR_index: 1 })
+    await Promise.resolve()
+
+    expect(bridge.read()).toEqual(at('/reports/42'))
+    expect(bridge.readState?.()).toEqual({ __TSR_index: 1 })
+    expect(outerHeard).toEqual([])
+    expect(innerHeard).toEqual([at('/reports/42')])
+  })
+
+  it('tells the other router of a replace, in either direction', async () => {
+    const { inner, outerHeard, innerHeard } = twoRouters()
+
+    inner.replace('/reports/43')
+    await Promise.resolve()
+
+    expect(outerHeard).toEqual([at('/reports/43')])
+    expect(innerHeard).toEqual([])
+  })
+
+  it('tells a listener subscribed to the navigator itself', async () => {
+    const { navigator, outer } = twoRouters()
+    const heard: BoundaryLocation[] = []
+    navigator.subscribe(location => heard.push(location))
+
+    outer.push('/reports/42')
+    await Promise.resolve()
+
+    expect(heard).toEqual([at('/reports/42')])
+  })
+
+  it('tells every router of a push through the navigator, which no router made', async () => {
+    const { navigator, outerHeard, innerHeard } = twoRouters()
+
+    navigator.push('/reports/42')
+    await Promise.resolve()
+
+    expect(outerHeard).toEqual([at('/reports/42')])
+    expect(innerHeard).toEqual([at('/reports/42')])
+  })
+
+  it('repeats nothing when the host announces the same move', async () => {
+    const { navigator, outer, innerHeard } = twoRouters()
+
+    outer.push('/reports/42')
+    navigator.announce()
+    await Promise.resolve()
+    navigator.announce()
+
+    expect(innerHeard).toEqual([at('/reports/42')])
+  })
+
+  it('holds a push while a navigation is negotiated, and releases it if it proceeds', async () => {
+    const { navigator, outer, innerHeard } = twoRouters()
+    const answer = deferred<'proceed' | 'reset'>()
+    navigator.registerBlocker('mount-a', {
+      depth: 1,
+      shouldBlock: () => true,
+      confirm: () => answer.promise,
+    })
+
+    const negotiation = navigator.requestNavigation(INTENT, vi.fn())
+    outer.push('/reports/42')
+    await Promise.resolve()
+    expect(innerHeard).toEqual([])
+
+    answer.resolve('proceed')
+    await negotiation
+
+    expect(innerHeard).toEqual([at('/reports/42')])
+  })
+
+  it('tells nothing to a router that unsubscribed before the push was delivered', async () => {
+    const bridge = createMemoryNavigationBridge(['/reports'])
+    const navigator = new BoundaryNavigator({ bridge })
+    const outer = navigator.createBridge()
+    const heard: BoundaryLocation[] = []
+    const unsubscribe = navigator.createBridge().subscribe(location => heard.push(location))
+
+    outer.push('/reports/42')
+    unsubscribe()
+    await Promise.resolve()
+
+    expect(heard).toEqual([])
+  })
+
+  it('still hears what the browser reports, as the navigator does', async () => {
+    const { bridge, outer, outerHeard, innerHeard } = twoRouters()
+
+    outer.push('/reports/42')
+    await Promise.resolve()
+    bridge.back()
+    await Promise.resolve()
+
+    expect(outerHeard).toEqual([at('/reports')])
+    expect(innerHeard).toEqual([at('/reports/42'), at('/reports')])
   })
 })
 
