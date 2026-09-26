@@ -152,13 +152,13 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   })
 
   return (
-    <>
+    // A React Aria link with an `href` is a document navigation unless a router is provided, and
+    // every breadcrumb click tore the shell down. It covers the surfaces too, whose rows link to
+    // an application's pages; an App mounts in a root of its own, so none of this reaches it.
+    <AriaRouterProvider navigate={to => void navigate({ to })}>
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
-        {/* A React Aria link with an `href` is a document navigation unless a router is provided, and every breadcrumb click tore the shell down. */}
-        <AriaRouterProvider navigate={to => void navigate({ to })}>
-          <Header />
-        </AriaRouterProvider>
+        <Header />
         <AppShellBody>
           {/* The page is the split's first panel and the chat is added after it, so opening it never remounts the App mounted there. */}
           <ChatSplit>{children}</ChatSplit>
@@ -177,7 +177,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
       <MfeDevtools />
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
-    </>
+    </AriaRouterProvider>
   )
 }
 

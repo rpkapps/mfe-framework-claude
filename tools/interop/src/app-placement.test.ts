@@ -85,7 +85,8 @@ describe.each(apps)('$name', app => {
 
     it('navigates from inside through the neutral navigator, never the browser’s history', async () => {
       const memory = createPage()
-      const navigatorPush = vi.spyOn(memory.runtime.navigator, 'push')
+      // The App writes through its own bridge on the navigator, which commits to the page's.
+      const navigatorPush = vi.spyOn(memory.navigation, 'push')
       const historyPush = vi.spyOn(window.history, 'pushState')
       onTestFinished(() => {
         historyPush.mockRestore()

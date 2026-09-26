@@ -15,10 +15,17 @@ const SEVERITY = {
   critical: { label: 'Critical', variant: 'destructive', Icon: OctagonAlertIcon },
 } as const
 
+/** A host changes a Widget's inputs in place rather than remounting it, so without the key the
+ * state in `OneAlert` would outlive the alert it belongs to: acknowledge a-1001, switch to a-1002,
+ * and the new alert would read as acknowledged. */
 export function AlertPanel({
   inputs,
   emit,
 }: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
+  return <OneAlert key={inputs.alertId} inputs={inputs} emit={emit} />
+}
+
+function OneAlert({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
   const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
   const { label, variant, Icon } = SEVERITY[inputs.severity]
 

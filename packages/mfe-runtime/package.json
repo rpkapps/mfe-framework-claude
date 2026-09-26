@@ -4,6 +4,9 @@
   "description": "Neutral MFE runtime: reading the registry through the adapter interface, loading and mount orchestration, retry, disposal, deadlines, shell state, validated storage, actions, breadcrumbs, navigation bridge, auth token single-flight and telemetry binding. No React, router, single-spa or Module Federation dependency.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -43,7 +46,7 @@
     "@company/mfe-core": "workspace:*"
   },
   "peerDependencies": {
-    "zod": "catalog:"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

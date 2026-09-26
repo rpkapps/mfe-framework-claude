@@ -5,8 +5,8 @@ description: 'The Nx generators that scaffold an Angular container, the targets 
 
 `@company/mfe-nx` scaffolds and builds Angular containers in an Nx workspace. It is the Angular
 counterpart of `pluginMfe()`: the same framework-neutral build, `@company/mfe-build`, wired into Nx's
-Angular webpack builder instead of Rsbuild. It runs in a separate Nx workspace, not in this
-repository.
+Angular webpack builder instead of Rsbuild. It runs in an Nx workspace of its own. This repository
+is not one, and `examples/fieldwork` is an Nx workspace inside it.
 
 ## Generate a container
 
@@ -71,16 +71,18 @@ other than the project being built.
 
 ## What a container shares
 
-| Group     | Scope                               | Packages                                                                     |
-| --------- | ----------------------------------- | ---------------------------------------------------------------------------- |
-| Framework | `angular@<installed @angular/core>` | the `@angular/*` packages, `@angular/cdk`, `rxjs` and `@company/mfe-angular` |
-| Page      | `default`                           | `@company/mfe-core` and `@company/mfe-runtime`                               |
-| Never     | —                                   | `primeng`, `@primeng/themes`, `@primeuix/styled` and `@primeuix/utils`       |
+| Group     | Scope                               | Packages                                                               |
+| --------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| Framework | `angular@<installed @angular/core>` | the `@angular/*` packages, `@angular/cdk` and `rxjs`                   |
+| Page      | `default`                           | `@company/mfe-core` and `@company/mfe-runtime`                         |
+| Bundled   | —                                   | `@company/mfe-angular`, so it imports what the author's code imports   |
+| Never     | —                                   | `primeng`, `@primeng/themes`, `@primeuix/styled` and `@primeuix/utils` |
 
-Every shared package is a strict singleton. Containers on the same Angular version download one
-copy, and a container on another version brings its own set. A package you add joins the Angular
-scope. An addition never removes, relaxes or moves a candidate, and `withMfe({ shared })` refuses
-PrimeNG.
+No shared package is a singleton, because containers are released from repositories of their own.
+A container takes the loaded copy its range accepts, and loads its own when none does, rather than
+failing. Containers whose ranges agree download one copy, and a container on another Angular version
+brings its own set. A package you add joins the Angular scope. An addition never removes or moves a
+candidate, and `withMfe({ shared })` refuses PrimeNG.
 
 ## Versions
 
@@ -93,7 +95,8 @@ PrimeNG.
 | Node       | 20.19 or later, or 22.12 or later                          |
 
 The framework packages export compiled JavaScript and declarations. Build them before using
-workspace links from a fresh checkout; published packages build in `prepack`. Do not add their
+workspace links from a fresh checkout; `pnpm release` builds them before it publishes, and each
+package's `prepack` refuses a missing or stale build. Do not add their
 sources to a container's `tsconfig` `include`.
 
 ## Related

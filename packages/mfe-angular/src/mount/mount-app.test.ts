@@ -1,19 +1,33 @@
 import { APP_BASE_HREF, Location } from '@angular/common'
-import { Component, inject, Input } from '@angular/core'
+import {
+  Component,
+  DestroyRef,
+  inject,
+  Input,
+  provideAppInitializer,
+  provideEnvironmentInitializer,
+} from '@angular/core'
 import {
   ActivatedRoute,
+  ROUTER_CONFIGURATION,
   Router,
   RouterOutlet,
   type CanDeactivateFn,
   type RouterStateSnapshot,
   type Routes,
   withComponentInputBinding,
+  withRouterConfig,
 } from '@angular/router'
-import { createNavigationIntent, parseBoundaryLocation } from '@company/mfe-runtime'
+import {
+  createMountContext,
+  createNavigationIntent,
+  mountDefinition,
+  parseBoundaryLocation,
+} from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { createApp } from '../definition.ts'
+import { createApp, type AppDefinition } from '../definition.ts'
 import { injectAction } from '../inject/action.ts'
 import { injectNavigationBlock, type NavigationBlock } from '../inject/navigation-block.ts'
 import { injectTheme } from '../inject/shell-state.ts'
@@ -178,6 +192,52 @@ describe('mounting an App', () => {
     expect(heading(right)).toBe('report 2')
     expect(environment.navigation.entries.at(-1)).toBe('/right/reports/2')
     await right.dispose()
+    environment.dispose()
+  })
+
+  it('stops waiting on an application that never finishes creating once disposed', async () => {
+    let finishCreating: () => void = () => undefined
+    let destroyed = 0
+    const stalled = createApp({
+      id: 'stalled',
+      routes,
+      providers: [
+        provideAppInitializer(
+          () =>
+            new Promise<void>(resolve => {
+              finishCreating = resolve
+            }),
+        ),
+        provideEnvironmentInitializer(() => {
+          inject(DestroyRef).onDestroy(() => {
+            destroyed += 1
+          })
+        }),
+      ],
+    })
+    const environment = createMfeTestEnvironment({ initialEntries: ['/stalled'] })
+    const handle = createMountContext({
+      runtime: environment.runtime,
+      definitionId: stalled.id,
+      kind: 'app',
+      basePath: '/stalled',
+    })
+    const element = document.createElement('div')
+    document.body.appendChild(element)
+
+    const mounting = stalled.mount({ element, context: handle.context, onFailure: vi.fn() })
+    await handle.dispose()
+
+    await expect(mounting).rejects.toThrowError(
+      /the mount was disposed before it finished mounting/,
+    )
+    expect(element.childElementCount).toBe(0)
+
+    finishCreating()
+    await vi.waitFor(() => {
+      expect(destroyed).toBe(1)
+    })
+    element.remove()
     environment.dispose()
   })
 
@@ -442,5 +502,128 @@ describe('an App’s guards and the host’s navigations', () => {
 
     await expect(outcome).resolves.toBe('blocked')
     expect(captured.block?.pending()).toBeNull()
+  })
+})
+
+describe('an App’s failed navigations', () => {
+  const unloadable = (): Promise<never> => Promise.reject(new Error('chunk failed to load'))
+
+  function place(definition: AppDefinition, initialEntries: string[]) {
+    const environment = createMfeTestEnvironment({ definitions: [definition], initialEntries })
+    const element = document.createElement('div')
+    document.body.appendChild(element)
+    const mount = mountDefinition({
+      runtime: environment.runtime,
+      element,
+      definitionId: definition.id,
+      kind: 'app',
+      basePath: `/${definition.id}`,
+    })
+    const teardown = async (): Promise<void> => {
+      await mount.dispose()
+      element.remove()
+      environment.dispose()
+    }
+    return { environment, element, mount, teardown }
+  }
+
+  /** The router drops the promise of a navigation it starts itself, so a rejection is unhandled. */
+  function watchUnhandledRejections(): { readonly reasons: unknown[]; stop(): void } {
+    const reasons: unknown[] = []
+    const record = (reason: unknown): void => {
+      reasons.push(reason)
+    }
+    process.on('unhandledRejection', record)
+    return { reasons, stop: () => process.off('unhandledRejection', record) }
+  }
+
+  it('fails the mount when its first navigation fails, reporting the cause', async () => {
+    const unhandled = watchUnhandledRejections()
+    const broken = createApp({
+      id: 'broken',
+      version: '1.0.0',
+      routes: [{ path: '', loadComponent: unloadable }],
+    })
+    const { environment, element, mount, teardown } = place(broken, ['/broken'])
+
+    await vi.waitFor(() => {
+      expect(mount.getState().status).toBe('error')
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const state = mount.getState()
+    const error = state.status === 'error' ? state.error : null
+    expect(error).toMatchObject({ code: 'mount/failure', id: 'broken' })
+    expect(error?.message).toBe(
+      'broken@1.0.0 failed to render its first route, /: Error: chunk failed to load. Check that route’s loadComponent, loadChildren, guards and resolvers, then retry; the cause attached to this error is what failed.',
+    )
+    expect(environment.diagnostics.map(diagnostic => diagnostic.error)).toEqual([error])
+    expect(element.childElementCount).toBe(0)
+    expect(unhandled.reasons).toEqual([])
+    unhandled.stop()
+    await teardown()
+  })
+
+  it('reports a later failed navigation and stays on the route it was showing', async () => {
+    const flaky = createApp({
+      id: 'flaky',
+      routes: [
+        { path: '', component: OverviewComponent },
+        { path: 'broken', loadComponent: unloadable },
+      ],
+    })
+    const app = await mountApp(flaky, { basePath: '/flaky' })
+
+    const navigated = await app.injector.get(Router).navigateByUrl('/broken?token=secret')
+    await app.whenStable()
+
+    expect(navigated).toBe(false)
+    expect(heading(app)).toBe('overview')
+    expect(app.environment.diagnostics.map(diagnostic => diagnostic.error)).toMatchObject([
+      { code: 'mount/failure', id: 'flaky' },
+    ])
+    expect(app.environment.diagnostics[0]?.error.message).toBe(
+      'flaky failed to navigate to /broken: Error: chunk failed to load. Check that route’s loadComponent, loadChildren, guards and resolvers; the App stays on the route it was showing.',
+    )
+  })
+
+  it('reports a failed navigation the host’s bridge started, with no unhandled rejection', async () => {
+    const unhandled = watchUnhandledRejections()
+    const flaky = createApp({
+      id: 'flaky',
+      routes: [
+        { path: '', component: OverviewComponent },
+        { path: 'broken', loadComponent: unloadable },
+      ],
+    })
+    const app = await mountApp(flaky, {
+      basePath: '/flaky',
+      initialEntries: ['/flaky/broken', '/flaky'],
+    })
+
+    app.environment.navigation.back()
+
+    await vi.waitFor(() => {
+      expect(app.environment.diagnostics).toHaveLength(1)
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(heading(app)).toBe('overview')
+    expect(unhandled.reasons).toEqual([])
+    unhandled.stop()
+  })
+
+  it('keeps the App’s own router configuration beside the mount’s', async () => {
+    const configured = createApp({
+      id: 'configured',
+      routes,
+      routerFeatures: [withRouterConfig({ paramsInheritanceStrategy: 'always' })],
+    })
+
+    const app = await mountApp(configured, { basePath: '/configured' })
+
+    expect(app.injector.get(ROUTER_CONFIGURATION)).toEqual({
+      paramsInheritanceStrategy: 'always',
+      resolveNavigationPromiseOnError: true,
+    })
   })
 })

@@ -60,7 +60,7 @@ operations failed to publish agent context 'The well design the user has open': 
 <Callout type="error" title="registry/duplicate-id">
 
 ```text
-orders failed to register definition: expected one registry entry per definition id, received 2 entries claiming "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, action attribution and <id>:<key> storage.
+orders failed to register definition: expected one registry entry per definition id, received 2 entries using "orders" (at indexes 0, 3). Rename one of the definitions and rebuild. Duplicate ids would collide in diagnostics, action attribution and <id>:<key> storage.
 ```
 
 **Fix.** Rename one definition and rebuild. The shell sets aside every entry that claimed the id.
@@ -72,7 +72,7 @@ orders failed to register definition: expected one registry entry per definition
 | Code                     | When it happens                                                                                                       | Fix                                                                                           |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `config/missing`         | No `runtime-config.json` beside the container's assets, or a relative request URL with no `apiBaseUrl`.               | Publish the file with the container, or declare an `{ api: true }` field.                     |
-| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with neither 200 nor 404.                          | Check that the deployment publishes the file and that its origin answers.                     |
+| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with an error status other than 404.               | Check that the deployment publishes the file and that its origin answers.                     |
 | `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, or the shell installed no session. | Set the value in the deployment, fix the spelling, or install the session at boot.            |
 | `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.              | Declare the origin if it is your API. Leave it undeclared if it must never receive the token. |
 
@@ -98,16 +98,16 @@ operations failed to attach the access token for https://reports.example.test: e
 
 ## Loading and lifecycle codes
 
-| Code                    | When it happens                                                                                                                                        | Fix                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                                                                                 | Check that the manifest URL is reachable and serves a valid manifest.                              |
-| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                                                                      | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk. |
-| `load/share-conflict`   | Declared, and never raised.                                                                                                                            | A second copy inside one share scope reaches you as a hook reported outside any mount.             |
-| `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                                                             | Check the network panel for the request that never settled, then retry.                            |
-| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or an action's `execute`, `canExecute` or `needsApproval` threw. | See the two messages below, or fix what the message names.                                         |
-| `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                                                              | Check what the first render waits on, then retry.                                                  |
-| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                                                              | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.               |
-| `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                                                             | Check the diagnostics for the cleanup step that did not finish.                                    |
+| Code                    | When it happens                                                                                                                                        | Fix                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `load/manifest-failure` | The container's `mf-manifest.json` could not be fetched or registered.                                                                                 | Check that the manifest URL is reachable and serves a valid manifest.                                                                                  |
+| `load/entry-failure`    | The container loaded, but its entry gave no usable definition, or a chunk failed.                                                                      | Export the definition from `src/mfe.ts` and rebuild. Check the network panel for the failed chunk.                                                     |
+| `load/share-conflict`   | Declared, and never raised.                                                                                                                            | Nothing is shared as a singleton, so nothing conflicts. A container on a copy of its own reaches you, if at all, as a hook reported outside any mount. |
+| `load/timeout`          | The container did not load within the load deadline, 30 seconds unless the shell tunes it.                                                             | Check the network panel for the request that never settled, then retry.                                                                                |
+| `mount/failure`         | Mounting threw, a render failed after mounting, a hook was called in the wrong place, or an action's `execute`, `canExecute` or `needsApproval` threw. | See the two messages below, or fix what the message names.                                                                                             |
+| `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                                                              | Check what the first render waits on, then retry.                                                                                                      |
+| `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                                                              | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.                                                                   |
+| `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                                                             | Check the diagnostics for the cleanup step that did not finish.                                                                                        |
 
 <Callout type="error" title="mount/failure, outside a mount">
 
@@ -125,7 +125,7 @@ operations failed to attach the access token for https://reports.example.test: e
 <no-runtime> failed to render useUser(): expected an MfeProvider above this component, or an enclosing App or Widget mount, received neither. Wrap the shell in <MfeProvider runtime={runtime}> once at boot.
 ```
 
-**Fix.** In a shell, wrap the application once at boot. Inside a container, this usually means a second copy of `@company/mfe-react` on the page.
+**Fix.** In a shell, wrap the application once at boot. Inside a container, this usually means a second copy of `@company/mfe-react` in your container's build. Import the framework from that one package.
 
 </Callout>
 
@@ -189,15 +189,15 @@ Every build message names the file, and most name the line and column.
 
 ## Build diagnostics: a Widget's contract
 
-| What the build expected                                    | Fix                                                                        |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| an `inputSchema` schema, or an `outputSchema` schema       | Add both. Use `z.object({})` when the Widget takes or emits none.          |
-| a schema the build can read without running the module     | Declare the schema as an exported top-level const in this container.       |
-| a schema that does not reach back into the container entry | Move the schema into its own module.                                       |
-| a schema built from imports and top-level declarations     | Declare it at the top level, or move the whole schema into its own module. |
-| a lower-camel-case output name                             | Rename the output.                                                         |
-| output names that map to distinct handler props            | Rename one of them.                                                        |
-| an input name that is not reserved                         | Rename the input. `key`, `ref`, `fallback` and `onX` belong to the host.   |
+| What the build expected                                    | Fix                                                                                 |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| an `inputSchema` schema, or an `outputSchema` schema       | Add both. Use `z.object({})` when the Widget takes or emits none.                   |
+| a schema the build can read without running the module     | Declare the schema as an exported top-level const in this container.                |
+| a schema that does not reach back into the container entry | Move the schema into its own module.                                                |
+| a schema built from imports and top-level declarations     | Declare it at the top level, or move the whole schema into its own module.          |
+| a lower-camel-case output name                             | Rename the output.                                                                  |
+| output names that map to distinct handler props            | Rename one of them.                                                                 |
+| an input name that is not reserved                         | Rename the input. `key`, `ref`, `fallback`, `pending` and `onX` belong to the host. |
 
 ## Build diagnostics: capability routes
 
@@ -210,21 +210,23 @@ Every build message names the file, and most name the line and column.
 | a capability declared by an App                        | Remove the marker. Capabilities are App-only.       |
 | a non-empty `label` string literal                     | Add the text the shell puts in its menu.            |
 | an icon name from the shell set, or `{ src: '<url>' }` | Pass a name or a URL. SVG source is never accepted. |
+| a path whose every parameter is a whole segment        | Mark another route, or drop the marker.             |
 
 ## Build diagnostics: configuration
 
 Every one of these carries the code `config/invalid`.
 
-| What the build expected                                        | Fix                                                              |
-| -------------------------------------------------------------- | ---------------------------------------------------------------- |
-| a default-exported object literal, and a default export at all | Export the object directly from `src/mfe.config.ts`.             |
-| a property assigned an `env(…)` declaration                    | Write each field as `name: env('ENV_VAR', schema)`.              |
-| a lower-camel-case field name                                  | Rename the field. It becomes a property on the generated module. |
-| one field per environment variable                             | Give each field its own variable.                                |
-| an environment variable name written inline                    | Write the name as a literal. It is copied into `.env.example`.   |
-| a schema argument                                              | Pass the schema the value has to satisfy.                        |
-| an options object literal, and `api: true` or `api: false`     | Write the options inline.                                        |
-| a schema the build can read without running it                 | Use a schema the generated JSON Schema can be built from.        |
+| What the build expected                                        | Fix                                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| a default-exported object literal, and a default export at all | Export the object directly from `src/mfe.config.ts`.                      |
+| a property assigned an `env(…)` declaration                    | Write each field as `name: env('ENV_VAR', schema)`.                       |
+| a lower-camel-case field name                                  | Rename the field. It becomes a property on the generated module.          |
+| one field per environment variable                             | Give each field its own variable.                                         |
+| an environment variable name written inline                    | Write the name as a literal. It is copied into `.env.example`.            |
+| a schema argument                                              | Pass the schema the value has to satisfy.                                 |
+| an options object literal, and `api: true` or `api: false`     | Write the options inline.                                                 |
+| a schema the build can read without running it                 | Use a schema the generated JSON Schema can be built from.                 |
+| a URL schema with an absolute http(s) default, for `api: true` | Declare it with `z.url()`. A relative value such as `/api` has no origin. |
 
 ## Build diagnostics: styles, assets and the build itself
 
@@ -236,8 +238,10 @@ Every one of these carries the code `config/invalid`.
 | a routes directory                                                   | Create `src/routes` with a root route and an index route.        |
 | a `package.json` at the container root, holding valid JSON           | Point `pluginMfe({ containerRoot })` at the right directory.     |
 | a host root whose `node_modules` holds at least one shared candidate | Pass `root` the directory holding the host's `package.json`.     |
+| the framework installed, whose exact version names the share scope   | Add `react` to the dependencies and install them.                |
+| a readable file, for the dev server's `.mfe/runtime-config.json`     | Fix the JSON, or delete the file and run `pnpm run generate`.    |
 
-A stylesheet selector that reaches the document fails too. That check belongs to the design system's own plugin, which names the file, the line and the selector.
+A stylesheet selector that reaches the document fails too. That check belongs to the design system's own plugin, or to the framework's fallback in an Angular container, and either names the file, the line and the selector.
 
 ## Why the registry set your entry aside
 
@@ -251,17 +255,19 @@ The shell reads every entry on its own, so one bad entry loses only itself. A re
 | invalid definition id                       | The id is not lower-case letters, digits and single hyphens. | Rename the id and rebuild.              |
 | duplicate definition id                     | Two or more entries used the id. All of them are set aside.  | Rename one definition and rebuild.      |
 
-The React adapter recognises any entry with an `mfe` property, then reads it strictly. A typo fails here rather than being read as another adapter's entry.
+The React adapter recognises any entry whose `mfe.framework` is `"react"`, then reads it strictly. A typo fails here rather than being read as another adapter's entry.
 
-| The adapter requires                       | Fix                                                                           |
-| ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `mfe.contractMajor`, an integer equal to 1 | Rebuild against the shell's framework major, or upgrade the shell.            |
-| a non-empty `id`                           | Set a stable id on the `createApp` or `createWidget` call.                    |
-| a non-empty `manifestUrl`                  | Point the entry at the container's `mf-manifest.json`, or set a dev override. |
-| `kind` of `"app"` or `"widget"`            | Rebuild. The kind comes from which factory you called.                        |
-| no Widget contract on an App               | Drop the contract, or declare the piece as a Widget.                          |
-| no capabilities on a Widget                | Move the capability routes into an App.                                       |
-| a capability object with a label and path  | Rebuild. A capability name this shell does not know is skipped, not refused.  |
+| The adapter requires                       | Fix                                                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `mfe.contractMajor`, an integer equal to 1 | Rebuild against the shell's framework major, or upgrade the shell.                            |
+| a non-empty `id`                           | Set a stable id on the `createApp` or `createWidget` call.                                    |
+| a non-empty `manifestUrl`                  | Point the entry at the container's `mf-manifest.json`. A dev override cannot stand in for it. |
+| a non-empty `container`                    | Rebuild. The container name comes from the build.                                             |
+| `kind` of `"app"` or `"widget"`            | Rebuild. The kind comes from which factory you called.                                        |
+| no Widget contract on an App               | Drop the contract, or declare the piece as a Widget.                                          |
+| no capabilities on a Widget                | Move the capability routes into an App.                                                       |
+| no routes on a Widget                      | Rebuild. A Widget owns no URL, so routes belong to an App.                                    |
+| a capability object with a label and path  | Rebuild. A capability name this shell does not know is skipped, not refused.                  |
 
 <Callout type="error" title="contract/unsupported-major">
 

@@ -3,7 +3,7 @@
 import type { ESLint, Linter } from 'eslint'
 import { builtinRules } from 'eslint/use-at-your-own-risk'
 import tseslint from 'typescript-eslint'
-import { rules as mfeRules } from '../rules/index.ts'
+import { plugin } from '../plugin.ts'
 import type { RestrictedPath, RestrictedPattern } from './restricted-imports.ts'
 
 export const TS_FILES: readonly string[] = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts']
@@ -83,10 +83,8 @@ export function eslintRecommended(files: readonly string[]): Linter.Config {
   return { name: 'mfe/eslint-recommended', files: [...files], rules }
 }
 
-export const mfePlugin: ESLint.Plugin = {
-  meta: { name: '@company/eslint-plugin-mfe', version: '0.1.0' },
-  rules: mfeRules,
-}
+/** The package's own plugin object, the same one its default export is. */
+export const mfePlugin: ESLint.Plugin = plugin
 
 /**
  * Type-aware linting is not optional in either preset: the `no-unsafe-*` family and

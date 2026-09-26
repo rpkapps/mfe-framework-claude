@@ -1,7 +1,8 @@
 /**
  * The seam between the shell's session and a container's generated `#mfe/fetch`, which the
  * federation runtime evaluates with no host in scope. One session serves the whole page,
- * because a per-mount token source would be the bug (§10).
+ * because a per-mount token source would be the bug (§10), and it is kept on the page rather than
+ * in this module: a container may run on a copy of the runtime other than the shell's (§55).
  */
 
 import { createMfeError } from '@company/mfe-core'
@@ -32,18 +33,25 @@ export interface ContainerAuthBinding {
   readonly apiOrigins: Iterable<string | URL>
 }
 
-let installed: ShellAuthOptions | null = null
+const SHELL_AUTH = Symbol.for('@company/mfe.shellAuth')
+
+interface PageAuth {
+  [SHELL_AUTH]?: ShellAuthOptions
+}
+
+const page = globalThis as PageAuth
 
 /** Returns an uninstall, so a replacement never leaves the previous session reachable. */
 export function installShellAuth(options: ShellAuthOptions): () => void {
-  installed = options
+  page[SHELL_AUTH] = options
   return () => {
-    if (installed === options) installed = null
+    if (page[SHELL_AUTH] === options) delete page[SHELL_AUTH]
   }
 }
 
 function requireShellAuth(binding: ContainerAuthBinding): ShellAuthOptions {
-  if (installed !== null) return installed
+  const installed = page[SHELL_AUTH]
+  if (installed !== undefined) return installed
 
   throw createMfeError({
     code: 'config/invalid',

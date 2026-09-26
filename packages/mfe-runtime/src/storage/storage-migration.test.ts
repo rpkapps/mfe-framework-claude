@@ -27,37 +27,22 @@ interface Harness {
 
 let created: MfeStorageStore[] = []
 
-function harness(options: { readonly generation?: string | null } = {}): Harness {
+function harness(): Harness {
   const local = createMemoryStorageArea()
   const reported: Diagnostic[] = []
   const diagnostics = new DiagnosticsHub()
   diagnostics.add(diagnostic => reported.push(diagnostic))
-  const generation = options.generation === undefined ? 'gen-1' : options.generation
   const store = new MfeStorageStore({
     areas: { local, session: createMemoryStorageArea() },
     diagnostics,
-    ...(generation === null ? {} : { sessionGeneration: generation }),
     eventTarget: null,
   })
   created.push(store)
   return { store, local, reported }
 }
 
-function envelope(
-  data: unknown,
-  overrides: {
-    readonly v?: number
-    readonly r?: 'user' | 'browser'
-    readonly g?: string
-  } = {},
-): string {
-  const retention = overrides.r ?? 'user'
-  return JSON.stringify({
-    v: overrides.v ?? 1,
-    r: retention,
-    ...(retention === 'user' ? { g: overrides.g ?? 'gen-1' } : {}),
-    d: data,
-  })
+function envelope(data: unknown, overrides: { readonly v?: number } = {}): string {
+  return JSON.stringify({ v: overrides.v ?? 1, d: data })
 }
 
 function readEnvelope(area: MemoryStorageArea, key: string): StorageEnvelope {
@@ -106,7 +91,6 @@ describe('migration', () => {
       name: 'filters',
       schema: filtersV2,
       version: 2,
-      retention: 'user',
       migrate: migrateFilters,
     })
 
@@ -116,8 +100,6 @@ describe('migration', () => {
     })
     expect(readEnvelope(local, 'acme-orders:filters')).toEqual({
       v: 2,
-      r: 'user',
-      g: 'gen-1',
       d: { status: 'open', page: 1 },
     })
   })
@@ -270,65 +252,6 @@ describe('migration', () => {
 
     expect(() => filters.read()).toThrow(/unversioned record/)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
-  })
-
-  it('never converts a record belonging to another session generation', () => {
-    const { store, local } = harness()
-    const migrate = vi.fn(migrateFilters)
-    local.setItem('acme-orders:filters', envelope('open', { g: 'gen-0' }))
-
-    const filters = store.bind(ORDERS, {
-      name: 'filters',
-      schema: filtersV2,
-      version: 2,
-      retention: 'user',
-      defaultValue: { status: 'all', page: 1 },
-      migrate,
-    })
-
-    expect(migrate).not.toHaveBeenCalled()
-    expect(filters.getSnapshot()).toEqual({ status: 'default', value: { status: 'all', page: 1 } })
-  })
-
-  it('never converts a retired record that outlived a failed delete', () => {
-    const { store, local } = harness()
-    local.setItem('acme-orders:filters', envelope('open'))
-    vi.spyOn(local, 'removeItem').mockImplementation(() => {
-      throw new DOMException('mutation blocked', 'InvalidAccessError')
-    })
-    store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
-    const migrate = vi.fn(migrateFilters)
-
-    const filters = store.bind(ORDERS, {
-      name: 'filters',
-      schema: filtersV2,
-      version: 2,
-      retention: 'user',
-      migrate,
-    })
-
-    expect(migrate).not.toHaveBeenCalled()
-    expect(filters.getSnapshot()).toEqual({ status: 'default', value: null })
-  })
-
-  it('migrates a browser-retained record with no session in force, and keeps it ungenerationed', () => {
-    const { store, local } = harness({ generation: null })
-    local.setItem('acme-orders:filters', envelope('open', { r: 'browser' }))
-
-    const filters = store.bind(ORDERS, {
-      name: 'filters',
-      schema: filtersV2,
-      version: 2,
-      retention: 'browser',
-      migrate: migrateFilters,
-    })
-
-    expect(filters.getSnapshot()).toEqual({ status: 'value', value: { status: 'open', page: 1 } })
-    expect(readEnvelope(local, 'acme-orders:filters')).toEqual({
-      v: 2,
-      r: 'browser',
-      d: { status: 'open', page: 1 },
-    })
   })
 
   it('leaves every unrelated key alone when a migration fails', () => {

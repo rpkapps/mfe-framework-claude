@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  chordFromEvent,
   matchSequence,
   parseShortcut,
   shortcutsOverlap,
@@ -145,6 +146,57 @@ describe('matchSequence', () => {
       kind: 'ambiguous',
       targets: ['go', 'registry'],
     })
+  })
+})
+
+describe('chordFromEvent', () => {
+  function chordOf(init: KeyboardEventInit): PressedChord | null {
+    return chordFromEvent(new KeyboardEvent('keydown', init))
+  }
+
+  it('reads the key a Latin layout types', () => {
+    expect(chordOf({ key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true })).toEqual(
+      press('k', { ctrl: true, shift: true }),
+    )
+    expect(chordOf({ key: ' ', code: 'Space' })).toEqual(press('space'))
+    expect(chordOf({ key: '+', code: 'Equal', shiftKey: true })).toEqual(
+      press('plus', { shift: true }),
+    )
+    expect(chordOf({ key: 'ArrowUp', code: 'ArrowUp' })).toEqual(press('arrowup'))
+  })
+
+  it('reads the physical key where the layout types a letter that is not Latin', () => {
+    expect(chordOf({ key: 'л', code: 'KeyK', ctrlKey: true })).toEqual(press('k', { ctrl: true }))
+    expect(chordOf({ key: 'Л', code: 'KeyK', shiftKey: true })).toEqual(press('k', { shift: true }))
+  })
+
+  it('reads the physical key where Option types another character or a dead key', () => {
+    expect(chordOf({ key: '˚', code: 'KeyK', altKey: true })).toEqual(press('k', { alt: true }))
+    expect(chordOf({ key: 'Dead', code: 'KeyE', altKey: true })).toEqual(press('e', { alt: true }))
+    expect(chordOf({ key: '¡', code: 'Digit1', altKey: true })).toEqual(press('1', { alt: true }))
+    expect(chordOf({ key: '@', code: 'KeyL', altKey: true })).toEqual(press('l', { alt: true }))
+  })
+
+  it('keeps the symbol AltGr types, which Windows reports as Ctrl with Alt', () => {
+    expect(chordOf({ key: '@', code: 'KeyQ', ctrlKey: true, altKey: true })).toEqual(
+      press('@', { ctrl: true, alt: true }),
+    )
+  })
+
+  it('keeps a Latin layout’s own reading of a key that has moved', () => {
+    // Dvorak's k sits where QWERTY has v; the shortcut means the letter, as the user reads it.
+    expect(chordOf({ key: 'k', code: 'KeyV', ctrlKey: true })).toEqual(press('k', { ctrl: true }))
+    expect(chordOf({ key: 'ö', code: 'Semicolon' })).toEqual(press('ö'))
+  })
+
+  it('reads nothing from a keydown that names no key, as autofill sends', () => {
+    expect(chordFromEvent(new Event('keydown') as KeyboardEvent)).toBeNull()
+    expect(chordOf({})).toBeNull()
+  })
+
+  it('reads nothing from a modifier alone or a key an input method is composing', () => {
+    expect(chordOf({ key: 'Control', code: 'ControlLeft', ctrlKey: true })).toBeNull()
+    expect(chordOf({ key: 'Process', code: 'KeyK', isComposing: true })).toBeNull()
   })
 })
 

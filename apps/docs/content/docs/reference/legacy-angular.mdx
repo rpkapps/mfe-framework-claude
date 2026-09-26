@@ -147,7 +147,7 @@ The adapter translates every legacy field into one of two places.
 | `tags`                   | `tags`                | Empty array when absent                                                                                          |
 | `categories`             | `categories`          | Empty array when absent                                                                                          |
 | `externalUrl`            | `externalUrl`         |                                                                                                                  |
-| `routes`                 | `routes`              | Empty array when absent                                                                                          |
+| `routes`                 | `legacyRoutes`        | Empty array when absent. Named apart from the App-relative `routes` a framework build publishes                  |
 | `settings.routes`        | `settingsRoutes`      | Flattened to one array                                                                                           |
 | —                        | `exposeName`          | Always `./single-spa-app`                                                                                        |
 | —                        | `navigationOwnership` | Always `shell`                                                                                                   |
@@ -298,8 +298,8 @@ This adapter is proven against fixtures, and not against the real applications.
 <Callout type="warning">
   The real Asset Tracker and Rigstream applications have never been run against this adapter. Their
   repositories are not available here, so every check below runs against production-equivalent
-  contract fixtures and test doubles. The shell in this repository does not register this adapter
-  yet.
+  contract fixtures and test doubles. The shell in this repository registers this adapter, and
+  mounts no legacy application.
 </Callout>
 
 The tests prove:

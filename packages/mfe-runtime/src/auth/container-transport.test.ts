@@ -119,3 +119,26 @@ describe('createContainerTransport: binding before the shell installed a session
     )
   })
 })
+
+describe('createContainerTransport: one session per page, whatever copy reads it', () => {
+  it('reaches the session the shell installed through its own copy', async () => {
+    const session = installSession()
+    vi.resetModules()
+    const other = await import('./container-transport.ts')
+    expect(other.createContainerTransport).not.toBe(createContainerTransport)
+
+    await other.createContainerTransport(BINDING).fetch('/assets')
+
+    expect(session.calls).toEqual([{ url: `${API}/assets`, authorization: 'Bearer token-1' }])
+  })
+
+  it('leaves a newer session installed when the previous one is uninstalled', async () => {
+    const previous = installShellAuth({ tokens: { getAccessToken: () => Promise.resolve('old') } })
+    const newer = installSession('new')
+
+    previous()
+
+    await createContainerTransport(BINDING).fetch('/assets')
+    expect(newer.calls[0]?.authorization).toBe('Bearer new')
+  })
+})

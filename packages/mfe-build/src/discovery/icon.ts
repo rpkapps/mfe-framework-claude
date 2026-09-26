@@ -130,7 +130,10 @@ function iconModule(file: string): IconModule | null {
  * The parsed icon, or `null` when the identifier does not lead to one. The caller turns `null`
  * into a build error, because it holds the source position the developer needs.
  */
-export function readIconData(entryFile: string, binding: ImportedBinding): IconData | null {
+export function readIconData(
+  entryFile: string,
+  binding: Pick<ImportedBinding, 'imported' | 'moduleSpecifier'>,
+): IconData | null {
   const file = resolveModule(entryFile, binding.moduleSpecifier)
   if (file === null) return null
   if (file.endsWith('.svg')) return readSvgFile(file)
@@ -369,11 +372,17 @@ interface OpenElement {
   readonly children: IconNode[]
 }
 
-/** A stack rather than a flat sweep, so a `<g>` keeps the shapes it wraps. */
+/**
+ * A stack rather than a flat sweep, so a `<g>` keeps the shapes it wraps. An element that is not a
+ * shape is dropped with everything inside it: the `<rect fill="white">` in an exported icon's
+ * `<clipPath>` only masks, and drawn on its own it would paint over the icon.
+ */
 function readSvgChildren(body: string): readonly IconNode[] {
   const pattern = /<\s*(\/)?\s*([a-zA-Z][\w-]*)((?:\s+[^<>]*?)?)(\/)?\s*>/g
   const roots: IconNode[] = []
   const open: OpenElement[] = []
+  // How deep the reader is inside an element it drops; zero outside one.
+  let dropping = 0
 
   const push = (child: IconNode): void => {
     const parent = open[open.length - 1]
@@ -381,10 +390,29 @@ function readSvgChildren(body: string): readonly IconNode[] {
     else parent.children.push(child)
   }
 
+  // Closes every element down to the innermost `tag`, so one left unclosed inside it is kept, and
+  // a closing tag nothing opened closes nothing.
+  const close = (tag: string): void => {
+    if (!open.some(element => element.tag === tag)) return
+    for (let finished = open.pop(); finished !== undefined; finished = open.pop()) {
+      push(
+        finished.children.length === 0
+          ? [finished.tag, finished.attributes]
+          : [finished.tag, finished.attributes, finished.children],
+      )
+      if (finished.tag === tag) return
+    }
+  }
+
   for (let match = pattern.exec(body); match !== null; match = pattern.exec(body)) {
     const closing = match[1] !== undefined
     const tag = (match[2] ?? '').toLowerCase()
     const selfClosing = match[4] !== undefined
+
+    if (dropping > 0) {
+      if (!selfClosing) dropping += closing ? -1 : 1
+      continue
+    }
 
     if (tag === 'svg') {
       if (closing) break
@@ -392,17 +420,14 @@ function readSvgChildren(body: string): readonly IconNode[] {
     }
 
     if (closing) {
-      const finished = open.pop()
-      if (finished === undefined || finished.tag !== tag) continue
-      push(
-        finished.children.length === 0
-          ? [finished.tag, finished.attributes]
-          : [finished.tag, finished.attributes, finished.children],
-      )
+      close(tag)
       continue
     }
 
-    if (!ELEMENT_TAGS.has(tag)) continue
+    if (!ELEMENT_TAGS.has(tag)) {
+      if (!selfClosing) dropping = 1
+      continue
+    }
 
     const attributes: Record<string, string> = {}
     for (const [name, value] of Object.entries(readSvgAttributes(match[3] ?? ''))) {

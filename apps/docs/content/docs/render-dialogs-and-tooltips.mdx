@@ -38,7 +38,7 @@ and context menu all place themselves the same way.
 <Step>
 ### 3. Do not portal to the body yourself
 
-```tsx title="examples/lab/src/routes/unsaved.tsx"
+```tsx
 // Not this: it leaves your part of the page and loses your stylesheet.
 createPortal(<Confirm />, document.body)
 ```

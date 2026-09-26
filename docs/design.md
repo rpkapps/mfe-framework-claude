@@ -15,7 +15,7 @@ This page is for reading away from the keyboard. It answers five questions, one 
 **In words.** Titled `system-at-rest`, under "What is deployed where, before anyone opens the page." Eleven boxes, read left to right.
 
 - **The shell origin** (yellow, dev :3000) holds `index.html` and a violet `registry.json`, "one record per definition".
-- An arrow **manifestUrl** reaches **Three container origins** (blue), holding `operations` (an App, :3001), `alert-panel` (one Widget, :3003) and `insights` (four Widgets, :3004).
+- An arrow **manifestUrl** reaches **Three container origins** (blue), holding `operations` (an App, :3001), `alert-panel` (one Widget, :3003) and `insights` (three Widgets, :3004).
 - An arrow **publishes** reaches **Every container publishes**, holding `mf-manifest.json`, `remoteEntry.js`, `styles.css` and `runtime-config.json`.
 - An arrow **names the API** drops from `runtime-config.json` to **The API** (orange, dev :3010), holding `GET /api/assets`.
 - **The browser page** (grey) sits bottom left, "one document, from the shell origin". An arrow **served from** points up to the shell origin, and an arrow **fetched into** points from the published files down to it. A legend names the five colours.
@@ -24,7 +24,7 @@ A **micro-frontend** is one piece of a single web page, built, versioned and dep
 
 The **shell** is the application that serves that page. It owns the chrome, the theme, the session and the routes above a boundary, and it mounts Apps and Widgets into itself. It is the only application on the page with no registry entry.
 
-The **registry** is the JSON array the shell fetches at boot, one entry per definition. An entry carries the id, the kind, the framework it was built with, the manifest URL, and the federation container and expose path. It also lists the share scopes its container's shared packages live in. The rest is optional: a version, and either a Widget's published contract or an App's capabilities. Each entry is generated from the container's own build, because a hand-written second copy drifts.
+The **registry** is the JSON array the shell fetches at boot, one entry per definition. An entry carries the id, the kind, the framework it was built with, the manifest URL, and the federation container and expose path. It also lists the share scopes its container's shared packages live in. The rest is optional: a version, the build it came from, a title, description, tags and icon, and either a Widget's published contract or an App's capabilities and routes. Each entry is generated from the container's own build, because a hand-written second copy drifts.
 
 A **container** is one deployable, with its own build, version and origin. It holds one `src/mfe.ts`, exporting at most one App and any number of Widgets. It publishes `remoteEntry.js`, the file that lets a host load code out of another build, described by `mf-manifest.json`. Its scoped stylesheet and its registry entry sit beside them.
 
@@ -130,16 +130,18 @@ The legacy adapter is built and tested against production-equivalent fixtures an
 
 ![One mounted App ringed by six boundaries: URL, styles, storage, network, errors, framework share scopes.](./diagrams/isolation-boundaries.svg)
 
+The boundaries keep containers that mean well from colliding by accident. They are not a security model: every container runs in the shell's document with the shell's privileges, and is trusted because the company builds it ([decision 54](/docs/how-it-works/decisions#54-every-container-is-trusted-with-the-shells-privileges-the-boundaries-prevent-accidents)).
+
 **In words.** Titled `isolation-boundaries`, under "Six boundaries between one mounted container and the page." Seven boxes.
 
 **One mount** ("one token, one basePath, one scope root") sits in the middle. One dashed arrow points out to each of the six boxes around it.
 
 - **URL** — "basePath into createRouter; boundary history".
 - **Styles** — "@scope per definition; the shell owns preflight".
-- **Storage** — "`<definitionId>:<name>`; retention decides who reads".
+- **Storage** — "`<definitionId>:<name>`; kept for the browser profile".
 - **Network** — "#mfe/fetch; the token only to declared origins".
 - **Errors** — "one MfeError code, into the DiagnosticsHub".
-- **Framework share scopes** — "one copy per framework version; loaded-first".
+- **Framework share scopes** — "a scope per framework version; loaded-first".
 
 ### URL
 
@@ -153,7 +155,7 @@ PrimeNG is outside this boundary. It writes its components' rules into unscoped 
 
 ### Storage
 
-The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back, rather than how long it lives: `'browser'` is the default and is never cleared, where `'user'` is cleared when the session generation changes. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
+The key is never scoped by mount token, so two mounts of one definition read the same record. A record belongs to the browser profile, not to the person signed in: the framework never clears it, so a sign-out keeps it and the next user reads it, and nothing personal belongs in one ([decision 56](/docs/how-it-works/decisions#56-a-stored-record-belongs-to-the-browser-and-nothing-clears-it-at-sign-out)). `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
 
 ### Network
 
@@ -165,11 +167,13 @@ The message is composed to a fixed shape: `<id>[@<version>] failed to <operation
 
 ### Framework share scopes
 
-Each framework shares in a Module Federation share scope named after its exact installed version, such as `react@19.3.0` or `angular@19.2.25`. Inside a scope, every framework-bound package is one strict singleton: React, `react-dom`, `sonner`, the adapter and the TanStack packages for React, the Angular packages, RxJS and the adapter for Angular. Containers on the same version download one copy. A container on another version brings its own complete set, so several React or Angular versions can share one page. `@company/mfe-core` and `@company/mfe-runtime` are page singletons in `default`, whatever framework a container uses.
+Each framework shares in a Module Federation share scope named after its exact installed version, such as `react@19.3.0` or `angular@19.2.25`. Inside a scope go the framework-bound packages: React, `react-dom`, `sonner` and the TanStack packages for React, the Angular packages and RxJS for Angular. The adapter itself is bundled into each container, so the providers it renders bind to the same copies the author's code imports. A container on another version brings its own complete set, so several React or Angular versions can share one page. `@company/mfe-core` and `@company/mfe-runtime` are shared in `default`, whatever framework a container uses.
 
-The registry entry lists a container's scopes as `shareScopes`, and the loader registers the remote with exactly those. A second copy inside one scope is the failure this boundary prevents. Both copies look correct on their own, and every framework hook inside the container then reports being rendered outside any mount. A container may add to its framework's candidates and cannot remove one ([decision 33](/docs/how-it-works/decisions#33-every-host-mounts-every-definition-through-one-path-and-each-framework-version-shares-in-a-scope-of-its-own)).
+Nothing is a singleton, because containers are released from repositories of their own ([decision 55](/docs/how-it-works/decisions#55-nothing-is-shared-as-a-singleton-because-containers-are-released-on-their-own)). A container takes the loaded copy its range accepts, so containers whose ranges agree download one copy, and one whose range nothing loaded satisfies loads its own instead of failing. Inside a React scope every container provides the same React, so React itself is always one copy. The core and runtime keep nothing that needs them to be the only copy on the page: the session, the mount-token sequence and the active span live on the page under registered symbols, and an error is recognised by one.
 
-Three costs follow. A container on another React version has its own `sonner`, so its toasts never reach the shell's `Toaster`. `strictVersion` inside a scope still rejects a minor mismatch on a shared package. And the shell no longer shares `recharts`, which it does not install. PrimeNG is never shared at all. The host resolves shares loaded-first, so an unreachable manifest cannot take the page down ([decision 30](/docs/how-it-works/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)).
+The registry entry lists a container's scopes as `shareScopes`, and the loader registers the remote with exactly those. A container may add to its framework's candidates and cannot remove one ([decision 33](/docs/how-it-works/decisions#33-every-host-mounts-every-definition-through-one-path-and-each-framework-version-shares-in-a-scope-of-its-own)).
+
+Three costs follow. A container on its own copy of `sonner`, from another React version or a range the shell's copy misses, queues toasts the shell's `Toaster` never reads. Every container downloads its own adapter. And a container on a newer runtime than the shell's calls the shell's runtime object, so a member the shell's version lacks fails when it is called. PrimeNG is never shared at all. The host resolves shares loaded-first, so an unreachable manifest cannot take the page down ([decision 30](/docs/how-it-works/decisions#30-a-host-resolves-shares-against-the-scope-it-has-not-against-every-remote-it-knows)).
 
 ## Where to read next
 

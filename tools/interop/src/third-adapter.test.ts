@@ -355,7 +355,6 @@ function createPage(initialEntries: readonly string[] = ['/']): {
     shellState: { user: { id: 'test-user', name: 'Test User' }, groups: [], theme: 'light' },
     telemetryProvider: createRecordingTelemetryProvider(),
     navigationBridge: createMemoryNavigationBridge(initialEntries),
-    sessionGeneration: 'third-adapter',
   })
   onTestFinished(() => {
     handle.dispose()

@@ -14,6 +14,7 @@ import { envExampleFile, gitignoreFile, runtimeConfigSchemaFile } from './artifa
 import {
   banner,
   generatedPath,
+  inventoryFile,
   joinBlocks,
   quote,
   relativeSpecifier,
@@ -94,6 +95,7 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
     defaults,
     runtimeConfigScriptFile(context),
   ].filter((file): file is GeneratedFile => file !== null)
+  files.push(inventoryFile(resolved.generatedDir, files))
 
   return {
     options: resolved,
@@ -116,6 +118,7 @@ function hostConfigModule(context: HostConfigContext): GeneratedFile {
     ...(field.schema.defaultValue === undefined ? {} : { defaultValue: field.schema.defaultValue }),
     ...(field.schema.transforms === undefined ? {} : { transforms: field.schema.transforms }),
     ...(field.schema.coerce === undefined ? {} : { coerce: field.schema.coerce }),
+    ...(field.api ? { api: true } : {}),
   }))
 
   return {

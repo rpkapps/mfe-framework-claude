@@ -52,8 +52,11 @@ async function fetchRegistryEntries(): Promise<readonly unknown[]> {
   }
 }
 
-/** Reading `localStorage` throws outright when storage is blocked for the origin. */
-function overrideStorage(): Pick<Storage, 'getItem'> | undefined {
+/**
+ * Reading `localStorage` throws outright when storage is blocked for the origin. The whole store,
+ * so the runtime can clear overrides a different user left in this tab.
+ */
+function overrideStorage(): Storage | undefined {
   try {
     return window.localStorage
   } catch {

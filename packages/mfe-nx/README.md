@@ -177,27 +177,34 @@ plugin and replaces nothing an author wrote. The container is the Nx project bei
 
 `src/federation/sharing.ts` holds the whole policy, in two groups that go in two share scopes:
 
-- **Framework**, in the `angular@<installed @angular/core>` scope, such as `angular@19.2.25` —
-  singleton and `strictVersion`: `@angular/core`, `@angular/common` (and the `@angular/common/`
+- **Framework**, in the `angular@<installed @angular/core>` scope, such as `angular@19.2.25`:
+  `@angular/core`, `@angular/common` (and the `@angular/common/`
   prefix, for `@angular/common/http`), `@angular/platform-browser`, `@angular/router`,
-  `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix), `rxjs` (and its prefix)
-  and `@company/mfe-angular`. Containers on the same Angular version share one copy; a container on
-  another version brings its own set, so two Angular versions can share one page.
-- **Page**, in `default` — singleton and `strictVersion`: `@company/mfe-core` and
-  `@company/mfe-runtime`, one copy for the whole page whatever framework a container renders with.
+  `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix) and `rxjs` (and its
+  prefix). A container on another Angular version brings its own set, so two Angular versions can
+  share one page.
+- **Page**, in `default`: `@company/mfe-core` and `@company/mfe-runtime`, shared whatever framework
+  a container renders with.
+- **Bundled**: `@company/mfe-angular`. It compares the router's classes and tokens and provides the
+  HTTP interceptor, so it imports Angular through the container's own shares, as the author's code
+  does.
 - **Never shared**: `primeng`, `@primeng/themes`, `@primeuix/styled`, `@primeuix/utils`. Their theme
   engine keeps page-wide module state; `withMfe({ shared })` refuses them.
 
-A package `withMfe({ shared })` adds joins the Angular scope as a singleton; an addition never
-removes, relaxes or re-scopes a candidate. The registry entry lists the scopes as `shareScopes`
+Nothing is a singleton, because containers are released from repositories of their own: every
+entry is `singleton: false, strictVersion: false`. A container takes the loaded copy its range
+accepts, so containers whose ranges agree share one copy, and one whose range nothing loaded
+satisfies loads its own instead of failing.
+
+A package `withMfe({ shared })` adds joins the Angular scope; an addition never removes or
+re-scopes a candidate. The registry entry lists the scopes as `shareScopes`
 (`["default", "angular@19.2.25"]`), and the shell registers the container with exactly those.
 
-A container shares a candidate it depends on. The page group is the exception: a React shell
-provides the neutral packages but never the Angular adapter, so the first Angular container on a
-page provides the adapter itself, and the adapter's own imports resolve in that container's build.
-The build therefore shares the page singletons the installed adapter depends on, at the ranges the
-adapter declares, although the container lists neither — otherwise every Angular mount would run
-against a second copy of the core.
+A container shares a candidate it depends on. The page group is the exception: a container depends
+on the adapter, not on the neutral packages the adapter imports. The build therefore shares the
+page-wide packages the installed adapter depends on, at the ranges the adapter declares, although
+the container lists neither — otherwise every Angular container would download a core of its own
+even beside one its range accepts.
 
 ## Module format
 
@@ -209,7 +216,9 @@ Nx `require()`s generators and executors, and `@nx/angular:webpack-browser` / `:
 
 `@company/mfe-build` is an ES module; this package reaches it with `require()`, which Node loads
 natively from 20.19 and 22.12 (`require(esm)`, valid because its module graph has no top-level
-await). `withMfe()` defers even that until the builder calls the function it returns: that
+await). Both packages declare it as `"engines": { "node": "^20.19.0 || >=22.12.0" }`, so a package
+manager warns on an older Node at install, rather than Nx failing on its first `require()` of the
+build. `withMfe()` defers even that until the builder calls the function it returns: that
 transpiler is still registered while the config file itself is being required, and it rewrites any
 linked package the file loads — including `@company/mfe-build`'s ES modules, which it breaks. By
 the time the function runs, the transpiler is unregistered.
@@ -231,7 +240,8 @@ the emitted layout keeps the `src/` segment `generators.json` and `executors.jso
 - **TypeScript 5.8.x** — Angular 19.2's compiler rejects 5.9 and later.
 - **PrimeNG 19.1.4**, with no theme package: the host declares its design tokens. Every Angular
   container on a page uses the same version.
-- **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**.
+- **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**, the `engines` range of this package and
+  of the framework packages it installs.
 - **`@nx/devkit`**: this package's `peerDependencies` declare `>=20.0.0 <23.0.0`, written literally
   rather than as a repository `catalog:` entry, because a consumer workspace's Nx version is
   unrelated to this repository's toolchain. The `catalog:` pins of `@nx/devkit`, `nx`, `webpack`,

@@ -5,7 +5,7 @@ import { Button } from '@tecton/react/components/button'
 import { Kbd } from '@tecton/react/components/kbd'
 import { Switch } from '@tecton/react/components/switch'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@tecton/react/components/field'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
 
 import { EventLog, LabPage, LabSection, Tags } from '../lab-page.tsx'
@@ -22,11 +22,14 @@ function Actions(): ReactNode {
   const id = useId()
   const user = useUser()
   const groups = useGroups()
-  const [log, setLog] = useState<readonly { at: string; text: string }[]>([])
+  const [log, setLog] = useState<readonly { id: number; at: string; text: string }[]>([])
+  const lastEntry = useRef(0)
   const [armed, setArmed] = useState(true)
 
   const record = (text: string): void => {
-    setLog(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
+    lastEntry.current += 1
+    const entry = { id: lastEntry.current, at: new Date().toLocaleTimeString(), text }
+    setLog(current => [entry, ...current].slice(0, 8))
   }
 
   // Registration is a hook, so leaving this route takes the action out of the shell's palette.

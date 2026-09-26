@@ -79,6 +79,26 @@ describe('render_a2ui', () => {
     expect(typeof followUp === 'function' && followUp({ status: 'rendered' })).toBe(false)
   })
 
+  it('refuses a surface that would draw more components than a surface may', async () => {
+    const surfaces = new A2uiSurfaces()
+    const tool = renderA2uiTool(surfaces)
+    // Thirteen components, each naming the next twice, that would draw 2^13 - 1.
+    const components = Array.from({ length: 12 }, (_, level) => ({
+      id: level === 0 ? 'root' : `l${String(level)}`,
+      component: 'Column',
+      children: [`l${String(level + 1)}`, `l${String(level + 1)}`],
+    }))
+    components.push({ id: 'l12', component: 'Column', children: [] })
+
+    const result: unknown = await tool.execute({ surfaceId: 'fan', components }, call())
+
+    expect(result).toMatchObject({
+      status: 'invalid',
+      error: { code: 'VALIDATION_FAILED', surfaceId: 'fan', path: '/components' },
+    })
+    expect(surfaces.getSnapshot().size).toBe(0)
+  })
+
   it('takes a user’s input into the data model at once', async () => {
     const surfaces = new A2uiSurfaces()
     await renderA2uiTool(surfaces).execute(form, call())

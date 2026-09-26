@@ -8,11 +8,11 @@ Two commands belong to a container: the scaffold that creates one, and the gener
 ## pnpm create @company/mfe
 
 ```sh
-pnpm create @company/mfe operations --id operations
-pnpm create @company/mfe alert-panel --id alert-panel --template widget
+pnpm create @company/mfe examples/operations --id operations
+pnpm create @company/mfe examples/alert-panel --id alert-panel --template widget
 ```
 
-Creates a container in the directory you name.
+Creates a container in the directory you name. The directory must be inside one of the workspace's package globs, such as `examples/<name>`: the container extends the repository's `tsconfig.base.json` and takes its dependencies through `workspace:` and `catalog:`.
 
 | Flag                | Value             | Default                             |
 | ------------------- | ----------------- | ----------------------------------- |
@@ -32,10 +32,11 @@ mfe-generate --root ../lab # or name the container
 
 Writes what the build would generate for one container: the `#mfe/*` modules, the registry entry, the runtime configuration schema, `.env.example`, and an App's route tree. It runs on a fresh clone, so `#mfe/*` resolves before anything is built. It also reports the findings the build would report, and fails on them.
 
-| Flag                 | Value                                                             |
-| -------------------- | ----------------------------------------------------------------- |
-| `--root <directory>` | the container to generate for. Defaults to the working directory. |
-| `--help`             | prints the usage                                                  |
+| Flag                 | Value                                                                          |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `--root <directory>` | the container to generate for. Defaults to the working directory.              |
+| `--host`             | generates a host's runtime configuration from its `src/mfe.config.ts` instead. |
+| `--help`             | prints the usage                                                               |
 
 Each container's own `generate` script calls it, and its `dev`, `build`, `typecheck` and `test` scripts run `generate` first.
 
@@ -57,14 +58,14 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 
 ## Checking your work
 
-| Command           | What it runs                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| `pnpm check`      | `generate`, `format:check`, `lint`, `typecheck`, `boundaries`, `test`, in that order. |
-| `pnpm lint`       | ESLint over the workspace. `pnpm lint:fix` applies what is fixable.                   |
-| `pnpm typecheck`  | `tsc` in every package.                                                               |
-| `pnpm test`       | Vitest once. `pnpm test:watch` and `pnpm test:coverage` are the other two.            |
-| `pnpm format`     | Prettier over the workspace. `pnpm format:check` only reports.                        |
-| `pnpm boundaries` | Checks the package import graph.                                                      |
+| Command           | What it runs                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| `pnpm check`      | `build`, `generate`, `format:check`, `lint`, `typecheck`, `boundaries`, `test`, in that order. |
+| `pnpm lint`       | ESLint over the workspace. `pnpm lint:fix` applies what is fixable.                            |
+| `pnpm typecheck`  | `tsc` in every package.                                                                        |
+| `pnpm test`       | Vitest once. `pnpm test:watch` and `pnpm test:coverage` are the other two.                     |
+| `pnpm format`     | Prettier over the workspace. `pnpm format:check` only reports.                                 |
+| `pnpm boundaries` | Checks the package import graph.                                                               |
 
 ## Building and publishing
 
@@ -88,6 +89,9 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 | `3003` | `examples/alert-panel` |
 | `3004` | `examples/insights`    |
 | `3005` | `examples/lab`         |
+| `3006` | `examples/canvas-01`   |
+| `3007` | `examples/fieldwork`   |
+| `3008` | `examples/loaders`     |
 | `3010` | the development API    |
 
 Each container's port comes from the `mfe.port` field in its own `package.json`. The scaffold sets `3101` for an App and `3103` for a Widget, so a new container does not collide with the examples.

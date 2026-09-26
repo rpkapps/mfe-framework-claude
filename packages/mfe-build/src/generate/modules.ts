@@ -3,9 +3,13 @@
 import { defaultExposePath, FRAMEWORK_CONTRACT_MAJOR } from '@company/mfe-core'
 
 import type { ConfigSource } from '../config/config-source.ts'
-import { summarizeSchema } from '../config/zod-static.ts'
+import { summarizeSchema, type StaticSchema } from '../config/zod-static.ts'
 import type { DiscoveredDefinition, DiscoveryResult } from '../discovery/definitions.ts'
-import type { ContractImport, WidgetContractSource } from '../discovery/widget-contract.ts'
+import type {
+  ContractImport,
+  ContractImportName,
+  WidgetContractSource,
+} from '../discovery/widget-contract.ts'
 import type { ResolvedOptions } from '../options.ts'
 import type { ContainerProfile } from '../profile.ts'
 import {
@@ -54,7 +58,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
     field =>
       `  { field: ${quote(field.field)}, envVar: ${quote(field.envVar)}, expected: ${quote(
         summarizeSchema(field.schema),
-      )} },`,
+      )}${field.api ? ', api: true' : ''} },`,
   )
   const fieldUnion =
     source.fields.length === 0
@@ -97,6 +101,7 @@ export function configModule(context: GenerateContext): GeneratedFile | null {
         `  readonly field: ${fieldUnion}`,
         '  readonly envVar: string',
         '  readonly expected: string',
+        '  readonly api?: true',
         '}',
         '',
         'const FIELDS: readonly FieldSpec[] = [',
@@ -280,10 +285,31 @@ const CONFIG_VALIDATE = [
   "        `Set ${spec.envVar} in the deployment that writes this container's runtime configuration, then reload the page.`,",
   '      )',
   '    }',
+  '    if (spec.api === true && result.data !== undefined && !isHttpUrl(result.data)) {',
+  '      fail(',
+  "        'config/invalid',",
+  '        `validate ${spec.field}`,',
+  "        'an absolute http(s) URL, because it is declared with { api: true }',",
+  '        JSON.stringify(result.data),',
+  '        `Set ${spec.envVar} to the full URL of the API, scheme included, then reload the page. Only an http(s) origin can be matched against a request.`,',
+  '      )',
+  '    }',
   '    parsed[spec.field] = result.data',
   '  }',
   '',
   '  return Object.freeze(parsed) as MfeConfig',
+  '}',
+  '',
+  "// Zod's URL schema also accepts a mailto: or a file: URL, neither of which has an",
+  '// origin a request can be matched against.',
+  'function isHttpUrl(value: unknown): boolean {',
+  "  if (typeof value !== 'string') return false",
+  '  try {',
+  '    const { protocol } = new URL(value)',
+  "    return protocol === 'http:' || protocol === 'https:'",
+  '  } catch {',
+  '    return false',
+  '  }',
   '}',
 ].join('\n')
 
@@ -295,10 +321,28 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
   const apiFields = (context.configSource?.fields ?? []).filter(field => field.api)
   const baseField = apiFields[0]
 
+  // `#mfe/config` has already checked each value is an absolute http(s) URL; an optional one the
+  // deployment left unset declares no origin and no base.
   const origins =
     apiFields.length === 0
       ? '[]'
-      : ['[', ...apiFields.map(field => `  new URL(config.${field.field}).origin,`), ']'].join('\n')
+      : [
+          '[',
+          ...apiFields.map(({ field, schema }) =>
+            mayBeUnset(schema)
+              ? `  ...(config.${field} === undefined ? [] : [new URL(config.${field}).origin]),`
+              : `  new URL(config.${field}).origin,`,
+          ),
+          ']',
+        ].join('\n')
+  const base =
+    baseField === undefined
+      ? []
+      : mayBeUnset(baseField.schema)
+        ? [
+            `  ...(config.${baseField.field} === undefined ? {} : { apiBaseUrl: config.${baseField.field} }),`,
+          ]
+        : [`  apiBaseUrl: config.${baseField.field},`]
 
   return {
     path: generatedPath(context.options.generatedDir, 'fetch.ts'),
@@ -320,7 +364,7 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
         ' */',
         'const transport = createContainerTransport({',
         `  id: ${quote(containerId(context))},`,
-        ...(baseField === undefined ? [] : [`  apiBaseUrl: config.${baseField.field},`]),
+        ...base,
         '  apiOrigins,',
         '})',
         '',
@@ -328,6 +372,11 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
       ].join('\n'),
     ]),
   }
+}
+
+/** A field with no default the deployment may omit, which then reads as `undefined`. */
+function mayBeUnset(schema: StaticSchema): boolean {
+  return schema.optional && !schema.hasDefault
 }
 
 export function metaModule(context: GenerateContext, buildHash: string): GeneratedFile {
@@ -462,13 +511,8 @@ function widgetContractModule(
     left.module < right.module ? -1 : 1,
   )) {
     const specifier = entry.isFile ? relativeSpecifier(file, entry.module) : entry.module
-    const names = [...entry.names]
-      .sort((left, right) => (left.local < right.local ? -1 : 1))
-      .map(name =>
-        name.imported === name.local ? name.local : `${name.imported} as ${name.local}`,
-      )
     for (const name of entry.names) boundNames.add(name.local)
-    importLines.push(`import { ${names.join(', ')} } from ${quote(specifier)}`)
+    importLines.push(...importStatements(specifier, entry.names))
   }
 
   const schemaLines: string[] = []
@@ -522,7 +566,34 @@ function widgetContractModule(
   }
 }
 
-/** A type-only import erases completely, which keeps the generated module side-effect free. */
+/**
+ * The statements binding `names` from one module, each in the form the entry imported it: a
+ * namespace import cannot share a statement with named ones, so it gets one of its own.
+ */
+function importStatements(specifier: string, names: readonly ContractImportName[]): string[] {
+  const sorted = [...names].sort((left, right) => (left.local < right.local ? -1 : 1))
+  const defaultName = sorted.find(name => name.kind === 'default')
+  const named = sorted
+    .filter(name => name.kind !== 'namespace' && name !== defaultName)
+    .map(name => (name.imported === name.local ? name.local : `${name.imported} as ${name.local}`))
+
+  const clause = [
+    ...(defaultName === undefined ? [] : [defaultName.local]),
+    ...(named.length === 0 ? [] : [`{ ${named.join(', ')} }`]),
+  ]
+  const namespaces = sorted
+    .filter(name => name.kind === 'namespace')
+    .map(name => `import * as ${name.local} from ${quote(specifier)}`)
+
+  if (clause.length === 0) return namespaces
+  return [`import ${clause.join(', ')} from ${quote(specifier)}`, ...namespaces]
+}
+
+/**
+ * A type-only import erases completely, which keeps the generated module side-effect free. Zod's
+ * namespace and its default export are the same object, so an entry that imported either already
+ * binds a name `.infer` can be read from.
+ */
 function zodBinding(
   imports: readonly ContractImport[],
   boundNames: ReadonlySet<string>,
@@ -530,7 +601,9 @@ function zodBinding(
   for (const entry of imports) {
     if (entry.module !== 'zod') continue
     for (const name of entry.names) {
-      if (name.imported === 'z') return { local: name.local, importLine: null }
+      if (name.kind !== 'named' || name.imported === 'z') {
+        return { local: name.local, importLine: null }
+      }
     }
   }
 

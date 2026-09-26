@@ -26,10 +26,16 @@ import {
   createBrowserNavigationBridge,
   type BoundaryNavigator,
 } from '../navigation/boundary-navigator.ts'
-import { findConflictingContainerOverrides, readDevOverrides } from '../overrides/dev-overrides.ts'
+import {
+  discardDevOverrides,
+  findConflictingContainerOverrides,
+  findUnregisteredOverrides,
+  readDevOverrides,
+  type OverrideReadableStorage,
+} from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import { establishSessionGeneration, mintSessionGeneration } from '../storage/session-generation.ts'
+import { recordSessionIdentity } from '../storage/session-identity.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
@@ -84,12 +90,16 @@ export interface CreateMfeRuntimeOptions {
    * telemetry.
    */
   readonly auditAction?: ActionAuditSink
-  /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
-  readonly sessionGeneration?: string
-  /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
-  readonly nextSessionGeneration?: () => string
-  /** Where boot-time developer URL overrides are read from. */
-  readonly overrideStorage?: Pick<Storage, 'getItem'>
+  /**
+   * Where boot-time developer URL overrides are read from; with `removeItem`, they are also
+   * cleared when a different user signs in to the tab.
+   */
+  readonly overrideStorage?: OverrideReadableStorage
+  /**
+   * Origins besides loopback that an override may point at, each as `URL.origin` prints it. An
+   * override anywhere else is rejected with a warning.
+   */
+  readonly overrideOrigins?: readonly string[]
 }
 
 export interface MfeRuntimeHandle {
@@ -99,8 +109,13 @@ export interface MfeRuntimeHandle {
   dispose(): void
 }
 
-/** A page with nobody signed in still fences its own session-retained writes. */
+/** A page with nobody signed in is still somebody, whom the next sign-in is compared with. */
 const ANONYMOUS_IDENTITY = '@anonymous'
+
+/** Identity is opaque and compared for equality, so an anonymous page still has one. */
+function identityOf(state: ShellState): string {
+  return state.user?.id ?? ANONYMOUS_IDENTITY
+}
 
 /** This map only exists to find a conflict, never to load anything. */
 function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<string, string> {
@@ -121,8 +136,26 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
+  const shellState = new ShellStateStore(options.shellState)
+  const storage = new MfeStorageStore({ diagnostics })
+  const { previousIdentity } = recordSessionIdentity(storage, identityOf(shellState.getSnapshot()))
+  // A sign-in within the page is recorded too, so the next reload compares against it.
+  const stopRecordingIdentity = shellState.observeTransitions(change => {
+    if (change.transitions.some(transition => transition.kind === 'identity')) {
+      recordSessionIdentity(storage, identityOf(change.next))
+    }
+  })
+
   // Read before anything is registered, so an override applies the first time an entry loads.
-  const overrides = readDevOverrides(options.overrideStorage)
+  // Another user's overrides are never applied: they point the page at code chosen by somebody
+  // else.
+  const overrides =
+    previousIdentity === null
+      ? readDevOverrides(
+          options.overrideStorage,
+          withoutUndefined({ allowedOrigins: options.overrideOrigins }),
+        )
+      : discardDevOverrides(options.overrideStorage)
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
   const registry: Registry = readRegistry(options.registryEntries, {
@@ -139,20 +172,16 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     diagnostics.report(error, { severity: 'warning' })
   }
 
-  reportRejectedEntries(registry, diagnostics)
-
-  const shellState = new ShellStateStore(options.shellState)
-  const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
-  const storage = new MfeStorageStore({
-    diagnostics,
-    ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
-  })
-  if (options.sessionGeneration === undefined) {
-    // Identity is opaque and compared for equality, so an anonymous page still gets one.
-    establishSessionGeneration(storage, shellState.getUser()?.id ?? ANONYMOUS_IDENTITY, {
-      mint: nextSessionGeneration,
-    })
+  // A rejected entry is reported on its own, so only an id the registry never listed is.
+  const listedIds = new Set([
+    ...registry.entries.keys(),
+    ...registry.rejected.map(rejected => rejected.id),
+  ])
+  for (const error of findUnregisteredOverrides(overrides.overrides, listedIds)) {
+    diagnostics.report(error, { severity: 'warning' })
   }
+
+  reportRejectedEntries(registry, diagnostics)
 
   const assembled = assembleRuntime({
     registry,
@@ -167,13 +196,13 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     notifyActionDenial: options.notifyActionDenial,
     actionApprovalPolicy: options.actionApprovalPolicy,
     auditAction: options.auditAction,
-    nextSessionGeneration,
   })
 
   return {
     runtime: assembled.runtime,
     activeOverrides: overrides.overrides,
     dispose: () => {
+      stopRecordingIdentity()
       assembled.dispose()
       if (ownsDiagnostics) diagnostics.clear()
       else for (const remove of removeSinks) remove()

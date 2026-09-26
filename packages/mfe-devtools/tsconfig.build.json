@@ -6,17 +6,9 @@
     "customConditions": [],
     "emitDeclarationOnly": false,
     "outDir": "dist",
-    "rootDir": "src",
-
-    /*
-     * No declarations. Nothing consumes `dist` — every consumer resolves this
-     * package's `exports`, which point at `src` — and emitting them here means
-     * naming types that come out of the design system's own `.d.ts`, which
-     * TypeScript cannot always write a name for from this package's vantage
-     * point. The JavaScript is the only artefact this build is for.
-     */
-    "declaration": false,
-    "declarationMap": false
+    "rootDir": "src"
+    // Declarations are emitted because a published consumer's `types` resolve to them. Every
+    // export annotates its type, so none has to name a type from the design system's `.d.ts`.
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__/**"]

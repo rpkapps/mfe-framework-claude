@@ -5,9 +5,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
 import {
   createMfeError,
+  HOST_SCOPE,
+  physicalStorageKey,
   type Diagnostic,
   type MfeAdapter,
   type RegistryEntry,
@@ -19,6 +22,7 @@ import { SharedContainerLoader } from '../loader/container-loader.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
 import { createInProcessLoader } from '../testing/in-process-loader.ts'
 import { createMemoryNavigationBridge } from '../testing/memory-navigation-bridge.ts'
+import { createMemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { createNoopTelemetryProvider } from '../telemetry/tracer.ts'
 import {
   createMfeRuntime,
@@ -81,8 +85,7 @@ afterEach(() => {
   sessionStorage.clear()
 })
 
-/** Everything but the session generation, which most tests fix and one leaves to the runtime. */
-function baseOptions(): Omit<CreateMfeRuntimeOptions, 'sessionGeneration'> {
+function baseOptions(): CreateMfeRuntimeOptions {
   return {
     registryEntries: [],
     loader: createInProcessLoader(new Map()),
@@ -95,7 +98,7 @@ function baseOptions(): Omit<CreateMfeRuntimeOptions, 'sessionGeneration'> {
 }
 
 function create(options: Partial<CreateMfeRuntimeOptions> = {}): MfeRuntimeHandle {
-  handle = createMfeRuntime({ ...baseOptions(), sessionGeneration: 'gen-1', ...options })
+  handle = createMfeRuntime({ ...baseOptions(), ...options })
   return handle
 }
 
@@ -281,56 +284,128 @@ describe('developer overrides', () => {
   })
 })
 
-describe('the storage session', () => {
-  it('adopts the generation it is given', () => {
-    const { runtime } = create({ sessionGeneration: 'gen-given' })
+describe('where developer overrides may point', () => {
+  it('keeps the published manifest for an override on another origin, and warns', () => {
+    const { runtime, activeOverrides } = create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reports: 'https://cdn.attacker.test/mf-manifest.json' }),
+    })
 
-    expect(runtime.storage.sessionGeneration).toBe('gen-given')
+    expect(runtime.registry.entries.get('reports')?.manifestUrl).toBe(
+      'https://cdn.example.test/reports/mf-manifest.json',
+    )
+    expect(activeOverrides.size).toBe(0)
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]?.error.message).toContain('overrideOrigins')
   })
 
-  it('establishes one when none is given, from the generation it mints', () => {
-    const mint = vi.fn(() => 'gen-minted')
+  it('applies an override on an origin the shell allows', () => {
+    const preview = 'https://preview.example.test/reports/mf-manifest.json'
+    const { runtime } = create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reports: preview }),
+      overrideOrigins: ['https://preview.example.test'],
+    })
 
-    handle = createMfeRuntime({ ...baseOptions(), nextSessionGeneration: mint })
-    const { runtime } = handle
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-minted')
-    expect(mint).toHaveBeenCalledTimes(1)
+    expect(runtime.registry.entries.get('reports')?.manifestUrl).toBe(preview)
+    expect(recorded).toHaveLength(0)
   })
 
-  it('retires the session with a freshly minted generation when the user changes', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const { runtime } = create({ nextSessionGeneration: mint })
+  it('warns about an override for an id the registry does not list', () => {
+    create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reprots: 'http://localhost:3001/mf-manifest.json' }),
+    })
+
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]).toMatchObject({ severity: 'warning', error: { id: 'reprots' } })
+  })
+})
+
+describe('developer overrides when a different user signs in to the tab', () => {
+  const local = 'http://localhost:3001/mf-manifest.json'
+
+  function signedIn(id: string): CreateMfeRuntimeOptions['shellState'] {
+    return { user: { id, name: id }, groups: ['ops'], theme: 'dark' }
+  }
+
+  it('clears them instead of applying them', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({ reports: local }),
+    })
+    createMfeRuntime({ ...baseOptions(), shellState: signedIn('ada') }).dispose()
+    recorded = []
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      registryEntries: [published('reports', 'first')],
+      shellState: signedIn('grace'),
+      overrideStorage: storage,
+    })
+
+    expect(handle.runtime.registry.entries.get('reports')?.manifestUrl).not.toBe(local)
+    expect(handle.activeOverrides.size).toBe(0)
+    expect(storage.getItem(OVERRIDES_STORAGE_KEY)).toBeNull()
+    expect(recorded).toHaveLength(1)
+  })
+
+  it('keeps them across a reload by the same user', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({ reports: local }),
+    })
+    createMfeRuntime({ ...baseOptions(), shellState: signedIn('ada') }).dispose()
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      registryEntries: [published('reports', 'first')],
+      shellState: signedIn('ada'),
+      overrideStorage: storage,
+    })
+
+    expect(handle.runtime.registry.entries.get('reports')?.manifestUrl).toBe(local)
+    expect(storage.getItem(OVERRIDES_STORAGE_KEY)).not.toBeNull()
+  })
+})
+
+/** The payload of the tab's session record, as the runtime wrote it. */
+function recordedIdentity(): unknown {
+  const raw = sessionStorage.getItem(physicalStorageKey(HOST_SCOPE, 'session-identity'))
+  return raw === null ? null : (JSON.parse(raw) as { d: unknown }).d
+}
+
+describe("the tab's session", () => {
+  it('records who is signed in to the tab', () => {
+    create()
+
+    expect(recordedIdentity()).toEqual({ identity: 'ada' })
+  })
+
+  it('records a sign-in within the page, for the next reload to compare with', () => {
+    const { runtime } = create()
 
     runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
 
-    expect(runtime.storage.sessionGeneration).toBe('gen-2')
-    expect(mint).toHaveBeenCalledTimes(1)
+    expect(recordedIdentity()).toEqual({ identity: 'grace' })
   })
 
-  it('retires the session when the groups change', () => {
-    const { runtime } = create({ nextSessionGeneration: () => 'gen-2' })
+  it('keeps what an App stored across a sign-out, since a record belongs to the browser', () => {
+    const { runtime } = create()
+    const density = runtime.storage.bind('reports', {
+      name: 'density',
+      schema: z.enum(['compact', 'comfortable']),
+    })
+    density.set('compact')
 
-    runtime.shellState.apply({ groups: ['ops', 'admins'] })
+    runtime.shellState.apply({ user: null, groups: [] })
 
-    expect(runtime.storage.sessionGeneration).toBe('gen-2')
-  })
-
-  it('keeps the session across a theme change', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const { runtime } = create({ nextSessionGeneration: mint })
-
-    runtime.shellState.apply({ theme: 'light' })
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-1')
-    expect(mint).not.toHaveBeenCalled()
+    expect(density.read()).toBe('compact')
+    density.release()
   })
 })
 
 describe('disposing the runtime', () => {
-  it('stops retiring sessions and drops every blocker', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const created = create({ nextSessionGeneration: mint })
+  it('stops recording sign-ins and drops every blocker', () => {
+    const created = create()
     created.runtime.navigator.registerBlocker('reports#1', {
       depth: 1,
       shouldBlock: () => true,
@@ -341,7 +416,7 @@ describe('disposing the runtime', () => {
     handle = null
     created.runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
 
-    expect(mint).not.toHaveBeenCalled()
+    expect(recordedIdentity()).toEqual({ identity: 'ada' })
     expect(created.runtime.navigator.blockerCount).toBe(0)
   })
 

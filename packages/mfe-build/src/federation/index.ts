@@ -12,13 +12,13 @@ export { adapterDependencies, resolveFrameworkScope } from './framework-scope.ts
 export type { AdapterDependencies, FrameworkScopeOptions } from './framework-scope.ts'
 export { installedVersionFrom } from './installed-version.ts'
 export {
+  FRAMEWORK_SCOPED,
   PAGE_POLICY,
   PAGE_SHARE_SCOPE,
-  PAGE_SINGLETON,
+  PAGE_WIDE,
   packageOf,
   resolveShared,
   shareScopesOf,
-  SINGLETON,
   withPagePolicy,
 } from './sharing.ts'
 export type {

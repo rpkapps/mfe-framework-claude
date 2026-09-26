@@ -58,10 +58,9 @@ const [visits, setVisits] = useStoredState('visits', visitsSchema, {
 ```
 
 `storage` defaults to `'local'`, which outlives the tab. `'session'` goes when the tab closes. The
-two are separate spaces, so one name in each is two records. `retention` defaults to `'browser'`:
-the record is kept until something removes it, and every user of this browser profile reads it.
-For a value that belongs to the signed-in person, see
-[Clear a value when the user changes](/docs/clear-a-value-on-sign-out).
+two are separate spaces, so one name in each is two records. Either way the record belongs to the
+browser, not to the person signed in: a sign-out keeps it, and the next user of this browser
+profile reads it. Keep nothing personal in storage.
 
 </Step>
 </Steps>
@@ -100,7 +99,6 @@ stored value is unchanged.
 
 ## Related
 
-- [Clear a value when the user changes](/docs/clear-a-value-on-sign-out) — per-user data
 - [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions
 - [Read or write storage outside render](/docs/storage-outside-render) — handlers and loaders
 - [Hooks and components](/docs/reference/hooks-and-components) — every option, one row each

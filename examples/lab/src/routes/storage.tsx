@@ -24,23 +24,21 @@ function Storage(): ReactNode {
   const local = useMfeStorage()
   const [readBack, setReadBack] = useState<unknown>(undefined)
 
-  // `retention: 'browser'` is the default: it survives a sign-out, so the next person to sign in on
-  // this browser reads it. Anything derived from the signed-in user declares 'user' (§21).
+  // A stored value belongs to the browser: it survives a sign-out, and the next person to sign in
+  // on this browser reads it (§56).
   const [draft, setDraft] = useStoredState('draft', draftSchema, {
     defaultValue: { note: '', pinned: false },
-    retention: 'browser',
   })
 
   const [visits, setVisits] = useStoredState('visits', visitsSchema, {
     defaultValue: 0,
-    retention: 'user',
     storage: 'session',
   })
 
   return (
     <LabPage
       eyebrow="Storage"
-      title="Validated, scoped and retention-aware"
+      title="Validated and scoped"
       description="An MFE never touches localStorage. It declares a key with a schema, and gets a subscribed value and a stable setter — with the key namespaced under this definition's id, so two MFEs cannot collide."
       tryThis={
         <>
@@ -50,7 +48,7 @@ function Storage(): ReactNode {
         </>
       }
     >
-      <LabSection title="State that outlives a sign-out" note="retention: browser">
+      <LabSection title="State that outlives a sign-out" note="useStoredState">
         <Field>
           <FieldLabel htmlFor={`${id}-note`}>Note</FieldLabel>
           <Input
@@ -61,8 +59,8 @@ function Storage(): ReactNode {
             }}
           />
           <FieldDescription>
-            Stored under this App&apos;s own prefix. `retention: browser` means the framework never
-            clears it — so the next person to sign in on this browser reads it too.
+            Stored under this App&apos;s own prefix. The framework never clears it, so the next
+            person to sign in on this browser reads it too: keep nothing personal here.
           </FieldDescription>
         </Field>
 
@@ -83,10 +81,10 @@ function Storage(): ReactNode {
         </div>
       </LabSection>
 
-      <LabSection title="State that belongs to the signed-in user" note="retention: user">
+      <LabSection title="State for this tab alone" note="storage: session">
         <p className="text-sm text-muted-foreground">
-          Counted {visits} time{visits === 1 ? '' : 's'} this session. An identity or group change
-          retires this before anything can read it back.
+          Counted {visits} time{visits === 1 ? '' : 's'} in this tab. It survives a reload and goes
+          when the tab closes.
         </p>
         <div className="flex gap-2">
           <Button
@@ -116,7 +114,7 @@ function Storage(): ReactNode {
           <Button
             variant="outline"
             onPress={() => {
-              setReadBack(local.key('draft', draftSchema, { retention: 'browser' }).get())
+              setReadBack(local.key('draft', draftSchema).get())
             }}
           >
             Read it back

@@ -25,10 +25,7 @@ import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
 import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
-import {
-  requiresSessionRetirement,
-  type ShellStateStore,
-} from '../shell-state/shell-state-store.ts'
+import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import type { MfeStorageStore } from '../storage/storage-store.ts'
 import type { MfeRuntime } from './create-runtime.ts'
 
@@ -59,8 +56,6 @@ export interface RuntimeParts {
   readonly notifyActionDenial?: ActionDenialNotifier | undefined
   readonly actionApprovalPolicy?: ActionApprovalPolicy | undefined
   readonly auditAction?: ActionAuditSink | undefined
-  /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
-  readonly nextSessionGeneration: () => string
 }
 
 export interface AssembledRuntime {
@@ -114,19 +109,6 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     readLocation: () => navigator.read(),
   })
 
-  // The new generation fences records written under the old one, so it is minted, not reused.
-  const stopWatchingSession = shellState.observeTransitions(change => {
-    if (!requiresSessionRetirement(change.transitions)) return
-
-    const identity = change.transitions.find(transition => transition.kind === 'identity')
-    storage.applySessionTransition(
-      identity
-        ? { kind: 'identity', reason: identity.reason, groups: change.next.groups }
-        : { kind: 'groups', groups: change.next.groups },
-      parts.nextSessionGeneration(),
-    )
-  })
-
   const runtime: MfeRuntime = {
     registry: parts.registry,
     loader: new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters)),
@@ -144,7 +126,6 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   return {
     runtime,
     dispose: () => {
-      stopWatchingSession()
       actions.dispose()
       breadcrumbs.dispose()
       agentContext.dispose()

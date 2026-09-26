@@ -73,16 +73,31 @@ export interface CreateMountContextOptions {
 
 export interface MountContextHandle {
   readonly context: MountContext
+  /**
+   * Aborts `context.signal` and nothing else, for a mount torn down while its definition is still
+   * mounting: an adapter that stops on abort can end that mount, which `dispose` waits on.
+   */
+  abort(): void
   /** Tears down everything this mount owns; the ordering is deliberate. */
   dispose(): Promise<void>
 }
 
-let nextMountSequence = 0
+/**
+ * The sequence lives on the page rather than in this module: a page may hold more than one copy
+ * of the runtime (§55), and two counters would each hand out `reports#1`.
+ */
+const MOUNT_SEQUENCE = Symbol.for('@company/mfe.mountSequence')
+
+interface PageSequence {
+  [MOUNT_SEQUENCE]?: number
+}
 
 /** Unique per document and stable for the mount's life is all a token needs. */
 export function createMountToken(definitionId: string): string {
-  nextMountSequence += 1
-  return `${definitionId}#${nextMountSequence}`
+  const page = globalThis as PageSequence
+  const next = (page[MOUNT_SEQUENCE] ?? 0) + 1
+  page[MOUNT_SEQUENCE] = next
+  return `${definitionId}#${next}`
 }
 
 export function createMountContext(options: CreateMountContextOptions): MountContextHandle {
@@ -128,6 +143,7 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
 
   return {
     context,
+    abort: () => disposal.abort(),
     dispose: async () => {
       // Registrations go first, so a disposed mount cannot appear in the palette mid-teardown.
       for (const store of mountScopedStores(runtime)) store.removeMount(mountToken)

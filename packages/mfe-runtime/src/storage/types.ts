@@ -2,13 +2,7 @@
 
 import type { z } from 'zod'
 
-import type {
-  Listener,
-  StorageArea,
-  StorageRetention,
-  StorageSnapshot,
-  Unsubscribe,
-} from '@company/mfe-core'
+import type { Listener, StorageArea, StorageSnapshot, Unsubscribe } from '@company/mfe-core'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 
@@ -42,20 +36,15 @@ export interface MfeStorageStoreOptions {
     readonly session?: StorageAreaSource
   }
   readonly diagnostics?: DiagnosticsHub
-  /** Opaque: user-retained values cannot be read or written until it is established. */
-  readonly sessionGeneration?: string
-  /** The current semantic group set, so a reordered but identical set is a no-op. */
-  readonly groups?: readonly string[]
   /** Where cross-tab `storage` events are observed; `null` opts out entirely. */
   readonly eventTarget?: StorageEventTargetLike | null
 }
 
-/** `storage` defaults to `'local'`, `retention` to `'browser'` and `version` to `1`. */
+/** `storage` defaults to `'local'` and `version` to `1`. */
 export interface StorageKeyBinding<T> {
   readonly name: string
   readonly storage?: StorageArea
   readonly schema: z.ZodType<T>
-  readonly retention?: StorageRetention
   readonly version?: number
   /** Schema-validated at bind time, and never persisted. */
   readonly defaultValue?: T
@@ -65,11 +54,6 @@ export interface StorageKeyBinding<T> {
 
 export type StorageUpdater<T> = (current: T) => T
 
-export interface StorageWriteOptions {
-  /** A write from a retired generation is rejected, which fences off a late async handler. */
-  readonly generation?: string
-}
-
 /** Stable for the binding's lifetime, so a `useSyncExternalStore` consumer does not churn. */
 export interface BoundStorageKey<T> {
   /** The physical key, `<definitionId>:<name>`, never scoped by mount token. */
@@ -77,38 +61,14 @@ export interface BoundStorageKey<T> {
   readonly definitionId: string
   readonly name: string
   readonly storage: StorageArea
-  readonly retention: StorageRetention
   readonly version: number
   /** Pure cache read: never touches the browser store. */
   getSnapshot(): StorageSnapshot<T>
   subscribe(listener: Listener): Unsubscribe
   /** Throws the structured error when the current snapshot is an error snapshot. */
   read(): T
-  set(next: T | StorageUpdater<T>, options?: StorageWriteOptions): void
-  remove(options?: StorageWriteOptions): void
+  set(next: T | StorageUpdater<T>): void
+  remove(): void
   /** Drops this consumer's declaration; the key is torn down when the last one goes. */
   release(): void
-}
-
-/** Widened from core's `ShellTransition` with `groups`, to tell a change from a reorder. */
-export type StorageSessionTransition =
-  | { readonly kind: 'theme' }
-  | { readonly kind: 'token-refresh' }
-  | {
-      readonly kind: 'identity'
-      readonly reason: 'login' | 'logout' | 'account' | 'tenant'
-      readonly groups?: readonly string[]
-    }
-  | { readonly kind: 'groups'; readonly groups?: readonly string[] }
-
-export type SessionTransitionOutcome =
-  'invalidated' | 'unchanged-group-set' | 'not-session-affecting'
-
-export interface SessionTransitionResult {
-  readonly outcome: SessionTransitionOutcome
-  readonly generation: string | null
-  /** User-retained records physically removed, across both stores. */
-  readonly removedRecords: number
-  /** Active keys whose subscribers were notified of a reset value. */
-  readonly notifiedKeys: number
 }

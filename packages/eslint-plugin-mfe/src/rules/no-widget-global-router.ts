@@ -49,7 +49,7 @@ const rule: Rule.RuleModule = {
 
     const { sourceCode } = context
 
-    /** Class bodies that hold a field initialised from `inject(Router)`, by field name. */
+    /** Class bodies that hold a field initialised from `inject(Router)`, by name (`#name` if private). */
     const routerFields = new WeakMap<AnyNode, Set<string>>()
     /** Variables (function or module scope) initialised from `inject(Router)`. */
     const routerVariables = new Set<Scope.Variable>()
@@ -91,6 +91,37 @@ const rule: Rule.RuleModule = {
       routerFields.set(classBody, new Set([name]))
     }
 
+    /** A member's name as its class declares it: `#router` for a private field, never `router`. */
+    function memberName(member: MemberExpression): string | null {
+      if (member.property.type === 'PrivateIdentifier') return `#${member.property.name}`
+      return staticPropertyName(member)
+    }
+
+    /** Whether a `.navigate(...)` or `.navigateByUrl(...)` call is made on a Router this file injected. */
+    function navigatesWithRouter(call: AnyNode, callee: MemberExpression): boolean {
+      const receiver = callee.object
+
+      // `inject(Router).navigate(...)`, chained without ever binding a name.
+      if (isInjectRouterCall(asNode(receiver))) return true
+
+      // `router.navigate(...)`: the same scope-managed variable `inject(Router)` was bound to.
+      if (receiver.type === 'Identifier') {
+        const variable = findVariable(sourceCode, asNode(receiver), receiver.name)
+        return variable !== null && routerVariables.has(variable)
+      }
+
+      // `this.router.navigate(...)`: a class field this same class initialised from `inject(Router)`.
+      if (receiver.type === 'MemberExpression' && receiver.object.type === 'ThisExpression') {
+        const field = memberName(asNode(receiver) as MemberExpression)
+        const classBody = enclosingClassBody(call)
+        return (
+          field !== null && classBody !== null && routerFields.get(classBody)?.has(field) === true
+        )
+      }
+
+      return false
+    }
+
     function report(node: AnyNode): void {
       context.report({
         node,
@@ -99,14 +130,26 @@ const rule: Rule.RuleModule = {
       })
     }
 
+    /**
+     * Navigation calls, judged once the whole file has been read: a method may call through a
+     * field declared below it, and a function through a variable bound after it.
+     */
+    const navigations: { readonly call: AnyNode; readonly callee: MemberExpression }[] = []
+
     return {
-      // `readonly router = inject(Router)` as a class field.
+      // `readonly router = inject(Router)` or `readonly #router = inject(Router)` as a class field.
       PropertyDefinition(node) {
-        if (node.value === null || node.value === undefined) return
-        if (node.key.type !== 'Identifier' || node.computed) return
+        if (node.value === null || node.value === undefined || node.computed) return
         if (!isInjectRouterCall(asNode(node.value))) return
+        const key = node.key
+        const field =
+          key.type === 'Identifier'
+            ? key.name
+            : key.type === 'PrivateIdentifier'
+              ? `#${key.name}`
+              : null
         const classBody = enclosingClassBody(asNode(node))
-        if (classBody !== null) recordField(classBody, node.key.name)
+        if (field !== null && classBody !== null) recordField(classBody, field)
       },
 
       // `const router = inject(Router)`, at any function or module scope.
@@ -118,34 +161,17 @@ const rule: Rule.RuleModule = {
       },
 
       CallExpression(node) {
-        const callee = node.callee
-        if (callee.type !== 'MemberExpression') return
-        const calleeNode = asNode(callee) as MemberExpression
-        const method = staticPropertyName(calleeNode)
-        if (method === null || !NAVIGATION_METHODS.has(method)) return
-        const receiver = callee.object
-
-        // `inject(Router).navigate(...)`, chained without ever binding a name.
-        if (isInjectRouterCall(asNode(receiver))) {
-          report(calleeNode)
-          return
+        if (node.callee.type !== 'MemberExpression') return
+        const callee = asNode(node.callee) as MemberExpression
+        const method = staticPropertyName(callee)
+        if (method !== null && NAVIGATION_METHODS.has(method)) {
+          navigations.push({ call: asNode(node), callee })
         }
+      },
 
-        // `router.navigate(...)`: the same scope-managed variable `inject(Router)` was bound to.
-        if (receiver.type === 'Identifier') {
-          const variable = findVariable(sourceCode, asNode(receiver), receiver.name)
-          if (variable !== null && routerVariables.has(variable)) report(calleeNode)
-          return
-        }
-
-        // `this.router.navigate(...)`: a class field this same class initialised from `inject(Router)`.
-        if (receiver.type === 'MemberExpression' && receiver.object.type === 'ThisExpression') {
-          const property = staticPropertyName(asNode(receiver) as MemberExpression)
-          if (property === null) return
-          const classBody = enclosingClassBody(asNode(node))
-          if (classBody !== null && routerFields.get(classBody)?.has(property) === true) {
-            report(calleeNode)
-          }
+      'Program:exit'() {
+        for (const { call, callee } of navigations) {
+          if (navigatesWithRouter(call, callee)) report(callee)
         }
       },
     }

@@ -4,6 +4,9 @@
   "description": "The Angular build integration for MFE containers, as an Nx plugin: withMfe() for @nx/angular:webpack-browser's customWebpackConfig (static discovery, generated #mfe/* modules, Module Federation 2 remotes, the container's scoped stylesheet), the generate executor, and the app and widget generators that scaffold a zoneless Angular 19 container.",
   "type": "commonjs",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "main": "./dist/src/index.js",
   "generators": "./generators.json",
   "executors": "./executors.json",

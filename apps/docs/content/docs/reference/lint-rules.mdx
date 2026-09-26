@@ -19,7 +19,7 @@ The package has three entry points. The root holds the rules, the `tooling` pres
 
 The React Hooks, TanStack and angular-eslint plugins are optional peers of the package. A preset loads its own when you call it. A missing one throws a message that names every package to install.
 
-All four rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you: `mfe/no-raw-storage` offers a suggestion, and the other three leave the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
+All five rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you: `mfe/no-raw-storage` offers a suggestion, and the other four leave the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
 
 ## mfe/no-global-patching
 
@@ -45,7 +45,16 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 
 **Fix.** Read and call the global instead of replacing it. Use `#mfe/fetch` for your own requests, your router for navigation, and `{ signal: useMfeSignal() }` for listeners.
 
-**Options.** None.
+**Options.** They name the adapter's APIs in the messages. The `angular()` preset sets the Angular ones.
+
+```ts
+'mfe/no-global-patching': ['error', {
+  signalHook: 'useMfeSignal()',
+  signalModule: '@company/mfe-react',
+  navigationHint: "`navigate` or `Link` from your App's boundary router, which already resolve under the MFE base path",
+  navigatorModule: '@company/mfe-runtime',
+}]
+```
 
 ## mfe/stable-definitions
 
@@ -75,7 +84,7 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 **Message.**
 
 ```text
-`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for imperative access, both from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.
+`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, it carries no version to migrate a changed shape from, and a quota failure escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for imperative access, both from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.
 ```
 
 **Suggestion.**
@@ -93,6 +102,9 @@ Read and write through the MFE storage boundary: replace `{{access}}` with `{{ac
   allowedScopes: [],
   objects: ['localStorage', 'sessionStorage'],
   storageAccessor: 'storage',
+  storedStateHook: 'useStoredState()',
+  storageHook: 'useMfeStorage()',
+  adapterModule: '@company/mfe-react',
 }]
 ```
 
@@ -131,7 +143,7 @@ Document head metadata (favicon, `<meta>`, `<title>`) belongs to the shell; a Wi
 **Options.**
 
 ```ts
-'mfe/no-widget-global-effects': ['error', { widgetScopes: [] }]
+'mfe/no-widget-global-effects': ['error', { widgetScopes: [], emitAccess: 'its render props' }]
 ```
 
 ## mfe/no-widget-global-router
@@ -149,7 +161,7 @@ A Widget does not drive the URL: `{{access}}` navigates the whole page, and the 
 **Options.**
 
 ```ts
-'mfe/no-widget-global-router': ['error', { widgetScopes: [] }]
+'mfe/no-widget-global-router': ['error', { widgetScopes: [], emitAccess: '`injectWidgetEmit()`' }]
 ```
 
 ## Restricted imports

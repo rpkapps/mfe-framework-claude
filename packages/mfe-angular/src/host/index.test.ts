@@ -33,7 +33,6 @@ function runtimeOver(adapters: readonly MfeAdapter[]) {
     shellState: { user: null, groups: [], theme: 'light' },
     telemetryProvider: createRecordingTelemetryProvider(),
     adapters,
-    sessionGeneration: 'test-session',
   })
 }
 

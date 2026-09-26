@@ -131,6 +131,7 @@ describe('planHostConfig', () => {
     const names = result?.files.map(file => file.path.split(/[\\/]/).at(-1)).sort()
     expect(names).toEqual([
       '.env.example',
+      '.generated-files.json',
       '.gitignore',
       'config.ts',
       'runtime-config.defaults.json',
@@ -158,6 +159,30 @@ describe('planHostConfig', () => {
     expect(module).toContain("await fetch(CONFIG_URL, { credentials: 'same-origin' })")
     expect(module).toContain("response.headers.get('Content-Type')")
     expect(module).toContain('The host configuration contract declares this expectation.')
+  })
+
+  it('accepts only an absolute http(s) URL for an API origin, and leaves an optional one unset', () => {
+    const result = plan(`
+import { env } from '@acme/mfe-plugin'
+import { z } from 'zod'
+
+export default {
+  api: env('API_URL', z.url().optional(), { api: true }),
+}
+`)
+    const spec = result === null ? undefined : specsOf(result).get('api')
+    if (spec === undefined) throw new Error('no api field')
+
+    expect(spec.api).toBe(true)
+    expect(checkConfigField(spec, 'https://api.example.test/v1/')).toEqual({
+      ok: true,
+      value: 'https://api.example.test/v1/',
+    })
+    expect(checkConfigField(spec, undefined)).toEqual({ ok: true, value: undefined })
+    expect(checkConfigField(spec, 'mailto:ops@example.test')).toEqual({
+      ok: false,
+      problem: '"mailto:ops@example.test", which is not an absolute http(s) URL',
+    })
   })
 
   it('carries the declared defaults, the transforms and the coercion into the check', () => {

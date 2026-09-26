@@ -77,6 +77,8 @@ interface BlockerEntry {
   readonly blocker: NavigationBlocker
 }
 
+type LocationListener = (location: BoundaryLocation) => void
+
 export class BoundaryNavigator {
   readonly #bridge: NavigationBridge
   readonly #diagnostics: DiagnosticsHub | undefined
@@ -85,13 +87,13 @@ export class BoundaryNavigator {
   readonly #blockers = new Set<BlockerEntry>()
   // A browser back moves the URL before anyone is asked, so a mount told about it straight
   // away would leave the page the user is still being asked about (§20).
-  readonly #deferred = new Set<(location: BoundaryLocation) => void>()
-  readonly #listeners = new Set<(location: BoundaryLocation) => void>()
+  readonly #deferred = new Set<LocationListener>()
+  readonly #listeners = new Set<LocationListener>()
   /** The one bridge subscription every listener shares, held while any listener is subscribed. */
   #stopHearing: Unsubscribe | null = null
   /**
    * Where subscribers were last told the page is, or where a push through this navigator took
-   * it, which the mount that pushed already knows. `announce` measures a change against it.
+   * it, of which every other subscriber is told. `announce` measures a change against it.
    */
   #known: BoundaryLocation
   #negotiating = false
@@ -146,7 +148,7 @@ export class BoundaryNavigator {
    * released only if it proceeded (§20). The microtask is what makes that independent of
    * the order the host's own popstate listener and this one were registered in.
    */
-  subscribe(listener: (location: BoundaryLocation) => void): Unsubscribe {
+  subscribe(listener: LocationListener): Unsubscribe {
     this.#listeners.add(listener)
     this.#stopHearing ??= this.#bridge.subscribe(this.#hear)
 
@@ -165,7 +167,12 @@ export class BoundaryNavigator {
    * each per mounted App. Each listener reads the page afresh, as each used to on its own.
    */
   readonly #hear = (): void => {
-    const listeners = [...this.#listeners]
+    this.#tellLater([...this.#listeners])
+  }
+
+  /** Held while a negotiation is under way, and skipped for a listener that left meanwhile. */
+  #tellLater(listeners: readonly LocationListener[]): void {
+    if (listeners.length === 0) return
     queueMicrotask(() => {
       for (const listener of listeners) {
         if (!this.#listeners.has(listener)) continue
@@ -194,10 +201,7 @@ export class BoundaryNavigator {
     this.#emit([...this.#listeners], location)
   }
 
-  #emit(
-    listeners: readonly ((location: BoundaryLocation) => void)[],
-    location: BoundaryLocation,
-  ): void {
+  #emit(listeners: readonly LocationListener[], location: BoundaryLocation): void {
     this.#known = location
     for (const listener of listeners) listener(location)
   }
@@ -239,8 +243,13 @@ export class BoundaryNavigator {
       this.#negotiating = false
     }
 
-    commit()
-    this.#releaseDeferred('proceeded')
+    // A commit that throws still proceeded as far as the held navigations are concerned, and a
+    // listener left in the held set would never hear of the URL again.
+    try {
+      commit()
+    } finally {
+      this.#releaseDeferred('proceeded')
+    }
     return 'proceeded'
   }
 
@@ -254,14 +263,64 @@ export class BoundaryNavigator {
     this.#emit(listeners, this.#bridge.read())
   }
 
+  /**
+   * A bridge for one router, which pushes and subscribes through it. A bridge reports only
+   * navigations nobody on the page initiated, and the router that pushed has already told
+   * itself, so a push or replace through this bridge is told to every other subscriber and not
+   * to this one's own: a nested App would otherwise keep rendering the page its parent left, and
+   * a parent the page its nested App left. Building one subscribes to nothing, so a memo that
+   * runs twice is safe.
+   */
+  createBridge(): NavigationBridge {
+    const own = new Set<LocationListener>()
+    return {
+      read: () => this.read(),
+      readState: () => this.readState(),
+      subscribe: listener => {
+        own.add(listener)
+        const unsubscribe = this.subscribe(listener)
+        return () => {
+          own.delete(listener)
+          unsubscribe()
+        }
+      },
+      push: (to, state) => {
+        this.#bridge.push(to, state)
+        this.#committed(own)
+      },
+      replace: (to, state) => {
+        this.#bridge.replace(to, state)
+        this.#committed(own)
+      },
+      back: () => this.back(),
+      forward: () => this.forward(),
+      go: delta => this.go(delta),
+      reload: () => this.reload(),
+    }
+  }
+
+  /** Told to every subscriber, since no router on the page pushed it; see `createBridge`. */
   push(to: string, state?: unknown): void {
     this.#bridge.push(to, state)
-    this.#known = this.#bridge.read()
+    this.#committed(new Set())
   }
 
   replace(to: string, state?: unknown): void {
     this.#bridge.replace(to, state)
-    this.#known = this.#bridge.read()
+    this.#committed(new Set())
+  }
+
+  /**
+   * Recorded as known at once, so an `announce` of the same move repeats nothing, and told a
+   * microtask later, as a bridge report is, so another App's router never runs inside the
+   * pushing router's own navigation.
+   */
+  #committed(initiator: ReadonlySet<LocationListener>): void {
+    const location = this.#bridge.read()
+    // A router that follows the page writes where it already is, which is no move to report.
+    if (sameLocation(location, this.#known)) return
+    this.#known = location
+    this.#tellLater([...this.#listeners].filter(listener => !initiator.has(listener)))
   }
 
   back(): void {

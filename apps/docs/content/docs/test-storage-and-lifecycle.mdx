@@ -1,6 +1,6 @@
 ---
 title: 'Test storage and the lifecycle'
-description: 'Seed a stored record, render through the test environment, then change the signed-in user and see what is cleared.'
+description: 'Seed a stored record, render through the test environment, then change the signed-in user and see that it stays.'
 ---
 
 Apps and Widgets. `createMfeTestEnvironment` gives you the pieces of a mount directly: a wrapper
@@ -49,8 +49,8 @@ environment = createMfeTestEnvironment({ definitionId: 'lab' })
 const env = environment
 const storage = env.mount.storage.local
 
-storage.key('visits', visitsSchema, { retention: 'user' }).set(3)
-storage.key('draft', draftSchema, { retention: 'browser' }).set({ note: 'rig 4', pinned: true })
+storage.key('visits', visitsSchema).set(3)
+storage.key('draft', draftSchema).set({ note: 'rig 4', pinned: true })
 ```
 
 The stores are in memory and start empty, so a test that reads a record writes it first.
@@ -64,10 +64,9 @@ environment in a local as well, so the steps below have one that is never `null`
 ### 3. Render through the environment's wrapper
 
 ```tsx title="src/routes/storage.test.tsx"
-const { result } = renderHook(
-  () => useStoredState('visits', visitsSchema, { defaultValue: 0, retention: 'user' }),
-  { wrapper: env.wrapper },
-)
+const { result } = renderHook(() => useStoredState('visits', visitsSchema, { defaultValue: 0 }), {
+  wrapper: env.wrapper,
+})
 
 expect(result.current[0]).toBe(3)
 ```
@@ -84,17 +83,13 @@ as well as hooks.
 ```tsx title="src/routes/storage.test.tsx"
 env.setShellState({ user: { id: 'u-2', name: 'Sam Reyes' } })
 
-expect(result.current[0]).toBe(0)
-expect(env.storageAreas.local.getItem('lab:visits')).toBeNull()
-expect(storage.key('draft', draftSchema, { retention: 'browser' }).get()).toEqual({
-  note: 'rig 4',
-  pinned: true,
-})
+expect(result.current[0]).toBe(3)
+expect(storage.key('draft', draftSchema).get()).toEqual({ note: 'rig 4', pinned: true })
 ```
 
-`setShellState` runs the identity change the shell runs. Every `retention: 'user'` record is
-deleted, and the hook reports its declared default again. A record left at the default retention,
-`'browser'`, is still there.
+`setShellState` runs the identity change the shell runs. A stored record belongs to the browser,
+not to the person signed in, so both records are still there for the next user. Keep nothing
+personal in storage.
 
 </Step>
 
@@ -103,7 +98,7 @@ deleted, and the hook reports its declared default again. A record left at the d
 ### 5. Run it under StrictMode
 
 ```tsx title="src/routes/storage.test.tsx"
-const options = { defaultValue: 0, retention: 'user' } as const
+const options = { defaultValue: 0 } as const
 
 const { result } = renderHook(() => useStoredState('visits', visitsSchema, options), {
   wrapper: ({ children }) => (
@@ -162,7 +157,6 @@ consumer already declared, received a different schema object.
 ## Related
 
 - [Remember a value across reloads](/docs/remember-a-value) — the hook under test.
-- [Clear a value when the user changes](/docs/clear-a-value-on-sign-out) — what `retention: 'user'` means.
 - [Read or write storage outside render](/docs/storage-outside-render) — the imperative handle used to seed.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what a mount owns and when it is disposed.
 - [Testing API](/docs/reference/testing-api) — every field of the environment.

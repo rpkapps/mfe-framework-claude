@@ -257,6 +257,25 @@ const CANCELLED: ActionExecutionResult = Object.freeze({
   reason: 'The caller stopped the run.',
 })
 
+const POLICY_FAILED: ApprovalRuling = Object.freeze({
+  deny: 'The host’s approval policy failed, so the call was not run.',
+})
+
+/** Read at run time, because a host's policy is often plain JavaScript or a service's answer. */
+function isApprovalRuling(value: unknown): value is ApprovalRuling {
+  if (value === 'approve' || value === 'ask') return true
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { readonly deny?: unknown }).deny === 'string'
+  )
+}
+
+function describeRuling(value: unknown): string {
+  if (typeof value === 'object' && value !== null) return 'an object with no deny reason'
+  return typeof value === 'string' ? JSON.stringify(value) : String(value)
+}
+
 export class ActionExecutor<Action extends RunnableAction> {
   readonly #options: ActionExecutorOptions<Action>
   /**
@@ -522,21 +541,37 @@ export class ActionExecutor<Action extends RunnableAction> {
   }
 
   /**
-   * What the action declares, then what the host's policy makes of it. A policy that throws denies:
-   * it may exist to refuse what the user could otherwise approve.
+   * What the action declares, then what the host's policy makes of it. A policy that throws, or
+   * returns anything but a ruling, denies: it may exist to refuse what the user could otherwise
+   * approve, and a `false` or a `'deny'` meant as a refusal must not run the call.
    */
   #rule(action: Action, input: Readonly<Record<string, unknown>>): ApprovalRuling {
     const declared = this.#declared(action, input)
     const policy = this.#options.approvalPolicy
     if (!policy) return declared
+    const operation = `apply the approval policy to '${action.registration.name}'`
+    let ruling: unknown
     try {
-      return policy(this.#request(action, input), declared) ?? declared
+      ruling = policy(this.#request(action, input), declared) ?? declared
     } catch (error) {
-      this.#report(error, action, `apply the approval policy to '${action.registration.name}'`, {
+      this.#report(error, action, operation, {
         repair: 'The approval policy must return a ruling, or undefined to keep the declared one.',
       })
-      return { deny: 'The host’s approval policy failed, so the call was not run.' }
+      return POLICY_FAILED
     }
+    if (isApprovalRuling(ruling)) return ruling
+
+    this.#options.diagnostics?.report(
+      createMfeError({
+        code: 'mount/failure',
+        id: action.definitionId,
+        operation,
+        expected: "'approve', 'ask', { deny: reason } or undefined",
+        observed: describeRuling(ruling),
+        repair: "Return { deny: reason } to refuse a call, rather than false or 'deny'.",
+      }),
+    )
+    return POLICY_FAILED
   }
 
   /** A check that throws asks, since the call it was meant to catch may be this one. */

@@ -44,8 +44,8 @@ loader: ({ context, deps }) => {
 },
 ```
 
-`context.queryClient` is the client this mount owns, and the loader's own `signal` reaches your
-`queryFn`.
+`context.queryClient` is the client this mount owns. Your `queryFn` gets Query's own `signal`,
+which aborts when the query is cancelled, and unmounting cancels every query in that client.
 
 </Step>
 

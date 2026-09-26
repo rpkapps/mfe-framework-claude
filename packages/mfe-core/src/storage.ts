@@ -3,14 +3,10 @@ import type { z } from 'zod'
 export type StorageArea = 'local' | 'session'
 
 /**
- * Who a record belongs to, and so who may read it back (§21): a `'browser'` record is read by
- * every user of this browser profile, where a `'user'` record is retired when the identity changes.
+ * A stored record belongs to the browser profile, not to whoever is signed in: it survives a
+ * sign-out, and the next user of the profile reads it (§56). Nothing personal belongs in one.
  */
-export type StorageRetention = 'user' | 'browser'
-
 export interface StorageKeyOptions<T> {
-  /** Defaults to `'browser'`; anything derived from a user's data must declare `'user'`. */
-  readonly retention?: StorageRetention
   readonly version?: number
   /** Synchronous, side-effect-free conversion from a known older version. */
   readonly migrate?: (value: unknown, fromVersion: number) => T
@@ -33,27 +29,17 @@ export interface MfeStorage {
 /** The persisted record; the field names are short because they are written into every key. */
 export interface StorageEnvelope {
   readonly v: number
-  readonly r: StorageRetention
-  /** Opaque session/access generation; absent on `'browser'` records. */
-  readonly g?: string
   /** The payload, validated against the author's own schema, not this shape. */
   readonly d: unknown
 }
 
 export const DEFAULT_SCHEMA_VERSION = 1
-export const DEFAULT_RETENTION: StorageRetention = 'browser'
 
-/** Hand-written so the core bundle need not carry Zod to re-check four fields it wrote itself. */
+/** Hand-written so the core bundle need not carry Zod to re-check two fields it wrote itself. */
 export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
   if (value === null || typeof value !== 'object') return false
-  const { v, r, g } = value as Partial<StorageEnvelope>
-  return (
-    Number.isInteger(v) &&
-    (v as number) > 0 &&
-    (r === 'user' || r === 'browser') &&
-    (g === undefined || typeof g === 'string') &&
-    'd' in value
-  )
+  const { v } = value as Partial<StorageEnvelope>
+  return Number.isInteger(v) && (v as number) > 0 && 'd' in value
 }
 
 /** Never scoped by mount token, so every mount of a definition reads the same record. */

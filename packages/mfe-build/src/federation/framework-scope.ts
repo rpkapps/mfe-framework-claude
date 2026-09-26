@@ -1,7 +1,7 @@
 /**
  * Where a container's or a host's shares come from beyond its own manifest: the framework scope,
- * named after the version its framework's anchor package resolved to, and the page singletons an
- * adapter carries in as its own dependencies.
+ * named after the version its framework's anchor package resolved to, and the page-wide packages
+ * an adapter carries in as its own dependencies.
  */
 
 import { join } from 'node:path'
@@ -30,7 +30,7 @@ export interface FrameworkScopeOptions {
 
 /**
  * The version is the one installed rather than any declared range, because the scope is only as
- * useful as it is exact: two containers in one scope share one copy strictly.
+ * useful as it is exact: two containers in one scope provide the same framework, so it loads once.
  */
 export function resolveFrameworkScope(options: FrameworkScopeOptions): string {
   const installedVersion = options.installedVersion ?? installedVersionFrom(options.root)
@@ -63,7 +63,7 @@ export interface AdapterDependencies {
 }
 
 /**
- * Where a container's or a host's page singletons are read, since neither depends on them itself:
+ * Where a container's or a host's page-wide packages are read, since neither depends on them itself:
  * beside the adapter, at the versions it declares. `undefined` when the adapter is not installed:
  * the container's own import of it then fails with the bundler's message, which names the import.
  */

@@ -10,7 +10,15 @@ const INSTRUCTIONS = [
   'Keep answers short.',
 ].join(' ')
 
-/** The instructions, then the agent context the page sent with the run. */
+/**
+ * The instructions, then the agent context the page sent with the run.
+ *
+ * Development only: the context is untrusted. The URL's search params are whatever a link says,
+ * and each MFE's descriptions and a Widget's outputs are the page's, not the user's, so here they
+ * carry the system prompt's authority. A production backend sends them as data instead, in a
+ * clearly delimited block of a user-role message, and tells the model not to follow instructions
+ * inside it (tools/agent-dev/README.md).
+ */
 export function systemPrompt(input: RunAgentInput): string {
   if (input.context.length === 0) return INSTRUCTIONS
   return [

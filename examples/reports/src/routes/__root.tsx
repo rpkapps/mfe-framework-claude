@@ -48,7 +48,8 @@ function ReportsLayout(): ReactNode {
           ].join('\t'),
         ),
       ]
-      void navigator.clipboard.writeText(rows.join('\n'))
+      // Returned, so a write the browser refuses fails the action instead of reporting success.
+      return navigator.clipboard.writeText(rows.join('\n'))
     },
   })
 

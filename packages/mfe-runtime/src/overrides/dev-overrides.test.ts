@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest'
 
 import { createMemoryStorageArea } from '../testing/memory-storage-area.ts'
 import {
+  discardDevOverrides,
   findConflictingContainerOverrides,
+  findUnregisteredOverrides,
   OVERRIDES_STORAGE_KEY,
   readDevOverrides,
   writeDevOverrides,
@@ -82,6 +84,105 @@ describe('reading developer overrides', () => {
 
     expect([...overrides.keys()]).toEqual(['operations'])
     expect(diagnostics).toHaveLength(1)
+  })
+})
+
+describe('where an override may point', () => {
+  it('accepts every loopback host, on any port and either scheme', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({
+        a: 'http://localhost:3001/mf-manifest.json',
+        b: 'https://127.0.0.1:8443/mf-manifest.json',
+        c: 'http://[::1]:3002/mf-manifest.json',
+      }),
+    })
+
+    const { overrides, diagnostics } = readDevOverrides(storage)
+
+    expect([...overrides.keys()]).toEqual(['a', 'b', 'c'])
+    expect(diagnostics).toHaveLength(0)
+  })
+
+  /** The key is read in deployed builds, so anything that can write it could load its own code. */
+  it('rejects any other origin, saying how to allow it', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: '{"operations":"https://cdn.attacker.test/mf-manifest.json"}',
+    })
+
+    const { overrides, diagnostics } = readDevOverrides(storage)
+
+    expect(overrides.size).toBe(0)
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.message).toContain('https://cdn.attacker.test')
+    expect(diagnostics[0]?.message).toContain('overrideOrigins')
+  })
+
+  it('accepts an origin the host allows, matched exactly', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({
+        operations: 'https://preview.example.test/operations/mf-manifest.json',
+        reports: 'https://preview.example.test:8443/reports/mf-manifest.json',
+      }),
+    })
+
+    const { overrides, diagnostics } = readDevOverrides(storage, {
+      allowedOrigins: ['https://preview.example.test'],
+    })
+
+    expect([...overrides.keys()]).toEqual(['operations'])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.id).toBe('reports')
+  })
+})
+
+describe("discarding another user's overrides", () => {
+  it('removes them and says so', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: '{"operations":"http://localhost:3001/mf-manifest.json"}',
+    })
+
+    const { overrides, diagnostics } = discardDevOverrides(storage)
+
+    expect(overrides.size).toBe(0)
+    expect(storage.getItem(OVERRIDES_STORAGE_KEY)).toBeNull()
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.message).toContain('have been removed')
+  })
+
+  it('applies none from a storage it cannot remove them from, and names the repair', () => {
+    const storage = {
+      getItem: () => '{"operations":"http://localhost:3001/mf-manifest.json"}',
+    }
+
+    const { overrides, diagnostics } = discardDevOverrides(storage)
+
+    expect(overrides.size).toBe(0)
+    expect(diagnostics[0]?.message).toContain(`localStorage.removeItem('${OVERRIDES_STORAGE_KEY}')`)
+  })
+
+  it('says nothing when there were none', () => {
+    const storage = createMemoryStorageArea()
+
+    const { diagnostics } = discardDevOverrides(storage)
+
+    expect(diagnostics).toHaveLength(0)
+    expect(storage.calls.removes).toBe(0)
+  })
+})
+
+describe('overrides for ids the registry does not list', () => {
+  it('reports each one, since it changes nothing', () => {
+    const diagnostics = findUnregisteredOverrides(
+      new Map([
+        ['operations', 'http://localhost:3001/mf-manifest.json'],
+        ['opertions', 'http://localhost:3002/mf-manifest.json'],
+      ]),
+      new Set(['operations']),
+    )
+
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.id).toBe('opertions')
+    expect(diagnostics[0]?.message).toContain('registry.json')
   })
 })
 

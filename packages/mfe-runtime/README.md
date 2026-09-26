@@ -83,24 +83,24 @@ mount resolved goes to `target.onFailure`, which moves the mount to `error`.
 `createFederationContainerLoader({ runtime })` is handed the federation runtime
 rather than importing it. It registers each container once, with the share
 scopes its registry entry lists as `shareScopes` — `default` first, where
-`@company/mfe-core` and this package are page singletons, then its framework's
+`@company/mfe-core` and this package are shared page-wide, then its framework's
 scope, such as `react@19.3.0`. A remote links only the scopes it is registered
 with, so an entry without `shareScopes` shares in `default` alone.
 
 ## The page's services
 
-| On `runtime`   | What it is                                                                 |
-| -------------- | -------------------------------------------------------------------------- |
-| `registry`     | the accepted entries by id, and the rejected ones with their reasons       |
-| `loader`       | the shared loader, with each adapter's `aroundLoad` applied                |
-| `shellState`   | user, groups and theme, with the session transitions that retire user data |
-| `storage`      | validated storage, scoped by definition id, with `@host` for the page      |
-| `actions`      | the action registry the palette and the key listener read                  |
-| `breadcrumbs`  | the breadcrumb store the header reads                                      |
-| `agentContext` | what the agent is told with each turn: the URL, the Apps, the selections   |
-| `navigator`    | the `BoundaryNavigator` over the navigation bridge                         |
-| `diagnostics`  | the hub every framework failure reaches                                    |
-| `deadlines`    | the budget every mount runs under                                          |
+| On `runtime`   | What it is                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| `registry`     | the accepted entries by id, and the rejected ones with their reasons                           |
+| `loader`       | the shared loader, with each adapter's `aroundLoad` applied                                    |
+| `shellState`   | user, groups and theme, with each change classified as an identity, groups or theme transition |
+| `storage`      | validated storage, scoped by definition id, with `@host` for the page                          |
+| `actions`      | the action registry the palette and the key listener read                                      |
+| `breadcrumbs`  | the breadcrumb store the header reads                                                          |
+| `agentContext` | what the agent is told with each turn: the URL, the Apps, the selections                       |
+| `navigator`    | the `BoundaryNavigator` over the navigation bridge                                             |
+| `diagnostics`  | the hub every framework failure reaches                                                        |
+| `deadlines`    | the budget every mount runs under                                                              |
 
 `actions.execute(id, { caller, input, turn, signal })` runs an action for whoever asked:
 `'palette'`, `'shortcut'`, `'ui'`, `'agent'`, or `'system'` for the host's own

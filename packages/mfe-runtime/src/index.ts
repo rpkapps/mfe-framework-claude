@@ -103,7 +103,6 @@ export {
 } from './mount/scope-root.ts'
 
 export {
-  requiresSessionRetirement,
   SHELL_STATE_FIELDS,
   ShellStateStore,
   type ShellStateChange,
@@ -183,12 +182,16 @@ export {
 } from './navigation/boundary-navigator.ts'
 
 export {
+  discardDevOverrides,
   findConflictingContainerOverrides,
+  findUnregisteredOverrides,
   OVERRIDES_STORAGE_KEY,
   readDevOverrides,
   writeDevOverrides,
   type DevOverridesResult,
+  type OverrideReadableStorage,
   type OverrideWritableStorage,
+  type ReadDevOverridesOptions,
 } from './overrides/dev-overrides.ts'
 
 export * from './storage/index.ts'

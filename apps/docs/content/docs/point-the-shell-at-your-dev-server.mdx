@@ -34,7 +34,7 @@ server** on your row, then press **Apply and reload**.
 
 <Step>
 
-### 3. Or run the snippet `pnpm dev` printed
+### 3. Or run the override snippet
 
 {/* prettier-ignore */}
 ```js
@@ -45,7 +45,8 @@ localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 ```
 
-Run it in the shell's browser console. The reload is not optional: the old container's modules stay
+Your container's README carries it with your id and port, and the repository's root `pnpm dev`
+prints one for every example. Run it in the shell's browser console. The reload is not optional: the old container's modules stay
 registered in the page until it reloads.
 
 </Step>

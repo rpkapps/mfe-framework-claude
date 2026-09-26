@@ -1,5 +1,5 @@
-import { renderWidget } from '@company/mfe-react/testing'
-import { screen } from '@testing-library/react'
+import { mountWidget, renderWidget } from '@company/mfe-react/testing'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,6 +34,23 @@ describe('alert-panel', () => {
     }
     expect(payload.alertId).toBe('a-42')
     expect(typeof payload.acknowledgedAt).toBe('string')
+  })
+
+  it('starts a new alert open when the host changes alertId in place', async () => {
+    const mounted = await mountWidget(alertPanel, { inputs: { alertId: 'a-1001' } })
+    cleanup = mounted.dispose
+    const panel = within(mounted.element)
+
+    await userEvent.click(panel.getByRole('button', { name: 'Acknowledge' }))
+    expect(panel.getByText(/acknowledged by you/)).toBeInTheDocument()
+
+    mounted.update({ alertId: 'a-1002' })
+
+    await waitFor(() => {
+      expect(panel.getByText('Alert a-1002')).toBeInTheDocument()
+    })
+    expect(panel.queryByText(/acknowledged by you/)).not.toBeInTheDocument()
+    expect(panel.getByRole('button', { name: 'Acknowledge' })).toBeEnabled()
   })
 
   it('applies a schema default for an omitted optional input', async () => {

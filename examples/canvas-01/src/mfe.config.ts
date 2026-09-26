@@ -6,5 +6,6 @@ import { z } from 'zod'
 // the authenticated fetch attach a token to them and to nothing else.
 export default {
   apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
-  webSocketUrl: env('WEB_SOCKET_URL', z.string().url(), { api: true }),
+  // A socket is not a fetch origin: #mfe/fetch never opens one, so it declares no API origin.
+  webSocketUrl: env('WEB_SOCKET_URL', z.string().url()),
 }

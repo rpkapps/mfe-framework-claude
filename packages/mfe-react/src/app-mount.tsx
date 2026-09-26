@@ -145,12 +145,14 @@ export interface AppMountProps {
 }
 
 /**
- * The router is built once per mount, so an ordinary rerender never rebuilds it. Its history is
- * built over the runtime's navigator, which every mount on the page shares.
+ * The router is built once per mount, so an ordinary rerender never rebuilds it; StrictMode may
+ * build it twice in development and keep one, which the factory's contract allows for. Its history
+ * is built over a bridge of its own on the runtime's navigator, which every mount on the page
+ * shares, so the other Apps hear where it takes the page and it does not hear it twice.
  */
 export function AppMount({ definition, mount }: AppMountProps): ReactNode {
   const navigator = mount.runtime.navigator
-  const boundary = useMemo(() => createBoundaryHistory(navigator), [navigator])
+  const boundary = useMemo(() => createBoundaryHistory(navigator.createBridge()), [navigator])
 
   const { router, context } = useMemo(() => {
     const routerContext = createRouterContext(mount)
@@ -249,7 +251,10 @@ function useBreadcrumbContribution(
       }
       lastPathname.current = pathname
 
-      const items: readonly BreadcrumbItem[] = breadcrumbsFromMatches(toBreadcrumbMatches(router))
+      const items: readonly BreadcrumbItem[] = breadcrumbsFromMatches(
+        toBreadcrumbMatches(router),
+        mount.basePath,
+      )
       handle.update(items)
     }
 

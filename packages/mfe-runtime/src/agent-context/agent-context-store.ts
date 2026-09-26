@@ -515,16 +515,19 @@ function pathBelow(basePath: string, pathname: string): string {
   return rest === '' ? '/' : rest
 }
 
+/**
+ * The URL names the keys, so they are gathered in a map and defined, never assigned: `constructor`
+ * or `toString` read off an object would be taken for a value already there, and assigning
+ * `__proto__` would drop it, and reading the page must not throw on whatever a link carries.
+ */
 function searchRecord(search: string): Readonly<Record<string, string | readonly string[]>> {
-  const record: Record<string, string | readonly string[]> = {}
+  const values = new Map<string, string[]>()
   for (const [key, value] of new URLSearchParams(search)) {
-    const existing = record[key]
-    record[key] =
-      existing === undefined
-        ? value
-        : typeof existing === 'string'
-          ? [existing, value]
-          : [...existing, value]
+    const existing = values.get(key)
+    if (existing) existing.push(value)
+    else values.set(key, [value])
   }
-  return record
+  return Object.fromEntries(
+    Array.from(values, ([key, all]) => [key, all.length > 1 ? all : (all[0] ?? '')]),
+  )
 }

@@ -163,6 +163,14 @@ function addsNoSegment(segment: string): boolean {
   return segment.startsWith('_') || (segment.startsWith('(') && segment.endsWith(')'))
 }
 
+/**
+ * The path a `createFileRoute` id serves, in the neutral syntax: `/_auth/settings/$id` is
+ * `/settings/:id`. `null` when a segment has no neutral spelling.
+ */
+export function neutralRoutePath(id: string): string | null {
+  return neutralPath(segmentsOf(id))
+}
+
 /** `null` when a segment has no neutral spelling. */
 function neutralPath(segments: readonly string[]): string | null {
   const neutral: string[] = []

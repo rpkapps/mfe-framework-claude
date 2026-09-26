@@ -378,7 +378,7 @@ describe('mounting a Widget', () => {
 
     /** What the React adapter throws for the same contract, word for word. */
     const RESERVED_MESSAGE =
-      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback and onX names belong to the host."
+      "picker failed to declare input 'onPick': expected an input name that is not reserved for host control or output handlers, received 'onPick', which is reserved. Rename the input; key, ref, fallback, pending and onX names belong to the host."
 
     function place(inputs: Readonly<Record<string, unknown>>) {
       const environment = createMfeTestEnvironment({ definitions: [picker] })

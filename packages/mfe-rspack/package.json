@@ -4,30 +4,39 @@
   "description": "pluginMfe(): definition and capability discovery, generated #mfe/* modules, container-relative assets, the container's own scoped stylesheet, React Compiler integration and Module Federation plumbing for MFE containers, as an Rsbuild plugin.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
   "bin": {
-    "mfe-generate": "./src/cli/generate.ts"
+    "mfe-generate": "./bin/mfe-generate.js"
   },
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./env": {
-      "types": "./src/config/env.ts",
-      "default": "./src/config/env.ts"
+      "mfe-source": "./src/config/env.ts",
+      "types": "./dist/config/env.d.ts",
+      "default": "./dist/config/env.js"
     },
     "./federation": {
-      "types": "./src/federation/host-shared.ts",
-      "default": "./src/federation/host-shared.ts"
+      "mfe-source": "./src/federation/host-shared.ts",
+      "types": "./dist/federation/host-shared.d.ts",
+      "default": "./dist/federation/host-shared.js"
     }
   },
   "files": [
+    "bin",
     "src",
     "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -42,16 +51,11 @@
     "babel-plugin-react-compiler": "catalog:"
   },
   "peerDependencies": {
-    "@rsbuild/core": "catalog:",
-    "@rspack/core": "catalog:",
+    "@rsbuild/core": "^2.2.0",
+    "@rspack/core": "^2.2.0",
     "@tecton/react": ">=0.1.0",
-    "typescript": "catalog:",
-    "zod": "catalog:"
-  },
-  "peerDependenciesMeta": {
-    "@tecton/react": {
-      "optional": true
-    }
+    "typescript": ">=5.5.0 <7.0.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@company/mfe-runtime": "workspace:*",

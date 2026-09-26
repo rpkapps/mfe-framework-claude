@@ -12,8 +12,9 @@ export type MfeErrorCode =
   | 'config/invalid'
   | 'load/manifest-failure'
   | 'load/entry-failure'
-  // Declared, never raised on the React path: the federation loader cannot see a duplicated
-  // singleton, which reaches a developer as a framework hook rendered outside any mount.
+  // Declared, never raised: nothing is shared as a singleton (§55), so Module Federation reports no
+  // conflict, and a container on a copy of its own reaches a developer, if at all, as a framework
+  // hook rendered outside any mount.
   | 'load/share-conflict'
   | 'load/timeout'
   | 'mount/failure'
@@ -57,6 +58,12 @@ export interface MfeErrorDetails {
   readonly repair?: string
 }
 
+/**
+ * A registered symbol rather than the class itself: a page may hold more than one copy of this
+ * package (§55), and an error one copy created is an `MfeError` to every other.
+ */
+const MFE_ERROR_BRAND: unique symbol = Symbol.for('@company/mfe.error')
+
 class FrameworkError extends Error implements MfeError {
   readonly code: MfeErrorCode
   readonly id: string
@@ -76,6 +83,9 @@ class FrameworkError extends Error implements MfeError {
     if (details.path !== undefined) this.path = details.path
   }
 }
+
+// On the prototype, so an error's own fields stay exactly what it reports.
+Object.defineProperty(FrameworkError.prototype, MFE_ERROR_BRAND, { value: true })
 
 export function formatPath(path: readonly (string | number)[] | undefined): string {
   if (!path || path.length === 0) return ''
@@ -148,7 +158,7 @@ export function createMfeErrorFactory<Fixed extends Partial<MfeErrorDetails>>(
 }
 
 export function isMfeError(value: unknown): value is MfeError {
-  return value instanceof FrameworkError
+  return value instanceof Error && Reflect.get(value, MFE_ERROR_BRAND) === true
 }
 
 /** A boundary must report something structured even when remote code threw a string. */

@@ -8,12 +8,11 @@ import { join } from 'node:path'
 
 import {
   createBuildError,
+  FRAMEWORK_SCOPED,
   packageOf,
-  SINGLETON,
   type SharingPolicies,
 } from '@company/mfe-build/federation'
 
-import { ANGULAR_ADAPTER } from '../adapter.ts'
 import { SHARED_OPTION } from '../options.ts'
 
 /** The name Angular's share scope starts with, and what a registry entry's `framework` says. */
@@ -24,25 +23,31 @@ export const ANGULAR_ANCHOR = '@angular/core'
 
 /**
  * Angular's injector tokens, platform and scheduler, the router, RxJS's subjects and the adapter
- * built on them are all module state: a second copy renders nothing the first provides, so every
- * Angular container on the same Angular version takes one copy, and a version mismatch inside
- * that scope fails loudly at load. A container on another Angular version brings its own set.
+ * built on them are all module state, so they are shared only with containers on the same Angular
+ * version, and a container on another version brings its own set. None is a singleton (§55): in
+ * `angular@19.2.25` every container provides that `@angular/core`, so the core is one copy anyway,
+ * and the rest resolve to the loaded copy a container's range accepts, or to its own. Each
+ * container bootstraps an application of its own, so no token crosses from one to another.
+ *
+ * The adapter itself is not shared: it compares the router's classes and tokens and provides the
+ * HTTP interceptor, and a shared adapter would compare them against the copies the build that
+ * provided it resolved. Bundled, it imports them through the container's own shares, as the
+ * author's code does.
  */
 export const ANGULAR_SHARING_POLICY: SharingPolicies = {
-  '@angular/core': SINGLETON,
-  '@angular/common': SINGLETON,
+  '@angular/core': FRAMEWORK_SCOPED,
+  '@angular/common': FRAMEWORK_SCOPED,
   // A bare share key never matches a subpath import, so `@angular/common/http` is shared through
   // this prefix entry.
-  '@angular/common/': SINGLETON,
-  '@angular/platform-browser': SINGLETON,
-  '@angular/router': SINGLETON,
-  '@angular/forms': SINGLETON,
-  '@angular/animations': SINGLETON,
-  '@angular/cdk': SINGLETON,
-  '@angular/cdk/': SINGLETON,
-  rxjs: SINGLETON,
-  'rxjs/': SINGLETON,
-  [ANGULAR_ADAPTER]: SINGLETON,
+  '@angular/common/': FRAMEWORK_SCOPED,
+  '@angular/platform-browser': FRAMEWORK_SCOPED,
+  '@angular/router': FRAMEWORK_SCOPED,
+  '@angular/forms': FRAMEWORK_SCOPED,
+  '@angular/animations': FRAMEWORK_SCOPED,
+  '@angular/cdk': FRAMEWORK_SCOPED,
+  '@angular/cdk/': FRAMEWORK_SCOPED,
+  rxjs: FRAMEWORK_SCOPED,
+  'rxjs/': FRAMEWORK_SCOPED,
 }
 
 /**

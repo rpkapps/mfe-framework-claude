@@ -9,10 +9,16 @@ import { FdaCard, fdaSummaries } from './components/fda-card/page.tsx'
 import { WellDesignCard, wellDesigns } from './components/well-design-card/page.tsx'
 import type { costVsRiskContract, fdaSummaryContract, wellDesignContract } from './mfe.tsx'
 
+/** A host changes a Widget's inputs in place rather than remounting it, so each card is keyed on
+ * the id it shows: otherwise a selection made on one alternative would carry over to the next. */
 export function FdaSummaryWidget({
   inputs,
   emit,
 }: WidgetRenderProps<typeof fdaSummaryContract>): ReactNode {
+  return <FdaSummary key={inputs.fdaId} inputs={inputs} emit={emit} />
+}
+
+function FdaSummary({ inputs, emit }: WidgetRenderProps<typeof fdaSummaryContract>): ReactNode {
   const [selected, setSelected] = useState(false)
   const fda = fdaSummaries.find(candidate => candidate.id === inputs.fdaId)
 
@@ -43,6 +49,10 @@ export function WellDesignWidget({
   inputs,
   emit,
 }: WidgetRenderProps<typeof wellDesignContract>): ReactNode {
+  return <WellDesign key={inputs.wellId} inputs={inputs} emit={emit} />
+}
+
+function WellDesign({ inputs, emit }: WidgetRenderProps<typeof wellDesignContract>): ReactNode {
   const [selected, setSelected] = useState(false)
   // The explicit way a Widget hands something to the agent: a new turn, from the user's own press
   // and nothing else (never a timer or an error handler). With no chat on the page it does nothing.
@@ -75,7 +85,17 @@ export function WellDesignWidget({
 export function CostVsRiskWidget({
   inputs,
 }: WidgetRenderProps<typeof costVsRiskContract>): ReactNode {
-  return <CostVsRiskPanel defaultSelected={[...inputs.compare]} variant="flat" />
+  // The panel only seeds its selection from `defaultSelected`, so a later `compare` would be
+  // ignored. Keying on the comparison starts the panel over, axes included, when the host asks for a
+  // different one, which is simpler than making it controlled; the user's own chip changes last
+  // until then. The key is the ids rather than the array, which a host may rebuild unchanged.
+  return (
+    <CostVsRiskPanel
+      key={inputs.compare.join(',')}
+      defaultSelected={[...inputs.compare]}
+      variant="flat"
+    />
+  )
 }
 
 function Unknown({ what }: { readonly what: string }): ReactNode {

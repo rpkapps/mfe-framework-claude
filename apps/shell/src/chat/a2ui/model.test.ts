@@ -6,13 +6,19 @@ import {
   applyMessages,
   checksPass,
   childrenOf,
+  drawnCount,
   getAt,
   imageOrigins,
   imageSource,
+  MAX_DEPTH,
+  MAX_DRAWN,
   resolve,
   resolveText,
   safeUrl,
   setAt,
+  type A2uiComponent,
+  type JsonValue,
+  type Surface,
   type Surfaces,
 } from './model.ts'
 
@@ -192,6 +198,8 @@ describe('AGENT_IMAGE_HOSTS', () => {
 
 describe('values', () => {
   const scope = { data: { email: 'a@b.co', count: 3, tags: [] }, path: '/' }
+  const regex = (pattern: string, value: string): JsonValue =>
+    resolve({ call: 'regex', args: { pattern, value } }, scope)
 
   it('are literals, paths, or calls of the functions the client implements', () => {
     expect(resolve('Hello', scope)).toBe('Hello')
@@ -203,6 +211,33 @@ describe('values', () => {
       resolveText({ call: 'formatString', args: { value: 'You have ${/count} items' } }, scope),
     ).toBe('You have 3 items')
     expect(resolve({ call: 'eval', args: { code: 'alert(1)' } }, scope)).toBeNull()
+  })
+
+  it('check a value against a pattern', () => {
+    expect(regex('^\\d{3}-\\d{4}$', '555-0100')).toBe(true)
+    expect(regex('^[A-Z]{2}(\\d{4})?$', 'NO')).toBe(true)
+    expect(regex('^[A-Z]{2}$', 'no')).toBe(false)
+    expect(regex('(', 'a')).toBe(false)
+  })
+
+  it('fail a pattern that could backtrack for seconds, rather than run it', () => {
+    const started = performance.now()
+    expect(regex('^(a+)+$', `${'a'.repeat(28)}!`)).toBe(false)
+    expect(regex('^(?:a*)*$', `${'a'.repeat(28)}!`)).toBe(false)
+    expect(regex('^((a)+b?)*$', 'a')).toBe(false)
+    expect(regex('^(a|aa)+$', 'a')).toBe(false)
+    expect(regex('^(\\d{2}){2,}$', '1234')).toBe(false)
+    expect(performance.now() - started).toBeLessThan(100)
+
+    expect(regex(`^${'a'.repeat(201)}$`, 'a'.repeat(201))).toBe(false)
+    expect(regex('^a*$', 'a'.repeat(1001))).toBe(false)
+    expect(regex('^a*$', 'a'.repeat(1000))).toBe(true)
+  })
+
+  it('call only the functions the client implements, never an object’s own methods', () => {
+    for (const call of ['constructor', 'hasOwnProperty', 'valueOf', 'toString', '__proto__']) {
+      expect(resolve({ call, args: {} }, scope)).toBeNull()
+    }
   })
 
   it('pass checks only when every condition holds', () => {
@@ -221,6 +256,61 @@ describe('children', () => {
     expect(
       childrenOf({ componentId: 'row', path: '/rows' }, scope).map(child => child.scope.path),
     ).toEqual(['/rows/0', '/rows/1'])
+  })
+
+  it('stop at a limit, counting only ids', () => {
+    const scope = { data: { rows: Array.from({ length: 1e5 }, () => ({})) }, path: '/' }
+    expect(childrenOf([1, 'x', null, 'y', 'z'], scope, 2).map(child => child.id)).toEqual([
+      'x',
+      'y',
+    ])
+    expect(childrenOf({ componentId: 'row', path: '/rows' }, scope, 3)).toHaveLength(3)
+  })
+})
+
+describe('what a surface draws', () => {
+  const surface = (components: readonly A2uiComponent[], data: JsonValue = {}): Surface => ({
+    surfaceId: 's',
+    catalogId: 'c',
+    components: new Map(components.map(component => [component.id, component])),
+    data,
+  })
+
+  it('counts from the root through children, templates and a child, once per branch', () => {
+    const drawn = surface(
+      [
+        { id: 'root', component: 'Column', children: ['card', 'list', 'root', 'missing'] },
+        { id: 'card', component: 'Card', child: 'text' },
+        { id: 'list', component: 'List', children: { componentId: 'text', path: '/rows' } },
+        { id: 'text', component: 'Text', text: 'x' },
+        { id: 'unreached', component: 'Text', text: 'y' },
+      ],
+      { rows: [1, 2, 3] },
+    )
+    expect(drawnCount(drawn)).toBe(1 + 2 + 1 + 3)
+  })
+
+  it('stops just past the budget, however far an id named twice would multiply', () => {
+    const components: A2uiComponent[] = Array.from({ length: MAX_DEPTH }, (_, level) => ({
+      id: level === 0 ? 'root' : `l${String(level)}`,
+      component: 'Column',
+      children: Array.from({ length: 10 }, () => `l${String(level + 1)}`),
+    }))
+    const started = performance.now()
+    expect(drawnCount(surface(components))).toBe(MAX_DRAWN + 1)
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
+  it('stops past the budget without listing every item of a long array per component', () => {
+    const rows = Array.from({ length: 1e5 }, () => ({}))
+    const components: A2uiComponent[] = Array.from({ length: MAX_DEPTH }, (_, level) => ({
+      id: level === 0 ? 'root' : `l${String(level)}`,
+      component: 'List',
+      children: { componentId: `l${String(level + 1)}`, path: '/rows' },
+    }))
+    const started = performance.now()
+    expect(drawnCount(surface(components, { rows }))).toBe(MAX_DRAWN + 1)
+    expect(performance.now() - started).toBeLessThan(1000)
   })
 })
 

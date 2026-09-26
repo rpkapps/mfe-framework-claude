@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Shared flat-config ESLint presets (framework, author) and MFE-specific rules. Development-only; never part of the runtime import DAG.",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -30,10 +33,10 @@
     "typescript-eslint": "catalog:"
   },
   "peerDependencies": {
-    "eslint": "catalog:",
-    "eslint-plugin-react-hooks": "catalog:",
-    "@tanstack/eslint-plugin-query": "catalog:",
-    "@tanstack/eslint-plugin-router": "catalog:",
+    "eslint": "^9.18.0 || ^10.0.0",
+    "eslint-plugin-react-hooks": "^7.1.0",
+    "@tanstack/eslint-plugin-query": "^5.103.0",
+    "@tanstack/eslint-plugin-router": "^1.162.0",
     "@angular-eslint/eslint-plugin": ">=19 <23",
     "@angular-eslint/eslint-plugin-template": ">=19 <23",
     "@angular-eslint/template-parser": ">=19 <23"

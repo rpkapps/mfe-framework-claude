@@ -79,6 +79,7 @@ describe('generated inventory', () => {
 
     expect(names).toEqual([
       '.mfe/.env.example',
+      '.mfe/.generated-files.json',
       '.mfe/.gitignore',
       '.mfe/config.ts',
       '.mfe/css.d.ts',

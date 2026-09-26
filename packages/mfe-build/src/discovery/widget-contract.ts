@@ -16,6 +16,7 @@ import {
   ts,
   unwrapExpression,
   type ImportedBinding,
+  type ImportKind,
 } from './ts-ast.ts'
 
 /** How a Widget contract schema is reached from the generated contract entry. */
@@ -35,6 +36,8 @@ export type SchemaBinding =
 export interface ContractImportName {
   readonly imported: string
   readonly local: string
+  /** The form the entry imported it in, which the generated entry has to repeat. */
+  readonly kind: ImportKind
 }
 
 export interface ContractImport {
@@ -66,8 +69,8 @@ interface WidgetContractReadResult {
 interface CopyState {
   /** Names already emitted into the prelude, in insertion order. */
   readonly prelude: Map<string, string>
-  /** Imports the copied code needs, keyed by module specifier. */
-  readonly imports: Map<string, Map<string, string>>
+  /** Imports the copied code needs, keyed by module specifier and then by local name. */
+  readonly imports: Map<string, Map<string, ContractImportName>>
   readonly fileImports: Set<string>
 }
 
@@ -118,7 +121,7 @@ export function readWidgetContract(
       imports: [...state.imports].map(([module, names]) => ({
         module,
         isFile: state.fileImports.has(module),
-        names: [...names].map(([local, imported]) => ({ local, imported })),
+        names: [...names.values()],
       })),
     },
   }
@@ -386,8 +389,8 @@ function copyIdentifier(
       })
     }
     const module = file ?? imported.moduleSpecifier
-    const names = state.imports.get(module) ?? new Map<string, string>()
-    names.set(name, imported.imported)
+    const names = state.imports.get(module) ?? new Map<string, ContractImportName>()
+    names.set(name, { local: name, imported: imported.imported, kind: imported.kind })
     state.imports.set(module, names)
     if (file !== null) state.fileImports.add(module)
     return

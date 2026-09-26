@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { SpanStatusCode, useTelemetry } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 
 import { EventLog, LabPage, LabSection, type LogTone } from '../lab-page.tsx'
 
@@ -12,12 +12,15 @@ export const Route = createFileRoute('/telemetry')({
 
 function Telemetry(): ReactNode {
   const telemetry = useTelemetry()
-  const [log, setLog] = useState<readonly { at: string; text: string; tone: LogTone }[]>([])
+  const [log, setLog] = useState<
+    readonly { id: number; at: string; text: string; tone: LogTone }[]
+  >([])
+  const lastEntry = useRef(0)
 
   const note = (text: string, tone: LogTone = 'default'): void => {
-    setLog(current =>
-      [{ at: new Date().toLocaleTimeString(), text, tone }, ...current].slice(0, 10),
-    )
+    lastEntry.current += 1
+    const entry = { id: lastEntry.current, at: new Date().toLocaleTimeString(), text, tone }
+    setLog(current => [entry, ...current].slice(0, 10))
   }
 
   return (

@@ -2,7 +2,9 @@
  * Mounting an App: one Angular application per mount, with the App's routes over a location
  * strategy that reads and writes the host's navigation bridge rather than the browser's history.
  * The router starts its first navigation only once the root view is attached, because an
- * application that is not bootstrapped never runs the router's bootstrap listener.
+ * application that is not bootstrapped never runs the router's bootstrap listener. Preloading and
+ * in-memory scrolling start only from that listener too, and blocking initial navigation waits on
+ * it forever, so `createApp` refuses those features.
  */
 
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
@@ -18,6 +20,10 @@ import {
   provideMfeNavigationBlockers,
   registerAppNavigationBlocker,
 } from '../routing/navigation-blockers.ts'
+import {
+  provideSettledNavigations,
+  reportNavigationFailures,
+} from '../routing/navigation-failures.ts'
 import { disposedWhileMounting, MountErrorHandler, runMountApplication } from './mount-providers.ts'
 
 /** `Location` strips this prefix from every path the strategy reads, as it would a real base href. */
@@ -32,7 +38,11 @@ export async function mountApp(
   const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
-  const location = new BoundaryLocationStrategy(context.runtime.navigator, baseHrefOf(context))
+  // A bridge of its own, so the other Apps on the page hear where this router takes it.
+  const location = new BoundaryLocationStrategy(
+    context.runtime.navigator.createBridge(),
+    baseHrefOf(context),
+  )
 
   const { dispose, whenStable } = await runMountApplication({
     definition,
@@ -45,6 +55,7 @@ export async function mountApp(
         ...definition.routerFeatures,
         withDisabledInitialNavigation(),
       ),
+      provideSettledNavigations(definition.routerFeatures),
       { provide: APP_BASE_HREF, useValue: location.getBaseHref() },
       { provide: LocationStrategy, useValue: location },
       provideMfeNavigationBlockers(),
@@ -59,6 +70,8 @@ export async function mountApp(
     },
     start: (_rendered, { injector }) => {
       const router = injector.get(Router)
+      // Before the first navigation starts, so its failure fails the mount.
+      const stopReportingFailures = reportNavigationFailures(router, context, target.onFailure)
       const stopBlocking = registerAppNavigationBlocker({
         context,
         injector,
@@ -77,6 +90,7 @@ export async function mountApp(
       return () => {
         stopBlocking()
         stopBreadcrumbs()
+        stopReportingFailures()
       }
     },
     release: () => {

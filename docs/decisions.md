@@ -22,6 +22,13 @@ subscription made in the constructor was removed by the first cleanup and never
 re-made (§14), so construction is pure and `attach()` listens. A missing one does
 not announce itself.
 
+**Amendment (2026-09-26):** each App's router reaches the navigator through a bridge of its own
+(`createBridge`). A push or replace through it is told, a microtask later, to every other
+subscriber and not to the router that made it, which already knows; it is held during a
+negotiation as a browser report is, and a write that leaves the page where it was is told to no
+one. Nested Apps share the page, so where one takes it the other must hear. A push by one App
+still asks no other App's blockers.
+
 ---
 
 ## 2. One generated route tree can back two concurrent mounts
@@ -132,6 +139,10 @@ definition brand an open string and every adapter listed by the shell, an adapte
 a plugin: a third one adds a package and one entry in the shell's `adapters`, and
 changes nothing in the core, the runtime or the adapters already there.
 
+**Amendment (2026-09-26):** React is no longer a strict singleton: nothing is shared as one
+(§55). It stays one copy within a React version's share scope because every container there
+provides the same React (§33).
+
 ---
 
 ## 7. Two error conditions have no exact code in the closed union
@@ -145,6 +156,10 @@ channel went with session ownership to the shell; a 401 whose request cannot be
 replayed reports `config/invalid`, because nothing in the union describes
 replayability. Both therefore read as configuration faults to anything that reads
 codes; `failSession` and `warnNotReplayable` are the two call sites to change.
+
+**Amendment (2026-09-26):** only the second condition is left. A failed refresh is no longer
+reported: the runtime's session helper drops the token it held and the shell's auth library owns
+the failure (§10, §36), so `failSession` is gone. `warnNotReplayable` is the one call site.
 
 ---
 
@@ -291,6 +306,9 @@ definition's `mount` runs once — pinned by `app-host.test.tsx`. The rule is th
 one, held by a handle instead of a context: what an effect creates, that effect's
 cleanup ends.
 
+**Amendment (2026-09-26):** an App's router factory runs in a memo, which StrictMode calls twice
+in development, so it may run twice for one mount and must build the router and do nothing else.
+
 ---
 
 ## 15. A host composing the registry cannot call `lazyWidget`
@@ -422,6 +440,11 @@ rebuilds and checkouts — carried forward whenever the hash matches, not this
 compilation's, though a fixed `buildTime` is still recorded as given. A build
 running on every compilation must be a pure function of its inputs.
 
+**Amendment (2026-09-26):** a plan lists the files it writes in `.mfe/.generated-files.json`. Writing a
+changed list deletes what the previous one named and this one does not, inside that directory
+only, so a renamed Widget leaves no stale entry behind. Nothing a plan never listed is deleted,
+so the developer's `runtime-config.json` survives.
+
 ---
 
 ## 20. An App blocks navigation with TanStack's own `useBlocker`, and the framework widens it
@@ -445,7 +468,7 @@ released a microtask later on a proceed.
 
 ## 21. Storage retention is named for who owns a record, not for how long it lives
 
-**Status:** decided, load-bearing.
+**Status:** superseded by §56, which removed retention.
 
 `StorageRetention` was `'session' | 'preference'`, and both names lied.
 `retention: 'session'` meant the signed-in identity while `storage: 'session'`
@@ -476,6 +499,13 @@ records that nothing owns, and `retention: 'user'` on the few that mattered read
 noise beside it. Per-user data is the explicit choice now: a record that declares
 no retention survives a sign-out, and anything derived from a user's data says
 `retention: 'user'` where a reader can see it.
+
+**Amendment (2026-09-26):** a generation is reused across a reload only for the identity and the canonical
+group set recorded beside it, so a user whose groups changed between sign-ins starts a fresh
+generation; a transition in the page rewrites that record.
+
+**Amendment (2026-09-26):** retention is gone (§56). Every record is what `'browser'` was, and the
+session generation, the `r` and `g` fields and the purge went with `'user'`.
 
 ---
 
@@ -516,6 +546,13 @@ pointing at a dead dev server looks like a broken deployment.
 the bug report, now the only place on the page that says what the shell was
 running.
 
+**Amendment (2026-09-26):** overrides are still read in every build, but apply only to a loopback origin
+or one the host lists in `overrideOrigins`; any other is refused with a warning. An override for
+an id the registry does not list is reported, and a tab whose session record names a different
+user than the one signed in discards the overrides it finds. Since §56 that record,
+`@host:session-identity`, holds nothing but the identity. A new tab has no record to compare,
+and a user change without a reload clears nothing.
+
 ---
 
 ## 24. The host page had no storage scope, and the lint allowlist was the evidence
@@ -529,15 +566,16 @@ same comment: this state belongs to the page, not to any definition on it.
 lower-case letters, digits and single hyphens, so no registry entry can claim that
 name — where a shell using `"shell"` could not be told from a definition.
 `useStoredState` resolves by position, the definition inside a mount and `@host`
-outside, as `useCommand` does (§26); the session generation is host-scoped and
-`retention: 'browser'` (§25), because the record fencing every
-`retention: 'user'` write cannot be gated by what it establishes. The theme is the
+outside, as `useCommand` does (§26). The theme is the
 one exemption, its key never ours to choose: legacy Angular applications read
 `localStorage["theme"]` as a bare string, so `preferences.ts` writes that raw.
 
 **Consequence:** the allowlist is not empty, so what an entry has to prove is what
 changed; one that cannot justify itself that way is another missing primitive,
 not a local exception.
+
+**Amendment (2026-09-26):** the session generation this entry placed in the host scope is gone with
+retention (§56); the host scope keeps the tab's session identity record in its place.
 
 ---
 
@@ -552,7 +590,7 @@ all along — the failure class §11 describes, landing on the diagnostics. The 
 is now the shell's and `createMfeRuntime({ diagnostics })` adopts it; ordering
 forces that one option, since `installShellAuth` runs before the runtime exists.
 `telemetryDiagnosticsSink(provider)` is the one `Diagnostic` to `TelemetryRecord`
-translation, forwarded only when the host asks by name (§10). Nothing else is
+translation, forwarded only when the host asks by name. Nothing else is
 adopted — the theme is not a framework record (§24) — and `dispose()` removes only
 the sinks it added to a supplied hub, silent by design with none.
 
@@ -664,7 +702,7 @@ place readable without loading the container.
 the entire page is down".
 
 The framework's central promise is that a registry entry which fails costs the
-page that one surface (§11). An override pointing one App at a dead port broke it:
+page that one surface. An override pointing one App at a dead port broke it:
 the boundary rendered its `MountFailure`, then the next chunk the shell fetched —
 the developer tools — took the whole page down. Module Federation's
 default share strategy is `version-first`: before resolving **any** share the host
@@ -689,6 +727,10 @@ second copy. A container on any other React version shares nothing with the host
 but `@company/mfe-core` and `@company/mfe-runtime` in `default`, where the same rule
 holds and the host's copy wins. The strategy is still declared at build time, and
 the runtime still stamps it onto every share, in every scope.
+
+**Amendment (2026-09-26):** a remote whose range the host's copy does not satisfy is no longer
+rejected at load: with no singletons (§55) it gets a loaded copy its range accepts, or its own.
+`loaded-first` still keeps the host's copy for every remote whose range it satisfies.
 
 ---
 
@@ -767,6 +809,30 @@ or binds dark mode, and `@primeng/themes` left the generated dependencies: the h
 declares PrimeNG's variables for the whole page before the first Angular container
 mounts (§38). `injectTheme()` and the mount's roots are still what a container's own
 theming code would build on.
+
+**Amendment (2026-09-26):** a mount creates its application and attaches the App's root rather than
+bootstrapping it, so the router's bootstrap listener never runs. `createApp` refuses the features
+that start only from it — `withEnabledBlockingInitialNavigation()`, which held every navigation
+forever, `withPreloading()` and `withInMemoryScrolling()` — with `app/invalid-router`. The router
+gives a failed navigation to its promise and a `NavigationError` event, not the `ErrorHandler`,
+so the mount listens: a failure before the App's first completed navigation fails the mount
+through `onFailure`, and one after it is a diagnostic. The mount sets
+`resolveNavigationPromiseOnError`, because the router drops the promises of the navigations it
+starts itself. **Cost:** an App's own `router.navigate()` resolves `false` on failure rather than
+rejecting, and the App's `withRouterConfig` options are carried over by reading the feature's
+providers, which a router upgrade could change.
+
+**Second amendment (2026-09-26):** every framework package but `@company/eslint-plugin-mfe`
+publishes `dist/` under `types` and `default` and, but for `@company/mfe-nx`, names its source
+under `mfe-source`, and a bin is a JavaScript file in `bin/` that runs the compiled CLI: Node
+refuses TypeScript under `node_modules`, and a package manager links a bin only when its file
+exists at install, before a workspace builds `dist/`. What Node loads natively in
+this repository, `rsbuild.config.ts` and `mfe-generate` through `@company/mfe-rspack` and the
+`@company/mfe-build` and `@company/mfe-core` behind it, is built by `build:stale` first. The lint
+plugin stays on source because ESLint loads a TypeScript config through jiti, which resolves no
+custom condition, so an editor would otherwise lint against a `dist/` that is missing or stale.
+Peers are supported ranges, never `catalog:`, which publishes the catalog's exact version, and
+`engines.node` states the Node each package runs on.
 
 ---
 
@@ -864,6 +930,17 @@ installs, so the design system's `recharts` was not shared until the chat's char
 it a dependency of the shell. And `shareScopes` couples the registry to the build: an entry without
 it shares in `default` alone and runs on its own React.
 
+**Amendment (2026-09-26):** `react` and `react-dom` are shared by the React adapter's own policy, and a
+design-system contract cannot override an entry the adapter lists, so no release of it can load
+a second React. A mount torn down while its definition is still mounting has its signal aborted
+first, so a definition that stops on abort cannot hold the teardown.
+
+**Amendment (2026-09-26):** inside a scope the rule is no longer one strict singleton per
+candidate: nothing is a singleton (§55). A container takes the loaded copy its range accepts and
+loads its own when none does, and `@company/mfe-core` and `@company/mfe-runtime` stay shared in
+`default` without having to be the only copy. The scopes are unchanged, and so is the reason for
+them: a shared module's own imports resolve in the build that provided it.
+
 ---
 
 ## 34. The lint plugin has a neutral root and one subpath per framework
@@ -943,9 +1020,14 @@ warnings reuse `command/duplicate-name`, which already covered an invalid regist
 rather than widening the closed union (§7). And a key the page is inside two nested
 Apps for is ambiguous where an inner-wins rule would have resolved it.
 
+**Amendment (2026-09-26):** letters and digits name keys, not what a layout types on them: where the key
+is not printable ASCII, or Alt is held without Ctrl, the physical key (`event.code`) is read, so
+the shell's shortcuts work on a Cyrillic layout. Ctrl+Alt keeps its symbol, as Windows reports
+AltGr. A held key's repeats run nothing but are still claimed.
+
 ---
 
-## 36. The shell signs in before anything loads, and holds its tokens in memory only
+## 36. The shell signs in before anything loads, and keeps its session for the life of the tab
 
 **Status:** decided; the shell's half of §10.
 
@@ -1057,6 +1139,11 @@ session early; revocation takes effect at the next renewal, so access tokens sho
 short-lived. `oidc-client-ts` adds about 17 kB gzipped to the first load, fetched in
 parallel with the entry.
 
+**Amendment (2026-09-26):** when the identity provider cannot be reached as the session is lost,
+the failure page says so over the running shell, since a shell without a token can do nothing, and
+trying again reloads into a fresh sign-in. A renewal that fails for want of a network ends the
+session too: keeping it would leave requests going out without a token and nothing to say why.
+
 ---
 
 ## 37. A host's `#mfe/config` validates without Zod; a container's still runs the author's schema
@@ -1092,6 +1179,10 @@ single-page fallback serves for a file it does not have, as a missing file.
 **Cost:** an object nested in a host's configuration refuses a key its schema does not
 name, as the JSON Schema says, where Zod would strip it; top-level unknown keys are refused
 by both. The string transforms apply to a top-level field only.
+
+**Amendment (2026-09-26):** an `{ api: true }` field must be a URL schema with an http(s) default, if it has
+one; its value is checked for http(s) when the configuration loads, and an unset optional field
+declares no origin.
 
 ---
 
@@ -1259,6 +1350,13 @@ writes `z.object({})` where it wrote `{}`, and `createWidget` refuses anything
 without a `shape`. Typing an output's payload reads through the shape
 (`z.infer<(typeof outputSchema)['shape']['acknowledged']>`), which the generated
 `Outputs` type spells out so a consumer never has to.
+
+**Amendment (2026-09-26):** a contract is typed from each end of its schemas. What a consumer
+passes and what an `emit` takes are what the schema accepts (`z.input`), so a field with a default
+is optional to pass; what `render` receives and what a handler is given are what it produces.
+`ContractInputs` and `ContractOutputs` are the consumer's view, `ContractParsedInputs` and
+`ContractEmitPayloads` the Widget's. `pending`, the Widget hosts' loading slot, joins the reserved
+input names.
 
 ---
 
@@ -1506,7 +1604,7 @@ action's owner), which is the existing path to the shell's telemetry, and hands 
 the host's `auditAction`. Storing it, and for how long, is the backend's job; the page
 keeps nothing. A sink that throws is reported and the run's result stands.
 
-**Amendment (§50):** the audit trail is not stored, by the page, the shell or the agent
+**Amendment (2026-09-25):** the audit trail is not stored, by the page, the shell or the agent
 backend. It travels as telemetry: the `run action` records reach the shell's telemetry
 provider, and the shell's Faro and OpenTelemetry pipeline will carry them once it is
 connected. The shell sets no `auditAction`.
@@ -1523,7 +1621,7 @@ lets a credential under an unremarkable key through; an action should not take o
 
 The agent navigates, and a host cannot generate a navigate tool from Apps it has not
 loaded, so the build publishes each App's routes into its registry entry, as it
-publishes capability routes (§16): `routes: [{ path, search? }]`, App-only, sorted by
+publishes capability routes: `routes: [{ path, search? }]`, App-only, sorted by
 path. A container profile finds them (`readRoutes`, beside `readCapabilities`), and the
 neutral build dedupes and sorts them. The registry refuses routes on a Widget, which
 owns no URL, and a path that is not App-relative.
@@ -1557,6 +1655,9 @@ published, and the navigate tool cannot offer them; a route whose path is comput
 not either, nor one with a parameter that shares its segment with a prefix or a suffix
 (`{$id}.json`), which the neutral syntax cannot write, nor an Angular route with a
 `matcher` or on a named outlet.
+
+**Amendment (2026-09-26):** capability paths are published in the same neutral syntax as `routes`, and a
+marked route that syntax cannot write fails the build.
 
 ---
 
@@ -1657,7 +1758,7 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   Picking an action does not run it: it becomes a chip that sends the tool's name as the turn's
   context, with the action's label as the text, so the model fills the inputs, the approval card
   still asks, and the conversation keeps the result. Running an action straight away is the
-  palette's (§26), so the chat does not become a second palette.
+  palette's (§39), so the chat does not become a second palette.
 - **Replies** are Markdown, GitHub's flavour, with no raw HTML. A link to a page of the application
   goes through the router and the Apps' blockers, as a link on the page does (§20); any other opens
   in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
@@ -1787,6 +1888,11 @@ opens only on the user's press.
 catalogue yet, nor its `ACTIVITY_SNAPSHOT` transport; an agent behind the middleware that only
 sends activity events draws nothing here.
 
+**Amendment (2026-09-26):** nothing an agent sends runs unbounded on the page's thread. An A2UI
+surface draws at most 1000 components, and the render tool refuses a larger one; a `regex` check
+refuses long patterns, long values and nested repetition; function and table lookups use own
+members only.
+
 ---
 
 ## 52. A mount suggests prompts while it lives
@@ -1813,3 +1919,110 @@ entry that names no framework is no adapter's and is rejected as unrecognised, w
 loudly; one that names its framework stays with that adapter however broken the rest is (§9).
 `shareScopes` stays optional on a registry entry: one written by hand, for a test or a fixture,
 names none, and `default` alone is right for it.
+
+---
+
+## 54. Every container is trusted with the shell's privileges; the boundaries prevent accidents
+
+**Status:** decided; written down after a review read the boundaries as a security model.
+
+Every container is built by a team inside the company and runs in the shell's own document, in
+the same JavaScript realm, with no iframe between them. What one container can do, any can: read
+the session the shell keeps in `sessionStorage` (§36), call `getAccessToken`, reach the whole
+`MfeRuntime` through `useMfeRuntime`, patch a global, or write another definition's storage
+records. The six isolation boundaries keep well-behaved containers from colliding by accident: a
+storage key one team happens to share with another, a class name that restyles another App, a
+token sent to a host nobody declared. None of them stops a container that means harm, and a
+narrower runtime object handed to each mount would not change that while the realm is shared.
+
+So a container is admitted by who builds and deploys it, not by what the runtime lets it reach.
+Loading code from outside the company, or from a team the shell's owners do not trust with their
+users' sessions, needs another boundary first — an iframe or a separate origin — and is not
+something the registry supports. `canExecute`, the approval card and the storage scopes stay what
+§42 and §24 say they are: guidance for honest code and for the agent, never authorization. The
+server authorizes.
+
+**Cost:** a compromised container, or one script injected into the page, has everything the
+shell has for as long as the tab lives. Keeping the refresh token out of reach (a backend for
+the frontend, or DPoP) and a `script-src` policy naming the registry's origins are the ways to
+narrow that, and neither exists yet.
+
+---
+
+## 55. Nothing is shared as a singleton, because containers are released on their own
+
+**Status:** decided; at the project owner's direction, because every container is built and released
+from a repository of its own.
+
+§33 kept one rule inside a share scope: one strict singleton per candidate. That rule assumes the
+containers on one framework version were built together. Released from separate repositories they
+are not, and a strict singleton turns every drift into an outage: a container built against
+`@company/mfe-react@^0.2.0` failed to load on a shell that provided 0.1.0, with "does not satisfy
+the requirement", and so did one on a core the shell's did not satisfy. Nobody had changed that
+container; another repository had released.
+
+So nothing is a singleton. Every `shared` entry a container or a host is built with is
+`singleton: false, strictVersion: false`, and a `SharingPolicy` has no field that could say
+otherwise. Module Federation then gives a container the loaded copy its range accepts, which under
+`loaded-first` (§30) is the host's whenever it qualifies, and a container that nothing loaded
+satisfies loads the copy it bundled instead of failing. Containers whose ranges agree still download
+one copy. The scopes stay as §33 set them, for the reason it gave: a shared module's own imports
+resolve in the build that provided it. Inside `react@19.3.0` every container provides React 19.3.0,
+so React itself stays one copy; the same holds for `@angular/core`.
+
+A page may now hold two copies of `@company/mfe-core` or `@company/mfe-runtime`, so neither may keep
+what matters across containers in module state. An error is an `MfeError` by a registered symbol on
+its prototype rather than by `instanceof`, so a Widget's contract error keeps its code when the
+shell's copy reports it. The mount-token sequence lives on the page under a registered symbol, so
+two runtimes never both issue `reports#1` and one's teardown never clears the other's actions. So
+does the session `installShellAuth` installs, which a container's `#mfe/fetch` reads through its
+own copy and would otherwise find missing, and so does the active span context.
+
+The adapters are no longer shared at all. An adapter renders the providers the author's code reads,
+TanStack Query's client and the router, and compares Angular's router classes and tokens; a shared
+adapter binds those to the copies the build that provided it resolved, so a container whose range
+excluded them would find no `QueryClient`. Bundled, each container's adapter imports them through
+the container's own shares, as its author's code does. Nothing in an adapter needed one copy per
+page: definitions and style roots were already recognised by registered symbols, and each mount
+provides its contexts again in a root of its own (§33). A definition was already
+recognised by a registered symbol (§6). The design system's contract says the same from its side:
+`@tecton/react/federation/shared` declares no singletons, and the adapter no longer reads its
+singleton flags, only whether a package loads eagerly.
+
+**Cost:** a mismatch no longer fails loudly at load; it runs, on two copies. A container downloads
+its own adapter, and its own copy of anything its range excludes, where the singleton rule would
+have refused it rather than paid for it. A container on its own `sonner` queues toasts the shell's
+`Toaster` never reads. A container on a newer runtime than the shell's calls members of the shell's
+runtime object by name, so one the shell's version lacks fails when it is called: the runtime object
+is now a contract between versions, and nothing yet checks that a container's runtime is no newer
+than the shell's.
+
+---
+
+## 56. A stored record belongs to the browser, and nothing clears it at sign-out
+
+**Status:** decided; at the project owner's direction, because no container was expected to ask
+for anything else.
+
+§21 gave every record a retention: `'browser'`, kept until something removes it, or `'user'`,
+removed when the signed-in identity or the group set changes. Its amendment made `'browser'` the
+default, and nothing afterwards asked for `'user'`: the shell and the examples all stored a
+density, a panel split or a composed dashboard, and only the lab's own demonstration declared
+`'user'`. What it cost was the most intricate code in the runtime: a session generation minted per
+identity and group set, stamped into every user record as `g` and recorded per tab so a reload
+could reuse it, a fence on writes from a retired generation, and a purge of both stores on every
+transition. That is where the review found the generation surviving a change of groups (§21's
+amendment).
+
+So retention is gone. A record is `{ v, d }`, the framework never clears it at sign-out, and every
+user of the browser profile reads it; nothing personal belongs in storage. `StorageRetention`,
+the store's `applySessionTransition` and `establishSession`, the write fence and the runtime's
+generation options are removed. What the generation record also did survives on its own: the tab
+keeps `@host:session-identity`, so a boot that finds somebody else's identity there still
+discards their developer overrides (§23). A record written with the old `r` and `g` fields reads
+as an ordinary one, since nothing was published (§53).
+
+**Cost:** a container that does hold something personal — a draft, a recent search, a cached
+record — leaves it for the next person on a shared browser profile, and the framework does
+nothing to stop it. Clearing it is the container's own work until retention comes back, and
+bringing it back is an optional field, so it would not break anyone who stores today.

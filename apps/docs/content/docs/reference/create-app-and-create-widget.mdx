@@ -31,7 +31,7 @@ export default createApp({
 | Option        | Type                                       | Required | What it does                                                            |
 | ------------- | ------------------------------------------ | -------- | ----------------------------------------------------------------------- |
 | `id`          | `string`                                   | yes      | The definition id. Also the storage prefix and the CSS scope value.     |
-| `router`      | `(options: AppRouterOptions) => AnyRouter` | yes      | Called once per mount, never once per module.                           |
+| `router`      | `(options: AppRouterOptions) => AnyRouter` | yes      | Once per mount; StrictMode may call it twice in dev: no side effects.   |
 | `version`     | `string`                                   | no       | Recorded in diagnostics, so a failure names the build that was running. |
 | `breadcrumbs` | `false`                                    | no       | Drops this App's own breadcrumb segment. Nested Apps still contribute.  |
 | `title`       | `string`                                   | no       | Presentation. See the table below.                                      |
@@ -110,12 +110,12 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 | Field    | Type                        | What it is                                                        |
 | -------- | --------------------------- | ----------------------------------------------------------------- |
-| `inputs` | `ContractInputs<C>`         | The validated props, typed from your `inputSchema`.               |
+| `inputs` | `ContractParsedInputs<C>`   | The validated props, typed from your `inputSchema`.               |
 | `emit`   | `(output, payload) => void` | Sends one declared output. The payload is validated at this call. |
 
 ## What each factory returns
 
-`createApp` returns `{ kind: 'app', id, version?, createRouter, contributesBreadcrumbs }`. `createWidget` returns `{ kind: 'widget', id, version?, contract, render }`. Both carry a private brand, which is how the mount boundary recognises them. Treat the result as an opaque value and export it from `src/mfe.ts`.
+`createApp` returns `{ kind: 'app', framework: 'react', id, version?, createRouter, contributesBreadcrumbs, mount }`. `createWidget` returns `{ kind: 'widget', framework: 'react', id, version?, contract, render, mount }`. Both carry a brand under a registered symbol, which is how every host recognises them, and the host places each through its own `mount`. Treat the result as an opaque value and export it from `src/mfe.ts`.
 
 ## Errors
 

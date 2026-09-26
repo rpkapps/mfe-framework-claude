@@ -18,6 +18,7 @@ import { forgetAvatar, loadAvatar } from './avatar.ts'
 import { identityFromClaims, type ShellIdentity } from './claims.ts'
 import { resolveAuthConfig, type OidcConfig } from './config.ts'
 import { currentReturnTo, isSigninCallback, safeReturnTo } from './return-to.ts'
+import { describeCause, redirectToSignIn, signInAfterSessionLost } from './sign-in.ts'
 import { claimTab, type TabClaim, type TabLocks } from './tab.ts'
 import { createOidcTokenSource, DEFAULT_SKEW_SECONDS } from './token-source.ts'
 
@@ -83,33 +84,6 @@ function createUserManager(config: OidcConfig, storage: Storage): UserManager {
   })
 }
 
-function describe(cause: unknown): string {
-  if (cause instanceof Error && cause.message !== '') return cause.message
-  return 'The identity provider did not say why.'
-}
-
-/**
- * Also the failure page's "Sign in again", after the loader is gone: its button then says it is
- * redirecting, and a provider that cannot be reached replaces the page's failure with its own.
- */
-function redirectToSignIn(manager: UserManager, returnTo: string): void {
-  setLoaderStatus('Redirecting to sign in…')
-  // `replace`, so Back from the identity provider leaves the shell rather than landing on a page
-  // that would only redirect again.
-  manager.signinRedirect({ state: returnTo, redirectMethod: 'replace' }).catch((cause: unknown) => {
-    failLoader({
-      kind: 'unreachable',
-      title: 'The sign-in service is unreachable',
-      detail: describe(cause),
-      actionLabel: 'Try again',
-      pendingLabel: 'Reloading…',
-      onAction: () => {
-        window.location.reload()
-      },
-    })
-  })
-}
-
 function oidcSession(
   manager: UserManager,
   config: OidcConfig,
@@ -119,12 +93,8 @@ function oidcSession(
   const tokens = createOidcTokenSource({
     current: () => manager.getUser(),
     renew: () => manager.signinSilent(),
-    // The session cannot continue without a new sign-in, which is a page navigation. Where the
-    // user was is kept, so they come back to it.
     onSessionLost: () => {
-      void manager
-        .removeUser()
-        .finally(() => manager.signinRedirect({ state: currentReturnTo(window.location) }))
+      signInAfterSessionLost(manager)
     },
   })
   return {
@@ -180,7 +150,7 @@ export async function authenticate(): Promise<boolean> {
     failLoader({
       kind: 'configuration',
       title: 'The configuration could not be loaded',
-      detail: describe(cause),
+      detail: describeCause(cause),
       actionLabel: 'Reload',
       pendingLabel: 'Reloading…',
       onAction: () => {
@@ -243,7 +213,7 @@ export async function authenticate(): Promise<boolean> {
     failLoader({
       kind: 'sign-in',
       title: 'We could not sign you in',
-      detail: describe(cause),
+      detail: describeCause(cause),
       actionLabel: 'Sign in again',
       pendingLabel: 'Redirecting…',
       onAction: () => {

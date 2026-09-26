@@ -9,7 +9,7 @@ import {
 } from '@tecton/react/components/select'
 import { Field, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { Input } from '@tecton/react/components/input'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 
 import { AlertPanel, MissingWidget, UntypedAlertPanel } from '../widgets.ts'
 import { EventLog, LabPage, LabSection, WidgetSkeleton } from '../lab-page.tsx'
@@ -26,11 +26,14 @@ function Widgets(): ReactNode {
   const [alertId, setAlertId] = useState('a-1001')
   const [severity, setSeverity] = useState<(typeof SEVERITIES)[number]>('warning')
   const [badSeverity, setBadSeverity] = useState('critical')
-  const [outputs, setOutputs] = useState<readonly { at: string; text: string }[]>([])
+  const [outputs, setOutputs] = useState<readonly { id: number; at: string; text: string }[]>([])
+  const lastOutput = useRef(0)
   const [showMissing, setShowMissing] = useState(false)
 
   const record = (text: string): void => {
-    setOutputs(current => [{ at: new Date().toLocaleTimeString(), text }, ...current].slice(0, 8))
+    lastOutput.current += 1
+    const entry = { id: lastOutput.current, at: new Date().toLocaleTimeString(), text }
+    setOutputs(current => [entry, ...current].slice(0, 8))
   }
 
   return (
@@ -59,8 +62,12 @@ function Widgets(): ReactNode {
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor={`${id}-severity`}>severity</FieldLabel>
+            <FieldLabel id={`${id}-severity-label`} htmlFor={`${id}-severity`}>
+              severity
+            </FieldLabel>
+            {/* React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`. */}
             <Select
+              aria-labelledby={`${id}-severity-label`}
               className="w-full"
               selectedKey={severity}
               onSelectionChange={key => {

@@ -96,7 +96,7 @@ function reflectComponentContract(definition: WidgetDefinition): ComponentContra
     throw fail({
       expected: 'outputs the outputSchema declares, or names a host does not reserve',
       observed: `an output named "${name}"`,
-      repair: 'Rename the output; key, ref, fallback and onX names belong to the host.',
+      repair: 'Rename the output; key, ref, fallback, pending and onX names belong to the host.',
     })
   }
 

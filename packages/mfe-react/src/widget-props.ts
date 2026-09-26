@@ -4,24 +4,22 @@
  * host that knows the Widget only by id splits props exactly as one that imported its contract.
  */
 
-import { outputNameToHandlerProp } from '@company/mfe-core'
+import { isReservedInputName, outputNameToHandlerProp } from '@company/mfe-core'
 
 type Props = Readonly<Record<string, unknown>>
 
 /** A host composing the registry knows output names only as strings, not as `onX` props. */
 const CATCH_ALL_HANDLER_PROP = 'onOutput'
 
-/** Host control props, never forwarded as inputs. */
-const CONTROL_PROPS = new Set(['fallback', 'pending', 'key', 'ref'])
-
 /**
- * Everything that is neither a host control prop nor a handler. An `onX` prop with no matching
+ * Everything that is neither a host control prop nor a handler: the names a contract may not
+ * declare, so the split and the contract check cannot disagree. An `onX` prop with no matching
  * output is dropped here too, because it would fail serializability with a confusing message.
  */
 export function widgetInputs(props: Props): Record<string, unknown> {
   const inputs: Record<string, unknown> = {}
   for (const [name, value] of Object.entries(props)) {
-    if (CONTROL_PROPS.has(name) || /^on[A-Z]/.test(name)) continue
+    if (isReservedInputName(name)) continue
     inputs[name] = value
   }
   return inputs

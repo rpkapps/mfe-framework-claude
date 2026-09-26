@@ -1,6 +1,6 @@
 /**
  * Web Storage is one flat key space shared by the shell and every MFE in the origin, so keys
- * collide, the shell cannot clear them on sign-out and a quota error escapes. An `allowedScopes`
+ * collide, nothing versions them for a migration and a quota error escapes. An `allowedScopes`
  * entry that cannot justify itself is a missing primitive, not an exception (§24).
  */
 
@@ -72,7 +72,7 @@ const rule: Rule.RuleModule = {
     ],
     messages: {
       rawStorage:
-        "`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes as an unhandled exception. Use `{{storedStateHook}}` for component state or `{{storageHook}}` for imperative access, both from {{adapterModule}}. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.",
+        "`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, it carries no version to migrate a changed shape from, and a quota failure escapes as an unhandled exception. Use `{{storedStateHook}}` for component state or `{{storageHook}}` for imperative access, both from {{adapterModule}}. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.",
       useBoundary:
         'Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = {{storageHook}}`.',
     },

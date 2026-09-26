@@ -22,8 +22,6 @@ Returns the signed-in user, or `null` when nobody is signed in. `ShellUser` carr
 const name = useUser(user => user?.name ?? 'Signed out')
 ```
 
-Recipe: [Clear a value when the user changes](/docs/clear-a-value-on-sign-out).
-
 ### useGroups
 
 ```ts
@@ -140,6 +138,8 @@ Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `
 ```ts title="examples/lab/src/routes/telemetry.tsx"
 const telemetry = useTelemetry()
 ```
+
+`SpanKind` and `SpanStatusCode` are exported beside it, for the spans `tracer` starts.
 
 Recipe: [Log an event](/docs/log-an-event).
 
@@ -320,16 +320,15 @@ Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-un
 useStoredState<T>(
   name: string,
   schema: z.ZodType<T>,
-  options: { defaultValue: T; storage?: 'local' | 'session'; retention?: 'user' | 'browser'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
+  options: { defaultValue: T; storage?: 'local' | 'session'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
 ): readonly [T, (next: T | ((current: T) => T)) => void]
 ```
 
-Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data.
+Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data. The record belongs to the browser, so a sign-out keeps it and the next user reads it.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const [draft, setDraft] = useStoredState('draft', draftSchema, {
   defaultValue: { note: '', pinned: false },
-  retention: 'browser',
 })
 ```
 
@@ -412,6 +411,62 @@ Three helpers work on the input fields:
 
 Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
 
+## Reading the registry
+
+These read the registry the shell booted with, for a host component that lists or picks what to show: a palette, an app switcher, a settings sheet. Each returns the same frozen array for the life of the registry, so reading one never causes a rerender. They work on the host page and inside a mount.
+
+### useApps, useWidgets and useRegistryEntries
+
+```ts
+useApps(): readonly RegistryEntry[]
+useWidgets(): readonly RegistryEntry[]
+useRegistryEntries(): readonly RegistryEntry[]
+```
+
+`useApps` and `useWidgets` list the accepted entries of one kind, in registry order, leaving out an entry marked `hidden`. A hidden App still mounts when its URL is opened. `useRegistryEntries` returns every accepted entry, hidden ones included.
+
+```ts title="apps/shell/src/shell/palette.tsx"
+const apps = useApps()
+const widgets = useWidgets()
+```
+
+### useCapabilityPages
+
+```ts
+useCapabilityPages(name?: CapabilityName): readonly { app: RegistryEntry; capability: CapabilityDescriptor }[]
+```
+
+Every capability page the listed Apps declare, one item per page with the App it belongs to. Pass a name such as `'settings'` or `'help'` to get only those.
+
+```ts title="apps/shell/src/shell/settings-sheet.tsx"
+const capabilities = useCapabilityPages('settings')
+```
+
+### useActiveDefinition
+
+```ts
+useActiveDefinition(location: string): { id: string; entry: RegistryEntry | undefined } | null
+```
+
+The App whose boundary `location` is inside, or `null` on a page the host owns. `entry` is `undefined` when the URL names an id the registry does not know, or one that names a Widget. The host passes the pathname because it owns the router.
+
+```ts title="apps/shell/src/shell/hooks.ts"
+const pathname = useLocation({ select: location => location.pathname })
+return useActiveDefinition(pathname)
+```
+
+### useMfeRuntime
+
+```ts
+useMfeRuntime(consumer: string): MfeRuntime
+```
+
+The runtime the enclosing mount belongs to, or the one `MfeProvider` supplies on the host page. `consumer` names the caller in the `mount/failure` it throws when there is neither. Shell code uses it to reach `runtime.actions`, `runtime.telemetry` and the rest. An App or a Widget calls the hooks above instead.
+
+```ts title="apps/shell/src/shell/palette.tsx"
+const runtime = useMfeRuntime('the shell command palette')
+```
+
 ## Icons
 
 ### DefinitionIcon
@@ -436,14 +491,19 @@ Recipe: [Show an icon](/docs/show-an-icon).
 
 These place or compose containers. A shell calls them. An App calls `mfeRoute` when it nests a child App at a splat route, and nothing else here.
 
-| Export                                                                  | Signature                                  | What it is for                                         |
-| ----------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------ |
-| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.        |
-| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path. |
-| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                            |
-| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.              |
-| `withStyleRoot`                                                         | —                                          | Used by generated code.                                |
-| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                        |
+| Export                                                                  | Signature                                  | What it is for                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------- |
+| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.           |
+| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path.    |
+| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                               |
+| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.                 |
+| `withStyleRoot`                                                         | —                                          | Used by generated code.                                   |
+| `reactAdapter`                                                          | —                                          | Listed in the shell's `adapters`.                         |
+| `HOST_SCOPE`                                                            | `'@host'`                                  | The storage scope of the host page.                       |
+| `outputNameToHandlerProp`                                               | `(output: string) => string`               | The prop a Widget output arrives on: `alert` → `onAlert`. |
+| `outputPayloadSchema`                                                   | `(outputSchema, name)`                     | One output's payload schema, or `undefined`.              |
+| `RESERVED_CONTEXT_KEYS`                                                 | `['mfe', 'queryClient']`                   | Router context keys the framework owns.                   |
+| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                           |
 
 `AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. `pending` fills the region while the container loads and the definition mounts, and `fallback` replaces it after a failure, with a `retry`. Without a `fallback` the failure is thrown to the nearest error boundary. Nothing suspends.
 
@@ -454,6 +514,7 @@ A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime su
 | Hook                                                                                                                                            | Inside a mount | On the host page |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
 | `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useApps`, `useWidgets`, `useRegistryEntries`, `useCapabilityPages`, `useActiveDefinition`, `useMfeRuntime`                                     | yes            | yes              |
 | `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                            | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.

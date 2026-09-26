@@ -1,7 +1,7 @@
 /** The markup belongs to the design system, so only the contract is asserted here. */
 
-import { renderWidget } from '@company/mfe-react/testing'
-import { screen } from '@testing-library/react'
+import { mountWidget, renderWidget } from '@company/mfe-react/testing'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,6 +36,22 @@ describe('fda-summary', () => {
     expect(onSelected).toHaveBeenCalledWith({ fdaId: 'fda-1-02', selected: true })
   })
 
+  it('clears the selection when the host changes fdaId in place', async () => {
+    const mounted = await mountWidget(fdaSummary, { inputs: { fdaId: 'fda-1-02' } })
+    cleanup = mounted.dispose
+    const card = within(mounted.element)
+
+    await userEvent.click(card.getAllByRole('checkbox')[0] as HTMLElement)
+    expect(card.getAllByRole('checkbox')[0]).toBeChecked()
+
+    mounted.update({ fdaId: 'fda-2-3' })
+
+    await waitFor(() => {
+      expect(card.getByText('FDA 2.3')).toBeInTheDocument()
+    })
+    expect(card.getAllByRole('checkbox')[0]).not.toBeChecked()
+  })
+
   it('applies the schema default for an omitted optional input', () => {
     const rendered = renderWidget(fdaSummary, { props: { fdaId: 'fda-1-2' } })
     cleanup = rendered.dispose
@@ -62,6 +78,22 @@ describe('well-design', () => {
     await userEvent.click(screen.getByRole('button', { name: /View design/i }))
     expect(onViewed).toHaveBeenCalledWith({ wellId: 'reduced-dls', well: '34/10-A-12 H' })
   })
+
+  it('clears the selection when the host changes wellId in place', async () => {
+    const mounted = await mountWidget(wellDesign, { inputs: { wellId: 'reduced-dls' } })
+    cleanup = mounted.dispose
+    const card = within(mounted.element)
+
+    await userEvent.click(card.getAllByRole('checkbox')[0] as HTMLElement)
+    expect(card.getAllByRole('checkbox')[0]).toBeChecked()
+
+    mounted.update({ wellId: 'htdp' })
+
+    await waitFor(() => {
+      expect(card.getByText('HTDP')).toBeInTheDocument()
+    })
+    expect(card.getAllByRole('checkbox')[0]).not.toBeChecked()
+  })
 })
 
 describe('cost-vs-risk', () => {
@@ -72,5 +104,18 @@ describe('cost-vs-risk', () => {
     expect(Object.keys(costVsRisk.contract.outputSchema.shape)).toEqual([])
     // The header counts what `compare` selected, and the schema default selects two.
     expect(screen.getByText('2 Selected')).toBeInTheDocument()
+  })
+
+  it('follows a comparison the host changes in place', async () => {
+    const mounted = await mountWidget(costVsRisk, { inputs: {} })
+    cleanup = mounted.dispose
+    const panel = within(mounted.element)
+    expect(panel.getByText('2 Selected')).toBeInTheDocument()
+
+    mounted.update({ compare: ['initial', 'dls', 'htdp'] })
+
+    await waitFor(() => {
+      expect(panel.getByText('3 Selected')).toBeInTheDocument()
+    })
   })
 })

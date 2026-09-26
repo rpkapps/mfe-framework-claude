@@ -134,14 +134,50 @@ and never touches `window.history`; `APP_BASE_HREF` is the boundary, and
 is outside its boundary waits for the page to arrive instead of routing a path it
 does not own.
 
+**A failed navigation** — a `loadComponent` or `loadChildren` chunk that did not
+load, a guard or a resolver that threw — never reaches Angular's `ErrorHandler`;
+the router sends it to the navigation's promise and a `NavigationError` event,
+which the mount reads. Until the App has completed its first navigation its
+outlet is empty, so a failure then is the mount's fatal failure, through the
+target's `onFailure`: the host shows its error state and can offer a retry.
+After that the App stays on the route it was showing and the failure is reported
+to the shell's diagnostics as `mount/failure`, without the URL's query or
+fragment. The mount sets the router's `resolveNavigationPromiseOnError`, keeping
+the App's other `withRouterConfig` options, because the router starts the first
+navigation and every one the bridge reports without holding their promises: a
+failed `router.navigate()` resolves `false` rather than rejecting. A
+`withNavigationErrorHandler` that returns a `RedirectCommand` recovers the
+navigation, and nothing is reported.
+
 `createApp` also takes `component` (a root of your own; it must render a
 `<router-outlet />`, and defaults to one that renders only that),
-`routerFeatures` (`withComponentInputBinding()` and the like — the mount owns
-the router's location and first navigation), `providers` (environment providers
-for the App's application, created once per mount) and `breadcrumbs: false`.
+`routerFeatures` (`withComponentInputBinding()` and the like), `providers`
+(environment providers for the App's application, created once per mount) and
+`breadcrumbs: false`.
 The author's providers are applied first, so none of them can replace what the
 mount owns: change detection, the `ErrorHandler`, the mount tokens and the
 router's location.
+
+**Router features.** A mount creates its application with `createApplication`
+and attaches the App's root itself rather than bootstrapping it, so a mount's
+lifecycle stays its own: a failed first render rejects the mount and nothing
+else reaches the page. The router's bootstrap listener therefore never runs,
+and the mount starts the first navigation in its place. `withHashLocation()` and
+`withDisabledInitialNavigation()` change nothing, since the mount owns the
+location and the first navigation. The features that start only from that
+listener are refused by `createApp` with `app/invalid-router`:
+
+- `withEnabledBlockingInitialNavigation()` would hold every navigation until a
+  bootstrap that never happens, so the App would never render.
+- `withPreloading()` would never preload; each lazy route loads when it is
+  first navigated to.
+- `withInMemoryScrolling()` would never restore scroll, and the page's scroll
+  is the host's; scroll an element inside the App instead.
+
+Configure the router through `routes` and `routerFeatures` only. A
+`RouterModule.forRoot()` in `providers` is not inspected, and its
+`initialNavigation: 'enabledBlocking'` would hold every navigation just as the
+feature would.
 
 **Capability routes** are read by the build out of the route file, so a
 capability route writes `data: mfeRouteData({ … })` inline, on an object with a

@@ -13,6 +13,8 @@ export interface TemplateFile {
 export interface TemplateOptions {
   readonly id: string
   readonly packageName: string
+  /** The workspace's `tsconfig.base.json`, relative to the generated project root. */
+  readonly tsconfigBase: string
 }
 
 export function json(value: unknown): string {
@@ -101,7 +103,7 @@ export function packageJsonFile(
  * The files every generated project gets. `entry` is the starter's definitions
  * module, which is `src/mfe.tsx` when the entry itself contains JSX.
  */
-export function sharedFiles(entry: string): readonly TemplateFile[] {
+export function sharedFiles(entry: string, options: TemplateOptions): readonly TemplateFile[] {
   return [
     {
       path: '.gitignore',
@@ -223,7 +225,7 @@ export default [
       // and Prettier formats JSON with comments differently from
       // JSON.stringify, which would fail the project's own format check.
       contents: `{
-  "extends": "../../tsconfig.base.json",
+  "extends": ${JSON.stringify(options.tsconfigBase)},
   "compilerOptions": {
     "rootDir": ".",
     "types": ["node"],

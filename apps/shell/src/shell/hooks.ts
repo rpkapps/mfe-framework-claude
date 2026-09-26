@@ -146,7 +146,6 @@ export function useDashboardLayout(): readonly [
 ] {
   return useStoredState('dashboard', DashboardLayoutSchema, {
     defaultValue: EMPTY_LAYOUT,
-    retention: 'browser',
     migrate: migrateLayout,
   })
 }
@@ -155,7 +154,6 @@ export function useDashboardLayout(): readonly [
 export function useDashboardPanels(): readonly [PanelLayout, StoredStateSetter<PanelLayout>] {
   return useStoredState('dashboard-panels', PanelLayoutSchema, {
     defaultValue: DEFAULT_PANELS,
-    retention: 'browser',
     migrate: migratePanels,
   })
 }
@@ -167,7 +165,6 @@ const AssistantWidthSchema = z.number().positive().nullable()
 export function useAssistantWidth(): readonly [number | null, StoredStateSetter<number | null>] {
   return useStoredState('assistant-width', AssistantWidthSchema, {
     defaultValue: null,
-    retention: 'browser',
   })
 }
 
@@ -175,6 +172,5 @@ export function useAssistantWidth(): readonly [number | null, StoredStateSetter<
 export function useSnapToTop(): readonly [boolean, StoredStateSetter<boolean>] {
   return useStoredState('dashboard-snap', SnapToTopSchema, {
     defaultValue: SNAP_TO_TOP_DEFAULT,
-    retention: 'browser',
   })
 }

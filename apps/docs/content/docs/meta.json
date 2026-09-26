@@ -38,7 +38,6 @@
     "cancel-a-request-on-unmount",
     "---Storage---",
     "remember-a-value",
-    "clear-a-value-on-sign-out",
     "change-the-shape-of-a-stored-value",
     "storage-outside-render",
     "share-a-value-with-the-shell",

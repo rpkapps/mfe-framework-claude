@@ -56,11 +56,11 @@ function packageDirectory(from: string, name: string): string {
 }
 
 /** The page-wide packages, left as imports of exactly the files the test's adapter loads. */
-function pageSingletonsExternal(externals: Set<string>): Plugin {
+function pageWideExternal(externals: Set<string>): Plugin {
   const adapter = packageDirectory(interopRoot, '@company/mfe-react')
 
   return {
-    name: 'page-singletons-external',
+    name: 'page-wide-external',
     enforce: 'pre',
     async resolveId(source) {
       if (!/^@company\/mfe-(core|runtime)(\/|$)/.test(source)) return null
@@ -143,7 +143,7 @@ async function buildContainer(): Promise<void> {
     configFile: false,
     logLevel: 'warn',
     root: interopRoot,
-    plugins: [pageSingletonsExternal(externals)],
+    plugins: [pageWideExternal(externals)],
     resolve: {
       // The framework packages as the test's own copy of the adapter resolves them.
       conditions: sourceResolveForTests.conditions,

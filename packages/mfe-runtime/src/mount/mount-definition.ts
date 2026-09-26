@@ -341,6 +341,9 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
    * reported when the attempt failed. Never rejects: a failure is reported where it happens.
    */
   async #tearDown(attempt: Attempt): Promise<void> {
+    // A definition still mounting is waited on below, and only its signal can end a mount that
+    // would otherwise never settle; one already mounted is disposed before its signal aborts.
+    if (attempt.mounted === null) attempt.context.abort()
     const mounted = await attempt.mounting.catch(() => null)
 
     try {

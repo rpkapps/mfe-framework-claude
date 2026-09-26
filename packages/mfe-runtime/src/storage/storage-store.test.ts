@@ -24,38 +24,22 @@ interface Harness {
   readonly reported: Diagnostic[]
 }
 
-function harness(overrides: { readonly generation?: string | null } = {}): Harness {
+function harness(): Harness {
   const local = createMemoryStorageArea()
   const session = createMemoryStorageArea()
   const diagnostics = new DiagnosticsHub()
   const reported: Diagnostic[] = []
   diagnostics.add(diagnostic => reported.push(diagnostic))
-  const generation = overrides.generation === undefined ? 'gen-1' : overrides.generation
   const store = new MfeStorageStore({
     areas: { local, session },
     diagnostics,
-    ...(generation === null ? {} : { sessionGeneration: generation }),
     eventTarget: null,
   })
   return { store, local, session, diagnostics, reported }
 }
 
-function envelope(
-  data: unknown,
-  overrides: {
-    readonly v?: number
-    readonly r?: 'user' | 'browser'
-    readonly g?: string | null
-  } = {},
-): string {
-  const retention = overrides.r ?? 'user'
-  const generation = overrides.g === undefined ? 'gen-1' : overrides.g
-  return JSON.stringify({
-    v: overrides.v ?? 1,
-    r: retention,
-    ...(retention === 'user' && generation !== null ? { g: generation } : {}),
-    d: data,
-  })
+function envelope(data: unknown, overrides: { readonly v?: number } = {}): string {
+  return JSON.stringify({ v: overrides.v ?? 1, d: data })
 }
 
 let harnesses: MfeStorageStore[] = []
@@ -195,41 +179,15 @@ describe('defaults', () => {
     expect(filters.read()).toBeNull()
   })
 
-  it("binds an undeclared retention as 'browser', ungated by the session generation", () => {
-    const { store, local } = harness({ generation: null })
+  it('persists only the schema version beside the payload', () => {
+    const { store, local } = harness()
     track(store)
 
     const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     theme.set('dark')
 
-    expect(theme.retention).toBe('browser')
-    // No generation is in force, and a browser-retained key never waits for one.
-    expect(store.sessionGeneration).toBeNull()
     expect(theme.read()).toBe('dark')
-    expect(JSON.parse(local.getItem('acme-orders:theme') ?? '')).toEqual({
-      v: 1,
-      r: 'browser',
-      d: 'dark',
-    })
-  })
-
-  it("keeps an undeclared retention out of the purge that retires 'user' records", () => {
-    const { store } = harness()
-    track(store)
-
-    const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
-    const draft = store.bind(ORDERS, {
-      name: 'draft',
-      schema: z.string(),
-      retention: 'user',
-    })
-    theme.set('dark')
-    draft.set('customer notes')
-
-    store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
-
-    expect(theme.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-    expect(draft.getSnapshot()).toEqual({ status: 'default', value: null })
+    expect(JSON.parse(local.getItem('acme-orders:theme') ?? '')).toEqual({ v: 1, d: 'dark' })
   })
 })
 
@@ -290,7 +248,6 @@ describe('validation and failure', () => {
           },
           session,
         },
-        sessionGeneration: 'gen-1',
         eventTarget: null,
       }),
     )
@@ -318,7 +275,7 @@ describe('validation and failure', () => {
       },
     })
     try {
-      const store = track(new MfeStorageStore({ sessionGeneration: 'gen-1', eventTarget: null }))
+      const store = track(new MfeStorageStore({ eventTarget: null }))
       const theme = store.bind(ORDERS, {
         name: 'theme',
         schema: themeSchema,
@@ -617,7 +574,7 @@ describe('cross-tab storage events', () => {
 
   it('reaches subscribers through a native window storage event', () => {
     const local = createMemoryStorageArea()
-    const store = track(new MfeStorageStore({ areas: { local }, sessionGeneration: 'gen-1' }))
+    const store = track(new MfeStorageStore({ areas: { local } }))
     const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     const listener = vi.fn()
     theme.subscribe(listener)
@@ -717,7 +674,7 @@ describe('declaration conflicts', () => {
     expect(first.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
   })
 
-  it('rejects disagreement over the default, the retention and the version', () => {
+  it('rejects disagreement over the default and the version', () => {
     const { store } = harness()
     track(store)
     store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
@@ -725,14 +682,6 @@ describe('declaration conflicts', () => {
     expect(() =>
       store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'dark' }),
     ).toThrow(/defaultValue/)
-    expect(() =>
-      store.bind(ORDERS, {
-        name: 'theme',
-        schema: themeSchema,
-        defaultValue: 'light',
-        retention: 'user',
-      }),
-    ).toThrow(/retention/)
     expect(() =>
       store.bind(ORDERS, {
         name: 'theme',
@@ -834,6 +783,40 @@ describe('performance gates', () => {
     c.release()
     store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     expect(local.calls.reads).toBeGreaterThan(readsAfterBind)
+  })
+
+  /** React releases a binding before it unsubscribes from it, so the unsubscribe is the last hold. */
+  it('tears the key down when the last subscriber leaves after the last release', () => {
+    const { store } = harness()
+    track(store)
+    const held = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'dark' })
+    const unsubscribe = held.subscribe(vi.fn())
+
+    held.release()
+    unsubscribe()
+
+    expect(() =>
+      store.bind(ORDERS, { name: 'theme', schema: z.enum(['light', 'dark', 'sepia']) }).release(),
+    ).not.toThrow()
+  })
+
+  it('keeps a newer entry for the key when a stale subscriber leaves', () => {
+    const { store } = harness()
+    track(store)
+    const stale = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
+    const unsubscribeStale = stale.subscribe(vi.fn())
+    const unsubscribeAgain = stale.subscribe(vi.fn())
+    stale.release()
+    unsubscribeStale()
+    unsubscribeAgain()
+    const current = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'dark' })
+
+    unsubscribeStale()
+
+    expect(() =>
+      store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' }),
+    ).toThrow(/defaultValue/)
+    current.release()
   })
 
   it('re-reads once after a key binding is torn down and re-created', () => {

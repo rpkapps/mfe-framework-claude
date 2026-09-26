@@ -66,9 +66,13 @@ export function objectProperty(
   return undefined
 }
 
+/** Which import form bound a name: `import x`, `import * as x` or `import { a as x }`. */
+export type ImportKind = 'default' | 'namespace' | 'named'
+
 export interface ImportedBinding {
-  /** The name the module exports. */
+  /** The name the module exports: `default` for a default import, `*` for a namespace import. */
   readonly imported: string
+  readonly kind: ImportKind
   /** The module the binding came from. */
   readonly moduleSpecifier: string
 }
@@ -89,19 +93,20 @@ export function collectImportedBindings(
     if (clause === undefined) continue
 
     if (clause.name !== undefined) {
-      bindings.set(clause.name.text, { imported: 'default', moduleSpecifier })
+      bindings.set(clause.name.text, { imported: 'default', kind: 'default', moduleSpecifier })
     }
 
     const named = clause.namedBindings
     if (named === undefined) continue
     if (ts.isNamespaceImport(named)) {
-      bindings.set(named.name.text, { imported: '*', moduleSpecifier })
+      bindings.set(named.name.text, { imported: '*', kind: 'namespace', moduleSpecifier })
       continue
     }
     for (const element of named.elements) {
       if (element.isTypeOnly) continue
       bindings.set(element.name.text, {
         imported: (element.propertyName ?? element.name).text,
+        kind: 'named',
         moduleSpecifier,
       })
     }

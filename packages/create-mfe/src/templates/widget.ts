@@ -13,6 +13,34 @@ import {
   type TemplateOptions,
 } from './types.ts'
 
+/**
+ * Words no binding may be named, in a module's strict mode, and the names the generated files
+ * bind themselves: the definition and its render are declared beside these, so sharing a name
+ * with one is a redeclaration or a shadowed global.
+ */
+const TAKEN_NAMES: ReadonlySet<string> = new Set([
+  // Reserved words, strict-mode reserved words, and names strict mode forbids binding.
+  ...['break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete'],
+  ...['do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if'],
+  ...['import', 'in', 'instanceof', 'new', 'null', 'return', 'super', 'switch', 'this', 'throw'],
+  ...['true', 'try', 'typeof', 'var', 'void', 'while', 'with', 'await', 'yield', 'let'],
+  ...['static', 'implements', 'interface', 'package', 'private', 'protected', 'public'],
+  ...['arguments', 'eval', 'undefined', 'NaN', 'Infinity'],
+  // Imported, declared or read as globals by the files below.
+  ...['createWidget', 'z', 'WidgetRenderProps', 'ReactNode', 'Date', 'renderWidget', 'screen'],
+  ...['userEvent', 'afterEach', 'expect', 'it', 'vi', 'cleanup', 'dispose', 'onActivated'],
+  ...['rendered', 'lazyWidget', 'inputSchema', 'outputSchema'],
+])
+
+/**
+ * `name` as a binding the generated files can declare: prefixed when it would start with a digit
+ * (`3d-viewer` is `widget3dViewer`), suffixed when it is taken (`new` is `newWidget`).
+ */
+export function safeIdentifier(name: string, prefix: string): string {
+  const leading = /^[0-9]/.test(name) ? `${prefix}${name}` : name
+  return TAKEN_NAMES.has(leading) ? `${leading}Widget` : leading
+}
+
 /** `alert-panel` becomes `alertPanel`. */
 function toCamel(id: string): string {
   return id.replace(/-([a-z0-9])/g, (_match, character: string) => character.toUpperCase())
@@ -20,11 +48,12 @@ function toCamel(id: string): string {
 
 export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[] {
   const { id, packageName } = options
-  const camel = toCamel(id)
-  const pascal = camel.charAt(0).toUpperCase() + camel.slice(1)
+  const words = toCamel(id)
+  const camel = safeIdentifier(words, 'widget')
+  const pascal = safeIdentifier(words.charAt(0).toUpperCase() + words.slice(1), 'Widget')
 
   return [
-    ...sharedFiles('./src/mfe.ts'),
+    ...sharedFiles('./src/mfe.ts', options),
 
     packageJsonFile(options, 3103, {
       devDependencies: { '@testing-library/user-event': 'catalog:' },

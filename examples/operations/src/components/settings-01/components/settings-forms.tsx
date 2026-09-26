@@ -105,10 +105,14 @@ function SelectRow({
   children: React.ReactNode
 }) {
   const id = React.useId()
+  // React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`: without
+  // it the trigger is announced as its value alone.
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select className="w-full" {...props}>
+      <FieldLabel id={`${id}-label`} htmlFor={id}>
+        {label}
+      </FieldLabel>
+      <Select className="w-full" aria-labelledby={`${id}-label`} {...props}>
         <SelectTrigger id={id}>
           <SelectValue />
         </SelectTrigger>

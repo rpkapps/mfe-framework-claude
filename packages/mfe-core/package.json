@@ -4,6 +4,9 @@
   "description": "Neutral MFE contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or Module Federation dependency.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -24,7 +27,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "zod": "catalog:"
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

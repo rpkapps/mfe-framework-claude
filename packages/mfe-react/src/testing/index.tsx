@@ -64,7 +64,6 @@ export interface MfeTestEnvironmentOptions {
   /** Definitions the in-process loader can resolve, by id, whichever adapter built them. */
   readonly definitions?: MemoryRuntimeOptions['definitions']
   readonly initialEntries?: readonly string[]
-  readonly sessionGeneration?: string
 }
 
 export interface MfeTestEnvironment {
@@ -74,7 +73,7 @@ export interface MfeTestEnvironment {
   readonly wrapper: (props: { readonly children: ReactNode }) => ReactNode
   /** Typed context for native route tests, with the same mount-owned client. */
   readonly routerContext: MfeRouterContext
-  /** Exercises real snapshot, session and group update behaviour. */
+  /** Exercises real snapshot and transition behaviour. */
   setShellState(patch: TestShellState): void
   readonly telemetry: RecordingTelemetryProvider
   readonly diagnostics: readonly Diagnostic[]
@@ -93,13 +92,12 @@ function memoryOptions(options: MfeTestEnvironmentOptions): MemoryRuntimeOptions
     shellState: options.shellState,
     definitions: options.definitions,
     initialEntries: options.initialEntries,
-    sessionGeneration: options.sessionGeneration,
   })
 }
 
 /**
  * The runtime's memory runtime plus what is React's: a mount with its Query client, the providers,
- * and the router context. Every environment is independent, so no singleton leaks state between
+ * and the router context. Every environment is independent, so no module state leaks between
  * tests.
  */
 export function createMfeTestEnvironment(

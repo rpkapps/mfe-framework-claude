@@ -4,11 +4,15 @@
   "description": "Developer tools overlay for an MFE shell: a flag-gated, lazy-loaded panel that sets the boot-time manifest overrides and shows what the registry accepted.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -17,6 +21,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "node ../../tools/tecton/typecheck.mjs packages/mfe-devtools",
     "test": "vitest run"
   },
@@ -28,8 +34,8 @@
   "peerDependencies": {
     "@tecton/react": "*",
     "lucide-react": "^1.45.0",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tecton/react": "*",

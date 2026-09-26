@@ -74,13 +74,13 @@ describe('pluginMfe', () => {
       'react/jsx-runtime',
     ])
     expect(plan.shared['react']).toMatchObject({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       shareScope: 'react@19.3.0',
     })
     // An author's addition joins the React scope, so it is shared only with the same React.
     expect(plan.shared['@company/auth-client']).toMatchObject({
-      singleton: true,
+      singleton: false,
       shareScope: 'react@19.3.0',
     })
   })

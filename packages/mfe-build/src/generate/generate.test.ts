@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 
 import tailwindcss from '@tailwindcss/postcss'
@@ -115,6 +115,7 @@ describe('generated inventory', () => {
 
     expect(names).toEqual([
       '.mfe/.env.example',
+      '.mfe/.generated-files.json',
       '.mfe/.gitignore',
       '.mfe/config.ts',
       '.mfe/css.d.ts',
@@ -162,6 +163,46 @@ describe('generated inventory', () => {
 
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(plan.generated.files.length)
     expect(writeGeneratedFiles(plan.generated.files)).toHaveLength(0)
+  })
+
+  it('deletes what an earlier run generated and this one does not, and nothing else', () => {
+    const widget = (id: string) => `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const row = createWidget({
+  id: '${id}',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: () => null,
+})
+`
+    const { root, plan } = planFixture({
+      'src/mfe.ts': `${APP_ENTRY}\n${widget('order-row')}`,
+      'src/mfe.config.ts': CONFIG,
+    })
+    writeGeneratedFiles(plan.generated.files)
+    writeFileSync(join(root, '.mfe/runtime-config.json'), '{ "pageSize": 50 }\n')
+    writeFileSync(join(root, '.mfe/notes.txt'), 'kept by hand\n')
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-row.ts'))).toBe(true)
+    expect(existsSync(join(root, '.mfe/widgets/order-row.contract.ts'))).toBe(true)
+
+    writeFileSync(join(root, 'src/mfe.ts'), `${APP_ENTRY}\n${widget('order-line')}`)
+    rmSync(join(root, 'src/mfe.config.ts'))
+    writeGeneratedFiles(
+      planContainer(TEST_PROFILE, { containerRoot: root, buildTime: BUILD_TIME }).generated.files,
+    )
+
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-row.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/widgets/order-row.contract.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/config.ts'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/runtime-config.schema.json'))).toBe(false)
+    expect(existsSync(join(root, '.mfe/entries/widgets/order-line.ts'))).toBe(true)
+    expect(existsSync(join(root, '.mfe/widgets/order-line.contract.ts'))).toBe(true)
+    expect(readFileSync(join(root, '.mfe/runtime-config.json'), 'utf8')).toBe(
+      '{ "pageSize": 50 }\n',
+    )
+    expect(readFileSync(join(root, '.mfe/notes.txt'), 'utf8')).toBe('kept by hand\n')
   })
 
   it('names the integration in every banner, as the place to change what it wrote', () => {
@@ -346,6 +387,17 @@ describe('#mfe/config', () => {
     expect(source).toContain("{ field: 'pageSize', envVar: 'PAGE_SIZE'")
   })
 
+  it('checks that an API origin is an absolute http(s) URL, past what its URL schema checks', () => {
+    const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
+    const source = fileFor('config.ts')
+
+    expect(source).toMatch(/envVar: 'API_BASE_URL', expected: '[^']*', api: true \}/)
+    expect(source).not.toMatch(/envVar: 'OIDC_ISSUER', expected: '[^']*', api: true/)
+    expect(source).toContain(
+      'if (spec.api === true && result.data !== undefined && !isHttpUrl(result.data)) {',
+    )
+  })
+
   it('rejects keys the container never declared', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
@@ -393,6 +445,59 @@ describe('#mfe/fetch', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
 
     expect(fileFor('fetch.ts')).toContain('apiBaseUrl: config.apiBaseUrl,')
+  })
+
+  it('declares no origin and no base for an optional API origin the deployment left unset', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': `
+import { env } from '@acme/mfe-plugin'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.url().optional(), { api: true }),
+  searchUrl: env('SEARCH_URL', z.url().default('https://search.example.test'), { api: true }),
+}
+`,
+    })
+    const source = fileFor('fetch.ts')
+
+    expect(source).toContain(
+      '...(config.apiBaseUrl === undefined ? [] : [new URL(config.apiBaseUrl).origin]),',
+    )
+    expect(source).toContain('new URL(config.searchUrl).origin,')
+    expect(source).not.toContain('...(config.searchUrl')
+    expect(source).toContain(
+      '...(config.apiBaseUrl === undefined ? {} : { apiBaseUrl: config.apiBaseUrl }),',
+    )
+  })
+
+  it('refuses an API origin whose schema admits a relative URL', () => {
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG.replace(
+        "env('API_BASE_URL', z.string().url(), { api: true })",
+        "env('API_BASE_URL', z.string(), { api: true })",
+      ),
+    })
+
+    expect(() => planContainer(TEST_PROFILE, { containerRoot: root })).toThrow(
+      "'apiBaseUrl' failed to read the configuration field 'apiBaseUrl': expected a URL schema, because { api: true } declares the value an API origin, found a string.",
+    )
+  })
+
+  it('refuses an API origin whose default is not an absolute http(s) URL', () => {
+    const root = createContainer({
+      'src/mfe.ts': APP_ENTRY,
+      'src/mfe.config.ts': CONFIG.replace(
+        "env('API_BASE_URL', z.string().url(), { api: true })",
+        "env('API_BASE_URL', z.string().url().default('/api'), { api: true })",
+      ),
+    })
+
+    expect(() => planContainer(TEST_PROFILE, { containerRoot: root })).toThrow(
+      'expected a default that is an absolute http(s) URL, because { api: true } declares an API origin, found "/api".',
+    )
   })
 
   it('binds an empty allowlist and no base when the container declares no API origin', () => {
@@ -592,14 +697,14 @@ describe('the share scope the build plans', () => {
 
     expect(plan.shared).toEqual({
       '@acme/mfe-adapter': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '^1.0.0',
         shareScope: 'acme@19.2.8',
       },
       '@acme/mfe-kernel': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '^1.0.0',
         shareScope: 'default',
       },
@@ -607,7 +712,7 @@ describe('the share scope the build plans', () => {
     expect(plan.generated.descriptor.shareScopes).toEqual(['default', 'acme@19.2.8'])
   })
 
-  it("prefers the container's own range for a page singleton its adapter also carries", () => {
+  it("prefers the container's own range for a page-wide package its adapter also carries", () => {
     const root = createContainer(
       { 'src/mfe.ts': APP_ENTRY },
       {
@@ -1102,6 +1207,87 @@ export const orderRow = createWidget({
     expect(source).toContain('export { inputSchema }')
     expect(source).toContain('export { outputSchema }')
     expect(source).not.toContain('export const inputSchema')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('repeats a namespace import as one, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import * as z from 'zod'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import * as z from 'zod'")
+    expect(source).not.toContain('{ * as')
+    expect(source).not.toContain("import type { z } from 'zod'")
+    expect(source).toContain('export type Inputs = z.infer<typeof inputSchema>')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('repeats a default import as one, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import zod from 'zod'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: zod.object({ orderId: zod.string() }),
+  outputSchema: zod.object({}),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import zod from 'zod'")
+    expect(source).not.toContain('default as')
+    expect(source).toContain('export type Inputs = zod.infer<typeof inputSchema>')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('binds a default and named imports of one module in one statement, and a namespace in its own', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/schemas.ts': `
+import { z } from 'zod'
+
+export default z.string().min(1)
+export const quantity = z.number().int()
+export const note = z.string()
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import * as zod from 'zod'
+import orderId, { note as comment, quantity } from './schemas.ts'
+import * as schemas from './schemas.ts'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: zod.object({ orderId, quantity, comment, note: schemas.note }),
+  outputSchema: zod.object({}),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain(
+      "import orderId, { note as comment, quantity } from '../../src/schemas.ts'",
+    )
+    expect(source).toContain("import * as schemas from '../../src/schemas.ts'")
+    expect(source).toContain("import * as zod from 'zod'")
     expect(typeErrors(root, plan)).toEqual([])
   })
 })

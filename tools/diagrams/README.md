@@ -182,12 +182,12 @@ so **a change to a scene is a change to its paragraph**.
 | `layers`               | the design map: the packages and the import DAG          |
 | `adapters`             | the design map: the runtime, and the adapters it reads   |
 | `isolation-boundaries` | the design map: what separates a container from the page |
-| `app-vs-widget`        | guide 1, the shape: App or Widget                        |
-| `config-and-data`      | guide 3, configuration and data                          |
-| `lifecycle`            | guide 6, lifecycle                                       |
-| `storage-retention`    | guide 7, storage                                         |
-| `styling-scope`        | guide 8, styling                                         |
-| `dev-workflow`         | guide 9, the daily workflow                              |
+| `app-vs-widget`        | no page embeds it                                        |
+| `config-and-data`      | no page embeds it                                        |
+| `lifecycle`            | How it works: the mount lifecycle                        |
+| `storage-keys`         | no page embeds it                                        |
+| `styling-scope`        | no page embeds it                                        |
+| `dev-workflow`         | no page embeds it                                        |
 
 ### system-at-rest
 
@@ -196,7 +196,7 @@ right. A yellow panel **The shell origin** ("dev: http://localhost:3000") holds 
 a violet `registry.json` ("one record per definition"). A grey dotted arrow labelled
 **manifestUrl** leaves `registry.json` for a blue panel **Three container origins** ("each on its
 own origin"), which holds `operations` ("an App — dev :3001"), `alert-panel` ("one Widget — dev
-:3003") and `insights` ("four Widgets — dev :3004"). A second grey dotted arrow, **publishes**,
+:3003") and `insights` ("three Widgets — dev :3004"). A second grey dotted arrow, **publishes**,
 runs from that panel to a panel **Every container publishes** ("the same four files each time")
 holding four violet tiles: `mf-manifest.json`, `remoteEntry.js`, `styles.css` and
 `runtime-config.json`. A blue dotted arrow labelled **names the API** drops from
@@ -313,7 +313,7 @@ by the shell, the one file that imports it. `readRegistry` offers each raw entry
 adapter's `detect`. Exactly one must recognise it: none and the entry is rejected as
 unrecognised, more than one and it is rejected as ambiguous with both named, so there is no
 order to register adapters in, and none is registered implicitly — the shell lists each one.
-`reactAdapter` recognises an entry whose `mfe` marker names `react`, or no framework, however
+`reactAdapter` recognises an entry whose `mfe` marker names `react`, however
 malformed the rest is; `angularAdapter` one whose marker names `angular`; so a typo in
 framework metadata is rejected rather than quietly read by another adapter (§9).
 `legacyAngularAdapter` recognises only entries with no `mfe` key that carry a legacy `name` and
@@ -339,8 +339,8 @@ Subtitle: "Six boundaries between one mounted container and the page." Seven box
 mount** ("one token, one basePath, one scope root") sits in the middle, with six grey boxes
 around it — three above, three below — each reached by a grey dashed arrow pointing outwards from
 the centre. **URL** ("basePath into createRouter; boundary history"), **Styles** ("@scope per
-definition; the shell owns preflight"), **Storage** ("<definitionId>:<name>; retention decides
-who reads"), **Network** ("#mfe/fetch; the token only to declared origins"), **Errors** ("one
+definition; the shell owns preflight"), **Storage** ("<definitionId>:<name>; kept for the browser
+profile"), **Network** ("#mfe/fetch; the token only to declared origins"), **Errors** ("one
 MfeError code, into the DiagnosticsHub") and **Framework share scopes** ("one copy per
 framework version; loaded-first").
 
@@ -351,9 +351,8 @@ the history is built over the navigation bridge by `createBoundaryHistory`, neve
 container ships only the utilities for its own classes, wrapped by the build in
 `@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])`; the shell keeps the document half
 — preflight, the fonts, `@property`, the theme variables. **Storage**: every record goes through
-the storage boundary under the key `<definitionId>:<name>`; `retention: 'browser'` is the
-default and is never cleared, where `retention: 'user'` is wiped when the identity or the
-group set changes; state the page owns rather than any definition goes in the reserved
+the storage boundary under the key `<definitionId>:<name>`, belongs to the browser profile and is
+never cleared at sign-out; state the page owns rather than any definition goes in the reserved
 `@host` scope. **Network**: the generated `#mfe/fetch` resolves a
 relative request against the base URL `runtime-config.json` supplied and attaches the shell's
 session token to the origins declared `{ api: true }` — an exact scheme, host and port set, with
@@ -362,10 +361,11 @@ closed union, the definition id, the operation and the repair; it reaches the sh
 `DiagnosticsHub`, which forwards it to telemetry, and a failed mount costs its own boundary and
 nothing else. **Framework share scopes**: each framework shares in a Module Federation scope
 named after its exact installed version, `react@19.3.0` or `angular@19.2.25`, where every
-framework-bound package is one strict singleton — so containers on one version share one copy of
-React, `react-dom`, `sonner`, the adapter and the TanStack packages, and a container on another
-version brings its own set; `@company/mfe-core` and `@company/mfe-runtime` stay page singletons
-in `default`. The registry entry lists the scopes as `shareScopes`, the loader registers the
+framework-bound package is shared and none is a singleton — so containers on one version share
+the copy of React, `react-dom`, `sonner` and the TanStack packages that their ranges accept,
+while each bundles its own adapter, one whose range nothing loaded satisfies loads its own instead of failing, and a container
+on another version brings its own set; `@company/mfe-core` and `@company/mfe-runtime` are shared
+page-wide in `default`. The registry entry lists the scopes as `shareScopes`, the loader registers the
 remote with exactly those, and the host declares `shareStrategy: 'loaded-first'` so one
 unreachable manifest cannot take the whole page down with it.
 
@@ -463,31 +463,27 @@ after a failed load. StrictMode: in development React mounts, unmounts and mount
 re-rendering, so the effect that calls `mountDefinition` disposes the first handle before its
 load settles, and the definition's `mount` runs once (§14).
 
-### storage-retention
+### storage-keys
 
-Subtitle: "How a stored key is composed, and who reads it back." Five boxes and one table. Across
+Subtitle: "How a stored key is composed, and what it survives." Five boxes and one table. Across
 the top, three boxes joined by arrows labelled **binds to** and **writes**: a blue
 `useStoredState('filters', schema)` ("what the author writes"), a green **What it binds to**
-("storage 'local', retention 'browser', version 1") and a green `operations:filters` ("one key, one
-versioned envelope"). Below, a panel **What survives what** ("storage keeps it; retention decides
-who reads it") holds a table with two columns, `retention: 'user'` and `retention: 'browser'`,
-and five rows: the identity changes — wiped / kept; the groups change — wiped / kept; a reload —
-kept / kept; the tab closes — gone with it / gone with it; version raised — `migrate()`, or
-unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own
-scope** (`@host — bindHost(), hostStorage()`) and a red **retention: 'user'** ("asked for when
-the data is personal"). A legend names the four colours.
+("storage 'local', version 1") and a green `operations:filters` ("one key, one versioned
+envelope"). Below, a panel **What survives what** ("the store decides how long; nothing clears it
+at sign-out") holds a table with two columns, `storage: 'local'` and `storage: 'session'`, and
+five rows: a sign-out — kept / kept; another user signs in — kept, and read / kept, and read; a
+reload — kept / kept; the tab closes — kept / gone with it; version raised — `migrate()`, or
+unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own scope**
+(`@host — bindHost(), hostStorage()`) and a red **Nothing personal** ("the next user of this
+browser reads it"). A legend names the four colours.
 
 Not on the figure. The key is `<definitionId>:<name>`, never scoped by mount token, so two mounts
-of one definition read one record. The stored value is an envelope —
-`{ "v": 1, "r": "user", "g": "<session generation>", "d": { … } }` — and the `g` field fences a
-user-retained record to one session generation, absent on a `'browser'` record: a record written
-under another generation reads as absent. "The tab closes" is the row for `storage: 'session'`;
-with `storage: 'local'` a record outlives the tab, subject to its retention. Outside a mount,
-`useStoredState` resolves to the reserved `@host` scope, which no definition can claim because `@`
-is not a legal character in a definition id. `retention: 'browser'` is the default: a key that
-declares none is never cleared, so every user of this browser profile reads the same value, which
-suits a display density or a collapsed panel. `retention: 'user'` is the opt-in for anything
-derived from a user's data (§21).
+of one definition read one record. The stored value is an envelope — `{ "v": 1, "d": { … } }` —
+whose `v` is the schema version a `migrate()` converts from. Outside a mount, `useStoredState`
+resolves to the reserved `@host` scope, which no definition can claim because `@` is not a legal
+character in a definition id. A record belongs to the browser profile rather than to the person
+signed in, so every user of the profile reads the same value, which suits a display density or a
+collapsed panel and rules out anything personal (§56).
 
 ### styling-scope
 
@@ -537,7 +533,7 @@ a panel **One dev server each** ("the port is part of the address") holding one 
 component modules") holds a red `src/mfe.ts` ("a definition — the page reloads") and a green
 `src/alert-panel.tsx` ("only components — hot-updates in place"). A legend names the six colours.
 
-Not on the figure. `pnpm dev` checks that 3000–3007 and 3010 are free before it starts anything,
+Not on the figure. `pnpm dev` checks that 3000–3008, 3010 and 3011 are free before it starts anything,
 because a container's port is part of its address and cannot be moved without the shell losing
 it; each container's port comes from its own `package.json` `"mfe"` block, so adding an example
 is a one-file change in it. `pnpm dev` runs `pnpm run generate` itself, and the shell learns that

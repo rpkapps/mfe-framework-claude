@@ -16,7 +16,7 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
   const { id, packageName } = options
 
   return [
-    ...sharedFiles('./src/mfe.ts'),
+    ...sharedFiles('./src/mfe.ts', options),
 
     packageJsonFile(options, 3101, {
       dependencies: { '@tanstack/react-query': 'catalog:', '@tanstack/react-router': 'catalog:' },

@@ -6,7 +6,8 @@
  * calling `framework()`/`tooling()`/`application()`, never demands the peer either one needs.
  */
 
-import type { Linter } from 'eslint'
+import type { ESLint, Linter } from 'eslint'
+import { meta, plugin } from './plugin.ts'
 import { rules } from './rules/index.ts'
 import { application, type ApplicationPresetOptions } from './configs/application.ts'
 import { framework, type FrameworkPresetOptions } from './configs/framework.ts'
@@ -18,7 +19,7 @@ export { DEFAULT_TOOLING_FILES }
 export type { ApplicationPresetOptions, FrameworkPresetOptions, ToolingPresetOptions }
 export type { RestrictedPath, RestrictedPattern } from './configs/restricted-imports.ts'
 
-export const meta = { name: '@company/eslint-plugin-mfe', version: '0.1.0' } as const
+export { meta }
 
 /**
  * The presets called with their defaults, so the array and the factory agree. `framework` is
@@ -37,14 +38,27 @@ export const configs: {
   },
 ) as { readonly framework: Linter.Config[]; readonly tooling: Linter.Config[] }
 
-const plugin = {
-  meta,
-  rules,
+/** The default export: the plugin ESLint registers, carrying the neutral presets. */
+export interface MfePlugin extends ESLint.Plugin {
+  readonly meta: typeof meta
+  readonly rules: typeof rules
+  readonly configs: typeof configs
+  readonly framework: typeof framework
+  readonly tooling: typeof tooling
+  readonly application: typeof application
+  readonly DEFAULT_TOOLING_FILES: typeof DEFAULT_TOOLING_FILES
+}
+
+/**
+ * The presets are added to the object the presets themselves register, not to a copy of it, so
+ * `{ plugins: { mfe } }` beside `...mfe.framework()` names one plugin rather than two.
+ */
+const mfe: MfePlugin = Object.assign(plugin, {
   configs,
   framework,
   tooling,
   application,
   DEFAULT_TOOLING_FILES,
-}
+})
 
-export default plugin
+export default mfe

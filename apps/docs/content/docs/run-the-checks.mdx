@@ -19,10 +19,10 @@ pnpm check
 ```
 
 ```json title="package.json"
-"check": "pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
+"check": "pnpm run build && pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
 ```
 
-Generation first, because the rest read the generated `#mfe` modules and the route tree.
+The packages build first, then generation, because the rest read the generated `#mfe` modules and the route tree.
 
 </Step>
 
@@ -75,7 +75,7 @@ which rule. The message between them says what it found and what to write instea
 
 ## Check it works
 
-`pnpm check` exits 0, and CI runs the same command on your branch. The four `mfe/` rules never
+`pnpm check` exits 0, and CI runs the same command on your branch. The `mfe/` rules never
 rewrite your code, because no repair for them keeps the same meaning. `mfe/no-raw-storage` offers a
 suggestion your editor can apply. The others give you the repair in the message and leave the edit
 to you. `pnpm verify:page` drives a real browser and is deliberately not part of `pnpm check`.
@@ -98,6 +98,6 @@ ESLint runs from another directory. The rules that need types cannot read a file
 
 - [Test an App](/docs/test-an-app) — the suites `pnpm test` runs.
 - [Run the shell with your container](/docs/run-the-shell-locally) — the servers, before the checks.
-- [What you must not do](/docs/what-you-must-not-do) — the rules behind the four `mfe/` messages.
+- [What you must not do](/docs/what-you-must-not-do) — the rules behind the `mfe/` messages.
 - [Lint rules](/docs/reference/lint-rules) — every rule, its full message and its fix.
 - [CLI and scripts](/docs/reference/cli-and-scripts) — every script, with its flags.

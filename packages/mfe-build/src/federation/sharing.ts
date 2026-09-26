@@ -1,22 +1,25 @@
 /**
  * Every framework on a page shares in a scope of its own, named after its exact installed
- * version, and the packages every framework agrees on share in `default`. Inside a scope the rule
- * is one strict copy, so containers built on the same framework version download it once, a
- * container on another version brings its own complete set, and a mismatch fails at load.
+ * version, and the packages every framework agrees on share in `default`. Nothing is a singleton
+ * (§55): containers are released from repositories of their own, so a version a container did not
+ * build against is never forced on it. Each candidate resolves to the loaded copy that satisfies
+ * the container's range, and a container nothing satisfies uses its own copy rather than failing,
+ * so containers whose ranges agree still download one copy.
  *
  * An author can only add to the candidate list; a container that opted out of sharing its
- * framework would load a second copy into a scope that already has one, and nothing that keeps
- * state in the first would reach it.
+ * framework would always load a second copy, even beside one its range accepts.
  */
 
 import { PAGE_SHARE_SCOPE } from '@company/mfe-core'
 
 export { PAGE_SHARE_SCOPE }
 
-/** What a candidate needs independent of any container; `resolveShared` fills in the versions. */
+/**
+ * What a candidate needs independent of any container; `resolveShared` fills in the versions.
+ * There is no singleton flag to set: a policy decides where a candidate is shared, never that a
+ * page holds one copy of it.
+ */
 export interface SharingPolicy {
-  readonly singleton: boolean
-  readonly strictVersion: boolean
   readonly eager?: false
   /**
    * `true` for a candidate that imports the framework, or that something importing it keeps
@@ -29,37 +32,26 @@ export interface SharingPolicy {
 /** Each candidate an integration shares, and how; a container shares one it depends on. */
 export type SharingPolicies = Readonly<Record<string, SharingPolicy>>
 
-/** One copy per framework version, which is what every framework-bound candidate needs. */
-export const SINGLETON: SharingPolicy = {
-  singleton: true,
-  strictVersion: true,
-  frameworkScoped: true,
-}
+/** Shared with containers on the same framework version, which is what a framework-bound candidate needs. */
+export const FRAMEWORK_SCOPED: SharingPolicy = { frameworkScoped: true }
+
+/** Shared with every container, whatever framework it renders with. */
+export const PAGE_WIDE: SharingPolicy = { frameworkScoped: false }
 
 /**
- * One copy per page, whatever framework a container renders with, for the neutral packages whose
- * module state spans the page.
- */
-export const PAGE_SINGLETON: SharingPolicy = {
-  singleton: true,
-  strictVersion: true,
-  frameworkScoped: false,
-}
-
-/**
- * The page's singletons whatever framework renders: the mount-token sequence, and the `instanceof`
- * checks errors and spans are recognised by, are module state in these, and neither imports a
- * framework, so pinning them pins no container's framework.
+ * Shared whatever framework renders: neither imports a framework, so sharing them ties no
+ * container to another's framework version. Nothing in them needs one copy per page; what they
+ * keep across copies is keyed on the page rather than on the module (§55).
  */
 export const PAGE_POLICY: SharingPolicies = {
-  '@company/mfe-core': PAGE_SINGLETON,
-  '@company/mfe-runtime': PAGE_SINGLETON,
+  '@company/mfe-core': PAGE_WIDE,
+  '@company/mfe-runtime': PAGE_WIDE,
 }
 
 /**
- * An integration's own candidates behind the page singletons, which the build adds itself: an
- * integration that had to list them could forget, and its containers would each bundle a second
- * core.
+ * An integration's own candidates behind the page-wide ones, which the build adds itself: an
+ * integration that had to list them could forget, and its containers would each bundle a core
+ * even beside one their range accepts.
  */
 export function withPagePolicy(policy: SharingPolicies): SharingPolicies {
   return { ...PAGE_POLICY, ...policy }
@@ -83,10 +75,10 @@ export function frameworkShareScope(framework: string, version: string): string 
 const NON_SEMVER_PREFIXES = ['catalog:', 'workspace:', 'link:', 'file:', 'portal:', 'npm:']
 
 export interface SharedModuleConfig {
-  /** `false` for a candidate a page may hold more than one copy of. */
-  readonly singleton: boolean
-  /** `false` for a candidate whose host and remote versions may disagree. */
-  readonly strictVersion: boolean
+  /** Always `false`: a page may hold a copy of anything per range that no loaded copy satisfies. */
+  readonly singleton: false
+  /** Always `false`: a range no loaded copy satisfies falls back to the container's own copy. */
+  readonly strictVersion: false
   /** `false` opts out of eager loading; left off, Module Federation's own default applies. */
   readonly eager?: false
   /** `false` disables the requirement; omitting it has Module Federation infer `catalog:`. */
@@ -126,20 +118,16 @@ export function resolveShared(
   for (const name of candidates) {
     const range = options.dependencies[packageOf(name)]
     if (range === undefined) continue
-    // A candidate outside the policy — a test's own list — is a framework singleton.
-    const policy = options.policy[name] ?? SINGLETON
+    // A candidate outside the policy — a test's own list — is framework-bound.
+    const policy = options.policy[name] ?? FRAMEWORK_SCOPED
     shared[name] = entry(name, range, policy, scopeOf(policy), installed)
   }
 
-  // An override adds a candidate or tightens one to a singleton, and it stays in the scope the
-  // policy gave it: moving a page singleton into a framework scope would give that framework's
-  // containers a second copy of it.
+  // An override adds a candidate or restates one's range, and it stays in the scope the policy
+  // gave it: moving a page-wide candidate into a framework scope would give that framework's
+  // containers a copy of their own.
   for (const [name, range] of Object.entries(options.overrides ?? {})) {
-    const existing = options.policy[name]
-    const policy =
-      existing === undefined
-        ? SINGLETON
-        : { ...SINGLETON, frameworkScoped: existing.frameworkScoped }
+    const policy = options.policy[name] ?? FRAMEWORK_SCOPED
     shared[name] = entry(name, range, policy, scopeOf(policy), installed)
   }
 
@@ -147,8 +135,8 @@ export function resolveShared(
 }
 
 /**
- * The scopes a host registers a container with: `default` always, because the page singletons
- * live there and a remote links only the scopes named when it is registered, then the rest.
+ * The scopes a host registers a container with: `default` always, because the page-wide
+ * candidates live there and a remote links only the scopes named when it is registered, then the rest.
  */
 export function shareScopesOf(
   shared: Readonly<Record<string, SharedModuleConfig>>,
@@ -172,8 +160,8 @@ function entry(
   const requiredVersion = isUsableVersionRange(range) ? range : (installed ?? false)
 
   return {
-    singleton: policy.singleton,
-    strictVersion: policy.strictVersion,
+    singleton: false,
+    strictVersion: false,
     requiredVersion,
     ...(policy.eager === false ? { eager: false as const } : {}),
     // A prefix or subpath share has no package.json of its own to read a version from, and

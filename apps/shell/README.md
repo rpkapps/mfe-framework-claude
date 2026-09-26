@@ -334,8 +334,8 @@ all); which control each field becomes is this shell's, in
 `dashboard/input-schema.ts`, and a field the build could not describe gets a raw
 JSON box.
 
-Tiles are reorderable, resizable and kept at `@host:dashboard`, `retention:
-'browser'`, so a sign-out does not throw away a canvas somebody composed. The
+Tiles are reorderable, resizable and kept at `@host:dashboard`, which belongs
+to the browser, so a sign-out does not throw away a canvas somebody composed. The
 page, settings and the palette all read it through one `useDashboardLayout()`
 hook over `useStoredState`, so they bind the same record and stay in step
 without a store of the shell's own. The old `company:shell:dashboard` key is not
@@ -544,23 +544,25 @@ so a single unreachable manifest brought down whatever the shell had not
 loaded yet — the chrome included.
 
 Every React-bound candidate goes in the share scope named after the React this
-shell installed, `react@19.3.0`, as a strict singleton: `react`, `react-dom`,
-`sonner`, `@company/mfe-react`, `@tanstack/react-router` and
-`@tanstack/react-query`, each holding module state a second copy would
-duplicate. So are React's entry points `react/jsx-runtime`,
+shell installed, `react@19.3.0`: `react`, `react-dom`, `@tanstack/react-router`
+and `@tanstack/react-query`. `@company/mfe-react` is not shared: each container
+bundles its own, so the providers it renders bind to the copies the container's
+own code imports. None is a singleton,
+because containers are released from repositories of their own (§55): a
+container takes the shell's copy when its range accepts it and loads its own
+when it does not, instead of failing. So are React's entry points `react/jsx-runtime`,
 `react/compiler-runtime` and `react-dom/client`: only a bare specifier is a share
 key, and without them every container downloaded its own react-dom client. The
 shell is not built with the React Compiler, so `@company/mfe-react/host` imports
 `react/compiler-runtime` for it to provide. The rest of
-`@tecton/react/federation/shared` joins that scope with the design system's
-flags: `react-aria-components`, without `singleton`, and `recharts`, without
-`singleton` and never eager, which the shell installs for the assistant's
+`@tecton/react/federation/shared` joins that scope: `sonner`,
+`react-aria-components`, and `recharts`, never eager, which the shell installs for the assistant's
 charts and which loads with the first one; the host shares only what its own
 `node_modules` hold.
 The design system itself is not shared, although that list offers it: every
 container bundles the Tecton components it imports, which measured faster on
 every page than a shared copy split into a chunk per component.
-`@company/mfe-core` and `@company/mfe-runtime` are page singletons in
+`@company/mfe-core` and `@company/mfe-runtime` are shared page-wide in
 `default`, read beside `@company/mfe-react` because this shell declares neither:
 it imports only its adapters.
 

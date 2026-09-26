@@ -81,11 +81,11 @@ the child's dev server.
 
 </Callout>
 
-<Callout type="error" title="expected a definition created with createApp">
+<Callout type="error" title="expected an entry for an App">
 
 ```text
-reports failed to resolve App: expected a definition created with createApp, received a Widget
-definition, which owns no URL boundary.
+reports failed to resolve App: expected an entry for an App, received an entry for a Widget, which
+owns no URL boundary.
 ```
 
 **Fix.** The id names a Widget. Render it with `lazyWidget` instead, or name the App you meant.

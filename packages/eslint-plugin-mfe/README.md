@@ -597,8 +597,8 @@ exported name it resolved to, and the module it came from.
 
 `localStorage` and `sessionStorage` are one flat, unversioned key space shared by
 the shell and by every MFE in the origin. Written directly, keys collide across
-MFEs, they cannot be namespaced per deployment, the shell cannot clear or migrate
-them on sign-out, and a quota error surfaces as an unhandled exception in
+MFEs, they cannot be namespaced per deployment, nothing versions or migrates
+them, and a quota error surfaces as an unhandled exception in
 whichever MFE wrote last.
 
 **Invalid**
@@ -655,9 +655,9 @@ by explicit scope:
 ```
 
 **What the message says.** The access bypasses the MFE storage boundary: the key
-is not namespaced, so another MFE in this origin can read or overwrite it, the
-shell cannot clear it on sign-out, and a quota failure escapes as an unhandled
-exception. Use `useStoredState()` for component state or `useMfeStorage()` for
+is not namespaced, so another MFE in this origin can read or overwrite it, it
+carries no version to migrate a changed shape from, and a quota failure escapes
+as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for
 imperative access, both from `@company/mfe-react`; the adapter and a documented
 shell override bootstrap opt out through `allowedScopes`.
 
@@ -778,6 +778,11 @@ navigates the whole page, so a Widget that injects it and calls `navigate` or
 `navigateByUrl` moves the host router, the owning App and every sibling MFE
 behind their backs. Only the `angular()` preset turns it on, and like its React
 counterpart it reports only inside the globs listed in `widgetScopes`.
+
+It follows the `Router` from `inject(Router)`: called directly, or through the
+variable or class field it is bound to — a private `#router` included, and
+wherever in the file that binding is declared. A `Router` received as a
+constructor parameter is not followed.
 
 **Invalid** (inside a declared Widget scope)
 

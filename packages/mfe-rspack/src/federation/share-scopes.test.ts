@@ -33,8 +33,9 @@ const HOST_INSTALLED: Readonly<Record<string, string>> = {
   '@company/mfe-core': '0.1.0',
   '@company/mfe-runtime': '0.1.0',
   '@company/mfe-react': '0.1.0',
+  '@tanstack/react-query': '5.103.0',
 }
-const PROBED = ['react', '@company/mfe-react', '@company/mfe-core'] as const
+const PROBED = ['react', '@tanstack/react-query', '@company/mfe-core'] as const
 
 /** Module Federation keeps its instances and loaded entries on the global object. */
 let run = 0
@@ -86,12 +87,24 @@ interface ContainerBuild {
   readonly shared: Readonly<Record<string, SharedModuleConfig>>
 }
 
-/** A React container as `pluginMfe()` plans its shares, at the React it installed. */
-function reactContainer(name: string, react: string): ContainerBuild {
+/**
+ * A React container as `pluginMfe()` plans its shares, at the React it installed. By default it
+ * was built in the host's workspace; a container from a repository of its own names the versions
+ * it installed and the ranges it declared.
+ */
+function reactContainer(
+  name: string,
+  react: string,
+  own: {
+    readonly installed?: Readonly<Record<string, string>>
+    readonly dependencies?: Readonly<Record<string, string>>
+  } = {},
+): ContainerBuild {
   const installed: Readonly<Record<string, string>> = {
     ...HOST_INSTALLED,
     react,
     'react-dom': react,
+    ...own.installed,
   }
   return {
     name,
@@ -103,6 +116,8 @@ function reactContainer(name: string, react: string): ContainerBuild {
         'react-dom': 'catalog:',
         '@company/mfe-react': 'workspace:*',
         '@company/mfe-core': 'workspace:*',
+        '@tanstack/react-query': 'catalog:',
+        ...own.dependencies,
       },
       frameworkScope: `react@${react}`,
       installedVersion: packageName => installed[packageName],
@@ -220,19 +235,19 @@ function createPage(containers: readonly ContainerBuild[]) {
 }
 
 describe('framework share scopes under the Module Federation runtime', () => {
-  it('gives every container on the host’s React the host’s React and adapter', async () => {
+  it('gives every container on the host’s React the host’s React and TanStack Query', async () => {
     const page = createPage([reactContainer('first', '19.3.0'), reactContainer('second', '19.3.0')])
 
     const first = await page.copiesIn('first')
     const second = await page.copiesIn('second')
 
     expect(first['react']).toMatchObject({ from: 'shell', version: '19.3.0' })
-    expect(first['@company/mfe-react']).toMatchObject({ from: 'shell' })
+    expect(first['@tanstack/react-query']).toMatchObject({ from: 'shell' })
     expect(second['react']).toBe(first['react'])
-    expect(second['@company/mfe-react']).toBe(first['@company/mfe-react'])
+    expect(second['@tanstack/react-query']).toBe(first['@tanstack/react-query'])
   })
 
-  it('gives a container on another React its own React and adapter, and the page’s core', async () => {
+  it('gives a container on another React its own React and TanStack Query, and the page’s core', async () => {
     const page = createPage([
       reactContainer('current', '19.3.0'),
       reactContainer('older', '19.2.8'),
@@ -243,7 +258,7 @@ describe('framework share scopes under the Module Federation runtime', () => {
 
     expect(older['react']).toMatchObject({ version: '19.2.8' })
     expect(older['react']?.from).toMatch(/^older/)
-    expect(older['@company/mfe-react']?.from).toMatch(/^older/)
+    expect(older['@tanstack/react-query']?.from).toMatch(/^older/)
     expect(older['react']).not.toBe(current['react'])
     // One core for the whole page, whatever React a container renders with.
     expect(older['@company/mfe-core']).toMatchObject({ from: 'shell' })
@@ -259,7 +274,7 @@ describe('framework share scopes under the Module Federation runtime', () => {
     expect(left['react']).toMatchObject({ version: '19.2.8' })
     expect(left['react']?.from).toMatch(/^left/)
     expect(right['react']).toBe(left['react'])
-    expect(right['@company/mfe-react']).toBe(left['@company/mfe-react'])
+    expect(right['@tanstack/react-query']).toBe(left['@tanstack/react-query'])
   })
 
   it('keeps a container’s React private when it is registered without its framework scope', async () => {
@@ -270,5 +285,53 @@ describe('framework share scopes under the Module Federation runtime', () => {
     // A remote links only the scopes it is registered with, so the host's copy never reaches it.
     expect(copies['react']?.from).toMatch(/^unlinked/)
     expect(copies['@company/mfe-core']).toMatchObject({ from: 'shell' })
+  })
+
+  it('gives a container on a newer TanStack Query than the host its own rather than failing to load', async () => {
+    const page = createPage([
+      reactContainer('ahead', '19.3.0', {
+        installed: { '@tanstack/react-query': '6.0.0' },
+        dependencies: { '@tanstack/react-query': '^6.0.0' },
+      }),
+    ])
+
+    const copies = await page.copiesIn('ahead')
+
+    // Nothing is a singleton, so a range the loaded copy misses falls back instead of throwing.
+    expect(copies['@tanstack/react-query']).toMatchObject({ version: '6.0.0' })
+    expect(copies['@tanstack/react-query']?.from).toMatch(/^ahead/)
+    // React is still the host's: in `react@19.3.0` every copy is React 19.3.0.
+    expect(copies['react']).toMatchObject({ from: 'shell' })
+  })
+
+  it('gives a container whose range accepts the host’s copy that copy, whatever it installed', async () => {
+    const page = createPage([
+      reactContainer('compatible', '19.3.0', {
+        installed: { '@tanstack/react-query': '5.110.0', '@company/mfe-core': '0.1.4' },
+        dependencies: { '@tanstack/react-query': '^5.100.0', '@company/mfe-core': '^0.1.0' },
+      }),
+    ])
+
+    const copies = await page.copiesIn('compatible')
+
+    expect(copies['@tanstack/react-query']).toMatchObject({ from: 'shell', version: '5.103.0' })
+    expect(copies['@company/mfe-core']).toMatchObject({ from: 'shell', version: '0.1.0' })
+  })
+
+  it('gives a container on a core the host’s does not satisfy a core of its own', async () => {
+    const page = createPage([
+      reactContainer('current', '19.3.0'),
+      reactContainer('newer-core', '19.3.0', {
+        installed: { '@company/mfe-core': '0.2.0' },
+        dependencies: { '@company/mfe-core': '^0.2.0' },
+      }),
+    ])
+
+    const current = await page.copiesIn('current')
+    const newer = await page.copiesIn('newer-core')
+
+    // Two cores on one page, which is why nothing in the core may rely on being the only one.
+    expect(newer['@company/mfe-core']?.from).toMatch(/^newer-core/)
+    expect(newer['@company/mfe-core']).not.toBe(current['@company/mfe-core'])
   })
 })

@@ -64,7 +64,10 @@ export default {
 }
 `
 
-function reportsContainer(extra: Readonly<Record<string, string>> = {}): string {
+function reportsContainer(
+  extra: Readonly<Record<string, string>> = {},
+  dependencies?: Readonly<Record<string, string>>,
+): string {
   return createContainer(
     {
       'src/mfe.ts': APP_ENTRY,
@@ -74,7 +77,7 @@ function reportsContainer(extra: Readonly<Record<string, string>> = {}): string 
       'src/mfe.config.ts': CONFIG,
       ...extra,
     },
-    { link: ['zod'] },
+    { link: ['zod'], ...(dependencies === undefined ? {} : { manifest: { dependencies } }) },
   )
 }
 
@@ -292,13 +295,8 @@ describe('MfeWebpackPlugin on a production compile', () => {
       const shared = readJsonDist<Manifest>(root, 'mf-manifest.json').shared.map(
         share => share.name,
       )
-      expect(shared).toEqual(
-        expect.arrayContaining([
-          '@company/mfe-angular',
-          '@company/mfe-core',
-          '@company/mfe-runtime',
-        ]),
-      )
+      expect(shared).toEqual(expect.arrayContaining(['@company/mfe-core', '@company/mfe-runtime']))
+      expect(shared).not.toContain('@company/mfe-angular')
     },
     COMPILE_TIMEOUT,
   )
@@ -306,7 +304,12 @@ describe('MfeWebpackPlugin on a production compile', () => {
   it(
     'registers the Angular group in the Angular scope and the neutral packages in the page scope',
     async () => {
-      const root = reportsContainer()
+      const root = reportsContainer(
+        {
+          'src/panel.component.ts': `import { VERSION } from '@angular/core'\n${PANEL_COMPONENT}\nexport const angular = VERSION\n`,
+        },
+        { '@company/mfe-angular': '^0.1.0', '@angular/core': ANGULAR_CORE_VERSION, rxjs: '^7.8.0' },
+      )
 
       await build(angularLikeConfig(root, 'production'))
 
@@ -314,7 +317,7 @@ describe('MfeWebpackPlugin on a production compile', () => {
       expect(registry.shareScopes).toEqual(['default', ANGULAR_SCOPE])
       // The manifest names no scope, so the scope is read where the remote registers its shares.
       expect(registeredScopes(readDist(root, 'remoteEntry.js'))).toEqual({
-        '@company/mfe-angular': ANGULAR_SCOPE,
+        '@angular/core': ANGULAR_SCOPE,
         '@company/mfe-core': 'default',
         '@company/mfe-runtime': 'default',
       })

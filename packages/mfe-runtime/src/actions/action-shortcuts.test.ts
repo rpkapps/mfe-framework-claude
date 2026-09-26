@@ -185,6 +185,52 @@ describe('reading a key press', () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
+  it('runs a chord typed on a layout that is not Latin', () => {
+    const { registry } = setup()
+    const execute = vi.fn()
+    registry.registerHost(action({ name: 'palette', shortcut: 'mod+k', execute }))
+
+    const { result } = keydown(registry, { key: 'л', code: 'KeyK', ctrlKey: true })
+
+    expect(result).toMatchObject({ status: 'matched', actionId: '@host:palette' })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a keydown that names no key, rather than throwing', () => {
+    const { registry } = setup()
+    registry.registerHost(action({ shortcut: 'mod+k' }))
+
+    expect(registry.handleKeyDown(new Event('keydown') as KeyboardEvent)).toEqual({
+      status: 'unmatched',
+    })
+  })
+
+  it('runs once for a held key, and still claims its repeats', () => {
+    const { registry } = setup()
+    const execute = vi.fn()
+    registry.registerHost(action({ name: 'save', shortcut: 'mod+s', execute }))
+
+    expect(keydown(registry, { key: 's', ctrlKey: true }).result.status).toBe('matched')
+    const repeated = keydown(registry, { key: 's', ctrlKey: true, repeat: true })
+
+    expect(repeated.result).toEqual({ status: 'unmatched' })
+    expect(repeated.event.defaultPrevented).toBe(true)
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a repeat alone that is no shortcut’s, and a sequence where it was', () => {
+    const { registry } = setup()
+    const execute = vi.fn()
+    registry.registerHost(action({ shortcut: 'g r', execute }))
+
+    keydown(registry, { key: 'g' })
+    const repeated = keydown(registry, { key: 'g', repeat: true })
+    expect(repeated.event.defaultPrevented).toBe(false)
+
+    expect(keydown(registry, { key: 'r' }).result.status).toBe('matched')
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it('runs a denied action through the palette’s path, so the denial is announced', async () => {
     const notifyDenial = vi.fn()
     const { registry } = setup({ notifyDenial })

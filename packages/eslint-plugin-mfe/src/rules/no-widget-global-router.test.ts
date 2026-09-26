@@ -48,6 +48,12 @@ createRuleTester().run('mfe/no-widget-global-router', rule, {
       filename: WIDGET_FILE,
       options: WIDGET_SCOPES,
     },
+    // A private `#router` is a different member from a public `router`.
+    {
+      code: `${IMPORTS}class Item {\n  readonly #router = inject(Router)\n  router = { navigate: () => {} }\n  go(): void {\n    this.router.navigate(['/reports'])\n  }\n}`,
+      filename: WIDGET_FILE,
+      options: WIDGET_SCOPES,
+    },
   ],
 
   invalid: [
@@ -105,6 +111,41 @@ createRuleTester().run('mfe/no-widget-global-router', rule, {
         {
           messageId: 'navigate',
           data: { access: 'this.router.navigateByUrl', emitAccess: 'the widget emit token' },
+        },
+      ],
+    },
+    {
+      code: `${IMPORTS}class Item {\n  readonly #router = inject(Router)\n  open(): void {\n    void this.#router.navigate(['/reports'])\n  }\n}`,
+      filename: WIDGET_FILE,
+      options: WIDGET_SCOPES,
+      errors: [
+        {
+          messageId: 'navigate',
+          data: { access: 'this.#router.navigate', emitAccess: '`injectWidgetEmit()`' },
+        },
+      ],
+    },
+    // A method declared above the field it navigates through.
+    {
+      code: `${IMPORTS}class Item {\n  open(): void {\n    void this.router.navigateByUrl('/reports')\n  }\n  private readonly router = inject(Router)\n}`,
+      filename: WIDGET_FILE,
+      options: WIDGET_SCOPES,
+      errors: [
+        {
+          messageId: 'navigate',
+          data: { access: 'this.router.navigateByUrl', emitAccess: '`injectWidgetEmit()`' },
+        },
+      ],
+    },
+    // A function declared above the variable it navigates through.
+    {
+      code: `${IMPORTS}function open(): void {\n  void router.navigate(['/reports'])\n}\nconst router = inject(Router)\nopen()`,
+      filename: WIDGET_FILE,
+      options: WIDGET_SCOPES,
+      errors: [
+        {
+          messageId: 'navigate',
+          data: { access: 'router.navigate', emitAccess: '`injectWidgetEmit()`' },
         },
       ],
     },

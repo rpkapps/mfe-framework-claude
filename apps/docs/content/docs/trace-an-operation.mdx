@@ -27,7 +27,7 @@ come from `@company/mfe-react`, and importing an OpenTelemetry package is a lint
 <Step>
 ### 2. End it in a finally
 
-```tsx title="examples/lab/src/routes/telemetry.tsx"
+```tsx
 telemetry.tracer.startActiveSpan('lab.failing', span => {
   try {
     return compute()
@@ -48,7 +48,7 @@ back out of `startActiveSpan`.
 <Step>
 ### 3. Start child spans before the first await
 
-```ts title="examples/lab/src/routes/telemetry.tsx"
+```ts
 telemetry.tracer.startActiveSpan('lab.export', parent => {
   // Synchronous: this one joins the parent's trace.
   telemetry.tracer.startActiveSpan('lab.export.prepare', child => child.end())

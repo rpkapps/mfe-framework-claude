@@ -561,6 +561,26 @@ describe('disposal', () => {
     expect(overlayRoots()).toHaveLength(0)
   })
 
+  it('aborts the signal of a mount still pending, so a definition that waits on it can stop', async () => {
+    const app = plainApp('reports', target => {
+      const { signal } = target.context
+      return new Promise<MountedApp>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('mount stopped on abort')), {
+          once: true,
+        })
+      })
+    })
+    const { runtime } = memoryRuntime([app.definition])
+    const mount = mountApp(runtime)
+    await vi.waitFor(() => expect(app.mount).toHaveBeenCalledTimes(1))
+
+    await mount.dispose()
+
+    expect(app.targets[0]?.context.signal.aborted).toBe(true)
+    expect(mount.getState()).toEqual({ status: 'disposed' })
+    expect(overlayRoots()).toHaveLength(0)
+  })
+
   it('leaves no scope root and no overlay root behind', async () => {
     const app = plainApp()
     const widget = plainWidget()

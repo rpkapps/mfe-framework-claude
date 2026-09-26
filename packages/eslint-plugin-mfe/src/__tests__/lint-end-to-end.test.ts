@@ -9,7 +9,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { framework, tooling } from '../index.ts'
+import mfe, { framework, tooling } from '../index.ts'
 import { author } from '../react.ts'
 import { angular } from '../angular.ts'
 
@@ -172,6 +172,13 @@ export default config
     expect([...ruleIds]).toContain('mfe/no-raw-storage')
     expect([...ruleIds]).toContain('mfe/stable-definitions')
     expect([...ruleIds]).toContain('react-hooks/rules-of-hooks')
+  })
+
+  it('accepts the plugin named beside the preset, because both are the same object', async () => {
+    // Flat config throws "Cannot redefine plugin" for two different objects under one name.
+    const summary = await lint(root, [{ plugins: { mfe } }, ...preset])
+    expect(summary.fatal).toEqual([])
+    expect([...summary.ruleIds]).toContain('mfe/no-global-patching')
   })
 
   it('leaves a TypeScript file outside the configured files untouched', async () => {
