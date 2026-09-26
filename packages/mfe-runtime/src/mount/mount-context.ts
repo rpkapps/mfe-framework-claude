@@ -82,12 +82,22 @@ export interface MountContextHandle {
   dispose(): Promise<void>
 }
 
-let nextMountSequence = 0
+/**
+ * The sequence lives on the page rather than in this module: a page may hold more than one copy
+ * of the runtime (§55), and two counters would each hand out `reports#1`.
+ */
+const MOUNT_SEQUENCE = Symbol.for('@company/mfe.mountSequence')
+
+interface PageSequence {
+  [MOUNT_SEQUENCE]?: number
+}
 
 /** Unique per document and stable for the mount's life is all a token needs. */
 export function createMountToken(definitionId: string): string {
-  nextMountSequence += 1
-  return `${definitionId}#${nextMountSequence}`
+  const page = globalThis as PageSequence
+  const next = (page[MOUNT_SEQUENCE] ?? 0) + 1
+  page[MOUNT_SEQUENCE] = next
+  return `${definitionId}#${next}`
 }
 
 export function createMountContext(options: CreateMountContextOptions): MountContextHandle {

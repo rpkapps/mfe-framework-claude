@@ -36,6 +36,20 @@ describe('createMountToken', () => {
     expect(first).not.toBe(second)
     expect(first.startsWith('alert-panel#')).toBe(true)
   })
+
+  it('never repeats a token another copy of the runtime issued on the same page', async () => {
+    vi.resetModules()
+    const other = await import('./mount-context.ts')
+    expect(other.createMountToken).not.toBe(createMountToken)
+
+    const tokens = [
+      createMountToken('reports'),
+      other.createMountToken('reports'),
+      createMountToken('reports'),
+    ]
+
+    expect(new Set(tokens).size).toBe(3)
+  })
 })
 
 describe('createMountContext', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createMfeError, describeValue, formatPath, isMfeError, toMfeError } from './errors.ts'
 
@@ -107,5 +107,40 @@ describe('toMfeError', () => {
     })
 
     expect(error.message).toContain('TypeError: bad shape')
+  })
+})
+
+describe('isMfeError', () => {
+  it('recognises an error another copy of the core created', async () => {
+    vi.resetModules()
+    const other = await import('./errors.ts')
+    expect(other.createMfeError).not.toBe(createMfeError)
+
+    const theirs = other.createMfeError({
+      code: 'mount/failure',
+      id: 'reports',
+      operation: 'mount',
+    })
+
+    expect(isMfeError(theirs)).toBe(true)
+    expect(toMfeError(theirs, { code: 'mount/failure', id: 'shell', operation: 'mount' })).toBe(
+      theirs,
+    )
+  })
+
+  it('leaves an error that only copies the fields unrecognised', () => {
+    const lookalike = Object.assign(new Error('x'), {
+      code: 'mount/failure',
+      id: 'a',
+      operation: 'b',
+    })
+
+    expect(isMfeError(lookalike)).toBe(false)
+  })
+
+  it('keeps the brand off the error’s own fields', () => {
+    const error = createMfeError({ code: 'mount/failure', id: 'reports', operation: 'mount' })
+
+    expect(Object.getOwnPropertySymbols(error)).toEqual([])
   })
 })

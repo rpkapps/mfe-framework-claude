@@ -34,11 +34,19 @@ export interface ActiveSpanContext {
   readonly name: string
 }
 
-let activeContext: ActiveSpanContext | undefined
+// On the page rather than in this module: a page may hold more than one copy of the runtime (§55),
+// and a context one copy made active is the active context to every other.
+const ACTIVE_SPAN = Symbol.for('@company/mfe.activeSpan')
+
+interface PageSpan {
+  [ACTIVE_SPAN]?: ActiveSpanContext | undefined
+}
+
+const page = globalThis as PageSpan
 
 /** The active context, whoever owns it. */
 export function getActiveSpanContext(): ActiveSpanContext | undefined {
-  return activeContext
+  return page[ACTIVE_SPAN]
 }
 
 /**
@@ -46,17 +54,18 @@ export function getActiveSpanContext(): ActiveSpanContext | undefined {
  * instead of a cross-mount parent (§4).
  */
 export function getActiveSpanContextFor(owner: object): ActiveSpanContext | undefined {
-  return activeContext !== undefined && activeContext.owner === owner ? activeContext : undefined
+  const active = page[ACTIVE_SPAN]
+  return active !== undefined && active.owner === owner ? active : undefined
 }
 
 /** Runs `fn` with `context` active, restoring the previous one even on a throw. */
 export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn: () => T): T {
-  const previous = activeContext
-  activeContext = context
+  const previous = page[ACTIVE_SPAN]
+  page[ACTIVE_SPAN] = context
   try {
     return fn()
   } finally {
-    activeContext = previous
+    page[ACTIVE_SPAN] = previous
   }
 }
 
@@ -68,7 +77,7 @@ export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn
 export function bindTelemetryContext<A extends readonly unknown[], R>(
   fn: (...args: A) => R,
 ): (...args: A) => R {
-  const captured = activeContext
+  const captured = page[ACTIVE_SPAN]
   return (...args: A): R => runWithSpanContext(captured, () => fn(...args))
 }
 
