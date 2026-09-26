@@ -189,6 +189,23 @@ describe('the URL layer', () => {
     })
   })
 
+  it('reads search params named like an object’s own members as ordinary params', () => {
+    const { store } = setup({
+      readLocation: at('/reports', '?constructor=x&toString=1&__proto__=a&__proto__=b'),
+    })
+
+    const { search } = store.read().url
+
+    expect(Object.keys(search)).toEqual(['constructor', 'toString', '__proto__'])
+    expect(search['constructor']).toBe('x')
+    expect(search['toString']).toBe('1')
+    expect(search['__proto__']).toEqual(['a', 'b'])
+    expect(Object.getPrototypeOf(search)).toBe(Object.prototype)
+    expect(JSON.parse(JSON.stringify(search))).toEqual(
+      JSON.parse('{"constructor":"x","toString":"1","__proto__":["a","b"]}'),
+    )
+  })
+
   it('reads the page when a turn is sent, not when the App mounted', () => {
     let pathname = '/operations'
     const { store } = setup({ readLocation: () => ({ pathname, search: '', hash: '' }) })
