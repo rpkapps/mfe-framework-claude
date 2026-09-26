@@ -1,17 +1,15 @@
 /**
  * The framework's single owner of browser storage. A failure is always structured, never a
- * silent fallback to the declared default, and the opaque session generation fences retired
- * data so a late cross-tab write or a failed delete cannot resurrect it.
+ * silent fallback to the declared default. A record belongs to the browser profile, not to the
+ * signed-in user (§56).
  */
 
 import {
   createMfeError,
-  DEFAULT_RETENTION,
   DEFAULT_SCHEMA_VERSION,
   describeThrown,
   describeValue,
   HOST_SCOPE,
-  isStorageEnvelope,
   physicalStorageKey,
   storagePrefix,
   toMfeError,
@@ -21,7 +19,6 @@ import {
   type MfeStorageKey,
   type StorageArea,
   type StorageKeyOptions,
-  type StorageRetention,
   type StorageSnapshot,
   type Unsubscribe,
 } from '@company/mfe-core'
@@ -41,22 +38,15 @@ import {
 import type {
   BoundStorageKey,
   MfeStorageStoreOptions,
-  SessionTransitionOutcome,
-  SessionTransitionResult,
   StorageAreaLike,
   StorageAreaSource,
   StorageEventLike,
   StorageEventTargetLike,
   StorageKeyBinding,
-  StorageSessionTransition,
-  StorageWriteOptions,
 } from './types.ts'
 
 const AREAS = ['local', 'session'] as const
 const DEFAULT_AREA: StorageArea = 'local'
-
-/** `<id>:<key>` with a colon-free id, so prefix ownership is unambiguous. */
-const FRAMEWORK_KEY = /^[^:]+:.+$/
 
 /** Written once: both the read path and the resolve path report it. */
 const UNAVAILABLE =
@@ -95,11 +85,6 @@ function snapshotsEquivalent(a: StorageSnapshot<unknown>, b: StorageSnapshot<unk
   return a.status === b.status && stableStringify(a.value) === stableStringify(b.value)
 }
 
-/** A group set is a set: order and duplicates carry no meaning. */
-function canonicalGroups(groups: readonly string[]): string {
-  return JSON.stringify([...new Set(groups)].sort())
-}
-
 function entryKeyFor(area: StorageArea, physicalKey: string): string {
   return `${area}|${physicalKey}`
 }
@@ -116,7 +101,6 @@ interface ResolvedDeclaration {
   readonly name: string
   readonly area: StorageArea
   readonly schema: z.ZodType
-  readonly retention: StorageRetention
   readonly version: number
   readonly declaresDefault: boolean
   readonly defaultValue: unknown
@@ -141,8 +125,8 @@ interface KeyEntry {
   readonly getSnapshot: () => StorageSnapshot<unknown>
   readonly subscribe: (listener: Listener) => Unsubscribe
   readonly read: () => unknown
-  readonly set: (next: unknown, options?: StorageWriteOptions) => void
-  readonly remove: (options?: StorageWriteOptions) => void
+  readonly set: (next: unknown) => void
+  readonly remove: () => void
 }
 
 export class MfeStorageStore {
@@ -150,21 +134,14 @@ export class MfeStorageStore {
   readonly #diagnostics: DiagnosticsHub | undefined
   readonly #listeners: KeyedListeners
   readonly #entries = new Map<string, KeyEntry>()
-  /** Every generation this store has been given; a generation is never reused. */
-  readonly #seenGenerations = new Set<string>()
   readonly #eventTarget: StorageEventTargetLike | null
   readonly #nativeListener: (event: Event) => void
 
-  #generation: string | null
-  #groups: string | null
   #disposed = false
 
   constructor(options: MfeStorageStoreOptions = {}) {
     this.#areas = options.areas ?? {}
     this.#diagnostics = options.diagnostics
-    this.#generation = options.sessionGeneration ?? null
-    if (this.#generation !== null) this.#seenGenerations.add(this.#generation)
-    this.#groups = options.groups === undefined ? null : canonicalGroups(options.groups)
     this.#listeners = new KeyedListeners(error => {
       this.#warn('notify a storage subscriber', error, {
         expected: 'a subscriber callback that does not throw',
@@ -177,155 +154,6 @@ export class MfeStorageStore {
     this.#eventTarget =
       options.eventTarget === undefined ? defaultEventTarget() : options.eventTarget
     this.#eventTarget?.addEventListener('storage', this.#nativeListener)
-  }
-
-  get sessionGeneration(): string | null {
-    return this.#generation
-  }
-
-  /**
-   * Rotating an existing generation goes through `applySessionTransition`, which invalidates the
-   * records the retired session left behind first.
-   */
-  establishSession(generation: string): void {
-    this.#assertUsable('establish the session generation')
-    if (this.#generation === generation) return
-    if (this.#generation !== null) {
-      throw this.#failStore('establish the session generation', {
-        expected: `no generation, or the one in force ('${this.#generation}')`,
-        observed: `a different generation ('${generation}')`,
-        repair: 'Rotate through applySessionTransition so the retired records are invalidated.',
-      })
-    }
-    this.#assertFreshGeneration(generation, 'establish the session generation')
-    this.#seenGenerations.add(generation)
-    this.#generation = generation
-    // A session record means something different now, though its text is unchanged.
-    for (const entry of this.#entries.values()) {
-      if (entry.declaration.retention !== 'user') continue
-      this.#invalidateCache(entry)
-      this.#refresh(entry)
-    }
-  }
-
-  /**
-   * An identity or semantic group change retires every user-retained record, mounted or
-   * not; browser-retained records survive, which is exactly why they must hold nothing
-   * personal (§21).
-   */
-  applySessionTransition(
-    transition: StorageSessionTransition,
-    nextGeneration?: string,
-  ): SessionTransitionResult {
-    this.#assertUsable('apply a session transition')
-
-    const outcome = this.#classifyTransition(transition)
-    if (outcome !== 'invalidated') {
-      this.#rememberGroups(transition)
-      return { outcome, generation: this.#generation, removedRecords: 0, notifiedKeys: 0 }
-    }
-
-    if (nextGeneration === undefined || nextGeneration === '') {
-      throw this.#failStore('apply a session transition', {
-        expected: 'a fresh opaque session generation for the new session',
-        observed: nextGeneration === '' ? 'an empty string' : 'nothing',
-        repair: 'Pass a new opaque generation — never a token, never a group list.',
-      })
-    }
-    this.#assertFreshGeneration(nextGeneration, 'apply a session transition')
-
-    const stale = new Map<KeyEntry, StorageSnapshot<unknown>>()
-    for (const entry of this.#entries.values()) {
-      if (entry.declaration.retention !== 'user') continue
-      stale.set(entry, entry.snapshot)
-      entry.snapshot = entry.defaultSnapshot
-      this.#invalidateCache(entry)
-    }
-
-    this.#seenGenerations.add(nextGeneration)
-    this.#generation = nextGeneration
-    this.#rememberGroups(transition)
-    const removedRecords = this.#purgeSessionRecords()
-
-    let notifiedKeys = 0
-    for (const [entry, previous] of stale) {
-      this.#refresh(entry)
-      if (snapshotsEquivalent(previous, entry.snapshot)) continue
-      notifiedKeys += 1
-      this.#listeners.notify(entry.entryKey)
-    }
-
-    return { outcome, generation: nextGeneration, removedRecords, notifiedKeys }
-  }
-
-  #classifyTransition(transition: StorageSessionTransition): SessionTransitionOutcome {
-    switch (transition.kind) {
-      case 'theme':
-      case 'token-refresh':
-        return 'not-session-affecting'
-      case 'identity':
-        return 'invalidated'
-      case 'groups': {
-        if (transition.groups === undefined) return 'invalidated'
-        return this.#groups !== null && canonicalGroups(transition.groups) === this.#groups
-          ? 'unchanged-group-set'
-          : 'invalidated'
-      }
-    }
-  }
-
-  #rememberGroups(transition: StorageSessionTransition): void {
-    if (transition.kind !== 'groups' && transition.kind !== 'identity') return
-    this.#groups = transition.groups === undefined ? null : canonicalGroups(transition.groups)
-  }
-
-  #assertFreshGeneration(generation: string, operation: string): void {
-    if (!this.#seenGenerations.has(generation)) return
-    throw this.#failStore(operation, {
-      expected: 'a generation this store has never seen before',
-      observed: `the already-used generation '${generation}'`,
-      repair: 'Mint a new generation per session; reusing one would unfence its retired records.',
-    })
-  }
-
-  /**
-   * Anything that is not a framework envelope is left alone: this store never removes what it did
-   * not write.
-   */
-  #purgeSessionRecords(): number {
-    let removed = 0
-    for (const area of AREAS) {
-      let store: StorageAreaLike
-      let names: readonly string[]
-      try {
-        store = this.#resolveArea(area)
-        names = this.#listKeys(store)
-      } catch (error) {
-        this.#reportAreaFailure(area, error)
-        continue
-      }
-
-      for (const name of names) {
-        if (!FRAMEWORK_KEY.test(name)) continue
-        try {
-          const raw = store.getItem(name)
-          if (raw === null) continue
-          let parsed: unknown
-          try {
-            parsed = JSON.parse(raw)
-          } catch {
-            continue // Not a framework record, so the framework does not own it.
-          }
-          if (!isStorageEnvelope(parsed) || parsed.r !== 'user') continue
-          store.removeItem(name)
-          removed += 1
-        } catch (error) {
-          // A record that survives stays fenced off by the generation check.
-          this.#reportAreaFailure(area, error)
-        }
-      }
-    }
-    return removed
   }
 
   bind<T>(
@@ -361,7 +189,6 @@ export class MfeStorageStore {
       definitionId,
       name: entry.name,
       storage: entry.area,
-      retention: resolved.retention,
       version: resolved.version,
       getSnapshot: entry.getSnapshot,
       subscribe: entry.subscribe,
@@ -564,7 +391,6 @@ export class MfeStorageStore {
       name,
       area,
       schema: declaration.schema,
-      retention: declaration.retention ?? DEFAULT_RETENTION,
       version,
       declaresDefault,
       defaultValue,
@@ -620,11 +446,11 @@ export class MfeStorageStore {
         }
       },
       read: () => this.#readValue(entry, false, declaration.declaresDefault),
-      set: (next: unknown, options?: StorageWriteOptions) => {
-        this.#setValue(entry, next, options)
+      set: (next: unknown) => {
+        this.#setValue(entry, next)
       },
-      remove: (options?: StorageWriteOptions) => {
-        this.#removeValue(entry, options)
+      remove: () => {
+        this.#removeValue(entry)
       },
     }
     return entry
@@ -647,14 +473,6 @@ export class MfeStorageStore {
         'schema',
         'the same schema object every active consumer already declared',
         'a different schema object',
-      )
-    }
-    if (active.retention !== incoming.retention) {
-      this.#incompatible(
-        entry,
-        'retention',
-        `retention '${active.retention}'`,
-        `retention '${incoming.retention}'`,
       )
     }
     if (active.version !== incoming.version) {
@@ -746,16 +564,8 @@ export class MfeStorageStore {
     return snapshot.value
   }
 
-  #setValue(entry: KeyEntry, next: unknown, options: StorageWriteOptions | undefined): void {
+  #setValue(entry: KeyEntry, next: unknown): void {
     this.#assertUsable('write a storage key')
-    this.#assertGenerationFence(entry, 'write', options)
-    if (entry.declaration.retention === 'user' && this.#generation === null) {
-      throw this.#fail(entry.definitionId, entry.area, 'write', entry.name, {
-        expected: 'the session generation to be established before a user value is written',
-        observed: 'no session in force',
-        repair: "Establish the generation before mounting, or declare retention: 'browser'.",
-      })
-    }
 
     let candidate = next
     if (typeof next === 'function') {
@@ -786,11 +596,8 @@ export class MfeStorageStore {
       })
     }
 
-    const serialized = serializeEnvelope(
-      entry.declaration,
-      this.#generation,
-      result.data,
-      (verb, detail) => this.#fail(entry.definitionId, entry.area, verb, entry.name, detail),
+    const serialized = serializeEnvelope(entry.declaration, result.data, (verb, detail) =>
+      this.#fail(entry.definitionId, entry.area, verb, entry.name, detail),
     )
     this.#writeRaw(entry, serialized, 'write')
     entry.raw = serialized
@@ -798,9 +605,8 @@ export class MfeStorageStore {
     this.#publish(entry, { status: 'value', value: result.data })
   }
 
-  #removeValue(entry: KeyEntry, options: StorageWriteOptions | undefined): void {
+  #removeValue(entry: KeyEntry): void {
     this.#assertUsable('remove a storage key')
-    this.#assertGenerationFence(entry, 'remove', options)
     this.#removeRaw(entry.definitionId, entry.area, entry.name, entry.physicalKey)
     entry.raw = null
     entry.rawKnown = true
@@ -836,24 +642,6 @@ export class MfeStorageStore {
     }
   }
 
-  /** Rejects a write a caller committed from a session that has since retired. */
-  #assertGenerationFence(
-    entry: KeyEntry,
-    verb: string,
-    options: StorageWriteOptions | undefined,
-  ): void {
-    const expected = options?.generation
-    if (expected === undefined || expected === this.#generation) return
-    throw this.#fail(entry.definitionId, entry.area, verb, entry.name, {
-      expected: `the write to commit in the generation it started in ('${expected}')`,
-      observed:
-        this.#generation === null
-          ? 'no session in force'
-          : `the session moved on to '${this.#generation}'`,
-      repair: 'Drop the result: work started in a retired session never commits into the new one.',
-    })
-  }
-
   #imperativeKey<T>(
     definitionId: string,
     area: StorageArea,
@@ -865,7 +653,6 @@ export class MfeStorageStore {
       name,
       storage: area,
       schema,
-      ...(options?.retention === undefined ? {} : { retention: options.retention }),
       ...(options?.version === undefined ? {} : { version: options.version }),
       ...(options?.migrate === undefined ? {} : { migrate: options.migrate }),
     })
@@ -878,10 +665,10 @@ export class MfeStorageStore {
           resolved.declaresDefault,
         ) as T | null,
       set: (value: T): void => {
-        this.#setValue(this.#workingEntry(definitionId, resolved), value, undefined)
+        this.#setValue(this.#workingEntry(definitionId, resolved), value)
       },
       remove: (): void => {
-        this.#removeValue(this.#workingEntry(definitionId, resolved), undefined)
+        this.#removeValue(this.#workingEntry(definitionId, resolved))
       },
     }
   }
@@ -891,7 +678,7 @@ export class MfeStorageStore {
     const physical = physicalStorageKey(definitionId, name)
     const bound = this.#entries.get(entryKeyFor(area, physical))
     if (bound !== undefined) {
-      this.#removeValue(bound, undefined)
+      this.#removeValue(bound)
       return
     }
     this.#removeRaw(definitionId, area, name, physical)
@@ -962,7 +749,6 @@ export class MfeStorageStore {
       physicalKey: entry.physicalKey,
       area: entry.area,
       defaultSnapshot: entry.defaultSnapshot,
-      generation: () => this.#generation,
       fail: (verb, detail) => this.#fail(entry.definitionId, entry.area, verb, entry.name, detail),
       write: serialized => {
         this.#writeRaw(entry, serialized, 'migrate')
@@ -1013,13 +799,6 @@ export class MfeStorageStore {
       toMfeError(cause, { ...detail, code: 'storage/failure', id: HOST_SCOPE, operation }),
       { severity: 'warning', context: { operation } },
     )
-  }
-
-  #reportAreaFailure(area: StorageArea, cause: unknown): void {
-    this.#warn(`invalidate session records in ${area} storage`, cause, {
-      expected: `${area} storage to be readable and writable`,
-      repair: 'A record that could not be removed stays fenced off by the generation.',
-    })
   }
 
   /**

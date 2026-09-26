@@ -22,8 +22,6 @@ Returns the signed-in user, or `null` when nobody is signed in. `ShellUser` carr
 const name = useUser(user => user?.name ?? 'Signed out')
 ```
 
-Recipe: [Clear a value when the user changes](/docs/clear-a-value-on-sign-out).
-
 ### useGroups
 
 ```ts
@@ -320,16 +318,15 @@ Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-un
 useStoredState<T>(
   name: string,
   schema: z.ZodType<T>,
-  options: { defaultValue: T; storage?: 'local' | 'session'; retention?: 'user' | 'browser'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
+  options: { defaultValue: T; storage?: 'local' | 'session'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
 ): readonly [T, (next: T | ((current: T) => T)) => void]
 ```
 
-Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data.
+Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data. The record belongs to the browser, so a sign-out keeps it and the next user reads it.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const [draft, setDraft] = useStoredState('draft', draftSchema, {
   defaultValue: { note: '', pinned: false },
-  retention: 'browser',
 })
 ```
 

@@ -5,9 +5,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
 import {
   createMfeError,
+  HOST_SCOPE,
+  physicalStorageKey,
   type Diagnostic,
   type MfeAdapter,
   type RegistryEntry,
@@ -82,8 +85,7 @@ afterEach(() => {
   sessionStorage.clear()
 })
 
-/** Everything but the session generation, which most tests fix and one leaves to the runtime. */
-function baseOptions(): Omit<CreateMfeRuntimeOptions, 'sessionGeneration'> {
+function baseOptions(): CreateMfeRuntimeOptions {
   return {
     registryEntries: [],
     loader: createInProcessLoader(new Map()),
@@ -96,7 +98,7 @@ function baseOptions(): Omit<CreateMfeRuntimeOptions, 'sessionGeneration'> {
 }
 
 function create(options: Partial<CreateMfeRuntimeOptions> = {}): MfeRuntimeHandle {
-  handle = createMfeRuntime({ ...baseOptions(), sessionGeneration: 'gen-1', ...options })
+  handle = createMfeRuntime({ ...baseOptions(), ...options })
   return handle
 }
 
@@ -365,100 +367,45 @@ describe('developer overrides when a different user signs in to the tab', () => 
   })
 })
 
-describe('the storage session', () => {
-  it('adopts the generation it is given', () => {
-    const { runtime } = create({ sessionGeneration: 'gen-given' })
+/** The payload of the tab's session record, as the runtime wrote it. */
+function recordedIdentity(): unknown {
+  const raw = sessionStorage.getItem(physicalStorageKey(HOST_SCOPE, 'session-identity'))
+  return raw === null ? null : (JSON.parse(raw) as { d: unknown }).d
+}
 
-    expect(runtime.storage.sessionGeneration).toBe('gen-given')
+describe("the tab's session", () => {
+  it('records who is signed in to the tab', () => {
+    create()
+
+    expect(recordedIdentity()).toEqual({ identity: 'ada' })
   })
 
-  it('establishes one when none is given, from the generation it mints', () => {
-    const mint = vi.fn(() => 'gen-minted')
-
-    handle = createMfeRuntime({ ...baseOptions(), nextSessionGeneration: mint })
-    const { runtime } = handle
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-minted')
-    expect(mint).toHaveBeenCalledTimes(1)
-  })
-
-  it('retires the session with a freshly minted generation when the user changes', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const { runtime } = create({ nextSessionGeneration: mint })
+  it('records a sign-in within the page, for the next reload to compare with', () => {
+    const { runtime } = create()
 
     runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
 
-    expect(runtime.storage.sessionGeneration).toBe('gen-2')
-    expect(mint).toHaveBeenCalledTimes(1)
+    expect(recordedIdentity()).toEqual({ identity: 'grace' })
   })
 
-  it('establishes the generation a transition minted when the page reloads', () => {
-    const minted = ['gen-a', 'gen-b']
-    const created = createMfeRuntime({
-      ...baseOptions(),
-      nextSessionGeneration: () => minted.shift() ?? 'gen-c',
+  it('keeps what an App stored across a sign-out, since a record belongs to the browser', () => {
+    const { runtime } = create()
+    const density = runtime.storage.bind('reports', {
+      name: 'density',
+      schema: z.enum(['compact', 'comfortable']),
     })
-    created.runtime.shellState.apply({ groups: ['ops', 'admins'] })
-    created.dispose()
+    density.set('compact')
 
-    handle = createMfeRuntime({
-      ...baseOptions(),
-      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['admins', 'ops'], theme: 'dark' },
-      nextSessionGeneration: () => 'gen-c',
-    })
+    runtime.shellState.apply({ user: null, groups: [] })
 
-    expect(handle.runtime.storage.sessionGeneration).toBe('gen-b')
-  })
-
-  it('mints a new generation when the page reloads with other groups', () => {
-    const created = createMfeRuntime({ ...baseOptions(), nextSessionGeneration: () => 'gen-a' })
-    created.dispose()
-
-    handle = createMfeRuntime({
-      ...baseOptions(),
-      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['finance'], theme: 'dark' },
-      nextSessionGeneration: () => 'gen-b',
-    })
-
-    expect(handle.runtime.storage.sessionGeneration).toBe('gen-b')
-  })
-
-  it('keeps the session when the groups are only reordered', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const { runtime } = create({
-      shellState: { user: { id: 'ada', name: 'Ada' }, groups: ['ops', 'admins'], theme: 'dark' },
-      nextSessionGeneration: mint,
-    })
-
-    runtime.shellState.apply({ groups: ['admins', 'ops'] })
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-1')
-    expect(mint).not.toHaveBeenCalled()
-  })
-
-  it('retires the session when the groups change', () => {
-    const { runtime } = create({ nextSessionGeneration: () => 'gen-2' })
-
-    runtime.shellState.apply({ groups: ['ops', 'admins'] })
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-2')
-  })
-
-  it('keeps the session across a theme change', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const { runtime } = create({ nextSessionGeneration: mint })
-
-    runtime.shellState.apply({ theme: 'light' })
-
-    expect(runtime.storage.sessionGeneration).toBe('gen-1')
-    expect(mint).not.toHaveBeenCalled()
+    expect(density.read()).toBe('compact')
+    density.release()
   })
 })
 
 describe('disposing the runtime', () => {
-  it('stops retiring sessions and drops every blocker', () => {
-    const mint = vi.fn(() => 'gen-2')
-    const created = create({ nextSessionGeneration: mint })
+  it('stops recording sign-ins and drops every blocker', () => {
+    const created = create()
     created.runtime.navigator.registerBlocker('reports#1', {
       depth: 1,
       shouldBlock: () => true,
@@ -469,7 +416,7 @@ describe('disposing the runtime', () => {
     handle = null
     created.runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
 
-    expect(mint).not.toHaveBeenCalled()
+    expect(recordedIdentity()).toEqual({ identity: 'ada' })
     expect(created.runtime.navigator.blockerCount).toBe(0)
   })
 

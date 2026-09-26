@@ -175,15 +175,6 @@ describe('createMemoryRuntime', () => {
     expect(navigation.read().pathname).toBe('/reports/a')
   })
 
-  it('retires the storage session the way a shell does when the user changes', () => {
-    const memory = memoryRuntime({ sessionGeneration: 'gen-1' })
-
-    memory.setShellState({ user: { id: 'grace', name: 'Grace' } })
-
-    expect(memory.runtime.storage.sessionGeneration).not.toBe('gen-1')
-    expect(memory.runtime.storage.sessionGeneration).not.toBeNull()
-  })
-
   it('records everything reported to the runtime, in order', () => {
     const { runtime, diagnostics } = memoryRuntime()
     const failure = (id: string) =>
@@ -208,8 +199,8 @@ describe('createMemoryRuntime', () => {
     expect(second.storageAreas.local.length).toBe(0)
   })
 
-  it('stops following the shell state and drops every blocker once disposed, as a shell’s does', () => {
-    const memory = createMemoryRuntime({ sessionGeneration: 'gen-1' })
+  it('drops every blocker once disposed, as a shell’s does', () => {
+    const memory = createMemoryRuntime()
     memory.runtime.navigator.registerBlocker('reports#1', {
       depth: 1,
       shouldBlock: () => true,
@@ -217,9 +208,7 @@ describe('createMemoryRuntime', () => {
     })
 
     memory.dispose()
-    memory.setShellState({ user: { id: 'grace', name: 'Grace' } })
 
-    expect(memory.runtime.storage.sessionGeneration).toBe('gen-1')
     expect(memory.runtime.navigator.blockerCount).toBe(0)
   })
 })

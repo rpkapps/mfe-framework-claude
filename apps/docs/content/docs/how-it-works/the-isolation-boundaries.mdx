@@ -26,7 +26,7 @@ One dashed arrow points out to each of the six boxes around it.
 
 - **URL** — the base path into `createRouter`, and the boundary history.
 - **Styles** — `@scope` per definition, and the shell owns preflight.
-- **Storage** — the key `<definitionId>:<name>`, and retention decides who reads it.
+- **Storage** — the key `<definitionId>:<name>`, which belongs to the browser profile.
 - **Network** — `#mfe/fetch`, and the token reaches declared origins only.
 - **Errors** — one `MfeError` code, into the diagnostics hub.
 - **Framework share scopes** — one copy per framework version, resolved loaded-first.
@@ -84,18 +84,12 @@ The key is `<definitionId>:<name>`, and it carries no mount token. Two mounts of
 therefore read one record. A definition id may not contain a colon, because the colon separates the
 id from the name.
 
-Retention says who may read a value back, rather than how long it lives. The default, `'browser'`,
-keeps a record until something removes it, and every user of that browser profile reads it. A record
-declared `retention: 'user'` carries the session generation, an opaque string kept at
-`@host:session-generation`.
-
-The shell reports identity changes and changed group sets. Each one starts a new generation. The
-framework then deletes every `retention: 'user'` record in both stores, including records for
-definitions that are not mounted. A record that survives a failed delete still reads as absent,
-because its generation no longer matches.
+A record belongs to the browser profile, not to the person signed in. The framework keeps it until
+something removes it, so a sign-out keeps it and the next user of that profile reads it. Nothing
+personal belongs in storage.
 
 `@host` is the scope outside any mount. It is spelled with an `@` because no definition id can hold
-one, which is what makes the scope unclaimable. Decisions 21 and 24 argue both halves.
+one, which is what makes the scope unclaimable. Decisions 24 and 56 argue both halves.
 
 ## The network
 

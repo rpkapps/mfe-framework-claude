@@ -62,14 +62,13 @@ to the recipes and the reference.
 **1. One idea per sentence.** Comprehension falls off a cliff as sentences lengthen: under 8 words
 readers get 100%, at 14 words over 90%, at 43 words under 10% (American Press Institute / Wylie).
 
-> **Now:** "When the shell reports that the identity changed (login, logout, an account or tenant
-> switch) or that the group set genuinely changed, a fresh generation is minted and every
-> `retention: 'user'` record in both stores is physically removed — including records belonging to
-> definitions that are not mounted."
+> **Now:** "When a container's range accepts a copy the host already loaded, Module Federation hands
+> it that copy, and when no loaded copy satisfies the range the container loads the one it bundled
+> instead of failing, which keeps containers from separate repositories working as versions drift."
 >
-> **Rewrite:** "The shell reports identity changes: sign-in, sign-out, an account switch, a tenant
-> switch. Each one starts a new session generation. The framework then deletes every
-> `retention: 'user'` record in both stores, including records for definitions that are not mounted."
+> **Rewrite:** "A container asks for a range. Module Federation hands it a loaded copy that
+> satisfies the range. When none does, the container loads the copy it bundled. So a container
+> from another repository keeps working when versions drift."
 
 **2. Average under 18 words, no sentence over 25.** Plain-language guidance sets an average of 20
 and a hard ceiling. Shorter is better still for a scanning reader (plainlanguage.gov, Google
@@ -153,11 +152,10 @@ experts", and plainlanguage.gov).
 **9. No aphorisms or slogans as explanations.** A memorable phrase is not an answer. State the
 mechanism (Write the Docs: documentation is for the reader, not the writer).
 
-> **Now:** "The default is the safe answer, so the safe answer is the one you get by not deciding."
+> **Now:** "A record belongs to the browser, so the browser decides."
 >
-> **Rewrite:** "Leave `retention` unset. The default, `'browser'`, keeps the record until something
-> removes it. Per-user data declares `retention: 'user'`, which the shell clears when the signed-in
-> user changes."
+> **Rewrite:** "The framework keeps a stored record until something removes it. A sign-out does not
+> remove it, so the next user of this browser profile reads it."
 
 **10. No "which is why", "that is", "in other words" chains.** One clause should not need a second
 to rescue it (Microsoft: bigger ideas, fewer words).

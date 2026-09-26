@@ -113,22 +113,11 @@ A host that knows those names only as strings takes every output through
 
 ### One thing to know before you store anything
 
-`useStoredState` takes a `retention`, and it decides **who can read the value
-back**. The default is `'browser'`: the framework never clears the record, so it
-survives a sign-out and **every user of that browser profile reads the same
-value**. That suits the common case — a display density, a collapsed panel, a
-chosen tab.
-
-Anything derived from a user's data must say so:
-
-```ts
-const [filters, setFilters] = useStoredState('filters', schema, {
-  defaultValue: { status: 'open' },
-  // Cleared when the signed-in identity or group set changes, so the next
-  // person to sign in starts clean.
-  retention: 'user',
-})
-```
+A value `useStoredState` keeps belongs to the **browser profile**, not to the
+person signed in: the framework never clears it, so it survives a sign-out and
+**every user of that browser profile reads the same value**. That suits what
+storage is for — a display density, a collapsed panel, a chosen tab. Keep
+nothing personal in it.
 
 State the **host page** owns rather than any definition on it — a theme, a
 composed dashboard — goes in the reserved `@host` scope, which `useStoredState`

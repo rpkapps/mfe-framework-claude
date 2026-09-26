@@ -3,7 +3,7 @@
  * the component renders, and there is no second hook and no flag (§24).
  */
 
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StrictMode, useState, type ReactNode } from 'react'
@@ -60,7 +60,6 @@ function wire(): Wired {
     telemetryProvider: createNoopTelemetryProvider(),
     diagnostics,
     adapters: [reactAdapter],
-    sessionGeneration: 'gen-1',
   })
 
   wired = { handle, storage: handle.runtime.storage, reported }
@@ -96,7 +95,6 @@ function ThemeToggle({
   // Explicit, only so the captured setter below has a name to be compared by.
   const [theme, setTheme] = useStoredState<ShellTheme>('theme', themeSchema, {
     defaultValue: 'dark',
-    retention: 'browser',
   })
   capture?.(setTheme)
 
@@ -122,12 +120,12 @@ describe('useStoredState outside any mount', () => {
     await userEvent.click(screen.getByRole('button'))
 
     expect(screen.getByRole('button')).toHaveTextContent('light')
-    expect(stored()['@host:theme']).toEqual({ v: 1, r: 'browser', d: 'light' })
+    expect(stored()['@host:theme']).toEqual({ v: 1, d: 'light' })
     view.unmount()
   })
 
   it('reports an invalid stored record through the hub the shell supplied', () => {
-    localStorage.setItem('@host:theme', JSON.stringify({ v: 1, r: 'browser', d: 'sepia' }))
+    localStorage.setItem('@host:theme', JSON.stringify({ v: 1, d: 'sepia' }))
     const { handle, reported } = wire()
 
     expect(() =>
@@ -142,7 +140,7 @@ describe('useStoredState outside any mount', () => {
   })
 })
 
-/** The same shape as `ThemeToggle`, except that it says nothing about retention. */
+/** The same shape as `ThemeToggle`, for a second record beside it. */
 function DensityToggle(): ReactNode {
   const [density, setDensity] = useStoredState<'comfortable' | 'compact'>(
     'density',
@@ -160,8 +158,8 @@ function DensityToggle(): ReactNode {
   )
 }
 
-describe('a hook that declares no retention', () => {
-  it("binds as 'browser', so the record outlives the signed-in identity", async () => {
+describe('a stored value', () => {
+  it('outlives the signed-in identity, since it belongs to the browser', async () => {
     const { handle } = wire()
 
     const view = render(
@@ -172,13 +170,14 @@ describe('a hook that declares no retention', () => {
 
     await userEvent.click(screen.getByRole('button'))
 
-    // No `g`, because nothing about this record belongs to the signed-in user.
-    expect(stored()['@host:density']).toEqual({ v: 1, r: 'browser', d: 'compact' })
+    expect(stored()['@host:density']).toEqual({ v: 1, d: 'compact' })
 
-    handle.runtime.storage.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
+    act(() => {
+      handle.runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
+    })
 
     expect(screen.getByRole('button')).toHaveTextContent('compact')
-    expect(stored()['@host:density']).toEqual({ v: 1, r: 'browser', d: 'compact' })
+    expect(stored()['@host:density']).toEqual({ v: 1, d: 'compact' })
 
     view.unmount()
   })
@@ -251,7 +250,6 @@ describe('the binding a render owns', () => {
     const held = storage.bindHost({
       name: 'theme',
       schema: themeSchema,
-      retention: 'browser',
       defaultValue: 'dark',
     })
 
@@ -270,7 +268,6 @@ describe('the binding a render owns', () => {
         .bindHost({
           name: 'theme',
           schema: themeSchema,
-          retention: 'browser',
           defaultValue: 'light',
         })
         .release(),
@@ -313,7 +310,7 @@ describe('the binding a render owns', () => {
   })
 
   it('leaves nothing open after a render that threw', () => {
-    localStorage.setItem('@host:theme', JSON.stringify({ v: 1, r: 'browser', d: 'sepia' }))
+    localStorage.setItem('@host:theme', JSON.stringify({ v: 1, d: 'sepia' }))
     const { handle, storage } = wire()
     vi.spyOn(console, 'error').mockImplementation(() => {})
 

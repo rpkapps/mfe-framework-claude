@@ -600,7 +600,7 @@ async function isolationBoundaries() {
   const boundaries = [
     ['URL', 'basePath into createRouter; boundary history', 0, 140],
     ['Styles', '@scope per definition; the shell owns preflight', 480, 140],
-    ['Storage', '<definitionId>:<name>; retention decides who reads', 960, 140],
+    ['Storage', '<definitionId>:<name>; kept for the browser profile', 960, 140],
     ['Network', '#mfe/fetch; the token only to declared origins', 0, 590],
     ['Errors', 'one MfeError code, into the DiagnosticsHub', 480, 590],
     ['Framework share scopes', 'one copy per framework version; loaded-first', 960, 590],
@@ -939,11 +939,11 @@ async function lifecycle() {
   return scene.write()
 }
 
-/* --------------------------------------------------------------- 8. storage-retention */
+/* -------------------------------------------------------------------- 8. storage-keys */
 
-async function storageRetention() {
-  const scene = createScene('storage-retention')
-  scene.title('storage-retention', 'How a stored key is composed, and who reads it back.')
+async function storageKeys() {
+  const scene = createScene('storage-keys')
+  scene.title('storage-keys', 'How a stored key is composed, and what it survives.')
 
   const written = tile(scene, {
     x: 0,
@@ -963,7 +963,7 @@ async function storageRetention() {
     h: 64,
     fill: FILL.storage,
     name: 'What it binds to',
-    subtitle: "storage 'local', retention 'browser', version 1",
+    subtitle: "storage 'local', version 1",
   })
   const stored = tile(scene, {
     x: 880,
@@ -996,22 +996,22 @@ async function storageRetention() {
     w: 820,
     h: 320,
     heading: 'What survives what',
-    caption: 'storage keeps it; retention decides who reads it',
+    caption: 'the store decides how long; nothing clears it at sign-out',
   })
   const columns = [24, 380, 620]
-  scene.text({ x: columns[1], y: 376, text: "retention: 'user'", size: 12.5, family: FONT.mono })
+  scene.text({ x: columns[1], y: 376, text: "storage: 'local'", size: 12.5, family: FONT.mono })
   scene.text({
     x: columns[2],
     y: 376,
-    text: "retention: 'browser'",
+    text: "storage: 'session'",
     size: 12.5,
     family: FONT.mono,
   })
   ;[
-    ['the identity changes', 'wiped', 'kept'],
-    ['the groups change', 'wiped', 'kept'],
+    ['a sign-out', 'kept', 'kept'],
+    ['another user signs in', 'kept, and read', 'kept, and read'],
     ['a reload', 'kept', 'kept'],
-    ['the tab closes', 'gone with it', 'gone with it'],
+    ['the tab closes', 'kept', 'gone with it'],
     ['version raised', 'migrate(), or unreadable', 'migrate(), or unreadable'],
   ].forEach((row, position) => {
     row.forEach((cell, column) => {
@@ -1035,8 +1035,8 @@ async function storageRetention() {
     w: 420,
     h: 64,
     fill: FILL.failure,
-    name: "retention: 'user'",
-    subtitle: 'asked for when the data is personal',
+    name: 'Nothing personal',
+    subtitle: 'the next user of this browser reads it',
   })
 
   scene.legend({
@@ -1046,7 +1046,7 @@ async function storageRetention() {
       ['container', 'what an author writes'],
       ['storage', 'the storage boundary'],
       ['shell', "the host page's own scope"],
-      ['failure', "skip it, and 'browser' leaks between every user"],
+      ['failure', 'store it, and it leaks to the next user'],
     ),
   })
 
@@ -1429,7 +1429,7 @@ const scenes = [
   appVsWidget,
   configAndData,
   lifecycle,
-  storageRetention,
+  storageKeys,
   stylingScope,
   devWorkflow,
   adapters,

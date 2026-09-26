@@ -96,7 +96,6 @@ export {
 } from './telemetry.ts'
 
 export {
-  DEFAULT_RETENTION,
   DEFAULT_SCHEMA_VERSION,
   isStorageEnvelope,
   physicalStorageKey,
@@ -106,7 +105,6 @@ export {
   type StorageArea,
   type StorageEnvelope,
   type StorageKeyOptions,
-  type StorageRetention,
   type StorageSnapshot,
 } from './storage.ts'
 

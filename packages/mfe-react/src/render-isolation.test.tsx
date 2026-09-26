@@ -134,7 +134,6 @@ describe('storage fans out per key', () => {
     return makeProbe('density', () => {
       const [value, setter] = useStoredState('table-density', densitySchema, {
         defaultValue: 'comfortable',
-        retention: 'browser',
       })
       capture?.(setter)
       return value
@@ -150,7 +149,6 @@ describe('storage fans out per key', () => {
     const locale = makeProbe('locale', () => {
       const [value] = useStoredState('locale', localeSchema, {
         defaultValue: 'en',
-        retention: 'browser',
       })
       return value
     })
@@ -450,7 +448,6 @@ describe('scaling: one change does not touch unrelated consumers', () => {
       commits[index] = (commits[index] ?? 0) + 1
       const [value, setter] = useStoredState(`key-${index}`, schema, {
         defaultValue: 'initial',
-        retention: 'browser',
       })
       setters[index] = setter
       return <span>{value}</span>

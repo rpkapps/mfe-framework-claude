@@ -138,7 +138,7 @@ The boundaries keep containers that mean well from colliding by accident. They a
 
 - **URL** — "basePath into createRouter; boundary history".
 - **Styles** — "@scope per definition; the shell owns preflight".
-- **Storage** — "`<definitionId>:<name>`; retention decides who reads".
+- **Storage** — "`<definitionId>:<name>`; kept for the browser profile".
 - **Network** — "#mfe/fetch; the token only to declared origins".
 - **Errors** — "one MfeError code, into the DiagnosticsHub".
 - **Framework share scopes** — "one copy per framework version; loaded-first".
@@ -155,7 +155,7 @@ PrimeNG is outside this boundary. It writes its components' rules into unscoped 
 
 ### Storage
 
-The key is never scoped by mount token, so two mounts of one definition read the same record. **Retention** says who may read a value back, rather than how long it lives: `'browser'` is the default and is never cleared, where `'user'` is cleared when the session generation changes. `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
+The key is never scoped by mount token, so two mounts of one definition read the same record. A record belongs to the browser profile, not to the person signed in: the framework never clears it, so a sign-out keeps it and the next user reads it, and nothing personal belongs in one ([decision 56](/docs/how-it-works/decisions#56-a-stored-record-belongs-to-the-browser-and-nothing-clears-it-at-sign-out)). `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
 
 ### Network
 

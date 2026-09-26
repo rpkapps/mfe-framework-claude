@@ -185,7 +185,7 @@ so **a change to a scene is a change to its paragraph**.
 | `app-vs-widget`        | guide 1, the shape: App or Widget                        |
 | `config-and-data`      | guide 3, configuration and data                          |
 | `lifecycle`            | guide 6, lifecycle                                       |
-| `storage-retention`    | guide 7, storage                                         |
+| `storage-keys`         | guide 7, storage                                         |
 | `styling-scope`        | guide 8, styling                                         |
 | `dev-workflow`         | guide 9, the daily workflow                              |
 
@@ -339,8 +339,8 @@ Subtitle: "Six boundaries between one mounted container and the page." Seven box
 mount** ("one token, one basePath, one scope root") sits in the middle, with six grey boxes
 around it — three above, three below — each reached by a grey dashed arrow pointing outwards from
 the centre. **URL** ("basePath into createRouter; boundary history"), **Styles** ("@scope per
-definition; the shell owns preflight"), **Storage** ("<definitionId>:<name>; retention decides
-who reads"), **Network** ("#mfe/fetch; the token only to declared origins"), **Errors** ("one
+definition; the shell owns preflight"), **Storage** ("<definitionId>:<name>; kept for the browser
+profile"), **Network** ("#mfe/fetch; the token only to declared origins"), **Errors** ("one
 MfeError code, into the DiagnosticsHub") and **Framework share scopes** ("one copy per
 framework version; loaded-first").
 
@@ -351,9 +351,8 @@ the history is built over the navigation bridge by `createBoundaryHistory`, neve
 container ships only the utilities for its own classes, wrapped by the build in
 `@scope ([data-mfe-scope="operations"]) to ([data-mfe-scope])`; the shell keeps the document half
 — preflight, the fonts, `@property`, the theme variables. **Storage**: every record goes through
-the storage boundary under the key `<definitionId>:<name>`; `retention: 'browser'` is the
-default and is never cleared, where `retention: 'user'` is wiped when the identity or the
-group set changes; state the page owns rather than any definition goes in the reserved
+the storage boundary under the key `<definitionId>:<name>`, belongs to the browser profile and is
+never cleared at sign-out; state the page owns rather than any definition goes in the reserved
 `@host` scope. **Network**: the generated `#mfe/fetch` resolves a
 relative request against the base URL `runtime-config.json` supplied and attaches the shell's
 session token to the origins declared `{ api: true }` — an exact scheme, host and port set, with
@@ -464,31 +463,27 @@ after a failed load. StrictMode: in development React mounts, unmounts and mount
 re-rendering, so the effect that calls `mountDefinition` disposes the first handle before its
 load settles, and the definition's `mount` runs once (§14).
 
-### storage-retention
+### storage-keys
 
-Subtitle: "How a stored key is composed, and who reads it back." Five boxes and one table. Across
+Subtitle: "How a stored key is composed, and what it survives." Five boxes and one table. Across
 the top, three boxes joined by arrows labelled **binds to** and **writes**: a blue
 `useStoredState('filters', schema)` ("what the author writes"), a green **What it binds to**
-("storage 'local', retention 'browser', version 1") and a green `operations:filters` ("one key, one
-versioned envelope"). Below, a panel **What survives what** ("storage keeps it; retention decides
-who reads it") holds a table with two columns, `retention: 'user'` and `retention: 'browser'`,
-and five rows: the identity changes — wiped / kept; the groups change — wiped / kept; a reload —
-kept / kept; the tab closes — gone with it / gone with it; version raised — `migrate()`, or
-unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own
-scope** (`@host — bindHost(), hostStorage()`) and a red **retention: 'user'** ("asked for when
-the data is personal"). A legend names the four colours.
+("storage 'local', version 1") and a green `operations:filters` ("one key, one versioned
+envelope"). Below, a panel **What survives what** ("the store decides how long; nothing clears it
+at sign-out") holds a table with two columns, `storage: 'local'` and `storage: 'session'`, and
+five rows: a sign-out — kept / kept; another user signs in — kept, and read / kept, and read; a
+reload — kept / kept; the tab closes — kept / gone with it; version raised — `migrate()`, or
+unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own scope**
+(`@host — bindHost(), hostStorage()`) and a red **Nothing personal** ("the next user of this
+browser reads it"). A legend names the four colours.
 
 Not on the figure. The key is `<definitionId>:<name>`, never scoped by mount token, so two mounts
-of one definition read one record. The stored value is an envelope —
-`{ "v": 1, "r": "user", "g": "<session generation>", "d": { … } }` — and the `g` field fences a
-user-retained record to one session generation, absent on a `'browser'` record: a record written
-under another generation reads as absent. "The tab closes" is the row for `storage: 'session'`;
-with `storage: 'local'` a record outlives the tab, subject to its retention. Outside a mount,
-`useStoredState` resolves to the reserved `@host` scope, which no definition can claim because `@`
-is not a legal character in a definition id. `retention: 'browser'` is the default: a key that
-declares none is never cleared, so every user of this browser profile reads the same value, which
-suits a display density or a collapsed panel. `retention: 'user'` is the opt-in for anything
-derived from a user's data (§21).
+of one definition read one record. The stored value is an envelope — `{ "v": 1, "d": { … } }` —
+whose `v` is the schema version a `migrate()` converts from. Outside a mount, `useStoredState`
+resolves to the reserved `@host` scope, which no definition can claim because `@` is not a legal
+character in a definition id. A record belongs to the browser profile rather than to the person
+signed in, so every user of the profile reads the same value, which suits a display density or a
+collapsed panel and rules out anything personal (§56).
 
 ### styling-scope
 

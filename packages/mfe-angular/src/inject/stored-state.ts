@@ -40,7 +40,6 @@ export function injectStoredState<T>(
     storage: options.storage ?? 'local',
     defaultValue: options.defaultValue,
     ...withoutUndefined({
-      retention: options.retention,
       version: options.version,
       migrate: options.migrate,
     }),

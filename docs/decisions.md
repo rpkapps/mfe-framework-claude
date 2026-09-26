@@ -460,7 +460,7 @@ released a microtask later on a proceed.
 
 ## 21. Storage retention is named for who owns a record, not for how long it lives
 
-**Status:** decided, load-bearing.
+**Status:** superseded by §56, which removed retention.
 
 `StorageRetention` was `'session' | 'preference'`, and both names lied.
 `retention: 'session'` meant the signed-in identity while `storage: 'session'`
@@ -495,6 +495,9 @@ no retention survives a sign-out, and anything derived from a user's data says
 **Amendment (2026-09-26):** a generation is reused across a reload only for the identity and the canonical
 group set recorded beside it, so a user whose groups changed between sign-ins starts a fresh
 generation; a transition in the page rewrites that record.
+
+**Amendment (2026-09-26):** retention is gone (§56). Every record is what `'browser'` was, and the
+session generation, the `r` and `g` fields and the purge went with `'user'`.
 
 ---
 
@@ -538,7 +541,8 @@ running.
 **Amendment (2026-09-26):** overrides are still read in every build, but apply only to a loopback origin
 or one the host lists in `overrideOrigins`; any other is refused with a warning. An override for
 an id the registry does not list is reported, and a tab whose session record names a different
-user than the one signed in discards the overrides it finds. A new tab has no record to compare,
+user than the one signed in discards the overrides it finds. Since §56 that record,
+`@host:session-identity`, holds nothing but the identity. A new tab has no record to compare,
 and a user change without a reload clears nothing.
 
 ---
@@ -554,15 +558,16 @@ same comment: this state belongs to the page, not to any definition on it.
 lower-case letters, digits and single hyphens, so no registry entry can claim that
 name — where a shell using `"shell"` could not be told from a definition.
 `useStoredState` resolves by position, the definition inside a mount and `@host`
-outside, as `useCommand` does (§26); the session generation is host-scoped and
-`retention: 'browser'` (§25), because the record fencing every
-`retention: 'user'` write cannot be gated by what it establishes. The theme is the
+outside, as `useCommand` does (§26). The theme is the
 one exemption, its key never ours to choose: legacy Angular applications read
 `localStorage["theme"]` as a bare string, so `preferences.ts` writes that raw.
 
 **Consequence:** the allowlist is not empty, so what an entry has to prove is what
 changed; one that cannot justify itself that way is another missing primitive,
 not a local exception.
+
+**Amendment (2026-09-26):** the session generation this entry placed in the host scope is gone with
+retention (§56); the host scope keeps the tab's session identity record in its place.
 
 ---
 
@@ -1981,3 +1986,33 @@ have refused it rather than paid for it. A container on its own `sonner` queues 
 runtime object by name, so one the shell's version lacks fails when it is called: the runtime object
 is now a contract between versions, and nothing yet checks that a container's runtime is no newer
 than the shell's.
+
+---
+
+## 56. A stored record belongs to the browser, and nothing clears it at sign-out
+
+**Status:** decided; at the project owner's direction, because no container was expected to ask
+for anything else.
+
+§21 gave every record a retention: `'browser'`, kept until something removes it, or `'user'`,
+removed when the signed-in identity or the group set changes. Its amendment made `'browser'` the
+default, and nothing afterwards asked for `'user'`: the shell and the examples all stored a
+density, a panel split or a composed dashboard, and only the lab's own demonstration declared
+`'user'`. What it cost was the most intricate code in the runtime: a session generation minted per
+identity and group set, stamped into every user record as `g` and recorded per tab so a reload
+could reuse it, a fence on writes from a retired generation, and a purge of both stores on every
+transition. That is where the review found the generation surviving a change of groups (§21's
+amendment).
+
+So retention is gone. A record is `{ v, d }`, the framework never clears it at sign-out, and every
+user of the browser profile reads it; nothing personal belongs in storage. `StorageRetention`,
+the store's `applySessionTransition` and `establishSession`, the write fence and the runtime's
+generation options are removed. What the generation record also did survives on its own: the tab
+keeps `@host:session-identity`, so a boot that finds somebody else's identity there still
+discards their developer overrides (§23). A record written with the old `r` and `g` fields reads
+as an ordinary one, since nothing was published (§53).
+
+**Cost:** a container that does hold something personal — a draft, a recent search, a cached
+record — leaves it for the next person on a shared browser profile, and the framework does
+nothing to stop it. Clearing it is the container's own work until retention comes back, and
+bringing it back is an optional field, so it would not break anyone who stores today.

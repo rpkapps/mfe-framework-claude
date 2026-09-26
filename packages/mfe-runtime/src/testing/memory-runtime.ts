@@ -46,12 +46,11 @@ export interface MemoryRuntimeOptions {
   /** Merged over `DEFAULT_DEADLINES`. */
   readonly deadlines?: Partial<DeadlineConfig>
   readonly initialEntries?: readonly string[]
-  readonly sessionGeneration?: string
 }
 
 export interface MemoryRuntime {
   readonly runtime: MfeRuntime
-  /** Exercises real snapshot, session and group update behaviour. */
+  /** Exercises real snapshot and transition behaviour. */
   setShellState(patch: ShellStatePatch): void
   readonly telemetry: RecordingTelemetryProvider
   /** Everything reported to the runtime's hub, in order. */
@@ -87,7 +86,6 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     areas: storageAreas,
     diagnostics,
     eventTarget: null,
-    sessionGeneration: options.sessionGeneration ?? 'test-session',
   })
 
   const telemetry = createRecordingTelemetryProvider()
@@ -129,8 +127,6 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
   const registry: Registry = { entries, rejected: read.rejected }
   reportRejectedEntries(registry, diagnostics)
 
-  // Minted per transition, so a test exercises the real fencing rather than a fixed value.
-  let generation = 0
   const assembled = assembleRuntime({
     registry,
     loader: createInProcessLoader(loadable),
@@ -141,10 +137,6 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     telemetryProvider: telemetry,
     diagnostics,
     deadlines: options.deadlines,
-    nextSessionGeneration: () => {
-      generation += 1
-      return `test-session-${String(generation)}`
-    },
   })
 
   return {

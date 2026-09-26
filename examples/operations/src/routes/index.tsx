@@ -44,11 +44,10 @@ function Overview(): ReactNode {
   const theme = useTheme()
   const [acknowledged, setAcknowledged] = useState<string | null>(null)
 
-  // `retention: 'browser'` deliberately: a display density belongs to the browser rather than to a
-  // person, so everyone here shares it, and anything derived from the user takes 'user' (§21).
+  // A display density belongs to the browser rather than to a person, so everyone here shares it,
+  // as they share every stored value (§56).
   const [density, setDensity] = useStoredState('table-density', densitySchema, {
     defaultValue: 'comfortable',
-    retention: 'browser',
   })
 
   // Registration is a hook, so this action is in the shell's palette while this route is on screen

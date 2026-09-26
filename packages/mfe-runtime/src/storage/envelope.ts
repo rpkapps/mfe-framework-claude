@@ -1,5 +1,5 @@
 /**
- * Reading and writing the persisted `{ v, r, g, d }` record, kept apart from the store
+ * Reading and writing the persisted `{ v, d }` record, kept apart from the store
  * because it is pure: every failure path is decided here rather than tangled with caching
  * and subscription.
  */
@@ -11,7 +11,6 @@ import {
   type MfeError,
   type MfeErrorDetails,
   type StorageArea,
-  type StorageRetention,
   type StorageSnapshot,
 } from '@company/mfe-core'
 
@@ -22,7 +21,6 @@ export type Detail = Omit<MfeErrorDetails, 'code' | 'id' | 'operation' | 'path'>
 export interface EnvelopeDeclaration {
   readonly name: string
   readonly schema: z.ZodType
-  readonly retention: StorageRetention
   readonly version: number
   readonly migrate?: (value: unknown, fromVersion: number) => unknown
 }
@@ -35,8 +33,6 @@ export interface EnvelopeContext {
   readonly defaultSnapshot: StorageSnapshot<unknown>
   // Declared as properties, not methods: `fail` is passed detached to
   // serializeEnvelope, and a method signature would claim a `this` it never has.
-  /** Live, because a synchronous migrate() can itself trigger a session transition. */
-  readonly generation: () => string | null
   /** Builds and reports the structured failure. */
   readonly fail: (verb: string, detail: Detail) => MfeError
   /** Persists a migrated record, throwing the structured write failure. */
@@ -88,20 +84,6 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
   }
 
   const envelope = parsed
-  const generation = context.generation()
-
-  if (envelope.r === 'user') {
-    if (generation === null) {
-      return bad('read', {
-        expected: 'the session generation to be established before a user value is read',
-        observed: 'a record retained for the signed-in user, with no session in force',
-        repair: 'Give the store its generation before mounting anything that reads session state.',
-      })
-    }
-    // A record from another generation is absent, whether a retired session left it
-    // behind or another tab wrote it late.
-    if (envelope.g !== generation) return { snapshot: context.defaultSnapshot, raw }
-  }
 
   if (envelope.v === declaration.version) {
     const result = declaration.schema.safeParse(envelope.d)
@@ -133,10 +115,7 @@ export function readEnvelope(context: EnvelopeContext, raw: string | null): Pars
   return migrateInto(context, envelope.d, envelope.v, raw)
 }
 
-/**
- * Convert, validate, then write, and only while the generation the conversion started in
- * is still in force.
- */
+/** Convert, validate, then write. */
 function migrateInto(
   context: EnvelopeContext,
   input: unknown,
@@ -151,8 +130,6 @@ function migrateInto(
     raw,
     snapshot: { status: 'error', error: context.fail('migrate', detail) },
   })
-  const generationAtStart = context.generation()
-
   let converted: unknown
   try {
     converted = migrate(input, fromVersion)
@@ -175,17 +152,9 @@ function migrateInto(
     })
   }
 
-  if (declaration.retention === 'user' && context.generation() !== generationAtStart) {
-    return bad({
-      expected: `the migration to commit in the generation it started in`,
-      observed: 'the session moved on while it ran',
-      repair: "A retired session's data is never migrated into a new one. Nothing was written.",
-    })
-  }
-
   let serialized: string
   try {
-    serialized = serializeEnvelope(declaration, context.generation(), result.data, context.fail)
+    serialized = serializeEnvelope(declaration, result.data, context.fail)
     context.write(serialized)
   } catch (error) {
     return {
@@ -201,20 +170,13 @@ function migrateInto(
 
 export function serializeEnvelope(
   declaration: EnvelopeDeclaration,
-  generation: string | null,
   value: unknown,
   fail: (verb: string, detail: Detail) => MfeError,
 ): string {
   try {
     // An object literal always stringifies to a string or throws, so there is no undefined
     // case to handle here.
-    return JSON.stringify({
-      v: declaration.version,
-      r: declaration.retention,
-      // Only the opaque generation is persisted: never a token, never a group list.
-      ...(declaration.retention === 'user' && generation !== null ? { g: generation } : {}),
-      d: value,
-    })
+    return JSON.stringify({ v: declaration.version, d: value })
   } catch (error) {
     throw fail('write', {
       expected: 'a JSON-serializable value',

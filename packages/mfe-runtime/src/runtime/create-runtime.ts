@@ -35,11 +35,7 @@ import {
 } from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import {
-  establishSessionGeneration,
-  mintSessionGeneration,
-  recordSessionGeneration,
-} from '../storage/session-generation.ts'
+import { recordSessionIdentity } from '../storage/session-identity.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
@@ -94,10 +90,6 @@ export interface CreateMfeRuntimeOptions {
    * telemetry.
    */
   readonly auditAction?: ActionAuditSink
-  /** Omitted, this call establishes one for the identity every `'user'` record is fenced by. */
-  readonly sessionGeneration?: string
-  /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
-  readonly nextSessionGeneration?: () => string
   /**
    * Where boot-time developer URL overrides are read from; with `removeItem`, they are also
    * cleared when a different user signs in to the tab.
@@ -117,7 +109,7 @@ export interface MfeRuntimeHandle {
   dispose(): void
 }
 
-/** A page with nobody signed in still fences its own session-retained writes. */
+/** A page with nobody signed in is still somebody, whom the next sign-in is compared with. */
 const ANONYMOUS_IDENTITY = '@anonymous'
 
 /** Identity is opaque and compared for equality, so an anonymous page still has one. */
@@ -145,21 +137,14 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
   const shellState = new ShellStateStore(options.shellState)
-  const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
-  const storage = new MfeStorageStore({
-    diagnostics,
-    groups: shellState.getGroups(),
-    ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
+  const storage = new MfeStorageStore({ diagnostics })
+  const { previousIdentity } = recordSessionIdentity(storage, identityOf(shellState.getSnapshot()))
+  // A sign-in within the page is recorded too, so the next reload compares against it.
+  const stopRecordingIdentity = shellState.observeTransitions(change => {
+    if (change.transitions.some(transition => transition.kind === 'identity')) {
+      recordSessionIdentity(storage, identityOf(change.next))
+    }
   })
-  // A shell that supplies the generation keeps its own record of it.
-  const ownsSessionRecord = options.sessionGeneration === undefined
-  let previousIdentity: string | null = null
-  if (ownsSessionRecord) {
-    const state = shellState.getSnapshot()
-    previousIdentity = establishSessionGeneration(storage, identityOf(state), state.groups, {
-      mint: nextSessionGeneration,
-    }).previousIdentity
-  }
 
   // Read before anything is registered, so an override applies the first time an entry loads.
   // Another user's overrides are never applied: they point the page at code chosen by somebody
@@ -211,18 +196,13 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     notifyActionDenial: options.notifyActionDenial,
     actionApprovalPolicy: options.actionApprovalPolicy,
     auditAction: options.auditAction,
-    nextSessionGeneration,
-    onSessionRotated: ownsSessionRecord
-      ? (next, generation) => {
-          recordSessionGeneration(storage, identityOf(next), next.groups, generation)
-        }
-      : undefined,
   })
 
   return {
     runtime: assembled.runtime,
     activeOverrides: overrides.overrides,
     dispose: () => {
+      stopRecordingIdentity()
       assembled.dispose()
       if (ownsDiagnostics) diagnostics.clear()
       else for (const remove of removeSinks) remove()

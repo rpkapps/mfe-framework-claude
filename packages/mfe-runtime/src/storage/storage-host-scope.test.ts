@@ -34,7 +34,7 @@ afterEach(() => {
   for (const store of stores) store.dispose()
 })
 
-function harness(options: { readonly generation?: string } = {}): Harness {
+function harness(): Harness {
   const local = createMemoryStorageArea()
   const session = createMemoryStorageArea()
   const reported: Diagnostic[] = []
@@ -43,7 +43,6 @@ function harness(options: { readonly generation?: string } = {}): Harness {
   const store = new MfeStorageStore({
     areas: { local, session },
     diagnostics,
-    ...(options.generation === undefined ? {} : { sessionGeneration: options.generation }),
     eventTarget: null,
   })
   stores.push(store)
@@ -52,9 +51,9 @@ function harness(options: { readonly generation?: string } = {}): Harness {
 
 describe('the reserved host scope', () => {
   it('writes under @host: and inside no definition space', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
+    const { store, local } = harness()
 
-    const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
+    const theme = store.bindHost({ name: 'theme', schema: themeSchema })
     theme.set('light')
 
     expect(theme.key).toBe('@host:theme')
@@ -62,45 +61,14 @@ describe('the reserved host scope', () => {
     expect(Object.keys(local.snapshot())).toEqual(['@host:theme'])
     expect(JSON.parse(local.snapshot()['@host:theme'] ?? 'null')).toEqual({
       v: 1,
-      r: 'browser',
       d: 'light',
     })
   })
 
-  it('is usable before any session is established, when it is browser-retained', () => {
-    const { store } = harness()
-
-    const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
-    theme.set('dark')
-
-    expect(store.sessionGeneration).toBeNull()
-    expect(theme.read()).toBe('dark')
-  })
-
-  it('survives the purge that retires every user-retained record', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
-
-    const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
-    const filters = store.bind('acme-orders', {
-      name: 'filters',
-      schema: layoutSchema,
-      retention: 'user',
-    })
-    theme.set('light')
-    filters.set({ tiles: ['a'] })
-
-    const result = store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-2')
-
-    expect(result.outcome).toBe('invalidated')
-    expect(result.removedRecords).toBe(1)
-    expect(Object.keys(local.snapshot())).toEqual(['@host:theme'])
-    expect(theme.read()).toBe('light')
-  })
-
   it('validates a host write against the declared schema like any other key', () => {
-    const { store, reported } = harness({ generation: 'gen-1' })
+    const { store, reported } = harness()
 
-    const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
+    const theme = store.bindHost({ name: 'theme', schema: themeSchema })
 
     expect(() => theme.set('sepia' as 'light')).toThrow(/theme/)
     expect(theme.getSnapshot()).toEqual({ status: 'default', value: null })
@@ -108,13 +76,12 @@ describe('the reserved host scope', () => {
   })
 
   it('migrates a record written before the key was versioned', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
+    const { store, local } = harness()
     local.setItem('@host:dashboard', JSON.stringify({ tiles: ['alert-panel'] }))
 
     const layout = store.bindHost({
       name: 'dashboard',
       schema: layoutSchema,
-      retention: 'browser',
       defaultValue: { tiles: [] },
       migrate: value => layoutSchema.parse(value),
     })
@@ -122,14 +89,13 @@ describe('the reserved host scope', () => {
     expect(layout.read()).toEqual({ tiles: ['alert-panel'] })
     expect(JSON.parse(local.snapshot()['@host:dashboard'] ?? 'null')).toEqual({
       v: 1,
-      r: 'browser',
       d: { tiles: ['alert-panel'] },
     })
   })
 
   it('applies a cross-tab write to the host key', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
-    const theme = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
+    const { store, local } = harness()
+    const theme = store.bindHost({ name: 'theme', schema: themeSchema })
     theme.set('light')
 
     let notified = 0
@@ -139,7 +105,7 @@ describe('the reserved host scope', () => {
 
     store.handleStorageEvent({
       key: '@host:theme',
-      newValue: JSON.stringify({ v: 1, r: 'browser', d: 'dark' }),
+      newValue: JSON.stringify({ v: 1, d: 'dark' }),
       storageArea: local,
     })
 
@@ -148,9 +114,9 @@ describe('the reserved host scope', () => {
   })
 
   it('does not collide with a definition that uses the same key name', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
+    const { store, local } = harness()
 
-    const host = store.bindHost({ name: 'theme', schema: themeSchema, retention: 'browser' })
+    const host = store.bindHost({ name: 'theme', schema: themeSchema })
     const definition = store.bind('acme-orders', { name: 'theme', schema: themeSchema })
     host.set('light')
     definition.set('dark')
@@ -163,20 +129,20 @@ describe('the reserved host scope', () => {
 
 describe('reaching the host scope through the definition surface', () => {
   it('is refused by bind(), so "belongs to the page" is declared and not guessed', () => {
-    const { store } = harness({ generation: 'gen-1' })
+    const { store } = harness()
 
     expect(() => store.bind(HOST_SCOPE, { name: 'theme', schema: themeSchema })).toThrow(/bindHost/)
   })
 
   it('is refused by storageFor() and clearDefinition() for the same reason', () => {
-    const { store } = harness({ generation: 'gen-1' })
+    const { store } = harness()
 
     expect(() => store.storageFor(HOST_SCOPE)).toThrow(/hostStorage/)
     expect(() => store.clearDefinition(HOST_SCOPE)).toThrow(/hostStorage/)
   })
 
   it('reports the refusal as a structured storage failure', () => {
-    const { store, reported } = harness({ generation: 'gen-1' })
+    const { store, reported } = harness()
 
     try {
       store.storageFor(HOST_SCOPE)
@@ -187,7 +153,7 @@ describe('reaching the host scope through the definition surface', () => {
   })
 
   it('cannot be reached by a registry id, because a definition id has no "@"', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
+    const { store, local } = harness()
 
     // The nearest legal id, to show it lands somewhere else entirely.
     store.bind('host', { name: 'theme', schema: themeSchema }).set('dark')
@@ -198,14 +164,14 @@ describe('reaching the host scope through the definition surface', () => {
 
 describe('the host imperative surface', () => {
   it('reads, writes and clears only the host prefix', () => {
-    const { store, local } = harness({ generation: 'gen-1' })
+    const { store, local } = harness()
     const host = store.hostStorage()
     const definition = store.storageFor('acme-orders')
 
-    host.key('theme', themeSchema, { retention: 'browser' }).set('light')
+    host.key('theme', themeSchema).set('light')
     definition.key('theme', themeSchema).set('dark')
 
-    expect(host.key('theme', themeSchema, { retention: 'browser' }).get()).toBe('light')
+    expect(host.key('theme', themeSchema).get()).toBe('light')
 
     host.clear()
 

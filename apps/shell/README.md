@@ -334,8 +334,8 @@ all); which control each field becomes is this shell's, in
 `dashboard/input-schema.ts`, and a field the build could not describe gets a raw
 JSON box.
 
-Tiles are reorderable, resizable and kept at `@host:dashboard`, `retention:
-'browser'`, so a sign-out does not throw away a canvas somebody composed. The
+Tiles are reorderable, resizable and kept at `@host:dashboard`, which belongs
+to the browser, so a sign-out does not throw away a canvas somebody composed. The
 page, settings and the palette all read it through one `useDashboardLayout()`
 hook over `useStoredState`, so they bind the same record and stay in step
 without a store of the shell's own. The old `company:shell:dashboard` key is not
