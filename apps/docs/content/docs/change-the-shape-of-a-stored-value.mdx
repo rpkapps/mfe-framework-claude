@@ -12,7 +12,7 @@ declare `migrate` beside it, and the next read converts the old record. Apps and
 <Step>
 ### 1. Raise the version and convert
 
-```ts title="examples/lab/src/routes/storage.tsx"
+```ts
 const [draft] = useStoredState('draft', draftSchema, {
   defaultValue: { note: '', pinned: false },
   version: 2,
@@ -29,7 +29,7 @@ const [draft] = useStoredState('draft', draftSchema, {
 <Step>
 ### 2. Handle version 0
 
-```ts title="examples/lab/src/routes/storage.tsx"
+```ts
 if (fromVersion === 0) return { note: '', pinned: false }
 ```
 
@@ -40,14 +40,14 @@ covers anything written before this boundary existed.
 <Step>
 ### 3. Keep migrate synchronous and free of side effects
 
-```ts title="examples/lab/src/routes/storage.tsx"
+```ts
 // No fetch, no await, no set() on another key: migrate runs inside a read.
 migrate: (value, fromVersion) => convert(value, fromVersion)
 ```
 
 The framework converts the value, validates it against your schema, then writes it back. Nothing is
-written when `migrate` throws, returns a value your schema rejects, or the signed-in person changes
-while it runs. The old record is left as it was.
+written when `migrate` throws or returns a value your schema rejects. The old record is left as it
+was.
 
 </Step>
 </Steps>

@@ -5,8 +5,8 @@ description: 'The Nx generators that scaffold an Angular container, the targets 
 
 `@company/mfe-nx` scaffolds and builds Angular containers in an Nx workspace. It is the Angular
 counterpart of `pluginMfe()`: the same framework-neutral build, `@company/mfe-build`, wired into Nx's
-Angular webpack builder instead of Rsbuild. It runs in a separate Nx workspace, not in this
-repository.
+Angular webpack builder instead of Rsbuild. It runs in an Nx workspace of its own. This repository
+is not one, and `examples/fieldwork` is an Nx workspace inside it.
 
 ## Generate a container
 
@@ -95,7 +95,8 @@ candidate, and `withMfe({ shared })` refuses PrimeNG.
 | Node       | 20.19 or later, or 22.12 or later                          |
 
 The framework packages export compiled JavaScript and declarations. Build them before using
-workspace links from a fresh checkout; published packages build in `prepack`. Do not add their
+workspace links from a fresh checkout; `pnpm release` builds them before it publishes, and each
+package's `prepack` refuses a missing or stale build. Do not add their
 sources to a container's `tsconfig` `include`.
 
 ## Related

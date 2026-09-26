@@ -1,7 +1,8 @@
 # `@company/docs` — the documentation site
 
-The author-facing documentation for the micro-frontend framework: an index, ten guides, a
-glossary, the design map and the decision log. It is a Vite + TanStack Start application,
+The author-facing documentation for the micro-frontend framework: an overview, a quickstart, a
+tutorial, one recipe per task, the How it works pages with the design map and the decision log, and
+a reference section with a glossary. It is a Vite + TanStack Start application,
 prerendered to static files, and every piece of its interface is a component from `@tecton/react`,
 the design system the shell and the example containers use.
 
@@ -9,11 +10,11 @@ the design system the shell and the example containers use.
 
 From the repository root:
 
-| Command             | What it does                                                                                                           |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3007 and 3010 are the shell, the example containers and the stand-in API). |
-| `pnpm docs:build`   | Production build, then prerenders every page into `apps/docs/dist/client`.                                             |
-| `pnpm docs:preview` | Serves the build output, which is what a static host sees.                                                             |
+| Command             | What it does                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3008, 3010 and 3011 are the shell, the example containers, the stand-in API and the agent backend). |
+| `pnpm docs:build`   | Production build, then prerenders every page into `apps/docs/dist/client`.                                                                      |
+| `pnpm docs:preview` | Serves the build output, which is what a static host sees.                                                                                      |
 
 Inside `apps/docs`, the same three are `pnpm dev`, `pnpm build`, `pnpm preview`, plus
 `pnpm typecheck` and `pnpm lint`. `pnpm generate` writes `src/routeTree.gen.ts`; `pnpm dev` and
@@ -25,12 +26,15 @@ it.
 
 ```text
 apps/docs/content/docs/
-  meta.json          the sidebar: three sections, in order
-  index.mdx          /docs            "Start here"
-  glossary.mdx       /docs/glossary
-  guides/
-    meta.json        the ten guides, in order
-    shape.mdx        /docs/guides/shape   … and nine more
+  meta.json          the sidebar: its sections, in order
+  index.mdx          /docs            "Overview"
+  quickstart.mdx     /docs/quickstart … and one file per recipe
+  how-it-works/
+    meta.json        the How it works pages, in order
+    the-mount-lifecycle.mdx   /docs/how-it-works/the-mount-lifecycle   … and two more
+  reference/
+    meta.json        the reference pages, in order
+    glossary.mdx     /docs/reference/glossary   … and twelve more
 ```
 
 A page is MDX with `title` and `description` frontmatter. Quote both: a title with a colon in it
@@ -43,32 +47,35 @@ separator:
 {
   "root": true,
   "pages": [
-    "---Start here---",
     "index",
-    "design",
-    "---Building an App or Widget---",
-    "...guides",
-    "---Reference---",
-    "glossary",
-    "decisions"
+    "architecture",
+    "quickstart",
+    "tutorial",
+    "---Plug into the shell---",
+    "add-a-settings-page",
+    "…",
+    "---More---",
+    "how-it-works",
+    "reference"
   ]
 }
 ```
 
-`...guides` flattens the `guides` folder into the section above it, so the ten guides keep their
-`/docs/guides/<name>` URLs while sitting in one sidebar group in the order `guides/meta.json`
-gives.
+`how-it-works` and `reference` are folders, each with a `meta.json` of its own that gives the
+group's title and the order of its pages, which keep their `/docs/how-it-works/<name>` and
+`/docs/reference/<name>` URLs.
 
 ### `design.md` and `decisions.md` are rendered, not copied
 
-`/docs/design` and `/docs/decisions` come straight from `docs/design.md` and `docs/decisions.md` in
+`/docs/how-it-works/design` and `/docs/how-it-works/decisions` come straight from `docs/design.md` and `docs/decisions.md` in
 the repository. Those files are the single source: `docs/design.md` has to render on GitHub, and
 `docs/decisions.md` is the decision log every other document links to. Neither is duplicated here.
 
 A `fumadocs-mdx` collection takes one directory, so `src/lib/docs.ts` declares a second collection
 over `../../docs` limited to those two files, and `src/lib/source.ts` concatenates the two virtual
-file lists into one page tree. That is why `content/docs/meta.json` can list `design` and
-`decisions` beside the pages written here.
+file lists into one page tree, mapping the two files into the `how-it-works` folder. That is why
+`content/docs/how-it-works/meta.json` can list `design` and `decisions` beside the pages written
+here.
 
 Neither file carries frontmatter, so `src/lib/repo-page.ts` derives the title from the `# ` heading
 and the description from the paragraph under it.
@@ -122,12 +129,12 @@ In `docs/design.md`, a diagram is plain Markdown, because that file also has to 
 thing.
 ```
 
-The `./diagrams/` prefix is rewritten to `/diagrams/` by `src/lib/remark-repo-assets.ts` when the
+The `./diagrams/` prefix is rewritten to `/diagrams/` by `src/lib/remark-repo-markdown.ts` when the
 site compiles the file.
 
 In an MDX page, the same diagram is the `Diagram` component:
 
-```mdx title="apps/docs/content/docs/guides/shape.mdx"
+```mdx title="apps/docs/content/docs/<name>.mdx"
 <Diagram
   src="/diagrams/app-vs-widget.svg"
   alt="One sentence describing the picture, for a reader who cannot see it."
@@ -217,7 +224,8 @@ only ever appears as `` `like this` `` is found — and marked — like any othe
 ## Adding a page
 
 1. Write `apps/docs/content/docs/<name>.mdx` with `title` and `description` frontmatter.
-2. Add its name to `content/docs/meta.json` (or `content/docs/guides/meta.json`) where it belongs.
+2. Add its name to `content/docs/meta.json` (or the `meta.json` in `how-it-works/` or `reference/`)
+   where it belongs.
 3. `pnpm docs:dev`. The sidebar, the search index and prev/next follow from the tree.
 4. Add the path to `PAGES` in `vite.config.ts` if it is not reachable by a link from another page —
    the prerender crawls links, but the list is what guarantees a page is built.

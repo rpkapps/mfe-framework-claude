@@ -134,20 +134,20 @@ experts", and plainlanguage.gov).
 > **Rewrite:** "The shell sets the entry aside and records the reason. The registry lists it under
 > `rejected`. Every other entry still loads."
 
-| Write this               | Instead of         | Keep the code word where                      |
-| ------------------------ | ------------------ | --------------------------------------------- |
-| set aside                | rejected           | registry field and messages: `rejected`       |
-| limited to, cleared when | fenced             | nowhere — no message uses "fenced"            |
-| boundary, edge           | seam               | nowhere                                       |
-| stored record            | envelope           | messages: "a framework envelope at version 1" |
-| declares                 | advertises         | nowhere — no message says "advertises"        |
-| ends, replaced           | retired            | repair text: "a retired session's data"       |
-| creates, issues          | mints              | nowhere                                       |
-| deletes                  | physically removes | nowhere                                       |
-| checks                   | screens            | nowhere                                       |
-| screen, panel            | surface            | nowhere                                       |
-| registry entry           | descriptor         | nowhere — the error code is `invalid-entry`   |
-| takes ownership of       | claims             | nowhere                                       |
+| Write this               | Instead of         | Keep the code word where                             |
+| ------------------------ | ------------------ | ---------------------------------------------------- |
+| set aside                | rejected           | registry field and messages: `rejected`              |
+| limited to, cleared when | fenced             | nowhere — no message uses "fenced"                   |
+| boundary, edge           | seam               | nowhere                                              |
+| stored record            | envelope           | messages: "a framework envelope at version 1"        |
+| declares                 | advertises         | nowhere — no message says "advertises"               |
+| ends, replaced           | retired            | nowhere                                              |
+| creates, issues          | mints              | nowhere                                              |
+| deletes                  | physically removes | nowhere                                              |
+| checks                   | screens            | nowhere                                              |
+| screen, panel            | surface            | nowhere                                              |
+| registry entry           | descriptor         | nowhere — the error code is `registry/invalid-entry` |
+| takes ownership of       | claims             | nowhere                                              |
 
 **9. No aphorisms or slogans as explanations.** A memorable phrase is not an answer. State the
 mechanism (Write the Docs: documentation is for the reader, not the writer).
@@ -205,8 +205,8 @@ there and moves on (NN/g F-pattern: first words of each line get the most fixati
   `title=` naming the real file. This is what practitioners praise in Stripe and Twilio docs.
 - **One concept per section.** If a section needs two `<Term>` definitions, it is two sections.
 - **Progressive disclosure.** Lead with the common case. Push the rest into a later section, a table
-  or a linked decision entry. The docs site has no `Collapsible` component today: add one to
-  `src/components/docs-blocks.tsx` before you rely on it.
+  or a linked decision entry. The docs site's `<Details>` component, in
+  `src/components/docs-blocks.tsx`, is the collapsible disclosure for it.
 - **Every section is skimmable by its first sentence.** Reading only the first sentence of each
   section must give a correct, if shallow, picture of the page.
 - **Tables for parallel facts** — options, failures, comparisons. Prose for causes.

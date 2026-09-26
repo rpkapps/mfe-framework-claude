@@ -139,6 +139,10 @@ definition brand an open string and every adapter listed by the shell, an adapte
 a plugin: a third one adds a package and one entry in the shell's `adapters`, and
 changes nothing in the core, the runtime or the adapters already there.
 
+**Amendment (2026-09-26):** React is no longer a strict singleton: nothing is shared as one
+(§55). It stays one copy within a React version's share scope because every container there
+provides the same React (§33).
+
 ---
 
 ## 7. Two error conditions have no exact code in the closed union
@@ -152,6 +156,10 @@ channel went with session ownership to the shell; a 401 whose request cannot be
 replayed reports `config/invalid`, because nothing in the union describes
 replayability. Both therefore read as configuration faults to anything that reads
 codes; `failSession` and `warnNotReplayable` are the two call sites to change.
+
+**Amendment (2026-09-26):** only the second condition is left. A failed refresh is no longer
+reported: the runtime's session helper drops the token it held and the shell's auth library owns
+the failure (§10, §36), so `failSession` is gone. `warnNotReplayable` is the one call site.
 
 ---
 
@@ -815,8 +823,10 @@ rejecting, and the App's `withRouterConfig` options are carried over by reading 
 providers, which a router upgrade could change.
 
 **Second amendment (2026-09-26):** every framework package but `@company/eslint-plugin-mfe`
-publishes `dist/` under `types` and `default` and names its source under `mfe-source`, and a bin
-is compiled JavaScript: Node refuses TypeScript under `node_modules`. What Node loads natively in
+publishes `dist/` under `types` and `default` and, but for `@company/mfe-nx`, names its source
+under `mfe-source`, and a bin is a JavaScript file in `bin/` that runs the compiled CLI: Node
+refuses TypeScript under `node_modules`, and a package manager links a bin only when its file
+exists at install, before a workspace builds `dist/`. What Node loads natively in
 this repository, `rsbuild.config.ts` and `mfe-generate` through `@company/mfe-rspack` and the
 `@company/mfe-build` and `@company/mfe-core` behind it, is built by `build:stale` first. The lint
 plugin stays on source because ESLint loads a TypeScript config through jiti, which resolves no

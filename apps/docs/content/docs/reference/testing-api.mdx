@@ -123,7 +123,7 @@ What it returns:
 | `mount`         | The one mount the environment owns.                                                 |
 | `wrapper`       | A component that wraps a hook or a tree in the real providers.                      |
 | `routerContext` | Typed context for a route test, with the same mount-owned Query client.             |
-| `setShellState` | Applies a patch inside `act`, exercising real session and group behaviour.          |
+| `setShellState` | Applies a patch inside `act`, exercising real snapshot and transition behaviour.    |
 | `telemetry`     | The recording telemetry provider.                                                   |
 | `diagnostics`   | Every diagnostic recorded so far.                                                   |
 | `navigation`    | The memory navigation bridge.                                                       |
@@ -155,14 +155,14 @@ Recipe: [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api
 
 These point `#mfe/fetch` at your handler. The interceptor itself is the production one, so the base URL, the token and the origin allowlist all behave as they ship.
 
-| Export              | Signature                              | What it does                                                                  |
-| ------------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
-| `setMfeFetch`       | `(handler: MfeFetchHandler) => void`   | Answers every request. Without one, a request throws.                         |
-| `setMfeApiBaseUrl`  | `(base: string) => void`               | The base a relative request resolves against. Its origin joins the allowlist. |
-| `setMfeApiOrigins`  | `(origins: readonly string[]) => void` | Further declared API origins.                                                 |
-| `setMfeAccessToken` | `(token: string \| null) => void`      | The session token. `null` models a signed-out shell.                          |
-| `mfeRequests`       | `() => readonly MfeFetchRecord[]`      | Every request that went out.                                                  |
-| `resetMfeFetch`     | `() => void`                           | Clears the handler, the token, the origins and the records.                   |
+| Export              | Signature                              | What it does                                                                                                         |
+| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `setMfeFetch`       | `(handler: MfeFetchHandler) => void`   | Answers every request. Without one, a request throws.                                                                |
+| `setMfeApiBaseUrl`  | `(base: string) => void`               | The base a relative request resolves against. Its origin joins the allowlist.                                        |
+| `setMfeApiOrigins`  | `(origins: readonly string[]) => void` | Further declared API origins.                                                                                        |
+| `setMfeAccessToken` | `(token: string \| null) => void`      | The session token. `null` models a signed-out shell.                                                                 |
+| `mfeRequests`       | `() => readonly MfeFetchRecord[]`      | Every request that went out.                                                                                         |
+| `resetMfeFetch`     | `() => void`                           | Clears the handler, the base URL, the origins and the records, and restores the default token `'test-access-token'`. |
 
 An `MfeFetchRecord` is `{ url, method, authorization }`, where `url` is what the interceptor actually sent.
 

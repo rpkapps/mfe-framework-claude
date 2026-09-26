@@ -15,14 +15,14 @@ decide what it does and whether it may run right now. The shell's agent can call
 
 ### 1. Register the action
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+```tsx title="examples/alert-panel/src/alert-panel.tsx (simplified)"
 import { useAction } from '@company/mfe-react'
 
 export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
   const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
 
   useAction({
-    name: 'acknowledge-alert',
+    name: 'acknowledge',
     label: `Acknowledge alert ${inputs.alertId}`,
     execute: () => {
       setState('acknowledged')
@@ -47,7 +47,7 @@ component renders, so leaving the page takes it out of the palette.
 import { allow, deny, useAction } from '@company/mfe-react'
 
 useAction({
-  name: 'acknowledge-alert',
+  name: 'acknowledge',
   label: `Acknowledge alert ${inputs.alertId}`,
   canExecute: () =>
     state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
@@ -69,7 +69,7 @@ but it is not a permission check. Your API still authorizes the request.
 
 ```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
 const acknowledge = useAction({
-  name: 'acknowledge-alert',
+  name: 'acknowledge',
   label: `Acknowledge alert ${inputs.alertId}`,
   canExecute: () =>
     state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
@@ -149,9 +149,9 @@ lists them.
   ignored, because a Widget does not own the page's keys.
 - **Typing.** A key without <Kbd>Ctrl</Kbd>, <Kbd>⌘</Kbd> or <Kbd>Alt</Kbd> typed into a field
   stays in the field.
-- **Keys you cannot have.** The shell's own keys are reserved: <Kbd>mod+k</Kbd>, <Kbd>?</Kbd>,
-  <Kbd>mod+j</Kbd> and every sequence starting with <Kbd>g</Kbd>. Pick keys that neither equal nor
-  begin nor extend one of those.
+- **Keys you cannot have.** The shell's own keys are reserved: <Kbd>mod+k</Kbd>, <Kbd>mod+i</Kbd>,
+  <Kbd>?</Kbd>, <Kbd>mod+j</Kbd>, <Kbd>g r</Kbd>, <Kbd>g d</Kbd>, <Kbd>g s</Kbd> and <Kbd>g w</Kbd>.
+  Pick keys that neither equal nor begin nor extend one of those, so a lone <Kbd>g</Kbd> is taken.
 
 </Step>
 
@@ -243,7 +243,7 @@ different URLs may use the same keys, because only one of them is live at a time
 <Callout type="error" title="expected a shortcut from an App or the host page">
 
 ```text
-alert-panel failed to register the shortcut 'mod+e' for action 'acknowledge-alert': expected a
+alert-panel failed to register the shortcut 'mod+e' for action 'acknowledge': expected a
 shortcut from an App or the host page, received a shortcut from a Widget, which does not own the
 page’s keys.
 ```

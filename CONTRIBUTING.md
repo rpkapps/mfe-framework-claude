@@ -10,7 +10,7 @@ formatting preferences.
 pnpm check
 ```
 
-runs, in order: required generation, format check, lint, strict typecheck,
+runs, in order: the package build, required generation, format check, lint, strict typecheck,
 package-boundary checks and the test suites. CI runs the same command and never
 silently rewrites authored files.
 

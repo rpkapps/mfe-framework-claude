@@ -9,6 +9,6 @@ Each container now ships its own generated stylesheet: `pluginMfe()` writes `.mf
 Scoping runs as a PostCSS step, `@tecton/react/postcss/scope`, after Tailwind: it adds `[data-mfe-scope="<id>"]` per exported definition and a `[data-mfe-scope]` lower boundary, and renames the container's own `@keyframes`.
 
 - `withStyleRoot(authored, StyleRoot)` and a generated `.mfe/entries/style-root.tsx`: `AppMount`/`WidgetMount` render it inside the scope root, so a dialog or popover opens from the container's own copy of the design system.
-- `pluginMfe()` reads `@tecton/react/federation/shared` for the container's sharing policy; `strictVersion` follows `singleton`.
+- `pluginMfe()` reads `@tecton/react/federation/shared` for the container's sharing policy: which of its packages are shared, and which load lazily. Its singleton flags are not read, since nothing is shared as a singleton.
 
 Two limits: `@property` and `@font-face` register a name page-wide, so two containers defining the same one get whichever the browser parsed last; `@scope` needs Chrome/Edge 118, Safari 17.4 or Firefox 146, with no fallback.

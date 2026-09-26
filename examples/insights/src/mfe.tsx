@@ -1,4 +1,4 @@
-/** Four Widgets in one container is a deployment decision, not a framework one: a host reaches each
+/** Three Widgets in one container is a deployment decision, not a framework one: a host reaches each
  * by its own id and never learns they are neighbours. */
 
 import { createWidget } from '@company/mfe-react'

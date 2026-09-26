@@ -13,7 +13,9 @@ which one is active when a value has to change with it. Apps and Widgets.
 ### 1. Do nothing for colours
 
 ```tsx title="examples/operations/src/routes/index.tsx"
-<p className="text-xs text-muted-foreground">from another container</p>
+<p className="text-xs text-muted-foreground">
+  The panel below is a Widget served by a different deployment. …
+</p>
 ```
 
 A semantic token resolves against the theme variables the shell declares, and those inherit into
@@ -67,8 +69,8 @@ with the new value. In a test, `createMfeTestEnvironment` sets the theme and cha
 enclosing App or Widget mount, received neither.
 ```
 
-**Fix.** Inside a container this usually means a second copy of `@company/mfe-react` on the page.
-Import the framework from that one package and let the shell share it.
+**Fix.** Inside a container this usually means a second copy of `@company/mfe-react` in your
+container's build. Import the framework from that one package.
 
 </Callout>
 

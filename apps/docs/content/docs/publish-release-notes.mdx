@@ -14,7 +14,7 @@ can open it by name. You own the page, so the notes can be a list, a document or
 
 ### 1. Mark the route
 
-```tsx title="examples/operations/src/routes/release-notes.tsx"
+```tsx title="src/routes/release-notes.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
@@ -56,7 +56,7 @@ This writes your container's description record and rebuilds the registry the sh
 
 ### 3. Confirm what the build published
 
-```json title="examples/operations/.mfe/mfe-registry.json"
+```json title=".mfe/mfe-registry.json"
 "capabilities": [
   {
     "name": "releaseNotes",

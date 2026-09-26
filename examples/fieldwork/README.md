@@ -42,8 +42,3 @@ Angular 19.2 compiles only with TypeScript below 5.9, and its component tests ru
 this example takes `typescript`, `vitest`, `vite` and `jsdom` from the `angular` catalog in
 `pnpm-workspace.yaml`. Everything else comes from the default catalog, at the versions the generator
 pins.
-
-`@company/mfe-angular` and the packages beneath it still publish TypeScript source, which
-TypeScript never emits when it reaches it through `node_modules`. `tsconfig.app.json` and
-`tsconfig.spec.json` therefore list their sources as files of this program; that goes once the
-packages ship compiled output.

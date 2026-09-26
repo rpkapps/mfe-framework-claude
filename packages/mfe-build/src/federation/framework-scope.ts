@@ -30,7 +30,7 @@ export interface FrameworkScopeOptions {
 
 /**
  * The version is the one installed rather than any declared range, because the scope is only as
- * useful as it is exact: two containers in one scope share one copy strictly.
+ * useful as it is exact: two containers in one scope provide the same framework, so it loads once.
  */
 export function resolveFrameworkScope(options: FrameworkScopeOptions): string {
   const installedVersion = options.installedVersion ?? installedVersionFrom(options.root)

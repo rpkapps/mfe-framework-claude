@@ -22,7 +22,8 @@ export const Route = createFileRoute('/assets')({
 ```
 
 Without `breadcrumb`, the route falls back to its own `head` title, and then to its path segment
-in words. A `$param` segment shows the parameter's value.
+in words. A `$param` segment shows the parameter's value, except a generic `$id` or a splat, which
+shows nothing.
 
 </Step>
 
@@ -30,7 +31,7 @@ in words. A `$param` segment shows the parameter's value.
 
 ### 2. Hide a segment
 
-```tsx title="examples/operations/src/routes/wells.$wellId.tsx"
+```tsx
 export const Route = createFileRoute('/wells/$wellId')({
   staticData: { breadcrumb: false },
   component: WellDetail,

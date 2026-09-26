@@ -115,7 +115,7 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 ## What each factory returns
 
-`createApp` returns `{ kind: 'app', id, version?, createRouter, contributesBreadcrumbs }`. `createWidget` returns `{ kind: 'widget', id, version?, contract, render }`. Both carry a private brand, which is how the mount boundary recognises them. Treat the result as an opaque value and export it from `src/mfe.ts`.
+`createApp` returns `{ kind: 'app', framework: 'react', id, version?, createRouter, contributesBreadcrumbs, mount }`. `createWidget` returns `{ kind: 'widget', framework: 'react', id, version?, contract, render, mount }`. Both carry a brand under a registered symbol, which is how every host recognises them, and the host places each through its own `mount`. Treat the result as an opaque value and export it from `src/mfe.ts`.
 
 ## Errors
 

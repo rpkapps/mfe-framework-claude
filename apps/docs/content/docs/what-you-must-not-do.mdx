@@ -141,8 +141,8 @@ keys collide. `useStoredState` puts your definition id in front of your key.
 
 ```text
 `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this
-origin can read or overwrite it, the shell cannot clear it on sign-out, and a quota failure escapes
-as an unhandled exception.
+origin can read or overwrite it, it carries no version to migrate a changed shape from, and a quota
+failure escapes as an unhandled exception.
 ```
 
 **Fix.** Use `useStoredState(name, schema, { defaultValue })` for rendered state, and

@@ -3,8 +3,8 @@
 An MFE container with two definitions: the App `subsurface-canvas` and the
 Widget `subsurface-well-3d`. `pnpm run dev` starts the remote on port 3006 and
 prints its manifest URL; `build`, `typecheck`, `test`, `lint` and `format` do
-what they say. Each runs its own generation step, so `pnpm run generate` is
-only ever a recovery command.
+what they say. `dev`, `build`, `typecheck` and `test` run the generation step
+first, so `pnpm run generate` is only ever a recovery command.
 
 ## Connecting to the shell
 

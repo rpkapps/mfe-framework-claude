@@ -182,12 +182,12 @@ so **a change to a scene is a change to its paragraph**.
 | `layers`               | the design map: the packages and the import DAG          |
 | `adapters`             | the design map: the runtime, and the adapters it reads   |
 | `isolation-boundaries` | the design map: what separates a container from the page |
-| `app-vs-widget`        | guide 1, the shape: App or Widget                        |
-| `config-and-data`      | guide 3, configuration and data                          |
-| `lifecycle`            | guide 6, lifecycle                                       |
-| `storage-keys`         | guide 7, storage                                         |
-| `styling-scope`        | guide 8, styling                                         |
-| `dev-workflow`         | guide 9, the daily workflow                              |
+| `app-vs-widget`        | no page embeds it                                        |
+| `config-and-data`      | no page embeds it                                        |
+| `lifecycle`            | How it works: the mount lifecycle                        |
+| `storage-keys`         | no page embeds it                                        |
+| `styling-scope`        | no page embeds it                                        |
+| `dev-workflow`         | no page embeds it                                        |
 
 ### system-at-rest
 
@@ -196,7 +196,7 @@ right. A yellow panel **The shell origin** ("dev: http://localhost:3000") holds 
 a violet `registry.json` ("one record per definition"). A grey dotted arrow labelled
 **manifestUrl** leaves `registry.json` for a blue panel **Three container origins** ("each on its
 own origin"), which holds `operations` ("an App — dev :3001"), `alert-panel` ("one Widget — dev
-:3003") and `insights` ("four Widgets — dev :3004"). A second grey dotted arrow, **publishes**,
+:3003") and `insights` ("three Widgets — dev :3004"). A second grey dotted arrow, **publishes**,
 runs from that panel to a panel **Every container publishes** ("the same four files each time")
 holding four violet tiles: `mf-manifest.json`, `remoteEntry.js`, `styles.css` and
 `runtime-config.json`. A blue dotted arrow labelled **names the API** drops from
@@ -313,7 +313,7 @@ by the shell, the one file that imports it. `readRegistry` offers each raw entry
 adapter's `detect`. Exactly one must recognise it: none and the entry is rejected as
 unrecognised, more than one and it is rejected as ambiguous with both named, so there is no
 order to register adapters in, and none is registered implicitly — the shell lists each one.
-`reactAdapter` recognises an entry whose `mfe` marker names `react`, or no framework, however
+`reactAdapter` recognises an entry whose `mfe` marker names `react`, however
 malformed the rest is; `angularAdapter` one whose marker names `angular`; so a typo in
 framework metadata is rejected rather than quietly read by another adapter (§9).
 `legacyAngularAdapter` recognises only entries with no `mfe` key that carry a legacy `name` and
@@ -533,7 +533,7 @@ a panel **One dev server each** ("the port is part of the address") holding one 
 component modules") holds a red `src/mfe.ts` ("a definition — the page reloads") and a green
 `src/alert-panel.tsx` ("only components — hot-updates in place"). A legend names the six colours.
 
-Not on the figure. `pnpm dev` checks that 3000–3007 and 3010 are free before it starts anything,
+Not on the figure. `pnpm dev` checks that 3000–3008, 3010 and 3011 are free before it starts anything,
 because a container's port is part of its address and cannot be moved without the shell losing
 it; each container's port comes from its own `package.json` `"mfe"` block, so adding an example
 is a one-file change in it. `pnpm dev` runs `pnpm run generate` itself, and the shell learns that

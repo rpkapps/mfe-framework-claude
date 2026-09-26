@@ -180,7 +180,7 @@ async function systemAtRest() {
   const originTiles = [
     ['operations', 'an App — dev :3001'],
     ['alert-panel', 'one Widget — dev :3003'],
-    ['insights', 'four Widgets — dev :3004'],
+    ['insights', 'three Widgets — dev :3004'],
   ]
   originTiles.forEach(([name, subtitle], position) => {
     file(scene, {
@@ -603,7 +603,7 @@ async function isolationBoundaries() {
     ['Storage', '<definitionId>:<name>; kept for the browser profile', 960, 140],
     ['Network', '#mfe/fetch; the token only to declared origins', 0, 590],
     ['Errors', 'one MfeError code, into the DiagnosticsHub', 480, 590],
-    ['Framework share scopes', 'one copy per framework version; loaded-first', 960, 590],
+    ['Framework share scopes', 'a scope per framework version; loaded-first', 960, 590],
   ].map(([name, subtitle, x, y]) =>
     tile(scene, { x, y, w: 360, h: 72, fill: FILL.page, name, subtitle }),
   )

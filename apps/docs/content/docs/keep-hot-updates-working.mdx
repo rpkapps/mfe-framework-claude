@@ -45,8 +45,7 @@ export function AlertPanel({
   inputs,
   emit,
 }: WidgetRenderProps<typeof alertPanelContract>): ReactNode {
-  const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
-  // …
+  return <OneAlert key={inputs.alertId} inputs={inputs} emit={emit} />
 }
 ```
 
