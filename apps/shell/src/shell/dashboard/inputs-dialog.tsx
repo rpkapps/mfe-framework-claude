@@ -136,9 +136,10 @@ function SchemaField({
   readonly onChange: (value: unknown) => void
 }): ReactNode {
   const id = useId()
+  const labelId = `${id}-label`
 
   const label = (
-    <FieldLabel htmlFor={id}>
+    <FieldLabel id={labelId} htmlFor={id}>
       {field.name}
       {field.required ? null : (
         <Badge variant="secondary" size="default">
@@ -170,7 +171,9 @@ function SchemaField({
     return (
       <Field>
         {label}
+        {/* React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`. */}
         <Select
+          aria-labelledby={labelId}
           className="w-full"
           selectedKey={typeof value === 'string' ? value : null}
           onSelectionChange={key => {

@@ -62,8 +62,12 @@ function Widgets(): ReactNode {
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor={`${id}-severity`}>severity</FieldLabel>
+            <FieldLabel id={`${id}-severity-label`} htmlFor={`${id}-severity`}>
+              severity
+            </FieldLabel>
+            {/* React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`. */}
             <Select
+              aria-labelledby={`${id}-severity-label`}
               className="w-full"
               selectedKey={severity}
               onSelectionChange={key => {
