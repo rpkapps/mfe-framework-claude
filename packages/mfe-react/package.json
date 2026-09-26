@@ -4,6 +4,9 @@
   "description": "React author and host surface for the MFE framework: createApp, createWidget, lazyWidget, mfeRoute, AppHost and DynamicWidget over the runtime's mountDefinition, shell-state and service hooks, and the style root a container's build attaches to its definition; /host re-exports the runtime for a React shell, /registry is the adapter alone.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

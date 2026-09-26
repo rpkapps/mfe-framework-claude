@@ -4,6 +4,9 @@
   "description": "The shell's connection to the agent: a chat client that talks AG-UI to the agent's backend, offers the page's actions as tools and runs the agent's calls through the action pipeline, and shows approvals from the pipeline and from the backend as one list of interrupts. Its API follows TanStack AI's client; it runs on the plain AG-UI client. For the host only: a container never imports it.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

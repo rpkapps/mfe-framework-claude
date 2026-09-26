@@ -4,6 +4,9 @@
   "description": "Developer tools overlay for an MFE shell: a flag-gated, lazy-loaded panel that sets the boot-time manifest overrides and shows what the registry accepted.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

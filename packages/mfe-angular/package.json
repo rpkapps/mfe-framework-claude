@@ -4,6 +4,9 @@
   "description": "Angular 19 (zoneless) author and host surface for the MFE framework: createApp, createWidget, route data, injectables over the shell's services, a boundary location strategy, the mfe-widget and mfe-app-host components over the runtime's mountDefinition, and self-mounting definitions any host places into an element.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

@@ -4,6 +4,9 @@
   "description": "pluginMfe(): definition and capability discovery, generated #mfe/* modules, container-relative assets, the container's own scoped stylesheet, React Compiler integration and Module Federation plumbing for MFE containers, as an Rsbuild plugin.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  },
   "bin": {
     "mfe-generate": "./dist/cli/generate.js"
   },

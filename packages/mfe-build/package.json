@@ -4,6 +4,9 @@
   "description": "The framework-neutral half of an MFE container build: static discovery of definitions, contracts, icons and configuration, the generated #mfe/* modules and deployment artifacts, the share-scope policy machinery, the container stylesheet's PostCSS chain and the federation options, for a build integration to compose with its own framework profile.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

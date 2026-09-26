@@ -4,6 +4,9 @@
   "description": "Removable legacy adapter: reads legacy Angular registry entries into typed registry entries and preserves the existing registerRemotes / loadRemote('<name>/single-spa-app') / ParcelComponent lifecycle.",
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {

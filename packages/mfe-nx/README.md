@@ -209,7 +209,9 @@ Nx `require()`s generators and executors, and `@nx/angular:webpack-browser` / `:
 
 `@company/mfe-build` is an ES module; this package reaches it with `require()`, which Node loads
 natively from 20.19 and 22.12 (`require(esm)`, valid because its module graph has no top-level
-await). `withMfe()` defers even that until the builder calls the function it returns: that
+await). Both packages declare it as `"engines": { "node": "^20.19.0 || >=22.12.0" }`, so a package
+manager warns on an older Node at install, rather than Nx failing on its first `require()` of the
+build. `withMfe()` defers even that until the builder calls the function it returns: that
 transpiler is still registered while the config file itself is being required, and it rewrites any
 linked package the file loads — including `@company/mfe-build`'s ES modules, which it breaks. By
 the time the function runs, the transpiler is unregistered.
@@ -231,7 +233,8 @@ the emitted layout keeps the `src/` segment `generators.json` and `executors.jso
 - **TypeScript 5.8.x** — Angular 19.2's compiler rejects 5.9 and later.
 - **PrimeNG 19.1.4**, with no theme package: the host declares its design tokens. Every Angular
   container on a page uses the same version.
-- **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**.
+- **Nx 20–22** (see above), and **Node 20.19+ or 22.12+**, the `engines` range of this package and
+  of the framework packages it installs.
 - **`@nx/devkit`**: this package's `peerDependencies` declare `>=20.0.0 <23.0.0`, written literally
   rather than as a repository `catalog:` entry, because a consumer workspace's Nx version is
   unrelated to this repository's toolchain. The `catalog:` pins of `@nx/devkit`, `nx`, `webpack`,
