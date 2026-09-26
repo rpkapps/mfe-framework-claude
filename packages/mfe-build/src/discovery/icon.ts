@@ -130,7 +130,10 @@ function iconModule(file: string): IconModule | null {
  * The parsed icon, or `null` when the identifier does not lead to one. The caller turns `null`
  * into a build error, because it holds the source position the developer needs.
  */
-export function readIconData(entryFile: string, binding: ImportedBinding): IconData | null {
+export function readIconData(
+  entryFile: string,
+  binding: Pick<ImportedBinding, 'imported' | 'moduleSpecifier'>,
+): IconData | null {
   const file = resolveModule(entryFile, binding.moduleSpecifier)
   if (file === null) return null
   if (file.endsWith('.svg')) return readSvgFile(file)

@@ -61,7 +61,7 @@ export {
   unwrapExpression,
   walk,
 } from './discovery/ts-ast.ts'
-export type { CallSite, ImportedBinding } from './discovery/ts-ast.ts'
+export type { CallSite, ImportedBinding, ImportKind } from './discovery/ts-ast.ts'
 
 export {
   banner,

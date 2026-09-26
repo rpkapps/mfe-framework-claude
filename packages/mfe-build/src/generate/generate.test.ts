@@ -1104,6 +1104,87 @@ export const orderRow = createWidget({
     expect(source).not.toContain('export const inputSchema')
     expect(typeErrors(root, plan)).toEqual([])
   })
+
+  it('repeats a namespace import as one, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import * as z from 'zod'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: z.object({ orderId: z.string() }),
+  outputSchema: z.object({ acknowledged: z.object({ at: z.string() }) }),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import * as z from 'zod'")
+    expect(source).not.toContain('{ * as')
+    expect(source).not.toContain("import type { z } from 'zod'")
+    expect(source).toContain('export type Inputs = z.infer<typeof inputSchema>')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('repeats a default import as one, and typechecks', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import zod from 'zod'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: zod.object({ orderId: zod.string() }),
+  outputSchema: zod.object({}),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain("import zod from 'zod'")
+    expect(source).not.toContain('default as')
+    expect(source).toContain('export type Inputs = zod.infer<typeof inputSchema>')
+    expect(typeErrors(root, plan)).toEqual([])
+  })
+
+  it('binds a default and named imports of one module in one statement, and a namespace in its own', () => {
+    const { root, plan, fileFor } = planFixture({
+      'src/schemas.ts': `
+import { z } from 'zod'
+
+export default z.string().min(1)
+export const quantity = z.number().int()
+export const note = z.string()
+`,
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import * as zod from 'zod'
+import orderId, { note as comment, quantity } from './schemas.ts'
+import * as schemas from './schemas.ts'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  inputSchema: zod.object({ orderId, quantity, comment, note: schemas.note }),
+  outputSchema: zod.object({}),
+  render: () => null,
+})
+`,
+    })
+
+    const source = fileFor('widgets/order-row.contract.ts')
+
+    expect(source).toContain(
+      "import orderId, { note as comment, quantity } from '../../src/schemas.ts'",
+    )
+    expect(source).toContain("import * as schemas from '../../src/schemas.ts'")
+    expect(source).toContain("import * as zod from 'zod'")
+    expect(typeErrors(root, plan)).toEqual([])
+  })
 })
 
 describe('tsconfig path mapping', () => {
