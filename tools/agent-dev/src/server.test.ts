@@ -11,7 +11,13 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { demoModel } from './demo-model.ts'
 import type { Model } from './events.ts'
-import { createAgentServer, loadEnvFile, MAX_BODY_BYTES, readInput } from './server.ts'
+import {
+  createAgentServer,
+  isAllowedOrigin,
+  loadEnvFile,
+  MAX_BODY_BYTES,
+  readInput,
+} from './server.ts'
 
 const server = createAgentServer(demoModel({ delayMs: 0 }))
 let url = ''
@@ -133,10 +139,46 @@ describe('the development agent over HTTP', () => {
     expect(preflight.headers.get('access-control-allow-headers')).toBe(
       'authorization,content-type,traceparent',
     )
-    expect(preflight.headers.get('access-control-allow-origin')).toBe('*')
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:3000')
 
     expect((await fetch(url)).status).toBe(405)
     expect((await fetch(url.replace(/\/agent$/, '/other'), { method: 'POST' })).status).toBe(404)
+  })
+
+  it('is run by a page on this machine only, and never for another page', async () => {
+    for (const origin of ['http://localhost:3000', 'http://127.0.0.1:5173', 'http://[::1]:3000']) {
+      expect(isAllowedOrigin(origin), origin).toBe(true)
+    }
+    for (const origin of [
+      'https://evil.example',
+      'http://localhost.evil.example',
+      'http://192.168.1.20:3000',
+      'null',
+    ]) {
+      expect(isAllowedOrigin(origin), origin).toBe(false)
+    }
+
+    const preflight = await fetch(url, {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST' },
+    })
+    expect(preflight.status).toBe(403)
+    expect(preflight.headers.get('access-control-allow-origin')).toBeNull()
+
+    const model = vi.fn(demoModel({ delayMs: 0 }))
+    const { url: base, close } = await serving(model)
+    try {
+      // A plain-text POST is sent without a preflight: it must not reach the model either.
+      const response = await fetch(`${base}/agent`, {
+        method: 'POST',
+        headers: { Origin: 'https://evil.example', 'Content-Type': 'text/plain' },
+        body: JSON.stringify(run),
+      })
+      expect(response.status).toBe(403)
+      expect(model).not.toHaveBeenCalled()
+    } finally {
+      await close()
+    }
   })
 
   it('refuses a body over the limit', async () => {

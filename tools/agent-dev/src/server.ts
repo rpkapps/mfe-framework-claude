@@ -20,7 +20,7 @@ import { anthropicModel } from './anthropic-model.ts'
 import { demoModel } from './demo-model.ts'
 import { openAiModel } from './openai-model.ts'
 import { runError, type Model } from './events.ts'
-import { DEV_AGENT_PORT } from './port.ts'
+import { DEV_AGENT_HOST, DEV_AGENT_PORT } from './port.ts'
 
 function set(name: string): string | undefined {
   const value = process.env[name]
@@ -46,11 +46,26 @@ export function modelFromEnvironment(): { readonly model: Model; readonly name: 
 }
 
 /**
+ * The key or the local model behind this server is the developer's, so only a page on this machine
+ * may run it: the shell, on loopback, whatever port it was given. Any other page in the
+ * developer's browser is refused before its body is read, not only denied the answer, since a
+ * plain-text POST needs no preflight. A request with no Origin is not a page's (curl, a test).
+ */
+const LOOPBACK_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/
+
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  return origin === undefined || LOOPBACK_ORIGIN.test(origin)
+}
+
+/**
  * The shell is another origin in development, and its Authorization header makes every run
- * preflighted; whatever headers its fetch adds are allowed.
+ * preflighted; whatever headers its fetch adds are allowed. Only an allowed origin gets here.
  */
 function cors(request: IncomingMessage, response: ServerResponse): void {
-  response.setHeader('Access-Control-Allow-Origin', '*')
+  response.setHeader('Vary', 'Origin')
+  const origin = request.headers.origin
+  if (origin === undefined) return
+  response.setHeader('Access-Control-Allow-Origin', origin)
   response.setHeader(
     'Access-Control-Allow-Headers',
     request.headers['access-control-request-headers'] ?? 'Authorization, Content-Type, Accept',
@@ -176,6 +191,13 @@ async function run(
 
 export function createAgentServer(model: Model) {
   return createServer((request, response) => {
+    const origin = request.headers.origin
+    if (!isAllowedOrigin(origin)) {
+      sendJson(response, 403, {
+        error: `Only a page on this machine may run the development agent, and ${String(origin)} is not one. Open the shell on localhost.`,
+      })
+      return
+    }
     cors(request, response)
     if (request.method === 'OPTIONS') {
       response.writeHead(204)
@@ -211,7 +233,8 @@ export function loadEnvFile(path = fileURLToPath(new URL('../.env', import.meta.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const fromFile = loadEnvFile()
   const { model, name } = modelFromEnvironment()
-  createAgentServer(model).listen(DEV_AGENT_PORT, () => {
+  // Loopback only: on every interface, anyone on the network could run it.
+  createAgentServer(model).listen(DEV_AGENT_PORT, DEV_AGENT_HOST, () => {
     process.stdout.write(
       `Agent backend on http://localhost:${String(DEV_AGENT_PORT)}/agent, with ${name}${fromFile ? ' (tools/agent-dev/.env read)' : ''}.\n`,
     )

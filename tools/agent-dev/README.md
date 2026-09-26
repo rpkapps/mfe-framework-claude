@@ -16,6 +16,11 @@ It answers `POST /agent` and the browser's preflight: another path is 404 and an
 A body over 8 MB is 413, and one that is not an AG-UI `RunAgentInput` is 400, before any model is
 called.
 
+It runs your key or your local model, so it listens on loopback (`127.0.0.1`) only, and only a page
+on this machine may call it: a request whose `Origin` is not `localhost`, `127.0.0.1` or `[::1]`,
+on any port, is 403 before its body is read. Open the shell on `localhost`, not on a network
+address.
+
 ## Settings in a file
 
 The variables below can go in `tools/agent-dev/.env` instead of the command line: copy
