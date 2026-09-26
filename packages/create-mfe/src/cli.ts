@@ -7,7 +7,7 @@
 
 import { realpathSync } from 'node:fs'
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import pc from 'picocolors'
@@ -15,12 +15,17 @@ import pc from 'picocolors'
 import { appTemplate } from './templates/app.ts'
 import { widgetTemplate } from './templates/widget.ts'
 import type { TemplateFile, TemplateOptions } from './templates/types.ts'
+import { placeInWorkspace } from './workspace.ts'
 
 const USAGE = `
 ${pc.bold('pnpm create @company/mfe')} <directory> [options]
 
+The directory must be one the pnpm workspace's package globs match, such as
+examples/<name> in the workspace that holds the shell.
+
 Options:
-  --id <id>         definition id (lower-case letters, digits, single hyphens)
+  --id <id>         definition id: lower-case letters, digits, single hyphens
+                    (default: the directory's name)
   --template <kind> app | widget            (default: app)
   --force           write into a non-empty directory
   --help            show this message
@@ -50,6 +55,8 @@ export async function scaffold(options: ScaffoldOptions): Promise<readonly strin
   }
 
   const target = resolve(options.directory)
+  // Before anything is written, so a refused target leaves no directory behind.
+  const placement = placeInWorkspace(target)
   await mkdir(target, { recursive: true })
 
   if (options.force !== true) {
@@ -66,6 +73,7 @@ export async function scaffold(options: ScaffoldOptions): Promise<readonly strin
     // The package name is derived rather than asked for: one fewer decision in
     // the quickstart, and it keeps the id and the package aligned by default.
     packageName: `@example/${options.id}`,
+    tsconfigBase: placement.tsconfigBase,
   }
 
   const files: readonly TemplateFile[] =
@@ -80,6 +88,11 @@ export async function scaffold(options: ScaffoldOptions): Promise<readonly strin
   }
 
   return written
+}
+
+/** The directory's own name, resolved first so `.`, `..` and Windows separators work. */
+export function idFromDirectory(directory: string): string {
+  return basename(resolve(directory))
 }
 
 function printNextSteps(options: ScaffoldOptions, fileCount: number): void {
@@ -148,7 +161,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
   // Defaulting the id to the directory name keeps the quickstart to one
   // argument while leaving the id explicit for anyone who wants it different.
-  const id = parsed.values.id ?? directory.split('/').filter(Boolean).pop() ?? ''
+  const id = parsed.values.id ?? idFromDirectory(directory)
 
   try {
     const written = await scaffold({
