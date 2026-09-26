@@ -25,11 +25,6 @@ jobs:
           path: mfe-framework-claude
 
       - uses: ./mfe-framework-claude/.github/actions/setup
-        # The shell's chat uses Tecton's Composer, which is on tecton-ui-1's PR #42 until it lands
-        # on its default branch. Pinned to a commit of that PR rather than its branch, which is
-        # deleted when it merges; remove this input then (#33).
-        with:
-          tecton-ref: c4cb6537cac017c7d49f7c7b4f05b1e591b29d0a
 
       - name: Generate, format, lint, typecheck, boundaries and test
         working-directory: mfe-framework-claude
@@ -55,11 +50,6 @@ jobs:
           path: mfe-framework-claude
 
       - uses: ./mfe-framework-claude/.github/actions/setup
-        # The shell's chat uses Tecton's Composer, which is on tecton-ui-1's PR #42 until it lands
-        # on its default branch. Pinned to a commit of that PR rather than its branch, which is
-        # deleted when it merges; remove this input then (#33).
-        with:
-          tecton-ref: c4cb6537cac017c7d49f7c7b4f05b1e591b29d0a
 
       - name: Install Chromium
         working-directory: mfe-framework-claude
