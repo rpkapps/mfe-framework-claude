@@ -89,6 +89,9 @@ function queryFor(
   return { query: query === '' ? '' : `?${query}` }
 }
 
+/** A `.` or `..` segment, written plainly or percent-encoded, as the URL parser reads one. */
+const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i
+
 /** The navigate tool, over the Apps the registry lists. Undefined when there are none. */
 export function navigateTool(apps: readonly RegistryEntry[], go: Go): ChatTool | undefined {
   if (apps.length === 0) return undefined
@@ -120,18 +123,24 @@ export function navigateTool(apps: readonly RegistryEntry[], go: Go): ChatTool |
       if (app === undefined) return { status: 'invalid', error: `There is no App '${id}'.` }
 
       // A query or a `..` in the path would reach past the route and its search params' schema.
+      // The URL parser also reads `%2e` as a dot, `\` as `/`, and drops tabs and newlines, so the
+      // path is checked, and navigated to, as the parser leaves it: still inside this App.
+      const base = `/${id}`
+      const pathname = new URL(`${base}${path}`, 'http://shell.invalid').pathname
       if (
-        /[?#]/.test(path) ||
-        path.split('/').some(segment => segment === '.' || segment === '..')
+        /[?#\\]/.test(path) ||
+        path.split('/').some(segment => DOT_SEGMENT.test(segment)) ||
+        (pathname !== base && !pathname.startsWith(`${base}/`))
       ) {
         return {
           status: 'invalid',
           error: 'A path is one page inside the App, with no `..`; search params go in `search`.',
         }
       }
+      const inside = pathname.slice(base.length) === '' ? '/' : pathname.slice(base.length)
 
       const route = (app.routes ?? [{ path: '/' }]).find(candidate =>
-        routePattern(candidate.path).test(path),
+        routePattern(candidate.path).test(inside),
       )
       if (route === undefined) {
         return { status: 'invalid', error: `${id} has no page at ${path}. ${describeApp(app)}` }
@@ -140,7 +149,7 @@ export function navigateTool(apps: readonly RegistryEntry[], go: Go): ChatTool |
       const query = queryFor(search, route.search)
       if ('error' in query) return { status: 'invalid', error: query.error }
 
-      const landed = await go(`/${id}${path === '/' ? '' : path}${query.query}`)
+      const landed = await go(`${base}${inside === '/' ? '' : inside}${query.query}`)
       return landed === undefined
         ? {
             status: 'blocked',

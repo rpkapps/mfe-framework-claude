@@ -70,6 +70,13 @@ describe('the navigate tool', () => {
     expect(result).toEqual({ status: 'navigated', url: '/operations/wells/W%2012' })
   })
 
+  it('goes to the path as a URL reads it, and checks that one', async () => {
+    const go = vi.fn((href: string) => Promise.resolve<string | undefined>(href))
+    const tool = navigateTool([operations], go)
+    await tool?.execute({ app: 'operations', path: '/wells/W 12' }, call)
+    expect(go).toHaveBeenCalledWith('/operations/wells/W%2012')
+  })
+
   it('says so when the page stays where it was', async () => {
     const tool = navigateTool([operations], () => Promise.resolve(undefined))
     const result: unknown = await tool?.execute({ app: 'operations', path: '/wells/W-1' }, call)
@@ -82,6 +89,11 @@ describe('the navigate tool', () => {
     [{ app: 'operations', path: '/assets', search: { site: 'west' } }, "'site' must be one of"],
     [{ app: 'operations', path: '/assets', search: { page: '2' } }, "no search param 'page'"],
     [{ app: 'operations', path: '/reports/../../admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/reports/%2e%2e/%2e%2e/admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/reports/%2E%2E/%2E%2E/admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/reports/.%2e/admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/wells/..\\..\\admin' }, 'with no `..`'],
+    [{ app: 'operations', path: '/reports/.\t./.\n./admin' }, 'with no `..`'],
     [{ app: 'operations', path: '/wells/W-1?tab=log' }, 'search params go in `search`'],
   ])('refuses %j without navigating', async (input, error) => {
     const go = vi.fn()
