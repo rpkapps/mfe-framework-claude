@@ -291,6 +291,8 @@ export function EventLog({
   empty,
 }: {
   readonly entries: readonly {
+    /** Increases with every entry: the same text can be logged twice within one second. */
+    readonly id: number
     readonly at: string
     readonly text: string
     readonly tone?: LogTone
@@ -302,10 +304,7 @@ export function EventLog({
   return (
     <ul className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle bg-background/40">
       {entries.map(entry => (
-        <li
-          key={`${entry.at}-${entry.text}`}
-          className="flex items-start gap-2 px-3 py-2 sm:items-center"
-        >
+        <li key={entry.id} className="flex items-start gap-2 px-3 py-2 sm:items-center">
           <span
             aria-hidden
             className={`mt-1.5 size-1.5 shrink-0 rounded-full sm:mt-0 ${TONE_DOT[entry.tone ?? 'default']}`}

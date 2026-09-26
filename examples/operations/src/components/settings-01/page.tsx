@@ -33,13 +33,19 @@ function SettingsPage({
   const [saved, setSaved] = React.useState<Settings>(initialSettings)
   const [draft, setDraft] = React.useState<Settings>(initialSettings)
   const [toast, setToast] = React.useState(false)
+  const toastTimer = React.useRef<number | undefined>(undefined)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
+
+  // The timer outlives the page otherwise, and would hide a toast nobody can see any more.
+  React.useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   const save = () => {
     setSaved(draft)
     onSave?.(draft)
     setToast(true)
-    window.setTimeout(() => setToast(false), 3000)
+    // A second save restarts the three seconds, instead of the first save's timer cutting it short.
+    window.clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setToast(false), 3000)
   }
 
   return (
