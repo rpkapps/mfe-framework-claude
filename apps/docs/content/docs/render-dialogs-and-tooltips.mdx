@@ -13,10 +13,12 @@ each mount its own root there, so your styles still reach it. Apps and Widgets.
 ### 1. Raise the overlay normally
 
 ```tsx title="examples/lab/src/routes/unsaved.tsx"
-<Dialog isOpen={blocker.status === 'blocked'} isDismissable={false} showCloseButton={false}>
-  <DialogHeader>
-    <DialogTitle>Leave with unsaved changes?</DialogTitle>
-  </DialogHeader>
+<Dialog open={blocker.status === 'blocked'} disablePointerDismissal>
+  <DialogContent showCloseButton={false}>
+    <DialogHeader>
+      <DialogTitle>Leave with unsaved changes?</DialogTitle>
+    </DialogHeader>
+  </DialogContent>
 </Dialog>
 ```
 

@@ -17,6 +17,7 @@ import {
 import { Checkbox } from '@tecton/react/components/checkbox'
 import {
   DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -32,7 +33,7 @@ import { TrajectorySketch } from './trajectory-sketch'
 
 type WellDesignCardProps = Omit<React.ComponentProps<typeof Card>, 'children'> & {
   design: WellDesign
-  isSelected?: boolean
+  selected?: boolean
   onSelectedChange?: (selected: boolean) => void
   onView?: (design: WellDesign) => void
 }
@@ -40,7 +41,7 @@ type WellDesignCardProps = Omit<React.ComponentProps<typeof Card>, 'children'> &
 function WellDesignCard({
   className,
   design,
-  isSelected,
+  selected,
   onSelectedChange,
   onView,
   size = 'sm',
@@ -54,15 +55,19 @@ function WellDesignCard({
       data-slot="well-design-card"
       data-trajectory={design.trajectory}
       size={size}
-      className={cn('gap-3', isSelected && 'ring-primary/60', className)}
+      className={cn('gap-3', selected && 'ring-primary/60', className)}
       {...props}
     >
       <CardHeader className="items-center">
         <CardTitle className="flex min-w-0 items-center gap-2">
           <Checkbox
             aria-label={`Select ${design.name}`}
-            {...(isSelected === undefined ? {} : { isSelected })}
-            {...(onSelectedChange === undefined ? {} : { onChange: onSelectedChange })}
+            {...(selected === undefined ? {} : { checked: selected })}
+            {...(onSelectedChange === undefined
+              ? {}
+              : {
+                  onCheckedChange: (checked: boolean) => onSelectedChange(checked),
+                })}
           />
           <span className="truncate text-base">{design.name}</span>
           <Badge variant="secondary" appearance="outline">
@@ -70,12 +75,14 @@ function WellDesignCard({
           </Badge>
         </CardTitle>
         <CardAction>
-          <DropdownMenuTrigger>
-            <Button variant="ghost" size="icon-xs" aria-label="More actions">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-xs" aria-label="More actions" />}
+            >
               <MoreVerticalIcon />
-            </Button>
-            <DropdownMenu placement="bottom end">
-              <DropdownMenuItem onAction={() => onView?.(design)}>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end">
+              <DropdownMenuItem onClick={() => onView?.(design)}>
                 <PencilIcon /> Open design
               </DropdownMenuItem>
               <DropdownMenuItem>
@@ -85,8 +92,8 @@ function WellDesignCard({
               <DropdownMenuItem variant="destructive">
                 <TrashIcon /> Delete
               </DropdownMenuItem>
-            </DropdownMenu>
-          </DropdownMenuTrigger>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </CardAction>
       </CardHeader>
 
@@ -170,7 +177,7 @@ function WellDesignCard({
       </CardContent>
 
       <CardFooter>
-        <Button className="w-full" variant="secondary" onPress={() => onView?.(design)}>
+        <Button className="w-full" variant="secondary" onClick={() => onView?.(design)}>
           View design
         </Button>
       </CardFooter>

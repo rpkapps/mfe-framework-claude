@@ -29,7 +29,7 @@ export function AlertPanel({
     <>
       <p>Alert {inputs.alertId}</p>
       <Button
-        onPress={() => {
+        onClick={() => {
           emit('acknowledged', {
             alertId: inputs.alertId,
             acknowledgedAt: new Date().toISOString(),

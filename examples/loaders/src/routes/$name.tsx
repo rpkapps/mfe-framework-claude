@@ -102,10 +102,10 @@ function LoaderPage({
         <PanelHeader className="flex-wrap gap-y-2">
           <PanelTitle className="font-mono">{loader.name}</PanelTitle>
           <PanelActions className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onPress={() => go(previous)}>
+            <Button variant="outline" size="sm" onClick={() => go(previous)}>
               <ChevronLeftIcon data-icon="inline-start" /> Previous
             </Button>
-            <Button variant="outline" size="sm" onPress={() => go(next)}>
+            <Button variant="outline" size="sm" onClick={() => go(next)}>
               Next <ChevronRightIcon data-icon="inline-end" />
             </Button>
           </PanelActions>
@@ -114,7 +114,7 @@ function LoaderPage({
           <LoaderPreview name={loader.name} title={loader.title} paused={paused} />
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Field orientation="horizontal" className="w-auto">
-              <Switch id={`${id}-paused`} isSelected={paused} onChange={setPaused} />
+              <Switch id={`${id}-paused`} checked={paused} onCheckedChange={setPaused} />
               <FieldContent>
                 <FieldLabel htmlFor={`${id}-paused`}>Paused</FieldLabel>
                 <FieldDescription>As when loading fails.</FieldDescription>

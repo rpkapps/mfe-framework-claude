@@ -29,7 +29,7 @@ function FdaSummary({ inputs, emit }: WidgetRenderProps<typeof fdaSummaryContrac
   return (
     <FdaCard
       fda={fda}
-      isSelected={selected}
+      selected={selected}
       onSelectedChange={next => {
         setSelected(next)
         emit('selected', { fdaId: fda.id, selected: next })
@@ -64,7 +64,7 @@ function WellDesign({ inputs, emit }: WidgetRenderProps<typeof wellDesignContrac
   return (
     <WellDesignCard
       design={design}
-      isSelected={selected}
+      selected={selected}
       onSelectedChange={next => {
         setSelected(next)
         emit('selected', { wellId: design.id, selected: next })

@@ -30,7 +30,7 @@ function format(value: string | number | boolean | null | undefined): string {
 }
 
 export function TableView({ input }: { readonly input: TableInput }): ReactNode {
-  const rows = input.rows.map((row, index) => ({ id: index, row }))
+  const rowHeader = input.columns[0]?.key
   return (
     <Card size="sm" className="gap-2 py-3" data-slot="chat-table">
       {input.title !== undefined && (
@@ -40,28 +40,48 @@ export function TableView({ input }: { readonly input: TableInput }): ReactNode 
       )}
       <CardContent className="px-3">
         <Table aria-label={input.title ?? 'Table'} className="text-xs">
-          <TableHeader columns={input.columns}>
-            {column => (
-              <TableHead
-                id={column.key}
-                isRowHeader={column.key === input.columns[0]?.key}
-                {...(column.align === 'end' ? { className: 'text-end' } : {})}
-              >
-                {column.label}
-              </TableHead>
-            )}
+          <TableHeader>
+            <TableRow>
+              {input.columns.map(column => (
+                <TableHead
+                  key={column.key}
+                  scope="col"
+                  {...(column.align === 'end' ? { className: 'text-end' } : {})}
+                >
+                  {column.label}
+                </TableHead>
+              ))}
+            </TableRow>
           </TableHeader>
-          <TableBody items={rows} renderEmptyState={() => 'No rows.'}>
-            {item => (
-              <TableRow id={item.id} columns={input.columns}>
-                {column => (
-                  <TableCell
-                    {...(column.align === 'end' ? { className: 'text-end tabular-nums' } : {})}
-                  >
-                    {format(item.row[column.key])}
-                  </TableCell>
-                )}
+          <TableBody>
+            {input.rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={input.columns.length}>No rows.</TableCell>
               </TableRow>
+            ) : (
+              input.rows.map((row, index) => (
+                // Rows carry no identity of their own; the agent's order is the only one there is.
+                <TableRow key={index}>
+                  {input.columns.map(column => {
+                    const align = column.align === 'end' ? 'text-end tabular-nums' : ''
+                    // The first column names the row, so a screen reader reads it with every cell.
+                    return column.key === rowHeader ? (
+                      <th
+                        key={column.key}
+                        scope="row"
+                        data-slot="table-cell"
+                        className={`px-4 py-3 align-middle font-normal whitespace-nowrap ${align === '' ? 'text-start' : align}`}
+                      >
+                        {format(row[column.key])}
+                      </th>
+                    ) : (
+                      <TableCell key={column.key} {...(align === '' ? {} : { className: align })}>
+                        {format(row[column.key])}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

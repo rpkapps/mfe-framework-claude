@@ -83,7 +83,7 @@ function Dashboard({ className, ...props }: DashboardProps) {
               <FdaCard
                 key={fda.id}
                 fda={fda}
-                isSelected={selectedFda.includes(fda.id)}
+                selected={selectedFda.includes(fda.id)}
                 onSelectedChange={next =>
                   setSelectedFda(current =>
                     next ? [...current, fda.id] : current.filter(id => id !== fda.id),
@@ -94,7 +94,7 @@ function Dashboard({ className, ...props }: DashboardProps) {
             {primaryWell && (
               <WellDesignCard
                 design={primaryWell}
-                isSelected={selectedWell.includes(primaryWell.id)}
+                selected={selectedWell.includes(primaryWell.id)}
                 onSelectedChange={next => setSelectedWell(next ? [primaryWell.id] : [])}
               />
             )}

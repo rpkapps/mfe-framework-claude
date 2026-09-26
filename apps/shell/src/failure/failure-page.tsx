@@ -5,12 +5,12 @@
  * load did. It replaces the loading screen when sign-in, the configuration or the boot fails
  * (`loader.ts`), so it is the first React the page renders, and nothing behind sign-in is in it.
  *
- * Nothing here may import React Aria: it is shared across the federation, so it is never
- * tree-shaken, and one Tecton `Button` would add its whole library (about 265 kB gzipped) to a page
- * that has one button. The action and the reason's copy button are native buttons with Tecton's
- * button classes (`button-classes.ts`), and the block's meta item, which copies through Tecton's
- * `CopyButton`, is rendered here rather than imported; the block's other parts carry no React
- * Aria, and the build drops the `CopyButton` import with the part that uses it.
+ * Nothing here imports Tecton's `Button`: Base UI is shared across the federation, so what a
+ * component imports from it is never tree-shaken, and this page, which has one button, should not
+ * wait on a component library for it. The action and the reason's copy button are native buttons
+ * with Tecton's button classes (`button-classes.ts`), and the block's meta item, which copies
+ * through Tecton's `CopyButton`, is rendered here rather than imported; the build drops the
+ * `CopyButton` import with the part that uses it.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'

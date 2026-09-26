@@ -20,7 +20,7 @@ export default function WellDesignCardPage() {
           <WellDesignCard
             key={design.id}
             design={design}
-            isSelected={selected.includes(design.id)}
+            selected={selected.includes(design.id)}
             onSelectedChange={next =>
               setSelected(current =>
                 next ? [...current, design.id] : current.filter(id => id !== design.id),

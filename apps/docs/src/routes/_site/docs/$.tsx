@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { LinkButton } from '@tecton/react/components/button'
+import { LinkButton } from '@tecton/react/tecton/link'
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
 
 import { DocsTableOfContents } from '../../../components/docs-toc.tsx'

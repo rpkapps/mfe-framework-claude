@@ -132,6 +132,13 @@ describe('hostShared', () => {
       requiredVersion: '1.2.3',
       shareScope: 'react@1.2.3',
     })
+    expect(shared['@base-ui/react/']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '1.2.3',
+      version: '1.2.3',
+      shareScope: 'react@1.2.3',
+    })
     expect(shared['recharts']?.eager).toBe(false)
     expect(shared['react']?.singleton).toBe(false)
   })

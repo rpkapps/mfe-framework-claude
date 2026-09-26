@@ -16,7 +16,6 @@ const fromShell = createRequire(new URL('../../apps/shell/package.json', import.
 export const SINGLE_COPY = [
   'react',
   'react-dom',
-  'react-aria',
   'react-aria-components',
   '@base-ui/react',
   '@tanstack/react-router',

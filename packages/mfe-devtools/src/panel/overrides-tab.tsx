@@ -310,7 +310,7 @@ function OverrideRow({
               <InputGroupAddon align="inline-end">
                 <InputGroupButton
                   size="xs"
-                  onPress={() => {
+                  onClick={() => {
                     devtools.stage(id, devServerUrl)
                   }}
                 >
@@ -353,7 +353,7 @@ function OverrideRow({
             variant="ghost"
             size="xs"
             aria-label={`Point ${id} at the dev server`}
-            onPress={() => {
+            onClick={() => {
               devtools.stage(id, devServerUrl)
             }}
           >
@@ -366,7 +366,7 @@ function OverrideRow({
             variant="ghost"
             size="icon-xs"
             aria-label={`Discard the pending edit for ${id}`}
-            onPress={() => {
+            onClick={() => {
               devtools.stage(id, undefined)
               onDone()
             }}
@@ -378,7 +378,7 @@ function OverrideRow({
             variant="ghost"
             size="icon-xs"
             aria-label={`Clear the override for ${id}`}
-            onPress={() => {
+            onClick={() => {
               devtools.stage(id, null)
             }}
           >
@@ -389,7 +389,7 @@ function OverrideRow({
             variant="ghost"
             size="icon-xs"
             aria-label={`Edit the manifest URL for ${id}`}
-            onPress={onEdit}
+            onClick={onEdit}
           >
             <PencilIcon />
           </Button>
@@ -413,18 +413,24 @@ function PendingBar({
   readonly problem?: string
   readonly onApply: () => void
 }): ReactNode {
-  const isOpen = pending > 0 || active > 0
+  const open = pending > 0 || active > 0
 
   return (
     <>
       {/* A real divider rather than a border rule on the bar: `ActionBar`'s toolbar placement is a
           filled, rounded surface with no border of its own, so the line belongs between the list
           and the bar rather than on it. It comes and goes with the bar it divides. */}
-      {isOpen ? <Separator className="shrink-0" /> : null}
+      {open ? <Separator className="shrink-0" /> : null}
       <ActionBar
         placement="toolbar"
-        isOpen={isOpen}
-        {...(pending > 0 ? { onDismiss: () => devtools.clearDraft() } : {})}
+        open={open}
+        {...(pending > 0
+          ? {
+              onOpenChange: () => {
+                devtools.clearDraft()
+              },
+            }
+          : {})}
         className="shrink-0"
       >
         {/* Why "apply" is refusing, in the same bar as the button that is refusing. */}
@@ -441,13 +447,13 @@ function PendingBar({
               <Button
                 variant="ghost"
                 size="sm"
-                onPress={() => {
+                onClick={() => {
                   devtools.clearDraft()
                 }}
               >
                 Discard
               </Button>
-              <Button size="sm" isDisabled={!canApply} onPress={onApply}>
+              <Button size="sm" disabled={!canApply} onClick={onApply}>
                 Apply and reload
               </Button>
             </>
@@ -455,7 +461,7 @@ function PendingBar({
             <Button
               variant="outline"
               size="sm"
-              onPress={() => {
+              onClick={() => {
                 devtools.clearDraft()
                 if (devtools.apply(browserStorage(), new Map())) window.location.reload()
               }}

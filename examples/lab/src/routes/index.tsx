@@ -70,18 +70,23 @@ function Overview(): ReactNode {
          */}
         <Table aria-label="Definitions this container exports">
           <TableHeader>
-            <TableHead id="id" isRowHeader>
-              Definition
-            </TableHead>
-            <TableHead id="kind">Kind</TableHead>
-            <TableHead id="version">Version</TableHead>
+            <TableRow>
+              <TableHead>Definition</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Version</TableHead>
+            </TableRow>
           </TableHeader>
           <TableBody>
             {definitions.map(definition => (
-              <TableRow key={definition.id} id={definition.id}>
-                <TableCell>
+              <TableRow key={definition.id}>
+                {/* The definition names its row, so it is the row header; it keeps a cell's look. */}
+                <th
+                  scope="row"
+                  data-slot="table-cell"
+                  className="px-4 py-3 text-start align-middle font-normal whitespace-nowrap"
+                >
                   <Identifier value={definition.id} />
-                </TableCell>
+                </th>
                 <TableCell>
                   <Badge
                     variant={definition.kind === 'app' ? 'info' : 'secondary'}

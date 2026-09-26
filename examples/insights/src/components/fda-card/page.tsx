@@ -19,7 +19,7 @@ export default function FdaCardPage() {
           <FdaCard
             key={fda.id}
             fda={fda}
-            isSelected={selected.includes(fda.id)}
+            selected={selected.includes(fda.id)}
             onSelectedChange={next =>
               setSelected(current =>
                 next ? [...current, fda.id] : current.filter(id => id !== fda.id),

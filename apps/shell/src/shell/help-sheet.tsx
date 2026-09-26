@@ -9,12 +9,12 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/comp
 import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@tecton/react/components/item'
 import {
   Sheet,
+  SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
 } from '@tecton/react/components/sheet'
-import { ShortcutKeys } from '@tecton/react/tecton/shortcuts'
 import {
   AppWindowIcon,
   BoxIcon,
@@ -24,6 +24,7 @@ import {
   TerminalIcon,
 } from 'lucide-react'
 
+import { ShortcutKeys } from './shortcut-keys.tsx'
 import { shellUi } from './ui-store.ts'
 
 type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
@@ -56,10 +57,10 @@ const CONCEPTS: readonly {
 ]
 
 export function HelpSheet({
-  isOpen,
+  open,
   onOpenChange,
 }: {
-  readonly isOpen: boolean
+  readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
   const runtime = useMfeRuntime('the shell help sheet')
@@ -83,104 +84,106 @@ export function HelpSheet({
   }
 
   return (
-    <Sheet isOpen={isOpen} onOpenChange={onOpenChange} side="right" className="w-full sm:max-w-md">
-      <SheetHeader>
-        <SheetTitle>Help</SheetTitle>
-        <SheetDescription>
-          What the pieces of this page are, and every key that currently does something.
-        </SheetDescription>
-      </SheetHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Help</SheetTitle>
+          <SheetDescription>
+            What the pieces of this page are, and every key that currently does something.
+          </SheetDescription>
+        </SheetHeader>
 
-      {/* Scrolls between the sheet's fixed header and footer, at the padding they use. */}
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
-        <div className="flex flex-col gap-6 pb-2">
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">How this page works</h3>
-            <div className="flex flex-col gap-2">
-              {CONCEPTS.map(concept => (
-                <Card key={concept.title} size="sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <concept.icon aria-hidden className="size-4 text-muted-foreground" />
-                      {concept.title}
-                    </CardTitle>
-                    <CardDescription>{concept.body}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-sm font-medium">Keyboard</h3>
-              <span className="text-xs text-muted-foreground">
-                {shortcuts.length} registered right now
-              </span>
-            </div>
-            {[...groups].map(([group, entries]) => (
-              <div key={group} className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">{group}</span>
-                <ItemGroup className="gap-1">
-                  {entries.map(entry => (
-                    <Item key={entry.id} variant="muted" size="xs">
-                      <ItemContent>
-                        <ItemTitle className="font-normal">{entry.label}</ItemTitle>
-                      </ItemContent>
-                      <ItemActions>
-                        <ShortcutKeys keys={entry.shortcut ?? ''} />
-                      </ItemActions>
-                    </Item>
-                  ))}
-                </ItemGroup>
+        {/* Scrolls between the sheet's fixed header and footer, at the padding they use. */}
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
+          <div className="flex flex-col gap-6 pb-2">
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">How this page works</h3>
+              <div className="flex flex-col gap-2">
+                {CONCEPTS.map(concept => (
+                  <Card key={concept.title} size="sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <concept.icon aria-hidden className="size-4 text-muted-foreground" />
+                        {concept.title}
+                      </CardTitle>
+                      <CardDescription>{concept.body}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                ))}
               </div>
-            ))}
-          </section>
+            </section>
 
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium">Where to go next</h3>
-            <div className="flex flex-wrap gap-2">
-              {apps.map(app => (
-                <Button
-                  key={app.id}
-                  variant="outline"
-                  size="sm"
-                  onPress={() => {
-                    shellUi.close()
-                    void navigate({ to: '/$appId', params: { appId: app.id } })
-                  }}
-                >
-                  {app.title ?? app.id}
-                  {app.version === undefined ? null : (
-                    <Badge variant="secondary">{app.version}</Badge>
-                  )}
-                </Button>
+            <section className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-sm font-medium">Keyboard</h3>
+                <span className="text-xs text-muted-foreground">
+                  {shortcuts.length} registered right now
+                </span>
+              </div>
+              {[...groups].map(([group, entries]) => (
+                <div key={group} className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">{group}</span>
+                  <ItemGroup className="gap-1">
+                    {entries.map(entry => (
+                      <Item key={entry.id} variant="muted" size="xs">
+                        <ItemContent>
+                          <ItemTitle className="font-normal">{entry.label}</ItemTitle>
+                        </ItemContent>
+                        <ItemActions>
+                          <ShortcutKeys keys={entry.shortcut ?? ''} />
+                        </ItemActions>
+                      </Item>
+                    ))}
+                  </ItemGroup>
+                </div>
               ))}
-            </div>
-          </section>
-        </div>
-      </div>
+            </section>
 
-      <SheetFooter className="flex-row flex-wrap gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => {
-            shellUi.show('releases')
-          }}
-        >
-          <SparklesIcon /> What’s new
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onPress={() => {
-            shellUi.show('bug')
-          }}
-        >
-          <BugIcon /> Report a bug
-        </Button>
-      </SheetFooter>
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">Where to go next</h3>
+              <div className="flex flex-wrap gap-2">
+                {apps.map(app => (
+                  <Button
+                    key={app.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      shellUi.close()
+                      void navigate({ to: '/$appId', params: { appId: app.id } })
+                    }}
+                  >
+                    {app.title ?? app.id}
+                    {app.version === undefined ? null : (
+                      <Badge variant="secondary">{app.version}</Badge>
+                    )}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <SheetFooter className="flex-row flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              shellUi.show('releases')
+            }}
+          >
+            <SparklesIcon /> What’s new
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              shellUi.show('bug')
+            }}
+          >
+            <BugIcon /> Report a bug
+          </Button>
+        </SheetFooter>
+      </SheetContent>
     </Sheet>
   )
 }

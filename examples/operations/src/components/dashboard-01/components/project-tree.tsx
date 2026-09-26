@@ -43,7 +43,7 @@ function ProjectTree({
     })
 
   const renderNode = (node: ProjectNode): React.ReactElement => (
-    <TreeViewItem id={node.id} textValue={node.label} isHidden={hidden.has(node.id)}>
+    <TreeViewItem value={node.id} hidden={hidden.has(node.id)}>
       <TreeViewItemContent
         kind={node.kind}
         colorTag={
@@ -66,14 +66,14 @@ function ProjectTree({
         endAdornment={
           node.kind === 'item' ? (
             <TreeViewVisibilityToggle
-              className="opacity-0 group-data-hovered/tree-item:opacity-100 group-data-selected/tree-item:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100"
-              isVisible={!hidden.has(node.id)}
-              onChange={visible => setVisible(node.id, visible)}
+              className="opacity-0 group-focus-within/tree-item:opacity-100 group-hover/tree-item:opacity-100 group-data-selected/tree-item:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100"
+              visible={!hidden.has(node.id)}
+              onVisibleChange={visible => setVisible(node.id, visible)}
             />
           ) : (
             <TreeViewAction
               aria-label={`Actions for ${node.label}`}
-              className="opacity-0 group-data-hovered/tree-item:opacity-100 focus-visible:opacity-100"
+              className="opacity-0 group-focus-within/tree-item:opacity-100 group-hover/tree-item:opacity-100 focus-visible:opacity-100"
             />
           )
         }
@@ -101,12 +101,9 @@ function ProjectTree({
         className="min-h-0 flex-1 px-2 pb-2"
         items={nodes}
         selectionMode="single"
-        defaultExpandedKeys={defaultExpanded}
-        onSelectionChange={keys => {
-          for (const first of keys) {
-            onSelect?.(String(first))
-            break
-          }
+        defaultExpanded={defaultExpanded}
+        onValueChange={([first]) => {
+          if (first !== undefined) onSelect?.(first)
         }}
       >
         {renderNode}

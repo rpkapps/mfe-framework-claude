@@ -33,6 +33,16 @@ export const emptyFilter: WellsFilter = {
 }
 
 const allStatuses = Object.keys(statusMeta) as WellStatus[]
+const allTypes = Object.keys(typeMeta) as WellType[]
+
+const fieldItems = [
+  { value: 'all', label: 'All fields' },
+  ...fields.map(field => ({ value: field, label: field })),
+]
+const typeItems = [
+  { value: 'all', label: 'All types' },
+  ...allTypes.map(type => ({ value: type, label: typeMeta[type] })),
+]
 
 type WellsFilterBarProps = Omit<React.ComponentProps<'div'>, 'onChange'> & {
   value: WellsFilter
@@ -60,8 +70,9 @@ function WellsFilterBar({
   return (
     <div data-slot="wells-filter-bar" className={cn('flex flex-col gap-3', className)} {...props}>
       <div className="flex flex-col gap-3 md:flex-row md:items-end">
-        <InputGroup aria-label="Search wells" className="md:max-w-xs">
+        <InputGroup className="md:max-w-xs">
           <InputGroupInput
+            aria-label="Search wells"
             placeholder="Search by name, rig or operator…"
             value={value.query}
             onChange={event => set('query', event.target.value)}
@@ -71,41 +82,33 @@ function WellsFilterBar({
           </InputGroupAddon>
         </InputGroup>
         <Select
-          aria-label="Field"
-          className="md:w-48"
-          selectedKey={value.field}
-          onSelectionChange={key => set('field', String(key))}
+          value={value.field}
+          onValueChange={next => set('field', next ?? 'all')}
+          items={fieldItems}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label="Field" className="md:w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem id="all" textValue="All fields">
-              All fields
-            </SelectItem>
-            {fields.map(field => (
-              <SelectItem key={field} id={field} textValue={field}>
-                {field}
+            {fieldItems.map(item => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select
-          aria-label="Well type"
-          className="md:w-44"
-          selectedKey={value.type}
-          onSelectionChange={key => set('type', String(key) as WellsFilter['type'])}
+          value={value.type}
+          onValueChange={next => set('type', next ?? 'all')}
+          items={typeItems}
         >
-          <SelectTrigger>
+          <SelectTrigger aria-label="Well type" className="md:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem id="all" textValue="All types">
-              All types
-            </SelectItem>
-            {(Object.keys(typeMeta) as WellType[]).map(type => (
-              <SelectItem key={type} id={type} textValue={typeMeta[type]}>
-                {typeMeta[type]}
+            {typeItems.map(item => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -115,7 +118,7 @@ function WellsFilterBar({
             variant="ghost"
             size="sm"
             className="md:ml-auto"
-            onPress={() => onChange(emptyFilter)}
+            onClick={() => onChange(emptyFilter)}
           >
             <XIcon /> Clear filters
           </Button>
@@ -127,11 +130,11 @@ function WellsFilterBar({
         <ChipGroup
           aria-label="Status filters"
           selectionMode="multiple"
-          selectedKeys={value.statuses}
-          onSelectionChange={keys =>
+          value={value.statuses}
+          onValueChange={next =>
             set(
               'statuses',
-              keys === 'all' ? allStatuses : allStatuses.filter(status => keys.has(status)),
+              allStatuses.filter(status => next.includes(status)),
             )
           }
         >
@@ -141,8 +144,7 @@ function WellsFilterBar({
               return (
                 <Chip
                   key={status}
-                  id={status}
-                  textValue={statusMeta[status].label}
+                  value={status}
                   size="md"
                   variant={selected ? statusMeta[status].color : 'secondary'}
                   appearance={selected ? 'solid' : 'outline'}
@@ -157,16 +159,16 @@ function WellsFilterBar({
           <ChipGroup
             aria-label="Active status filters"
             className="ml-auto"
-            onRemove={keys =>
+            onRemove={removed =>
               set(
                 'statuses',
-                value.statuses.filter(status => !keys.has(status)),
+                value.statuses.filter(status => !removed.includes(status)),
               )
             }
           >
             <ChipList>
               {value.statuses.map(status => (
-                <Chip key={status} id={status} textValue={statusMeta[status].label}>
+                <Chip key={status} value={status}>
                   {statusMeta[status].label}
                 </Chip>
               ))}

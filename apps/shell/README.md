@@ -438,9 +438,10 @@ link work:
 1. **`package.json`** depends on it as `"*"`, which the `@tecton/react`
    override in `pnpm-workspace.yaml` turns into a `link:` to the checkout
    (`../tecton-ui-1/packages/tecton-react` by default; that one line is the
-   only place the location is written). It also declares its peers (`react-aria-components`, `cn`,
+   only place the location is written). It also declares its peers (`@base-ui/react`, `cn`,
    `class-variance-authority`, `lucide-react`, `next-themes`, `sonner`,
-   `react-resizable-panels`, `react-aria`) plus what its stylesheet imports
+   `react-resizable-panels`, and `react-aria-components`, which Tecton's TreeView
+   and Chip are built on) plus what its stylesheet imports
    (`tailwindcss`, `tw-animate-css`, `shadcn`, `@fontsource/*`), and
    `@shadcn/react`, which the chat's Questionnaire and MessageScroller import.
    pnpm does not install a linked package's own dependencies, so each consumer
@@ -555,8 +556,9 @@ when it does not, instead of failing. So are React's entry points `react/jsx-run
 key, and without them every container downloaded its own react-dom client. The
 shell is not built with the React Compiler, so `@company/mfe-react/host` imports
 `react/compiler-runtime` for it to provide. The rest of
-`@tecton/react/federation/shared` joins that scope: `sonner`,
-`react-aria-components`, and `recharts`, never eager, which the shell installs for the assistant's
+`@tecton/react/federation/shared` joins that scope: `sonner`, `@base-ui/react`
+(the package and, as a prefix share, its subpaths), `react-aria-components`,
+and `recharts`, never eager, which the shell installs for the assistant's
 charts and which loads with the first one; the host shares only what its own
 `node_modules` hold.
 The design system itself is not shared, although that list offers it: every

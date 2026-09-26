@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback } from '@tecton/react/components/avatar'
 import { Button } from '@tecton/react/components/button'
 import {
   DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -15,7 +17,7 @@ import {
 } from '@tecton/react/components/dropdown-menu'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@tecton/react/components/input-group'
 import { Kbd, KbdGroup } from '@tecton/react/components/kbd'
-import { Tooltip, TooltipTrigger } from '@tecton/react/components/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@tecton/react/components/tooltip'
 import {
   AppShellBrand,
   AppShellHeader,
@@ -45,15 +47,19 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
             variant={link.id === activeId ? 'secondary' : 'ghost'}
             size="sm"
             {...(link.id === activeId ? { 'aria-current': 'page' as const } : {})}
-            onPress={() => onNavigate?.(link.id)}
+            onClick={() => onNavigate?.(link.id)}
           >
             {link.label}
           </Button>
         ))}
       </AppShellNav>
       <AppShellActions className="gap-2">
-        <InputGroup className="hidden h-8 w-56 lg:flex" aria-label="Search project">
-          <InputGroupInput placeholder="Search…" className="h-8 text-sm" />
+        <InputGroup className="hidden h-8 w-56 lg:flex">
+          <InputGroupInput
+            aria-label="Search project"
+            placeholder="Search…"
+            className="h-8 text-sm"
+          />
           <InputGroupAddon align="inline-start">
             <SearchIcon />
           </InputGroupAddon>
@@ -64,32 +70,40 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
             </KbdGroup>
           </InputGroupAddon>
         </InputGroup>
-        <TooltipTrigger>
-          <CountBadge count={project.unreadNotifications} color="destructive">
-            <Button variant="ghost" size="icon-sm" aria-label="Notifications">
+        <CountBadge count={project.unreadNotifications} color="destructive">
+          <Tooltip>
+            <TooltipTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label="Notifications" />}
+            >
               <BellIcon />
-            </Button>
-          </CountBadge>
-          <Tooltip>{project.unreadNotifications} unread</Tooltip>
-        </TooltipTrigger>
-        <DropdownMenuTrigger>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
-            aria-label={`Account: ${currentUser.name}`}
+            </TooltipTrigger>
+            <TooltipContent>{project.unreadNotifications} unread</TooltipContent>
+          </Tooltip>
+        </CountBadge>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-full"
+                aria-label={`Account: ${currentUser.name}`}
+              />
+            }
           >
             <Avatar size="sm">
               <AvatarFallback className="text-[0.625rem]">{currentUser.initials}</AvatarFallback>
             </Avatar>
-          </Button>
-          <DropdownMenu placement="bottom end" className="w-56">
-            <DropdownMenuLabel>
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm text-foreground">{currentUser.name}</span>
-                <span className="font-normal">{currentUser.role}</span>
-              </span>
-            </DropdownMenuLabel>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm text-foreground">{currentUser.name}</span>
+                  <span className="font-normal">{currentUser.role}</span>
+                </span>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem>
               <UserIcon /> Profile
@@ -101,8 +115,8 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
             <DropdownMenuItem>
               <LogOutIcon /> Sign out
             </DropdownMenuItem>
-          </DropdownMenu>
-        </DropdownMenuTrigger>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </AppShellActions>
     </AppShellHeader>
   )

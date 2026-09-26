@@ -68,8 +68,8 @@ function Storage(): ReactNode {
           <FieldLabel htmlFor={`${id}-pinned`}>Pinned</FieldLabel>
           <Switch
             id={`${id}-pinned`}
-            isSelected={draft.pinned}
-            onChange={next => {
+            checked={draft.pinned}
+            onCheckedChange={next => {
               setDraft(current => ({ ...current, pinned: next }))
             }}
           />
@@ -88,7 +88,7 @@ function Storage(): ReactNode {
         </p>
         <div className="flex gap-2">
           <Button
-            onPress={() => {
+            onClick={() => {
               setVisits(current => current + 1)
             }}
           >
@@ -96,7 +96,7 @@ function Storage(): ReactNode {
           </Button>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               setVisits(0)
             }}
           >
@@ -113,7 +113,7 @@ function Storage(): ReactNode {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               setReadBack(local.key('draft', draftSchema).get())
             }}
           >
@@ -121,7 +121,7 @@ function Storage(): ReactNode {
           </Button>
           <Button
             variant="outline"
-            onPress={() => {
+            onClick={() => {
               local.remove('draft')
               setReadBack('removed')
             }}

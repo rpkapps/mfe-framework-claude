@@ -176,7 +176,7 @@ const runSimulation = useAction({
   execute: ({ runs }) => simulate(runs),
 })
 
-return <Button onPress={() => void runSimulation({ runs: 10 })}>Run 10 times</Button>
+return <Button onClick={() => void runSimulation({ runs: 10 })}>Run 10 times</Button>
 ```
 
 An action can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such

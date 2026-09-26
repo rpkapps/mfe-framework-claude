@@ -1,6 +1,6 @@
 import { createRootRouteWithContext, Link, Outlet, useParams } from '@tanstack/react-router'
 import type { MfeRouterContext } from '@company/mfe-react'
-import { ScrollArea } from '@tecton/react/components/scroll-area'
+import { ScrollArea, ScrollBar } from '@tecton/react/components/scroll-area'
 import type { ReactNode } from 'react'
 
 import { families } from '../families.ts'
@@ -24,7 +24,7 @@ function LoadersLayout(): ReactNode {
 
       {/* Below `md` the rail becomes a scrolling strip of the same links. */}
       <nav aria-label="Loaders" className="shrink-0 border-b border-border-subtle md:hidden">
-        <ScrollArea className="overflow-x-auto overflow-y-hidden">
+        <ScrollArea>
           <ul className="flex w-max gap-1 p-2">
             {families.flatMap(family =>
               family.loaders.map(loader => (
@@ -44,6 +44,7 @@ function LoadersLayout(): ReactNode {
               )),
             )}
           </ul>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </nav>
 

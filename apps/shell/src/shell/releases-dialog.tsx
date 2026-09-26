@@ -8,6 +8,7 @@ import { Badge } from '@tecton/react/components/badge'
 import {
   Dialog,
   DialogClose,
+  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -40,74 +41,76 @@ const KIND: Record<
 }
 
 export function ReleasesDialog({
-  isOpen,
+  open,
   onOpenChange,
 }: {
-  readonly isOpen: boolean
+  readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
   const [latest] = releases
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={onOpenChange} className="gap-4 sm:max-w-2xl">
-      <DialogHeader>
-        <DialogTitle>What’s new</DialogTitle>
-        <DialogDescription>
-          {latest === undefined
-            ? 'No releases recorded yet.'
-            : `This shell is running ${latest.version}, released ${formatDate(latest.date)}.`}
-        </DialogDescription>
-      </DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="gap-4 sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>What’s new</DialogTitle>
+          <DialogDescription>
+            {latest === undefined
+              ? 'No releases recorded yet.'
+              : `This shell is running ${latest.version}, released ${formatDate(latest.date)}.`}
+          </DialogDescription>
+        </DialogHeader>
 
-      {/* The negative margin matches the dialog's own padding, so the scroll container spans its full width. */}
-      <div className="no-scrollbar -mx-6 max-h-[50vh] overflow-y-auto px-6">
-        <div className="flex flex-col gap-6">
-          {releases.map((release, index) => (
-            <section key={release.version} className="flex flex-col gap-3">
-              <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h3 className="text-base font-medium">{release.title}</h3>
-                <Badge variant={index === 0 ? 'default' : 'secondary'}>{release.version}</Badge>
-                <span className="text-xs text-muted-foreground">{formatDate(release.date)}</span>
-              </header>
-              <p className="text-sm text-muted-foreground">{release.summary}</p>
-              <ItemGroup className="gap-2">
-                {release.notes.map(note => (
-                  <Item key={note.text} variant="outline" size="sm" className="items-start">
-                    <ItemMedia>
-                      <Badge
-                        variant={KIND[note.kind].variant}
-                        appearance="outline"
-                        className="w-20"
-                      >
-                        {KIND[note.kind].icon}
-                        {KIND[note.kind].label}
-                      </Badge>
-                    </ItemMedia>
-                    <ItemContent>
-                      {/* An Item clamps its description to two lines, which is wrong for a note you read. */}
-                      <ItemDescription className="line-clamp-none text-foreground">
-                        {note.text}
-                      </ItemDescription>
-                    </ItemContent>
-                  </Item>
-                ))}
-              </ItemGroup>
-            </section>
-          ))}
+        {/* The negative margin matches the dialog's own padding, so the scroll container spans its full width. */}
+        <div className="no-scrollbar -mx-6 max-h-[50vh] overflow-y-auto px-6">
+          <div className="flex flex-col gap-6">
+            {releases.map((release, index) => (
+              <section key={release.version} className="flex flex-col gap-3">
+                <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h3 className="text-base font-medium">{release.title}</h3>
+                  <Badge variant={index === 0 ? 'default' : 'secondary'}>{release.version}</Badge>
+                  <span className="text-xs text-muted-foreground">{formatDate(release.date)}</span>
+                </header>
+                <p className="text-sm text-muted-foreground">{release.summary}</p>
+                <ItemGroup className="gap-2">
+                  {release.notes.map(note => (
+                    <Item key={note.text} variant="outline" size="sm" className="items-start">
+                      <ItemMedia>
+                        <Badge
+                          variant={KIND[note.kind].variant}
+                          appearance="outline"
+                          className="w-20"
+                        >
+                          {KIND[note.kind].icon}
+                          {KIND[note.kind].label}
+                        </Badge>
+                      </ItemMedia>
+                      <ItemContent>
+                        {/* An Item clamps its description to two lines, which is wrong for a note you read. */}
+                        <ItemDescription className="line-clamp-none text-foreground">
+                          {note.text}
+                        </ItemDescription>
+                      </ItemContent>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              </section>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <DialogFooter>
-        <Button
-          variant="ghost"
-          onPress={() => {
-            shellUi.show('help')
-          }}
-        >
-          Open help
-        </Button>
-        <DialogClose>Close</DialogClose>
-      </DialogFooter>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              shellUi.show('help')
+            }}
+          >
+            Open help
+          </Button>
+          <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }

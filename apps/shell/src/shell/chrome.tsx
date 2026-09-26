@@ -3,7 +3,15 @@
  * below them. Every export here is a component, so React Refresh can replace it in place (§18).
  */
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -21,6 +29,7 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from '@tecton/react/components/breadcrumb'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -29,7 +38,6 @@ import {
   DropdownMenuSeparator,
 } from '@tecton/react/components/dropdown-menu'
 import { Toaster } from '@tecton/react/components/sonner'
-import { RouterProvider as AriaRouterProvider } from 'react-aria-components'
 import {
   AppFinder,
   AppFinderGroup,
@@ -51,6 +59,8 @@ import {
   AppShellOverflow,
   AppShellUserMenu,
 } from '@tecton/react/tecton/app-shell'
+import { Link } from '@tecton/react/tecton/link'
+import { TectonProvider } from '@tecton/react/tecton/provider'
 import {
   BotIcon,
   BugIcon,
@@ -85,6 +95,7 @@ import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
+import { ShortcutKeys } from './shortcut-keys.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
@@ -151,11 +162,19 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     enableBeforeUnload: () => runtime.navigator.wantsUnloadPrompt(),
   })
 
+  // Stable across renders, because the provider's value changes with it and every link reads it.
+  const navigateTo = useCallback(
+    (href: string) => {
+      void navigate({ to: href })
+    },
+    [navigate],
+  )
+
   return (
-    // A React Aria link with an `href` is a document navigation unless a router is provided, and
-    // every breadcrumb click tore the shell down. It covers the surfaces too, whose rows link to
-    // an application's pages; an App mounts in a root of its own, so none of this reaches it.
-    <AriaRouterProvider navigate={to => void navigate({ to })}>
+    // A Tecton link with an `href` is a document navigation unless the provider carries a router,
+    // and every breadcrumb click tore the shell down. It covers the surfaces too, whose rows link
+    // to an application's pages; an App mounts in a root of its own, so none of this reaches it.
+    <TectonProvider navigate={navigateTo}>
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
         <Header />
@@ -167,17 +186,17 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
 
       {/* Every shell surface is mounted here and opened from the store, so none needs to know where another lives. */}
       <CommandPalette open={surface === 'palette'} onOpenChange={closeOnDismiss} />
-      <SettingsSheet isOpen={surface === 'settings'} onOpenChange={closeOnDismiss} />
-      <HelpSheet isOpen={surface === 'help'} onOpenChange={closeOnDismiss} />
-      <ReleasesDialog isOpen={surface === 'releases'} onOpenChange={closeOnDismiss} />
-      <ReportBugDialog isOpen={surface === 'bug'} onOpenChange={closeOnDismiss} />
+      <SettingsSheet open={surface === 'settings'} onOpenChange={closeOnDismiss} />
+      <HelpSheet open={surface === 'help'} onOpenChange={closeOnDismiss} />
+      <ReleasesDialog open={surface === 'releases'} onOpenChange={closeOnDismiss} />
+      <ReportBugDialog open={surface === 'bug'} onOpenChange={closeOnDismiss} />
       <ChatSheet />
-      <ChatUnavailableSheet isOpen={surface === 'assistant'} onOpenChange={closeOnDismiss} />
+      <ChatUnavailableSheet open={surface === 'assistant'} onOpenChange={closeOnDismiss} />
       {/* Not a member of `ShellSurface`: the developer tools own their open state and are not modal (§22). */}
       <MfeDevtools />
       {/* Explicit: the Toaster otherwise reads next-themes and falls back to the system preference. */}
       <Toaster position="bottom-right" theme={theme} />
-    </AriaRouterProvider>
+    </TectonProvider>
   )
 }
 
@@ -189,20 +208,20 @@ function AssistantAction(): ReactNode {
     <AppShellAction
       id={ASSISTANT_BUTTON_ID}
       label="Assistant"
-      shortcut="mod+i"
+      shortcut={<ShortcutKeys keys="mod+i" />}
       {...(chat === null
         ? {}
         : {
             'aria-pressed': panel.open,
             // The chat's code loads on first use; reaching for the button starts it early.
-            onHoverStart: () => {
+            onPointerEnter: () => {
               chat.preload()
             },
             onFocus: () => {
               chat.preload()
             },
           })}
-      onPress={() => {
+      onClick={() => {
         if (chat === null) shellUi.toggle('assistant')
         else if (panel.open) chat.panel.hide()
         else chat.panel.focus()
@@ -219,7 +238,7 @@ function SignOutItem(): ReactNode {
 
   if (session.mode === 'disabled') {
     return (
-      <DropdownMenuItem textValue="Sign-in is off" isDisabled>
+      <DropdownMenuItem disabled>
         <LogOutIcon /> Sign-in is off
       </DropdownMenuItem>
     )
@@ -227,8 +246,7 @@ function SignOutItem(): ReactNode {
 
   return (
     <DropdownMenuItem
-      textValue="Sign out"
-      onAction={() => {
+      onClick={() => {
         session.signOut().catch(() => {
           toast.error('Sign-out did not complete.', {
             description: 'The identity provider could not be reached. Try again in a moment.',
@@ -287,8 +305,7 @@ function Header(): ReactNode {
         <AppFinderMenu>
           <AppFinderInput />
           <AppFinderList
-            onAction={key => {
-              const id = String(key)
+            onSelect={id => {
               void (id === '@dashboard'
                 ? navigate({ to: '/' })
                 : navigate({ to: '/$appId', params: { appId: id } }))
@@ -296,7 +313,7 @@ function Header(): ReactNode {
           >
             <AppFinderGroup heading="Shell">
               <AppFinderItem
-                id={DASHBOARD.id}
+                value={DASHBOARD.id}
                 icon={DASHBOARD.icon}
                 tone={DASHBOARD.tone}
                 name={DASHBOARD.name}
@@ -308,7 +325,7 @@ function Header(): ReactNode {
               {apps.map(app => (
                 <AppFinderItem
                   key={app.id}
-                  id={app.id}
+                  value={app.id}
                   {...appFace(app.id, app)}
                   description={app.manifestUrl}
                   keywords={[app.id]}
@@ -326,7 +343,7 @@ function Header(): ReactNode {
         size="icon-sm"
         aria-label="Widget dashboard"
         className="hidden sm:inline-flex"
-        onPress={() => {
+        onClick={() => {
           void navigate({ to: '/' })
         }}
       >
@@ -340,7 +357,8 @@ function Header(): ReactNode {
       {/* Below `lg` these move into the overflow menu rather than disappearing, because a button absent at one width is a feature the user cannot find. */}
       <AppShellActions>
         <AppShellCommandTrigger
-          onPress={() => {
+          shortcut={<ShortcutKeys keys="mod+k" />}
+          onClick={() => {
             shellUi.show('palette')
           }}
         >
@@ -349,8 +367,8 @@ function Header(): ReactNode {
         <AssistantAction />
         <AppShellAction
           label="Help"
-          shortcut="?"
-          onPress={() => {
+          shortcut={<ShortcutKeys keys="?" />}
+          onClick={() => {
             shellUi.show('help')
           }}
         >
@@ -359,7 +377,7 @@ function Header(): ReactNode {
         <AppShellAction
           label="What’s new"
           className="hidden lg:inline-flex"
-          onPress={() => {
+          onClick={() => {
             shellUi.show('releases')
           }}
         >
@@ -368,7 +386,7 @@ function Header(): ReactNode {
         <AppShellAction
           label="Report a bug"
           className="hidden lg:inline-flex"
-          onPress={() => {
+          onClick={() => {
             shellUi.show('bug')
           }}
         >
@@ -376,9 +394,9 @@ function Header(): ReactNode {
         </AppShellAction>
         <AppShellAction
           label="Settings"
-          shortcut="g s"
+          shortcut={<ShortcutKeys keys="g s" />}
           className="hidden lg:inline-flex"
-          onPress={() => {
+          onClick={() => {
             shellUi.show('settings')
           }}
         >
@@ -388,24 +406,21 @@ function Header(): ReactNode {
         <AppShellOverflow label="More" className="lg:hidden">
           <DropdownMenuGroup>
             <DropdownMenuItem
-              textValue="What's new"
-              onAction={() => {
+              onClick={() => {
                 shellUi.show('releases')
               }}
             >
               <SparklesIcon /> What’s new
             </DropdownMenuItem>
             <DropdownMenuItem
-              textValue="Report a bug"
-              onAction={() => {
+              onClick={() => {
                 shellUi.show('bug')
               }}
             >
               <BugIcon /> Report a bug
             </DropdownMenuItem>
             <DropdownMenuItem
-              textValue="Settings"
-              onAction={() => {
+              onClick={() => {
                 shellUi.show('settings')
               }}
             >
@@ -423,8 +438,7 @@ function Header(): ReactNode {
         >
           <DropdownMenuGroup>
             <DropdownMenuItem
-              textValue="Switch theme"
-              onAction={() => {
+              onClick={() => {
                 runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
               }}
             >
@@ -432,16 +446,14 @@ function Header(): ReactNode {
               {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
             </DropdownMenuItem>
             <DropdownMenuItem
-              textValue="Settings"
-              onAction={() => {
+              onClick={() => {
                 shellUi.show('settings')
               }}
             >
               <SettingsIcon /> Settings
             </DropdownMenuItem>
             <DropdownMenuItem
-              textValue="Help and keyboard shortcuts"
-              onAction={() => {
+              onClick={() => {
                 shellUi.show('help')
               }}
             >
@@ -451,8 +463,7 @@ function Header(): ReactNode {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem
-              textValue="Copy diagnostics"
-              onAction={() => {
+              onClick={() => {
                 const report = formatReport(
                   'Shell diagnostics',
                   'Copied from the account menu.',
@@ -514,17 +525,24 @@ function Breadcrumbs(): ReactNode {
   return (
     <Breadcrumb>
       <BreadcrumbList className="flex-nowrap">
-        {trail.map((item, index) =>
-          index === trail.length - 1 || item.href === undefined ? (
-            <Crumb key={item.key} className="min-w-0">
-              <BreadcrumbPage>{item.label}</BreadcrumbPage>
-            </Crumb>
-          ) : (
-            <Crumb key={item.key} className="hidden md:inline-flex">
-              <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
-            </Crumb>
-          ),
-        )}
+        {trail.map((item, index) => {
+          const last = index === trail.length - 1
+          const page = last || item.href === undefined
+          // A link crumb is hidden on narrow screens, and the separator after it goes with it.
+          const visibility = page ? 'min-w-0' : 'hidden md:inline-flex'
+          return (
+            <Fragment key={item.key}>
+              <Crumb className={visibility}>
+                {page ? (
+                  <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink render={<Link href={item.href} />}>{item.label}</BreadcrumbLink>
+                )}
+              </Crumb>
+              {last ? null : <BreadcrumbSeparator className={visibility} />}
+            </Fragment>
+          )
+        })}
       </BreadcrumbList>
     </Breadcrumb>
   )

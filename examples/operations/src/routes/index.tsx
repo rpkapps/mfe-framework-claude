@@ -86,7 +86,7 @@ function Overview(): ReactNode {
             Share
           </CopyButton>
           <Button
-            onPress={() => {
+            onClick={() => {
               setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
             }}
           >
@@ -169,7 +169,7 @@ function Overview(): ReactNode {
             fallback={({ error, retry }) => (
               <div role="alert" className="rounded-md border border-destructive/40 p-4">
                 <p className="text-sm whitespace-pre-wrap">{error.message}</p>
-                <Button variant="outline" size="sm" className="mt-2" onPress={retry}>
+                <Button variant="outline" size="sm" className="mt-2" onClick={retry}>
                   Retry
                 </Button>
               </div>

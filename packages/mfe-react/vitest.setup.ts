@@ -53,6 +53,17 @@ if (!('ResizeObserver' in globalThis)) {
   }
 }
 
+/*
+ * jsdom implements no Web Animations API, and the design system's primitives
+ * ask an element for its running animations before settling a transition: the
+ * scroll area does so on a timer after mount, so without this the TypeError
+ * surfaces as an uncaught exception in whichever test happens to run next. No
+ * animation ever runs in jsdom, so an empty list is what a browser would report.
+ */
+if (typeof Element !== 'undefined' && typeof Element.prototype.getAnimations !== 'function') {
+  Element.prototype.getAnimations = () => []
+}
+
 // Automatic cleanup after every test so no mount, root, subscription or
 // registration leaks into the next one. The generated-alias fixtures are
 // module state and would otherwise carry one test's configuration and request

@@ -82,7 +82,7 @@ const [unanswered, setUnanswered] = useState(false)
 <Button
   variant="outline"
   size="sm"
-  onPress={() => {
+  onClick={() => {
     // Whether a chat took it: the shell may have none.
     setUnanswered(
       !prompt({ message: `What stands out in ${design.name}?`, context: { wellId: design.id } }),

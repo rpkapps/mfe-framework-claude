@@ -33,7 +33,10 @@ function FdaComparisonTable({
   onAddComparison,
   ...props
 }: FdaComparisonTableProps) {
-  const [rows, setRows] = React.useState(data)
+  // Copies are numbered by a counter that only grows, so an id is never
+  // reused after a row is deleted (the row count would repeat). It shares a
+  // state with the rows so a copy reads and advances it in the same update.
+  const [{ rows }, setList] = React.useState({ rows: data, copies: 0 })
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
 
@@ -41,17 +44,29 @@ function FdaComparisonTable({
     () =>
       createFdaColumns({
         onOpen,
-        onDuplicate: fda =>
-          setRows(current => [
+        onDuplicate: fda => {
+          setList(current => {
+            const copies = current.copies + 1
+            return {
+              copies,
+              rows: [
+                ...current.rows,
+                {
+                  ...fda,
+                  id: `${fda.id}-copy-${String(copies)}`,
+                  code: `${fda.code} (copy)`,
+                  status: 'screening',
+                },
+              ],
+            }
+          })
+        },
+        onDelete: fda => {
+          setList(current => ({
             ...current,
-            {
-              ...fda,
-              id: `${fda.id}-copy-${current.length}`,
-              code: `${fda.code} (copy)`,
-              status: 'screening',
-            },
-          ]),
-        onDelete: fda => setRows(current => current.filter(row => row.id !== fda.id)),
+            rows: current.rows.filter(row => row.id !== fda.id),
+          }))
+        },
       }),
     [onOpen],
   )
@@ -67,11 +82,6 @@ function FdaComparisonTable({
   })
 
   const selectedCount = table.getSelectedRowModel().rows.length
-  const [primarySort] = sorting
-  const sortDirection: 'ascending' | 'descending' = primarySort?.desc ? 'descending' : 'ascending'
-  const sortDescriptor = primarySort
-    ? { column: primarySort.id, direction: sortDirection }
-    : undefined
 
   return (
     <div
@@ -82,65 +92,100 @@ function FdaComparisonTable({
       )}
       {...props}
     >
-      <Table
-        aria-label="Field development alternatives"
-        selectionMode="multiple"
-        selectedKeys={table.getSelectedRowModel().rows.map(row => row.id)}
-        onSelectionChange={selection => {
-          if (selection === 'all') {
-            table.toggleAllRowsSelected(true)
-          } else {
-            table.setRowSelection(
-              Object.fromEntries([...selection].map(key => [String(key), true])),
-            )
-          }
-        }}
-        {...(sortDescriptor === undefined ? {} : { sortDescriptor })}
-        onSortChange={descriptor =>
-          table.setSorting([
-            {
-              id: String(descriptor.column),
-              desc: descriptor.direction === 'descending',
-            },
-          ])
-        }
-      >
+      <Table aria-label="Field development alternatives">
         <TableHeader className="bg-muted [&_tr]:border-border-subtle">
-          {table.getFlatHeaders().map(header => (
-            <TableHead
-              key={header.id}
-              id={header.id}
-              isRowHeader={header.index === 2}
-              allowsSorting={header.column.getCanSort()}
-              className={cn('h-9 px-2 text-xs', header.column.id === 'select' && 'w-10')}
-            >
-              {header.isPlaceholder ? null : <table.FlexRender header={header} />}
-            </TableHead>
-          ))}
-        </TableHeader>
-        <TableBody
-          renderEmptyState={() => (
-            <div className="py-8 text-center text-muted-foreground">No alternatives yet.</div>
-          )}
-          className="[&_tr]:border-border-subtle [&_tr:nth-child(even)]:bg-surface-alt/60"
-        >
-          {table.getRowModel().rows.map(row => (
-            <TableRow
-              key={row.id}
-              id={row.id}
-              onAction={() => onOpen?.(row.original)}
-              className="hover:bg-accent/60 data-selected:bg-accent"
-            >
-              {row.getAllCells().map(cell => (
-                <TableCell
-                  key={cell.id}
-                  className={cn('h-9 px-2', cell.column.id === 'select' && 'w-10')}
+          <tr>
+            {table.getFlatHeaders().map(header => {
+              const sortable = header.column.getCanSort()
+              const sorted = header.column.getIsSorted()
+              const content = header.isPlaceholder ? null : <table.FlexRender header={header} />
+              return (
+                <TableHead
+                  key={header.id}
+                  aria-sort={
+                    !sortable
+                      ? undefined
+                      : sorted === 'asc'
+                        ? 'ascending'
+                        : sorted === 'desc'
+                          ? 'descending'
+                          : 'none'
+                  }
+                  className={cn('h-9 px-2 text-xs', header.column.id === 'select' && 'w-10')}
                 >
-                  <table.FlexRender cell={cell} />
-                </TableCell>
-              ))}
+                  {sortable ? (
+                    // Ascending first, then toggles; one sorted column.
+                    <button
+                      type="button"
+                      className="-mx-1 rounded-sm px-1 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => header.column.toggleSorting(sorted === 'asc', false)}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    content
+                  )}
+                </TableHead>
+              )
+            })}
+          </tr>
+        </TableHeader>
+        <TableBody className="[&_tr]:border-border-subtle [&_tr:nth-child(even)]:bg-surface-alt/60">
+          {table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={table.getFlatHeaders().length}
+                className="py-8 text-center text-muted-foreground"
+              >
+                No alternatives yet.
+              </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            table.getRowModel().rows.map(row => (
+              <TableRow
+                key={row.id}
+                data-selected={row.getIsSelected() ? '' : undefined}
+                onClick={event => {
+                  // Not a click on the row's checkbox or menu, nor one that
+                  // reached it through a portal (the menu's popup).
+                  const target = event.target as Element
+                  if (
+                    !onOpen ||
+                    !event.currentTarget.contains(target) ||
+                    target.closest('button, a, input, [role=checkbox]')
+                  )
+                    return
+                  onOpen(row.original)
+                }}
+                className={cn(
+                  'hover:bg-accent/60 data-[selected]:bg-accent',
+                  onOpen && 'cursor-pointer',
+                )}
+              >
+                {row.getAllCells().map(cell =>
+                  // The FDA column names the row: a row header, so a
+                  // screen reader reads it with every cell of the row.
+                  cell.column.id === 'code' ? (
+                    <th
+                      key={cell.id}
+                      scope="row"
+                      data-slot="table-cell"
+                      className="h-9 px-2 py-3 text-start align-middle font-normal whitespace-nowrap"
+                    >
+                      <table.FlexRender cell={cell} />
+                    </th>
+                  ) : (
+                    <TableCell
+                      key={cell.id}
+                      className={cn('h-9 px-2', cell.column.id === 'select' && 'w-10')}
+                    >
+                      <table.FlexRender cell={cell} />
+                    </TableCell>
+                  ),
+                )}
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
       <div
@@ -154,7 +199,7 @@ function FdaComparisonTable({
           <Button
             variant="ghost"
             size="xs"
-            {...(onAddComparison === undefined ? {} : { onPress: onAddComparison })}
+            {...(onAddComparison === undefined ? {} : { onClick: onAddComparison })}
           >
             <PlusIcon /> Add comparison
             {selectedCount > 1 && <span className="text-muted-foreground">({selectedCount})</span>}

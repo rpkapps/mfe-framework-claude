@@ -40,7 +40,7 @@ import { DynamicWidget } from '@company/mfe-react'
   fallback={({ error, retry }) => (
     <div role="alert">
       <p>{error.message}</p>
-      <Button onPress={retry}>Retry</Button>
+      <Button onClick={retry}>Retry</Button>
     </div>
   )}
 />

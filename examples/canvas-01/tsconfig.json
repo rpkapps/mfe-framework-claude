@@ -11,12 +11,10 @@
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],
       "react-dom/client": ["./node_modules/@types/react-dom/client"],
-      "react-aria": ["./node_modules/react-aria"],
-      "react-aria/*": ["./node_modules/react-aria/*"],
-      "react-aria-components": ["./node_modules/react-aria-components"],
+      "@base-ui/react": ["./node_modules/@base-ui/react"],
+      "@base-ui/react/*": ["./node_modules/@base-ui/react/*"],
       "react-resizable-panels": ["./node_modules/react-resizable-panels"],
-      "cn": ["./node_modules/cn"],
-      "lucide-react": ["./node_modules/lucide-react"]
+      "cn": ["./node_modules/cn"]
     }
   },
   // vitest.setup.ts is in the program because it carries the matcher

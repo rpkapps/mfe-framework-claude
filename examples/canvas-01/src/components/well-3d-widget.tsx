@@ -198,12 +198,12 @@ export function SubsurfaceWell3dWidget(
           </CanvasOverlay>
         ) : (
           <>
-            <CanvasOverlay position="top-left">
+            <CanvasOverlay position="top-start">
               <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-card/90 px-2 py-1 text-[10px] text-muted-foreground shadow-md backdrop-blur-sm">
                 <div className="whitespace-nowrap">Drag · scroll · R reset</div>
               </div>
             </CanvasOverlay>
-            <CanvasOverlay position="bottom-right">
+            <CanvasOverlay position="bottom-end">
               <CanvasLegend aria-label="Interpreted horizons">
                 {surfaceDefinitions.map((surface, index) => (
                   <CanvasLegendItem

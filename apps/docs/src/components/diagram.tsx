@@ -2,7 +2,11 @@
 
 import * as React from 'react'
 import { Button } from '@tecton/react/components/button'
-import { Collapsible, CollapsibleContent } from '@tecton/react/components/collapsible'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@tecton/react/components/collapsible'
 import { cn } from 'cn'
 import { ChevronDownIcon } from 'lucide-react'
 
@@ -44,19 +48,22 @@ export function Diagram({
           </figcaption>
         )}
       </figure>
-      <Collapsible isExpanded={isOpen} onExpandedChange={setIsOpen} className="mt-3">
-        <Button
-          slot="trigger"
-          variant="ghost"
-          size="sm"
-          className="not-typeset -ml-2 text-muted-foreground hover:text-foreground"
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="not-typeset -ml-2 text-muted-foreground hover:text-foreground"
+            />
+          }
         >
           <ChevronDownIcon
             data-icon="inline-start"
             className={cn('transition-transform', isOpen && 'rotate-180')}
           />
           Read this diagram as text
-        </Button>
+        </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="typeset rounded-xl border border-border-subtle px-4 py-3 text-sm">
             {children}

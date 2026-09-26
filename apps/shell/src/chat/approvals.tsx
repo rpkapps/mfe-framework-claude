@@ -83,7 +83,7 @@ function ApprovalCard({
         <Button
           variant="outline"
           size="sm"
-          onPress={() => {
+          onClick={() => {
             answer(false)
           }}
         >
@@ -91,7 +91,7 @@ function ApprovalCard({
         </Button>
         <Button
           size="sm"
-          onPress={() => {
+          onClick={() => {
             answer(true)
           }}
         >
@@ -131,7 +131,7 @@ function QuestionCard({
         <Button
           variant="outline"
           size="sm"
-          onPress={() => {
+          onClick={() => {
             focusAfterAnswer(chat, card.current)
             interrupt.cancel()
           }}
@@ -140,7 +140,7 @@ function QuestionCard({
         </Button>
         <Button
           size="sm"
-          onPress={() => {
+          onClick={() => {
             focusAfterAnswer(chat, card.current)
             interrupt.resolveInterrupt({})
           }}

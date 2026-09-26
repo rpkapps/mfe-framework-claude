@@ -12,6 +12,7 @@ import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
   DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -100,9 +101,7 @@ export function Tile({
       <Panel
         className={`h-full w-full transition-shadow ${isMoving ? 'shadow-lg ring-1 ring-primary' : ''}`}
       >
-        {/* The whole header drags, which is where anyone reaches for a tile. It has to be this
-            element rather than a Button inside it: React Aria runs a Button's props through
-            `filterDOMProps`, which drops `onPointerDown` before it reaches the DOM. */}
+        {/* The whole header drags, which is where anyone reaches for a tile. */}
         <PanelHeader
           className="cursor-grab active:cursor-grabbing"
           onPointerDown={event => {
@@ -112,7 +111,7 @@ export function Tile({
             onMoveStart(event)
           }}
         >
-          {/* A plain element for the same reason, and focusable so the keyboard can place a tile. */}
+          {/* The grip is the header's keyboard handle: focusable, so the keyboard can place a tile too. */}
           <span
             role="button"
             tabIndex={0}
@@ -139,19 +138,20 @@ export function Tile({
             {summarizeInputs(tile.inputs)}
           </span>
           <PanelActions>
-            <Button variant="ghost" size="icon-sm" aria-label="Change inputs" onPress={onConfigure}>
+            <Button variant="ghost" size="icon-sm" aria-label="Change inputs" onClick={onConfigure}>
               <SlidersHorizontalIcon />
             </Button>
-            <DropdownMenuTrigger>
-              <Button variant="ghost" size="icon-sm" aria-label="Tile options">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon-sm" aria-label="Tile options" />}
+              >
                 <MoreVerticalIcon />
-              </Button>
-              <DropdownMenu placement="bottom end" className="min-w-52">
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-52">
                 {TILE_PRESETS.map(preset => (
                   <DropdownMenuItem
                     key={preset.label}
-                    textValue={preset.label}
-                    onAction={() => {
+                    onClick={() => {
                       onResize({ w: preset.w, h: preset.h })
                     }}
                   >
@@ -164,11 +164,11 @@ export function Tile({
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem textValue="Remove" variant="destructive" onAction={onRemove}>
+                <DropdownMenuItem variant="destructive" onClick={onRemove}>
                   <Trash2Icon /> Remove from dashboard
                 </DropdownMenuItem>
-              </DropdownMenu>
-            </DropdownMenuTrigger>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </PanelActions>
         </PanelHeader>
 
@@ -236,7 +236,7 @@ const MountedWidget = memo(function TileWidget({
           </div>
           <p className="text-sm whitespace-pre-wrap text-muted-foreground">{error.message}</p>
           <div>
-            <Button variant="outline" size="sm" onPress={retry}>
+            <Button variant="outline" size="sm" onClick={retry}>
               <RotateCcwIcon /> Retry
             </Button>
           </div>

@@ -48,18 +48,18 @@ export function RegistryTab(): ReactNode {
 
   return (
     <Tabs
-      defaultSelectedKey={rejected.length > 0 ? 'rejected' : 'loaded'}
+      defaultValue={rejected.length > 0 ? 'rejected' : 'loaded'}
       className="flex min-h-0 flex-col gap-2.5"
     >
       {/* An underline bar, so these read as a filter rather than a second copy of the panel's own tabs. */}
       <TabsList variant="line" aria-label="Registry entries" className="h-8 w-fit">
-        <TabsTrigger id="loaded">
+        <TabsTrigger value="loaded">
           <CircleCheckIcon /> Loaded
           <Badge variant="secondary" size="default">
             {accepted.length}
           </Badge>
         </TabsTrigger>
-        <TabsTrigger id="rejected">
+        <TabsTrigger value="rejected">
           <TriangleAlertIcon /> Rejected
           <Badge variant={rejected.length > 0 ? 'destructive' : 'secondary'} size="default">
             {rejected.length}
@@ -67,7 +67,7 @@ export function RegistryTab(): ReactNode {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent id="loaded">
+      <TabsContent value="loaded">
         {accepted.length === 0 ? (
           <Empty className={PROSE}>
             <EmptyHeader>
@@ -89,7 +89,7 @@ export function RegistryTab(): ReactNode {
         )}
       </TabsContent>
 
-      <TabsContent id="rejected">
+      <TabsContent value="rejected">
         {rejected.length === 0 ? (
           <Empty className={PROSE}>
             <EmptyHeader>

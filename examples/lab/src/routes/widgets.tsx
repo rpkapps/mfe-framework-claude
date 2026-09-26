@@ -62,24 +62,19 @@ function Widgets(): ReactNode {
             />
           </Field>
           <Field>
-            <FieldLabel id={`${id}-severity-label`} htmlFor={`${id}-severity`}>
-              severity
-            </FieldLabel>
-            {/* React Aria names the trigger through `aria-labelledby`, which outranks `<label for>`. */}
+            <FieldLabel htmlFor={`${id}-severity`}>severity</FieldLabel>
             <Select
-              aria-labelledby={`${id}-severity-label`}
-              className="w-full"
-              selectedKey={severity}
-              onSelectionChange={key => {
-                setSeverity(String(key) as (typeof SEVERITIES)[number])
+              value={severity}
+              onValueChange={next => {
+                if (next !== null) setSeverity(next)
               }}
             >
-              <SelectTrigger id={`${id}-severity`}>
+              <SelectTrigger id={`${id}-severity`} className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {SEVERITIES.map(option => (
-                  <SelectItem key={option} id={option} textValue={option}>
+                  <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>
                 ))}
@@ -161,7 +156,7 @@ function Widgets(): ReactNode {
           <div>
             <Button
               variant="outline"
-              onPress={() => {
+              onClick={() => {
                 setShowMissing(true)
               }}
             >
@@ -188,7 +183,7 @@ function WidgetFailure({
       <code className="font-mono text-xs text-destructive">{code}</code>
       <p className="text-sm whitespace-pre-wrap text-muted-foreground">{message}</p>
       <div>
-        <Button variant="outline" size="sm" onPress={onRetry}>
+        <Button variant="outline" size="sm" onClick={onRetry}>
           Retry
         </Button>
       </div>

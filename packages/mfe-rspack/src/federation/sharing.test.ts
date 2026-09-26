@@ -81,6 +81,8 @@ describe('the React sharing policy', () => {
       // Then `@tecton/react/federation/shared` in its own order, less the design system itself
       // and what the adapter already decides.
       'sonner',
+      '@base-ui/react',
+      '@base-ui/react/',
       'react-aria-components',
       'recharts',
     ])
@@ -119,6 +121,8 @@ describe('the React sharing policy', () => {
       Object.entries(shared).map(([name, entry]) => [name, entry.shareScope]),
     )
     expect(scopes).toEqual({
+      '@base-ui/react': REACT_SCOPE,
+      '@base-ui/react/': REACT_SCOPE,
       '@company/mfe-core': 'default',
       '@company/mfe-runtime': 'default',
       '@tanstack/react-query': REACT_SCOPE,
@@ -131,6 +135,32 @@ describe('the React sharing policy', () => {
       'react/jsx-runtime': REACT_SCOPE,
       recharts: REACT_SCOPE,
       sonner: REACT_SCOPE,
+    })
+  })
+
+  it("shares Base UI's package and its subpaths in the React scope at the installed version", () => {
+    const shared = resolveReactShared({
+      dependencies: {
+        '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
+        '@base-ui/react': 'catalog:',
+      },
+      installedVersion: name => (name === '@base-ui/react' ? '1.8.0' : undefined),
+    })
+
+    // The root and the prefix are separate share keys: Tecton imports both `@base-ui/react` and
+    // `@base-ui/react/dialog`, and a prefix share does not match the bare package.
+    expect(shared['@base-ui/react']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '1.8.0',
+      shareScope: REACT_SCOPE,
+    })
+    expect(shared['@base-ui/react/']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '1.8.0',
+      version: '1.8.0',
+      shareScope: REACT_SCOPE,
     })
   })
 

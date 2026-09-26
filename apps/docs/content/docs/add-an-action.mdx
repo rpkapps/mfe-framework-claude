@@ -78,7 +78,7 @@ const acknowledge = useAction({
   },
 })
 
-return <Button onPress={() => void acknowledge()}>Acknowledge</Button>
+return <Button onClick={() => void acknowledge()}>Acknowledge</Button>
 ```
 
 `useAction` returns a function that runs the action through the palette's checks. It runs this

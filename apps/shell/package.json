@@ -12,6 +12,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@company/mfe-agent": "workspace:*",
     "@company/mfe-angular": "workspace:*",
     "@company/mfe-devtools": "workspace:*",
@@ -33,7 +34,6 @@
     "oidc-client-ts": "catalog:",
     "open-props": "catalog:",
     "react": "catalog:",
-    "react-aria": "3.52.1",
     "react-aria-components": "^1.21.1",
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.12.4",

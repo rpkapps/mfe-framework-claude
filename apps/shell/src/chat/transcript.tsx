@@ -143,7 +143,7 @@ function AssistantMessage({
                     <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       Thinking
                       <ChevronDownIcon
-                        className="size-3.5 transition-transform group-data-expanded/thinking:rotate-180"
+                        className="size-3.5 transition-transform group-data-open/thinking:rotate-180"
                         aria-hidden
                       />
                     </CollapsibleTrigger>

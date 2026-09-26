@@ -19,7 +19,8 @@
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],
       "react-dom/client": ["./node_modules/@types/react-dom/client"],
-      "react-aria-components": ["./node_modules/react-aria-components"],
+      "@base-ui/react": ["./node_modules/@base-ui/react"],
+      "@base-ui/react/*": ["./node_modules/@base-ui/react/*"],
       "class-variance-authority": ["./node_modules/class-variance-authority"],
       "cn": ["./node_modules/cn"],
       "lucide-react": ["./node_modules/lucide-react"]

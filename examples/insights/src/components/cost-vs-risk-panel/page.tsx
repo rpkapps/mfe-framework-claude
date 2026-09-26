@@ -26,6 +26,12 @@ import { QuadrantChart } from './components/quadrant-chart'
 import { axisOptions, designs as allDesigns, metrics } from './data'
 import type { DesignPoint } from './data'
 
+/** The axis names the Select shows for each value. */
+const axisItems = axisOptions.map(option => ({
+  value: option.id,
+  label: option.label,
+}))
+
 type CostVsRiskPanelProps = Omit<React.ComponentProps<typeof Panel>, 'children'> & {
   designs?: DesignPoint[]
   defaultSelected?: string[]
@@ -51,13 +57,8 @@ function CostVsRiskPanel({
       <PanelHeader>
         <PanelTitle className="text-base">{selected.length} Selected</PanelTitle>
         <PanelActions>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Collapse panel"
-            {...(onCollapse === undefined ? {} : { onPress: onCollapse })}
-          >
-            <PanelRightIcon />
+          <Button variant="ghost" size="icon-sm" aria-label="Collapse panel" onClick={onCollapse}>
+            <PanelRightIcon className="rtl:rotate-180" />
           </Button>
         </PanelActions>
       </PanelHeader>
@@ -65,17 +66,18 @@ function CostVsRiskPanel({
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
           <span>Compare</span>
           <Select
-            aria-label="X axis"
-            className="w-28"
-            selectedKey={xAxis}
-            onSelectionChange={key => setXAxis(String(key))}
+            items={axisItems}
+            value={xAxis}
+            onValueChange={(axis: string | null) => {
+              if (axis) setXAxis(axis)
+            }}
           >
-            <SelectTrigger variant="filled" size="sm">
+            <SelectTrigger aria-label="X axis" variant="filled" size="sm" className="w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {axisOptions.map(option => (
-                <SelectItem key={option.id} id={option.id} textValue={option.label}>
+                <SelectItem key={option.id} value={option.id} disabled={option.id === yAxis}>
                   {option.label}
                 </SelectItem>
               ))}
@@ -83,17 +85,18 @@ function CostVsRiskPanel({
           </Select>
           <span>and</span>
           <Select
-            aria-label="Y axis"
-            className="w-28"
-            selectedKey={yAxis}
-            onSelectionChange={key => setYAxis(String(key))}
+            items={axisItems}
+            value={yAxis}
+            onValueChange={(axis: string | null) => {
+              if (axis) setYAxis(axis)
+            }}
           >
-            <SelectTrigger variant="filled" size="sm">
+            <SelectTrigger aria-label="Y axis" variant="filled" size="sm" className="w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {axisOptions.map(option => (
-                <SelectItem key={option.id} id={option.id} textValue={option.label}>
+                <SelectItem key={option.id} value={option.id} disabled={option.id === xAxis}>
                   {option.label}
                 </SelectItem>
               ))}
@@ -108,12 +111,11 @@ function CostVsRiskPanel({
           aria-label="Designs"
           selectionMode="multiple"
           disallowEmptySelection
-          selectedKeys={selected}
-          onSelectionChange={keys =>
+          value={selected}
+          onValueChange={values =>
+            // Kept in the order of the designs, not the order of the clicks.
             setSelected(
-              keys === 'all'
-                ? designs.map(design => design.id)
-                : designs.filter(design => keys.has(design.id)).map(design => design.id),
+              designs.filter(design => values.includes(design.id)).map(design => design.id),
             )
           }
         >
@@ -123,8 +125,8 @@ function CostVsRiskPanel({
               return (
                 <Chip
                   key={design.id}
-                  id={design.id}
-                  textValue={design.name}
+                  value={design.id}
+                  label={design.name}
                   size="md"
                   appearance={active ? 'solid' : 'outline'}
                 >
@@ -176,9 +178,9 @@ export default function CostVsRiskPanelPage() {
             variant="ghost"
             size="icon-sm"
             aria-label="Expand cost vs risk panel"
-            onPress={() => setOpen(true)}
+            onClick={() => setOpen(true)}
           >
-            <PanelRightOpenIcon />
+            <PanelRightOpenIcon className="rtl:rotate-180" />
           </Button>
         </div>
       )}

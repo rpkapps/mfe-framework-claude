@@ -117,11 +117,11 @@ function useToolLabel(part: ToolCallPart): string {
 }
 
 /**
- * A disclosure that opens and closes by its height, which React Aria sets as
- * `--disclosure-panel-height` for the length of the change, rather than in one step.
+ * A disclosure that opens and closes by its height, which the collapsible measures into
+ * `--collapsible-panel-height`, rather than in one step; it grows from and shrinks to nothing.
  */
 export const DISCLOSURE_MOTION =
-  'h-(--disclosure-panel-height) overflow-clip transition-[height] duration-200 ease-out motion-reduce:transition-none'
+  'h-(--collapsible-panel-height) overflow-clip transition-[height] duration-200 ease-out data-starting-style:h-0 data-ending-style:h-0 motion-reduce:transition-none'
 
 function json(value: unknown): string {
   try {
@@ -153,7 +153,7 @@ function ToolCard({
         <span className="min-w-0 flex-1 truncate font-medium">{labelOverride ?? label}</span>
         <Badge variant={STAGE_BADGE[stage]}>{STAGE_TEXT[stage]}</Badge>
         <ChevronDownIcon
-          className="size-3.5 shrink-0 transition-transform group-data-expanded/tool:rotate-180"
+          className="size-3.5 shrink-0 transition-transform group-data-open/tool:rotate-180"
           aria-hidden
         />
       </CollapsibleTrigger>
@@ -276,7 +276,7 @@ function WidgetCall({
             </p>
             <p className="whitespace-pre-wrap text-muted-foreground">{error.message}</p>
             <div>
-              <Button variant="outline" size="xs" onPress={retry}>
+              <Button variant="outline" size="xs" onClick={retry}>
                 <RotateCcwIcon /> Retry
               </Button>
             </div>
@@ -469,7 +469,7 @@ function QuestionForm({
             variant="ghost"
             size="sm"
             className="col-start-2 row-start-1 justify-self-end"
-            onPress={() => {
+            onClick={() => {
               focusAfterAnswer(chat, card.current)
               pending.decline()
             }}

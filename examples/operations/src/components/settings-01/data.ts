@@ -42,30 +42,45 @@ export const roles = [
   { id: 'project-manager', label: 'Project manager' },
 ]
 
-export const unitSystems = [
+export const unitSystems: {
+  id: Settings['profile']['units']
+  label: string
+}[] = [
   { id: 'metric', label: 'Metric (m, bar, m³)' },
   { id: 'field', label: 'Field (ft, psi, bbl)' },
 ]
 
-export const channels = [
+export const channels: {
+  id: Settings['notifications']['channel']
+  label: string
+}[] = [
   { id: 'email', label: 'Email' },
   { id: 'in-app', label: 'In-app only' },
   { id: 'both', label: 'Email and in-app' },
 ]
 
-export const digests = [
+export const digests: {
+  id: Settings['notifications']['digest']
+  label: string
+}[] = [
   { id: 'instant', label: 'Instantly' },
   { id: 'daily', label: 'Daily digest' },
   { id: 'weekly', label: 'Weekly digest' },
 ]
 
-export const themes = [
+export const themes: {
+  id: Settings['appearance']['theme']
+  label: string
+}[] = [
   { id: 'system', label: 'Match system' },
   { id: 'dark', label: 'Dark' },
   { id: 'light', label: 'Light' },
 ]
 
-export const densities = [
+export const densities: {
+  id: Settings['appearance']['density']
+  label: string
+}[] = [
   { id: 'comfortable', label: 'Comfortable' },
   { id: 'compact', label: 'Compact' },
 ]
