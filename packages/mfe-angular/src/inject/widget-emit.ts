@@ -5,13 +5,15 @@
  */
 
 import { assertInInjectionContext, inject } from '@angular/core'
-import { createMfeError, type ContractOutputs, type WidgetContract } from '@company/mfe-core'
+import { createMfeError, type ContractEmitPayloads, type WidgetContract } from '@company/mfe-core'
 
 import { WIDGET_EMIT } from './tokens.ts'
 
-export type WidgetEmit<C extends WidgetContract> = <K extends keyof ContractOutputs<C> & string>(
+export type WidgetEmit<C extends WidgetContract> = <
+  K extends keyof ContractEmitPayloads<C> & string,
+>(
   output: K,
-  payload: ContractOutputs<C>[K],
+  payload: ContractEmitPayloads<C>[K],
 ) => void
 
 export function injectWidgetEmit<C extends WidgetContract = WidgetContract>(): WidgetEmit<C> {
