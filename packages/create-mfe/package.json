@@ -4,21 +4,24 @@
   "description": "Scaffold for MFE Apps and Widgets: pnpm create @company/mfe",
   "type": "module",
   "bin": {
-    "create-mfe": "./src/cli.ts"
+    "create-mfe": "./dist/cli.js"
   },
   "exports": {
+    "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "files": [
     "src",
-    "templates",
     "dist"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

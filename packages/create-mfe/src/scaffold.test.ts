@@ -1,6 +1,8 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { scaffold } from './cli.ts'
@@ -286,5 +288,18 @@ describe('scaffold behaviour', () => {
 
     expect(manifest.name).toBe('@example/alert-panel')
     expect(manifest.mfe.definitions).toEqual(['alert-panel'])
+  })
+})
+
+describe('the command', () => {
+  it('runs through a symlinked bin, as an installed package links it', async () => {
+    const directory = await target()
+    const bin = join(directory, 'create-mfe')
+    await symlink(fileURLToPath(new URL('./cli.ts', import.meta.url)), bin)
+
+    const result = spawnSync(process.execPath, [bin, '--help'], { encoding: 'utf8' })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('pnpm create @company/mfe')
   })
 })

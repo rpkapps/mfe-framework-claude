@@ -5,8 +5,10 @@
  * from a clean checkout.
  */
 
+import { realpathSync } from 'node:fs'
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import pc from 'picocolors'
 
@@ -163,7 +165,20 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
 }
 
-// Only run when invoked directly, so the module stays importable by tests.
-if (process.argv[1]?.endsWith('cli.ts') === true || process.argv[1]?.endsWith('cli.js') === true) {
+/**
+ * Whether Node was started on this module, so it stays importable by tests. Compared by real path:
+ * an installed bin is a symlink named `create-mfe`, which Node follows to this file.
+ */
+function invokedDirectly(): boolean {
+  const entry = process.argv[1]
+  if (entry === undefined) return false
+  try {
+    return pathToFileURL(realpathSync(entry)).href === import.meta.url
+  } catch {
+    return false
+  }
+}
+
+if (invokedDirectly()) {
   process.exitCode = await main(process.argv.slice(2))
 }

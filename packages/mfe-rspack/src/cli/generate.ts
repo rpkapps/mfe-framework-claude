@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /** The same generation the plugin runs, so a fresh clone resolves `#mfe/*` without a build. */
 
+import { realpathSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import {
@@ -104,10 +106,11 @@ export async function main(argv: readonly string[]): Promise<number> {
   return 1
 }
 
-// Only run when invoked directly, so the module stays importable by tests.
+// Only run when invoked directly, so the module stays importable by tests. Compared by real path:
+// an installed bin is a symlink named `mfe-generate`, which Node follows to this file.
 if (
-  process.argv[1]?.endsWith('generate.ts') === true ||
-  process.argv[1]?.endsWith('generate.js') === true
+  process.argv[1] !== undefined &&
+  pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url
 ) {
   process.exitCode = await main(process.argv.slice(2))
 }

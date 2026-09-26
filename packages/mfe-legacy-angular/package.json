@@ -7,12 +7,14 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "mfe-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./angular": {
-      "types": "./src/angular/index.ts",
-      "default": "./src/angular/index.ts"
+      "mfe-source": "./src/angular/index.ts",
+      "types": "./dist/angular/index.d.ts",
+      "default": "./dist/angular/index.js"
     }
   },
   "files": [
@@ -21,6 +23,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:stale": "node ../../tools/workspace/require-built.mjs --quiet || pnpm run build",
+    "prepack": "node ../../tools/workspace/require-built.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
