@@ -8,7 +8,7 @@
  * thing worth the room.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   defaultInputsFor,
   describeInputs,
@@ -58,7 +58,6 @@ import { Catalogue, WIDGET_MEDIA_TYPE } from './catalogue.tsx'
 import {
   canvasColumns,
   canvasRows,
-  columnsIn,
   compact,
   pixelsFromCells,
   resolveCollisions,
@@ -68,6 +67,7 @@ import { InputsDialog } from './inputs-dialog.tsx'
 import { addTile, NOMINAL_COLUMNS, placeTile, tileKey, type DashboardTile } from './layout-store.ts'
 import { ACTIVITY_PANEL, CANVAS_PANEL, CATALOGUE_PANEL } from './panels-store.ts'
 import { Tile } from './tile.tsx'
+import { useCanvasColumns } from './use-canvas-columns.ts'
 import { tileKeyboardMove, useTileDrag } from './use-tile-drag.ts'
 
 interface ReceivedOutput {
@@ -97,12 +97,10 @@ export function DashboardPage(): ReactNode {
   const [placement, setPlacement] = useState('')
   const isCompact = useIsCompact()
 
-  const surface = useRef<HTMLDivElement | null>(null)
+  const { surfaceRef, measured } = useCanvasColumns()
   const cataloguePanel = usePanelRef()
   const activityPanel = usePanelRef()
   const [collapsed, setCollapsed] = useState({ catalogue: false, activity: false })
-
-  const measured = useCanvasColumns(surface)
 
   const byId = useMemo(() => new Map(widgets.map(entry => [entry.id, entry] as const)), [widgets])
 
@@ -203,7 +201,7 @@ export function DashboardPage(): ReactNode {
       label="Dashboard canvas"
       isDropTarget={isDropTarget}
       isGesturing={drag.gesture !== null}
-      surfaceRef={surface}
+      surfaceRef={surfaceRef}
       onDragOver={event => {
         event.preventDefault()
         event.dataTransfer.dropEffect = 'copy'
@@ -426,31 +424,6 @@ export function DashboardPage(): ReactNode {
       />
     </div>
   )
-}
-
-/**
- * The canvas decides how many columns there are, so it is measured rather than assumed. `null`
- * until it has a width: the first paint reports zero, and treating that as a real canvas would
- * fit every tile down to the minimum.
- */
-function useCanvasColumns(surface: React.RefObject<HTMLDivElement | null>): number | null {
-  const [width, setWidth] = useState(0)
-
-  useEffect(() => {
-    const element = surface.current
-    if (element === null) return
-
-    const observer = new ResizeObserver(entries => {
-      const entry = entries[0]
-      if (entry !== undefined) setWidth(entry.contentRect.width)
-    })
-    observer.observe(element)
-    return () => {
-      observer.disconnect()
-    }
-  }, [surface])
-
-  return width === 0 ? null : columnsIn(width)
 }
 
 function CataloguePanel({
