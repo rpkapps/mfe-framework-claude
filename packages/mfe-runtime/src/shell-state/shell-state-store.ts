@@ -161,11 +161,4 @@ export class ShellStateStore {
   }
 }
 
-/** Whether a set of transitions requires retiring session-dependent work. */
-export function requiresSessionRetirement(transitions: readonly ShellTransition[]): boolean {
-  return transitions.some(
-    transition => transition.kind === 'identity' || transition.kind === 'groups',
-  )
-}
-
 export { FIELDS as SHELL_STATE_FIELDS }

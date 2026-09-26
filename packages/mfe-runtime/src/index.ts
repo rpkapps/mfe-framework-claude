@@ -103,7 +103,6 @@ export {
 } from './mount/scope-root.ts'
 
 export {
-  requiresSessionRetirement,
   SHELL_STATE_FIELDS,
   ShellStateStore,
   type ShellStateChange,

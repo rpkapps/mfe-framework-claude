@@ -2,12 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { ShellState, ShellUser } from '@company/mfe-core'
 
-import {
-  requiresSessionRetirement,
-  SHELL_STATE_FIELDS,
-  ShellStateStore,
-  type ShellStateChange,
-} from './shell-state-store.ts'
+import { SHELL_STATE_FIELDS, ShellStateStore, type ShellStateChange } from './shell-state-store.ts'
 
 const ADA: ShellUser = {
   id: 'user-1',
@@ -226,7 +221,6 @@ describe('transition classification', () => {
 
     expect(change.changed).toEqual(['user'])
     expect(change.transitions).toEqual([])
-    expect(requiresSessionRetirement(change.transitions)).toBe(false)
   })
 
   it('does not raise a groups transition when an identical group set is merely reordered', () => {
@@ -235,7 +229,6 @@ describe('transition classification', () => {
     const change = store.apply({ groups: ['viewers', 'analysts'] })
 
     expect(change.transitions).toEqual([])
-    expect(requiresSessionRetirement(change.transitions)).toBe(false)
     expect(store.getGroups()).toEqual(['viewers', 'analysts'])
   })
 
@@ -278,23 +271,6 @@ describe('transition classification', () => {
       { kind: 'groups' },
       { kind: 'theme' },
     ])
-  })
-})
-
-describe('requiresSessionRetirement', () => {
-  it('requires retirement for identity and semantic group changes', () => {
-    expect(requiresSessionRetirement([{ kind: 'identity', reason: 'login' }])).toBe(true)
-    expect(requiresSessionRetirement([{ kind: 'identity', reason: 'logout' }])).toBe(true)
-    expect(requiresSessionRetirement([{ kind: 'identity', reason: 'account' }])).toBe(true)
-    expect(requiresSessionRetirement([{ kind: 'identity', reason: 'tenant' }])).toBe(true)
-    expect(requiresSessionRetirement([{ kind: 'groups' }])).toBe(true)
-  })
-
-  it('does not require retirement for theme or token refresh changes', () => {
-    expect(requiresSessionRetirement([])).toBe(false)
-    expect(requiresSessionRetirement([{ kind: 'theme' }])).toBe(false)
-    expect(requiresSessionRetirement([{ kind: 'token-refresh' }])).toBe(false)
-    expect(requiresSessionRetirement([{ kind: 'token-refresh' }, { kind: 'theme' }])).toBe(false)
   })
 })
 

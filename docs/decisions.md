@@ -590,7 +590,7 @@ all along — the failure class §11 describes, landing on the diagnostics. The 
 is now the shell's and `createMfeRuntime({ diagnostics })` adopts it; ordering
 forces that one option, since `installShellAuth` runs before the runtime exists.
 `telemetryDiagnosticsSink(provider)` is the one `Diagnostic` to `TelemetryRecord`
-translation, forwarded only when the host asks by name (§10). Nothing else is
+translation, forwarded only when the host asks by name. Nothing else is
 adopted — the theme is not a framework record (§24) — and `dispose()` removes only
 the sinks it added to a supplied hub, silent by design with none.
 
@@ -702,7 +702,7 @@ place readable without loading the container.
 the entire page is down".
 
 The framework's central promise is that a registry entry which fails costs the
-page that one surface (§11). An override pointing one App at a dead port broke it:
+page that one surface. An override pointing one App at a dead port broke it:
 the boundary rendered its `MountFailure`, then the next chunk the shell fetched —
 the developer tools — took the whole page down. Module Federation's
 default share strategy is `version-first`: before resolving **any** share the host
@@ -1604,7 +1604,7 @@ action's owner), which is the existing path to the shell's telemetry, and hands 
 the host's `auditAction`. Storing it, and for how long, is the backend's job; the page
 keeps nothing. A sink that throws is reported and the run's result stands.
 
-**Amendment (§50):** the audit trail is not stored, by the page, the shell or the agent
+**Amendment (2026-09-25):** the audit trail is not stored, by the page, the shell or the agent
 backend. It travels as telemetry: the `run action` records reach the shell's telemetry
 provider, and the shell's Faro and OpenTelemetry pipeline will carry them once it is
 connected. The shell sets no `auditAction`.
@@ -1621,7 +1621,7 @@ lets a credential under an unremarkable key through; an action should not take o
 
 The agent navigates, and a host cannot generate a navigate tool from Apps it has not
 loaded, so the build publishes each App's routes into its registry entry, as it
-publishes capability routes (§16): `routes: [{ path, search? }]`, App-only, sorted by
+publishes capability routes: `routes: [{ path, search? }]`, App-only, sorted by
 path. A container profile finds them (`readRoutes`, beside `readCapabilities`), and the
 neutral build dedupes and sorts them. The registry refuses routes on a Widget, which
 owns no URL, and a path that is not App-relative.
@@ -1758,7 +1758,7 @@ boundary (`createAuthenticatedFetch`), so the backend alone receives the user's 
   Picking an action does not run it: it becomes a chip that sends the tool's name as the turn's
   context, with the action's label as the text, so the model fills the inputs, the approval card
   still asks, and the conversation keeps the result. Running an action straight away is the
-  palette's (§26), so the chat does not become a second palette.
+  palette's (§39), so the chat does not become a second palette.
 - **Replies** are Markdown, GitHub's flavour, with no raw HTML. A link to a page of the application
   goes through the router and the Apps' blockers, as a link on the page does (§20); any other opens
   in a new tab and says where. An image in a reply is not loaded, only described: it would fetch a
@@ -1939,7 +1939,7 @@ So a container is admitted by who builds and deploys it, not by what the runtime
 Loading code from outside the company, or from a team the shell's owners do not trust with their
 users' sessions, needs another boundary first — an iframe or a separate origin — and is not
 something the registry supports. `canExecute`, the approval card and the storage scopes stay what
-§42 and §21 say they are: guidance for honest code and for the agent, never authorization. The
+§42 and §24 say they are: guidance for honest code and for the agent, never authorization. The
 server authorizes.
 
 **Cost:** a compromised container, or one script injected into the page, has everything the
