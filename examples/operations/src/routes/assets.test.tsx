@@ -10,6 +10,7 @@ import {
   setMfeFetch,
 } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import operations from '../mfe.ts'
@@ -125,6 +126,31 @@ describe('the assets route', () => {
     await waitFor(() => {
       expect(screen.getByText(/Loading assets for site north failed with 503/)).toBeInTheDocument()
     })
+  })
+
+  it('runs the loader again on Try again, so a recovered API renders its data', async () => {
+    configured()
+    let calls = 0
+    setMfeFetch(() => {
+      calls += 1
+      return calls === 1
+        ? new Response('', { status: 503, statusText: 'Service Unavailable' })
+        : json(ASSETS)
+    })
+
+    const rendered = renderApp(operations, { initialEntries: ['/assets'] })
+    mounted = rendered.dispose
+
+    await waitFor(() => {
+      expect(screen.getByText('This page could not load its data')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Pump 4')).toBeInTheDocument()
+    })
+    expect(mfeRequests()).toHaveLength(2)
   })
 })
 
