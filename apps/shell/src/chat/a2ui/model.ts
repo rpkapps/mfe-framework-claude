@@ -295,7 +295,10 @@ export function resolve(value: unknown, scope: Scope): JsonValue {
       return getAt(scope.data, absolutePath(value['path'], scope.path)) ?? null
     }
     if (typeof value['call'] === 'string') {
-      const fn = FUNCTIONS[value['call']]
+      // Own members only: `constructor` or `valueOf` would otherwise resolve to Object's methods,
+      // and some of those throw, which inside a Button's handler escapes it.
+      const name = value['call']
+      const fn = Object.hasOwn(FUNCTIONS, name) ? FUNCTIONS[name] : undefined
       return fn === undefined ? null : fn(isObject(value['args']) ? value['args'] : {}, scope)
     }
   }

@@ -229,6 +229,12 @@ describe('values', () => {
     expect(regex('^a*$', 'a'.repeat(1000))).toBe(true)
   })
 
+  it('call only the functions the client implements, never an object’s own methods', () => {
+    for (const call of ['constructor', 'hasOwnProperty', 'valueOf', 'toString', '__proto__']) {
+      expect(resolve({ call, args: {} }, scope)).toBeNull()
+    }
+  })
+
   it('pass checks only when every condition holds', () => {
     const checks = [
       { condition: { call: 'required', args: { value: { path: '/email' } } }, message: 'Email' },

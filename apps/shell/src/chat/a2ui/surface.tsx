@@ -116,6 +116,11 @@ const ALIGN: Readonly<Record<string, string>> = {
   stretch: 'items-stretch',
 }
 
+/** A table's own entry: an agent's `constructor` or `toString` is not an icon or a class name. */
+function entry<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(table, key) ? table[key] : undefined
+}
+
 interface NodeProps {
   readonly surface: Surface
   readonly id: string
@@ -169,7 +174,9 @@ function Component({
     case 'Text': {
       const variant = typeof component['variant'] === 'string' ? component['variant'] : 'body'
       return (
-        <p className={`whitespace-pre-wrap ${TEXT_CLASS[variant] ?? TEXT_CLASS['body'] ?? ''}`}>
+        <p
+          className={`whitespace-pre-wrap ${entry(TEXT_CLASS, variant) ?? TEXT_CLASS['body'] ?? ''}`}
+        >
           {resolveText(component['text'], scope)}
         </p>
       )
@@ -181,8 +188,8 @@ function Component({
       const row =
         component.component === 'Row' ||
         (component.component === 'List' && component['direction'] === 'horizontal')
-      const justify = JUSTIFY[String(component['justify'])] ?? ''
-      const align = ALIGN[String(component['align'])] ?? (row ? 'items-center' : '')
+      const justify = entry(JUSTIFY, String(component['justify'])) ?? ''
+      const align = entry(ALIGN, String(component['align'])) ?? (row ? 'items-center' : '')
       return (
         <div
           className={`flex gap-2 ${row ? 'flex-row flex-wrap' : 'flex-col'} ${justify} ${align} ${
@@ -303,7 +310,8 @@ function Component({
     }
 
     case 'Icon': {
-      const Icon = ICONS[resolveText(component['name'], scope)]
+      const name = resolveText(component['name'], scope)
+      const Icon = Object.hasOwn(ICONS, name) ? ICONS[name] : undefined
       return Icon === undefined ? null : <Icon className="size-4" aria-hidden />
     }
 
