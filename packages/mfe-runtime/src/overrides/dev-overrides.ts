@@ -35,6 +35,24 @@ function overrideError(details: OverrideProblem): MfeError {
   })
 }
 
+/**
+ * Loopback on any port and either scheme, because that is where the dev command serves a remote.
+ * `URL.hostname` keeps the brackets around an IPv6 address.
+ */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** `removeItem` too where the host can give it, so a session that changed hands can clear them. */
+export type OverrideReadableStorage = Pick<Storage, 'getItem'> &
+  Partial<Pick<Storage, 'removeItem'>>
+
+export interface ReadDevOverridesOptions {
+  /**
+   * Origins besides loopback that an override may point at, each as `URL.origin` prints it
+   * (`https://preview.example.com:8443`), matched exactly.
+   */
+  readonly allowedOrigins?: readonly string[]
+}
+
 /** A result carrying nothing but one problem to show the developer. */
 function onlyDiagnostic(details: OverrideProblem): DevOverridesResult {
   return { overrides: new Map(), diagnostics: [overrideError(details)] }
@@ -42,10 +60,13 @@ function onlyDiagnostic(details: OverrideProblem): DevOverridesResult {
 
 /**
  * Every failure mode is reported, because an override that silently did nothing is the
- * phantom bug the visible-override requirement exists to prevent.
+ * phantom bug the visible-override requirement exists to prevent. The key is read in deployed
+ * builds too, so an override may only point at loopback or an origin the host allows: anything
+ * that can write this origin's localStorage could otherwise load its own code into the page.
  */
 export function readDevOverrides(
-  storage: Pick<Storage, 'getItem'> | undefined,
+  storage: OverrideReadableStorage | undefined,
+  options: ReadDevOverridesOptions = {},
 ): DevOverridesResult {
   if (!storage) return EMPTY_RESULT
 
@@ -105,7 +126,8 @@ export function readDevOverrides(
       continue
     }
 
-    if (!isAbsoluteUrl(url)) {
+    const manifestUrl = parseManifestUrl(url)
+    if (manifestUrl === null) {
       diagnostics.push(
         overrideError({
           id,
@@ -119,18 +141,101 @@ export function readDevOverrides(
       continue
     }
 
+    if (!isAllowedOrigin(manifestUrl, options.allowedOrigins ?? [])) {
+      diagnostics.push(
+        overrideError({
+          id,
+          operation: 'read development override URL',
+          expected: 'a manifest on localhost, 127.0.0.1 or [::1], or on an origin the shell allows',
+          observed: manifestUrl.origin,
+          repair: `Serve the remote on localhost, or allow ${manifestUrl.origin} by adding it to overrideOrigins in the shell's createMfeRuntime options.`,
+        }),
+      )
+      continue
+    }
+
     overrides.set(id, url)
   }
 
   return { overrides, diagnostics }
 }
 
-function isAbsoluteUrl(value: string): boolean {
+function parseManifestUrl(value: string): URL | null {
   try {
-    return new URL(value).protocol.startsWith('http')
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
+function isAllowedOrigin(url: URL, allowedOrigins: readonly string[]): boolean {
+  return LOOPBACK_HOSTS.has(url.hostname) || allowedOrigins.includes(url.origin)
+}
+
+/**
+ * For a tab another user signed in to: overrides point the page at code somebody chose for
+ * themselves, so none is applied, and the key is removed where the storage allows it.
+ */
+export function discardDevOverrides(
+  storage: OverrideReadableStorage | undefined,
+): DevOverridesResult {
+  if (!storage) return EMPTY_RESULT
+
+  let raw: string | null
+  try {
+    raw = storage.getItem(OVERRIDES_STORAGE_KEY)
+  } catch {
+    // Unreadable storage holds nothing that could apply.
+    return EMPTY_RESULT
+  }
+  if (raw === null || raw === '') return EMPTY_RESULT
+
+  const removed = removeOverrides(storage)
+
+  return onlyDiagnostic({
+    id: OVERRIDES_STORAGE_KEY,
+    operation: 'apply development overrides for a different signed-in user',
+    expected: 'overrides set by the user signed in to this tab',
+    observed: 'overrides left by the user who signed in to this tab before',
+    repair: removed
+      ? 'Nothing to do: they were not applied and have been removed. Set them again if they are yours.'
+      : `They were not applied. Run localStorage.removeItem('${OVERRIDES_STORAGE_KEY}') to remove them.`,
+  })
+}
+
+function removeOverrides(storage: OverrideReadableStorage): boolean {
+  if (storage.removeItem === undefined) return false
+  try {
+    storage.removeItem(OVERRIDES_STORAGE_KEY)
+    return true
   } catch {
     return false
   }
+}
+
+/**
+ * An override for an id the registry does not list changes nothing, which looks exactly like an
+ * override that loaded the wrong build.
+ */
+export function findUnregisteredOverrides(
+  overrides: ReadonlyMap<string, string>,
+  registeredIds: ReadonlySet<string>,
+): readonly MfeError[] {
+  const diagnostics: MfeError[] = []
+  for (const [id, url] of overrides) {
+    if (registeredIds.has(id)) continue
+    diagnostics.push(
+      overrideError({
+        id,
+        operation: 'apply development override',
+        expected: 'a definition id listed in registry.json',
+        observed: `an override to ${url} for an id no registry entry has`,
+        repair: `Use the definition id the registry lists, or remove overrides.${id} in the developer tools.`,
+      }),
+    )
+  }
+  return diagnostics
 }
 
 /**

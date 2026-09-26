@@ -58,7 +58,7 @@ describe('establishSessionGeneration', () => {
     const session = createMemoryStorageArea()
     const store = storeOver(session)
 
-    const generation = establishSessionGeneration(store, 'u-1', ['ops'])
+    const { generation } = establishSessionGeneration(store, 'u-1', ['ops'])
 
     expect(generation).not.toBe('')
     expect(store.sessionGeneration).toBe(generation)
@@ -67,11 +67,11 @@ describe('establishSessionGeneration', () => {
 
   it('reuses the one in force across a reload of the same tab and identity', () => {
     const session = createMemoryStorageArea()
-    const first = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation: first } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
 
     // A reload: the tab's sessionStorage survives, everything in memory does not.
     const reloaded = storeOver(session)
-    const second = establishSessionGeneration(reloaded, 'u-1', ['ops'])
+    const { generation: second } = establishSessionGeneration(reloaded, 'u-1', ['ops'])
 
     expect(second).toBe(first)
     expect(reloaded.sessionGeneration).toBe(first)
@@ -79,19 +79,43 @@ describe('establishSessionGeneration', () => {
 
   it('mints a fresh one when a different identity opens the tab', () => {
     const session = createMemoryStorageArea()
-    const first = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
-    const second = establishSessionGeneration(storeOver(session), 'u-2', ['ops'])
+    const { generation: first } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation: second } = establishSessionGeneration(storeOver(session), 'u-2', ['ops'])
 
     expect(second).not.toBe(first)
     expect(persisted(session)).toEqual({ identity: 'u-2', groups: ['ops'], generation: second })
   })
 
+  it('names the identity the record was written for when another one opens the tab', () => {
+    const session = createMemoryStorageArea()
+    establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+
+    const changed = establishSessionGeneration(storeOver(session), 'u-2', ['ops'])
+    const same = establishSessionGeneration(storeOver(session), 'u-2', ['admins'])
+
+    expect(changed.previousIdentity).toBe('u-1')
+    expect(same.previousIdentity).toBeNull()
+  })
+
+  it('names no previous identity for a tab that has no record', () => {
+    const { previousIdentity } = establishSessionGeneration(
+      storeOver(createMemoryStorageArea()),
+      'u-1',
+      ['ops'],
+    )
+
+    expect(previousIdentity).toBeNull()
+  })
+
   /** Sign-in happens before boot, so a reload is where the shell first sees new groups. */
   it('mints a fresh one when the same identity reloads with different groups', () => {
     const session = createMemoryStorageArea()
-    const first = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation: first } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
 
-    const second = establishSessionGeneration(storeOver(session), 'u-1', ['ops', 'admins'])
+    const { generation: second } = establishSessionGeneration(storeOver(session), 'u-1', [
+      'ops',
+      'admins',
+    ])
 
     expect(second).not.toBe(first)
     expect(persisted(session)).toEqual({
@@ -103,9 +127,12 @@ describe('establishSessionGeneration', () => {
 
   it('reuses the one in force for the same group set in any order, with duplicates', () => {
     const session = createMemoryStorageArea()
-    const first = establishSessionGeneration(storeOver(session), 'u-1', ['ops', 'admins'])
+    const { generation: first } = establishSessionGeneration(storeOver(session), 'u-1', [
+      'ops',
+      'admins',
+    ])
 
-    const second = establishSessionGeneration(storeOver(session), 'u-1', [
+    const { generation: second } = establishSessionGeneration(storeOver(session), 'u-1', [
       'admins',
       'ops',
       'admins',
@@ -116,7 +143,7 @@ describe('establishSessionGeneration', () => {
 
   it('mints a fresh one over a record written before groups were recorded', () => {
     const session = createMemoryStorageArea()
-    const first = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation: first } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
     const raw = session.getItem(SESSION_GENERATION_KEY) ?? ''
     const envelope = JSON.parse(raw) as { d: PersistedRecord }
     session.setItem(
@@ -124,7 +151,7 @@ describe('establishSessionGeneration', () => {
       JSON.stringify({ ...envelope, d: { identity: 'u-1', generation: first } }),
     )
 
-    const second = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation: second } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
 
     expect(second).not.toBe(first)
     expect(persisted(session)).toEqual({ identity: 'u-1', groups: ['ops'], generation: second })
@@ -132,7 +159,7 @@ describe('establishSessionGeneration', () => {
 
   it('records the identity beside the generation rather than inside it', () => {
     const session = createMemoryStorageArea()
-    const generation = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
+    const { generation } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'])
 
     expect(generation).not.toContain('u-1')
   })
@@ -157,7 +184,7 @@ describe('establishSessionGeneration', () => {
   it('keeps the record out of the user-retained purge', () => {
     const session = createMemoryStorageArea()
     const store = storeOver(session)
-    const generation = establishSessionGeneration(store, 'u-1', ['ops'])
+    const { generation } = establishSessionGeneration(store, 'u-1', ['ops'])
 
     store.applySessionTransition({ kind: 'identity', reason: 'logout' }, 'gen-next')
 
@@ -168,7 +195,7 @@ describe('establishSessionGeneration', () => {
     const session = createMemoryStorageArea({ [SESSION_GENERATION_KEY]: 'not json at all' })
     const store = storeOver(session)
 
-    const generation = establishSessionGeneration(store, 'u-1', ['ops'])
+    const { generation } = establishSessionGeneration(store, 'u-1', ['ops'])
 
     expect(store.sessionGeneration).toBe(generation)
     expect(persisted(session)).toEqual({ identity: 'u-1', groups: ['ops'], generation })
@@ -188,7 +215,7 @@ describe('establishSessionGeneration', () => {
     }
     const store = storeOver(blocked)
 
-    const generation = establishSessionGeneration(store, 'u-1', ['ops'])
+    const { generation } = establishSessionGeneration(store, 'u-1', ['ops'])
 
     expect(generation).not.toBe('')
     expect(store.sessionGeneration).toBe(generation)
@@ -197,7 +224,7 @@ describe('establishSessionGeneration', () => {
   it('takes a mint the shell supplies, for a shell that coordinates tabs', () => {
     const session = createMemoryStorageArea()
 
-    const generation = establishSessionGeneration(storeOver(session), 'u-1', ['ops'], {
+    const { generation } = establishSessionGeneration(storeOver(session), 'u-1', ['ops'], {
       mint: () => 'tab-coordinated-7',
     })
 
@@ -209,11 +236,14 @@ describe('recordSessionGeneration', () => {
   it('makes a reload establish the generation a transition minted, not the one it retired', () => {
     const session = createMemoryStorageArea()
     const store = storeOver(session)
-    const retired = establishSessionGeneration(store, 'u-1', ['ops'])
+    const { generation: retired } = establishSessionGeneration(store, 'u-1', ['ops'])
     store.applySessionTransition({ kind: 'groups', groups: ['ops', 'admins'] }, 'gen-next')
 
     recordSessionGeneration(store, 'u-1', ['ops', 'admins'], 'gen-next')
-    const reloaded = establishSessionGeneration(storeOver(session), 'u-1', ['admins', 'ops'])
+    const { generation: reloaded } = establishSessionGeneration(storeOver(session), 'u-1', [
+      'admins',
+      'ops',
+    ])
 
     expect(reloaded).toBe('gen-next')
     expect(reloaded).not.toBe(retired)

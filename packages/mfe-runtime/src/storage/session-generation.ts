@@ -58,6 +58,15 @@ export interface EstablishSessionGenerationOptions {
   readonly mint?: () => string
 }
 
+export interface EstablishedSessionGeneration {
+  readonly generation: string
+  /**
+   * Whoever the tab's record was written for, when that was somebody else; `null` when it was
+   * this identity, or the tab had no readable record.
+   */
+  readonly previousIdentity: string | null
+}
+
 /**
  * A reload reuses the generation only for the identity and group set it was minted for, since
  * a change of either retires every user-retained record. Rotating a generation afterwards goes
@@ -68,7 +77,7 @@ export function establishSessionGeneration(
   identity: string,
   groups: readonly string[],
   options: EstablishSessionGenerationOptions = {},
-): string {
+): EstablishedSessionGeneration {
   const mint = options.mint ?? mintSessionGeneration
   const canonical = canonicalGroups(groups)
   const key = bindRecord(store)
@@ -76,9 +85,11 @@ export function establishSessionGeneration(
   try {
     const snapshot = key.getSnapshot()
     const stored = snapshot.status === 'value' ? snapshot.value : null
-    if (stored !== null && stored.identity === identity && sameGroups(stored.groups, canonical)) {
+    const previousIdentity =
+      stored !== null && stored.identity !== identity ? stored.identity : null
+    if (stored !== null && previousIdentity === null && sameGroups(stored.groups, canonical)) {
       store.establishSession(stored.generation)
-      return stored.generation
+      return { generation: stored.generation, previousIdentity }
     }
 
     const generation = mint()
@@ -88,7 +99,7 @@ export function establishSessionGeneration(
     } catch {
       // Already on the store's diagnostics; the generation still fences every write.
     }
-    return generation
+    return { generation, previousIdentity }
   } finally {
     key.release()
   }

@@ -26,7 +26,13 @@ import {
   createBrowserNavigationBridge,
   type BoundaryNavigator,
 } from '../navigation/boundary-navigator.ts'
-import { findConflictingContainerOverrides, readDevOverrides } from '../overrides/dev-overrides.ts'
+import {
+  discardDevOverrides,
+  findConflictingContainerOverrides,
+  findUnregisteredOverrides,
+  readDevOverrides,
+  type OverrideReadableStorage,
+} from '../overrides/dev-overrides.ts'
 import { readRegistry } from '../registry/read-registry.ts'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import {
@@ -92,8 +98,16 @@ export interface CreateMfeRuntimeOptions {
   readonly sessionGeneration?: string
   /** It must never repeat, or returning to an earlier user resurrects invalidated data. */
   readonly nextSessionGeneration?: () => string
-  /** Where boot-time developer URL overrides are read from. */
-  readonly overrideStorage?: Pick<Storage, 'getItem'>
+  /**
+   * Where boot-time developer URL overrides are read from; with `removeItem`, they are also
+   * cleared when a different user signs in to the tab.
+   */
+  readonly overrideStorage?: OverrideReadableStorage
+  /**
+   * Origins besides loopback that an override may point at, each as `URL.origin` prints it. An
+   * override anywhere else is rejected with a warning.
+   */
+  readonly overrideOrigins?: readonly string[]
 }
 
 export interface MfeRuntimeHandle {
@@ -130,8 +144,33 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
+  const shellState = new ShellStateStore(options.shellState)
+  const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
+  const storage = new MfeStorageStore({
+    diagnostics,
+    groups: shellState.getGroups(),
+    ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
+  })
+  // A shell that supplies the generation keeps its own record of it.
+  const ownsSessionRecord = options.sessionGeneration === undefined
+  let previousIdentity: string | null = null
+  if (ownsSessionRecord) {
+    const state = shellState.getSnapshot()
+    previousIdentity = establishSessionGeneration(storage, identityOf(state), state.groups, {
+      mint: nextSessionGeneration,
+    }).previousIdentity
+  }
+
   // Read before anything is registered, so an override applies the first time an entry loads.
-  const overrides = readDevOverrides(options.overrideStorage)
+  // Another user's overrides are never applied: they point the page at code chosen by somebody
+  // else.
+  const overrides =
+    previousIdentity === null
+      ? readDevOverrides(
+          options.overrideStorage,
+          withoutUndefined({ allowedOrigins: options.overrideOrigins }),
+        )
+      : discardDevOverrides(options.overrideStorage)
   for (const error of overrides.diagnostics) diagnostics.report(error, { severity: 'warning' })
 
   const registry: Registry = readRegistry(options.registryEntries, {
@@ -148,23 +187,16 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     diagnostics.report(error, { severity: 'warning' })
   }
 
-  reportRejectedEntries(registry, diagnostics)
-
-  const shellState = new ShellStateStore(options.shellState)
-  const nextSessionGeneration = options.nextSessionGeneration ?? mintSessionGeneration
-  const storage = new MfeStorageStore({
-    diagnostics,
-    groups: shellState.getGroups(),
-    ...withoutUndefined({ sessionGeneration: options.sessionGeneration }),
-  })
-  // A shell that supplies the generation keeps its own record of it.
-  const ownsSessionRecord = options.sessionGeneration === undefined
-  if (ownsSessionRecord) {
-    const state = shellState.getSnapshot()
-    establishSessionGeneration(storage, identityOf(state), state.groups, {
-      mint: nextSessionGeneration,
-    })
+  // A rejected entry is reported on its own, so only an id the registry never listed is.
+  const listedIds = new Set([
+    ...registry.entries.keys(),
+    ...registry.rejected.map(rejected => rejected.id),
+  ])
+  for (const error of findUnregisteredOverrides(overrides.overrides, listedIds)) {
+    diagnostics.report(error, { severity: 'warning' })
   }
+
+  reportRejectedEntries(registry, diagnostics)
 
   const assembled = assembleRuntime({
     registry,

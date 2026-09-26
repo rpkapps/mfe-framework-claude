@@ -183,12 +183,16 @@ export {
 } from './navigation/boundary-navigator.ts'
 
 export {
+  discardDevOverrides,
   findConflictingContainerOverrides,
+  findUnregisteredOverrides,
   OVERRIDES_STORAGE_KEY,
   readDevOverrides,
   writeDevOverrides,
   type DevOverridesResult,
+  type OverrideReadableStorage,
   type OverrideWritableStorage,
+  type ReadDevOverridesOptions,
 } from './overrides/dev-overrides.ts'
 
 export * from './storage/index.ts'

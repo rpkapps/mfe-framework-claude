@@ -19,6 +19,7 @@ import { SharedContainerLoader } from '../loader/container-loader.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
 import { createInProcessLoader } from '../testing/in-process-loader.ts'
 import { createMemoryNavigationBridge } from '../testing/memory-navigation-bridge.ts'
+import { createMemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { createNoopTelemetryProvider } from '../telemetry/tracer.ts'
 import {
   createMfeRuntime,
@@ -278,6 +279,89 @@ describe('developer overrides', () => {
 
     expect(recorded).toHaveLength(1)
     expect(recorded[0]).toMatchObject({ severity: 'warning', error: { id: 'example_alerts' } })
+  })
+})
+
+describe('where developer overrides may point', () => {
+  it('keeps the published manifest for an override on another origin, and warns', () => {
+    const { runtime, activeOverrides } = create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reports: 'https://cdn.attacker.test/mf-manifest.json' }),
+    })
+
+    expect(runtime.registry.entries.get('reports')?.manifestUrl).toBe(
+      'https://cdn.example.test/reports/mf-manifest.json',
+    )
+    expect(activeOverrides.size).toBe(0)
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]?.error.message).toContain('overrideOrigins')
+  })
+
+  it('applies an override on an origin the shell allows', () => {
+    const preview = 'https://preview.example.test/reports/mf-manifest.json'
+    const { runtime } = create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reports: preview }),
+      overrideOrigins: ['https://preview.example.test'],
+    })
+
+    expect(runtime.registry.entries.get('reports')?.manifestUrl).toBe(preview)
+    expect(recorded).toHaveLength(0)
+  })
+
+  it('warns about an override for an id the registry does not list', () => {
+    create({
+      registryEntries: [published('reports', 'first')],
+      overrideStorage: overridesOf({ reprots: 'http://localhost:3001/mf-manifest.json' }),
+    })
+
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]).toMatchObject({ severity: 'warning', error: { id: 'reprots' } })
+  })
+})
+
+describe('developer overrides when a different user signs in to the tab', () => {
+  const local = 'http://localhost:3001/mf-manifest.json'
+
+  function signedIn(id: string): CreateMfeRuntimeOptions['shellState'] {
+    return { user: { id, name: id }, groups: ['ops'], theme: 'dark' }
+  }
+
+  it('clears them instead of applying them', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({ reports: local }),
+    })
+    createMfeRuntime({ ...baseOptions(), shellState: signedIn('ada') }).dispose()
+    recorded = []
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      registryEntries: [published('reports', 'first')],
+      shellState: signedIn('grace'),
+      overrideStorage: storage,
+    })
+
+    expect(handle.runtime.registry.entries.get('reports')?.manifestUrl).not.toBe(local)
+    expect(handle.activeOverrides.size).toBe(0)
+    expect(storage.getItem(OVERRIDES_STORAGE_KEY)).toBeNull()
+    expect(recorded).toHaveLength(1)
+  })
+
+  it('keeps them across a reload by the same user', () => {
+    const storage = createMemoryStorageArea({
+      [OVERRIDES_STORAGE_KEY]: JSON.stringify({ reports: local }),
+    })
+    createMfeRuntime({ ...baseOptions(), shellState: signedIn('ada') }).dispose()
+
+    handle = createMfeRuntime({
+      ...baseOptions(),
+      registryEntries: [published('reports', 'first')],
+      shellState: signedIn('ada'),
+      overrideStorage: storage,
+    })
+
+    expect(handle.runtime.registry.entries.get('reports')?.manifestUrl).toBe(local)
+    expect(storage.getItem(OVERRIDES_STORAGE_KEY)).not.toBeNull()
   })
 })
 

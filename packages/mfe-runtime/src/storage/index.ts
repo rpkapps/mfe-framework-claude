@@ -25,5 +25,6 @@ export {
   establishSessionGeneration,
   mintSessionGeneration,
   recordSessionGeneration,
+  type EstablishedSessionGeneration,
   type EstablishSessionGenerationOptions,
 } from './session-generation.ts'
