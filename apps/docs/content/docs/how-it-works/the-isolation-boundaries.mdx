@@ -10,6 +10,12 @@ Six boundaries separate one mount from the rest of the page: the URL, styles, st
 errors and framework share scopes. Each one answers the same question in a different medium. What can
 this container reach, and what can reach it?
 
+The boundaries keep containers that mean well from colliding by accident: a shared storage key, a
+class name that restyles another App, a token sent to a host nobody declared. They are not a
+security model. Every container runs in the shell's document with the shell's privileges, and is
+trusted because the company builds and deploys it
+([decision 54](/docs/how-it-works/decisions#54-every-container-is-trusted-with-the-shells-privileges-the-boundaries-prevent-accidents)).
+
 <Diagram
   src="/diagrams/isolation-boundaries.svg"
   alt="One mounted container in the middle, ringed by six boundaries: URL, styles, storage, network, errors and framework share scopes."

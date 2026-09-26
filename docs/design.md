@@ -130,6 +130,8 @@ The legacy adapter is built and tested against production-equivalent fixtures an
 
 ![One mounted App ringed by six boundaries: URL, styles, storage, network, errors, framework share scopes.](./diagrams/isolation-boundaries.svg)
 
+The boundaries keep containers that mean well from colliding by accident. They are not a security model: every container runs in the shell's document with the shell's privileges, and is trusted because the company builds it ([decision 54](/docs/how-it-works/decisions#54-every-container-is-trusted-with-the-shells-privileges-the-boundaries-prevent-accidents)).
+
 **In words.** Titled `isolation-boundaries`, under "Six boundaries between one mounted container and the page." Seven boxes.
 
 **One mount** ("one token, one basePath, one scope root") sits in the middle. One dashed arrow points out to each of the six boxes around it.

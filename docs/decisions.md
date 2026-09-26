@@ -945,7 +945,7 @@ Apps for is ambiguous where an inner-wins rule would have resolved it.
 
 ---
 
-## 36. The shell signs in before anything loads, and holds its tokens in memory only
+## 36. The shell signs in before anything loads, and keeps its session for the life of the tab
 
 **Status:** decided; the shell's half of §10.
 
@@ -1813,3 +1813,30 @@ entry that names no framework is no adapter's and is rejected as unrecognised, w
 loudly; one that names its framework stays with that adapter however broken the rest is (§9).
 `shareScopes` stays optional on a registry entry: one written by hand, for a test or a fixture,
 names none, and `default` alone is right for it.
+
+---
+
+## 54. Every container is trusted with the shell's privileges; the boundaries prevent accidents
+
+**Status:** decided; written down after a review read the boundaries as a security model.
+
+Every container is built by a team inside the company and runs in the shell's own document, in
+the same JavaScript realm, with no iframe between them. What one container can do, any can: read
+the session the shell keeps in `sessionStorage` (§36), call `getAccessToken`, reach the whole
+`MfeRuntime` through `useMfeRuntime`, patch a global, or write another definition's storage
+records. The six isolation boundaries keep well-behaved containers from colliding by accident: a
+storage key one team happens to share with another, a class name that restyles another App, a
+token sent to a host nobody declared. None of them stops a container that means harm, and a
+narrower runtime object handed to each mount would not change that while the realm is shared.
+
+So a container is admitted by who builds and deploys it, not by what the runtime lets it reach.
+Loading code from outside the company, or from a team the shell's owners do not trust with their
+users' sessions, needs another boundary first — an iframe or a separate origin — and is not
+something the registry supports. `canExecute`, the approval card and the storage scopes stay what
+§42 and §21 say they are: guidance for honest code and for the agent, never authorization. The
+server authorizes.
+
+**Cost:** a compromised container, or one script injected into the page, has everything the
+shell has for as long as the tab lives. Keeping the refresh token out of reach (a backend for
+the frontend, or DPoP) and a `script-src` policy naming the registry's origins are the ways to
+narrow that, and neither exists yet.

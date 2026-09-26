@@ -8,11 +8,11 @@ Two commands belong to a container: the scaffold that creates one, and the gener
 ## pnpm create @company/mfe
 
 ```sh
-pnpm create @company/mfe operations --id operations
-pnpm create @company/mfe alert-panel --id alert-panel --template widget
+pnpm create @company/mfe examples/operations --id operations
+pnpm create @company/mfe examples/alert-panel --id alert-panel --template widget
 ```
 
-Creates a container in the directory you name.
+Creates a container in the directory you name. The directory must be inside one of the workspace's package globs, such as `examples/<name>`: the container extends the repository's `tsconfig.base.json` and takes its dependencies through `workspace:` and `catalog:`.
 
 | Flag                | Value             | Default                             |
 | ------------------- | ----------------- | ----------------------------------- |
