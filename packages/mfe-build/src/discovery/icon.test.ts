@@ -128,6 +128,46 @@ describe('an svg file', () => {
     expect(serialized).not.toContain('ignored')
   })
 
+  it("drops a clip path's shapes with it, as an exported icon wraps them in defs", () => {
+    const icon = parseSvg(`
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g clip-path="url(#clip0)">
+    <path d="M4 4 L20 20" stroke="currentColor"/>
+  </g>
+  <defs>
+    <clipPath id="clip0">
+      <rect width="24" height="24" fill="white"/>
+    </clipPath>
+  </defs>
+</svg>`)
+
+    expect(icon?.node).toEqual([
+      ['g', {}, [['path', { d: 'M4 4 L20 20', stroke: 'currentColor' }]]],
+    ])
+  })
+
+  it('keeps a group whose title closes inside it', () => {
+    const icon = parseSvg(`
+<svg viewBox="0 0 24 24">
+  <g transform="translate(1 1)">
+    <title>Well head</title>
+    <path d="M2 2 L8 8"/>
+  </g>
+  <circle cx="12" cy="12" r="3"/>
+</svg>`)
+
+    expect(icon?.node).toEqual([
+      ['g', { transform: 'translate(1 1)' }, [['path', { d: 'M2 2 L8 8' }]]],
+      ['circle', { cx: '12', cy: '12', r: '3' }],
+    ])
+  })
+
+  it('ignores a closing tag nothing opened, rather than closing the group around it', () => {
+    const icon = parseSvg('<svg viewBox="0 0 24 24"><g></title><path d="M1 1"/></g></svg>')
+
+    expect(icon?.node).toEqual([['g', {}, [['path', { d: 'M1 1' }]]]])
+  })
+
   it('refuses an svg with no viewBox, because nothing says how to scale it', () => {
     expect(parseSvg('<svg><path d="M0 0 L1 1"/></svg>')).toBeNull()
   })
