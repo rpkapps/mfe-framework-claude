@@ -12,9 +12,9 @@ import {
   outputNameToHandlerProp,
   outputSchemaError,
   withoutUndefined,
-  type ContractOutputs,
+  type ContractEmitPayloads,
+  type ContractParsedInputs,
   type OutputSchema,
-  type ContractInputs,
   type WidgetContract,
 } from '@company/mfe-core'
 import type {
@@ -98,13 +98,16 @@ export function createApp(options: AppOptions): AppDefinition {
   }
 }
 
-/** Both fields are typed from the schemas. */
+/**
+ * Both fields are typed from the schemas: `inputs` as the input schema parsed them, defaults
+ * filled in, and an `emit` payload as its schema accepts it, before any default or transform.
+ */
 export interface WidgetRenderProps<C extends WidgetContract> {
-  readonly inputs: ContractInputs<C>
+  readonly inputs: ContractParsedInputs<C>
   /** Validates the payload at this call site, so a failure surfaces here. */
-  readonly emit: <K extends keyof ContractOutputs<C> & string>(
+  readonly emit: <K extends keyof ContractEmitPayloads<C> & string>(
     output: K,
-    payload: ContractOutputs<C>[K],
+    payload: ContractEmitPayloads<C>[K],
   ) => void
 }
 

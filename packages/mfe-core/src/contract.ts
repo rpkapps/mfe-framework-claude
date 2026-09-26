@@ -27,10 +27,27 @@ export interface WidgetContract<
   readonly outputSchema: Outputs
 }
 
-export type ContractInputs<C extends WidgetContract> = z.infer<C['inputSchema']>
+/*
+ * Each side of the boundary writes a value before its schema parses it and reads one after, and
+ * the two differ wherever a schema has a `.default()` or a `.transform()`. So the consumer's view
+ * of a contract, `ContractInputs` and `ContractOutputs`, and the Widget's, `ContractParsedInputs`
+ * and `ContractEmitPayloads`, are separate types.
+ */
 
+/** What a consumer passes: the input schema's input, so a field with a default may be left out. */
+export type ContractInputs<C extends WidgetContract> = z.input<C['inputSchema']>
+
+/** What the Widget renders from: the inputs as the schema parsed them. */
+export type ContractParsedInputs<C extends WidgetContract> = z.output<C['inputSchema']>
+
+/** What a consumer's handler receives for each output: the payload as its schema parsed it. */
 export type ContractOutputs<C extends WidgetContract> = {
-  readonly [K in keyof C['outputSchema']['shape']]: z.infer<C['outputSchema']['shape'][K]>
+  readonly [K in keyof C['outputSchema']['shape']]: z.output<C['outputSchema']['shape'][K]>
+}
+
+/** What the Widget passes to `emit` for each output, before the payload's schema parses it. */
+export type ContractEmitPayloads<C extends WidgetContract> = {
+  readonly [K in keyof C['outputSchema']['shape']]: z.input<C['outputSchema']['shape'][K]>
 }
 
 /** The payload schema of one output, or `undefined` when the contract declares no such output. */
