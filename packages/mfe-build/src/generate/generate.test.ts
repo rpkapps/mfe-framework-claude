@@ -697,14 +697,14 @@ describe('the share scope the build plans', () => {
 
     expect(plan.shared).toEqual({
       '@acme/mfe-adapter': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '^1.0.0',
         shareScope: 'acme@19.2.8',
       },
       '@acme/mfe-kernel': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '^1.0.0',
         shareScope: 'default',
       },
@@ -712,7 +712,7 @@ describe('the share scope the build plans', () => {
     expect(plan.generated.descriptor.shareScopes).toEqual(['default', 'acme@19.2.8'])
   })
 
-  it("prefers the container's own range for a page singleton its adapter also carries", () => {
+  it("prefers the container's own range for a page-wide package its adapter also carries", () => {
     const root = createContainer(
       { 'src/mfe.ts': APP_ENTRY },
       {

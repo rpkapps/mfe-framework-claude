@@ -38,7 +38,7 @@ export interface FederatedRegistryEntry extends RegistryEntry {
  * A remote links only the share scopes named when it is registered, and every other scope stays
  * private to it; so a container is registered with its framework's scope, which is what lets two
  * containers on one framework version share a copy, and always with `default`, which holds the
- * page singletons.
+ * page-wide packages.
  */
 function shareScopesOf(entry: FederatedRegistryEntry): string[] {
   return [...new Set([PAGE_SHARE_SCOPE, ...(entry.shareScopes ?? [])])]
@@ -148,7 +148,7 @@ export function createFederationContainerLoader(
                 id: entry.id,
                 operation: 'load federation entry',
                 repair:
-                  'Check the browser network panel for the failed chunk. A container that resolved its own copy of a shared singleton fails differently: it loads, and a framework hook inside it then reports being rendered outside any mount.',
+                  'Check the browser network panel for the failed chunk. A container that loaded its own copy of a package another shared module was bound to fails differently: it loads, and a framework hook inside it then reports being rendered outside any mount.',
               },
         )
       }

@@ -57,7 +57,7 @@ const everything = () => '1.2.3'
 const ROOT = '/host-root-the-resolver-never-reads'
 
 describe('hostShared', () => {
-  it('shares the framework packages as strict singletons', () => {
+  it('shares the framework packages, none of them as a singleton', () => {
     const shared = hostShared({
       root: ROOT,
       installedVersion: name =>
@@ -66,22 +66,21 @@ describe('hostShared', () => {
 
     expect(Object.keys(shared)).toEqual([
       '@company/mfe-core',
-      '@company/mfe-react',
       '@company/mfe-runtime',
       'react',
       'react/compiler-runtime',
       'react/jsx-runtime',
     ])
     expect(shared['@company/mfe-core']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '0.1.0',
       shareScope: 'default',
     })
-    expect(shared['@company/mfe-react']).toEqual({
-      singleton: true,
-      strictVersion: true,
-      requiredVersion: '0.1.0',
+    expect(shared['react']).toEqual({
+      singleton: false,
+      strictVersion: false,
+      requiredVersion: '19.3.0',
       shareScope: 'react@19.3.0',
     })
   })
@@ -124,7 +123,7 @@ describe('hostShared', () => {
     expect(shared['react']?.requiredVersion).toBe('1.2.3')
   })
 
-  it('keeps the design system contract as the contract states it', () => {
+  it('keeps what the design system contract shares, and whether it loads eagerly', () => {
     const shared = hostShared({ root: ROOT, installedVersion: everything })
 
     expect(shared['react-aria-components']).toEqual({
@@ -134,7 +133,7 @@ describe('hostShared', () => {
       shareScope: 'react@1.2.3',
     })
     expect(shared['recharts']?.eager).toBe(false)
-    expect(shared['react']?.singleton).toBe(true)
+    expect(shared['react']?.singleton).toBe(false)
   })
 
   it('does not share the design system', () => {
@@ -172,8 +171,8 @@ describe('hostShared', () => {
     const shared = hostShared({ root })
 
     expect(shared['@company/mfe-core']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '0.1.3',
       shareScope: 'default',
     })

@@ -12,7 +12,7 @@ const REACT_SCOPE = 'react@19.3.0'
 
 /**
  * The machinery has its own tests in the build package; these are about what React shares, with
- * the page singletons the build adds to every integration's policy.
+ * the page-wide candidates the build adds to every integration's policy.
  */
 function resolveReactShared(options: Omit<ResolveSharedOptions, 'policy' | 'frameworkScope'>) {
   return resolveShared({
@@ -36,14 +36,14 @@ describe('the React sharing policy', () => {
       'react/jsx-runtime',
     ])
     expect(shared['react']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^19.0.0',
       shareScope: REACT_SCOPE,
     })
   })
 
-  it("shares React's entry points as strict singletons at the version of the package they sit in", () => {
+  it("shares React's entry points at the version of the package they sit in", () => {
     const shared = resolveReactShared({
       dependencies: { react: 'catalog:', 'react-dom': 'catalog:' },
       installedVersion: name => (name === 'react' || name === 'react-dom' ? '19.3.0' : undefined),
@@ -51,8 +51,8 @@ describe('the React sharing policy', () => {
 
     for (const entryPoint of ['react/jsx-runtime', 'react/compiler-runtime', 'react-dom/client']) {
       expect(shared[entryPoint], entryPoint).toEqual({
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '19.3.0',
         version: '19.3.0',
         shareScope: REACT_SCOPE,
@@ -66,24 +66,21 @@ describe('the React sharing policy', () => {
 
   it("lists the framework's own candidates first, then the design system's contract in its order", () => {
     expect([...DEFAULT_SHARED_CANDIDATES]).toEqual([
-      // One copy per page, whatever framework renders.
+      // Shared page-wide, whatever framework renders.
       '@company/mfe-core',
       '@company/mfe-runtime',
-      // A second copy of these in one React version makes every framework hook fail with
-      // "rendered outside any mount".
+      // What imports React or carries its context, shared only with the same React.
       'react',
       'react-dom',
-      '@company/mfe-react',
       '@tanstack/react-router',
       '@tanstack/react-query',
       // React's entry points, which a bare `react` share does not cover.
       'react/jsx-runtime',
       'react/compiler-runtime',
       'react-dom/client',
-      // The toast queue, which the shell's `Toaster` reads.
-      'sonner',
       // Then `@tecton/react/federation/shared` in its own order, less the design system itself
       // and what the adapter already decides.
+      'sonner',
       'react-aria-components',
       'recharts',
     ])
@@ -102,10 +99,12 @@ describe('the React sharing policy', () => {
       installedVersion: () => '0.1.0',
     })
 
-    expect(Object.keys(shared)).toHaveLength(11)
+    // The adapter is bundled, so its imports resolve through the container's own shares.
+    expect(shared).not.toHaveProperty('@company/mfe-react')
+    expect(Object.keys(shared)).toHaveLength(10)
     for (const entry of Object.values(shared)) {
-      expect(entry.singleton).toBe(true)
-      expect(entry.strictVersion).toBe(true)
+      expect(entry.singleton).toBe(false)
+      expect(entry.strictVersion).toBe(false)
     }
   })
 
@@ -122,7 +121,6 @@ describe('the React sharing policy', () => {
     expect(scopes).toEqual({
       '@company/mfe-core': 'default',
       '@company/mfe-runtime': 'default',
-      '@company/mfe-react': REACT_SCOPE,
       '@tanstack/react-query': REACT_SCOPE,
       '@tanstack/react-router': REACT_SCOPE,
       react: REACT_SCOPE,
@@ -136,7 +134,7 @@ describe('the React sharing policy', () => {
     })
   })
 
-  it('shares React Aria and recharts as non-singletons', () => {
+  it('shares React Aria and recharts in the React scope, recharts lazily', () => {
     const shared = resolveReactShared({
       dependencies: {
         '@tecton/react': 'link:../../../tecton-ui-1/packages/tecton-react',
@@ -183,10 +181,10 @@ describe('the React sharing policy', () => {
     })
 
     expect(shared['@company/mfe-core']).toMatchObject({
-      singleton: true,
+      singleton: false,
       requiredVersion: '^0.1.2',
       shareScope: 'default',
     })
-    expect(shared['@acme/auth-client']).toMatchObject({ singleton: true, shareScope: REACT_SCOPE })
+    expect(shared['@acme/auth-client']).toMatchObject({ singleton: false, shareScope: REACT_SCOPE })
   })
 })

@@ -3,7 +3,7 @@
  * no real one: whatever reaches the output came from the profile.
  */
 
-import { PAGE_SINGLETON, SINGLETON } from '../federation/sharing.ts'
+import { FRAMEWORK_SCOPED, PAGE_WIDE } from '../federation/sharing.ts'
 import type { ContainerProfile } from '../profile.ts'
 
 export const TEST_ADAPTER = '@acme/mfe-adapter'
@@ -23,9 +23,9 @@ export const TEST_PROFILE: ContainerProfile = {
   framework: 'acme',
   frameworkAnchor: TEST_FRAMEWORK_ANCHOR,
   sharing: {
-    [TEST_ADAPTER]: SINGLETON,
-    '@acme/ui-kit/': { singleton: false, strictVersion: false, frameworkScoped: true },
-    '@acme/mfe-kernel': PAGE_SINGLETON,
+    [TEST_ADAPTER]: FRAMEWORK_SCOPED,
+    '@acme/ui-kit/': FRAMEWORK_SCOPED,
+    '@acme/mfe-kernel': PAGE_WIDE,
   },
   stylesheet: { sources: '**/*.{ts,html}' },
   containerRootOption: 'acmeMfe({ containerRoot })',

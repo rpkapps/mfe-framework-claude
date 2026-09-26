@@ -196,7 +196,7 @@ function planShares(profile: ContainerProfile, resolved: ResolvedOptions): Share
 }
 
 /**
- * The container's own candidates, plus the page singletons its adapter carries in. The
+ * The container's own candidates, plus the page-wide candidates its adapter carries in. The
  * container's own entry wins: one it depends on directly, or one its author added.
  */
 function planShared(

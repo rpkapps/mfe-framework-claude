@@ -10,7 +10,7 @@ import {
   pagePolicy,
   resolveFrameworkScope,
 } from './framework-scope.ts'
-import { PAGE_SINGLETON, SINGLETON, type SharingPolicies } from './sharing.ts'
+import { FRAMEWORK_SCOPED, PAGE_WIDE, type SharingPolicies } from './sharing.ts'
 
 const created: string[] = []
 
@@ -22,9 +22,9 @@ afterEach(() => {
 })
 
 const POLICY: SharingPolicies = {
-  '@acme/mfe-adapter': SINGLETON,
-  '@acme/kernel': PAGE_SINGLETON,
-  '@acme/kernel-runtime': PAGE_SINGLETON,
+  '@acme/mfe-adapter': FRAMEWORK_SCOPED,
+  '@acme/kernel': PAGE_WIDE,
+  '@acme/kernel-runtime': PAGE_WIDE,
 }
 
 interface Installed {
@@ -79,13 +79,13 @@ describe('resolveFrameworkScope', () => {
 describe('pagePolicy', () => {
   it('keeps only the candidates outside every framework scope', () => {
     expect(pagePolicy(POLICY)).toEqual({
-      '@acme/kernel': PAGE_SINGLETON,
-      '@acme/kernel-runtime': PAGE_SINGLETON,
+      '@acme/kernel': PAGE_WIDE,
+      '@acme/kernel-runtime': PAGE_WIDE,
     })
   })
 })
 
-describe('the page singletons an adapter carries', () => {
+describe('the page-wide packages an adapter carries', () => {
   it('are shared in the page scope at the ranges the adapter declares', () => {
     const root = createContainer({
       '@acme/mfe-adapter': {
@@ -100,15 +100,15 @@ describe('the page singletons an adapter carries', () => {
       adapterCarriedShares({ adapter: '@acme/mfe-adapter', containerRoot: root, policy: POLICY }),
     ).toEqual({
       '@acme/kernel': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '^0.1.0',
         shareScope: 'default',
       },
       // A workspace protocol states no range, so the version beside the adapter is required.
       '@acme/kernel-runtime': {
-        singleton: true,
-        strictVersion: true,
+        singleton: false,
+        strictVersion: false,
         requiredVersion: '0.1.4',
         shareScope: 'default',
       },
@@ -122,7 +122,7 @@ describe('the page singletons an adapter carries', () => {
         dependencies: { '@acme/kernel': '^0.1.0', '@acme/ui-runtime': '^19.0.0' },
       },
     })
-    const policy = { ...POLICY, '@acme/ui-runtime': SINGLETON }
+    const policy = { ...POLICY, '@acme/ui-runtime': FRAMEWORK_SCOPED }
 
     const carried = adapterCarriedShares({
       adapter: '@acme/mfe-adapter',

@@ -5,26 +5,27 @@ import {
   frameworkShareScope,
   isUsableVersionRange,
   packageOf,
+  FRAMEWORK_SCOPED,
   PAGE_POLICY,
-  PAGE_SINGLETON,
+  PAGE_WIDE,
   resolveShared as resolveSharedIn,
   shareScopesOf,
-  SINGLETON,
   withPagePolicy,
   type ResolveSharedOptions,
   type SharingPolicies,
+  type SharingPolicy,
 } from './sharing.ts'
 
 /**
- * An integration's policy: a runtime that must exist once per framework version, libraries bound
- * to it that may exist more than once, and a neutral kernel the whole page shares.
+ * An integration's policy: a runtime and libraries bound to it, shared per framework version, one
+ * of them loaded lazily, and a neutral kernel the whole page shares.
  */
 const POLICY: SharingPolicies = {
-  'ui-runtime': SINGLETON,
-  'ui-runtime-dom': SINGLETON,
-  '@acme/ui-kit/': { singleton: false, strictVersion: false, frameworkScoped: true },
-  charts: { singleton: false, strictVersion: false, eager: false, frameworkScoped: true },
-  '@acme/kernel': PAGE_SINGLETON,
+  'ui-runtime': FRAMEWORK_SCOPED,
+  'ui-runtime-dom': FRAMEWORK_SCOPED,
+  '@acme/ui-kit/': FRAMEWORK_SCOPED,
+  charts: { eager: false, frameworkScoped: true },
+  '@acme/kernel': PAGE_WIDE,
 }
 
 const FRAMEWORK_SCOPE = 'ui@19.3.0'
@@ -43,8 +44,8 @@ describe('resolveShared', () => {
 
     expect(Object.keys(shared)).toEqual(['ui-runtime', 'ui-runtime-dom'])
     expect(shared['ui-runtime']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^19.0.0',
       shareScope: FRAMEWORK_SCOPE,
     })
@@ -73,7 +74,7 @@ describe('resolveShared', () => {
     })
   })
 
-  it('shares a candidate outside the policy as a singleton', () => {
+  it('shares a candidate outside the policy in the framework scope', () => {
     const shared = resolveShared({
       policy: POLICY,
       candidates: ['state-store'],
@@ -82,8 +83,8 @@ describe('resolveShared', () => {
 
     expect(Object.keys(shared)).toEqual(['state-store'])
     expect(shared['state-store']).toMatchObject({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       shareScope: FRAMEWORK_SCOPE,
     })
   })
@@ -97,15 +98,15 @@ describe('resolveShared', () => {
 
     expect(Object.keys(shared)).toEqual(['@company/auth-client', 'ui-runtime'])
     expect(shared['@company/auth-client']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^3.0.0',
       shareScope: FRAMEWORK_SCOPE,
     })
     expect(shared['ui-runtime']?.requiredVersion).toBe('^19.0.0')
   })
 
-  it('never relaxes a candidate an author names again', () => {
+  it("keeps a candidate's own policy when an author restates its range", () => {
     const shared = resolveShared({
       policy: POLICY,
       dependencies: { charts: '3.8.0' },
@@ -113,8 +114,9 @@ describe('resolveShared', () => {
     })
 
     expect(shared['charts']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
+      eager: false,
       requiredVersion: '^3.0.0',
       shareScope: FRAMEWORK_SCOPE,
     })
@@ -128,8 +130,8 @@ describe('resolveShared', () => {
     })
 
     expect(shared['ui-runtime']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '19.3.0',
       shareScope: FRAMEWORK_SCOPE,
     })
@@ -139,8 +141,8 @@ describe('resolveShared', () => {
     const shared = resolveShared({ policy: POLICY, dependencies: { 'ui-runtime': 'workspace:*' } })
 
     expect(shared['ui-runtime']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: false,
       shareScope: FRAMEWORK_SCOPE,
     })
@@ -223,8 +225,8 @@ describe('framework share scopes', () => {
     expect(shared['ui-runtime']?.shareScope).toBe('ui@19.3.0')
     expect(shared['@acme/ui-kit/']?.shareScope).toBe('ui@19.3.0')
     expect(shared['@acme/kernel']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^1.0.0',
       shareScope: 'default',
     })
@@ -251,12 +253,12 @@ describe('framework share scopes', () => {
       shareScope: 'ui@19.2.8',
       requiredVersion: '19.2.8',
     })
-    // The page singletons stay one copy whichever framework version a container is on.
+    // A page-wide candidate is shared in the page scope whichever framework version a container is on.
     expect(previous['@acme/kernel']).toEqual(current['@acme/kernel'])
     expect(current['@acme/kernel']?.shareScope).toBe('default')
   })
 
-  it('keeps a page singleton an author names again in the page scope', () => {
+  it('keeps a page-wide candidate an author names again in the page scope', () => {
     const shared = resolveShared({
       policy: POLICY,
       dependencies: { '@acme/kernel': '^1.0.0' },
@@ -264,14 +266,14 @@ describe('framework share scopes', () => {
     })
 
     expect(shared['@acme/kernel']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^1.2.0',
       shareScope: 'default',
     })
   })
 
-  it("adds an author's own package to the framework scope as a singleton", () => {
+  it("adds an author's own package to the framework scope", () => {
     const shared = resolveShared({
       policy: POLICY,
       dependencies: {},
@@ -279,19 +281,39 @@ describe('framework share scopes', () => {
     })
 
     expect(shared['@acme/feature-flags']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^2.0.0',
       shareScope: FRAMEWORK_SCOPE,
     })
   })
 })
 
-describe('the page singletons', () => {
-  it('are the neutral core and runtime, shared page-wide', () => {
+describe('no singletons', () => {
+  it('shares nothing as a singleton, even under a policy that asks for one', () => {
+    // A policy object from outside the type system, as a design system's contract arrives.
+    const asking: SharingPolicy = Object.assign(
+      { frameworkScoped: true },
+      { singleton: true, strictVersion: true },
+    )
+    const shared = resolveShared({
+      policy: { ...POLICY, 'ui-runtime': asking },
+      dependencies: { 'ui-runtime': '^19.0.0', '@acme/kernel': '^1.0.0' },
+      overrides: { '@acme/feature-flags': '^2.0.0' },
+    })
+
+    expect(Object.keys(shared)).toHaveLength(3)
+    for (const entry of Object.values(shared)) {
+      expect(entry).toMatchObject({ singleton: false, strictVersion: false })
+    }
+  })
+})
+
+describe('the page-wide candidates', () => {
+  it('are the neutral core and runtime', () => {
     expect(PAGE_POLICY).toEqual({
-      '@company/mfe-core': PAGE_SINGLETON,
-      '@company/mfe-runtime': PAGE_SINGLETON,
+      '@company/mfe-core': PAGE_WIDE,
+      '@company/mfe-runtime': PAGE_WIDE,
     })
   })
 

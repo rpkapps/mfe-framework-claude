@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   PAGE_POLICY,
-  PAGE_SINGLETON,
+  PAGE_WIDE,
   resolveShared,
-  SINGLETON,
+  FRAMEWORK_SCOPED,
   withPagePolicy,
 } from '@company/mfe-build/federation'
 
@@ -36,7 +36,7 @@ export const panel = createWidget({
 `
 
 describe('the Angular sharing policy', () => {
-  it('shares Angular, the CDK, RxJS and the adapter as strict singletons', () => {
+  it('shares Angular, the CDK and RxJS in the Angular scope', () => {
     for (const name of [
       '@angular/core',
       '@angular/common',
@@ -46,22 +46,25 @@ describe('the Angular sharing policy', () => {
       '@angular/animations',
       '@angular/cdk',
       'rxjs',
-      '@company/mfe-angular',
     ]) {
-      expect(ANGULAR_SHARING_POLICY[name], name).toEqual(SINGLETON)
+      expect(ANGULAR_SHARING_POLICY[name], name).toEqual(FRAMEWORK_SCOPED)
     }
   })
 
-  it('shares the entry points of Common, the CDK and RxJS through prefix entries', () => {
-    expect(ANGULAR_SHARING_POLICY['@angular/common/']).toEqual(SINGLETON)
-    expect(ANGULAR_SHARING_POLICY['@angular/cdk/']).toEqual(SINGLETON)
-    expect(ANGULAR_SHARING_POLICY['rxjs/']).toEqual(SINGLETON)
+  it('bundles the adapter, so its imports resolve through the container’s own shares', () => {
+    expect(ANGULAR_SHARING_POLICY).not.toHaveProperty('@company/mfe-angular')
   })
 
-  it('keeps the neutral packages as page singletons, apart from the framework group', () => {
+  it('shares the entry points of Common, the CDK and RxJS through prefix entries', () => {
+    expect(ANGULAR_SHARING_POLICY['@angular/common/']).toEqual(FRAMEWORK_SCOPED)
+    expect(ANGULAR_SHARING_POLICY['@angular/cdk/']).toEqual(FRAMEWORK_SCOPED)
+    expect(ANGULAR_SHARING_POLICY['rxjs/']).toEqual(FRAMEWORK_SCOPED)
+  })
+
+  it('keeps the neutral packages page-wide, apart from the framework group', () => {
     expect(PAGE_POLICY).toEqual({
-      '@company/mfe-core': PAGE_SINGLETON,
-      '@company/mfe-runtime': PAGE_SINGLETON,
+      '@company/mfe-core': PAGE_WIDE,
+      '@company/mfe-runtime': PAGE_WIDE,
     })
     expect(Object.keys(ANGULAR_SHARING_POLICY)).not.toContain('@company/mfe-core')
     expect(withPagePolicy(ANGULAR_SHARING_POLICY)).toEqual({
@@ -97,7 +100,7 @@ describe('the Angular sharing policy', () => {
 
     expect(Object.keys(shared)).toEqual(['@angular/common', '@angular/common/', '@angular/core'])
     expect(shared['@angular/common/']).toMatchObject({
-      singleton: true,
+      singleton: false,
       version: '19.2.25',
       shareScope: ANGULAR_SCOPE,
     })
@@ -131,7 +134,6 @@ describe('the Angular share scope', () => {
       '@angular/common/': ANGULAR_SCOPE,
       '@angular/core': ANGULAR_SCOPE,
       '@angular/router': ANGULAR_SCOPE,
-      '@company/mfe-angular': ANGULAR_SCOPE,
       '@company/mfe-core': 'default',
       '@company/mfe-runtime': 'default',
       rxjs: ANGULAR_SCOPE,
@@ -143,7 +145,7 @@ describe('the Angular share scope', () => {
     })
   })
 
-  it('gives a container on another Angular version its own scope, and the same page singletons', () => {
+  it('gives a container on another Angular version its own scope, and the same page-wide packages', () => {
     const current = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
     const previous = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
     writeFile(
@@ -155,8 +157,8 @@ describe('the Angular share scope', () => {
     const currentPlan = planContainer({ containerRoot: current })
     const previousPlan = planContainer({ containerRoot: previous })
 
-    expect(currentPlan.shared['@company/mfe-angular']?.shareScope).toBe(ANGULAR_SCOPE)
-    expect(previousPlan.shared['@company/mfe-angular']?.shareScope).toBe('angular@18.2.13')
+    expect(currentPlan.shared['rxjs']?.shareScope).toBe(ANGULAR_SCOPE)
+    expect(previousPlan.shared['rxjs']?.shareScope).toBe('angular@18.2.13')
     expect(previousPlan.shared['@company/mfe-core']).toEqual(
       currentPlan.shared['@company/mfe-core'],
     )
@@ -197,21 +199,21 @@ describe('the Angular share scope', () => {
   })
 })
 
-describe('the page singletons the adapter carries', () => {
+describe('the page-wide packages the adapter carries', () => {
   it('are shared page-wide at the ranges the installed adapter declares, though the container lists neither', () => {
     const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
 
     const { shared } = planContainer({ containerRoot: root })
 
     expect(shared['@company/mfe-core']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^0.1.0',
       shareScope: 'default',
     })
     expect(shared['@company/mfe-runtime']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '^0.1.0',
       shareScope: 'default',
     })
@@ -229,11 +231,7 @@ describe('the page singletons the adapter carries', () => {
 
     const plan = planContainer({ containerRoot: root })
 
-    expect(Object.keys(plan.shared)).toEqual([
-      '@company/mfe-angular',
-      '@company/mfe-core',
-      '@company/mfe-runtime',
-    ])
+    expect(Object.keys(plan.shared)).toEqual(['@company/mfe-core', '@company/mfe-runtime'])
     expect(plan.shared['@company/mfe-core']?.requiredVersion).toBe('~0.1.3')
     expect(plan.shared['@company/mfe-runtime']?.requiredVersion).toBe('^0.1.0')
   })
@@ -249,26 +247,26 @@ describe('an author adding shares', () => {
     },
   )
 
-  it('may add any other package, which the plan then shares as a singleton', () => {
+  it('may add any other package, which the plan then shares in the Angular scope', () => {
     const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
 
     const plan = planContainer({ containerRoot: root, shared: { '@acme/auth-client': '^3.0.0' } })
 
     expect(plan.shared['@acme/auth-client']).toMatchObject({
-      singleton: true,
+      singleton: false,
       requiredVersion: '^3.0.0',
       shareScope: ANGULAR_SCOPE,
     })
   })
 
-  it('may tighten a page singleton, which stays in the page scope', () => {
+  it('may restate the range of a page-wide package, which stays in the page scope', () => {
     const root = createContainer({ 'src/mfe.ts': WIDGET_ENTRY })
 
     const plan = planContainer({ containerRoot: root, shared: { '@company/mfe-core': '~0.1.3' } })
 
     expect(plan.shared['@company/mfe-core']).toEqual({
-      singleton: true,
-      strictVersion: true,
+      singleton: false,
+      strictVersion: false,
       requiredVersion: '~0.1.3',
       shareScope: 'default',
     })

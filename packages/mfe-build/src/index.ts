@@ -90,13 +90,13 @@ export { buildFederationOptions, withFrameworkMetadata } from './federation/fede
 export type { FederationOptions } from './federation/federation-options.ts'
 export { installedVersionFrom } from './federation/installed-version.ts'
 export {
+  FRAMEWORK_SCOPED,
   PAGE_POLICY,
   PAGE_SHARE_SCOPE,
-  PAGE_SINGLETON,
+  PAGE_WIDE,
   packageOf,
   resolveShared,
   shareScopesOf,
-  SINGLETON,
   withPagePolicy,
 } from './federation/sharing.ts'
 export type { SharedModuleConfig, SharingPolicies, SharingPolicy } from './federation/sharing.ts'

@@ -40,7 +40,7 @@ export interface ContainerProfile {
   readonly frameworkAnchor: string
   /**
    * The candidates this kind of container shares, each only when it depends on it. The build adds
-   * the page singletons itself, and like any candidate that is not framework-scoped they are also
+   * the page-wide candidates itself, and like any candidate that is not framework-scoped they are also
    * shared when only the adapter depends on them.
    */
   readonly sharing: SharingPolicies

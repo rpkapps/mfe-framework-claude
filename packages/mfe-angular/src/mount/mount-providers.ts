@@ -100,7 +100,8 @@ function provideMfeMount(
 }
 
 /**
- * One application per mount, on the page's shared browser platform, which no mount ever destroys.
+ * One application per mount, on the browser platform of the Angular copy it runs on, which no mount
+ * ever destroys.
  * A provider that fails here is the definition's, so the failure is named after it. Creation waits
  * on the definition's initializers, which may never settle, so a disposal stops the wait rather
  * than leaving the mount pinned to it.

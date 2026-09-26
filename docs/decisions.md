@@ -715,6 +715,10 @@ but `@company/mfe-core` and `@company/mfe-runtime` in `default`, where the same 
 holds and the host's copy wins. The strategy is still declared at build time, and
 the runtime still stamps it onto every share, in every scope.
 
+**Amendment (2026-09-26):** a remote whose range the host's copy does not satisfy is no longer
+rejected at load: with no singletons (§55) it gets a loaded copy its range accepts, or its own.
+`loaded-first` still keeps the host's copy for every remote whose range it satisfies.
+
 ---
 
 ## 31. Angular containers get an adapter of their own, built by Nx on webpack
@@ -915,6 +919,12 @@ it shares in `default` alone and runs on its own React.
 design-system contract cannot override an entry the adapter lists, so no release of it can load
 a second React. A mount torn down while its definition is still mounting has its signal aborted
 first, so a definition that stops on abort cannot hold the teardown.
+
+**Amendment (2026-09-26):** inside a scope the rule is no longer one strict singleton per
+candidate: nothing is a singleton (§55). A container takes the loaded copy its range accepts and
+loads its own when none does, and `@company/mfe-core` and `@company/mfe-runtime` stay shared in
+`default` without having to be the only copy. The scopes are unchanged, and so is the reason for
+them: a shared module's own imports resolve in the build that provided it.
 
 ---
 
@@ -1921,3 +1931,53 @@ server authorizes.
 shell has for as long as the tab lives. Keeping the refresh token out of reach (a backend for
 the frontend, or DPoP) and a `script-src` policy naming the registry's origins are the ways to
 narrow that, and neither exists yet.
+
+---
+
+## 55. Nothing is shared as a singleton, because containers are released on their own
+
+**Status:** decided; at the project owner's direction, because every container is built and released
+from a repository of its own.
+
+§33 kept one rule inside a share scope: one strict singleton per candidate. That rule assumes the
+containers on one framework version were built together. Released from separate repositories they
+are not, and a strict singleton turns every drift into an outage: a container built against
+`@company/mfe-react@^0.2.0` failed to load on a shell that provided 0.1.0, with "does not satisfy
+the requirement", and so did one on a core the shell's did not satisfy. Nobody had changed that
+container; another repository had released.
+
+So nothing is a singleton. Every `shared` entry a container or a host is built with is
+`singleton: false, strictVersion: false`, and a `SharingPolicy` has no field that could say
+otherwise. Module Federation then gives a container the loaded copy its range accepts, which under
+`loaded-first` (§30) is the host's whenever it qualifies, and a container that nothing loaded
+satisfies loads the copy it bundled instead of failing. Containers whose ranges agree still download
+one copy. The scopes stay as §33 set them, for the reason it gave: a shared module's own imports
+resolve in the build that provided it. Inside `react@19.3.0` every container provides React 19.3.0,
+so React itself stays one copy; the same holds for `@angular/core`.
+
+A page may now hold two copies of `@company/mfe-core` or `@company/mfe-runtime`, so neither may keep
+what matters across containers in module state. An error is an `MfeError` by a registered symbol on
+its prototype rather than by `instanceof`, so a Widget's contract error keeps its code when the
+shell's copy reports it. The mount-token sequence lives on the page under a registered symbol, so
+two runtimes never both issue `reports#1` and one's teardown never clears the other's actions. So
+does the session `installShellAuth` installs, which a container's `#mfe/fetch` reads through its
+own copy and would otherwise find missing, and so does the active span context.
+
+The adapters are no longer shared at all. An adapter renders the providers the author's code reads,
+TanStack Query's client and the router, and compares Angular's router classes and tokens; a shared
+adapter binds those to the copies the build that provided it resolved, so a container whose range
+excluded them would find no `QueryClient`. Bundled, each container's adapter imports them through
+the container's own shares, as its author's code does. Nothing in an adapter needed one copy per
+page: definitions and style roots were already recognised by registered symbols, and each mount
+provides its contexts again in a root of its own (§33). A definition was already
+recognised by a registered symbol (§6). The design system's contract says the same from its side:
+`@tecton/react/federation/shared` declares no singletons, and the adapter no longer reads its
+singleton flags, only whether a package loads eagerly.
+
+**Cost:** a mismatch no longer fails loudly at load; it runs, on two copies. A container downloads
+its own adapter, and its own copy of anything its range excludes, where the singleton rule would
+have refused it rather than paid for it. A container on its own `sonner` queues toasts the shell's
+`Toaster` never reads. A container on a newer runtime than the shell's calls members of the shell's
+runtime object by name, so one the shell's version lacks fails when it is called: the runtime object
+is now a contract between versions, and nothing yet checks that a container's runtime is no newer
+than the shell's.

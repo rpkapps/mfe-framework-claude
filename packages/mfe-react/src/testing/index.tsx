@@ -99,7 +99,7 @@ function memoryOptions(options: MfeTestEnvironmentOptions): MemoryRuntimeOptions
 
 /**
  * The runtime's memory runtime plus what is React's: a mount with its Query client, the providers,
- * and the router context. Every environment is independent, so no singleton leaks state between
+ * and the router context. Every environment is independent, so no module state leaks between
  * tests.
  */
 export function createMfeTestEnvironment(

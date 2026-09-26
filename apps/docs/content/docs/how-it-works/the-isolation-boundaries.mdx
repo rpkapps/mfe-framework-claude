@@ -122,24 +122,26 @@ and a hub with no sinks discards everything.
 ## Framework share scopes
 
 Each framework shares in a Module Federation share scope named after its exact installed version:
-`react@19.3.0`, `angular@19.2.25`. Inside a scope every framework-bound package is one strict
-singleton. For React that is React, `react-dom`, `sonner`, the adapter, the TanStack packages and
-the design system's own list. A container shares a candidate only when it depends on that package.
+`react@19.3.0`, `angular@19.2.25`. Inside a scope go the framework-bound packages. For React that is
+React, `react-dom`, `sonner`, the TanStack packages and the design system's own list. A container
+shares a candidate only when it depends on that package. The adapter is bundled into each container,
+so the providers it renders bind to the same copies the author's code imports.
 
-Containers on the same version therefore download one copy. A container on another version brings
-its own complete set, so several React versions can share one page. `@company/mfe-core` and
-`@company/mfe-runtime` stay page singletons in the `default` scope, whatever framework a container
-uses. A registry entry lists its container's scopes as `shareScopes`, and the loader registers the
-remote with exactly those.
+No package is a singleton, because containers are released from repositories of their own. A
+container takes the loaded copy its range accepts, so containers whose ranges agree download one
+copy, and a container whose range nothing loaded satisfies loads its own copy instead of failing. A
+container on another version brings its own complete set, so several React versions can share one
+page. `@company/mfe-core` and `@company/mfe-runtime` are shared in the `default` scope, whatever
+framework a container uses, and keep nothing that needs them to be the only copy. A registry entry
+lists its container's scopes as `shareScopes`, and the loader registers the remote with exactly
+those. A container may add to the candidate list and cannot remove from it.
 
-A second copy inside one scope is the failure this boundary exists to prevent. Both copies look
-correct on their own, and every framework hook inside the container then reports being rendered
-outside any mount. A container may add to the candidate list and cannot remove from it.
-
-The scopes have three costs. A container on another React version has its own `sonner`, so its toasts
-never reach the shell's `Toaster`. `strictVersion` still rejects a minor mismatch inside a scope. The
-shell shares only what it installs, so it no longer shares `recharts`. PrimeNG is never shared at
-all. Decision 33 argues the scopes, and decision 30 records how a host resolves them.
+The scopes have four costs. A container on its own copy of `sonner` queues toasts the shell's
+`Toaster` never reads. Every container downloads its own adapter. A container on a newer runtime
+than the shell's calls the shell's runtime object, so a member the shell's version lacks fails when
+it is called. The shell shares only what it installs, so it no longer shares `recharts`.
+PrimeNG is never shared at all. Decision 55 argues for no singletons, decision 33 for the scopes,
+and decision 30 records how a host resolves them.
 
 ## Related
 

@@ -1,7 +1,7 @@
 /**
  * Sign-in decides whether this page boots at all, so it is the only thing the entry chunk runs:
  * a visitor who is not signed in leaves for the identity provider before React, the registry or
- * any container is fetched. Module Federation resolves shared singletons asynchronously, so the
+ * any container is fetched. Module Federation resolves shared packages asynchronously, so the
  * entry chunk must not import React statically either; the boot is a chunk of its own.
  */
 

@@ -177,27 +177,34 @@ plugin and replaces nothing an author wrote. The container is the Nx project bei
 
 `src/federation/sharing.ts` holds the whole policy, in two groups that go in two share scopes:
 
-- **Framework**, in the `angular@<installed @angular/core>` scope, such as `angular@19.2.25` —
-  singleton and `strictVersion`: `@angular/core`, `@angular/common` (and the `@angular/common/`
+- **Framework**, in the `angular@<installed @angular/core>` scope, such as `angular@19.2.25`:
+  `@angular/core`, `@angular/common` (and the `@angular/common/`
   prefix, for `@angular/common/http`), `@angular/platform-browser`, `@angular/router`,
-  `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix), `rxjs` (and its prefix)
-  and `@company/mfe-angular`. Containers on the same Angular version share one copy; a container on
-  another version brings its own set, so two Angular versions can share one page.
-- **Page**, in `default` — singleton and `strictVersion`: `@company/mfe-core` and
-  `@company/mfe-runtime`, one copy for the whole page whatever framework a container renders with.
+  `@angular/forms`, `@angular/animations`, `@angular/cdk` (and its prefix) and `rxjs` (and its
+  prefix). A container on another Angular version brings its own set, so two Angular versions can
+  share one page.
+- **Page**, in `default`: `@company/mfe-core` and `@company/mfe-runtime`, shared whatever framework
+  a container renders with.
+- **Bundled**: `@company/mfe-angular`. It compares the router's classes and tokens and provides the
+  HTTP interceptor, so it imports Angular through the container's own shares, as the author's code
+  does.
 - **Never shared**: `primeng`, `@primeng/themes`, `@primeuix/styled`, `@primeuix/utils`. Their theme
   engine keeps page-wide module state; `withMfe({ shared })` refuses them.
 
-A package `withMfe({ shared })` adds joins the Angular scope as a singleton; an addition never
-removes, relaxes or re-scopes a candidate. The registry entry lists the scopes as `shareScopes`
+Nothing is a singleton, because containers are released from repositories of their own: every
+entry is `singleton: false, strictVersion: false`. A container takes the loaded copy its range
+accepts, so containers whose ranges agree share one copy, and one whose range nothing loaded
+satisfies loads its own instead of failing.
+
+A package `withMfe({ shared })` adds joins the Angular scope; an addition never removes or
+re-scopes a candidate. The registry entry lists the scopes as `shareScopes`
 (`["default", "angular@19.2.25"]`), and the shell registers the container with exactly those.
 
-A container shares a candidate it depends on. The page group is the exception: a React shell
-provides the neutral packages but never the Angular adapter, so the first Angular container on a
-page provides the adapter itself, and the adapter's own imports resolve in that container's build.
-The build therefore shares the page singletons the installed adapter depends on, at the ranges the
-adapter declares, although the container lists neither — otherwise every Angular mount would run
-against a second copy of the core.
+A container shares a candidate it depends on. The page group is the exception: a container depends
+on the adapter, not on the neutral packages the adapter imports. The build therefore shares the
+page-wide packages the installed adapter depends on, at the ranges the adapter declares, although
+the container lists neither — otherwise every Angular container would download a core of its own
+even beside one its range accepts.
 
 ## Module format
 

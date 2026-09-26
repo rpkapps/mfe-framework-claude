@@ -362,10 +362,11 @@ closed union, the definition id, the operation and the repair; it reaches the sh
 `DiagnosticsHub`, which forwards it to telemetry, and a failed mount costs its own boundary and
 nothing else. **Framework share scopes**: each framework shares in a Module Federation scope
 named after its exact installed version, `react@19.3.0` or `angular@19.2.25`, where every
-framework-bound package is one strict singleton — so containers on one version share one copy of
-React, `react-dom`, `sonner`, the adapter and the TanStack packages, and a container on another
-version brings its own set; `@company/mfe-core` and `@company/mfe-runtime` stay page singletons
-in `default`. The registry entry lists the scopes as `shareScopes`, the loader registers the
+framework-bound package is shared and none is a singleton — so containers on one version share
+the copy of React, `react-dom`, `sonner` and the TanStack packages that their ranges accept,
+while each bundles its own adapter, one whose range nothing loaded satisfies loads its own instead of failing, and a container
+on another version brings its own set; `@company/mfe-core` and `@company/mfe-runtime` are shared
+page-wide in `default`. The registry entry lists the scopes as `shareScopes`, the loader registers the
 remote with exactly those, and the host declares `shareStrategy: 'loaded-first'` so one
 unreachable manifest cannot take the whole page down with it.
 

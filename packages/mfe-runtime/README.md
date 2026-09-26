@@ -83,7 +83,7 @@ mount resolved goes to `target.onFailure`, which moves the mount to `error`.
 `createFederationContainerLoader({ runtime })` is handed the federation runtime
 rather than importing it. It registers each container once, with the share
 scopes its registry entry lists as `shareScopes` — `default` first, where
-`@company/mfe-core` and this package are page singletons, then its framework's
+`@company/mfe-core` and this package are shared page-wide, then its framework's
 scope, such as `react@19.3.0`. A remote links only the scopes it is registered
 with, so an entry without `shareScopes` shares in `default` alone.
 

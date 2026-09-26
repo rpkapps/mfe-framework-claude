@@ -22,20 +22,20 @@ imports `env` from its integration, which re-exports the helper from
 
 What differs between two integrations is stated once, as a `ContainerProfile`:
 
-| Field                 | What it decides                                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `generator`           | The package every generated banner names.                                                                                                  |
-| `definitions`         | The modules `createApp` and `createWidget` may come from, and the examples a diagnostic suggests in the adapter's words.                   |
-| `envModules`          | The modules `src/mfe.config.ts` may import `env` from; the first also types `#mfe/config`.                                                 |
-| `adapterModule`       | Where the generated `#mfe/fetch` imports `createContainerTransport` from.                                                                  |
-| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`, and the name the framework's share scope starts with.                   |
-| `frameworkAnchor`     | The package whose installed version names the framework's share scope: `react` gives `react@19.3.0`.                                       |
-| `sharing`             | The framework's share-scope candidates and how each is shared; the build adds the page singletons, and an author can only add to the list. |
-| `stylesheet`          | What Tailwind scans under `src/`, any lines added after its imports, and a query the entries import the stylesheet with.                   |
-| `exposeDefinition`    | Optional: how an exposed entry exports `definition`, in place of re-exporting the author's.                                                |
-| `generatedFiles`      | Optional: files only this integration generates. They count towards the build hash.                                                        |
-| `readCapabilities`    | Optional: finds the App's capability routes. Without one, a container declares none.                                                       |
-| `containerRootOption` | How an author points the integration at a container, for the repair when that is wrong.                                                    |
+| Field                 | What it decides                                                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `generator`           | The package every generated banner names.                                                                                                 |
+| `definitions`         | The modules `createApp` and `createWidget` may come from, and the examples a diagnostic suggests in the adapter's words.                  |
+| `envModules`          | The modules `src/mfe.config.ts` may import `env` from; the first also types `#mfe/config`.                                                |
+| `adapterModule`       | Where the generated `#mfe/fetch` imports `createContainerTransport` from.                                                                 |
+| `framework`           | Written into the registry entry and the manifest's `metaData.mfe`, and the name the framework's share scope starts with.                  |
+| `frameworkAnchor`     | The package whose installed version names the framework's share scope: `react` gives `react@19.3.0`.                                      |
+| `sharing`             | The framework's share-scope candidates and how each is shared; the build adds the page-wide ones, and an author can only add to the list. |
+| `stylesheet`          | What Tailwind scans under `src/`, any lines added after its imports, and a query the entries import the stylesheet with.                  |
+| `exposeDefinition`    | Optional: how an exposed entry exports `definition`, in place of re-exporting the author's.                                               |
+| `generatedFiles`      | Optional: files only this integration generates. They count towards the build hash.                                                       |
+| `readCapabilities`    | Optional: finds the App's capability routes. Without one, a container declares none.                                                      |
+| `containerRootOption` | How an author points the integration at a container, for the repair when that is wrong.                                                   |
 
 ```ts
 import { planContainer, writeGeneratedFiles } from '@company/mfe-build'
@@ -105,24 +105,29 @@ changed since the call before.
 
 ## Share scopes
 
-Every candidate is either framework-scoped (`SINGLETON`, or a policy with
-`frameworkScoped: true`) or page-wide (`PAGE_SINGLETON`). A framework-scoped
-candidate goes in the share scope named after the exact framework version the
-container installed, such as `react@19.3.0` or `angular@19.2.25`, so containers on
-the same version load one copy and a container on another version brings its own
-complete set. A page-wide candidate goes in `default`, which every container on
-the page shares whatever its framework.
+Every candidate is either framework-scoped (`FRAMEWORK_SCOPED`) or page-wide
+(`PAGE_WIDE`). A framework-scoped candidate goes in the share scope named after the
+exact framework version the container installed, such as `react@19.3.0` or
+`angular@19.2.25`, so a container on another version brings its own complete set.
+A page-wide candidate goes in `default`, which every container on the page shares
+whatever its framework.
 
-The build adds the page singletons, `@company/mfe-core` and `@company/mfe-runtime`
+Nothing is a singleton, because containers are released from repositories of their
+own: every entry is `singleton: false, strictVersion: false`, and a policy has no
+field that could make it one. A container gets the loaded copy that satisfies its
+range, so containers whose ranges agree load one copy, and one that nothing loaded
+satisfies uses its own copy instead of failing to load.
+
+The build adds the page-wide candidates, `@company/mfe-core` and `@company/mfe-runtime`
 (`PAGE_POLICY`), to every profile's candidates itself (`withPagePolicy`), so an
 integration cannot forget them. A container depends on its adapter, not on the
 neutral packages the adapter imports, so the page-wide candidates the adapter
 itself depends on are shared at the versions installed beside the adapter. A
 container's own entry for one wins.
 
-An author's `shared` override adds a candidate to the framework scope as a strict
-singleton, or tightens an existing one to a singleton. It never removes, relaxes or
-moves a candidate to another scope. The registry descriptor lists the scopes as
+An author's `shared` override adds a candidate to the framework scope, or restates
+the range of an existing one. It never removes a candidate or moves it to another
+scope. The registry descriptor lists the scopes as
 `shareScopes`, `default` first, and a host registers the container with them.
 
 Installed versions are read by walking the `node_modules` directories above a
