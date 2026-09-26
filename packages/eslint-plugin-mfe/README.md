@@ -779,6 +779,11 @@ navigates the whole page, so a Widget that injects it and calls `navigate` or
 behind their backs. Only the `angular()` preset turns it on, and like its React
 counterpart it reports only inside the globs listed in `widgetScopes`.
 
+It follows the `Router` from `inject(Router)`: called directly, or through the
+variable or class field it is bound to — a private `#router` included, and
+wherever in the file that binding is declared. A `Router` received as a
+constructor parameter is not followed.
+
 **Invalid** (inside a declared Widget scope)
 
 ```ts
