@@ -11,6 +11,7 @@ import type { MfeStaticData } from './router-contract.ts'
 /** The slice of a router match this module needs. */
 export interface BreadcrumbMatch {
   readonly id: string
+  /** Relative to the router's basepath, as TanStack reports it. */
   readonly pathname: string
   readonly staticData?: MfeStaticData | undefined
   /** The route's declared path segment, e.g. `/reports` or `$accountId`. */
@@ -54,9 +55,21 @@ function resolveLabel(match: BreadcrumbMatch): string | null {
   return humanizeSegment(segment)
 }
 
+/**
+ * A match's pathname leaves out the router's basepath, and the shell renders a crumb's href as it
+ * is, so the App's boundary goes back in front of it.
+ */
+function joinPath(basePath: string, pathname: string): string {
+  const base = basePath.replace(/\/+$/, '')
+  const path = pathname.replace(/\/+$/, '')
+  if (path === '') return base || '/'
+  return path.startsWith('/') ? `${base}${path}` : `${base}/${path}`
+}
+
 /** Items are frozen so the store can compare by content and keep unchanged records by reference. */
 export function breadcrumbsFromMatches(
   matches: readonly BreadcrumbMatch[],
+  basePath: string,
 ): readonly BreadcrumbItem[] {
   const items: BreadcrumbItem[] = []
 
@@ -66,7 +79,7 @@ export function breadcrumbsFromMatches(
     const label = resolveLabel(match)
     if (label === null) continue
 
-    items.push(Object.freeze({ key: match.id, label, href: match.pathname }))
+    items.push(Object.freeze({ key: match.id, label, href: joinPath(basePath, match.pathname) }))
   }
 
   return withCurrentLast(items)

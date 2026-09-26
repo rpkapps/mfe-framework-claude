@@ -249,7 +249,10 @@ function useBreadcrumbContribution(
       }
       lastPathname.current = pathname
 
-      const items: readonly BreadcrumbItem[] = breadcrumbsFromMatches(toBreadcrumbMatches(router))
+      const items: readonly BreadcrumbItem[] = breadcrumbsFromMatches(
+        toBreadcrumbMatches(router),
+        mount.basePath,
+      )
       handle.update(items)
     }
 

@@ -555,6 +555,24 @@ describe('a React App mounting itself', () => {
     })
   })
 
+  it('links its breadcrumbs under the boundary rather than at the router-relative path', async () => {
+    const reports = buildReportsApp()
+    const { context } = hostFor('app', 'reports', {
+      basePath: '/reports',
+      initialEntries: ['/reports/accounts/7'],
+    })
+
+    await act(async () => {
+      await reports.mount({ element, context, onFailure: noopFailure })
+    })
+
+    await vi.waitFor(() => {
+      expect(context.runtime.breadcrumbs.getSnapshot().map(item => item.href)).toEqual([
+        '/reports/accounts/7',
+      ])
+    })
+  })
+
   it('empties the element and withdraws its breadcrumbs when disposed', async () => {
     const reports = buildReportsApp()
     const { context } = hostFor('app', 'reports', {
