@@ -85,6 +85,30 @@ const PAGES = [
     contains: 'Reduced DLS',
   },
   {
+    // The one container whose build configuration is not a copy of the others', and the one that
+    // once resolved the framework to a dist/ nothing had built: its App and its Widget both
+    // failed to load while every page above passed.
+    url: '/subsurface-canvas',
+    mounts: ['subsurface-canvas'],
+    nested: [],
+    contains: 'Geologic Background',
+  },
+  {
+    // The same container's Widget, which takes no inputs, so Add places it without a dialog.
+    url: '/',
+    async prepare(page) {
+      await page.evaluate(() => {
+        localStorage.removeItem('@host:dashboard')
+      })
+      await page.reload({ waitUntil: 'load' })
+      await page.waitForTimeout(3000)
+      await page.getByRole('button', { name: /Add 3D well and surfaces/i }).click()
+    },
+    mounts: ['subsurface-well-3d'],
+    nested: [],
+    contains: 'Drag · scroll · R reset',
+  },
+  {
     // The popover has to portal into operations' own body-level overlay root, neither a bare
     // document.body nor back inside the in-page mount, and carry that container's CSS (§17).
     url: '/operations/wells',

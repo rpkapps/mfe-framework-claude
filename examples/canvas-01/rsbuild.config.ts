@@ -19,7 +19,16 @@ import { pluginMfe } from '@company/mfe-rspack'
 import { defineConfig } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+import {
+  requireTecton,
+  tectonResolve,
+  useWorkspaceModules,
+} from '../../tools/tecton/tecton-build.mjs'
+
 const here = dirname(fileURLToPath(import.meta.url))
+
+requireTecton(here, 'The canvas-01 container')
+useWorkspaceModules(here)
 
 /** The port is declared once, in the manifest `pnpm dev` reads it from too. */
 const manifest = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8')) as {
@@ -34,7 +43,10 @@ export default defineConfig({
   source: { entry: { index: './src/mfe.ts' } },
 
   // A remote is fetched by a shell, never browsed to, so it needs no document.
-  tools: { htmlPlugin: false },
+  // `tectonResolve` is the shell's own resolution of the design system and of
+  // the framework packages' TypeScript source, so the two cannot drift;
+  // without it `@company/mfe-react` resolves to a dist/ nothing has built.
+  tools: { htmlPlugin: false, rspack: { resolve: tectonResolve(here) } },
 
   server: {
     port: manifest.mfe.port,
