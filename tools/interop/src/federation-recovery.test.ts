@@ -42,6 +42,7 @@ function entry(name: string, withManifest = false): FederatedRegistryEntry {
     id: 'counter',
     definitionKind: 'widget',
     adapter: 'react',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container: name,
     manifestUrl: `https://edge.example.test/${name}/${withManifest ? 'mf-manifest.json' : 'remoteEntry.js'}`,
   }

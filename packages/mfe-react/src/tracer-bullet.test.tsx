@@ -318,7 +318,13 @@ describe('mount failure is explicit', () => {
 
     const failure = await rendered.environment.runtime.loader
       .load(
-        { id: 'absent', definitionKind: 'app', adapter: 'react', manifestUrl: 'memory://absent' },
+        {
+          id: 'absent',
+          definitionKind: 'app',
+          adapter: 'react',
+          manifestUrl: 'memory://absent',
+          requiresRuntime: '>=1.1.0 <2.0.0',
+        },
         { signal: new AbortController().signal },
       )
       .then(

@@ -25,9 +25,10 @@ const { runtime, activeOverrides, dispose } = createMfeRuntime({
 })
 ```
 
-`readRegistry` offers every raw entry to every adapter's `detect`, and exactly
-one must recognise it. None and the entry is rejected as unrecognised; more than
-one and it is rejected as ambiguous, with both named. Order means nothing. A
+`readRegistry` checks each entry's required `requiresRuntime` range, then offers
+it to every adapter's `detect`. Exactly one must recognise it. None and the entry
+is rejected as unrecognised; more than one and it is rejected as ambiguous, with
+both named. Order means nothing. A
 rejected entry loses only itself and reaches the diagnostics hub.
 
 An adapter plugs in load behaviour through `MfeAdapter.aroundLoad(load, entry)`.
@@ -45,7 +46,9 @@ const mount = mountDefinition({
   definitionId: 'alert-panel',
   kind: 'widget',
   inputs: { alertId: 'a-42' },
+  consumerContract: { inputSchema, outputSchema }, // the consumer's imported contract
   onOutput: (name, payload) => handle(name, payload),
+  onInputRejected: error => showInputError(error),
   parent, // the enclosing MountContext, if any
 })
 mount.subscribe(() => render(mount.getState()))
@@ -59,6 +62,8 @@ own included. The runtime:
 - resolves the definition through the loader, which shares a load in flight and
   keeps one that resolved, and never keeps a rejection;
 - checks it is a mountable definition of the kind the registry named;
+- checks that a Widget still declares every output name in the consumer's
+  imported contract; input schemas are not compared before mounting;
 - creates the scope root (`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`,
   `display: contents`) with the definition's element inside it, and the
   body-level overlay root, and hands both on in the `MountContext`;
@@ -72,7 +77,17 @@ own included. The runtime:
 
 Load, mount and disposal run under `runtime.deadlines`: 30, 30 and 5 seconds
 unless the shell tunes them. The state is core's `MountState`: `pending`,
-`mounted`, `error` or `disposed`.
+`mounted`, `error` or `disposed`. Rejected input updates leave the mount `mounted`
+and keep its last valid view. `getInputState()` and `subscribeInput()` expose
+accepted or rejected inputs separately; a valid update clears the rejection.
+
+The definition's `MountedWidget.update(inputs)` validates before changing the
+view and returns `WidgetUpdateResult` synchronously: `{ status: 'accepted' }` or
+`{ status: 'rejected', error }`. The runtime calls the host's `onInputRejected`
+when it receives a rejection. `WidgetDefinitionMount.update()` is the host's
+method for handing inputs to the runtime and still returns nothing.
+Reserved input names are declaration failures, so they throw and fail the mount
+instead of rejecting one set of values.
 
 A definition renders into `target.element`, portals into
 `context.overlayRoot`, and never adds a root of its own. A failure after its

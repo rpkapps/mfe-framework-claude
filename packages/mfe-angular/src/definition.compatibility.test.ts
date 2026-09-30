@@ -15,8 +15,6 @@ vi.mock('@company/mfe-core', async importOriginal => {
           'satisfiesRuntimeRequirement',
           'RUNTIME_API_VERSION',
           'RUNTIME_API_REQUIREMENT',
-          'LEGACY_RUNTIME_API_VERSION',
-          'LEGACY_RUNTIME_API_REQUIREMENT',
         ].includes(name),
     ),
   )
@@ -30,9 +28,12 @@ class EmptyComponent {}
 describe('new Angular adapter against an older shared core and shell', () => {
   it('refuses an app before constructing its application', async () => {
     const app = createApp({ id: 'new-app', routes: [] })
-    const legacyTarget = { context: { runtime: {} } }
-    const target = legacyTarget as AppMountTarget
-    await expect(app.mount(target)).rejects.toMatchObject({ code: 'contract/runtime-incompatible' })
+    const incompleteTarget = { context: { runtime: {} } }
+    const target = incompleteTarget as AppMountTarget
+    await expect(app.mount(target)).rejects.toMatchObject({
+      code: 'config/missing',
+      path: ['apiVersion'],
+    })
   })
 
   it('refuses a widget with a locally preserved adapter baseline', async () => {
@@ -43,10 +44,11 @@ describe('new Angular adapter against an older shared core and shell', () => {
       component: EmptyComponent,
     })
     expect(widget.requiresRuntime).toBe('>=1.1.0 <2.0.0')
-    const legacyTarget = { context: { runtime: {} } }
-    const target = legacyTarget as WidgetMountTarget
+    const incompleteTarget = { context: { runtime: {} } }
+    const target = incompleteTarget as WidgetMountTarget
     await expect(widget.mount(target)).rejects.toMatchObject({
-      code: 'contract/runtime-incompatible',
+      code: 'config/missing',
+      path: ['apiVersion'],
     })
   })
 })

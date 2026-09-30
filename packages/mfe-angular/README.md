@@ -192,13 +192,13 @@ Only a route's own data counts: Angular copies a componentless parent's data
 into its children, which would otherwise label every child with the parent.
 
 **Shell-state transitions** update the injectables below as live signals. When a
-user signs in or out, or the user, account, tenant or groups change, the App runs
-the active guards and resolvers again, including those on lazy routes. The URL
-and browser history stay as they were. The old view is hidden until the new data
-has rendered; a denied guard or failed resolver moves the mount to its error
-state. The App otherwise keeps your `runGuardsAndResolvers` policies and reuses
-routes and components as usual. A theme or display-name change, token refresh,
-or reordered group list leaves the current route alone. Stored values remain.
+user signs in or out, or the user, account, tenant or groups change, the App's
+application is destroyed and mounted again. Its providers, router and components
+start fresh at the same URL; guards and resolvers run through initial navigation.
+Component and form state resets, and work tied to the previous application is
+cancelled. The boundary and browser history stay as they were, and stored
+preferences remain. A theme or display-name change, token refresh, or reordered
+group list keeps the current application.
 
 A Widget or service that fetches user-dependent data itself calls
 `const session = injectSession()`. It returns a shared `Signal<MfeSession>`

@@ -69,15 +69,6 @@ export {
 } from './contract.ts'
 
 export {
-  compareJsonSchemas,
-  comparePublishedContracts,
-  compareWidgetContracts,
-  type ContractCompatibility,
-  type ContractCompatibilityIssue,
-  type ContractCompatibilityStatus,
-} from './contract-compatibility.ts'
-
-export {
   boundAttributes,
   boundName,
   EMPTY_ATTRIBUTES,
@@ -134,8 +125,6 @@ export { defaultExposePath, PAGE_SHARE_SCOPE, SCOPE_ATTRIBUTE } from './containe
 export {
   assertRuntimeCompatibility,
   isRuntimeRequirement,
-  LEGACY_RUNTIME_API_REQUIREMENT,
-  LEGACY_RUNTIME_API_VERSION,
   RUNTIME_API_REQUIREMENT,
   RUNTIME_API_VERSION,
   satisfiesRuntimeRequirement,

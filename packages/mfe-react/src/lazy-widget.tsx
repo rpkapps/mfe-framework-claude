@@ -108,7 +108,6 @@ function WidgetSlot({
       onOutput: (output, payload) => {
         deliverWidgetOutput(props, output, payload)
       },
-      consumerOutputs: contract?.outputSchema,
       consumerContract: contract,
       instanceId: props['instanceId'] as string | undefined,
       onInputRejected: props['onInputRejected'] as ((error: MfeError) => void) | undefined,

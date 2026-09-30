@@ -42,6 +42,7 @@ describe('adapter load hook cancellation', () => {
       adapter: 'plain-dom',
       definitionKind: 'app',
       manifestUrl: 'https://edge.example.test/reports/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
     const loading = shared.load(entry, { signal: new AbortController().signal })
     const failure = expect(loading).rejects.toMatchObject({ code: 'load/timeout' })

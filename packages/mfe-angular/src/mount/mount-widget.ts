@@ -63,7 +63,7 @@ export async function mountWidget(
 ): Promise<MountedWidget> {
   // Only what outlives mounting is kept, so the long-lived closures below never hold the first
   // input set or the rest of the target.
-  const { context, onFailure, onInputRejected } = target
+  const { context } = target
   if (context.signal.aborted) throw disposedWhileMounting(context)
 
   const component = readComponentContract(definition)
@@ -119,20 +119,16 @@ export async function mountWidget(
 
     // The host passes only a set that changed, so every call is validated.
     update: inputs => {
-      if (mounted.isDisposed()) return
+      if (mounted.isDisposed()) return { status: 'accepted' }
 
       const next = validateInputs(definition, component, inputs)
       // No later set can repair a reserved input name, so the mount fails rather than keeping
       // its last valid inputs; the runtime reports the failure and tears the mount down.
       if (next.status === 'misdeclared') {
-        onFailure(next.error)
-        return
+        throw next.error
       }
       if (next.status === 'rejected') {
-        // The mount keeps rendering its last valid inputs; the host hears about the rejection.
-        context.runtime.diagnostics.report(next.error, { context: { widget: definition.id } })
-        onInputRejected?.(next.error)
-        return
+        return next
       }
 
       const previous = valid
@@ -144,6 +140,7 @@ export async function mountWidget(
         changed = true
       }
       if (changed) render()
+      return { status: 'accepted' }
     },
   }
 }

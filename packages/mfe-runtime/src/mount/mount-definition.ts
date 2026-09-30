@@ -6,7 +6,6 @@
  */
 
 import {
-  compareWidgetContracts,
   createMfeError,
   shallowEqual,
   toMfeError,
@@ -28,6 +27,7 @@ import type {
   MountableWidgetDefinition,
   MountedApp,
   MountedWidget,
+  WidgetUpdateResult,
 } from './mountable-definition.ts'
 import { resolveDefinition } from './resolve-definition.ts'
 
@@ -56,11 +56,9 @@ export interface WidgetMountRequest extends MountRequestBase {
   readonly instanceId?: string | undefined
   /** Called after the provider validated the payload and any consumer contract accepted it. */
   readonly onOutput: (output: string, payload: unknown) => void
-  /** Legacy output-only expectations: preflight declared events, then validate actual payloads. */
-  readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
-  /** Consumer input/output expectations, checked before the provider mounts. */
+  /** Declared output names are checked before mounting, and payloads before delivery. */
   readonly consumerContract?: WidgetContract | undefined
-  /** An update the Widget rejected, which the Widget has already reported. */
+  /** Called after the runtime reports an explicitly rejected provider update. */
   readonly onInputRejected?: (error: MfeError) => void
 }
 
@@ -85,8 +83,7 @@ export interface WidgetDefinitionMount extends DefinitionMount {
   subscribeInput(listener: () => void): () => void
 }
 
-export type WidgetInputState =
-  { readonly status: 'accepted' } | { readonly status: 'rejected'; readonly error: MfeError }
+export type WidgetInputState = WidgetUpdateResult
 
 const ACCEPTED_INPUTS: WidgetInputState = { status: 'accepted' }
 
@@ -168,7 +165,7 @@ type HeldRequest = AppMountRequest | HeldWidgetRequest
  * The request without its first inputs, which `#inputs` and each attempt's `delivered` replace:
  * holding the request itself would keep that first set alive for the mount's whole life. Copied
  * by descriptor rather than by value, because a host may pass a field as a getter that follows
- * its own state, as the Angular host does with `consumerOutputs`.
+ * its own state, as the Angular host does with `consumerContract`.
  */
 function withoutFirstInputs(request: MountRequest): HeldRequest {
   if (request.kind === 'app') return request
@@ -227,7 +224,6 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   readonly #fail: (error: unknown) => void
   readonly #teardowns = new Set<Promise<void>>()
   readonly #inputState: SnapshotSource<WidgetInputState>
-  #inputRejection = 0
   #attempt: Attempt | null = null
   /** The latest Widget inputs the host passed, whether or not a definition has them yet. */
   #inputs: Inputs
@@ -254,7 +250,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   async load(signal: AbortSignal): Promise<MountableDefinition> {
     const { runtime, definitionId, kind } = this.#request
     const definition = await resolveDefinition(runtime, definitionId, kind, signal)
-    this.#checkContract(definition)
+    this.#checkOutputs(definition)
     return definition
   }
 
@@ -265,7 +261,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     signal.throwIfAborted()
 
     // Also applies to retries that reuse a loaded definition and hosts with bound getters.
-    this.#checkContract(definition)
+    this.#checkOutputs(definition)
 
     const attempt = this.#open(definition)
     const mounted = await attempt.mounting
@@ -312,17 +308,31 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     try {
       this.#deliverInputs(attempt.mounted, inputs)
     } catch (error) {
-      // `update` reports a rejected set through `onInputRejected`; a throw is a Widget that
-      // can no longer run.
+      // Rejection is an explicit result; a throw is a fatal failure of the Widget.
       this.#fail(error)
     }
   }
 
-  /** Provider updates validate synchronously and report rejection before returning. */
+  /** The provider has already validated; only the runtime reports and publishes its outcome. */
   #deliverInputs(mounted: MountedWidget, inputs: Inputs): void {
-    const rejectedBefore = this.#inputRejection
-    mounted.update(inputs)
-    if (rejectedBefore === this.#inputRejection) this.#inputState.set(ACCEPTED_INPUTS)
+    const result = mounted.update(inputs)
+    this.#inputState.set(result.status === 'accepted' ? ACCEPTED_INPUTS : result)
+    if (result.status === 'accepted' || this.#request.kind !== 'widget') return
+    const request = this.#request
+    request.runtime.diagnostics.report(result.error, { context: { widget: request.definitionId } })
+    try {
+      request.onInputRejected?.(result.error)
+    } catch (cause) {
+      request.runtime.diagnostics.report(
+        toMfeError(cause, {
+          code: 'mount/failure',
+          id: request.definitionId,
+          operation: 'handle a rejected Widget input',
+          repair:
+            'Check the host onInputRejected handler. The Widget still displays its previous valid inputs.',
+        }),
+      )
+    }
   }
 
   #open(definition: MountableDefinition): Attempt {
@@ -382,24 +392,6 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
         if (!attempt.detached) deliverOutput(request, definition, output, payload)
       },
       onFailure,
-      onInputRejected: (error: MfeError) => {
-        if (attempt.detached) return
-        this.#inputRejection += 1
-        this.#inputState.set({ status: 'rejected', error })
-        try {
-          request.onInputRejected?.(error)
-        } catch (cause) {
-          request.runtime.diagnostics.report(
-            toMfeError(cause, {
-              code: 'mount/failure',
-              id: request.definitionId,
-              operation: 'handle a rejected Widget input',
-              repair:
-                'Check the host onInputRejected handler. The Widget still displays its previous valid inputs.',
-            }),
-          )
-        }
-      },
     })
   }
 
@@ -439,29 +431,25 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     )
   }
 
-  #checkContract(definition: MountableDefinition): void {
+  #checkOutputs(definition: MountableDefinition): void {
     if (definition.kind !== 'widget' || this.#request.kind !== 'widget') return
-    const contract =
-      this.#request.consumerContract ??
-      (this.#request.consumerOutputs === undefined
-        ? undefined
-        : { outputSchema: this.#request.consumerOutputs })
+    const contract = this.#request.consumerContract
     if (contract === undefined) return
-    const result = compareWidgetContracts(contract, definition.contract)
-    if (result.status !== 'incompatible') return
-    const issue = result.issues.find(entry => entry.status === 'incompatible')
-    if (issue === undefined) return
+    const missing = Object.keys(contract.outputSchema.shape).find(
+      name => outputPayloadSchema(definition.contract.outputSchema, name) === undefined,
+    )
+    if (missing === undefined) return
     throw createMfeError({
       code: 'contract/incompatible-widget',
       id: definition.id,
       ...withoutUndefined({ definitionVersion: definition.version }),
-      operation: 'compare the consumer and provider Widget contracts',
-      direction: issue.direction,
-      path: issue.path,
-      expected: 'a provider compatible with the consumer contract',
-      observed: issue.reason,
+      operation: 'check the outputs the consumer expects',
+      direction: 'output',
+      path: [missing],
+      expected: 'the Widget to declare each output in the consumer contract',
+      observed: `The provider no longer declares expected output '${missing}'.`,
       repair:
-        'Update the consumer contract and inputs, or use a compatible Widget definition. Payload validation remains active for unknown schema constraints.',
+        'Restore the output, or update the consumer contract and handler to match this Widget.',
     })
   }
 }
@@ -473,10 +461,7 @@ function deliverOutput(
   output: string,
   payload: unknown,
 ): void {
-  const schema = outputPayloadSchema(
-    request.consumerContract?.outputSchema ?? request.consumerOutputs,
-    output,
-  )
+  const schema = outputPayloadSchema(request.consumerContract?.outputSchema, output)
   if (schema === undefined) {
     request.onOutput(output, payload)
     return

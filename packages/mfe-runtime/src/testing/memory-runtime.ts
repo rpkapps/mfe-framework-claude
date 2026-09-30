@@ -116,7 +116,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
         adapter: definition.framework,
         manifestUrl: `memory://${definition.id}`,
         container: definition.id.replaceAll('-', '_'),
-        ...withoutUndefined({ requiresRuntime: definition.requiresRuntime }),
+        requiresRuntime: definition.requiresRuntime,
       },
     ]),
   )

@@ -3,14 +3,11 @@
  * runtime services. Compatible additions raise the minor; incompatible changes raise the major.
  */
 import type { DefinitionIdentity } from './definition.ts'
-import { createMfeError } from './errors.ts'
+import { createMfeError, describeValue } from './errors.ts'
 
 export const RUNTIME_API_VERSION = '1.1.0'
 /** Conservative baseline for adapters built with this framework release. */
 export const RUNTIME_API_REQUIREMENT = '>=1.1.0 <2.0.0'
-/** Entries/objects published before the handshake existed implement the original API. */
-export const LEGACY_RUNTIME_API_VERSION = '1.0.0'
-export const LEGACY_RUNTIME_API_REQUIREMENT = '>=1.0.0 <2.0.0'
 
 type Version = readonly [number, number, number]
 type Operator = '=' | '>' | '>=' | '<' | '<='
@@ -25,7 +22,7 @@ interface Comparator {
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const COMPARATOR = /^(>=|<=|>|<|=)?(.+)$/
 
-function parseVersion(value: string): Version | undefined {
+function parseVersion(value: unknown): Version | undefined {
   if (typeof value !== 'string') return undefined
   const match = VERSION.exec(value)
   if (!match) return undefined
@@ -75,13 +72,37 @@ export function satisfiesRuntimeRequirement(version: string, requirement: string
   })
 }
 
-/** Called before downloading, and by new adapters when an older shell has no preflight. */
+/** Explicit metadata is mandatory at both registry/loading and provider mount boundaries. */
 export function assertRuntimeCompatibility(
-  runtime: { readonly apiVersion?: string },
-  definition: Pick<DefinitionIdentity, 'id' | 'version'> & { readonly requiresRuntime?: string },
+  runtime: { readonly apiVersion?: unknown },
+  definition: Pick<DefinitionIdentity, 'id' | 'version'> & { readonly requiresRuntime?: unknown },
 ): void {
-  const version = runtime.apiVersion ?? LEGACY_RUNTIME_API_VERSION
-  const requirement = definition.requiresRuntime ?? LEGACY_RUNTIME_API_REQUIREMENT
+  const requirement = definition.requiresRuntime
+  if (!isRuntimeRequirement(requirement)) {
+    throw createMfeError({
+      code: 'registry/invalid-entry',
+      id: definition.id,
+      ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+      operation: 'read runtime compatibility metadata',
+      path: ['requiresRuntime'],
+      expected: 'an explicit stable SemVer comparator range, such as ">=1.1.0 <2.0.0"',
+      observed: requirement === undefined ? 'no requiresRuntime' : describeValue(requirement),
+      repair: 'Rebuild the container with generated requiresRuntime metadata.',
+    })
+  }
+  const version = runtime.apiVersion
+  if (typeof version !== 'string' || !parseVersion(version)) {
+    throw createMfeError({
+      code: version === undefined ? 'config/missing' : 'config/invalid',
+      id: definition.id,
+      ...(definition.version === undefined ? {} : { definitionVersion: definition.version }),
+      operation: 'read shell runtime API version',
+      path: ['apiVersion'],
+      expected: 'an explicit stable SemVer apiVersion on the shell-owned runtime',
+      observed: version === undefined ? 'no apiVersion' : describeValue(version),
+      repair: 'Create the shell runtime with createMfeRuntime, then reload the page.',
+    })
+  }
   if (satisfiesRuntimeRequirement(version, requirement)) return
   throw createMfeError({
     code: 'contract/runtime-incompatible',

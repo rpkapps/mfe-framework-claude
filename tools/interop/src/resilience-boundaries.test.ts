@@ -50,6 +50,15 @@ const valueWidget = createAngularWidget({
   ...valueContract,
   component: ValueComponent,
 })
+const narrowedInitialized = vi.fn()
+const narrowedWidget = createAngularWidget({
+  id: 'narrowed-angular-widget',
+  inputSchema: z.object({ value: z.number().min(10) }),
+  outputSchema: valueContract.outputSchema,
+  component: ValueComponent,
+  providers: [provideEnvironmentInitializer(narrowedInitialized)],
+})
+const NarrowedWidget = lazyWidget(narrowedWidget.id, { contract: valueContract })
 
 describe('mixed-release and cross-framework boundaries', () => {
   it('rejects an incompatible runtime before download while a sibling still renders', async () => {
@@ -93,6 +102,30 @@ describe('mixed-release and cross-framework boundaries', () => {
     )
     expect(created).not.toHaveBeenCalled()
     expect(screen.queryByText('Value 1')).toBeNull()
+  })
+
+  it('mounts a narrower Angular provider when the actual input is valid', async () => {
+    const memory = createPageRuntime({ definitions: [narrowedWidget] })
+
+    await renderSuspending(reactHostPage(memory.runtime, h(NarrowedWidget, { value: 20 })))
+    await screen.findByText('Value 20')
+    expect(memory.diagnostics).toHaveLength(0)
+  })
+
+  it('rejects an invalid initial value before the Angular provider creates its application', async () => {
+    narrowedInitialized.mockClear()
+    const memory = createPageRuntime({ definitions: [narrowedWidget] })
+
+    await renderSuspending(reactHostPage(memory.runtime, h(NarrowedWidget, { value: 5 })))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveAttribute(
+        'data-mfe-error',
+        'contract/input-mismatch',
+      ),
+    )
+    expect(narrowedInitialized).not.toHaveBeenCalled()
+    expect(screen.queryByText('Value 5')).toBeNull()
+    expect(memory.diagnostics.map(({ error }) => error.code)).toEqual(['contract/input-mismatch'])
   })
 
   it('reports rejected Angular updates in a React host, then clears the stale-input indication', async () => {

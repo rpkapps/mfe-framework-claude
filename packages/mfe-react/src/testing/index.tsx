@@ -19,6 +19,7 @@ import {
 import {
   createMountContext,
   mountDefinition,
+  validateProviderInputs,
   type DefinitionMount,
   type MountableAppDefinition,
   type MountableWidgetDefinition,
@@ -209,6 +210,9 @@ export function renderWidget(
   definition: WidgetDefinition,
   options: RenderWidgetOptions = {},
 ): RenderedMfe {
+  const props = options.props ?? {}
+  const first = validateProviderInputs(definition, widgetInputs(props))
+  if (first.status !== 'accepted') throw first.error
   const environment = createMfeTestEnvironment({
     ...options,
     definitionId: definition.id,
@@ -216,14 +220,13 @@ export function renderWidget(
     kind: 'widget',
     definitions: [...(options.definitions ?? []), definition],
   })
-  const props = options.props ?? {}
 
   return renderInto(
     environment,
     <MountTree
       definition={definition}
       mount={environment.mount}
-      inputs={widgetInputs(props)}
+      inputs={first.value}
       emit={(output, payload) => {
         deliverWidgetOutput(props, output, payload)
       }}

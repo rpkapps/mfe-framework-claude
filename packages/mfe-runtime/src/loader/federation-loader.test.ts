@@ -36,7 +36,7 @@ function definition(
   kind: DefinitionKind = 'app',
   framework = 'angular',
 ): BrandedDefinition {
-  return { [DEFINITION_BRAND]: true, kind, id, framework }
+  return { [DEFINITION_BRAND]: true, kind, id, framework, requiresRuntime: '>=1.1.0 <2.0.0' }
 }
 
 function entry(
@@ -49,6 +49,7 @@ function entry(
     definitionKind: 'app',
     adapter: 'angular',
     manifestUrl: `http://localhost:3001/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container,
     ...overrides,
   }
@@ -84,6 +85,7 @@ describe('isFederatedEntry', () => {
       definitionKind: 'app',
       adapter: 'legacy-angular',
       manifestUrl: 'https://cdn.example.test/billing/manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
 
     expect(isFederatedEntry(unnamed)).toBe(false)
@@ -240,6 +242,7 @@ describe('createFederationContainerLoader', () => {
           definitionKind: 'app',
           adapter: 'legacy-angular',
           manifestUrl: 'https://cdn.example.test/billing/manifest.json',
+          requiresRuntime: '>=1.1.0 <2.0.0',
         },
         { signal: liveSignal() },
       )

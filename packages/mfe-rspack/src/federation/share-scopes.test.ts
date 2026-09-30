@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { resolveShared, shareScopesOf, withPagePolicy } from '@company/mfe-build/federation'
 import { DEFINITION_BRAND } from '@company/mfe-core'
+import { RUNTIME_API_REQUIREMENT } from '@company/mfe-core/runtime-compatibility'
 import { createFederationContainerLoader, parseFederatedEntry } from '@company/mfe-runtime'
 
 import { hostShared, type SharedModuleConfig } from './host-shared.ts'
@@ -165,6 +166,7 @@ function remoteEntry(build: ContainerBuild) {
           kind: 'widget',
           id: build.name,
           framework: 'react',
+          requiresRuntime: RUNTIME_API_REQUIREMENT,
           copies,
         },
       })
@@ -179,6 +181,7 @@ function registryEntry(build: ContainerBuild, shareScopes: 'published' | 'omitte
       id: build.name,
       kind: 'widget',
       mfe: { framework: 'react' },
+      requiresRuntime: RUNTIME_API_REQUIREMENT,
       manifestUrl: `https://cdn.example.test/${build.name}/remoteEntry.js`,
       container: build.name,
       expose: './widgets/probe',

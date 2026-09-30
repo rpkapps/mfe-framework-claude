@@ -180,7 +180,7 @@ const entrySchema = z
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
     // The stable envelope is checked before this schema interprets the entry's format.
-    requiresRuntime: z.string().optional(),
+    requiresRuntime: z.string(),
     capabilities: capabilities.optional(),
     routes: routes.optional(),
     contract: publishedContract.optional(),

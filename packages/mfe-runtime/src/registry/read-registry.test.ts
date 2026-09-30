@@ -26,6 +26,7 @@ function frameworkEntry(overrides: Record<string, unknown> = {}): Record<string,
     id: 'reports',
     kind: 'app',
     mfe: { framework: 'framework' },
+    requiresRuntime: '>=1.1.0 <2.0.0',
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     ...overrides,
   }
@@ -35,6 +36,7 @@ function frameworkEntry(overrides: Record<string, unknown> = {}): Record<string,
 function otherEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'billing',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     otherManifestUrl: 'https://cdn.example.test/billing/manifest.json',
     ...overrides,
   }
@@ -73,7 +75,13 @@ function fakeAdapter(
       })
     }
 
-    return { id, definitionKind: 'app', adapter: kind, manifestUrl }
+    return {
+      id,
+      definitionKind: 'app',
+      adapter: kind,
+      manifestUrl,
+      requiresRuntime: String(source['requiresRuntime']),
+    }
   })
 
   return {
@@ -151,8 +159,8 @@ describe('runtime compatibility before entry interpretation', () => {
     },
   )
 
-  it.each(['^1.1.0', '', null, 1])(
-    'rejects malformed runtime requirements %s first',
+  it.each([undefined, '^1.1.0', '', null, 1])(
+    'rejects missing or malformed runtime requirements %s first',
     requiresRuntime => {
       const first = framework()
       const registry = readRegistry([{ id: 'reports', requiresRuntime }], {
@@ -215,9 +223,12 @@ describe('recognising an entry', () => {
   })
 
   it('rejects an entry no adapter recognised', () => {
-    const registry = readRegistry([{ id: 'mystery', url: '/somewhere' }], {
-      adapters: [framework().adapter, other().adapter],
-    })
+    const registry = readRegistry(
+      [{ id: 'mystery', url: '/somewhere', requiresRuntime: '>=1.1.0 <2.0.0' }],
+      {
+        adapters: [framework().adapter, other().adapter],
+      },
+    )
 
     expect(registry.entries.size).toBe(0)
     const rejected = rejectedEntry(registry, 'mystery')
@@ -352,6 +363,7 @@ describe('per-entry validation', () => {
         definitionKind: 'app',
         adapter: 'framework',
         manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+        requiresRuntime: '>=1.1.0 <2.0.0',
         version: '2.1.0',
         title: 'Reports',
         icon: 'chart',

@@ -15,6 +15,7 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 - `MfeAdapter<K, E>` is new: `kind`, `detect(raw)`, `parse(raw)` and `is(entry)`. It replaces `AdapterSelectionRule`, whose `adapter`, `advertises` and `normalize` are gone.
 - `NeutralRegistryEntry` is now `RegistryEntry`, `NormalizedRegistry` is now `Registry`, and `QuarantinedRegistryEntry` is now `RejectedRegistryEntry`.
 - `Registry.quarantined` is now `Registry.rejected`.
+- `RegistryEntry.requiresRuntime` is required. `readRegistry` checks it before offering an entry to an adapter; a missing or malformed requirement reports `registry/invalid-entry`.
 - **Breaking:** `RegistryEntry.adapterData` is gone. An adapter's own fields are typed on its own entry type and reached through its `is()` guard.
 - **Breaking:** `AdapterKind` is gone. `entry.adapter` is a `string` that each adapter declares, and the core no longer names any adapter.
 - **Breaking:** the error code `registry/invalid-descriptor` is now `registry/invalid-entry`.

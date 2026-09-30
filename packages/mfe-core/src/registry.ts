@@ -21,7 +21,7 @@ export interface RegistryEntry {
   readonly manifestUrl: string
   readonly version?: string
   /** Generated range for the shell registry, mount protocol and runtime services. */
-  readonly requiresRuntime?: string
+  readonly requiresRuntime: string
   /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** App-only; the routes a host can navigate to, extracted statically at build time. */

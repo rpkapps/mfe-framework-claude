@@ -33,8 +33,6 @@ export interface ContainerProfile {
    * adapter reads the entry, and the name the framework's share scope starts with.
    */
   readonly framework: string
-  /** Stable SemVer comparator range required by this adapter; defaults to framework metadata. */
-  readonly requiresRuntime?: string
   /**
    * The package whose installed version names the framework's share scope, `react@19.3.0`: the
    * one every framework-bound candidate is built against.

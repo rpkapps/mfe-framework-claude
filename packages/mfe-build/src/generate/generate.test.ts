@@ -7,6 +7,7 @@ import ts from 'typescript'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { CapabilityDescriptor } from '@company/mfe-core'
+import { RUNTIME_API_REQUIREMENT } from '@company/mfe-core/runtime-compatibility'
 
 import { planContainer, type ContainerPlan } from '../plan.ts'
 import type { CapabilityContext, ContainerProfile } from '../profile.ts'
@@ -587,21 +588,15 @@ export const alertPanel = createWidget({
 })
 
 describe('the registry entry the build publishes', () => {
-  it('derives runtime requirements from integration metadata without scanning author code', () => {
-    const profile = { ...TEST_PROFILE, requiresRuntime: '>=1.4.0 <2.0.0' }
-    const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile })
+  it('uses the framework requirement for registry, manifest and generated definition metadata', () => {
+    const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
     expect(JSON.parse(fileFor('mfe-registry.json'))).toHaveProperty(
       'requiresRuntime',
-      '>=1.4.0 <2.0.0',
+      RUNTIME_API_REQUIREMENT,
     )
-    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.4.0 <2.0.0')
-    expect(fileFor('meta.ts')).toContain("export const requiresRuntime = '>=1.4.0 <2.0.0'")
-  })
-
-  it('refuses an integration requirement the browser comparator cannot read', () => {
-    const profile = { ...TEST_PROFILE, requiresRuntime: '^1.4.0' }
-    expect(() => planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile })).toThrow(
-      'Correct the build integration',
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
+    expect(fileFor('meta.ts')).toContain(
+      `export const requiresRuntime = '${RUNTIME_API_REQUIREMENT}'`,
     )
   })
 

@@ -19,8 +19,9 @@ once the versions agree. There is no separate registry-format version.
 
 The loaded definition is checked again before mounting, because a container can change after the
 registry was written. React and Angular adapters check too, so a newer container still refuses a
-shell that has no check of its own. Missing `requiresRuntime` uses `>=1.0.0 <2.0.0`; a runtime without
-`apiVersion` reads as `1.0.0`.
+shell that has no check of its own. Every entry and definition must carry `requiresRuntime`, and
+every runtime must carry `apiVersion`. The framework writes both fields. Missing metadata fails
+the check; no version is assumed.
 
 A backward-compatible change to the format, mount protocol or services raises the API minor. An
 incompatible change raises its major. Package versions are separate: loading a newer runtime
@@ -52,9 +53,10 @@ again. The Widget or route renders for the new user. Component state inside the 
 stored preferences stay. A query still holding the old client cannot fill the new client's cache.
 A theme change does none of this.
 
-Angular reruns the current route's guards and resolvers, hiding the old route while they run.
-A refused route refresh fails inside that App's region. The framework HTTP interceptor cancels
-requests started for the previous session and drops their responses.
+Angular destroys each App's application and mounts it again at the current URL. Its providers,
+router and components start fresh, so the route's guards and resolvers run again. Component and
+form state resets; stored preferences stay. The framework HTTP interceptor cancels requests
+started for the previous session and drops their responses.
 
 For a Widget or service that fetches its own data, use Angular's `injectSession()`. It returns a
 signal with `{ generation, signal }`. Observe `generation` to fetch again, and pass `signal` to
@@ -66,17 +68,20 @@ follow that signal; the framework can clear only what it owns.
 Invalid first inputs fail the mount. Invalid later inputs leave the Widget showing its last valid
 inputs. A React host shows a message saying the update was refused. A valid update removes it.
 
+The runtime API check applies to both Apps and Widgets. A Widget also checks its inputs and
+output payloads with Zod; a compatible runtime version does not make those values valid.
+
 React's `lazyWidget` and `DynamicWidget` take `onInputRejected(error)` and
 `inputFallback({ error })`. Angular's `<mfe-widget>` emits `(inputRejected)` and accepts an
 `[inputFallback]` template. Its `inputStatus()` and `inputError()` say whether the last update was
 accepted while `status()` still says `mounted`. Angular renders a rejection message only when
 the consumer supplies that template.
 
-Import a Widget's contract in its consumer to check more than the current values. Before mounting,
-the framework compares what the consumer can send with what the Widget takes, and what the Widget
-can emit with what the consumer handles. Adding a required input or removing an expected output
-can then fail before the Widget renders. See [Widget contract compatibility](./widget-contract-compatibility.md)
-for the changes the checker can compare.
+Import a Widget's contract in its consumer. Before mounting, the host checks that the loaded Widget
+still declares every output name the consumer expects. Zod checks the actual inputs on mount and
+update, and each emitted payload against the Widget's schema and the consumer's imported schema.
+Input schemas are not compared in advance. See
+[Change a Widget without breaking its consumers](./widget-contract-compatibility.md).
 
 ## What the host shows
 
@@ -116,12 +121,12 @@ record; reusing an ID shares it. Instance storage without a non-empty host ID fa
 
 ## Tests and bundle size
 
-Tests cover older and newer shells, failed and hung loads, late results, changed Widget contracts,
+Tests cover older and newer shells, failed and hung loads, late results, removed Widget outputs,
 refused inputs, user changes and separate Widget preferences. Integration tests use the actual
 Module Federation runtime and place React and Angular definitions in each other's hosts.
 
 No production dependency was added. The federation test dependency stays in the integration-test
-package, the compatibility checks use small local readers, and React's default host content uses
+package, the runtime API check uses a small range reader, and React's default host content uses
 native HTML elements. Angular's host content comes from the consuming component's templates.
 
 ### Framework code measurements
@@ -130,14 +135,13 @@ Compared with `ab4f2d1`, using esbuild 0.28.2, production branches, ES2022 ESM, 
 
 | Entry         | Before gzip bytes | After gzip bytes |  Delta |
 | ------------- | ----------------: | ---------------: | -----: |
-| `mfe-core`    |             5,144 |            8,065 | +2,921 |
-| `mfe-runtime` |            36,834 |           41,382 | +4,548 |
-| `mfe-react`   |            23,664 |           28,043 | +4,379 |
-| `mfe-angular` |            25,391 |           30,725 | +5,334 |
+| `mfe-core`    |             5,144 |            6,004 |   +860 |
+| `mfe-runtime` |            36,834 |           39,157 | +2,323 |
+| `mfe-react`   |            23,664 |           25,641 | +1,977 |
+| `mfe-angular` |            25,391 |           28,412 | +3,021 |
 
 These figures bundle the framework code with third-party packages kept external. The runtime
 and adapters include core/runtime code, so the rows overlap: do not add them. What a page downloads
-depends on the APIs it imports and how its containers share packages. The standalone contract
-checker is approximately 2.56 KB gzip.
+depends on the APIs it imports and how its containers share packages.
 
 Reproduce with `node tools/bundles/measure-framework.mjs` and the same command pointing at a baseline checkout. The script uses the existing design-system build's esbuild dependency; it adds no dependency to the framework.

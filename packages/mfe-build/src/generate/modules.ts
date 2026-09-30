@@ -403,7 +403,7 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
         '',
         `export const buildTime = ${quote(context.options.buildTime)}`,
         '',
-        `export const requiresRuntime = ${quote(context.profile.requiresRuntime ?? RUNTIME_API_REQUIREMENT)}`,
+        `export const requiresRuntime = ${quote(RUNTIME_API_REQUIREMENT)}`,
       ].join('\n'),
       ['export const definitions: readonly DefinitionMeta[] = Object.freeze([', ...rows, '])'].join(
         '\n',

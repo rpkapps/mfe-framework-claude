@@ -52,6 +52,7 @@ function adapterFor(kind: string): MfeAdapter {
         definitionKind: 'app',
         adapter: kind,
         manifestUrl: record['url'],
+        requiresRuntime: '>=1.1.0 <2.0.0',
         container: String(record['container'] ?? record['id']),
       }
     },
@@ -63,7 +64,13 @@ const first = adapterFor('first')
 const second = adapterFor('second')
 
 function published(id: string, kind: string, extra: Record<string, unknown> = {}): unknown {
-  return { id, kind, url: `https://cdn.example.test/${id}/mf-manifest.json`, ...extra }
+  return {
+    id,
+    kind,
+    url: `https://cdn.example.test/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
+    ...extra,
+  }
 }
 
 function overridesOf(value: Record<string, string> | string): Pick<Storage, 'getItem'> {
@@ -125,7 +132,10 @@ describe('reading the registry', () => {
 
   it('reports each rejected entry and keeps the valid ones', () => {
     const { runtime } = create({
-      registryEntries: [published('reports', 'first'), { id: 'broken', kind: 'first' }],
+      registryEntries: [
+        published('reports', 'first'),
+        { id: 'broken', kind: 'first', requiresRuntime: '>=1.1.0 <2.0.0' },
+      ],
     })
 
     expect([...runtime.registry.entries.keys()]).toEqual(['reports'])
@@ -148,6 +158,7 @@ describe('reading the registry', () => {
       adapter: 'first',
       definitionKind: 'app',
       manifestUrl: 'memory://reports',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
     const options = { signal: new AbortController().signal }
     const [firstLoad, secondLoad] = await Promise.all([

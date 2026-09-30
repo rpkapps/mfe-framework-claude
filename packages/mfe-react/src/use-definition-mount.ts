@@ -46,8 +46,6 @@ export interface WidgetPlacement {
   readonly instanceId?: string | undefined
   /** Read when an output arrives rather than when the mount is made, so it may change freely. */
   readonly onOutput: (output: string, payload: unknown) => void
-  /** The consumer's own view of the outputs, when it imported the Widget's contract. */
-  readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
   readonly consumerContract?: WidgetContract | undefined
   /** Called only for a rejected update; the previous valid render stays mounted. */
   readonly onInputRejected?: ((error: MfeError) => void) | undefined
@@ -102,7 +100,7 @@ function open(
     return mountDefinition({ ...base, kind: 'app', basePath: placement.basePath })
   }
 
-  const { consumerOutputs, consumerContract, instanceId } = placement
+  const { consumerContract, instanceId } = placement
   return mountDefinition({
     ...base,
     kind: 'widget',
@@ -115,7 +113,7 @@ function open(
       const latest = committed.current
       if (latest.kind === 'widget') latest.onInputRejected?.(error)
     },
-    ...withoutUndefined({ consumerOutputs, consumerContract, instanceId }),
+    ...withoutUndefined({ consumerContract, instanceId }),
   })
 }
 
@@ -139,7 +137,6 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
 
   const { kind, definitionId } = placement
   const basePath = placement.kind === 'app' ? placement.basePath : undefined
-  const consumerOutputs = placement.kind === 'widget' ? placement.consumerOutputs : undefined
   const consumerContract = placement.kind === 'widget' ? placement.consumerContract : undefined
   const instanceId = placement.kind === 'widget' ? placement.instanceId : undefined
 
@@ -156,10 +153,10 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
       // A failed disposal is reported by the runtime; nothing here can act on it.
       void created.dispose().catch(() => undefined)
     }
-    // `kind`, `definitionId`, `basePath` and `consumerOutputs` reach `open` through `committed`;
+    // `kind`, `definitionId`, `basePath` and `consumerContract` reach `open` through `committed`;
     // they are listed because they are what the mount is derived from, and a change of any of
     // them is a different mount.
-  }, [runtime, parent, kind, definitionId, basePath, consumerOutputs, consumerContract, instanceId])
+  }, [runtime, parent, kind, definitionId, basePath, consumerContract, instanceId])
 
   const inputs = useStableInputs(placement.kind === 'widget' ? placement.inputs : null)
   useEffect(() => {

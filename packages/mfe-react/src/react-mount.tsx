@@ -12,6 +12,7 @@ import type {
   MountedWidget,
   WidgetMountTarget,
 } from '@company/mfe-runtime'
+import { validateProviderInputs } from '@company/mfe-runtime'
 import { StrictMode, useEffect, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
@@ -163,34 +164,29 @@ export function mountWidget(
   definition: WidgetDefinition,
   target: WidgetMountTarget,
 ): MountedWidget {
+  const first = validateProviderInputs(definition, target.inputs)
+  if (first.status !== 'accepted') throw first.error
   const mount = withQueryClient(target.context)
 
   // Built once, so a re-render never hands the Widget a new channel; the provider's own
-  // validation runs in `WidgetMount` before either is called.
+  // validation runs before mounting or scheduling an input update.
   const emit = (output: string, payload: unknown): void => {
     target.emit(output, payload)
   }
-  const onInputRejected = (error: MfeError): void => {
-    target.onInputRejected?.(error)
-  }
-
-  const render = (inputs: Readonly<Record<string, unknown>>): ReactNode => (
-    <MountTree
-      definition={definition}
-      mount={mount}
-      inputs={inputs}
-      emit={emit}
-      onInputRejected={onInputRejected}
-    />
+  const render = (inputs: unknown): ReactNode => (
+    <MountTree definition={definition} mount={mount} inputs={inputs} emit={emit} />
   )
 
   const root = openRoot(target.element, mount, 'mount Widget', target.onFailure)
-  root.renderFirst(render(target.inputs))
+  root.renderFirst(render(first.value))
 
   return {
-    // `WidgetMount` validates and keeps the last valid inputs.
     update: inputs => {
-      root.render(render(inputs))
+      const result = validateProviderInputs(definition, inputs)
+      if (result.status === 'misdeclared') throw result.error
+      if (result.status === 'rejected') return result
+      root.render(render(result.value))
+      return { status: 'accepted' }
     },
     dispose: root.dispose,
     whenStable: root.whenStable,

@@ -84,23 +84,23 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 }
 ```
 
-| Field                                  | Required | What it is                                                                                                                                                            |
-| -------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                                   | yes      | The definition id, under the usual character rule.                                                                                                                    |
-| `kind`                                 | yes      | `"app"` or `"widget"`.                                                                                                                                                |
-| `mfe`                                  | yes      | `{ "framework": "react" }`. The framework marker picks the adapter that reads the entry.                                                                              |
-| `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                                                                                                          |
-| `container`                            | yes      | The federation container name. The runtime's loader registers the remote under it.                                                                                    |
-| `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.                                                                                     |
-| `shareScopes`                          | no       | The share scopes the loader registers the remote with. Without it, only `default`.                                                                                    |
-| `version`                              | no       | Recorded in diagnostics.                                                                                                                                              |
-| `requiresRuntime`                      | no       | Generated stable SemVer comparator range; checked against `runtime.apiVersion` before adapter selection and shape parsing. Missing requirements use `>=1.0.0 <2.0.0`. |
-| `capabilities`                         | no       | App-only. One record per marked route.                                                                                                                                |
-| `routes`                               | no       | App-only. Every route the build could read, sorted by path. See below.                                                                                                |
-| `contract`                             | no       | Widget-only. The `inputSchema` and `outputSchema`, each when the build could read it. See below.                                                                      |
-| `build`                                | no       | Repeated from the build's own record onto every entry it produced.                                                                                                    |
-| `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                                                                                         |
-| `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                                                                                        |
+| Field                                  | Required | What it is                                                                                                                 |
+| -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                   | yes      | The definition id, under the usual character rule.                                                                         |
+| `kind`                                 | yes      | `"app"` or `"widget"`.                                                                                                     |
+| `mfe`                                  | yes      | `{ "framework": "react" }`. The framework marker picks the adapter that reads the entry.                                   |
+| `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                                                               |
+| `container`                            | yes      | The federation container name. The runtime's loader registers the remote under it.                                         |
+| `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.                                          |
+| `shareScopes`                          | no       | The share scopes the loader registers the remote with. Without it, only `default`.                                         |
+| `version`                              | no       | Recorded in diagnostics.                                                                                                   |
+| `requiresRuntime`                      | yes      | Generated stable SemVer comparator range; checked against `runtime.apiVersion` before adapter selection and shape parsing. |
+| `capabilities`                         | no       | App-only. One record per marked route.                                                                                     |
+| `routes`                               | no       | App-only. Every route the build could read, sorted by path. See below.                                                     |
+| `contract`                             | no       | Widget-only. The `inputSchema` and `outputSchema`, each when the build could read it. See below.                           |
+| `build`                                | no       | Repeated from the build's own record onto every entry it produced.                                                         |
+| `hidden`                               | no       | `true` keeps the entry out of catalogue views. It is not a security boundary.                                              |
+| `title`, `description`, `tags`, `icon` | no       | Presentation, so a catalogue can draw the definition unloaded.                                                             |
 
 `contract.outputSchema` has the same shape as `contract.inputSchema`, and the same names as a tool's or an action's schemas. It is an object schema with one property per declared output, in declaration order. Each property holds the JSON Schema of that output's payload.
 
@@ -109,6 +109,10 @@ registry format, mount protocol and shell-owned services. Runtime incompatibilit
 before adapter selection and registry shape parsing. Supported entries still require the framework
 marker and the same registry and widget schema checks. The loaded definition is checked again
 before mounting to cover a registry that points at newer container code.
+
+Entries and definitions must both declare `requiresRuntime`. A missing or malformed requirement
+fails with `registry/invalid-entry`. The runtime must declare its `apiVersion` too; no version is
+assumed for missing metadata.
 
 | What the build could not read | What the entry carries                                    |
 | ----------------------------- | --------------------------------------------------------- |

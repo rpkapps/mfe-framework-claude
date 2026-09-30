@@ -6,6 +6,8 @@
 
 import type { EnvironmentProviders, Provider } from '@angular/core'
 import {
+  NavigationCancel,
+  NavigationCancellationCode,
   NavigationEnd,
   NavigationError,
   ROUTER_CONFIGURATION,
@@ -14,7 +16,7 @@ import {
   type RouterConfigOptions,
   type RouterFeatures,
 } from '@angular/router'
-import { toMfeError, withoutUndefined, type MfeError } from '@company/mfe-core'
+import { createMfeError, toMfeError, withoutUndefined, type MfeError } from '@company/mfe-core'
 import type { MountContext } from '@company/mfe-runtime'
 
 /**
@@ -95,6 +97,25 @@ export function reportNavigationFailures(
   const subscription = router.events.subscribe(event => {
     if (event instanceof NavigationEnd) {
       routed = true
+      return
+    }
+    if (
+      !routed &&
+      event instanceof NavigationCancel &&
+      (event.code === NavigationCancellationCode.GuardRejected ||
+        event.code === NavigationCancellationCode.NoDataFromResolver)
+    ) {
+      onFailure(
+        createMfeError({
+          code: 'mount/failure',
+          id: context.definitionId,
+          ...withoutUndefined({ definitionVersion: context.definitionVersion }),
+          operation: `render its first route, ${routeOf(event.url)}`,
+          expected: 'guards and resolvers to accept navigation under the current session',
+          observed: 'the first route was rejected by a guard or a resolver returned no data',
+          repair: 'Check the current user and permissions, then retry the App.',
+        }),
+      )
       return
     }
     if (!(event instanceof NavigationError)) return

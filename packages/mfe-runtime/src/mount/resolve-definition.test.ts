@@ -29,6 +29,7 @@ const REPORTS: MountableAppDefinition = {
   kind: 'app',
   id: 'reports',
   framework: 'plain-dom',
+  requiresRuntime: '>=1.1.0 <2.0.0',
   contributesBreadcrumbs: false,
   mount: async () => ({ dispose: async () => undefined }),
 }
@@ -38,8 +39,9 @@ const ALERT_PANEL: MountableWidgetDefinition = {
   kind: 'widget',
   id: 'alert-panel',
   framework: 'plain-dom',
+  requiresRuntime: '>=1.1.0 <2.0.0',
   contract: { inputSchema: z.object({}), outputSchema: z.object({}) },
-  mount: async () => ({ update: () => undefined, dispose: async () => undefined }),
+  mount: async () => ({ update: () => ({ status: 'accepted' }), dispose: async () => undefined }),
 }
 
 let memories: MemoryRuntime[] = []
@@ -116,7 +118,19 @@ describe('resolveDefinition', () => {
     expect(error.message).toContain('>=1.2.0 <2.0.0')
   })
 
-  it('continues mounting a legacy container on a newer compatible shell', async () => {
+  it('rejects a loaded definition missing its requirement with an actionable metadata error', async () => {
+    const { requiresRuntime: _requiresRuntime, ...definition } = REPORTS
+    const load = vi.fn(async () => loadedOf(definition))
+    const runtime = runtimeWith([REPORTS], { load })
+
+    const error = await rejection(resolveDefinition(runtime, 'reports', 'app', liveSignal()))
+
+    expect(load).toHaveBeenCalledOnce()
+    expect(error).toMatchObject({ code: 'registry/invalid-entry', path: ['requiresRuntime'] })
+    expect(error.message).toContain('Rebuild the container')
+  })
+
+  it('continues mounting a container on a newer compatible shell', async () => {
     const runtime = { ...runtimeWith([REPORTS]), apiVersion: '1.8.0' }
     await expect(resolveDefinition(runtime, 'reports', 'app', liveSignal())).resolves.toBe(REPORTS)
   })

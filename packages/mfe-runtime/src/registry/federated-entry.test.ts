@@ -21,6 +21,7 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
     mfe: { framework: ADAPTER },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     container: 'example_reports',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...overrides,
   }
 }
@@ -40,15 +41,12 @@ function rejection(source: unknown): MfeError {
 }
 
 describe('parse', () => {
-  it('carries generated runtime requirements and preserves legacy absence', () => {
-    expect(parse(entry({ requiresRuntime: '>=1.1.0 <2.0.0' })).requiresRuntime).toBe(
-      '>=1.1.0 <2.0.0',
-    )
-    expect(parse(entry())).not.toHaveProperty('requiresRuntime')
+  it('carries generated runtime requirements', () => {
+    expect(parse(entry()).requiresRuntime).toBe('>=1.1.0 <2.0.0')
   })
 
-  it.each(['^1.1.0', '>=1.x', '', 1, null])(
-    'rejects malformed or unsupported runtime metadata %s',
+  it.each([undefined, '^1.1.0', '>=1.x', '', 1, null])(
+    'rejects missing, malformed or unsupported runtime metadata %s',
     requiresRuntime => {
       const error = rejection(entry({ requiresRuntime }))
       expect(error.code).toBe('registry/invalid-entry')

@@ -17,8 +17,8 @@ export interface BrandedDefinition {
   readonly kind: DefinitionKind
   readonly id: string
   readonly version?: string
-  /** Adapter's baseline shell API requirement; present on newly built definitions. */
-  readonly requiresRuntime?: string
+  /** Adapter's explicit baseline shell API requirement. */
+  readonly requiresRuntime: string
   /**
    * Which adapter created it, as that adapter names itself: any non-empty string, so an adapter
    * nobody here has heard of brands its definitions exactly as the others do. It is for

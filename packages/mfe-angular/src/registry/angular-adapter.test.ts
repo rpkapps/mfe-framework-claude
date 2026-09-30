@@ -21,6 +21,7 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
     kind: 'app',
     mfe: { framework: 'angular' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container: 'example_reports',
     ...overrides,
   }
@@ -64,6 +65,7 @@ describe('parse', () => {
       definitionKind: 'app',
       adapter: 'angular',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       container: 'example_reports',
       expose: './app',
       version: '1.2.0',

@@ -39,30 +39,55 @@ describe('runtime API compatibility', () => {
     expect(satisfiesRuntimeRequirement('1.1.0', range)).toBe(false)
   })
 
-  it('accepts legacy entries against a compatible current shell', () => {
+  it('accepts explicit requirements against a compatible current shell', () => {
     expect(() =>
-      assertRuntimeCompatibility({ apiVersion: '1.1.0' }, { id: 'old-app' }),
+      assertRuntimeCompatibility(
+        { apiVersion: '1.1.0' },
+        { id: 'reports', requiresRuntime: '>=1.1.0 <2.0.0' },
+      ),
     ).not.toThrow()
-    expect(() => assertRuntimeCompatibility({}, { id: 'old-app' })).not.toThrow()
-    expect(() => assertRuntimeCompatibility({ apiVersion: '2.0.0' }, { id: 'old-app' })).toThrow()
   })
 
-  it('gives an old shell without apiVersion an actionable new-adapter failure', () => {
+  it.each([undefined, null, '', '^1.1.0', 1])(
+    'rejects missing or malformed requirement metadata %s without inventing a baseline',
+    requiresRuntime => {
+      expect(() =>
+        assertRuntimeCompatibility({ apiVersion: '1.1.0' }, { id: 'reports', requiresRuntime }),
+      ).toThrow(
+        expect.objectContaining({ code: 'registry/invalid-entry', path: ['requiresRuntime'] }),
+      )
+    },
+  )
+
+  it.each([null, '', '1.1', '1.1.0-beta.1', 1])(
+    'rejects malformed shell apiVersion %s',
+    apiVersion => {
+      expect(() =>
+        assertRuntimeCompatibility(
+          { apiVersion },
+          { id: 'reports', requiresRuntime: '>=1.1.0 <2.0.0' },
+        ),
+      ).toThrow(expect.objectContaining({ code: 'config/invalid', path: ['apiVersion'] }))
+    },
+  )
+
+  it('gives a shell without apiVersion an actionable metadata failure', () => {
     try {
       assertRuntimeCompatibility(
         {},
         { id: 'new-app', version: '7.2.0', requiresRuntime: '>=1.1.0 <2.0.0' },
       )
-      throw new Error('expected incompatible runtime')
+      throw new Error('expected missing runtime metadata')
     } catch (error) {
       expect(isMfeError(error)).toBe(true)
       expect(error).toMatchObject({
-        code: 'contract/runtime-incompatible',
+        code: 'config/missing',
         id: 'new-app',
         definitionVersion: '7.2.0',
+        path: ['apiVersion'],
       })
-      expect((error as Error).message).toContain('runtime API 1.0.0')
-      expect((error as Error).message).toContain('Reload after the shell is upgraded')
+      expect((error as Error).message).toContain('no apiVersion')
+      expect((error as Error).message).toContain('createMfeRuntime')
     }
   })
 })

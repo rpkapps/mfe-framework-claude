@@ -16,6 +16,7 @@ function entry(rest: Partial<RegistryEntry> = {}): RegistryEntry {
     definitionKind: 'widget',
     adapter: 'react',
     manifestUrl: 'http://localhost:3003/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...rest,
   }
 }

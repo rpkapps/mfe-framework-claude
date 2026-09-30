@@ -16,6 +16,7 @@ import {
 function legacyEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     name: 'asset-tracker',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     title: 'Asset Tracker',
     icon: 'clipboard',
     mfManifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
@@ -97,6 +98,7 @@ describe('parse', () => {
       id: 'asset-tracker',
       definitionKind: 'app',
       adapter: 'legacy-angular',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       manifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
       title: 'Asset Tracker',
       icon: 'clipboard',
@@ -147,6 +149,7 @@ describe('parse', () => {
   it('substitutes empty collections for the legacy fields an entry omitted', () => {
     const entry = parse({
       name: 'rigstream',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       mfManifestUrl: 'https://cdn.example.test/rigstream/mf-manifest.json',
     })
 
@@ -186,6 +189,7 @@ describe('is', () => {
       id: 'reports',
       definitionKind: 'app',
       adapter: 'react',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     }
 
@@ -209,6 +213,21 @@ describe('deriveLegacyDefinitionId', () => {
 })
 
 describe('parse failures', () => {
+  it('requires an explicit runtime requirement even for a legacy registry entry', () => {
+    expect(rejection(legacyEntry({ requiresRuntime: undefined }))).toMatchObject({
+      code: 'registry/invalid-entry',
+      path: ['requiresRuntime'],
+    })
+  })
+
+  it('rejects a newer runtime before interpreting malformed legacy fields', () => {
+    expect(
+      rejection(legacyEntry({ requiresRuntime: '>=2.0.0 <3.0.0', name: undefined })),
+    ).toMatchObject({
+      code: 'contract/runtime-incompatible',
+    })
+  })
+
   it('names the missing app name and what it is used for', () => {
     const error = rejection(legacyEntry({ name: undefined }))
 
@@ -294,7 +313,9 @@ describe('the legacy adapter inside a shell that reads the registry', () => {
   })
 
   it('rejects a legacy entry that no adapter recognises at all', () => {
-    const registry = readRegistry([{ name: 'asset-tracker' }], { adapters })
+    const registry = readRegistry([{ name: 'asset-tracker', requiresRuntime: '>=1.1.0 <2.0.0' }], {
+      adapters,
+    })
 
     expect(registry.entries.size).toBe(0)
     expect(registry.rejected[0]?.reason).toBe('no adapter recognised this entry')

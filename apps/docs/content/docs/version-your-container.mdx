@@ -66,26 +66,31 @@ A backward-compatible change to the format, mount protocol or services raises th
 incompatible change raises its major. Package versions are separate: a newer runtime package
 cannot replace the object the shell already created.
 
-If you write a build integration, set `ContainerProfile.requiresRuntime` to a stable comparator
-range such as `>=1.1.0 <2.0.0`. The reader accepts `>=`, `>`, `<=`, `<`, `=` or an exact version,
-joined with spaces. It accepts no prereleases, caret/tilde ranges, wildcards or alternatives.
-Build metadata does not change the comparison.
+The definition helpers and build integrations write the same framework requirement. A container
+profile cannot override it. Every entry and definition needs `requiresRuntime`, and the runtime
+helper supplies `apiVersion`. Missing metadata is an error.
 
-Missing `requiresRuntime` uses `>=1.0.0 <2.0.0`; a runtime without `apiVersion` reads as `1.0.0`.
+The range reader accepts `>=`, `>`, `<=`, `<`, `=` or an exact version, joined with spaces. It
+accepts no prereleases, caret/tilde ranges, wildcards or alternatives. Build metadata does not
+change the comparison.
 
 </Step>
 
 <Step>
 ### 4. Decide whether a change breaks your consumers
 
-| Change to a Widget contract  | What a consumer gets                                                     |
-| ---------------------------- | ------------------------------------------------------------------------ |
-| a new optional input         | nothing. Its inputs still pass                                           |
-| a new output                 | nothing, until it handles the new name                                   |
-| an output removed or renamed | a consumer contract that expects it fails before mounting                |
-| a new required input         | an old consumer contract fails before mounting; values are still checked |
-| a tighter input schema       | the same failure when the checker can compare the change                 |
-| a new definition id          | a different definition. Its stored records stay under the old id         |
+The runtime requirement applies to Apps and Widgets. A Widget also checks the actual inputs and
+output payloads with Zod. Before mounting, the host checks that each output name in the consumer's
+imported contract still exists. It does not compare input schemas in advance.
+
+| Change to a Widget contract  | What a consumer gets                                                        |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| a new optional input         | nothing. Its inputs still pass                                              |
+| a new output                 | nothing, until it handles the new name                                      |
+| an output removed or renamed | a consumer contract that expects it fails before mounting                   |
+| a new required input         | a mount fails if the values sent omit it; a later invalid update is refused |
+| a tighter input schema       | the same failure when a value sent no longer passes the schema              |
+| a new definition id          | a different definition. Its stored records stay under the old id            |
 
 Ship any of the four breaking rows under a new name: a new output, a new input, or a new id.
 

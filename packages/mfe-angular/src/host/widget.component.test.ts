@@ -72,6 +72,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
     [DEFINITION_BRAND]: true,
     kind: 'widget',
     framework: 'plain-dom',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     id,
     contract: {
       inputSchema: z.object({ count: z.number() }),
@@ -88,6 +89,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
         update: inputs => {
           calls.updates.push(inputs)
           target.element.textContent = `count ${String(inputs['count'])}`
+          return { status: 'accepted' }
         },
         dispose: () => {
           calls.disposals += 1

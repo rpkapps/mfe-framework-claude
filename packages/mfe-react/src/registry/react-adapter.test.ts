@@ -16,6 +16,7 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
     kind: 'app',
     mfe: { framework: 'react' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container: 'example_reports',
     ...overrides,
   }
@@ -117,6 +118,7 @@ describe('is', () => {
       definitionKind: 'app',
       adapter: 'legacy-angular',
       manifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
 
     expect(reactAdapter.is(foreign)).toBe(false)
@@ -131,6 +133,7 @@ describe('parse', () => {
       definitionKind: 'app',
       adapter: 'react',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       container: 'example_reports',
     })
   })

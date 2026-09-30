@@ -347,7 +347,7 @@ lazyWidget(widgetId: string): (props: LazyWidgetProps<undefined>) => ReactNode
 lazyWidget<C extends WidgetContract>(widgetId: string, options: { contract: C }): (props: LazyWidgetProps<C>) => ReactNode
 ```
 
-Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, checks the loaded Widget's contract before mounting, and validates outputs on your side.
+Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, checks that the loaded Widget still declares your output names before mounting, and validates output payloads on your side.
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'

@@ -90,6 +90,7 @@ export {
   type MountedApp,
   type MountedWidget,
   type WidgetMountTarget,
+  type WidgetUpdateResult,
 } from './mount/mountable-definition.ts'
 
 /** The provider's half of the Widget boundary, which every adapter's `mount` applies. */

@@ -7,7 +7,7 @@ import { mountDefinition } from './mount-definition.ts'
 import type { MountableWidgetDefinition, WidgetMountTarget } from './mountable-definition.ts'
 
 describe('hosted Widget input status', () => {
-  it('preserves mounted content through rejection and host handler failure, clears the error after accepted input and ignores detached callbacks', async () => {
+  it('preserves mounted content through rejection and host handler failure, clears after accepted input and ignores disposed updates', async () => {
     const rejection = createMfeError({
       code: 'contract/input-mismatch',
       id: 'panel',
@@ -19,6 +19,7 @@ describe('hosted Widget input status', () => {
       id: 'panel',
       kind: 'widget',
       framework: 'plain-dom',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       contract: { inputSchema: z.object({ label: z.string() }), outputSchema: z.object({}) },
       mount: async current => {
         target = current
@@ -26,10 +27,10 @@ describe('hosted Widget input status', () => {
         return {
           update: inputs => {
             if (typeof inputs['label'] !== 'string') {
-              current.onInputRejected?.(rejection)
-              return
+              return { status: 'rejected', error: rejection }
             }
             current.element.textContent = inputs['label']
+            return { status: 'accepted' }
           },
           dispose: async () => {
             current.element.replaceChildren()
@@ -70,8 +71,9 @@ describe('hosted Widget input status', () => {
     expect(host.textContent).toBe('Second')
     expect(changed).toHaveBeenCalledTimes(2)
     await mount.dispose()
-    target?.onInputRejected?.(rejection)
+    mount.update({ label: 10 })
     expect(rejected).toHaveBeenCalledTimes(1)
+    expect(target?.element.textContent).toBe('')
     expect(mount.getInputState()).toEqual({ status: 'accepted' })
     unsubscribe()
     host.remove()

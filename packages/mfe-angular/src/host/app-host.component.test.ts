@@ -59,6 +59,7 @@ function foreignApp(id: string) {
     [DEFINITION_BRAND]: true,
     kind: 'app',
     framework: 'plain-dom',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     id,
     contributesBreadcrumbs: true,
     mount: target => {

@@ -16,8 +16,6 @@ vi.mock('@company/mfe-core', async importOriginal => {
           'satisfiesRuntimeRequirement',
           'RUNTIME_API_VERSION',
           'RUNTIME_API_REQUIREMENT',
-          'LEGACY_RUNTIME_API_VERSION',
-          'LEGACY_RUNTIME_API_REQUIREMENT',
         ].includes(name),
     ),
   )
@@ -29,9 +27,12 @@ describe('new React adapter against an older shared core and shell', () => {
   it('refuses an app before importing its renderer or invoking authored routing', async () => {
     const router = vi.fn()
     const app = createApp({ id: 'new-app', router })
-    const legacyTarget = { context: { runtime: {} } }
-    const target = legacyTarget as AppMountTarget
-    await expect(app.mount(target)).rejects.toMatchObject({ code: 'contract/runtime-incompatible' })
+    const incompleteTarget = { context: { runtime: {} } }
+    const target = incompleteTarget as AppMountTarget
+    await expect(app.mount(target)).rejects.toMatchObject({
+      code: 'config/missing',
+      path: ['apiVersion'],
+    })
     expect(router).not.toHaveBeenCalled()
   })
 
@@ -44,10 +45,11 @@ describe('new React adapter against an older shared core and shell', () => {
       render,
     })
     expect(widget.requiresRuntime).toBe('>=1.1.0 <2.0.0')
-    const legacyTarget = { context: { runtime: {} } }
-    const target = legacyTarget as WidgetMountTarget
+    const incompleteTarget = { context: { runtime: {} } }
+    const target = incompleteTarget as WidgetMountTarget
     await expect(widget.mount(target)).rejects.toMatchObject({
-      code: 'contract/runtime-incompatible',
+      code: 'config/missing',
+      path: ['apiVersion'],
     })
     expect(render).not.toHaveBeenCalled()
   })

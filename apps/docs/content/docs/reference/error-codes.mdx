@@ -14,6 +14,7 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 | `registry/invalid-entry`        | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                                                                                                                                   | Rebuild the container. Registry JSON is generated, never hand-written.                                                                               |
 | `registry/duplicate-id`         | Two definitions in one container, or two registry entries, use one id.                                                                                                                                                                                                                          | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                                                      |
 | `contract/runtime-incompatible` | The shell's `apiVersion` is outside the container's `requiresRuntime` range. The entry is refused before adapter selection or shape parsing.                                                                                                                                                    | Upgrade and reload the shell, or rebuild the container against the API the shell provides.                                                           |
+| `contract/incompatible-widget`  | The loaded Widget is missing an output name the consumer's imported contract declares. The Widget is refused before mounting.                                                                                                                                                                   | Keep the output, or update the consumer's contract and remove its handler.                                                                           |
 | `contract/input-mismatch`       | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
 | `contract/output-mismatch`      | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
 
@@ -25,19 +26,20 @@ checks the loaded definition again before mounting, in case the container change
 registry was written.
 
 **Fix.** Upgrade and reload the shell, or rebuild your container against the API the shell provides.
-Retry cannot add an API the shell lacks. Missing requirements use `>=1.0.0 <2.0.0`; a runtime
-without `apiVersion` reads as `1.0.0`.
+Retry cannot add an API the shell lacks. A missing or malformed `requiresRuntime` instead reports
+`registry/invalid-entry`. A runtime with no `apiVersion` reports `config/missing`; a malformed
+version reports `config/invalid`.
 
 </Callout>
 
 <Callout type="error" title="contract/incompatible-widget">
 
-The Widget no longer takes what its consumer sends, or emits what that consumer expects. For
-example, it added a required input or removed an output the consumer handles. The Widget is not
-mounted.
+The loaded Widget no longer declares an output name in the consumer's imported contract. For
+example, it removed `dismissed` while the consumer still expects it. The Widget is not mounted.
 
-**Fix.** Give the consumer and Widget contracts that agree, then reload. A custom refinement the
-checker cannot compare is reported as `unknown`; the Widget still validates the values it receives.
+**Fix.** Keep that output, or update the consumer's contract and remove its handler, then reload.
+Input values and output payloads are checked with Zod when they arrive; this check only compares
+the declared output names.
 
 </Callout>
 
@@ -96,12 +98,12 @@ orders failed to register definition: expected one registry entry per definition
 
 ## Configuration and network codes
 
-| Code                     | When it happens                                                                                                       | Fix                                                                                           |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `config/missing`         | No `runtime-config.json` beside the container's assets, or a relative request URL with no `apiBaseUrl`.               | Publish the file with the container, or declare an `{ api: true }` field.                     |
-| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with an error status other than 404.               | Check that the deployment publishes the file and that its origin answers.                     |
-| `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, or the shell installed no session. | Set the value in the deployment, fix the spelling, or install the session at boot.            |
-| `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.              | Declare the origin if it is your API. Leave it undeclared if it must never receive the token. |
+| Code                     | When it happens                                                                                                                                  | Fix                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `config/missing`         | No `runtime-config.json` beside the container's assets, a relative request URL with no `apiBaseUrl`, or a runtime with no `apiVersion`.          | Publish the file with the container, declare an `{ api: true }` field, or provide the runtime API version.          |
+| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with an error status other than 404.                                          | Check that the deployment publishes the file and that its origin answers.                                           |
+| `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, the shell installed no session, or `apiVersion` is malformed. | Set the value in the deployment, fix the spelling, install the session at boot, or use a valid runtime API version. |
+| `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.                                         | Declare the origin if it is your API. Leave it undeclared if it must never receive the token.                       |
 
 <Callout type="error" title="config/missing">
 

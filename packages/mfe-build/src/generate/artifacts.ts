@@ -80,7 +80,7 @@ export function containerDescriptor(
     container: context.options.federationName,
     framework: context.profile.framework,
     shareScopes: context.shareScopes,
-    requiresRuntime: context.profile.requiresRuntime ?? RUNTIME_API_REQUIREMENT,
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     definitions,
     entries,
     build: { hash: buildHash, time: context.options.buildTime },
@@ -96,7 +96,7 @@ export function frameworkMetadata(
   return {
     kind: 'mfe',
     framework: context.profile.framework,
-    requiresRuntime: descriptor.requiresRuntime ?? RUNTIME_API_REQUIREMENT,
+    requiresRuntime: descriptor.requiresRuntime,
     buildHash,
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,

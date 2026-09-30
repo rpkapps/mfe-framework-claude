@@ -20,6 +20,7 @@ function entryFor(id: string): RegistryEntry {
     definitionKind: 'app',
     adapter: 'react',
     manifestUrl: `https://cdn.example.test/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
   }
 }
 

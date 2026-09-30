@@ -130,8 +130,6 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   #place(): void {
     // Bound getters read the current contract during pending loads and output delivery.
     // Replacing the contract remounts so compatibility is checked before rendering.
-    const consumerOutputs = (): WidgetContract['outputSchema'] | undefined =>
-      this.contract?.outputSchema
     const consumerContract = (): WidgetContract | undefined => this.contract
     this.#mount.replace(
       mountDefinition({
@@ -144,9 +142,6 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
         instanceId: this.instanceId,
         onOutput: (name, payload) => {
           this.output.emit({ name, payload })
-        },
-        get consumerOutputs() {
-          return consumerOutputs()
         },
         get consumerContract() {
           return consumerContract()

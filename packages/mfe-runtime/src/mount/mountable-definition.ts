@@ -33,12 +33,6 @@ export interface WidgetMountTarget {
   readonly inputs: Readonly<Record<string, unknown>>
   /** Called by the provider after validating the payload against its own output schema. */
   readonly emit: (output: string, payload: unknown) => void
-  /**
-   * A later input update the provider rejected; the mount keeps its last valid inputs. The
-   * provider has already reported it to the runtime's diagnostics, so a host that reports it
-   * again counts one rejection twice.
-   */
-  readonly onInputRejected?: (error: MfeError) => void
   /** A fatal failure after the mount resolved; see `AppMountTarget.onFailure`. `mountDefinition` always provides it. */
   readonly onFailure: (error: unknown) => void
 }
@@ -57,12 +51,16 @@ export interface AppMountTarget {
   readonly onFailure: (error: unknown) => void
 }
 
+export type WidgetUpdateResult =
+  { readonly status: 'accepted' } | { readonly status: 'rejected'; readonly error: MfeError }
+
 export interface MountedWidget {
   /**
-   * Replace the inputs; invalid inputs are reported through `onInputRejected`, not thrown. Called
-   * only when they changed: the host drops a set shallow-equal to the last one it passed on.
+   * Validate before returning. A rejected set keeps the previous render and returns its error;
+   * an accepted set schedules the parsed inputs for rendering. A fatal declaration error throws.
+   * Called only when inputs changed: the host drops shallow-equal sets.
    */
-  update(inputs: Readonly<Record<string, unknown>>): void
+  update(inputs: Readonly<Record<string, unknown>>): WidgetUpdateResult
   /**
    * Empties the element it was given. Called once, asynchronously rather than from inside a
    * host's render, and before the host disposes the mount context.

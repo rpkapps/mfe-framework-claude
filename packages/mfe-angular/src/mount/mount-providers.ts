@@ -259,6 +259,12 @@ export async function runMountApplication<T>(
     hostElement.remove()
     throw rendered.error
   }
+  if (context.signal.aborted) {
+    application.destroy()
+    release()
+    hostElement.remove()
+    throw disposedWhileMounting(context)
+  }
 
   const stop = start(rendered.value, application)
   const stopWatchingDestroy = reportForeignDestroy(application, context, onFailure)
@@ -267,6 +273,7 @@ export async function runMountApplication<T>(
   let disposal: Promise<void> | null = null
   const dispose = (): Promise<void> => {
     disposal ??= (async () => {
+      context.signal.removeEventListener('abort', onAbort)
       stopWatchingDestroy()
       stop()
       try {
@@ -292,7 +299,10 @@ export async function runMountApplication<T>(
 
   // The host disposes the handle before the context; a host that only disposes the context
   // still gets the application torn down.
-  context.signal.addEventListener('abort', () => void dispose(), { once: true })
+  const onAbort = (): void => {
+    void dispose()
+  }
+  context.signal.addEventListener('abort', onAbort, { once: true })
 
   return {
     rendered: rendered.value,

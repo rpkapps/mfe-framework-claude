@@ -23,6 +23,7 @@ function entry(id: string, fields: Partial<RegistryEntry> = {}): RegistryEntry {
     definitionKind: 'app',
     adapter: 'angular',
     manifestUrl: `https://cdn.example/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...fields,
   }
 }
