@@ -22,6 +22,7 @@ import {
   type PublishedRoute,
   type RegistryEntry,
 } from '@company/mfe-core'
+import { isRuntimeRequirement } from '@company/mfe-core/runtime-compatibility'
 import { z } from 'zod'
 
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
@@ -183,6 +184,11 @@ const entrySchema = z
       })
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
+    requiresRuntime: z
+      .custom<string>(isRuntimeRequirement, {
+        error: 'a generated stable SemVer comparator range, such as ">=1.1.0 <2.0.0"',
+      })
+      .optional(),
     capabilities: capabilities.optional(),
     routes: routes.optional(),
     contract: publishedContract.optional(),
@@ -285,6 +291,7 @@ export function parseFederatedEntry<K extends string>(
       expose: parsed.expose,
       shareScopes: parsed.shareScopes,
       version: parsed.version,
+      requiresRuntime: parsed.requiresRuntime,
       capabilities: parsed.capabilities,
       routes: parsed.routes,
       contract: parsed.contract,

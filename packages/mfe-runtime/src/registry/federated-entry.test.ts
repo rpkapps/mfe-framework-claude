@@ -40,6 +40,23 @@ function rejection(source: unknown): MfeError {
 }
 
 describe('parse', () => {
+  it('carries generated runtime requirements and preserves legacy absence', () => {
+    expect(parse(entry({ requiresRuntime: '>=1.1.0 <2.0.0' })).requiresRuntime).toBe(
+      '>=1.1.0 <2.0.0',
+    )
+    expect(parse(entry())).not.toHaveProperty('requiresRuntime')
+  })
+
+  it.each(['^1.1.0', '>=1.x', '', 1, null])(
+    'rejects malformed or unsupported runtime metadata %s',
+    requiresRuntime => {
+      const error = rejection(entry({ requiresRuntime }))
+      expect(error.code).toBe('registry/invalid-entry')
+      expect(error.path).toEqual(['requiresRuntime'])
+      expect(error.message).toContain('SemVer comparator range')
+    },
+  )
+
   it('reads identity, kind, manifest URL and container name', () => {
     expect(parse(entry())).toMatchObject({
       id: 'reports',

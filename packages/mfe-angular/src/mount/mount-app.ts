@@ -13,6 +13,7 @@ import { provideRouter, Router, withDisabledInitialNavigation } from '@angular/r
 import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runtime'
 
 import type { AppDefinition } from '../definition.ts'
+import { MFE_SESSION } from '../inject/session.ts'
 import { BoundaryLocationStrategy } from '../routing/boundary-location-strategy.ts'
 import { contributeBreadcrumbs } from '../routing/breadcrumbs-from-routes.ts'
 import {
@@ -24,6 +25,7 @@ import {
   provideSettledNavigations,
   reportNavigationFailures,
 } from '../routing/navigation-failures.ts'
+import { refreshRoutesOnSessionChange } from '../routing/session-refresh.ts'
 import { disposedWhileMounting, MountErrorHandler, runMountApplication } from './mount-providers.ts'
 
 /** `Location` strips this prefix from every path the strategy reads, as it would a real base href. */
@@ -67,9 +69,22 @@ export async function mountApp(
       })
       application.attachView(ref.hostView)
       application.tick()
+      return ref
     },
-    start: (_rendered, { injector }) => {
+    start: (ref, application) => {
+      const { injector } = application
       const router = injector.get(Router)
+      // Retire request signals before the router begins refreshing route data.
+      injector.get(MFE_SESSION)
+      const stopSessionRefresh = refreshRoutesOnSessionChange(
+        router,
+        context,
+        ref.location.nativeElement as HTMLElement,
+        target.onFailure,
+        () => {
+          application.tick()
+        },
+      )
       // Before the first navigation starts, so its failure fails the mount.
       const stopReportingFailures = reportNavigationFailures(router, context, target.onFailure)
       const stopBlocking = registerAppNavigationBlocker({
@@ -88,6 +103,7 @@ export async function mountApp(
 
       // Registrations first, so a disposed App cannot be asked about a navigation mid-teardown.
       return () => {
+        stopSessionRefresh()
         stopBlocking()
         stopBreadcrumbs()
         stopReportingFailures()

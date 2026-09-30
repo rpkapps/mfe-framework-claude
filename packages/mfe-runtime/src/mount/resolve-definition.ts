@@ -12,6 +12,7 @@ import {
   type MfeError,
   type RegistryEntry,
 } from '@company/mfe-core'
+import { assertRuntimeCompatibility } from '@company/mfe-core/runtime-compatibility'
 
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { isMountableDefinition, type MountableDefinition } from './mountable-definition.ts'
@@ -39,6 +40,8 @@ export async function resolveDefinition(
   // Refused before anything is downloaded: the registry already says what the id is.
   if (entry.definitionKind !== kind) throw placedAsTheWrongKind(entry, kind)
 
+  assertRuntimeCompatibility(runtime, entry)
+
   const { module: definition } = await runtime.loader.load(entry, { signal })
 
   if (!isMountableDefinition(definition) || definition.kind !== kind) {
@@ -53,6 +56,9 @@ export async function resolveDefinition(
     })
   }
 
+  // The registry may have remained cached while the deployed container changed. Check the
+  // loaded adapter's requirement as well before any mount-owned service is used.
+  assertRuntimeCompatibility(runtime, definition)
   return definition
 }
 

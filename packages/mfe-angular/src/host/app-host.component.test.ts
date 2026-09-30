@@ -91,6 +91,36 @@ class HostComponent {
 }
 
 describe('<mfe-app-host>', () => {
+  it('shows a placement error locally before a mount exists and recovers after the host supplies an id', async () => {
+    @Component({
+      selector: 'test-unplaced',
+      imports: [MfeAppHostComponent],
+      template: '<mfe-app-host #host [appId]="appId()" basePath="/placed" />',
+    })
+    class UnplacedHost {
+      readonly appId = signal<string | undefined>(undefined)
+      @ViewChild('host') host: MfeAppHostComponent | undefined
+    }
+    const { definition } = foreignApp('elsewhere')
+    const environment = createMfeTestEnvironment({ definitions: [definition] })
+    const appRef = await createHostApplication(environment)
+    const { ref, element } = await renderInHost(appRef, UnplacedHost)
+    await vi.waitFor(() => {
+      expect(element.querySelector('[role="alert"]')).not.toBeNull()
+    })
+    expect(ref.instance.host?.status()).toBe('error')
+    expect(ref.instance.host?.error()?.operation).toBe('place an App')
+    expect(environment.diagnostics).toHaveLength(1)
+
+    ref.instance.appId.set('elsewhere')
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(element.textContent).toContain('elsewhere mounted')
+    })
+    expect(element.querySelector('[role="alert"]')).toBeNull()
+    environment.dispose()
+  })
+
   it('mounts an App at the boundary it is given, one level below the host', async () => {
     const environment = createMfeTestEnvironment({
       definitions: [childApp],

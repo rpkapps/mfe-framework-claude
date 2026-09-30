@@ -141,7 +141,17 @@ describe('serializable values only', () => {
 })
 
 describe('reserved names', () => {
-  it.each(['key', 'ref', 'fallback', 'pending', 'onAcknowledged', 'onX'])('reserves %s', name => {
+  it.each([
+    'key',
+    'ref',
+    'fallback',
+    'pending',
+    'inputFallback',
+    'instanceId',
+    'onInputRejected',
+    'onAcknowledged',
+    'onX',
+  ])('reserves %s', name => {
     expect(isReservedInputName(name)).toBe(true)
   })
 
@@ -159,5 +169,6 @@ describe('reserved names', () => {
     expect(isValidOutputName('selectionChanged')).toBe(true)
     expect(isValidOutputName('Acknowledged')).toBe(false)
     expect(isValidOutputName('selection-changed')).toBe(false)
+    expect(isValidOutputName('inputRejected')).toBe(false)
   })
 })

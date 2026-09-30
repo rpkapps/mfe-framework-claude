@@ -20,6 +20,8 @@ export interface RegistryEntry {
   readonly adapter: string
   readonly manifestUrl: string
   readonly version?: string
+  /** Generated minimum/maximum shell runtime API range; absent on pre-handshake entries. */
+  readonly requiresRuntime?: string
   /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** App-only; the routes a host can navigate to, extracted statically at build time. */
@@ -68,7 +70,11 @@ export interface MfeAdapter<K extends string = string, E extends RegistryEntry =
    * modules must not see while they evaluate. It runs once per load that actually happens, not
    * once per caller waiting on it, and must return what `load` resolved to.
    */
-  aroundLoad?<T>(load: () => Promise<T>, entry: RegistryEntry): Promise<T>
+  aroundLoad?<T>(
+    load: () => Promise<T>,
+    entry: RegistryEntry,
+    options?: { readonly signal: AbortSignal },
+  ): Promise<T>
 }
 
 /** An entry that could not be read; rejected with a reason rather than dropped silently. */

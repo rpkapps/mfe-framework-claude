@@ -52,14 +52,14 @@ export function useStoredState<T>(
   const declaration = useDeclaration(options)
 
   const definitionId = mount?.definitionId
-
-  const open = useCallback(
-    () =>
-      definitionId === undefined
-        ? storage.bindHost<T>({ name, storage: area, schema, ...declaration })
-        : storage.bind<T>(definitionId, { name, storage: area, schema, ...declaration }),
-    [storage, definitionId, name, area, schema, declaration],
-  )
+  const instanceId = mount?.instanceId
+  const scope = options.scope
+  const open = useCallback(() => {
+    const scoped = withoutUndefined({ scope, instanceId })
+    return definitionId === undefined
+      ? storage.bindHost<T>({ name, storage: area, schema, ...declaration, ...scoped })
+      : storage.bind<T>(definitionId, { name, storage: area, schema, ...declaration, ...scoped })
+  }, [storage, definitionId, instanceId, scope, name, area, schema, declaration])
 
   return useBoundValue(open)
 }

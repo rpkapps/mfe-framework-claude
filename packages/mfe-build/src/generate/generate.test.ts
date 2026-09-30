@@ -586,6 +586,24 @@ export const alertPanel = createWidget({
 })
 
 describe('the registry entry the build publishes', () => {
+  it('derives runtime requirements from integration metadata without scanning author code', () => {
+    const profile = { ...TEST_PROFILE, requiresRuntime: '>=1.4.0 <2.0.0' }
+    const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile })
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toHaveProperty(
+      'requiresRuntime',
+      '>=1.4.0 <2.0.0',
+    )
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.4.0 <2.0.0')
+    expect(fileFor('meta.ts')).toContain("export const requiresRuntime = '>=1.4.0 <2.0.0'")
+  })
+
+  it('refuses an integration requirement the browser comparator cannot read', () => {
+    const profile = { ...TEST_PROFILE, requiresRuntime: '^1.4.0' }
+    expect(() => planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile })).toThrow(
+      'Correct the build integration',
+    )
+  })
+
   it('names the definitions, the shared manifest and the contract major', () => {
     const { fileFor, plan } = planFixture(
       { 'src/mfe.ts': APP_ENTRY },
@@ -599,6 +617,7 @@ describe('the registry entry the build publishes', () => {
       contractMajor: 1,
       framework: 'acme',
       shareScopes: ['default', 'acme@19.3.0'],
+      requiresRuntime: '>=1.1.0 <2.0.0',
       definitions: [
         {
           id: 'operations',

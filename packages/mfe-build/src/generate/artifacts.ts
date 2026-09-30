@@ -1,6 +1,10 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
-import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
+import {
+  FRAMEWORK_CONTRACT_MAJOR,
+  RUNTIME_API_REQUIREMENT,
+  type ContainerDescriptor,
+} from '@company/mfe-core'
 import type {
   CapabilityDescriptor,
   ExportedDefinitionDescriptor,
@@ -27,6 +31,7 @@ export interface FrameworkManifestMetadata {
   readonly major: number
   /** The adapter that built it. */
   readonly framework: string
+  readonly requiresRuntime: string
   readonly buildHash: string
   readonly buildTime: string
   readonly registryDescriptor: string
@@ -82,6 +87,7 @@ export function containerDescriptor(
     contractMajor: FRAMEWORK_CONTRACT_MAJOR,
     framework: context.profile.framework,
     shareScopes: context.shareScopes,
+    requiresRuntime: context.profile.requiresRuntime ?? RUNTIME_API_REQUIREMENT,
     definitions,
     entries,
     build: { hash: buildHash, time: context.options.buildTime },
@@ -98,6 +104,7 @@ export function frameworkMetadata(
     kind: 'mfe',
     major: descriptor.contractMajor,
     framework: context.profile.framework,
+    requiresRuntime: descriptor.requiresRuntime ?? RUNTIME_API_REQUIREMENT,
     buildHash,
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,

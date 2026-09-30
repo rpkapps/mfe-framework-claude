@@ -2,7 +2,13 @@
 
 import type { z } from 'zod'
 
-import type { Listener, StorageArea, StorageSnapshot, Unsubscribe } from '@company/mfe-core'
+import type {
+  Listener,
+  StorageArea,
+  StorageScopeOptions,
+  StorageSnapshot,
+  Unsubscribe,
+} from '@company/mfe-core'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 
@@ -41,7 +47,9 @@ export interface MfeStorageStoreOptions {
 }
 
 /** `storage` defaults to `'local'` and `version` to `1`. */
-export interface StorageKeyBinding<T> {
+export interface StorageKeyBinding<T> extends StorageScopeOptions {
+  /** Only used for instance scope. Adapters obtain it from the mount's host control property. */
+  readonly instanceId?: string
   readonly name: string
   readonly storage?: StorageArea
   readonly schema: z.ZodType<T>
@@ -56,7 +64,7 @@ export type StorageUpdater<T> = (current: T) => T
 
 /** Stable for the binding's lifetime, so a `useSyncExternalStore` consumer does not churn. */
 export interface BoundStorageKey<T> {
-  /** The physical key, `<definitionId>:<name>`, never scoped by mount token. */
+  /** The physical key; instance scope uses a stable instance id, never the mount token. */
   readonly key: string
   readonly definitionId: string
   readonly name: string

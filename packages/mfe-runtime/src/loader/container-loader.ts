@@ -11,6 +11,8 @@ import {
   type RegistryEntry,
 } from '@company/mfe-core'
 
+import { DEFAULT_DEADLINES, withDeadline } from '../deadline.ts'
+
 export interface LoadedDefinition<TModule = unknown> {
   readonly identity: DefinitionIdentity
   readonly module: TModule
@@ -25,14 +27,24 @@ export interface ContainerLoader<TModule = unknown> {
   preload?(entry: RegistryEntry, options: { readonly signal: AbortSignal }): Promise<void>
 }
 
-/** The shared promise is tied to no caller's signal, so abandoning a load cannot cancel it. */
+export interface SharedContainerLoaderOptions {
+  /** The underlying attempt's own deadline, independent of any one mount's wait. */
+  readonly deadlineMs?: number
+}
+
+/** A caller can abandon its wait; the shared attempt has a separate, finite lifetime. */
 export class SharedContainerLoader<TModule = unknown> implements ContainerLoader<TModule> {
   readonly #inner: ContainerLoader<TModule>
+  readonly #deadlineMs: number
   readonly #inFlight = new Map<string, Promise<LoadedDefinition<TModule>>>()
   readonly #resolved = new Map<string, LoadedDefinition<TModule>>()
 
-  constructor(inner: ContainerLoader<TModule>) {
+  constructor(inner: ContainerLoader<TModule>, options: SharedContainerLoaderOptions = {}) {
     this.#inner = inner
+    this.#deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINES.load
+    if (!Number.isFinite(this.#deadlineMs) || this.#deadlineMs <= 0) {
+      throw new RangeError('A shared container load requires a finite, positive deadlineMs.')
+    }
   }
 
   /** How many loads are currently shared; used by the resource-retention tests. */
@@ -44,22 +56,33 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
     entry: RegistryEntry,
     options: { readonly signal: AbortSignal },
   ): Promise<LoadedDefinition<TModule>> {
+    // Disposed hosts must not start work, including when no other caller has loaded this entry.
+    if (options.signal.aborted) throw abandonmentError(options.signal, entry)
     const cached = this.#resolved.get(entry.id)
     if (cached) return cached
 
     let shared = this.#inFlight.get(entry.id)
     if (!shared) {
-      // Deliberately not `options.signal`: the shared work outlives any one waiter, which
-      // rejects below without cancelling it.
-      shared = this.#inner
-        .load(entry, { signal: neverAborted() })
+      // The deadline owns cancellation; disposing any one waiter cannot abort its siblings.
+      const attempt = withDeadline(
+        signal => this.#inner.load(entry, { signal }),
+        this.#deadlineMs,
+        {
+          id: entry.id,
+          operation: 'load shared container',
+          phase: 'load',
+          ...(entry.version === undefined ? {} : { definitionVersion: entry.version }),
+        },
+      )
         .then(loaded => {
-          this.#resolved.set(entry.id, loaded)
+          // Only a current attempt may publish. An expired underlying load may settle later.
+          if (this.#inFlight.get(entry.id) === attempt) this.#resolved.set(entry.id, loaded)
           return loaded
         })
         .finally(() => {
-          this.#inFlight.delete(entry.id)
+          if (this.#inFlight.get(entry.id) === attempt) this.#inFlight.delete(entry.id)
         })
+      shared = attempt
       this.#inFlight.set(entry.id, shared)
     }
 
@@ -67,7 +90,16 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
   }
 
   preload(entry: RegistryEntry, options: { readonly signal: AbortSignal }): Promise<void> {
-    if (this.#inner.preload) return this.#inner.preload(entry, options)
+    if (options.signal.aborted) return Promise.resolve()
+    const preload = this.#inner.preload?.bind(this.#inner)
+    if (preload) {
+      return withDeadline(
+        signal => preload(entry, { signal }),
+        this.#deadlineMs,
+        { id: entry.id, operation: 'preload container', phase: 'load' },
+        options,
+      ).catch(() => undefined)
+    }
     // Failures are swallowed because an abandoned or failed preload must not break the
     // currently mounted App; a later real navigation takes the error and retry path.
     return this.load(entry, options).then(
@@ -82,27 +114,26 @@ export class SharedContainerLoader<TModule = unknown> implements ContainerLoader
   }
 }
 
-function neverAborted(): AbortSignal {
-  return new AbortController().signal
+function abandonmentError(signal: AbortSignal, entry: RegistryEntry): MfeError {
+  return toMfeError(signal.reason, {
+    code: 'load/entry-failure',
+    id: entry.id,
+    operation: 'load container',
+    observed: 'the caller stopped waiting before the container finished loading',
+    repair:
+      'No action required when this follows a disposal or a retry. Other callers waiting on the same container are unaffected.',
+  })
 }
 
 /** The shared work is always observed, so an eventual rejection is never an unhandled one. */
-function raceWithAbort<T>(
+export function raceWithAbort<T>(
   shared: Promise<T>,
   signal: AbortSignal,
   entry: RegistryEntry,
 ): Promise<T> {
   if (!signal.aborted && typeof signal.addEventListener !== 'function') return shared
 
-  const abandonment = (): MfeError =>
-    toMfeError(signal.reason, {
-      code: 'load/entry-failure',
-      id: entry.id,
-      operation: 'load container',
-      observed: 'the caller stopped waiting before the container finished loading',
-      repair:
-        'No action required when this follows a disposal or a retry. Other callers waiting on the same container are unaffected.',
-    })
+  const abandonment = (): MfeError => abandonmentError(signal, entry)
 
   if (signal.aborted) {
     // The shared work keeps running for the other waiters, so it still has to be observed.

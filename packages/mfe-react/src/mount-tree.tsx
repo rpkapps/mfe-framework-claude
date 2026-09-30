@@ -8,7 +8,7 @@
 
 import type { MfeError } from '@company/mfe-core'
 import { QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
 import type { AppDefinition, WidgetDefinition } from './definition.ts'
@@ -57,6 +57,11 @@ function Styled({
 
 export function MountTree(props: MountTreeProps): ReactNode {
   const { definition, mount } = props
+  const session = useSyncExternalStore(
+    mount.querySession.subscribe,
+    mount.querySession.getSnapshot,
+    mount.querySession.getSnapshot,
+  )
 
   const body = isWidgetTree(props) ? (
     <WidgetMount
@@ -73,7 +78,7 @@ export function MountTree(props: MountTreeProps): ReactNode {
   return (
     <MfeProvider runtime={mount.runtime}>
       <MfeMountProvider mount={mount}>
-        <QueryClientProvider client={mount.queryClient}>
+        <QueryClientProvider key={session.generation} client={session.client}>
           <Styled styleRoot={styleRootOf(definition)} overlayContainer={mount.overlayRoot}>
             {body}
           </Styled>

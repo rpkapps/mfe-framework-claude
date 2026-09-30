@@ -99,6 +99,8 @@ export interface ContainerDescriptor {
   /** The Module Federation container name; a shell registers the remote under it before fetching. */
   readonly container: string
   readonly contractMajor: number
+  /** Generated from the build integration's compatibility metadata. */
+  readonly requiresRuntime?: string
   /** The adapter that built it, which the registry entry names so exactly one adapter reads it. */
   readonly framework: string
   /**

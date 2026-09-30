@@ -64,6 +64,44 @@ describe('injectStoredState', () => {
     environment.dispose()
   })
 
+  it('isolates duplicate instances and restores a stable widget ID after remounting', async () => {
+    const environment = createMfeTestEnvironment({ definitions: [tableWidget] })
+    const north = await mountWidget(tableWidget, { environment, instanceId: 'north' })
+    const south = await mountWidget(tableWidget, { environment, instanceId: 'south' })
+    const injectInstance = () =>
+      injectStoredState('density', densitySchema, {
+        defaultValue: 'comfortable',
+        scope: 'instance',
+      })
+    const first = runInInjectionContext(north.injector, injectInstance)
+    const other = runInInjectionContext(south.injector, injectInstance)
+    first.set('compact')
+    expect(first.value()).toBe('compact')
+    expect(other.value()).toBe('comfortable')
+    await north.dispose()
+
+    const fresh = await mountWidget(tableWidget, { environment, instanceId: 'north' })
+    expect(runInInjectionContext(fresh.injector, injectInstance).value()).toBe('compact')
+    await fresh.dispose()
+    await south.dispose()
+    environment.dispose()
+  })
+
+  it('rejects instance state without a stable ID instead of using definition or host storage', async () => {
+    const environment = createMfeTestEnvironment({ definitions: [tableWidget] })
+    const widget = await mountWidget(tableWidget, { environment })
+    const appRef = await createHostApplication(environment)
+    const injectInstance = () =>
+      injectStoredState('density', densitySchema, {
+        defaultValue: 'comfortable',
+        scope: 'instance',
+      })
+    expect(() => runInInjectionContext(widget.injector, injectInstance)).toThrow(/instanceId/)
+    expect(() => runInInjectionContext(appRef.injector, injectInstance)).toThrow(/instanceId/)
+    expect(environment.storageAreas.local.snapshot()).toEqual({})
+    environment.dispose()
+  })
+
   it('releases its binding when the injector that created it is destroyed', async () => {
     const environment = createMfeTestEnvironment()
     const appRef = await createHostApplication(environment)

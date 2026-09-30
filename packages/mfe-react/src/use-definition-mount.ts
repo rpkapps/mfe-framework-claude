@@ -7,6 +7,7 @@
 import {
   shallowEqual,
   withoutUndefined,
+  type MfeError,
   type MountState,
   type WidgetContract,
 } from '@company/mfe-core'
@@ -16,6 +17,7 @@ import {
   type MountContext,
   type MfeRuntime,
   type WidgetDefinitionMount,
+  type WidgetInputState,
 } from '@company/mfe-runtime'
 import {
   useCallback,
@@ -41,10 +43,14 @@ export interface WidgetPlacement {
   readonly kind: 'widget'
   readonly definitionId: string
   readonly inputs: Inputs
+  readonly instanceId?: string | undefined
   /** Read when an output arrives rather than when the mount is made, so it may change freely. */
   readonly onOutput: (output: string, payload: unknown) => void
   /** The consumer's own view of the outputs, when it imported the Widget's contract. */
   readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
+  readonly consumerContract?: WidgetContract | undefined
+  /** Called only for a rejected update; the previous valid render stays mounted. */
+  readonly onInputRejected?: ((error: MfeError) => void) | undefined
 }
 
 export type Placement = AppPlacement | WidgetPlacement
@@ -53,11 +59,15 @@ export interface DefinitionMountView {
   /** Attach to an empty element the host renders for the mount's whole life. */
   readonly element: RefObject<HTMLDivElement | null>
   readonly state: MountState
+  readonly attempt: number
+  readonly inputState: WidgetInputState
   readonly retry: () => void
+  readonly reload: () => void
 }
 
 /** What the host shows before the effect has made the mount. */
 const NOT_STARTED: MountState = { status: 'pending', attempt: 0 }
+const ACCEPTED: WidgetInputState = { status: 'accepted' }
 
 function isWidgetMount(mount: DefinitionMount): mount is WidgetDefinitionMount {
   return typeof (mount as Partial<WidgetDefinitionMount>).update === 'function'
@@ -92,7 +102,7 @@ function open(
     return mountDefinition({ ...base, kind: 'app', basePath: placement.basePath })
   }
 
-  const { consumerOutputs } = placement
+  const { consumerOutputs, consumerContract, instanceId } = placement
   return mountDefinition({
     ...base,
     kind: 'widget',
@@ -101,7 +111,11 @@ function open(
       const latest = committed.current
       if (latest.kind === 'widget') latest.onOutput(output, payload)
     },
-    ...withoutUndefined({ consumerOutputs }),
+    onInputRejected: error => {
+      const latest = committed.current
+      if (latest.kind === 'widget') latest.onInputRejected?.(error)
+    },
+    ...withoutUndefined({ consumerOutputs, consumerContract, instanceId }),
   })
 }
 
@@ -126,6 +140,8 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
   const { kind, definitionId } = placement
   const basePath = placement.kind === 'app' ? placement.basePath : undefined
   const consumerOutputs = placement.kind === 'widget' ? placement.consumerOutputs : undefined
+  const consumerContract = placement.kind === 'widget' ? placement.consumerContract : undefined
+  const instanceId = placement.kind === 'widget' ? placement.instanceId : undefined
 
   useEffect(() => {
     const host = element.current
@@ -143,7 +159,7 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
     // `kind`, `definitionId`, `basePath` and `consumerOutputs` reach `open` through `committed`;
     // they are listed because they are what the mount is derived from, and a change of any of
     // them is a different mount.
-  }, [runtime, parent, kind, definitionId, basePath, consumerOutputs])
+  }, [runtime, parent, kind, definitionId, basePath, consumerOutputs, consumerContract, instanceId])
 
   const inputs = useStableInputs(placement.kind === 'widget' ? placement.inputs : null)
   useEffect(() => {
@@ -157,9 +173,24 @@ export function useDefinitionMount(placement: Placement, consumer: string): Defi
   const getState = useCallback(() => (mount === null ? NOT_STARTED : mount.getState()), [mount])
   const state = useSyncExternalStore(subscribe, getState)
 
+  const subscribeInputs = useCallback(
+    (listener: () => void) =>
+      mount !== null && isWidgetMount(mount) ? mount.subscribeInput(listener) : () => undefined,
+    [mount],
+  )
+  const getInputState = useCallback(
+    () => (mount !== null && isWidgetMount(mount) ? mount.getInputState() : ACCEPTED),
+    [mount],
+  )
+  const inputState = useSyncExternalStore(subscribeInputs, getInputState)
+
   const retry = useCallback(() => {
     mount?.retry()
   }, [mount])
 
-  return { element, state, retry }
+  const reload = useCallback(() => {
+    element.current?.ownerDocument.defaultView?.location.reload()
+  }, [])
+
+  return { element, state, attempt: mount?.attempt ?? 0, inputState, retry, reload }
 }

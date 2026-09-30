@@ -10,6 +10,7 @@ type Props = Readonly<Record<string, unknown>>
 
 /** A host composing the registry knows output names only as strings, not as `onX` props. */
 const CATCH_ALL_HANDLER_PROP = 'onOutput'
+const INPUT_REJECTION_HANDLER_PROP = 'onInputRejected'
 
 /**
  * Everything that is neither a host control prop nor a handler: the names a contract may not
@@ -32,7 +33,7 @@ export function widgetInputs(props: Props): Record<string, unknown> {
  */
 export function deliverWidgetOutput(props: Props, output: string, payload: unknown): void {
   const handlerProp = outputNameToHandlerProp(output)
-  if (handlerProp !== CATCH_ALL_HANDLER_PROP) {
+  if (handlerProp !== CATCH_ALL_HANDLER_PROP && handlerProp !== INPUT_REJECTION_HANDLER_PROP) {
     const own = props[handlerProp] as ((payload: unknown) => void) | undefined
     if (typeof own === 'function') own(payload)
   }

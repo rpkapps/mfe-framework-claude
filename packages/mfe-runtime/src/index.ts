@@ -29,6 +29,7 @@ export {
   SharedContainerLoader,
   type ContainerLoader,
   type LoadedDefinition,
+  type SharedContainerLoaderOptions,
 } from './loader/container-loader.ts'
 
 export {
@@ -62,7 +63,14 @@ export {
   type MountRequest,
   type WidgetDefinitionMount,
   type WidgetMountRequest,
+  type WidgetInputState,
 } from './mount/mount-definition.ts'
+
+export {
+  definitionRecovery,
+  definitionRecoveryMessage,
+  type DefinitionRecovery,
+} from './mount/error-recovery.ts'
 
 export {
   createMountContext,

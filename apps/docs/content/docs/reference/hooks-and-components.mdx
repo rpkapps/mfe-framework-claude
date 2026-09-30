@@ -119,7 +119,7 @@ observer.observe(scopeRoot)
 useMfeStorage(area?: 'local' | 'session'): MfeStorage
 ```
 
-Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name)` and `clear()`, and a bound key has `get()`, `set(value)` and `remove()`. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
+Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name, options?)` and `clear(options?)`, and a bound key has `get()`, `set(value)` and `remove()`. Pass `{ scope: 'instance' }` to select this mount's stable host-supplied `instanceId`; the default scope is `'definition'`. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const local = useMfeStorage()
@@ -320,11 +320,15 @@ Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-un
 useStoredState<T>(
   name: string,
   schema: z.ZodType<T>,
-  options: { defaultValue: T; storage?: 'local' | 'session'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
+  options: { defaultValue: T; storage?: 'local' | 'session'; scope?: 'definition' | 'instance'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
 ): readonly [T, (next: T | ((current: T) => T)) => void]
 ```
 
 Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data. The record belongs to the browser, so a sign-out keeps it and the next user reads it.
+
+Definition scope is the default and keeps the existing shared preference. Instance scope uses the
+mount's stable host-supplied `instanceId` and survives remounts of that ID. It throws when no
+non-empty stable ID is available, including outside a mount.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const [draft, setDraft] = useStoredState('draft', draftSchema, {

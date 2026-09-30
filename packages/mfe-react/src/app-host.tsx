@@ -14,15 +14,16 @@ import { useDefinitionMount } from './use-definition-mount.ts'
 export interface AppFallbackProps {
   readonly error: MfeError
   readonly retry: () => void
+  readonly reload: () => void
 }
 
 export interface AppHostProps {
   readonly appId: string
   /** The URL boundary assigned to this child; everything below it is the child's. */
   readonly basePath: string
-  /** Replaces the failed App, with a retry; without it the failure is thrown to the nearest error boundary. */
+  /** Replaces the default local failure surface, with retry and reload actions. */
   readonly fallback?: (props: AppFallbackProps) => ReactNode
-  /** What fills the App's region while its container is fetched and it mounts; the default is nothing. */
+  /** What fills the App's region while it loads; defaults to an accessible loading message. */
   readonly pending?: ReactNode
 }
 
@@ -54,7 +55,7 @@ function AppSlot({
 }): ReactNode {
   // Child-owned path and search changes never reach here; they are ordinary route transitions
   // inside the child's own router.
-  const { element, state, retry } = useDefinitionMount(
+  const { element, state, attempt, retry, reload } = useDefinitionMount(
     { kind: 'app', definitionId: appId, basePath },
     `the "${appId}" App`,
   )
@@ -63,7 +64,9 @@ function AppSlot({
     <DefinitionSlot
       element={element}
       state={state}
+      attempt={attempt}
       retry={retry}
+      reload={reload}
       pending={pending}
       fallback={fallback}
     />

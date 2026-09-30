@@ -17,6 +17,26 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 | `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
 | `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
 
+<Callout type="error" title="contract/runtime-incompatible">
+
+The shell runtime API does not satisfy the container's generated `requiresRuntime` range.
+The definition is refused locally before mounting; with a current shell, registry preflight
+also refuses it before downloading. Reload after upgrading the shell, or rebuild the container
+against the shell's API. Retrying the same versions does not resolve an incompatible range.
+Older entries use `>=1.0.0 <2.0.0`; an older runtime object with no `apiVersion` is treated as `1.0.0`.
+
+</Callout>
+
+<Callout type="error" title="contract/incompatible-widget">
+
+The loaded Widget cannot satisfy a typed consumer contract: a required input was added,
+accepted input values narrowed, an expected output disappeared, or supported output payloads
+widened beyond the consumer schema. The provider UI is not created. Use compatible consumer
+and provider contracts, then reload. Unsupported refinements are reported as unknown and keep
+payload validation; they are not automatically rejected.
+
+</Callout>
+
 <Callout type="error" title="contract/input-mismatch">
 
 ```text
@@ -108,6 +128,14 @@ operations failed to attach the access token for https://reports.example.test: e
 | `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                                                              | Check what the first render waits on, then retry.                                                                                                      |
 | `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                                                              | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.                                                                   |
 | `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                                                             | Check the diagnostics for the cleanup step that did not finish.                                                                                        |
+
+<Callout type="error" title="load/reload-required">
+
+Module Federation retained a failed or pending remote entry, or a deployed chunk is unavailable.
+A framework retry cannot safely clear another loaded definition's federation state. Save current
+work and reload the page. Manifest fetch failures that the federation runtime evicts still offer retry.
+
+</Callout>
 
 <Callout type="error" title="mount/failure, outside a mount">
 

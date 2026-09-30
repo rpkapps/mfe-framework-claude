@@ -69,6 +69,15 @@ export {
 } from './contract.ts'
 
 export {
+  compareJsonSchemas,
+  comparePublishedContracts,
+  compareWidgetContracts,
+  type ContractCompatibility,
+  type ContractCompatibilityIssue,
+  type ContractCompatibilityStatus,
+} from './contract-compatibility.ts'
+
+export {
   boundAttributes,
   boundName,
   EMPTY_ATTRIBUTES,
@@ -98,6 +107,7 @@ export {
 export {
   DEFAULT_SCHEMA_VERSION,
   isStorageEnvelope,
+  instanceStoragePrefix,
   physicalStorageKey,
   storagePrefix,
   type MfeStorage,
@@ -105,6 +115,8 @@ export {
   type StorageArea,
   type StorageEnvelope,
   type StorageKeyOptions,
+  type StorageScope,
+  type StorageScopeOptions,
   type StorageSnapshot,
 } from './storage.ts'
 
@@ -120,6 +132,16 @@ export {
 export { type DeadlineConfig } from './deadline.ts'
 
 export { defaultExposePath, PAGE_SHARE_SCOPE, SCOPE_ATTRIBUTE } from './container-contract.ts'
+
+export {
+  assertRuntimeCompatibility,
+  isRuntimeRequirement,
+  LEGACY_RUNTIME_API_REQUIREMENT,
+  LEGACY_RUNTIME_API_VERSION,
+  RUNTIME_API_REQUIREMENT,
+  RUNTIME_API_VERSION,
+  satisfiesRuntimeRequirement,
+} from './runtime-compatibility.ts'
 
 export {
   ACTION_EFFECTS,

@@ -83,6 +83,7 @@ export interface WidgetOutput {
 }
 
 export interface MountWidgetOptions extends PlacementOptions {
+  readonly instanceId?: string
   readonly inputs?: Readonly<Record<string, unknown>>
   readonly onOutput?: (name: string, payload: unknown) => void
 }
@@ -323,6 +324,7 @@ export async function mountWidget(
     element: placement.host,
     definitionId: definition.id,
     kind: 'widget',
+    ...(options.instanceId === undefined ? {} : { instanceId: options.instanceId }),
     inputs: options.inputs ?? {},
     onOutput: (name, payload) => {
       outputs.push({ name, payload })

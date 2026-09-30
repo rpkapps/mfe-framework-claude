@@ -127,6 +127,8 @@ binds when called outside a mount.
 
 ## If you are writing the host
 
+See [framework resilience](./docs/framework-resilience.md) for runtime compatibility, load recovery, session refresh, widget contract checks, local error surfaces, and instance storage.
+
 A shell is the one consumer that reads the registry instead of being listed in
 it. What it gets is deliberately small, and never anything renderable: the icon,
 the fallback title and the tone that marks an override stay the host's.

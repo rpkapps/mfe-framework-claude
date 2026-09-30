@@ -1,7 +1,8 @@
 /**
  * `<mfe-widget>` — an Angular host placing a Widget by id. The runtime's `mountDefinition` does the
  * placing, as it does for every host, so the Widget may be one any adapter built; the Widget
- * validates its own inputs, and a contract the host declares here checks the outputs.
+ * validates its own inputs, and a host contract checks compatibility before mounting and
+ * validates output values during use.
  */
 
 import { NgTemplateOutlet } from '@angular/common'
@@ -24,6 +25,10 @@ import { mountDefinition, type WidgetDefinitionMount } from '@company/mfe-runtim
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
+import {
+  MfeDefinitionStatusComponent,
+  type MfeFallbackContext,
+} from './definition-status.component.ts'
 
 export interface MfeWidgetOutput {
   readonly name: string
@@ -32,25 +37,52 @@ export interface MfeWidgetOutput {
 
 @Component({
   selector: 'mfe-widget',
-  imports: [NgTemplateOutlet],
-  template: `@if (status() === 'pending' && pending) {
-    <ng-container [ngTemplateOutlet]="pending" />
-  }`,
+  imports: [NgTemplateOutlet, MfeDefinitionStatusComponent],
+  template: `<mfe-definition-status
+      [loading]="status() === 'pending'"
+      [error]="error()"
+      [attempt]="attempt()"
+      [pending]="pending"
+      [fallback]="fallback"
+      (retried)="retry()"
+      (reloaded)="reload()"
+    />
+    @if (status() === 'mounted') {
+      @if (inputError(); as rejection) {
+        @if (inputFallback) {
+          <ng-container
+            [ngTemplateOutlet]="inputFallback"
+            [ngTemplateOutletContext]="{ $implicit: rejection, error: rejection }"
+          />
+        } @else {
+          <p role="status" data-mfe-input-rejected>
+            This widget is showing its previous inputs because the latest update was rejected.
+          </p>
+        }
+      }
+    }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MfeWidgetComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) widgetId!: string
   /** Replaced, never mutated: a new object is an update, validated by the Widget itself. */
   @Input() inputs: Readonly<Record<string, unknown>> = {}
-  /** The host's own view of the contract; outputs that fail it are reported and not delivered. */
+  /** Consumer expectations checked before mounting, and again against each delivered output. */
   @Input() contract: WidgetContract | undefined
+  /** Stable host identity for instance-scoped preferences. Changing it remounts the Widget. */
+  @Input() instanceId: string | undefined
   /** Shown while the Widget loads. */
   @Input() pending: TemplateRef<unknown> | undefined
+  @Input() fallback: TemplateRef<MfeFallbackContext> | undefined
+  @Input() inputFallback:
+    TemplateRef<{ readonly $implicit: MfeError; readonly error: MfeError }> | undefined
 
   /** Every output the Widget emits, by name, after the Widget's contract and this host's accept it. */
   @Output() readonly output = new EventEmitter<MfeWidgetOutput>()
   /** The Widget could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
   @Output() readonly failed = new EventEmitter<MfeError>()
+  /** The Widget still displays its last valid inputs; this update was not applied. */
+  @Output() readonly inputRejected = new EventEmitter<MfeError>()
 
   readonly #runtime = injectMfeRuntime('<mfe-widget>')
   readonly #parent = injectOptionalMfeMount()
@@ -61,10 +93,16 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
 
   /** Where the Widget's mount is: `pending`, `mounted`, `error` or `disposed`. */
   readonly status: Signal<MountStatus> = this.#mount.status
+  readonly state = this.#mount.state
+  readonly attempt = this.#mount.attempt
+  readonly error = this.#mount.error
+  readonly inputState = this.#mount.inputState
+  readonly inputStatus = this.#mount.inputStatus
+  readonly inputError = this.#mount.inputError
 
   ngOnChanges(changes: SimpleChanges): void {
     // A different Widget replaces the mount rather than feeding it another Widget's inputs.
-    if (changes['widgetId']) {
+    if (changes['widgetId'] || changes['instanceId'] || changes['contract']) {
       this.#place()
       return
     }
@@ -76,15 +114,20 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
     this.#mount.current?.retry()
   }
 
+  reload(): void {
+    this.#element.ownerDocument.defaultView?.location.reload()
+  }
+
   ngOnDestroy(): void {
     this.#mount.release()
   }
 
   #place(): void {
-    // The mount reads the consumer's outputs when an output arrives, so a contract bound later
-    // applies to the Widget already mounted.
+    // Bound getters read the current contract during pending loads and output delivery.
+    // Replacing the contract remounts so compatibility is checked before rendering.
     const consumerOutputs = (): WidgetContract['outputSchema'] | undefined =>
       this.contract?.outputSchema
+    const consumerContract = (): WidgetContract | undefined => this.contract
     this.#mount.replace(
       mountDefinition({
         runtime: this.#runtime,
@@ -93,11 +136,18 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
         kind: 'widget',
         parent: this.#parent,
         inputs: this.inputs,
+        instanceId: this.instanceId,
         onOutput: (name, payload) => {
           this.output.emit({ name, payload })
         },
         get consumerOutputs() {
           return consumerOutputs()
+        },
+        get consumerContract() {
+          return consumerContract()
+        },
+        onInputRejected: error => {
+          this.inputRejected.emit(error)
         },
       }),
     )

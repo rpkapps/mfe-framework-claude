@@ -275,6 +275,7 @@ describe('the registry entry the build publishes', () => {
       contractMajor: 1,
       framework: 'react',
       shareScopes: ['default', 'react@19.3.0'],
+      requiresRuntime: '>=1.1.0 <2.0.0',
       definitions: [
         {
           id: 'operations',

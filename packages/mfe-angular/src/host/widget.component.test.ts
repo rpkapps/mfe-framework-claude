@@ -119,6 +119,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
       [pending]="loading"
       (output)="outputs.push($event)"
       (failed)="failures.push($event)"
+      (inputRejected)="rejections.push($event)"
     />
     <ng-template #loading><span class="pending">loading</span></ng-template>
   `,
@@ -129,6 +130,7 @@ class HostComponent {
   contract: WidgetContract | undefined = undefined
   readonly outputs: MfeWidgetOutput[] = []
   readonly failures: MfeError[] = []
+  readonly rejections: MfeError[] = []
   @ViewChild('widget') widget: MfeWidgetComponent | undefined
 }
 
@@ -147,6 +149,50 @@ async function renderHost(
 }
 
 describe('<mfe-widget>', () => {
+  it('exposes a rejected update separately from mount status and clears it after a valid update', async () => {
+    const { rendered, appRef } = await renderHost([alertWidget])
+    const host = rendered.ref.instance
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('p')?.textContent).toBe('a-1')
+    })
+
+    host.inputs.set({ alertId: 7 })
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(host.rejections).toHaveLength(1)
+    })
+    expect(host.widget?.status()).toBe('mounted')
+    expect(host.widget?.inputStatus()).toBe('rejected')
+    expect(host.widget?.inputError()?.code).toBe('contract/input-mismatch')
+    expect(host.failures).toEqual([])
+    expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('a-1')
+    expect(rendered.element.querySelector('[data-mfe-input-rejected]')?.textContent).toContain(
+      'previous inputs',
+    )
+
+    host.inputs.set({ alertId: 'a-2' })
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(host.widget?.inputStatus()).toBe('accepted')
+    })
+    expect(host.widget?.inputError()).toBeNull()
+    expect(rendered.element.querySelector('[data-mfe-input-rejected]')).toBeNull()
+    expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('a-2')
+  })
+
+  it('shows initial input errors locally and offers retry', async () => {
+    const { rendered } = await renderHost([alertWidget], host => {
+      host.inputs.set({ alertId: 7 })
+    })
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('[role="alert"]')).not.toBeNull()
+    })
+    expect(rendered.element.querySelector('[role="alert"]')?.textContent).toContain(
+      'Correct the widget inputs',
+    )
+    expect(rendered.element.querySelector('button')?.textContent).toBe('Retry')
+  })
+
   it('mounts an Angular Widget by id inside exactly one scope root, the one its mount sees', async () => {
     alertMounts.length = 0
     const { rendered } = await renderHost([alertWidget])
@@ -294,7 +340,11 @@ describe('<mfe-widget>', () => {
         host.inputs.set({ count: 1 })
         host.contract = {
           inputSchema: z.object({ count: z.number() }),
-          outputSchema: z.object({ clicked: z.object({ count: z.number().max(5) }) }),
+          // Custom refinements are unknown to static comparison, so actual payloads still
+          // need the consumer check during delivery.
+          outputSchema: z.object({
+            clicked: z.object({ count: z.number().refine(value => value <= 5) }),
+          }),
         }
       })
       await vi.waitFor(() => {
@@ -364,7 +414,8 @@ describe('<mfe-widget>', () => {
       })
       expect(rendered.ref.instance.failures[0]?.message).toContain('the first mount fails')
 
-      rendered.ref.instance.widget?.retry()
+      expect(rendered.element.querySelector('button')?.textContent).toBe('Retry')
+      rendered.element.querySelector('button')?.click()
 
       await vi.waitFor(() => {
         expect(calls.targets).toHaveLength(1)

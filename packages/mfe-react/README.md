@@ -30,6 +30,17 @@ The App owns its router. `makeRouter({ basePath, history, context })` passes
 `context` through unchanged; the first render checks all three and rejects the
 mount, naming the repair, when one is not what it supplied.
 
+The factory runs once per mount security session. Login, sign-out, principal,
+tenant/account and permission-set changes retire the mount's QueryClient and
+replace its provider subtree, including the App router and route caches. Active
+queries reload against the new session; late query results and mutation callbacks
+that retain the retired client cannot write into the new visible cache. This
+deliberately resets ephemeral component state as well as user-dependent data.
+Definition/instance storage preferences retain their existing persistence rules.
+Theme, display-name, token-refresh and group-order-only changes preserve the tree
+and client. Application-owned global caches and arbitrary external side effects
+remain the author's responsibility.
+
 ```tsx
 export const alertPanel = createWidget({
   id: 'alert-panel',
@@ -47,12 +58,17 @@ never ask which framework built the definition, so they place Angular
 definitions exactly as they place React ones.
 
 - **Nothing suspends.** `pending` fills the region while the container loads and
-  the definition mounts; `fallback({ error, retry })` replaces it after a
-  failure. Without a `fallback`, the failure is thrown to the nearest error
-  boundary.
+  the definition mounts; `fallback({ error, retry, reload })` replaces it after a
+  failure. Defaults are small accessible local surfaces: loading, diagnostics,
+  and retry or reload appropriate to the failure. Set `pending={null}` to hide
+  the loading message. No UI dependency is bundled for these surfaces.
 - **`retry()` acts only after a failure**, and a failed load is loaded afresh.
 - **A Widget is handed only inputs that changed**, and outputs reach the `onX`
   prop their name maps to, then `onOutput`, with or without a contract.
+- **Rejected updates preserve the last valid view.** `onInputRejected(error)`
+  informs the current host callback; the mount remains mounted. A visible hint
+  explains that the displayed inputs are stale. `inputFallback({ error })`
+  customizes that hint, which clears when a valid update is accepted.
 - **Under StrictMode** the effect disposes the first mount before its load
   settles, so a definition's `mount` runs once.
 - **`mfeRoute({ appId })`** delegates a splat route to another App and calls

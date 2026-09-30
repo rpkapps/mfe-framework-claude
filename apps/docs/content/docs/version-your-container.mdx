@@ -1,18 +1,19 @@
 ---
 title: 'Version your container and its contract'
-description: 'The three versions a container carries, and which changes break the people who render you.'
+description: 'The versions and shell runtime requirement a container carries, and which changes break its consumers.'
 ---
 
-Three versions travel with a container, and only one of them decides whether the shell loads you at
-all. Apps and Widgets carry the same three.
+Definition/package versions, the container contract major, and the required shell runtime API range
+travel with a container. Apps and Widgets use the same checks.
 
 ## Steps
 
-| Version            | Where you set it                                      | What it does                                      |
-| ------------------ | ----------------------------------------------------- | ------------------------------------------------- |
-| definition version | `version` on `createApp` or `createWidget`            | names your build in every message and every entry |
-| package version    | `"version"` in the container's `package.json`         | your own release record. No entry carries it      |
-| contract major     | the framework release your container is built against | decides whether the shell accepts the entry       |
+| Version            | Where you set it                                              | What it does                                                         |
+| ------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| definition version | `version` on `createApp` or `createWidget`                    | names your build in every message and every entry                    |
+| package version    | `"version"` in the container's `package.json`                 | your own release record. No entry carries it                         |
+| contract major     | the framework release your container is built against         | decides whether the shell accepts the entry                          |
+| runtime API range  | generated from the build integration's compatibility metadata | decides whether the shell-owned runtime object supports your adapter |
 
 <Steps>
 
@@ -55,6 +56,28 @@ The registry entry carries the definition version alone, and nothing checks that
 
 The build writes this number, and a shell accepts your entry only when it matches the shell's own
 major.
+
+The build also publishes `requiresRuntime`, currently `">=1.1.0 <2.0.0"`. The shell advertises
+`runtime.apiVersion`, currently `"1.1.0"`, and checks the range before downloading a definition.
+It checks the loaded definition again so a stale registry cannot hide a newer adapter requirement.
+React and Angular adapters check before mounting too, including when an older shell has no preflight.
+
+The runtime API version is independent of package versions: a backward-compatible API addition
+raises its minor, and an incompatible change raises its major. Shared-package version resolution
+does not upgrade an object an older shell already created.
+
+Compatibility metadata supports conjunctions of stable SemVer comparators (`>=`, `>`, `<=`, `<`,
+`=` or an exact version), with no spaces between an operator and its version. Generated ranges
+use `>=minimum <next-major`. Build metadata does not affect comparison; prereleases, caret/tilde,
+wildcards and alternatives are rejected. This deliberately small generated subset avoids shipping
+a general npm range parser in browser bundles. Integration authors set `ContainerProfile.requiresRuntime`
+when their adapter needs a different baseline; container authors do not scan or configure API usage.
+
+Entries lacking `requiresRuntime` are treated as original-API containers (`">=1.0.0 <2.0.0"`).
+Shell runtime objects lacking `apiVersion` are treated as `"1.0.0"`. New adapters keep their tiny
+guard outside the bare core share, so an older shared core cannot erase this check. An old shell
+may still download newer code before refusing its mount; it cannot perform a pre-download check
+it was never built to support.
 
 </Step>
 
@@ -105,6 +128,19 @@ contract major 1, received contract major 2.
 
 **Fix.** Rebuild the container against the framework major the shell runs, or wait for the shell to
 upgrade. Nothing you write sets this number.
+
+</Callout>
+
+<Callout type="error" title="contract/runtime-incompatible">
+
+```text
+operations failed to check shell runtime compatibility: expected runtime API >=1.1.0 <2.0.0,
+received runtime API 1.0.0.
+```
+
+**Fix.** Upgrade/reload the shell, or rebuild the container against its supported runtime API.
+Repeated retry against the same versions cannot resolve this mismatch. Other Apps and Widgets
+remain usable.
 
 </Callout>
 

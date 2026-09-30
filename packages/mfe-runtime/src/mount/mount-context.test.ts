@@ -127,6 +127,26 @@ describe('createMountContext', () => {
     expect(other.context.storage.local.key('density', z.string()).get()).toBeNull()
   })
 
+  it('keeps stable instance preferences across disposal while isolating duplicate widget tiles', async () => {
+    const host = runtime()
+    const options = { runtime: host, definitionId: 'alert-panel', kind: 'widget' as const }
+    const north = createMountContext({ ...options, instanceId: 'north' })
+    const south = createMountContext({ ...options, instanceId: 'south' })
+    const schema = z.string()
+    north.context.storage.local.key('view', schema, { scope: 'instance' }).set('compact')
+    north.context.storage.local.key('shared', schema).set('dark')
+
+    expect(south.context.storage.local.key('view', schema, { scope: 'instance' }).get()).toBeNull()
+    expect(south.context.storage.local.key('shared', schema).get()).toBe('dark')
+    await north.dispose()
+    const remounted = createMountContext({ ...options, instanceId: 'north' })
+    expect(remounted.context.mountToken).not.toBe(north.context.mountToken)
+    expect(remounted.context.instanceId).toBe('north')
+    expect(remounted.context.storage.local.key('view', schema, { scope: 'instance' }).get()).toBe(
+      'compact',
+    )
+  })
+
   it('attaches a body-level overlay root carrying the scope and the mount', () => {
     const { context } = createMountContext({
       runtime: runtime(),

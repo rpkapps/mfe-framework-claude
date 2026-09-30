@@ -145,7 +145,7 @@ export interface AppMountProps {
 }
 
 /**
- * The router is built once per mount, so an ordinary rerender never rebuilds it; StrictMode may
+ * The router is built once per security session, so an ordinary rerender never rebuilds it; StrictMode may
  * build it twice in development and keep one, which the factory's contract allows for. Its history
  * is built over a bridge of its own on the runtime's navigator, which every mount on the page
  * shares, so the other Apps hear where it takes the page and it does not hear it twice.
@@ -189,12 +189,20 @@ export function AppMount({ definition, mount }: AppMountProps): ReactNode {
 }
 
 /**
- * A theme change refreshes the snapshot without invalidating loaders; an identity or group
- * change invalidates, because decisions made under the old session are no longer valid.
+ * Non-security changes refresh the snapshot without invalidating loaders. Identity and group
+ * changes replace the provider subtree, including this router and its route cache; the retired
+ * router must not be given the next session's QueryClient while it is awaiting effect cleanup.
  */
 function useShellStateSync(router: AnyRouter, mount: MfeMount): void {
   useEffect(() => {
     return mount.runtime.shellState.observeTransitions(change => {
+      if (
+        change.transitions.some(
+          transition => transition.kind === 'identity' || transition.kind === 'groups',
+        )
+      )
+        return
+
       const current = router.options.context as Record<string, unknown> | undefined
       const next = createRouterContext(mount)
 
@@ -203,11 +211,6 @@ function useShellStateSync(router: AnyRouter, mount: MfeMount): void {
         ...router.options,
         context: { ...current, mfe: next.mfe, queryClient: next.queryClient },
       })
-
-      const invalidates = change.transitions.some(
-        transition => transition.kind === 'identity' || transition.kind === 'groups',
-      )
-      if (invalidates) void router.invalidate()
     })
   }, [router, mount])
 }

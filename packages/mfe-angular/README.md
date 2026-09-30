@@ -191,9 +191,24 @@ and wildcard routes never contribute, and the deepest route is the current one.
 Only a route's own data counts: Angular copies a componentless parent's data
 into its children, which would otherwise label every child with the parent.
 
-**Shell-state transitions** need no handling: the injectables below are live
-signals. An identity or group change does not reload the router — Angular has no
-`invalidate` — so a resolver whose result depends on the user re-reads it itself.
+**Shell-state transitions** update the injectables below as live signals. Login,
+sign-out, principal, tenant/account and permission-set changes also reload the
+App's current navigation, rerunning active guards and resolvers (including lazy
+routes) under the new session. The URL and browser history are preserved. The
+old routed view is hidden until the refreshed data has rendered; a denied guard
+or failed resolver fails the mount locally instead of showing previous-session
+data. Normal authored `runGuardsAndResolvers` policies and route/component reuse
+remain in effect outside that refresh. Theme, display-name, token refresh and
+group-order-only changes do not reload routes. Stored UI preferences are retained.
+
+Widgets and services with their own user-dependent data use `injectSession()`:
+it returns a shared `Signal<MfeSession>` with `generation` and `signal`. The
+generation changes on each security transition; the previous signal aborts then
+and on mount disposal. Use the generation to reload data and retain that session's
+signal with the request, guarding writes from work that ignores cancellation.
+Application-owned caches and custom request paths need this explicit handling.
+The MFE HttpClient interceptor below automatically cancels its previous-session
+requests and prevents late responses from reaching subscribers.
 
 ## Authenticated HttpClient calls
 
@@ -463,7 +478,10 @@ Both components keep what the runtime decides out of the host's hands:
 
 - **`status`** is a signal over the mount's state — `pending`, `mounted`,
   `error` or `disposed` — and the `pending` template shows while it is
-  `pending`.
+  `pending`. Without custom templates, accessible native loading and local error
+  surfaces show appropriate retry/reload actions and expandable diagnostics.
+  `[fallback]` accepts a template with `let-error`, `let-retry="retry"` and
+  `let-reload="reload"`. `error()` and `attempt()` expose recovery diagnostics.
 - **`(failed)`** emits each time the mount enters its error state: a failed load,
   a failed mount, or a definition that failed once mounted.
 - **`retry()`** acts only after a failure. A failed load is loaded afresh; a
@@ -471,6 +489,11 @@ Both components keep what the runtime decides out of the host's hands:
 - **`[inputs]`** reaches the Widget only when it changed: the runtime drops an
   input set shallow-equal to the last one, and one set while the Widget was
   mounting arrives once, when it has mounted.
+- **Rejected updates** emit `(inputRejected)` and leave `status()` mounted while
+  preserving the last valid view. `inputStatus()` and `inputError()` distinguish
+  accepted from rejected input. A default stale-input hint can be replaced with
+  `[inputFallback]` (template context `let-error` or `let-error="error"`), and
+  clears after a valid update.
 - **Nesting.** Inside a mount, a placed definition is one level deeper than the
   mount it sits in and is disposed with it.
 

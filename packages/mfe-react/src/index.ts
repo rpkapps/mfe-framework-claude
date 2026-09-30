@@ -38,6 +38,7 @@ export {
   type LazyWidgetOptions,
   type LazyWidgetProps,
   type WidgetFallbackProps,
+  type WidgetInputFallbackProps,
 } from './lazy-widget.tsx'
 
 export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
@@ -104,6 +105,8 @@ export {
   type ShellTheme,
   type ShellUser,
   type StorageKeyOptions,
+  type StorageScope,
+  type StorageScopeOptions,
   type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */

@@ -5,8 +5,10 @@ export type MfeErrorCode =
   | 'registry/invalid-entry'
   | 'registry/duplicate-id'
   | 'contract/unsupported-major'
+  | 'contract/runtime-incompatible'
   | 'contract/input-mismatch'
   | 'contract/output-mismatch'
+  | 'contract/incompatible-widget'
   | 'config/missing'
   | 'config/unreachable'
   | 'config/invalid'
@@ -17,6 +19,7 @@ export type MfeErrorCode =
   // hook rendered outside any mount.
   | 'load/share-conflict'
   | 'load/timeout'
+  | 'load/reload-required'
   | 'mount/failure'
   | 'mount/timeout'
   | 'action/duplicate-name'

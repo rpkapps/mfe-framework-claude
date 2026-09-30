@@ -2,7 +2,15 @@
 
 import { readFileSync } from 'node:fs'
 
-import type { CapabilityDescriptor, PublishedRoute, ContainerDescriptor } from '@company/mfe-core'
+import {
+  isRuntimeRequirement,
+  RUNTIME_API_REQUIREMENT,
+  type CapabilityDescriptor,
+  type PublishedRoute,
+  type ContainerDescriptor,
+} from '@company/mfe-core'
+
+import { createBuildError } from '../diagnostics.ts'
 
 import {
   containerDescriptor,
@@ -39,6 +47,18 @@ export function generateContainerFiles(
   capabilities: readonly CapabilityDescriptor[],
   routes: readonly PublishedRoute[] = [],
 ): GeneratedOutput {
+  const requirement = context.profile.requiresRuntime ?? RUNTIME_API_REQUIREMENT
+  if (!isRuntimeRequirement(requirement)) {
+    throw createBuildError({
+      code: 'registry/invalid-entry',
+      file: context.entryFile,
+      operation: 'publish the adapter runtime requirement',
+      expected: 'stable SemVer comparator ranges such as ">=1.1.0 <2.0.0"',
+      observed: JSON.stringify(requirement),
+      repair:
+        'Correct the build integration’s requiresRuntime metadata; application authors do not set this range.',
+    })
+  }
   const base: GeneratedFile[] = [
     gitignoreFile(context),
     tsconfigPathsFile(context),

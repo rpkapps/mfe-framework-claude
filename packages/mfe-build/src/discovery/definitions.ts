@@ -576,10 +576,11 @@ function assertUsableOutputNames(entryFile: string, definition: DiscoveredDefini
       file: entryFile,
       id: definition.id,
       operation: `read the Widget output '${problem.name}'`,
-      expected: 'a lower-camel-case output name, for example "acknowledged" or "selectionChanged"',
+      expected:
+        'a lower-camel-case output name whose handler is not reserved, for example "acknowledged" or "selectionChanged"',
       observed: JSON.stringify(problem.name),
       declaredBy: 'The Widget contract',
-      repair: `Rename the output. Consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}, so the name has to survive that mapping.`,
+      repair: `Rename the output. Consumers subscribe to it as ${outputNameToHandlerProp('yourOutput')}, so the name has to survive that mapping. 'inputRejected' is reserved for the host rejection callback.`,
     })
   }
 

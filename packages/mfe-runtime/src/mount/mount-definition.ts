@@ -6,6 +6,8 @@
  */
 
 import {
+  compareWidgetContracts,
+  createMfeError,
   shallowEqual,
   toMfeError,
   outputPayloadSchema,
@@ -16,6 +18,8 @@ import {
   type WidgetContract,
 } from '@company/mfe-core'
 
+import { SnapshotSource } from '../observable.ts'
+import { isFederatedEntry } from '../loader/federation-loader.ts'
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { createMountContext, type MountContext, type MountContextHandle } from './mount-context.ts'
 import { MountController, type MountOperations } from './mount-controller.ts'
@@ -48,10 +52,14 @@ export interface AppMountRequest extends MountRequestBase {
 export interface WidgetMountRequest extends MountRequestBase {
   readonly kind: 'widget'
   readonly inputs: Inputs
+  /** A stable host identity for explicitly instance-scoped Widget preferences. */
+  readonly instanceId?: string | undefined
   /** Called after the provider validated the payload and any consumer contract accepted it. */
   readonly onOutput: (output: string, payload: unknown) => void
-  /** The host's own view of the outputs; a payload that fails it is reported and not delivered. */
+  /** Legacy output-only expectations: preflight declared events, then validate actual payloads. */
   readonly consumerOutputs?: WidgetContract['outputSchema'] | undefined
+  /** Consumer input/output expectations, checked before the provider mounts. */
+  readonly consumerContract?: WidgetContract | undefined
   /** An update the Widget rejected, which the Widget has already reported. */
   readonly onInputRejected?: (error: MfeError) => void
 }
@@ -59,6 +67,7 @@ export interface WidgetMountRequest extends MountRequestBase {
 export type MountRequest = AppMountRequest | WidgetMountRequest
 
 export interface DefinitionMount extends MountHandle {
+  readonly attempt: number
   /** The context of the attempt currently attached; `null` before the first and between two. */
   readonly context: MountContext | null
   /**
@@ -71,19 +80,33 @@ export interface DefinitionMount extends MountHandle {
 export interface WidgetDefinitionMount extends DefinitionMount {
   /** The one place input equality is decided; a shallow-equal set is dropped. */
   update(inputs: Inputs): void
+  /** A rejected update does not change mount status or destroy the last valid render. */
+  getInputState(): WidgetInputState
+  subscribeInput(listener: () => void): () => void
 }
+
+export type WidgetInputState =
+  { readonly status: 'accepted' } | { readonly status: 'rejected'; readonly error: MfeError }
+
+const ACCEPTED_INPUTS: WidgetInputState = { status: 'accepted' }
 
 export function mountDefinition(request: AppMountRequest): DefinitionMount
 export function mountDefinition(request: WidgetMountRequest): WidgetDefinitionMount
 export function mountDefinition(request: MountRequest): DefinitionMount | WidgetDefinitionMount {
   const { runtime, definitionId, parent } = request
-  const version = runtime.registry.entries.get(definitionId)?.version
+  const entry = runtime.registry.entries.get(definitionId)
+  const version = entry?.version
 
   // The controller does not exist yet when the operations are built; nothing calls back into
   // it before `start()`, which is after both do.
-  const operations = new DefinitionAttempts(request, error => {
-    controller.fail(error)
-  })
+  const inputState = new SnapshotSource<WidgetInputState>(ACCEPTED_INPUTS)
+  const operations = new DefinitionAttempts(
+    request,
+    error => {
+      controller.fail(error)
+    },
+    inputState,
+  )
 
   const stopFollowingParent = followParent(parent, () => {
     void controller.dispose().catch(() => undefined)
@@ -95,7 +118,14 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
     operations,
     deadlines: runtime.deadlines,
     diagnostics: runtime.diagnostics,
-    onDisposed: stopFollowingParent,
+    diagnosticContext: {
+      kind: request.kind,
+      ...(entry !== undefined && isFederatedEntry(entry) ? { container: entry.container } : {}),
+    },
+    onDisposed: () => {
+      stopFollowingParent()
+      inputState.dispose()
+    },
   })
 
   if (parent?.signal.aborted === true) void controller.dispose().catch(() => undefined)
@@ -103,6 +133,9 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
 
   const handle: DefinitionMount = {
     id: controller.id,
+    get attempt() {
+      return controller.attempt
+    },
     get state() {
       return controller.getState()
     },
@@ -120,6 +153,8 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
 
   if (request.kind === 'app') return handle
   return Object.assign(handle, {
+    getInputState: inputState.getSnapshot,
+    subscribeInput: inputState.subscribe,
     update: (inputs: Inputs) => {
       if (!controller.isDisposed) operations.update(inputs)
     },
@@ -191,14 +226,21 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   readonly #request: HeldRequest
   readonly #fail: (error: unknown) => void
   readonly #teardowns = new Set<Promise<void>>()
+  readonly #inputState: SnapshotSource<WidgetInputState>
+  #inputRejection = 0
   #attempt: Attempt | null = null
   /** The latest Widget inputs the host passed, whether or not a definition has them yet. */
   #inputs: Inputs
 
-  constructor(request: MountRequest, fail: (error: unknown) => void) {
+  constructor(
+    request: MountRequest,
+    fail: (error: unknown) => void,
+    inputState: SnapshotSource<WidgetInputState>,
+  ) {
     this.#request = withoutFirstInputs(request)
     this.#fail = fail
     this.#inputs = request.kind === 'widget' ? request.inputs : {}
+    this.#inputState = inputState
   }
 
   get context(): MountContext | null {
@@ -209,9 +251,11 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     return this.#attempt?.mounted?.whenStable?.() ?? Promise.resolve()
   }
 
-  load(signal: AbortSignal): Promise<MountableDefinition> {
+  async load(signal: AbortSignal): Promise<MountableDefinition> {
     const { runtime, definitionId, kind } = this.#request
-    return resolveDefinition(runtime, definitionId, kind, signal)
+    const definition = await resolveDefinition(runtime, definitionId, kind, signal)
+    this.#checkContract(definition)
+    return definition
   }
 
   async attach(definition: MountableDefinition, signal: AbortSignal): Promise<void> {
@@ -219,6 +263,9 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     // definition and would otherwise mount synchronously from a host's render or commit.
     await Promise.resolve()
     signal.throwIfAborted()
+
+    // Also applies to retries that reuse a loaded definition and hosts with bound getters.
+    this.#checkContract(definition)
 
     const attempt = this.#open(definition)
     const mounted = await attempt.mounting
@@ -229,7 +276,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     // Inputs that changed while the mount was pending reach it once, as its first update.
     if (isMountedWidget(mounted) && !shallowEqual(this.#inputs, attempt.delivered)) {
       attempt.delivered = this.#inputs
-      mounted.update(this.#inputs)
+      this.#deliverInputs(mounted, this.#inputs)
     }
   }
 
@@ -263,7 +310,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 
     attempt.delivered = inputs
     try {
-      attempt.mounted.update(inputs)
+      this.#deliverInputs(attempt.mounted, inputs)
     } catch (error) {
       // `update` reports a rejected set through `onInputRejected`; a throw is a Widget that
       // can no longer run.
@@ -271,7 +318,15 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     }
   }
 
+  /** Provider updates validate synchronously and report rejection before returning. */
+  #deliverInputs(mounted: MountedWidget, inputs: Inputs): void {
+    const rejectedBefore = this.#inputRejection
+    mounted.update(inputs)
+    if (rejectedBefore === this.#inputRejection) this.#inputState.set(ACCEPTED_INPUTS)
+  }
+
   #open(definition: MountableDefinition): Attempt {
+    this.#inputState.set(ACCEPTED_INPUTS)
     const { runtime, element, parent } = this.#request
     const ownerDocument = element.ownerDocument
 
@@ -281,6 +336,9 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
       ...withoutUndefined({ definitionVersion: definition.version }),
       kind: definition.kind,
       ...(this.#request.kind === 'app' ? { basePath: this.#request.basePath } : {}),
+      ...(this.#request.kind === 'widget'
+        ? withoutUndefined({ instanceId: this.#request.instanceId })
+        : {}),
       depth: (parent?.depth ?? 0) + 1,
       document: ownerDocument,
     })
@@ -316,7 +374,6 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 
     // A Widget definition, so a Widget request: `resolveDefinition` refused the other kind.
     const request = this.#request as HeldWidgetRequest
-    const { onInputRejected } = request
     return definition.mount({
       element,
       context,
@@ -325,13 +382,24 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
         if (!attempt.detached) deliverOutput(request, definition, output, payload)
       },
       onFailure,
-      ...(onInputRejected === undefined
-        ? {}
-        : {
-            onInputRejected: (error: MfeError) => {
-              if (!attempt.detached) onInputRejected(error)
-            },
-          }),
+      onInputRejected: (error: MfeError) => {
+        if (attempt.detached) return
+        this.#inputRejection += 1
+        this.#inputState.set({ status: 'rejected', error })
+        try {
+          request.onInputRejected?.(error)
+        } catch (cause) {
+          request.runtime.diagnostics.report(
+            toMfeError(cause, {
+              code: 'mount/failure',
+              id: request.definitionId,
+              operation: 'handle a rejected Widget input',
+              repair:
+                'Check the host onInputRejected handler. The Widget still displays its previous valid inputs.',
+            }),
+          )
+        }
+      },
     })
   }
 
@@ -370,6 +438,32 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
       }),
     )
   }
+
+  #checkContract(definition: MountableDefinition): void {
+    if (definition.kind !== 'widget' || this.#request.kind !== 'widget') return
+    const contract =
+      this.#request.consumerContract ??
+      (this.#request.consumerOutputs === undefined
+        ? undefined
+        : { outputSchema: this.#request.consumerOutputs })
+    if (contract === undefined) return
+    const result = compareWidgetContracts(contract, definition.contract)
+    if (result.status !== 'incompatible') return
+    const issue = result.issues.find(entry => entry.status === 'incompatible')
+    if (issue === undefined) return
+    throw createMfeError({
+      code: 'contract/incompatible-widget',
+      id: definition.id,
+      ...withoutUndefined({ definitionVersion: definition.version }),
+      operation: 'compare the consumer and provider Widget contracts',
+      direction: issue.direction,
+      path: issue.path,
+      expected: 'a provider compatible with the consumer contract',
+      observed: issue.reason,
+      repair:
+        'Update the consumer contract and inputs, or use a compatible Widget definition. Payload validation remains active for unknown schema constraints.',
+    })
+  }
 }
 
 /** The provider already validated the payload; this checks only what the host declared. */
@@ -379,7 +473,10 @@ function deliverOutput(
   output: string,
   payload: unknown,
 ): void {
-  const schema = outputPayloadSchema(request.consumerOutputs, output)
+  const schema = outputPayloadSchema(
+    request.consumerContract?.outputSchema ?? request.consumerOutputs,
+    output,
+  )
   if (schema === undefined) {
     request.onOutput(output, payload)
     return

@@ -71,6 +71,40 @@ Reload the page. The value is still on screen. Open the browser developer tools,
 then Local storage, and look for `operations:table-density`. Two mounts of one definition read that
 one record, so a second copy of your App on the page agrees with the first.
 
+## Keep separate preferences for duplicate Widgets
+
+The default `scope: 'definition'` shares preferences between every copy of a definition. For
+independent dashboard tiles, the host gives each Widget a stable `instanceId`:
+
+```tsx
+<DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
+```
+
+Angular hosts use the same host control property:
+
+```html
+<mfe-widget widgetId="well-view" instanceId="dashboard-east-well" />
+```
+
+Inside the Widget, opt in for each preference that belongs to this tile:
+
+```tsx
+const [camera, setCamera] = useStoredState('camera', cameraSchema, {
+  defaultValue: defaultCamera,
+  scope: 'instance',
+})
+```
+
+Angular authors pass the same option to `injectStoredState`. Definition and instance records are
+separate, so omitting `scope` continues to read the existing definition-wide preference. The host
+control `instanceId` is reserved; it is not delivered as a Widget input. Reuse it across page
+reloads and remounts; a mount token or a freshly generated ID loses that association. Hosts choose
+IDs unique for their placements of a definition; reusing an ID deliberately shares its settings.
+
+Requesting instance scope without a non-empty host-supplied ID throws `storage/failure`, including
+outside a mount. It never silently falls back to shared storage. The same browser-profile and
+schema-migration rules apply in either scope.
+
 ## Errors
 
 <Callout type="error" title="storage/failure, at bind">

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { isMfeError, type RegistryEntry } from '@company/mfe-core'
 
@@ -189,6 +189,99 @@ describe('SharedContainerLoader deduplication', () => {
   })
 })
 
+describe('shared load deadlines', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('expires and aborts one hung attempt for every waiter, then starts a fresh retry', async () => {
+    vi.useFakeTimers()
+    const inner = createControllableLoader()
+    const shared = new SharedContainerLoader(inner.loader, { deadlineMs: 100 })
+    const entry = entryFor('reports')
+    const first = shared.load(entry, { signal: new AbortController().signal })
+    const sibling = shared.load(entry, { signal: new AbortController().signal })
+    const firstFailure = expect(first).rejects.toMatchObject({ code: 'load/timeout' })
+    const siblingFailure = expect(sibling).rejects.toMatchObject({ code: 'load/timeout' })
+
+    await vi.advanceTimersByTimeAsync(100)
+    await Promise.all([firstFailure, siblingFailure])
+
+    expect(shared.inFlightCount).toBe(0)
+    expect(inner.signals[0]?.aborted).toBe(true)
+    const retry = shared.load(entry, { signal: new AbortController().signal })
+    const loaded = loadedFor('reports')
+    settle(inner.pending[1], loaded)
+    await expect(retry).resolves.toBe(loaded)
+    expect(inner.load).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let late completion cache an expired result or evict the new attempt', async () => {
+    vi.useFakeTimers()
+    const inner = createControllableLoader()
+    const shared = new SharedContainerLoader(inner.loader, { deadlineMs: 100 })
+    const entry = entryFor('reports')
+    const expired = shared.load(entry, { signal: new AbortController().signal })
+    const expiredFailure = expect(expired).rejects.toMatchObject({ code: 'load/timeout' })
+    await vi.advanceTimersByTimeAsync(100)
+    await expiredFailure
+
+    const retry = shared.load(entry, { signal: new AbortController().signal })
+    settle(inner.pending[0], { ...loadedFor('reports'), module: { name: 'expired' } })
+    await Promise.resolve()
+    expect(shared.inFlightCount).toBe(1)
+    const joining = shared.load(entry, { signal: new AbortController().signal })
+    const current = { ...loadedFor('reports'), module: { name: 'current' } }
+    settle(inner.pending[1], current)
+    await expect(Promise.all([retry, joining])).resolves.toEqual([current, current])
+    await expect(shared.load(entry, { signal: new AbortController().signal })).resolves.toBe(
+      current,
+    )
+    expect(inner.load).toHaveBeenCalledTimes(2)
+  })
+
+  it('observes a late rejection from an expired underlying load', async () => {
+    vi.useFakeTimers()
+    const inner = createControllableLoader()
+    const shared = new SharedContainerLoader(inner.loader, { deadlineMs: 100 })
+    const expired = shared.load(entryFor('reports'), { signal: new AbortController().signal })
+    const failure = expect(expired).rejects.toMatchObject({ code: 'load/timeout' })
+    await vi.advanceTimersByTimeAsync(100)
+    await failure
+
+    inner.pending[0]?.reject(new Error('the expired network request eventually rejected'))
+    await Promise.resolve()
+    expect(shared.inFlightCount).toBe(0)
+  })
+
+  it('bounds even speculative work delegated to an inner preload', async () => {
+    vi.useFakeTimers()
+    let observed: AbortSignal | undefined
+    const preload = vi.fn((_entry: RegistryEntry, { signal }: { signal: AbortSignal }) => {
+      observed = signal
+      return new Promise<void>(() => {})
+    })
+    const shared = new SharedContainerLoader(
+      { load: async () => loadedFor('reports'), preload },
+      { deadlineMs: 100 },
+    )
+    const warming = shared.preload(entryFor('reports'), { signal: new AbortController().signal })
+    await vi.advanceTimersByTimeAsync(100)
+    await expect(warming).resolves.toBeUndefined()
+    expect(observed?.aborted).toBe(true)
+  })
+
+  it.each([0, -1, Infinity, NaN])(
+    'rejects a nonfinite or nonpositive deadline (%s)',
+    deadlineMs => {
+      expect(
+        () => new SharedContainerLoader(createControllableLoader().loader, { deadlineMs }),
+      ).toThrow(/finite, positive deadlineMs/)
+    },
+  )
+})
+
 describe('abandoning a shared load', () => {
   it('does not cancel work another caller still needs', async () => {
     const inner = createControllableLoader()
@@ -219,6 +312,7 @@ describe('abandoning a shared load', () => {
     await expect(abandoned).rejects.toThrow()
 
     expect(inner.signals[0]?.aborted).toBe(false)
+    settle(inner.pending[0], loadedFor('reports'))
   })
 
   it('explains that other callers are unaffected when one abandons', async () => {
@@ -247,7 +341,7 @@ describe('abandoning a shared load', () => {
       shared.load(entryFor('reports'), { signal: controller.signal }),
     ).rejects.toMatchObject({ code: 'load/entry-failure' })
 
-    settle(inner.pending[0], loadedFor('reports'))
+    expect(inner.load).not.toHaveBeenCalled()
   })
 })
 
@@ -289,7 +383,9 @@ describe('preload', () => {
   })
 
   it('delegates to the inner loader’s own preload when it has one', async () => {
-    const preload = vi.fn(async () => undefined)
+    const preload = vi.fn(
+      async (_entry: RegistryEntry, _options: { signal: AbortSignal }) => undefined,
+    )
     const load = vi.fn(async () => loadedFor('reports'))
     const shared = new SharedContainerLoader<TestModule>({ load, preload })
     const entry = entryFor('reports')
@@ -297,7 +393,10 @@ describe('preload', () => {
 
     await shared.preload(entry, { signal })
 
-    expect(preload).toHaveBeenCalledWith(entry, { signal })
+    const preloadSignal = preload.mock.calls[0]?.[1].signal
+    expect(preload).toHaveBeenCalledWith(entry, { signal: preloadSignal })
+    expect(preloadSignal).toBeInstanceOf(AbortSignal)
+    expect(preloadSignal).not.toBe(signal)
     expect(load).not.toHaveBeenCalled()
   })
 })

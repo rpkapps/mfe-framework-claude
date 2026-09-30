@@ -22,6 +22,11 @@ import {
   type OutputSchema,
   type WidgetContract,
 } from '@company/mfe-core'
+// Keep the new handshake with this adapter even when an older shell supplied the bare core.
+import {
+  assertRuntimeCompatibility,
+  RUNTIME_API_REQUIREMENT,
+} from '@company/mfe-core/runtime-compatibility'
 import type { MountableAppDefinition, MountableWidgetDefinition } from '@company/mfe-runtime'
 import type { z } from 'zod'
 
@@ -131,6 +136,7 @@ export function createApp(options: AppOptions): AppDefinition {
     [DEFINITION_BRAND]: true,
     kind: 'app',
     framework: 'angular',
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     id: options.id,
     ...withoutUndefined({ version: options.version }),
     routes: options.routes,
@@ -138,7 +144,10 @@ export function createApp(options: AppOptions): AppDefinition {
     providers: providersOf(options.id, options.providers),
     component: options.component ?? MfeAppRootComponent,
     contributesBreadcrumbs: options.breadcrumbs !== false,
-    mount: target => mountApp(definition, target),
+    mount: async target => {
+      assertRuntimeCompatibility(target.context.runtime, definition)
+      return await mountApp(definition, target)
+    },
   }
   return definition
 }
@@ -154,12 +163,16 @@ export function createWidget<Inputs extends z.ZodType, Outputs extends OutputSch
     [DEFINITION_BRAND]: true,
     kind: 'widget',
     framework: 'angular',
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     id: options.id,
     ...withoutUndefined({ version: options.version }),
     contract: { inputSchema: options.inputSchema, outputSchema: options.outputSchema },
     component: options.component,
     providers: providersOf(options.id, options.providers),
-    mount: target => mountWidget(definition, target),
+    mount: async target => {
+      assertRuntimeCompatibility(target.context.runtime, definition)
+      return await mountWidget(definition, target)
+    },
   }
   return definition
 }

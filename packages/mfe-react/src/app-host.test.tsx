@@ -64,6 +64,20 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
 }
 
 describe('AppHost', () => {
+  it('uses its default local error surface to retry a transient mount failure', async () => {
+    const app = domApp()
+    app.failNextMount(new Error('temporary mount failure'))
+    environment = createMfeTestEnvironment({ definitionId: 'shell', definitions: [app.definition] })
+    render(hosted(environment.runtime, <AppHost appId="reports" basePath="/reports" />))
+    const failure = await screen.findByRole('alert')
+    expect(failure).toHaveTextContent('temporary mount failure')
+    expect(failure).toHaveTextContent('attempt 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByTestId('dom-app')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(app.targets).toHaveLength(2)
+  })
+
   it('mounts the App inside a scope root the runtime made, at the boundary it was given', async () => {
     const app = domApp()
     environment = createMfeTestEnvironment({ definitionId: 'shell', definitions: [app.definition] })
@@ -198,7 +212,7 @@ describe('AppHost', () => {
     expect(app.targets).toHaveLength(2)
   })
 
-  it('throws the failure to the nearest error boundary when it has no fallback', async () => {
+  it('keeps a failure local and offers reload when the fixed registry does not know the App', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'shell', definitions: [] })
     // React reports a caught render error to the console as well.
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -212,7 +226,9 @@ describe('AppHost', () => {
       ),
     )
 
-    expect(await screen.findByTestId('caught')).toHaveTextContent('not-registered')
+    expect(await screen.findByRole('alert')).toHaveTextContent('not-registered')
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeInTheDocument()
+    expect(screen.queryByTestId('caught')).not.toBeInTheDocument()
   })
 
   it('replaces the mount when it is handed another App', async () => {

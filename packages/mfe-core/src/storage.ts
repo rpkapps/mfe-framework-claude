@@ -1,12 +1,18 @@
 import type { z } from 'zod'
 
 export type StorageArea = 'local' | 'session'
+export type StorageScope = 'definition' | 'instance'
+
+export interface StorageScopeOptions {
+  /** Definition-wide by default. Instance state requires a stable host-supplied instanceId. */
+  readonly scope?: StorageScope
+}
 
 /**
  * A stored record belongs to the browser profile, not to whoever is signed in: it survives a
  * sign-out, and the next user of the profile reads it (§56). Nothing personal belongs in one.
  */
-export interface StorageKeyOptions<T> {
+export interface StorageKeyOptions<T> extends StorageScopeOptions {
   readonly version?: number
   /** Synchronous, side-effect-free conversion from a known older version. */
   readonly migrate?: (value: unknown, fromVersion: number) => T
@@ -21,9 +27,9 @@ export interface MfeStorageKey<T> {
 
 export interface MfeStorage {
   key<T>(name: string, schema: z.ZodType<T>, options?: StorageKeyOptions<T>): MfeStorageKey<T>
-  remove(name: string): void
-  /** Removes only the exact `<id>:` prefix; never unrelated shell or third-party keys. */
-  clear(): void
+  remove(name: string, options?: StorageScopeOptions): void
+  /** Removes only the selected scope; never unrelated shell or third-party keys. */
+  clear(options?: StorageScopeOptions): void
 }
 
 /** The persisted record; the field names are short because they are written into every key. */
@@ -42,13 +48,24 @@ export function isStorageEnvelope(value: unknown): value is StorageEnvelope {
   return Number.isInteger(v) && (v as number) > 0 && 'd' in value
 }
 
-/** Never scoped by mount token, so every mount of a definition reads the same record. */
-export function physicalStorageKey(definitionId: string, name: string): string {
-  return `${definitionId}:${name}`
+/** Instance namespaces cannot collide with legacy `<id>:<name>` keys: ids never contain `:`. */
+export function physicalStorageKey(
+  definitionId: string,
+  name: string,
+  instanceId?: string,
+): string {
+  return `${storagePrefix(definitionId, instanceId)}${name}`
 }
 
-export function storagePrefix(definitionId: string): string {
-  return `${definitionId}:`
+export function storagePrefix(definitionId: string, instanceId?: string): string {
+  return instanceId === undefined
+    ? `${definitionId}:`
+    : `${instanceStoragePrefix(definitionId)}${instanceId.length}:${instanceId}:`
+}
+
+/** Length prefixes make arbitrary instance IDs unambiguous without escaping or dependencies. */
+export function instanceStoragePrefix(definitionId: string): string {
+  return `:${definitionId.length}:${definitionId}:`
 }
 
 /** `status` is explicit so an invalid or unreadable value cannot masquerade as a missing one. */

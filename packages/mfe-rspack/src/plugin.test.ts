@@ -169,6 +169,7 @@ describe('Module Federation options', () => {
         kind: 'mfe',
         major: 1,
         framework: 'react',
+        requiresRuntime: '>=1.1.0 <2.0.0',
         buildHash: 'abc',
         buildTime: 't',
         registryDescriptor: 'mfe-registry.json',

@@ -25,6 +25,7 @@ import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runt
 
 import type { MfeDefinition } from '../definition.ts'
 import { MFE_MOUNT, MFE_RUNTIME } from '../inject/tokens.ts'
+import { provideSession } from '../inject/session.ts'
 
 type MountProviders = readonly (Provider | EnvironmentProviders)[]
 
@@ -96,6 +97,7 @@ function provideMfeMount(
     { provide: ErrorHandler, useValue: errors },
     { provide: MFE_MOUNT, useValue: context },
     { provide: MFE_RUNTIME, useValue: context.runtime },
+    provideSession(),
   ]
 }
 

@@ -413,6 +413,11 @@ describe('failure and retry', () => {
     await settled(mount, 'error')
     expect(host.children).toHaveLength(0)
     expect(codesOf(memory.diagnostics)).toEqual(['mount/failure'])
+    expect(memory.diagnostics[0]?.context).toEqual({
+      kind: 'app',
+      container: 'reports',
+      attempt: 1,
+    })
 
     mount.retry()
     await settled(mount, 'mounted')
@@ -782,6 +787,119 @@ describe('Widget inputs', () => {
     at(widget.targets).onInputRejected?.(rejection)
 
     expect(onInputRejected).toHaveBeenCalledWith(rejection)
+  })
+})
+
+describe('consumer-provider Widget contract compatibility', () => {
+  it('preflights legacy consumerOutputs from an older typed host against removed outputs', async () => {
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    const mount = mountWidget(runtime, {
+      consumerOutputs: z.object({
+        acknowledged: z.object({ alertId: z.string() }),
+        closed: z.string(),
+      }),
+    })
+    await settled(mount, 'error')
+    expect(errorOf(mount).code).toBe('contract/incompatible-widget')
+    expect(errorOf(mount).message).toContain("no longer declares expected output 'closed'")
+    expect(widget.mount).not.toHaveBeenCalled()
+    expect(scopeRoots()).toHaveLength(0)
+  })
+
+  it('checks legacy output payload compatibility without treating unknown inputs as a failure', async () => {
+    const widget = plainWidget()
+    const definition = {
+      ...widget.definition,
+      contract: {
+        ...ALERT_CONTRACT,
+        inputSchema: z.string().refine(() => true),
+        outputSchema: z.object({ acknowledged: z.object({ alertId: z.number() }) }),
+      },
+    }
+    const { runtime } = memoryRuntime([definition])
+    const mount = mountWidget(runtime, { consumerOutputs: ALERT_CONTRACT.outputSchema })
+    await settled(mount, 'error')
+    expect(errorOf(mount).code).toBe('contract/incompatible-widget')
+    expect(widget.mount).not.toHaveBeenCalled()
+  })
+  it('refuses a removed expected output before opening scope roots or calling the provider', async () => {
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    const mount = mountWidget(runtime, {
+      consumerContract: {
+        ...ALERT_CONTRACT,
+        outputSchema: z.object({
+          acknowledged: z.object({ alertId: z.string() }),
+          closed: z.string(),
+        }),
+      },
+    })
+    await settled(mount, 'error')
+    expect(errorOf(mount)).toMatchObject({ code: 'contract/incompatible-widget' })
+    expect(errorOf(mount).message).toContain("no longer declares expected output 'closed'")
+    expect(widget.mount).not.toHaveBeenCalled()
+    expect(scopeRoots()).toHaveLength(0)
+    expect(overlayRoots()).toHaveLength(0)
+  })
+
+  it('refuses input narrowing even when this particular initial value would be accepted', async () => {
+    const widget = plainWidget()
+    const definition = {
+      ...widget.definition,
+      contract: { ...ALERT_CONTRACT, inputSchema: z.object({ label: z.enum(['Pressure high']) }) },
+    }
+    const { runtime } = memoryRuntime([definition])
+    const mount = mountWidget(runtime, { consumerContract: ALERT_CONTRACT })
+    await settled(mount, 'error')
+    expect(errorOf(mount).code).toBe('contract/incompatible-widget')
+    expect(widget.mount).not.toHaveBeenCalled()
+  })
+
+  it('continues with unknown refinements while preserving consumer payload validation', async () => {
+    const onOutput = vi.fn()
+    const widget = plainWidget()
+    const memory = memoryRuntime([widget.definition])
+    const mount = mountWidget(memory.runtime, {
+      onOutput,
+      consumerContract: {
+        inputSchema: z.object({ label: z.string().refine(() => true) }),
+        outputSchema: z.object({
+          acknowledged: z.object({ alertId: z.string().refine(value => value.startsWith('a-')) }),
+        }),
+      },
+    })
+    await settled(mount, 'mounted')
+    at(widget.targets).emit('acknowledged', { alertId: 'invalid' })
+    expect(onOutput).not.toHaveBeenCalled()
+    expect(codesOf(memory.diagnostics)).toEqual(['contract/output-mismatch'])
+  })
+
+  it('reads the complete consumer contract from bound getters before attaching', async () => {
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    const { loader, loads } = pendingLoader()
+    let contract = ALERT_CONTRACT
+    const mount = mountDefinition({
+      runtime: withLoader(runtime, loader),
+      element: host,
+      definitionId: 'alert-panel',
+      kind: 'widget',
+      inputs: { label: 'Pressure high' },
+      onOutput: () => undefined,
+      get consumerContract() {
+        return contract
+      },
+    })
+    await flush()
+    contract = {
+      ...ALERT_CONTRACT,
+      outputSchema: z.object({ closed: z.string() }),
+    } as unknown as typeof ALERT_CONTRACT
+    at(loads).resolve(loadedOf(widget.definition))
+    await settled(mount, 'error')
+    expect(errorOf(mount).code).toBe('contract/incompatible-widget')
+    expect(widget.mount).not.toHaveBeenCalled()
   })
 })
 

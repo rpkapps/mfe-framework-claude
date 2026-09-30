@@ -55,7 +55,7 @@ function packageDirectory(from: string, name: string): string {
   return dirname(createRequire(join(from, 'package.json')).resolve(`${name}/package.json`))
 }
 
-/** The page-wide packages, left as imports of exactly the files the test's adapter loads. */
+/** Only bare shared keys are page-wide; adapter-local subpath guards stay bundled. */
 function pageWideExternal(externals: Set<string>): Plugin {
   const adapter = packageDirectory(interopRoot, '@company/mfe-react')
 
@@ -63,7 +63,7 @@ function pageWideExternal(externals: Set<string>): Plugin {
     name: 'page-wide-external',
     enforce: 'pre',
     async resolveId(source) {
-      if (!/^@company\/mfe-(core|runtime)(\/|$)/.test(source)) return null
+      if (!/^@company\/mfe-(core|runtime)$/.test(source)) return null
       const resolved = await this.resolve(source, join(adapter, 'package.json'), {
         skipSelf: true,
       })

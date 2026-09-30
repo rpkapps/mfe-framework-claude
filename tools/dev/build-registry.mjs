@@ -53,6 +53,9 @@ function entriesFor(published, presentation, origin) {
       // A host registers the container with exactly these, so it links the framework scope its
       // shares live in.
       shareScopes: published.shareScopes,
+      ...(published.requiresRuntime === undefined
+        ? {}
+        : { requiresRuntime: published.requiresRuntime }),
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
       ...(definition.routes === undefined ? {} : { routes: definition.routes }),
