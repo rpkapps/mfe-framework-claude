@@ -111,7 +111,7 @@ export { provideMfeRuntime } from './host/provide-runtime.ts'
 export { MfeWidgetComponent, type MfeWidgetOutput } from './host/widget.component.ts'
 export { MfeAppHostComponent } from './host/app-host.component.ts'
 export type { MountStatus } from './host/hosted-mount.ts'
-export type { MfeFallbackContext } from './host/definition-status.component.ts'
+export type { MfeFallbackContext } from './host/fallback-context.ts'
 export { MfeDefinitionIconComponent } from './host/definition-icon.component.ts'
 export { createMfeHttpAuthInterceptor, type MfeHttpAuthOptions } from './http/auth-interceptor.ts'
 export {

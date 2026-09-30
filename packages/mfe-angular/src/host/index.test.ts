@@ -14,7 +14,7 @@ import * as hostSurface from './index.ts'
 const angularEntry = {
   id: 'reports',
   kind: 'app',
-  mfe: { contractMajor: 1, framework: 'angular' },
+  mfe: { framework: 'angular' },
   manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
   container: 'example_reports',
 }
@@ -23,7 +23,7 @@ const angularEntry = {
 const otherEntry = {
   ...angularEntry,
   id: 'orders',
-  mfe: { contractMajor: 1, framework: 'other' },
+  mfe: { framework: 'other' },
 }
 
 function runtimeOver(adapters: readonly MfeAdapter[]) {

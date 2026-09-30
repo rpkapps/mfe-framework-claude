@@ -6,10 +6,8 @@
 
 import {
   createMfeError,
-  FRAMEWORK_CONTRACT_MAJOR,
   isCapabilityName,
   isRecord,
-  isSupportedContractMajor,
   withoutUndefined,
   type BuildProvenance,
   type CapabilityDescriptor,
@@ -22,10 +20,10 @@ import {
   type PublishedRoute,
   type RegistryEntry,
 } from '@company/mfe-core'
-import { isRuntimeRequirement } from '@company/mfe-core/runtime-compatibility'
 import { z } from 'zod'
 
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
+import { assertRegistryRuntimeCompatibility } from './runtime-compatibility.ts'
 
 /** A message that reads as the expectation, because that is where the error puts it. */
 function nonEmptyString(expected: string): z.ZodString {
@@ -161,20 +159,17 @@ const publishedContract = z
     }),
   )
 
-/**
- * The framework version the container was built for. Which adapter the entry is for sits beside
- * it, and is each adapter's `detect` to read, not this schema's.
- */
-const contractMarker = z.object(
-  { contractMajor: z.number({ error: 'an integer' }).int({ error: 'an integer' }) },
-  { error: 'an object such as { "contractMajor": 1 }' },
+/** The framework marker selects an adapter; compatibility uses requiresRuntime. */
+const frameworkMarker = z.object(
+  { framework: nonEmptyString('a non-empty framework name') },
+  { error: 'an object such as { "framework": "react" }' },
 )
 
 const entrySchema = z
   .object({
     id: nonEmptyString('a non-empty definition id'),
     kind: z.union([z.literal('app'), z.literal('widget')], { error: '"app" or "widget"' }),
-    mfe: contractMarker,
+    mfe: frameworkMarker,
     manifestUrl: nonEmptyString('a non-empty URL string'),
     container: nonEmptyString('a non-empty federation container name'),
     expose: nonEmptyString('a non-empty expose path').optional(),
@@ -184,11 +179,8 @@ const entrySchema = z
       })
       .optional(),
     version: z.string({ error: 'a version string' }).optional(),
-    requiresRuntime: z
-      .custom<string>(isRuntimeRequirement, {
-        error: 'a generated stable SemVer comparator range, such as ">=1.1.0 <2.0.0"',
-      })
-      .optional(),
+    // The stable envelope is checked before this schema interprets the entry's format.
+    requiresRuntime: z.string().optional(),
     capabilities: capabilities.optional(),
     routes: routes.optional(),
     contract: publishedContract.optional(),
@@ -237,34 +229,9 @@ function invalidEntry(id: string, error: z.ZodError): MfeError {
 }
 
 /**
- * Gated before the shape, so an entry from a framework major the shell cannot load says exactly
- * that, rather than failing on whichever field that major renamed.
- */
-function gateContractMajor(id: string, raw: unknown): void {
-  if (!isRecord(raw)) return
-  const marker = raw['mfe']
-  if (!isRecord(marker)) return
-  const major = marker['contractMajor']
-  if (typeof major !== 'number' || !Number.isInteger(major)) return
-  if (isSupportedContractMajor(major)) return
-
-  throw createMfeError({
-    code: 'contract/unsupported-major',
-    id,
-    operation: 'read the framework version the container was built for',
-    expected: `contract major ${String(FRAMEWORK_CONTRACT_MAJOR)}`,
-    observed: `contract major ${String(major)}`,
-    repair:
-      major > FRAMEWORK_CONTRACT_MAJOR
-        ? 'Upgrade the shell, or redeploy the container against the shell’s major.'
-        : 'Rebuild and redeploy the container against the current framework major.',
-  })
-}
-
-/**
- * Strict: throws an `MfeError` coded `registry/invalid-entry` naming the field that broke, or
- * `contract/unsupported-major` for an entry built against a framework major this runtime cannot
- * load. What it returns carries `adapter`, so the caller's `is()` guard recognises it.
+ * Strict: checks the runtime requirement before the entry shape, then stamps the adapter kind.
+ * Unsupported protocols fail with contract/runtime-incompatible; malformed entries fail with
+ * registry/invalid-entry.
  */
 export function parseFederatedEntry<K extends string>(
   raw: unknown,
@@ -272,7 +239,7 @@ export function parseFederatedEntry<K extends string>(
 ): FederatedRegistryEntry & { readonly adapter: K } {
   const id = isRecord(raw) && typeof raw['id'] === 'string' ? raw['id'] : '<unknown>'
 
-  gateContractMajor(id, raw)
+  assertRegistryRuntimeCompatibility(raw, id)
 
   const result = entrySchema.safeParse(raw)
   if (!result.success) throw invalidEntry(id, result.error)

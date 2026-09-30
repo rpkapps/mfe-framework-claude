@@ -178,7 +178,7 @@ function registryEntry(build: ContainerBuild, shareScopes: 'published' | 'omitte
     {
       id: build.name,
       kind: 'widget',
-      mfe: { contractMajor: 1, framework: 'react' },
+      mfe: { framework: 'react' },
       manifestUrl: `https://cdn.example.test/${build.name}/remoteEntry.js`,
       container: build.name,
       expose: './widgets/probe',

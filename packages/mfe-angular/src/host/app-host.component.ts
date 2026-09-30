@@ -6,7 +6,7 @@
  * built.
  */
 
-import { Location } from '@angular/common'
+import { Location, NgTemplateOutlet } from '@angular/common'
 import {
   ChangeDetectionStrategy,
   Component,
@@ -30,10 +30,7 @@ import { filter, type Subscription } from 'rxjs'
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { readAppRoute } from '../routing/app-route-data.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
-import {
-  MfeDefinitionStatusComponent,
-  type MfeFallbackContext,
-} from './definition-status.component.ts'
+import { createFallbackContext, type MfeFallbackContext } from './fallback-context.ts'
 
 interface Placement {
   readonly appId: string
@@ -48,16 +45,18 @@ function boundaryOf(route: ActivatedRoute, location: Location): string {
 
 @Component({
   selector: 'mfe-app-host',
-  imports: [MfeDefinitionStatusComponent],
-  template: `<mfe-definition-status
-    [loading]="status() === 'pending'"
-    [error]="error()"
-    [attempt]="attempt()"
-    [pending]="pending"
-    [fallback]="fallback"
-    (retried)="retry()"
-    (reloaded)="reload()"
-  />`,
+  imports: [NgTemplateOutlet],
+  template: `@if (status() === 'pending' && pending) {
+      <ng-container [ngTemplateOutlet]="pending" />
+    }
+    @if (error(); as failure) {
+      @if (fallback) {
+        <ng-container
+          [ngTemplateOutlet]="fallback"
+          [ngTemplateOutletContext]="fallbackContext(failure)"
+        />
+      }
+    }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
@@ -89,6 +88,16 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   readonly state = this.#mount.state
   readonly attempt = this.#mount.attempt
   readonly error = this.#mount.error
+  readonly #retry = (): void => {
+    this.retry()
+  }
+  readonly #reload = (): void => {
+    this.reload()
+  }
+
+  fallbackContext(error: MfeError): MfeFallbackContext {
+    return createFallbackContext(error, this.attempt(), this.#retry, this.#reload)
+  }
 
   // The first placement waits for `ngOnInit`, which runs whether or not an input is bound; placed
   // by `mfeAppRoute`, none is, and Angular never calls `ngOnChanges` at all.
@@ -120,7 +129,12 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   #place(): void {
     const next = this.#resolvePlacement()
     if (next === null) return
-    if (next.appId === this.#placement?.appId && next.basePath === this.#placement.basePath) return
+    if (
+      this.#mount.current !== null &&
+      next.appId === this.#placement?.appId &&
+      next.basePath === this.#placement.basePath
+    )
+      return
     this.#start(next)
   }
 

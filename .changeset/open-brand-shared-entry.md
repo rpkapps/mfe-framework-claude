@@ -14,11 +14,11 @@ Any adapter can brand its definitions, and the entry shape every framework build
 
 **`@company/mfe-runtime`**
 
-- `parseFederatedEntry(raw, adapter)` is new. It reads a federation entry with zod, gates the contract major before the shape, and stamps the adapter kind the caller passes.
+- `parseFederatedEntry(raw, adapter)` is new. It checks the generated runtime requirement before reading a federation entry with zod, and stamps the adapter kind the caller passes. The same `apiVersion`/`requiresRuntime` contract covers the registry format, mount protocol and runtime services.
 
 **`@company/mfe-react`, `@company/mfe-angular`**
 
-- `reactAdapter.parse` and `angularAdapter.parse` both use `parseFederatedEntry`, replacing the two copies of the schema. Each adapter keeps its own `detect` rule, and every message is unchanged.
+- `reactAdapter.parse` and `angularAdapter.parse` both use `parseFederatedEntry`, replacing the two copies of the schema. Each adapter keeps its own framework-marker `detect` rule. Runtime incompatibility is reported before registry shape validation.
 
 **`@company/mfe-build`**
 

@@ -29,6 +29,6 @@ describe('host recovery actions', () => {
     expect(definitionRecovery(error('load/timeout'))).toBe('retry')
     expect(definitionRecovery(error('contract/input-mismatch'))).toBe('correct-inputs')
     expect(definitionRecovery(error('registry/invalid-entry'))).toBe('reload')
-    expect(definitionRecovery(error('contract/unsupported-major'))).toBe('incompatible')
+    expect(definitionRecovery(error('contract/runtime-incompatible'))).toBe('incompatible')
   })
 })

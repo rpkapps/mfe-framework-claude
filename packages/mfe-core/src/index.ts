@@ -121,8 +121,6 @@ export {
 } from './storage.ts'
 
 export {
-  FRAMEWORK_CONTRACT_MAJOR,
-  isSupportedContractMajor,
   type MfeAdapter,
   type Registry,
   type RegistryEntry,

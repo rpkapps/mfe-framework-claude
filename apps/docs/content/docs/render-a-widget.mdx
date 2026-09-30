@@ -64,7 +64,8 @@ Module scope means the top level of a file, outside every function, and the cont
 ```
 
 `pending` fills the box while the container is fetched, and `fallback` receives the error and a
-`retry` function.
+`retry` function, plus `reload` when the tab needs fresh code. Both props are optional: the host
+shows loading and error content in the Widget's box by default.
 
 </Step>
 
@@ -74,8 +75,8 @@ Module scope means the top level of a file, outside every function, and the cont
 
 The panel renders inside your page, styled by its own container. Change an input and the mounted
 Widget updates without remounting or losing its state. A Widget that fails to load loses its own
-box, and the rest of the page keeps working. Without a `fallback`, that failure reaches your own
-error boundary instead. `examples/lab/src/routes/widgets.tsx` shows all three cases side by side.
+box, and the rest of the page keeps working. The default error content offers Retry or Reload page;
+`fallback` replaces it with your own. `examples/lab/src/routes/widgets.tsx` shows the cases side by side.
 
 ## Errors
 
@@ -113,6 +114,9 @@ alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected
 
 On the first render there is nothing to fall back to, so your `fallback` renders. On a later
 update the Widget keeps its last valid inputs on screen and reports the rejection.
+Pass `onInputRejected(error)` to hear about that update. The host's message says the Widget is
+still showing the previous inputs; `inputFallback({ error })` replaces the message. A valid
+update removes it.
 
 ## Related
 

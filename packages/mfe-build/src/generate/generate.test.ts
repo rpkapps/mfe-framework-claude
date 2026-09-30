@@ -510,14 +510,15 @@ export default {
 })
 
 describe('#mfe/meta', () => {
-  it('carries the build hash, build time and the exported definitions', () => {
+  it('carries the build hash, build time, protocol requirement and exported definitions', () => {
     const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
     const source = fileFor('meta.ts')
 
     expect(source).toContain(`export const buildHash = '${plan.generated.buildHash}'`)
     expect(source).toContain(`export const buildTime = '${BUILD_TIME}'`)
     expect(source).toContain("{ id: 'operations', kind: 'app', version: '2.1.0' },")
-    expect(source).toContain('export const contractMajor = 1')
+    expect(source).toContain("export const requiresRuntime = '>=1.1.0 <2.0.0'")
+    expect(source).not.toContain('contractMajor')
   })
 })
 
@@ -604,7 +605,7 @@ describe('the registry entry the build publishes', () => {
     )
   })
 
-  it('names the definitions, the shared manifest and the contract major', () => {
+  it('names the definitions, shared manifest and framework protocol requirement', () => {
     const { fileFor, plan } = planFixture(
       { 'src/mfe.ts': APP_ENTRY },
       { profile: WITH_CAPABILITIES },
@@ -614,7 +615,6 @@ describe('the registry entry the build publishes', () => {
       manifestUrl: 'mf-manifest.json',
       container: 'acme_operations',
       entries: { operations: './app' },
-      contractMajor: 1,
       framework: 'acme',
       shareScopes: ['default', 'acme@19.3.0'],
       requiresRuntime: '>=1.1.0 <2.0.0',
@@ -630,6 +630,9 @@ describe('the registry entry the build publishes', () => {
       ],
       build: { hash: plan.generated.buildHash, time: BUILD_TIME },
     })
+    expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
+    expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.1.0 <2.0.0')
   })
 
   it('carries capability metadata on the App only', () => {
@@ -690,9 +693,9 @@ export const orderRow = createWidget({
     expect(Object.keys(descriptor).slice(0, 5)).toEqual([
       'manifestUrl',
       'container',
-      'contractMajor',
       'framework',
       'shareScopes',
+      'requiresRuntime',
     ])
     expect(descriptor['framework']).toBe('angular')
     expect(descriptor['shareScopes']).toEqual(['default', 'angular@19.3.0'])

@@ -19,7 +19,7 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1, framework: 'angular' },
+    mfe: { framework: 'angular' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     container: 'example_reports',
     ...overrides,
@@ -43,10 +43,8 @@ describe('detect', () => {
   })
 
   it('leaves an entry naming another framework, or no framework at all, to another adapter', () => {
-    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'other' } }))).toBe(
-      false,
-    )
-    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1 } }))).toBe(false)
+    expect(angularAdapter.detect(entry({ mfe: { framework: 'other' } }))).toBe(false)
+    expect(angularAdapter.detect(entry({ mfe: {} }))).toBe(false)
     expect(angularAdapter.detect(entry({ mfe: 'angular' }))).toBe(false)
   })
 
@@ -115,13 +113,12 @@ describe('parse', () => {
     expect(rejection(entry({ contract: {} })).message).toContain('no Widget contract on an App')
   })
 
-  it('gates a contract major the shell cannot load before reading the shape', () => {
-    const error = rejection(
-      entry({ mfe: { contractMajor: 2, framework: 'angular' }, container: 1 }),
-    )
+  it('gates a runtime requirement the shell cannot satisfy before reading the shape', () => {
+    const error = rejection(entry({ requiresRuntime: '>=2.0.0 <3.0.0', container: 1 }))
 
-    expect(error.code).toBe('contract/unsupported-major')
-    expect(error.message).toContain('Upgrade the shell')
+    expect(error.code).toBe('contract/runtime-incompatible')
+    expect(error.message).toContain('runtime API >=2.0.0 <3.0.0')
+    expect(error.message).toContain('shell is upgraded')
   })
 })
 

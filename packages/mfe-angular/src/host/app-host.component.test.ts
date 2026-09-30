@@ -1,7 +1,7 @@
 import { APP_BASE_HREF, LocationStrategy } from '@angular/common'
-import { ApplicationRef, Component, inject, signal, ViewChild } from '@angular/core'
+import { ApplicationRef, Component, getDebugNode, inject, signal, ViewChild } from '@angular/core'
 import { provideRouter, Router, RouterOutlet } from '@angular/router'
-import { DEFINITION_BRAND, type MfeError } from '@company/mfe-core'
+import { createMfeError, DEFINITION_BRAND, type MfeError } from '@company/mfe-core'
 import type { AppMountTarget, MountableAppDefinition } from '@company/mfe-runtime'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -91,7 +91,7 @@ class HostComponent {
 }
 
 describe('<mfe-app-host>', () => {
-  it('shows a placement error locally before a mount exists and recovers after the host supplies an id', async () => {
+  it('reports a placement error without adding UI and recovers after the host supplies an id', async () => {
     @Component({
       selector: 'test-unplaced',
       imports: [MfeAppHostComponent],
@@ -101,14 +101,15 @@ describe('<mfe-app-host>', () => {
       readonly appId = signal<string | undefined>(undefined)
       @ViewChild('host') host: MfeAppHostComponent | undefined
     }
-    const { definition } = foreignApp('elsewhere')
+    const { definition, calls } = foreignApp('elsewhere')
     const environment = createMfeTestEnvironment({ definitions: [definition] })
     const appRef = await createHostApplication(environment)
     const { ref, element } = await renderInHost(appRef, UnplacedHost)
     await vi.waitFor(() => {
-      expect(element.querySelector('[role="alert"]')).not.toBeNull()
+      expect(ref.instance.host?.status()).toBe('error')
     })
-    expect(ref.instance.host?.status()).toBe('error')
+    expect(element.querySelector('mfe-app-host')?.children).toHaveLength(0)
+    expect(element.textContent?.trim()).toBe('')
     expect(ref.instance.host?.error()?.operation).toBe('place an App')
     expect(environment.diagnostics).toHaveLength(1)
 
@@ -118,6 +119,154 @@ describe('<mfe-app-host>', () => {
       expect(element.textContent).toContain('elsewhere mounted')
     })
     expect(element.querySelector('[role="alert"]')).toBeNull()
+    expect(calls.targets).toHaveLength(1)
+
+    ref.instance.appId.set(undefined)
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(ref.instance.host?.status()).toBe('error')
+      expect(calls.disposals).toBe(1)
+    })
+    expect(element.textContent?.trim()).toBe('')
+
+    ref.instance.appId.set('elsewhere')
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(ref.instance.host?.status()).toBe('mounted')
+      expect(element.textContent).toContain('elsewhere mounted')
+    })
+    expect(calls.targets).toHaveLength(2)
+    environment.dispose()
+  })
+
+  it('lets a routed consumer own loading/error templates, scoped styles and recovery controls', async () => {
+    @Component({
+      selector: 'consumer-placement',
+      imports: [MfeAppHostComponent],
+      template: `
+        <mfe-app-host
+          #host
+          [pending]="loading"
+          [fallback]="failure"
+          (failed)="failures.push($event)"
+        />
+        <ng-template #loading
+          ><span class="consumer-loading">Waiting for the App</span></ng-template
+        >
+        <ng-template
+          #failure
+          let-error
+          let-retry="retry"
+          let-reload="reload"
+          let-recovery="recovery"
+          let-attempt="attempt"
+        >
+          <p class="consumer-error" [attr.data-recovery]="recovery" [attr.data-attempt]="attempt">
+            {{ error.code }}
+          </p>
+          @if (recovery === 'retry' || recovery === 'correct-inputs') {
+            <button class="consumer-retry" (click)="retry()">Try this App again</button>
+          } @else {
+            <button class="consumer-reload" (click)="reload()">Reload the page</button>
+          }
+        </ng-template>
+      `,
+      styles: `
+        .consumer-loading {
+          color: rgb(45, 67, 89);
+        }
+        .consumer-error {
+          color: rgb(56, 78, 90);
+        }
+      `,
+    })
+    class ConsumerPlacement {
+      readonly failures: MfeError[] = []
+      @ViewChild('host') host: MfeAppHostComponent | undefined
+    }
+    @Component({ selector: 'test-shell', imports: [RouterOutlet], template: '<router-outlet />' })
+    class ShellComponent {}
+    const { definition, calls } = foreignApp('elsewhere')
+    const environment = createMfeTestEnvironment({
+      definitions: [definition],
+      initialEntries: ['/reports'],
+    })
+    let failLoad!: () => void
+    const firstLoad = new Promise<never>((_resolve, reject) => {
+      failLoad = () => {
+        reject(
+          createMfeError({
+            code: 'load/manifest-failure',
+            id: 'elsewhere',
+            operation: 'fetch manifest',
+            observed: 'LAN node restarting',
+            repair: 'Retry after the node is available.',
+          }),
+        )
+      }
+    })
+    const load = vi
+      .spyOn(environment.runtime.loader, 'load')
+      .mockImplementationOnce(() => firstLoad)
+    const appRef = await createHostApplication(environment, [
+      provideRouter([
+        { ...mfeAppRoute({ appId: 'elsewhere', path: 'reports' }), component: ConsumerPlacement },
+      ]),
+      { provide: APP_BASE_HREF, useValue: '/' },
+      {
+        provide: LocationStrategy,
+        useValue: new BoundaryLocationStrategy(environment.navigation, '/'),
+      },
+    ])
+    const { element } = await renderInHost(appRef, ShellComponent)
+    await appRef.injector.get(Router).navigateByUrl('/reports')
+    await appRef.whenStable()
+    const loading = element.querySelector('.consumer-loading')!
+    expect(loading.textContent).toBe('Waiting for the App')
+    expect(getComputedStyle(loading).color).toBe('rgb(45, 67, 89)')
+    expect(load).toHaveBeenCalledOnce()
+    const consumer = getDebugNode(element.querySelector('consumer-placement'))?.injector.get(
+      ConsumerPlacement,
+    )
+    expect(consumer?.host?.status()).toBe('pending')
+
+    failLoad()
+    await vi.waitFor(() => {
+      expect(element.querySelector('.consumer-error')).not.toBeNull()
+    })
+    const failure = element.querySelector('.consumer-error')!
+    expect(failure.textContent?.trim()).toBe('load/manifest-failure')
+    expect(failure.getAttribute('data-recovery')).toBe('retry')
+    expect(failure.getAttribute('data-attempt')).toBe('1')
+    expect(getComputedStyle(failure).color).toBe('rgb(56, 78, 90)')
+    expect(consumer?.failures).toHaveLength(1)
+    expect(element.querySelector('mfe-definition-status')).toBeNull()
+    element.querySelector<HTMLButtonElement>('.consumer-retry')!.click()
+    await vi.waitFor(() => {
+      expect(calls.targets).toHaveLength(1)
+    })
+    await appRef.whenStable()
+    expect(calls.targets[0]?.context.basePath).toBe('/reports')
+    expect(element.textContent).toContain('elsewhere mounted')
+    expect(element.querySelector('.consumer-error')).toBeNull()
+    expect(load).toHaveBeenCalledTimes(2)
+
+    calls.targets[0]?.onFailure(
+      createMfeError({
+        code: 'load/reload-required',
+        id: 'elsewhere',
+        operation: 'load another chunk',
+        observed: 'the loaded release is unavailable',
+        repair: 'Reload the page.',
+      }),
+    )
+    await vi.waitFor(() => {
+      expect(element.querySelector('.consumer-reload')).not.toBeNull()
+    })
+    expect(element.querySelector('.consumer-error')?.getAttribute('data-recovery')).toBe('reload')
+    const reload = vi.spyOn(consumer!.host!, 'reload').mockImplementation(() => undefined)
+    element.querySelector<HTMLButtonElement>('.consumer-reload')!.click()
+    expect(reload).toHaveBeenCalledOnce()
     environment.dispose()
   })
 

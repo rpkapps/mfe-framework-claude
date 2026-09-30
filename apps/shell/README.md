@@ -375,12 +375,17 @@ deliberately invalid fixtures below.
 ### Why there are two broken entries in it
 
 `registry.source.json` carries two entries that cannot validate:
-`legacy-reports` names contract major 2, and `no-manifest` has no
+`legacy-reports` requires the unsupported runtime API range `>=2.0.0 <3.0.0`, and `no-manifest` has no
 `manifestUrl`. They are there on purpose, because the guarantee they exercise
 is one a host has to be able to rely on: **a registry is assembled from entries
 produced by builds the shell does not control, so one of them being wrong is
 normal.** Every entry is read independently, and a bad one costs the page that
 one surface and nothing else.
+
+The shell checks `requiresRuntime` against its `apiVersion` before adapter selection and
+registry shape parsing. The same version covers the registry format, mount protocol and
+shell-owned services. The framework marker and widget schema checks still apply to compatible
+entries.
 
 Open the registry from the header (or the notice under it, or ⌘K → "Open the
 registry") and the rejected tab names each one, why it was rejected, and the

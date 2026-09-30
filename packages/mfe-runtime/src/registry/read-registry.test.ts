@@ -25,7 +25,7 @@ function frameworkEntry(overrides: Record<string, unknown> = {}): Record<string,
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1 },
+    mfe: { framework: 'framework' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     ...overrides,
   }
@@ -114,6 +114,69 @@ function read(sources: readonly unknown[], overrides?: ReadonlyMap<string, strin
     ...(overrides === undefined ? {} : { overrides }),
   })
 }
+
+describe('runtime compatibility before entry interpretation', () => {
+  it('rejects a future format before adapter detection or parsing and preserves valid siblings', () => {
+    const first = framework()
+    const future = {
+      id: 'future',
+      version: '7.2.0',
+      requiresRuntime: '>=2.0.0 <3.0.0',
+      futureFormat: { renamed: true },
+    }
+    const registry = readRegistry([future, frameworkEntry()], { adapters: [first.adapter] })
+
+    expect([...registry.entries.keys()]).toEqual(['reports'])
+    expect(first.detect).toHaveBeenCalledOnce()
+    expect(first.parse).toHaveBeenCalledOnce()
+    expect(rejectedEntry(registry, 'future').error).toMatchObject({
+      code: 'contract/runtime-incompatible',
+      definitionVersion: '7.2.0',
+    })
+    expect(rejectedEntry(registry, 'future').error.message).toContain('runtime API >=2.0.0 <3.0.0')
+    expect(rejectedEntry(registry, 'future').error.message).toContain('runtime API 1.1.0')
+  })
+
+  it.each(['>=1.2.0 <2.0.0', '<1.0.0'])(
+    'rejects the unsatisfied range %s without asking an adapter to parse',
+    requiresRuntime => {
+      const first = framework()
+      const registry = readRegistry([frameworkEntry({ requiresRuntime })], {
+        adapters: [first.adapter],
+      })
+
+      expect(first.detect).not.toHaveBeenCalled()
+      expect(first.parse).not.toHaveBeenCalled()
+      expect(codeOf(rejectedEntry(registry, 'reports').error)).toBe('contract/runtime-incompatible')
+    },
+  )
+
+  it.each(['^1.1.0', '', null, 1])(
+    'rejects malformed runtime requirements %s first',
+    requiresRuntime => {
+      const first = framework()
+      const registry = readRegistry([{ id: 'reports', requiresRuntime }], {
+        adapters: [first.adapter],
+      })
+
+      expect(first.detect).not.toHaveBeenCalled()
+      expect(first.parse).not.toHaveBeenCalled()
+      expect(rejectedEntry(registry, 'reports').error).toMatchObject({
+        code: 'registry/invalid-entry',
+        path: ['requiresRuntime'],
+      })
+    },
+  )
+
+  it('passes supported runtime ranges to ordinary adapter validation', () => {
+    const first = framework()
+    const source = frameworkEntry({ requiresRuntime: '>=1.1.0 <2.0.0' })
+    const registry = readRegistry([source], { adapters: [first.adapter] })
+
+    expect(registry.rejected).toEqual([])
+    expect(first.parse).toHaveBeenCalledWith(source)
+  })
+})
 
 describe('recognising an entry', () => {
   it('reads an entry through the one adapter that recognises it', () => {
@@ -209,12 +272,12 @@ describe('recognising an entry', () => {
       detect: raw => isRecord(raw) && 'mfe' in raw,
       parse: () => {
         throw createMfeError({
-          code: 'contract/unsupported-major',
+          code: 'contract/runtime-incompatible',
           id: 'reports',
-          operation: 'read the framework version the container was built for',
-          expected: 'contract major 1',
-          observed: 'contract major 2',
-          repair: 'Upgrade the shell, or redeploy the container against the shell’s major.',
+          operation: 'check shell runtime compatibility',
+          expected: 'runtime API >=2.0.0 <3.0.0',
+          observed: 'runtime API 1.1.0',
+          repair: 'Upgrade the shell or rebuild the container for its runtime API.',
         })
       },
       is: (entry): entry is RegistryEntry => entry.adapter === 'framework',
@@ -222,7 +285,7 @@ describe('recognising an entry', () => {
 
     const registry = readRegistry([frameworkEntry()], { adapters: [unsupported] })
 
-    expect(codeOf(rejectedEntry(registry, 'reports').error)).toBe('contract/unsupported-major')
+    expect(codeOf(rejectedEntry(registry, 'reports').error)).toBe('contract/runtime-incompatible')
     expect(rejectedEntry(registry, 'reports').error.message).toContain('Upgrade the shell')
   })
 

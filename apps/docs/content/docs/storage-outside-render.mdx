@@ -69,7 +69,8 @@ updates, because a write here notifies that key's subscribers. Pass the same sch
 same options both places. Remove the key and the rendered value falls back to your declared
 default.
 
-For an instance preference in a Widget whose host supplies `instanceId`, pass the explicit scope:
+To read or clear a Widget tile's own preference, give it an `instanceId` in the host and pass
+`scope: 'instance'`:
 
 ```ts
 local.key('camera', cameraSchema, { scope: 'instance' }).set(camera)
@@ -77,10 +78,10 @@ local.remove('camera', { scope: 'instance' })
 local.clear({ scope: 'instance' })
 ```
 
-These operations target the same records as `useStoredState` or `injectStoredState` with
-`scope: 'instance'`. `local.clear()` keeps its definition-wide scope; clearing one instance
-leaves other copies and definition-wide preferences alone. The runtime's administrative
-`storage.clearDefinition(id)` removes that definition's records in all instance scopes too.
+These are the same records `useStoredState` or `injectStoredState` reads with `scope: 'instance'`.
+Clearing one tile leaves the other tiles and definition-wide values alone. `local.clear()` still
+clears only definition-wide records. The shell's `storage.clearDefinition(id)` removes every
+record for that definition, its instances included.
 
 ## Errors
 

@@ -8,11 +8,7 @@ export type DefinitionRecovery = 'retry' | 'reload' | 'correct-inputs' | 'incomp
 export function definitionRecovery(error: MfeError): DefinitionRecovery {
   const code: string = error.code
   if (code === 'contract/input-mismatch') return 'correct-inputs'
-  if (
-    code === 'contract/unsupported-major' ||
-    code === 'contract/runtime-incompatible' ||
-    code === 'contract/incompatible-widget'
-  ) {
+  if (code === 'contract/runtime-incompatible' || code === 'contract/incompatible-widget') {
     return 'incompatible'
   }
   if (code === 'load/reload-required' || code === 'registry/invalid-entry') return 'reload'

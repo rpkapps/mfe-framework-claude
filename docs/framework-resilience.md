@@ -1,54 +1,128 @@
-# Framework resilience for independent containers
+# Loading separately deployed containers
 
-Containers can be deployed separately while the shell keeps its registry fixed for a browser session. The framework checks what it can before creating an application and contains failures to the affected feature. Assets removed by deployment cannot be recreated by the framework; reload remains the recovery action for an unavailable chunk.
+A container can deploy without the shell. A tab reads its registry once, so it may load container
+code newer than the code it started with. The framework checks the entry and the loaded definition
+before mounting. A failure costs the page that App or Widget; the rest keeps running.
 
-## Shell runtime API
+## Which shell can load you
 
-The shell-owned object advertises `apiVersion: '1.1.0'`. The build generates `requiresRuntime: '>=1.1.0 <2.0.0'` in container metadata and registry entries; the adapters stamp it onto definitions. Package version selection and this object contract are separate concerns: another copy of a runtime package cannot upgrade the object the shell created.
+The build writes the runtime requirement. Container authors do not set it themselves:
 
-New shells reject unsatisfied registry requirements before downloading and check the loaded definition again before mounting, covering stale registry metadata. New adapters also guard before mounting, so an older shell without a preflight treats its missing API version as `1.0.0` and fails locally. Entries without requirements use the historical `>=1.0.0 <2.0.0` requirement. The guard's subpath is bundled into the adapter rather than replaced by an older shared core.
+```json
+{ "requiresRuntime": ">=1.1.0 <2.0.0" }
+```
 
-Requirements use a small generated subset of SemVer ranges: whitespace-separated `>=`, `>`, `<=`, `<`, `=` or exact stable versions. Build metadata does not affect precedence. Prereleases, caret/tilde shorthand, wildcards and range unions are deliberately unsupported; malformed metadata is rejected. There is no browser dependency on the npm SemVer parser. API additions raise the minor baseline; incompatible API changes raise the major.
+The shell advertises `runtime.apiVersion`, currently `"1.1.0"`. This one version covers the registry
+format, mount protocol and shell-owned services. The shell checks the requirement before choosing
+an adapter or reading the entry's shape. It still checks the framework marker and Widget schemas
+once the versions agree. There is no separate registry-format version.
 
-## Shared loading and recovery
+The loaded definition is checked again before mounting, because a container can change after the
+registry was written. React and Angular adapters check too, so a newer container still refuses a
+shell that has no check of its own. Missing `requiresRuntime` uses `>=1.0.0 <2.0.0`; a runtime without
+`apiVersion` reads as `1.0.0`.
 
-Underlying shared attempts have their own deadline, using `runtime.deadlines.load`. Disposal stops one caller waiting without cancelling callers that still need the same attempt. Failure and timeout evict it; expired results cannot populate the cache or remove a newer attempt. Preloads are bounded too. Adapter load hooks receive the shared attempt signal so their evaluation guards are released at expiry. Angular page assets also receive a signal, use an independent default 30-second deadline, and evict expired attempts without letting old completions overwrite newer attempts.
+A backward-compatible change to the format, mount protocol or services raises the API minor. An
+incompatible change raises its major. Package versions are separate: loading a newer runtime
+package cannot replace the object the shell already created.
 
-The actual Module Federation runtime can cache a rejected or pending remote entry independently. Manifest-fetch rejections can be retried. Cached entry failures and expired federation attempts become `load/reload-required`. Force-removing a container could affect definitions already using it, so recovery surfaces offer a reload instead. Automatic retries are not introduced.
+The generated range uses stable SemVer comparators: `>=`, `>`, `<=`, `<`, `=` or an exact version,
+joined with spaces. There is no space between an operator and its version. Build metadata does
+not change the comparison. Prereleases, caret/tilde ranges, wildcards and alternatives are not
+accepted. This small reader needs no npm SemVer dependency in the browser.
 
-## User and permission changes
+## When a load fails
 
-React mount-owned QueryClients are cancelled, cleared and replaced on identity or group transitions. The provider subtree and App router are recreated for the new security generation. Queries and callbacks holding retired clients cannot populate the next session's visible cache. Temporary component state inside that subtree resets; persistent preferences remain. Theme changes do not trigger this reset.
+Every shared load runs under `runtime.deadlines.load`, 30 seconds by default. A failed or timed-out
+load is dropped, so Retry starts again. If two Widgets are waiting on the same container, removing
+one does not cancel the other's load. A result arriving after the deadline is ignored. Preloads
+and Angular page assets have deadlines too.
 
-Angular Apps reload the current route's guards and resolvers on these transitions and hide the previous route view while refresh is pending. A rejected refresh fails within the App boundary. Mount-owned `injectSession()` returns a signal containing `{ generation, signal }`; a prior session's abort signal retires at the transition. Widgets and services can observe the generation to reload their own data. The framework HTTP auth interceptor cancels and suppresses intercepted old-session responses. Arbitrary author-owned caches and requests still need to follow the session signal.
+Module Federation can keep a failed or unfinished entry load after the framework stops waiting.
+Clearing the whole container could break definitions that already use it. In that case the error
+is `load/reload-required`, and the host can offer Reload page. A failed manifest fetch can still be
+retried when the federation runtime has dropped it. Nothing retries automatically.
 
-## Widget inputs and contracts
+A chunk removed by deployment cannot be recovered by this tab. Save your work and reload.
 
-An initial invalid input remains a mount failure. A later invalid update preserves the last valid view and changes input status to `rejected`, independently of mounted status. React `lazyWidget` and `DynamicWidget` accept `onInputRejected` and `inputFallback`. Angular `<mfe-widget>` emits `inputRejected` and exposes input state/status/error signals and an `inputFallback` template. A valid update clears the indication, including returning to the prior valid inputs.
+## When the user or groups change
 
-A typed consumer supplies its complete contract. Before the provider creates its UI, the framework checks consumer inputs against provider acceptance and provider outputs against consumer acceptance. New required inputs, removed expected outputs, and supported schema narrowing are detected. Optional input and additional output extensions are accepted where their schemas permit them.
+React cancels and clears each mount's queries, replaces its QueryClient, and starts the App router
+again. The Widget or route renders for the new user. Component state inside the mount resets;
+stored preferences stay. A query still holding the old client cannot fill the new client's cache.
+A theme change does none of this.
 
-The schema checker compares a supported JSON Schema subset and locally projects supported Zod 4 metadata without executing schema callbacks. Custom refinements, transforms, lazy schemas and unfamiliar constraints can produce `unknown`. Unknown results are diagnostics rather than compatibility promises; provider and consumer payload validation still run. Dynamic consumers without contracts retain actual-input validation but cannot infer outputs application code expects.
+Angular reruns the current route's guards and resolvers, hiding the old route while they run.
+A refused route refresh fails inside that App's region. The framework HTTP interceptor cancels
+requests started for the previous session and drops their responses.
 
-## Local host surfaces
+For a Widget or service that fetches its own data, use Angular's `injectSession()`. It returns a
+signal with `{ generation, signal }`. Observe `generation` to fetch again, and pass `signal` to
+work that should stop when the session changes. Caches and requests you create yourself must
+follow that signal; the framework can clear only what it owns.
 
-React and Angular App/Widget hosts provide loading and error content by default. Temporary failures offer retry, initial input failures ask for corrected inputs before retry, and runtime/contract/federation incompatibilities explain the mismatch and offer reload. Default details include definition, version, operation and attempt; diagnostics retain the full structured error. Hosts can override pending, fatal error and rejected-input presentations.
+## When Widget inputs are refused
 
-## Instance preferences
+Invalid first inputs fail the mount. Invalid later inputs leave the Widget showing its last valid
+inputs. A React host shows a message saying the update was refused. A valid update removes it.
 
-Definition storage remains the default. For separate copies, supply a stable host ID:
+React's `lazyWidget` and `DynamicWidget` take `onInputRejected(error)` and
+`inputFallback({ error })`. Angular's `<mfe-widget>` emits `(inputRejected)` and accepts an
+`[inputFallback]` template. Its `inputStatus()` and `inputError()` say whether the last update was
+accepted while `status()` still says `mounted`. Angular renders a rejection message only when
+the consumer supplies that template.
+
+Import a Widget's contract in its consumer to check more than the current values. Before mounting,
+the framework compares what the consumer can send with what the Widget takes, and what the Widget
+can emit with what the consumer handles. Adding a required input or removing an expected output
+can then fail before the Widget renders. See [Widget contract compatibility](./widget-contract-compatibility.md)
+for the changes the checker can compare.
+
+## What the host shows
+
+React App and Widget hosts show loading and error content by default. A temporary failure offers Retry.
+Invalid first inputs ask you to correct them, then retry. Incompatible versions or an unavailable
+chunk offer Reload page. Expand Details for the definition, version, operation and attempt.
+Diagnostics also name the container.
+
+Replace React's `pending`, `fallback` or `inputFallback` to use the host's own presentation.
+`fallback` receives `{ error, retry, reload }`.
+The mount element stays in place through a retry, and a rejected input update does not remove a
+working Widget.
+
+Angular hosts supply the state and actions, and render only the consumer's `[pending]`, `[fallback]`
+and `[inputFallback]` templates. A fallback receives the error, retry, reload, recovery kind and
+attempt. Declare it in the consuming component; its content uses that component's Angular style
+scope. See the [Angular host example](../packages/mfe-angular/README.md#hosting-definitions-from-angular).
+
+Without a fallback template an Angular failure leaves an empty region. `(failed)` still emits and
+diagnostics still report it. A rejected update emits `(inputRejected)` and keeps the last valid
+view; without `inputFallback`, no message is added. The adapter supplies no presentation markup
+or styles.
+
+## Give each copy its own preferences
+
+Two copies of a Widget share stored preferences by default. To keep separate preferences, the
+host gives each copy an `instanceId`:
 
 ```tsx
 <DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
-Authors opt in with `{ scope: 'instance' }` on `useStoredState`, `injectStoredState`, or imperative storage key operations. The namespace contains the definition and stable instance ID, with length-prefix encoding that avoids collisions with legacy keys. It survives remounting and isolates different instances. Missing or invalid stable IDs produce an error for instance storage. The transient mount token is never used for persisted identity.
+Inside the Widget, pass `{ scope: 'instance' }` to `useStoredState`, `injectStoredState` or a storage
+key operation. Use the same ID when the tile returns after a reload. A new ID starts a separate
+record; reusing an ID shares it. Instance storage without a non-empty host ID fails with
+`storage/failure`. Omitting `scope` keeps the definition-wide record.
 
-## Verification and bundle scope
+## Tests and bundle size
 
-Focused tests cover deadlines, abandoned callers, late results, mixed runtime versions, schema changes, input rejection/recovery, identity changes, and stable instance storage. Integration tests exercise the actual Module Federation runtime and React/Angular host-provider boundaries.
+Tests cover older and newer shells, failed and hung loads, late results, changed Widget contracts,
+refused inputs, user changes and separate Widget preferences. Integration tests use the actual
+Module Federation runtime and place React and Angular definitions in each other's hosts.
 
-No new production dependencies are required. The federation test dependency belongs to the integration-test package. Browser compatibility checks reuse small local helpers, and host defaults use native semantic elements rather than introducing a UI library.
+No production dependency was added. The federation test dependency stays in the integration-test
+package, the compatibility checks use small local readers, and React's default host content uses
+native HTML elements. Angular's host content comes from the consuming component's templates.
 
 ### Framework code measurements
 
@@ -56,11 +130,14 @@ Compared with `ab4f2d1`, using esbuild 0.28.2, production branches, ES2022 ESM, 
 
 | Entry         | Before gzip bytes | After gzip bytes |  Delta |
 | ------------- | ----------------: | ---------------: | -----: |
-| `mfe-core`    |             5,144 |            8,123 | +2,979 |
-| `mfe-runtime` |            36,834 |           41,435 | +4,601 |
-| `mfe-react`   |            23,664 |           28,134 | +4,470 |
-| `mfe-angular` |            25,391 |           31,548 | +6,157 |
+| `mfe-core`    |             5,144 |            8,065 | +2,921 |
+| `mfe-runtime` |            36,834 |           41,382 | +4,548 |
+| `mfe-react`   |            23,664 |           28,043 | +4,379 |
+| `mfe-angular` |            25,391 |           30,725 | +5,334 |
 
-These are conservative framework-code bundles. Third-party dependencies are external, and workspace core/runtime code is included in downstream entries, so rows overlap and must not be summed. Actual application transfer size depends on federation sharing and used APIs. The standalone contract checker is approximately 2.56 KB gzip.
+These figures bundle the framework code with third-party packages kept external. The runtime
+and adapters include core/runtime code, so the rows overlap: do not add them. What a page downloads
+depends on the APIs it imports and how its containers share packages. The standalone contract
+checker is approximately 2.56 KB gzip.
 
 Reproduce with `node tools/bundles/measure-framework.mjs` and the same command pointing at a baseline checkout. The script uses the existing design-system build's esbuild dependency; it adds no dependency to the framework.

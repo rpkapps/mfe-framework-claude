@@ -191,24 +191,24 @@ and wildcard routes never contribute, and the deepest route is the current one.
 Only a route's own data counts: Angular copies a componentless parent's data
 into its children, which would otherwise label every child with the parent.
 
-**Shell-state transitions** update the injectables below as live signals. Login,
-sign-out, principal, tenant/account and permission-set changes also reload the
-App's current navigation, rerunning active guards and resolvers (including lazy
-routes) under the new session. The URL and browser history are preserved. The
-old routed view is hidden until the refreshed data has rendered; a denied guard
-or failed resolver fails the mount locally instead of showing previous-session
-data. Normal authored `runGuardsAndResolvers` policies and route/component reuse
-remain in effect outside that refresh. Theme, display-name, token refresh and
-group-order-only changes do not reload routes. Stored UI preferences are retained.
+**Shell-state transitions** update the injectables below as live signals. When a
+user signs in or out, or the user, account, tenant or groups change, the App runs
+the active guards and resolvers again, including those on lazy routes. The URL
+and browser history stay as they were. The old view is hidden until the new data
+has rendered; a denied guard or failed resolver moves the mount to its error
+state. The App otherwise keeps your `runGuardsAndResolvers` policies and reuses
+routes and components as usual. A theme or display-name change, token refresh,
+or reordered group list leaves the current route alone. Stored values remain.
 
-Widgets and services with their own user-dependent data use `injectSession()`:
-it returns a shared `Signal<MfeSession>` with `generation` and `signal`. The
-generation changes on each security transition; the previous signal aborts then
-and on mount disposal. Use the generation to reload data and retain that session's
-signal with the request, guarding writes from work that ignores cancellation.
-Application-owned caches and custom request paths need this explicit handling.
-The MFE HttpClient interceptor below automatically cancels its previous-session
-requests and prevents late responses from reaching subscribers.
+A Widget or service that fetches user-dependent data itself calls
+`const session = injectSession()`. It returns a shared `Signal<MfeSession>`
+whose value has `generation` and `signal`. The same changes advance the
+generation and abort the previous signal; disposing the mount aborts it too.
+Reload your data when the generation changes. Read `session()` as a request
+starts, pass its signal to the work, and check `signal.aborted` before accepting
+a result from work that ignores cancellation. Clear your own user-dependent
+caches at the same time. The HttpClient interceptor below cancels requests from
+the old session and drops responses that finish after the change.
 
 ## Authenticated HttpClient calls
 
@@ -462,26 +462,61 @@ bootstrapApplication(ShellComponent, {
 })
 ```
 
-```html
-<mfe-widget
-  widgetId="alert-panel"
-  [inputs]="{ label: 'Acknowledge' }"
-  [contract]="alertPanelContract"
-  [pending]="loading"
-  (output)="onWidgetOutput($event)"
-  (failed)="error = $event"
-/>
-<mfe-app-host appId="reports" basePath="/reports" />
+The hosts render only the templates you give them. Declare the templates in the consuming
+component so their content uses that component's Angular style scope:
+
+```ts
+import { Component } from '@angular/core'
+import { MfeWidgetComponent } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-dashboard',
+  imports: [MfeWidgetComponent],
+  template: `
+    <mfe-widget
+      widgetId="alert-panel"
+      [inputs]="{ label: 'Acknowledge' }"
+      [pending]="loading"
+      [fallback]="failed"
+      [inputFallback]="refused"
+    />
+    <ng-template #loading><p class="widget-message" role="status">Loading alerts…</p></ng-template>
+    <ng-template #failed let-error let-retry="retry" let-reload="reload" let-recovery="recovery">
+      <div class="widget-message" role="alert">
+        <p>{{ error.message }}</p>
+        @if (recovery === 'retry' || recovery === 'correct-inputs') {
+          <button type="button" (click)="retry()">Retry</button>
+        } @else {
+          <button type="button" (click)="reload()">Reload page</button>
+        }
+      </div>
+    </ng-template>
+    <ng-template #refused let-error>
+      <p class="widget-message" role="status">
+        The previous inputs are still shown. {{ error.message }}
+      </p>
+    </ng-template>
+  `,
+  styles: '.widget-message { padding: 1rem; border: 1px solid currentColor; }',
+})
+export class DashboardComponent {}
 ```
+
+The same `[pending]` and `[fallback]` templates work on `<mfe-app-host>`. Neither host supplies
+loading text, error content, buttons or presentation styles. Without a fallback template a failed
+mount leaves an empty region; `(failed)` still emits and the error still reaches diagnostics.
+Without `inputFallback`, a rejected update keeps the last valid Widget on screen and emits
+`(inputRejected)` without adding a message.
 
 Both components keep what the runtime decides out of the host's hands:
 
 - **`status`** is a signal over the mount's state — `pending`, `mounted`,
   `error` or `disposed` — and the `pending` template shows while it is
-  `pending`. Without custom templates, accessible native loading and local error
-  surfaces show appropriate retry/reload actions and expandable diagnostics.
-  `[fallback]` accepts a template with `let-error`, `let-retry="retry"` and
-  `let-reload="reload"`. `error()` and `attempt()` expose recovery diagnostics.
+  `pending`. `[fallback]` receives `let-error`, `let-retry="retry"`,
+  `let-reload="reload"`, `let-recovery="recovery"` and `let-attempt="attempt"`.
+  Recovery is `retry`, `correct-inputs`, `reload` or `incompatible`, so the
+  template can choose its action. `error()` and `attempt()` expose the same
+  error and attempt number outside the template.
 - **`(failed)`** emits each time the mount enters its error state: a failed load,
   a failed mount, or a definition that failed once mounted.
 - **`retry()`** acts only after a failure. A failed load is loaded afresh; a
@@ -489,11 +524,11 @@ Both components keep what the runtime decides out of the host's hands:
 - **`[inputs]`** reaches the Widget only when it changed: the runtime drops an
   input set shallow-equal to the last one, and one set while the Widget was
   mounting arrives once, when it has mounted.
-- **Rejected updates** emit `(inputRejected)` and leave `status()` mounted while
-  preserving the last valid view. `inputStatus()` and `inputError()` distinguish
-  accepted from rejected input. A default stale-input hint can be replaced with
-  `[inputFallback]` (template context `let-error` or `let-error="error"`), and
-  clears after a valid update.
+- **A rejected update** emits `(inputRejected)` and keeps the last valid inputs
+  on screen; `status()` stays `mounted`. `inputStatus()` and `inputError()` tell
+  you whether the inputs were accepted and what failed. `[inputFallback]`
+  renders your template with `let-error` or `let-error="error"`; the next valid
+  update removes it.
 - **Nesting.** Inside a mount, a placed definition is one level deeper than the
   mount it sits in and is disposed with it.
 
@@ -512,6 +547,38 @@ is a listing rule, and a Widget is never a boundary.
 `<mfe-definition-icon [icon]="iconData" label="Reports" />` draws a parsed
 registry icon through an allowlist, and drops attributes that would run or fetch
 anything.
+
+### Give a routed App its own host templates
+
+`mfeAppRoute` normally places `MfeAppHostComponent` directly, with no templates. To show your
+own loading and error content, replace that route's component with a wrapper:
+
+```ts
+import { Component } from '@angular/core'
+import { MfeAppHostComponent, mfeAppRoute } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-reports-host',
+  imports: [MfeAppHostComponent],
+  template: `
+    <mfe-app-host [pending]="loading" [fallback]="failed" />
+    <ng-template #loading><p class="reports-message">Loading reports…</p></ng-template>
+    <ng-template #failed let-error>
+      <p class="reports-message">{{ error.message }}</p>
+    </ng-template>
+  `,
+  styles: '.reports-message { padding: 1rem; }',
+})
+export class ReportsHost {}
+
+export const routes = [
+  { ...mfeAppRoute({ appId: 'reports', path: 'reports' }), component: ReportsHost },
+]
+```
+
+Leave `appId` and `basePath` off the inner host. It reads the App and boundary from the same
+route data `mfeAppRoute` supplied. Add retry/reload buttons to the fallback as in the Widget
+example above; their content also uses the wrapper's Angular style scope.
 
 `@company/mfe-angular/host` is the runtime's whole host surface —
 `createMfeRuntime`, the federation loader, `mountDefinition`, the stores, the

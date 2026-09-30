@@ -1,6 +1,6 @@
 /**
- * The API of the shell-owned object, separate from package versions and the container format.
- * New required services raise the minor; removing/changing existing services raises the major.
+ * The shell/container protocol, independent of package versions: registry format, mounting and
+ * runtime services. Compatible additions raise the minor; incompatible changes raise the major.
  */
 import type { DefinitionIdentity } from './definition.ts'
 import { createMfeError } from './errors.ts'

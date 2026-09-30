@@ -243,14 +243,30 @@ bootstrapApplication(ShellComponent, {
 Both components place the definition through the runtime's `mountDefinition`, so they host React
 definitions as readily as Angular ones. Inside a mount, they use the mount's own runtime.
 
-| Member     | What it does                                                                       |
-| ---------- | ---------------------------------------------------------------------------------- |
-| `status`   | A signal: `pending`, `mounted`, `error` or `disposed`.                             |
-| `pending`  | A template shown while the status is `pending`.                                    |
-| `(output)` | Emits an `MfeWidgetOutput`, `{ name, payload }`, for each output the Widget emits. |
-| `(failed)` | Emits the error each time the mount fails, before or after mounting.               |
-| `retry()`  | Tries again after a failure. A failed load is loaded afresh.                       |
-| `[inputs]` | Reaches the Widget only when it changed.                                           |
+| Member            | What it does                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status`          | A signal: `pending`, `mounted`, `error` or `disposed`.                                                                                                 |
+| `pending`         | A template shown while the status is `pending`.                                                                                                        |
+| `(output)`        | Emits an `MfeWidgetOutput`, `{ name, payload }`, for each output the Widget emits.                                                                     |
+| `(failed)`        | Emits the error each time the mount fails, before or after mounting.                                                                                   |
+| `retry()`         | Tries again after a failure. A failed load is loaded afresh.                                                                                           |
+| `fallback`        | A consumer template shown after a failure. Its context has `error`, `retry`, `reload`, `recovery` and `attempt`; the error is also the implicit value. |
+| `reload()`        | Reloads the page when the current tab cannot recover.                                                                                                  |
+| `inputFallback`   | Widget-only. A consumer template for a rejected update, with the error as its implicit value.                                                          |
+| `(inputRejected)` | Widget-only. Emits when an update is refused; the last valid view stays mounted.                                                                       |
+
+The hosts supply state and actions, and render only the templates you pass. They add no loading
+text, error content, buttons or presentation styles. Declare the templates in the consuming
+component; their content uses its Angular style scope. Without `fallback`, a failed mount leaves
+an empty region while `(failed)` and diagnostics still report it. Without `inputFallback`, a rejected
+update adds no message. `inputStatus()` and `inputError()` still expose the rejected input.
+
+For an App placed by `mfeAppRoute`, give the route your own wrapper component:
+`{ ...mfeAppRoute({ appId: 'reports', path: 'reports' }), component: ReportsHost }`.
+Inside `ReportsHost`, render `<mfe-app-host [pending]="loading" [fallback]="failed" />`
+and declare those templates there. Leave off `appId` and `basePath`; the inner host reads the
+same route data and boundary.
+| `[inputs]` | Reaches the Widget only when it changed. |
 
 Inside an App, `mfeAppRoute({ appId, path })` delegates everything below a prefix to another App. A
 routed `<mfe-app-host>` calls `navigator.announce()` after each navigation of the router it sits

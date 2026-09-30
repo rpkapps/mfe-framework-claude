@@ -1,10 +1,6 @@
 /** Three of these are aliases an author imports; the rest are build artifacts. */
 
-import {
-  defaultExposePath,
-  FRAMEWORK_CONTRACT_MAJOR,
-  RUNTIME_API_REQUIREMENT,
-} from '@company/mfe-core'
+import { defaultExposePath, RUNTIME_API_REQUIREMENT } from '@company/mfe-core'
 
 import type { ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema, type StaticSchema } from '../config/zod-static.ts'
@@ -406,8 +402,6 @@ export function metaModule(context: GenerateContext, buildHash: string): Generat
         `export const buildHash = ${quote(buildHash)}`,
         '',
         `export const buildTime = ${quote(context.options.buildTime)}`,
-        '',
-        `export const contractMajor = ${String(FRAMEWORK_CONTRACT_MAJOR)}`,
         '',
         `export const requiresRuntime = ${quote(context.profile.requiresRuntime ?? RUNTIME_API_REQUIREMENT)}`,
       ].join('\n'),

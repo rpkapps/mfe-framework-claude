@@ -4,7 +4,6 @@
 export type MfeErrorCode =
   | 'registry/invalid-entry'
   | 'registry/duplicate-id'
-  | 'contract/unsupported-major'
   | 'contract/runtime-incompatible'
   | 'contract/input-mismatch'
   | 'contract/output-mismatch'

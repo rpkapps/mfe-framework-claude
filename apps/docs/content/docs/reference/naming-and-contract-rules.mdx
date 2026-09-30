@@ -35,9 +35,11 @@ Each property of `outputSchema` is one output, and its name follows the same rul
 
 Two outputs must also map to two different handler props. The build names both outputs and asks you to rename one. Both rules run at build time and again in `createWidget`.
 
+`inputRejected` is reserved: its `onInputRejected` handler belongs to the host's input-update check.
+
 ## Reserved input names
 
-A Widget may not declare an input called `key`, `ref`, `fallback` or `pending`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to outputs.
+A Widget may not declare an input called `key`, `ref`, `fallback`, `pending`, `inputFallback` or `instanceId`, or any name matching `on` followed by a capital letter. Those belong to the consumer, which uses them to control the mount and to subscribe to outputs.
 
 ```ts
 // Rejected: onSelect is an output handler's name.

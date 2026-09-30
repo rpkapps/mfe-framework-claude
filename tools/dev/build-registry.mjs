@@ -44,7 +44,6 @@ function entriesFor(published, presentation, origin) {
       kind: definition.kind,
       // The framework picks the adapter that reads the entry, so it travels in the marker.
       mfe: {
-        contractMajor: published.contractMajor,
         framework: published.framework,
       },
       manifestUrl: new URL(published.manifestUrl, origin).href,

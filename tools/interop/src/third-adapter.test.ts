@@ -274,7 +274,7 @@ const registryEntries = [
   {
     id: 'tally',
     kind: 'widget',
-    mfe: { contractMajor: 1, framework: PLAIN_DOM },
+    mfe: { framework: PLAIN_DOM },
     manifestUrl: 'https://cdn.example.test/tally/mf-manifest.json',
     container: 'plain_tally',
     shareScopes: ['default', 'plain-dom@1.0.0'],
@@ -284,7 +284,7 @@ const registryEntries = [
   {
     id: 'notes',
     kind: 'app',
-    mfe: { contractMajor: 1, framework: PLAIN_DOM },
+    mfe: { framework: PLAIN_DOM },
     manifestUrl: 'https://cdn.example.test/notes/mf-manifest.json',
     container: 'plain_notes',
     version: '0.3.0',
@@ -292,7 +292,7 @@ const registryEntries = [
   {
     id: 'counter',
     kind: 'widget',
-    mfe: { contractMajor: 1, framework: 'react' },
+    mfe: { framework: 'react' },
     manifestUrl: 'https://cdn.example.test/counter/mf-manifest.json',
     container: 'react_counter',
     shareScopes: ['default', 'react@19.3.0'],

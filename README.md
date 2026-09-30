@@ -127,7 +127,8 @@ binds when called outside a mount.
 
 ## If you are writing the host
 
-See [framework resilience](./docs/framework-resilience.md) for runtime compatibility, load recovery, session refresh, widget contract checks, local error surfaces, and instance storage.
+See [Loading separately deployed containers](./docs/framework-resilience.md) for what the host
+checks before mounting, what happens when a load fails, and what changes when the user switches.
 
 A shell is the one consumer that reads the registry instead of being listed in
 it. What it gets is deliberately small, and never anything renderable: the icon,

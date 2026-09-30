@@ -25,10 +25,7 @@ import { mountDefinition, type WidgetDefinitionMount } from '@company/mfe-runtim
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
-import {
-  MfeDefinitionStatusComponent,
-  type MfeFallbackContext,
-} from './definition-status.component.ts'
+import { createFallbackContext, type MfeFallbackContext } from './fallback-context.ts'
 
 export interface MfeWidgetOutput {
   readonly name: string
@@ -37,16 +34,18 @@ export interface MfeWidgetOutput {
 
 @Component({
   selector: 'mfe-widget',
-  imports: [NgTemplateOutlet, MfeDefinitionStatusComponent],
-  template: `<mfe-definition-status
-      [loading]="status() === 'pending'"
-      [error]="error()"
-      [attempt]="attempt()"
-      [pending]="pending"
-      [fallback]="fallback"
-      (retried)="retry()"
-      (reloaded)="reload()"
-    />
+  imports: [NgTemplateOutlet],
+  template: `@if (status() === 'pending' && pending) {
+      <ng-container [ngTemplateOutlet]="pending" />
+    }
+    @if (error(); as failure) {
+      @if (fallback) {
+        <ng-container
+          [ngTemplateOutlet]="fallback"
+          [ngTemplateOutletContext]="fallbackContext(failure)"
+        />
+      }
+    }
     @if (status() === 'mounted') {
       @if (inputError(); as rejection) {
         @if (inputFallback) {
@@ -54,10 +53,6 @@ export interface MfeWidgetOutput {
             [ngTemplateOutlet]="inputFallback"
             [ngTemplateOutletContext]="{ $implicit: rejection, error: rejection }"
           />
-        } @else {
-          <p role="status" data-mfe-input-rejected>
-            This widget is showing its previous inputs because the latest update was rejected.
-          </p>
         }
       }
     }`,
@@ -99,6 +94,16 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
   readonly inputState = this.#mount.inputState
   readonly inputStatus = this.#mount.inputStatus
   readonly inputError = this.#mount.inputError
+  readonly #retry = (): void => {
+    this.retry()
+  }
+  readonly #reload = (): void => {
+    this.reload()
+  }
+
+  fallbackContext(error: MfeError): MfeFallbackContext {
+    return createFallbackContext(error, this.attempt(), this.#retry, this.#reload)
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     // A different Widget replaces the mount rather than feeding it another Widget's inputs.

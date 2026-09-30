@@ -262,7 +262,7 @@ describe('the recorded build time', () => {
 })
 
 describe('the registry entry the build publishes', () => {
-  it('names the definitions, the shared manifest and the contract major', () => {
+  it('names the definitions, shared manifest and framework protocol requirement', () => {
     const { fileFor, plan } = planFixture({
       'src/mfe.ts': APP_ENTRY,
       'src/routes/settings.tsx': ROUTE,
@@ -272,7 +272,6 @@ describe('the registry entry the build publishes', () => {
       manifestUrl: 'mf-manifest.json',
       container: 'acme_operations',
       entries: { operations: './app' },
-      contractMajor: 1,
       framework: 'react',
       shareScopes: ['default', 'react@19.3.0'],
       requiresRuntime: '>=1.1.0 <2.0.0',
@@ -290,6 +289,9 @@ describe('the registry entry the build publishes', () => {
       ],
       build: { hash: plan.generated.buildHash, time: BUILD_TIME },
     })
+    expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
+    expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.1.0 <2.0.0')
   })
 
   it('carries capability metadata on the App only', () => {
