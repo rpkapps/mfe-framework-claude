@@ -1,11 +1,11 @@
 ---
 title: 'Share state across Apps and Widgets'
-description: 'Declare shared keys once, then read and update the same reactive record from React or Angular.'
+description: 'Keep a units preference or selected well in sync between React and Angular components.'
 ---
 
-Use shared state when independently mounted Apps and Widgets need the same selection or preference.
-The shell owns the records and their persistence. A component subscribes to a key; an accepted
-update reaches every mounted consumer of that key in the same scope.
+Suppose an App has a units switch and a Widget shows a chart. When the user changes from metric
+to imperial, the chart should change too. Shared state gives both components the same value,
+even if one uses React and the other uses Angular.
 
 The shell must [configure shared state](/docs/configure-shared-state) before mounting your definition.
 
@@ -27,8 +27,9 @@ export const sharedStateSchema = z.object({
 })
 ```
 
-Each top-level property is a shared key. Consumers of the same key agree on its meaning and shape.
-Use a literal default for a key that must be readable before anyone has saved it.
+`display:units` starts as `metric`; `well:selection` starts as `null`, meaning no well is selected.
+Use the same key and schema in each App or Widget that needs that value. A key is the name of
+the record they share, not a name private to your component.
 
 </Step>
 <Step>
@@ -60,9 +61,13 @@ export default createApp({ id: 'operations', routes, sharedStateSchema })
 </Tabs>
 
 Widgets put `sharedStateSchema` on their `createWidget` options in the same way.
-Run your container's `pnpm generate` script to generate the typed `#mfe/shared-state` imports.
-If a container declares several definitions with shared state, use
-`#mfe/shared-state/<definition-id>` for each one.
+Run your container's `pnpm generate` script. You can then import its hooks or injectors from
+`#mfe/shared-state`; TypeScript knows the keys and the values they accept.
+
+<Details summary="My container exports more than one definition">
+Import from `#mfe/shared-state/<definition-id>` so each App or Widget uses its own declaration.
+For example, the `operations` App uses `#mfe/shared-state/operations`.
+</Details>
 
 </Step>
 <Step>
@@ -131,8 +136,9 @@ The subscription ends when that context is destroyed.
 </Tab>
 </Tabs>
 
-Valid updates appear immediately. The setter's promise resolves when persistence accepts the write;
-handle a rejection in the interaction that made it. Reads are immutable snapshots.
+Clicking the button changes every component reading `display:units` immediately. The `await`
+finishes once the change has been saved. If saving fails, the catch shows the user a message.
+Always change a value through its setter; modifying the object you read will not save an update.
 
 </Step>
 <Step>
@@ -144,18 +150,21 @@ await store.set('well:selection', { runId: 'run-8' })
 ```
 
 Take `store` with the generated `useSharedStateStore()` or `injectSharedStateStore()` binding.
-The second write preserves `wellId`. Nested objects merge too. Omitted properties stay unchanged;
-there is no field deletion operation. Arrays replace as a whole, and `null` is an explicit value
-when the schema allows it. The first write from `null` must supply the required fields.
+After these writes, the selection is `{ wellId: 'well-42', runId: 'run-8' }`. You changed the run
+without having to resend the well. The same rule applies to nested objects: leaving out a field
+keeps its saved value.
+
+To clear this selection, write `null`. Sending an empty object does not clear it, and `undefined`
+is not allowed. If a value is an array, send the complete new array.
 
 </Step>
 </Steps>
 
 ## Check it works
 
-Mount two definitions that declare `display:units` in the same shell scope. Change it in one;
-both should render the new value. Remount a definition and confirm it reads the saved value.
-Switching the shell's user or workspace scope should show that scope's records instead.
+Open the units picker in an App and a Widget on the same page. Click either button: both should
+show `imperial`. Close and reopen the Widget; it should still show `imperial`. Reload the page
+and check that the saved preference returns.
 
 ## Errors
 

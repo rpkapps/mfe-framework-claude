@@ -1,20 +1,22 @@
 ---
 title: 'Use shared state outside render'
-description: 'Read and write the live store from React route loaders and actions or Angular guards and resolvers.'
+description: 'Read the selected well from a TanStack Router loader or an Angular resolver.'
 ---
 
-Route callbacks use the same store as components. They read the current snapshot with `get`,
-update a key with `set`, and can subscribe to changes. First
-[declare the keys on your definition](/docs/shared-state).
+A user selects a well, then opens the runs page. The route needs that selection before it can
+show the right runs. Read it from the shared store in your loader or resolver, without rendering
+a component or calling a React hook.
+
+This recipe uses the `well:selection` key from [the component recipe](/docs/shared-state).
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Take the store where your router receives its context
+### 1. Read the selection when the route loads
 
-<Tabs items={['TanStack Router', 'Angular', 'React Router']}>
-<Tab value="TanStack Router">
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="src/router.ts"
 import { createRootRouteWithContext, createRouter } from '@tanstack/react-router'
@@ -29,8 +31,11 @@ export function makeRouter({ basePath, history, context }: AppRouterOptions) {
 }
 ```
 
-Import the generated context types so keys and values are inferred. Keep the `basePath`, history
-and context your App factory receives, as in [Add a route](/docs/add-a-route).
+The loader returns the selected well and run, or `null` if the user has not selected a well.
+`context.mfe.sharedState` is supplied by the shell; you do not need to create a second store.
+
+The generated types make TypeScript check the key and the returned value. Forward `basePath`,
+`history` and `context` when creating the router, as in [Add a route](/docs/add-a-route).
 
 </Tab>
 <Tab value="Angular">
@@ -45,42 +50,14 @@ export const selectionResolver: ResolveFn<SharedStateValues['well:selection']> =
 }
 ```
 
-Use the same injector in a guard. If the callback awaits other work, capture the store before the
-first `await`; an Angular injection context does not continue across it.
+Attach `selectionResolver` to your route's `resolve` options. It returns the selected well and run
+for the route to use. A guard can read the store in the same way.
+
+Call `injectSharedStateStore()` before any `await`. You can keep using the returned store after
+the await, but Angular cannot run another injector call there.
 
 </Tab>
-<Tab value="React Router">
 
-```tsx title="src/routed-panel.tsx"
-import { useMemo } from 'react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
-import { useSharedStateStore } from '#mfe/shared-state'
-
-export function RoutedPanel() {
-  const store = useSharedStateStore()
-  const router = useMemo(
-    () =>
-      createMemoryRouter([
-        {
-          path: '/',
-          loader: () => store.get('display:units'),
-          action: async () => {
-            await store.set('display:units', 'imperial')
-            return null
-          },
-        },
-      ]),
-    [store],
-  )
-  return <RouterProvider router={router} />
-}
-```
-
-Capture the store while rendering inside the mount; route callbacks then use it without hooks.
-This works in an existing React Router surface. The framework's React App boundary still uses
-TanStack Router. A Widget owns no address-bar URL, so its nested router uses memory history.
-
-</Tab>
 </Tabs>
 
 </Step>
@@ -97,26 +74,31 @@ export async function chooseRun(store: SharedStateStore<SharedStateValues>, runI
 }
 ```
 
-Let an action's error handling report a rejected write. The store remains live across awaits:
-call `get` again when you need the latest value rather than retaining an earlier snapshot.
+Pass the store you took in the component or route callback to `chooseRun`. It keeps the selected
+well and saves only the new run. Handle a rejected promise where you show the result to the user.
+
+If you wait for other work before reading a selection, call `get` after that wait. A value you
+read earlier may no longer be the current selection.
 
 </Step>
 <Step>
 ### 3. Refresh route-derived data when needed
 
-A shared-state change updates subscribed components; it does not automatically rerun every
-loader. Invalidate your TanStack router or revalidate your React Router data when the route's
-result depends on a changed key. If you use `store.subscribe(key, listener)`, keep its returned
-unsubscribe function and call it when the owner is destroyed.
+Changing the selected well updates components that read the key, but it does not rerun a
+TanStack Router loader. Call `router.invalidate()` when the route should load again for the new
+selection.
+
+For a longer-lived callback, `store.subscribe(key, listener)` lets you listen for changes. Call
+the returned unsubscribe function when you no longer need that listener.
 
 </Step>
 </Steps>
 
 ## Check it works
 
-Read `well:selection` in a loader or resolver, change it from another mounted consumer, then
-run the callback again. It should read the new value. Write through an action and confirm a
-component subscribed to the key updates too.
+Select `well-42`, then open the route: its loader or resolver should return `well-42`. Select a
+different well from another App. Run the loader or resolver again and confirm it returns that
+well. Changing a run through `chooseRun` should also update the picker on screen.
 
 ## Errors
 

@@ -80,7 +80,6 @@
     "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "zod": "catalog:",
-    "react-router": "catalog:"
+    "zod": "catalog:"
   }
 }

@@ -1,16 +1,17 @@
 ---
 title: 'Evolve a shared-state schema'
-description: 'Add fields without breaking deployed consumers, then check and deploy the updated schema.'
+description: 'Add a comparison mode while older Apps keep reading and writing the selected well.'
 ---
 
-Independently deployed consumers may keep using an older schema. Add fields so their writes
-preserve newer values, and deploy the shell's schema before a consumer starts relying on them.
+Your selection already contains a well and a run. Now one App needs a comparison mode, but the
+other Apps have not been updated yet. Add the field with a default so those Apps can keep using
+the selection they already know.
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Make an additive change
+### 1. Give the new field a default
 
 ```ts title="src/shared-state.ts (selection fields)"
 z.strictObject({
@@ -20,20 +21,24 @@ z.strictObject({
 })
 ```
 
-Add an optional field or one with a deterministic literal default. Keep existing field types,
-defaults and meanings. An older consumer writing `{ runId: 'run-8' }` leaves an existing
-`comparisonMode: 'overlay'` intact. Omission never deletes a field.
+An existing selection without `comparisonMode` reads as `baseline`. Once the user chooses
+`overlay`, an older App writing `{ runId: 'run-8' }` keeps that choice. The older App does not have
+to know about the new field to preserve it.
 
-Changing a required field, removing or renaming one, changing an enum or constraint, or changing
-an array element's shape needs a new key and an explicit transition for its consumers.
+You can also add an optional field. Keep the fields existing Apps depend on: renaming `wellId`
+would leave them unable to read it. Changes to existing types, defaults, enums, validation rules
+or array items need a new key and a plan to move the Apps that use it.
 
 </Step>
 <Step>
 ### 2. Configure the production release check
 
-Set `sharedStatePolicy` on your build integration to a policy file containing the current compiled
-`schema` and previously released `baselines`. Use `baselines: []` only for the first release.
-Keep published baselines immutable so a change cannot approve itself by rewriting its history.
+The production build needs a policy file with two fields: `schema` is the new compiled schema;
+`baselines` contains copies of the schemas you have already released. Keep those released copies
+unchanged. For the first release, the list is empty: `baselines: []`.
+
+These older schemas are inputs to the build check. The running shell still needs only the latest
+`sharedState.schema`.
 
 <Tabs items={['React build options', 'Angular']}>
 <Tab value="React build options">
@@ -58,16 +63,17 @@ export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.js
 </Tab>
 </Tabs>
 
-Run your production build. It checks the consumer's schema against the current shell schema and
-the released baselines. Development schema checks alone do not replace this release check.
+Run your container's production build. If it reports a changed field that older Apps depend on,
+fix that change before publishing. A successful development build does not perform the same
+release check.
 
 </Step>
 <Step>
 ### 3. Deploy the shell schema before the new consumer
 
-Give the shell and backend the current compiled schema, then publish the consumer that needs the
-added field. Older compatible consumers keep working. A newer consumer on an older shell fails
-before mounting instead of accepting a write that loses the field.
+Deploy the updated schema to the shell and backend first. Then deploy the App that uses
+`comparisonMode`. Older Apps continue to work with that schema. Deploying the App first would
+leave it asking the old shell for a field the shell does not have, so it would fail to mount.
 
 </Step>
 </Steps>

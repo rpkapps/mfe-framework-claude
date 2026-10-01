@@ -62,33 +62,6 @@ export function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 The store is live across awaits. Router loaders and other imperative code use the same `get`, `set` and `subscribe` API as components. State changes do not automatically rerun route loaders: invalidate/revalidate when that is appropriate for your route.
 
-The store also works with React Router data loaders and actions. Capture the injected store when constructing routes; callbacks call it without hooks:
-
-```tsx
-import { useSharedStateStore } from '#mfe/shared-state'
-
-function RoutedContent() {
-  const store = useSharedStateStore()
-  const router = useMemo(
-    () =>
-      createMemoryRouter([
-        {
-          path: '/',
-          loader: () => store.get('display:units'),
-          action: async () => {
-            await store.set('display:units', 'imperial')
-            return null
-          },
-        },
-      ]),
-    [store],
-  )
-  return <RouterProvider router={router} />
-}
-```
-
-The framework app adapter still owns a TanStack Router boundary. React Router can consume the store wherever it is already hosted; this change does not replace the app adapter's routing contract. A widget owns no page URL, so use a memory router inside one.
-
 A container with one shared-state definition gets `#mfe/shared-state`. Multiple definitions get `#mfe/shared-state/<definition-id>` and no ambiguous root alias. Each binding verifies the mounted definition; a widget cannot accidentally inherit its parent app's schema.
 
 ## Angular

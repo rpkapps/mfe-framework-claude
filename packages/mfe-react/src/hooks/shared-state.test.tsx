@@ -6,14 +6,9 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import { createMemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { StrictMode, type ReactNode } from 'react'
-import type {
-  SharedStateAdapter,
-  SharedStateStore,
-  StateContract,
-} from '@company/mfe-core/shared-state'
+import type { SharedStateAdapter, StateContract } from '@company/mfe-core/shared-state'
 import { createMountContext } from '@company/mfe-runtime'
 import { createMemoryRuntime } from '@company/mfe-runtime/testing'
 import { prepareSharedStateMount } from '@company/mfe-runtime/shared-state'
@@ -138,30 +133,6 @@ describe('definition-bound React shared state and routers', () => {
     expect(router.state.matches.at(-1)?.loaderData).toBe('imperial')
     await environment.dispose()
   })
-  it('supports React Router data loaders and actions without hooks or a module singleton', async () => {
-    const environment = await setup()
-    const store = bindingsStore(environment.mount.sharedState!)
-    const router = createMemoryRouter(
-      [
-        {
-          path: '/',
-          loader: () => store.get('units'),
-          action: async () => {
-            await store.set('units', 'imperial')
-            return store.get('units')
-          },
-        },
-      ],
-      { initialEntries: ['/'] },
-    )
-    await vi.waitFor(() => expect(router.state.loaderData['0']).toBe('metric'))
-    await router.navigate('/', { formMethod: 'post', formData: new FormData() })
-    expect(router.state.actionData?.['0']).toBe('imperial')
-    expect(router.state.loaderData['0']).toBe('imperial')
-    expect(environment.mount.sharedState!.get('units')).toBe('imperial')
-    router.dispose()
-    await environment.dispose()
-  })
   it('hydrates before calling an app router factory and reports unsupported shells before render', async () => {
     const factory = vi.fn(({ basePath, history, context }: AppRouterOptions<Values>) => {
       expect(context.mfe.sharedState.get('units')).toBe('metric')
@@ -193,6 +164,3 @@ describe('definition-bound React shared state and routers', () => {
     await environment.dispose()
   })
 })
-function bindingsStore(store: SharedStateStore): SharedStateStore<Values> {
-  return store
-}
