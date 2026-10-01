@@ -66,7 +66,7 @@ async function setup() {
   const memory = createMemoryRuntime({
     sharedState: {
       scope: 'user/workspace',
-      contracts: { formatVersion: 1, contracts: [contract] },
+      schema: { formatVersion: 1, contracts: [contract] },
       adapter: adapter(),
     },
   })
@@ -175,7 +175,7 @@ describe('definition-bound React shared state and routers', () => {
     const mounted = await mountApp(definition, {
       sharedState: {
         scope: 'user/workspace',
-        contracts: { formatVersion: 1, contracts: [contract] },
+        schema: { formatVersion: 1, contracts: [contract] },
         adapter: adapter(),
       },
     })
@@ -193,5 +193,5 @@ describe('definition-bound React shared state and routers', () => {
   })
 })
 function bindingsStore(store: SharedStateStore): SharedStateStore<Values> {
-  return store as unknown as SharedStateStore<Values>
+  return store
 }

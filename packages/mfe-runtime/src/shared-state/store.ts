@@ -18,17 +18,14 @@ import {
 
 export interface SharedStateOptions {
   readonly scope: string
-  /** Current contract for each key; these revisions are accepted automatically. */
-  readonly contracts: SharedStateManifest
-  /** Additional consumer revisions for independently deployed MFEs. Omit when all use current contracts. */
-  readonly supportedContracts?: readonly SharedStateManifest[]
+  /** Latest compiled schema; compatibility history stays in build/release tooling. */
+  readonly schema: SharedStateManifest
   readonly adapter: SharedStateAdapter
   readonly onError?: (error: unknown, id: string) => void
 }
 interface Pending {
   readonly expectedRevision: number
   readonly operationId: string
-  readonly contract: StateContract
   readonly value: Json
   readonly resolve: () => void
   readonly reject: (error: unknown) => void
@@ -53,7 +50,7 @@ interface Entry {
 export class SharedStateRuntime implements SharedStateService {
   readonly protocolVersion = 1
   readonly #options: SharedStateOptions
-  readonly #contracts = new Map<string, Map<string, StateContract>>()
+  readonly #contracts = new Map<string, StateContract>()
   readonly #entries = new Map<string, Entry>()
   readonly #sending = new Set<Entry>()
   #scope: string
@@ -67,37 +64,20 @@ export class SharedStateRuntime implements SharedStateService {
   constructor(options: SharedStateOptions) {
     this.#options = options
     this.#scope = options.scope
-    if (!options.scope || options.contracts.formatVersion !== 1)
+    if (!options.scope || options.schema.formatVersion !== 1)
       throw new SharedStateError(
         'unsupported-contract',
-        '<contracts>',
+        '<schema>',
         'Configure a nonempty opaque scope and contract format 1',
       )
-    for (const manifest of [options.contracts, ...(options.supportedContracts ?? [])]) {
-      if (manifest.formatVersion !== 1)
+    for (const contract of options.schema.contracts) {
+      if (contract.formatVersion !== 1 || this.#contracts.has(contract.id))
         throw new SharedStateError(
           'unsupported-contract',
-          '<contracts>',
-          'Unsupported manifest format',
+          contract.id,
+          'Schema needs one current contract per state ID in format 1',
         )
-      for (const contract of manifest.contracts) {
-        if (contract.formatVersion !== 1)
-          throw new SharedStateError(
-            'unsupported-contract',
-            contract.id,
-            'Unsupported contract format',
-          )
-        const revisions = this.#contracts.get(contract.id) ?? new Map<string, StateContract>()
-        const previous = revisions.get(contract.revision)
-        if (previous && stableJson(previous) !== stableJson(contract))
-          throw new SharedStateError(
-            'unsupported-contract',
-            contract.id,
-            'Conflicting metadata for the same revision',
-          )
-        revisions.set(contract.revision, immutable(structuredClone(contract)))
-        this.#contracts.set(contract.id, revisions)
-      }
+      this.#contracts.set(contract.id, immutable(structuredClone(contract)))
     }
     this.#resetEntries()
     this.#listen()
@@ -158,18 +138,14 @@ export class SharedStateRuntime implements SharedStateService {
       set: (key, value) => {
         // Return a rejected promise for validation errors while still publishing success synchronously.
         try {
-          const { entry, contract } = check(key)
+          const { entry } = check(key)
           assertJson(value, key)
-          const normalized = normalize(contract.node, value, key)
-          if (normalized === undefined)
-            throw new SharedStateError('invalid-value', key, 'A state record cannot be undefined')
-          const next = applyStateWrite(entry.canonical, contract, entry.effective, normalized)
+          const next = applyStateWrite(entry.canonical, entry.effective, value)
           const accepted = new Promise<void>((resolve, reject) => {
             entry.pending.push({
               expectedRevision: entry.recordRevision + entry.pending.length,
               operationId: `${this.#clientId}:${++this.#operation}`,
-              contract,
-              value: immutable(normalized),
+              value: immutable(structuredClone(value)),
               resolve,
               reject,
             })
@@ -240,7 +216,7 @@ export class SharedStateRuntime implements SharedStateService {
   }
   #resetEntries(): void {
     this.#entries.clear()
-    for (const canonical of this.#options.contracts.contracts) {
+    for (const canonical of this.#options.schema.contracts) {
       if (this.#entries.has(canonical.id))
         throw new SharedStateError(
           'unsupported-contract',
@@ -248,7 +224,7 @@ export class SharedStateRuntime implements SharedStateService {
           'Duplicate canonical state ID',
         )
       this.#entries.set(canonical.id, {
-        canonical: this.#contracts.get(canonical.id)?.get(canonical.revision) ?? canonical,
+        canonical: this.#contracts.get(canonical.id) ?? canonical,
         status: 'absent',
         recordRevision: 0,
         confirmed: undefined,
@@ -288,12 +264,12 @@ export class SharedStateRuntime implements SharedStateService {
       )
     const contracts = new Map<string, StateContract>()
     for (const requested of requirements.contracts) {
-      const contract = this.#contracts.get(requested.id)?.get(requested.revision)
+      const contract = this.#contracts.get(requested.id)
       if (!contract || !this.#entries.has(requested.id) || contracts.has(requested.id))
         throw new SharedStateError(
           'unsupported-contract',
           requested.id,
-          `Revision ${requested.revision} is unavailable in the deployment contracts/support window`,
+          'State ID is unavailable in the shell schema or declared more than once',
         )
       contracts.set(requested.id, contract)
     }
@@ -305,7 +281,7 @@ export class SharedStateRuntime implements SharedStateService {
       throw new SharedStateError(
         'unsupported-contract',
         id,
-        'No canonical contract in deployment contracts',
+        'No canonical contract in shell schema',
       )
     return entry
   }
@@ -379,7 +355,7 @@ export class SharedStateRuntime implements SharedStateService {
   #replay(entry: Entry): void {
     let value = entry.confirmed
     for (const pending of entry.pending)
-      value = applyStateWrite(entry.canonical, pending.contract, value, pending.value)
+      value = applyStateWrite(entry.canonical, value, pending.value)
     entry.effective = immutable(value)
   }
   async #flush(entry: Entry, generation: number): Promise<void> {
@@ -396,7 +372,6 @@ export class SharedStateRuntime implements SharedStateService {
               {
                 scope: this.#scope,
                 id: entry.canonical.id,
-                writerRevision: pending.contract.revision,
                 expectedRevision,
                 operationId: pending.operationId,
                 value: pending.value,

@@ -30,18 +30,28 @@ export interface SharedStateRepository {
   ): Promise<StoredState>
 }
 export interface SharedStateBackendOptions {
-  readonly contracts: SharedStateManifest
-  readonly supportedContracts?: readonly SharedStateManifest[]
+  readonly schema: SharedStateManifest
   readonly repository: SharedStateRepository
   /** Resolve identity from the authenticated request, never from client-supplied scope alone. */
   readonly authorize: (scope: string, id: string, operation: 'read' | 'write') => Promise<void>
 }
 export function createSharedStateBackend(options: SharedStateBackendOptions) {
-  const canonical = new Map(options.contracts.contracts.map(contract => [contract.id, contract]))
-  const contracts = new Map<string, StateContract>()
-  for (const manifest of [options.contracts, ...(options.supportedContracts ?? [])])
-    for (const contract of manifest.contracts)
-      contracts.set(`${contract.id}@${contract.revision}`, contract)
+  if (options.schema.formatVersion !== 1)
+    throw new SharedStateError(
+      'unsupported-contract',
+      '<schema>',
+      'Supply compiled schema format 1',
+    )
+  const canonical = new Map<string, StateContract>()
+  for (const contract of options.schema.contracts) {
+    if (contract.formatVersion !== 1 || canonical.has(contract.id))
+      throw new SharedStateError(
+        'unsupported-contract',
+        contract.id,
+        'Schema needs one current contract per state ID in format 1',
+      )
+    canonical.set(contract.id, contract)
+  }
   const find = (id: string): StateContract => {
     const contract = canonical.get(id)
     if (!contract || contract.formatVersion !== 1)
@@ -69,16 +79,9 @@ export function createSharedStateBackend(options: SharedStateBackendOptions) {
       )
     },
     async write(operation: StateWrite, signal: AbortSignal): Promise<StateRecord> {
-      const { scope, id, writerRevision, expectedRevision, operationId, value } = operation
+      const { scope, id, expectedRevision, operationId, value } = operation
       await options.authorize(scope, id, 'write')
       const contract = find(id)
-      const writer = contracts.get(`${id}@${writerRevision}`)
-      if (!writer || writer.formatVersion !== 1)
-        throw new SharedStateError(
-          'unsupported-contract',
-          id,
-          'Writer revision is outside the support window',
-        )
       if (!operationId || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
         throw new SharedStateError('invalid-value', id, 'Invalid write envelope')
       assertJson(value, id)
@@ -107,7 +110,7 @@ export function createSharedStateBackend(options: SharedStateBackendOptions) {
               'Record changed since this intention was formed; refresh and choose again',
             )
           const existing = normalize(contract.node, current?.value, id)
-          const next = applyStateWrite(contract, writer, existing, value)
+          const next = applyStateWrite(contract, existing, value)
           const record = { id, revision: expectedRevision + 1, value: next }
           return {
             revision: record.revision,

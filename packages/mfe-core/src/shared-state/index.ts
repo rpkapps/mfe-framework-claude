@@ -41,10 +41,16 @@ export interface SharedStateRequirements {
 }
 export type StateValues = Record<string, unknown>
 export type StateKey<V> = keyof V & string
-export type SharedStateSetter<T> = (value: T) => Promise<void>
+/** Objects merge recursively; arrays are complete replacements and null is an explicit value. */
+export type SharedStateUpdate<T> = T extends readonly unknown[]
+  ? T
+  : T extends object
+    ? { [K in keyof T]?: SharedStateUpdate<T[K]> }
+    : T
+export type SharedStateSetter<T> = (value: SharedStateUpdate<T>) => Promise<void>
 export interface SharedStateStore<V = StateValues> {
   get<K extends StateKey<V>>(key: K): V[K]
-  set<K extends StateKey<V>>(key: K, value: V[K]): Promise<void>
+  set<K extends StateKey<V>>(key: K, value: SharedStateUpdate<V[K]>): Promise<void>
   subscribe<K extends StateKey<V>>(key: K, listener: () => void): () => void
 }
 export interface StateRecord {
@@ -56,7 +62,6 @@ export interface StateRecord {
 export interface StateWrite {
   readonly scope: string
   readonly id: string
-  readonly writerRevision: string
   readonly expectedRevision: number
   readonly operationId: string
   readonly value: Json
@@ -248,46 +253,27 @@ export function normalize(
     }
   }
 }
-/** Concrete objects replace known fields recursively; null, omissions and arrays clear atomically. */
-export function preserve(
-  node: StateNode,
-  current: unknown,
-  supplied: Json | undefined,
-): Json | undefined {
-  if (node.kind === 'nullable' || node.kind === 'optional' || node.kind === 'default')
-    return preserve(node.inner, current, supplied)
-  if (node.kind !== 'object' || !isObject(supplied)) return supplied
+/** Omitted object properties are always preserved. Arrays, scalars and null replace explicitly. */
+export function mergeStateValue(current: unknown, supplied: Json): Json {
+  if (!isObject(supplied)) return structuredClone(supplied)
   const output: Record<string, Json> = isObject(current)
     ? (structuredClone(current) as Record<string, Json>)
     : {}
-  for (const [key, child] of Object.entries(node.fields)) {
-    const next = preserve(
-      child,
-      Object.hasOwn(output, key) ? output[key] : undefined,
-      Object.hasOwn(supplied, key) ? supplied[key] : undefined,
-    )
-    if (next === undefined) Reflect.deleteProperty(output, key)
-    else
-      Object.defineProperty(output, key, {
-        value: next,
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
+  for (const [key, value] of Object.entries(supplied)) {
+    const next = mergeStateValue(Object.hasOwn(output, key) ? output[key] : undefined, value)
+    Object.defineProperty(output, key, {
+      value: next,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
   }
   return output
 }
-export function applyStateWrite(
-  canonical: StateContract,
-  writer: StateContract,
-  current: unknown,
-  value: unknown,
-): Json {
-  assertJson(value, writer.id)
-  const supplied = normalize(writer.node, value, writer.id)
-  const merged = preserve(writer.node, current, supplied)
-  const result = normalize(canonical.node, merged, canonical.id)
+export function applyStateWrite(schema: StateContract, current: unknown, value: unknown): Json {
+  assertJson(value, schema.id)
+  const result = normalize(schema.node, mergeStateValue(current, value), schema.id)
   if (result === undefined)
-    throw new SharedStateError('invalid-value', canonical.id, 'a state record cannot be undefined')
+    throw new SharedStateError('invalid-value', schema.id, 'A state record cannot be undefined')
   return result
 }

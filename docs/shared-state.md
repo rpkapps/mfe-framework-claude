@@ -28,13 +28,13 @@ import { useSharedState } from '#mfe/shared-state'
 function RunPicker() {
   const [selection, setSelection] = useSharedState('well:active-selection')
   async function choose(runId: string) {
-    if (selection) await setSelection({ wellId: selection.wellId, runId })
+    if (selection) await setSelection({ runId })
   }
   // Render selection and handle setter rejections in your interaction UI.
 }
 ```
 
-Keys and values are inferred from the declaration, including defaults. Setters accept materialized values, publish valid optimistic changes immediately, and resolve only after the persistence adapter reports durable acceptance. Invalid values reject without publication. Reads are immutable; setters accept values, without patch, functional-updater or per-call persistence options.
+Keys and values are inferred from the declaration, including defaults. Setters accept partial object updates, complete arrays or scalar values, publish valid optimistic changes immediately, and resolve only after the persistence adapter reports durable acceptance. Invalid values reject without publication. Reads are immutable and fully materialized. Setters merge supplied object fields; they have no functional-updater or per-call persistence options. The first object update must provide required fields that have neither an existing value nor a schema default.
 
 For the framework's TanStack Router, import its generated context types and keep the supplied context:
 
@@ -118,52 +118,49 @@ const { runtime } = createMfeRuntime({
   // Existing shell options ...
   sharedState: {
     scope: opaqueTenantUserWorkspaceIdentity,
-    contracts: currentContracts,
-    supportedContracts: [olderContracts],
+    schema: compiledSharedStateSchema,
     adapter: durableBackendAdapter,
     onError: reportSharedStateFailure,
   },
 })
 ```
 
-`contracts` supplies the current compiled contract for each shared-state key. These revisions are accepted automatically. `supportedContracts` is optional: supply additional compiled revisions only while deployed MFEs still use them. If every MFE uses the current contracts, omit it.
+`schema` is the latest compiled shared-state schema from your contract package or build artifacts. Consumers still author `sharedStateSchema`; their generated bindings contain types and key references. The runtime and backend need only the current compiled schema. There is no runtime list of older contracts.
 
-The current shape cannot identify which fields an older writer knows. For example, omitting a known optional field means deletion, while an older writer omitting a field it never knew means preservation. Keeping the older writer contract makes those intentions distinguishable. Compile manifests from the shared schemas; do not maintain revision metadata by hand.
+Updates merge recursively into the existing record and validate the complete result against this schema. Older, backward-compatible consumers can keep using their declared keys. Schema fingerprints remain build metadata; they are not a runtime allowlist. Release checks must establish backward compatibility before deploying a schema or consumer. Unknown keys and unsupported protocol versions still fail before mount.
 
-The deployment chooses the current contracts and explicit support window. The first mounted app cannot choose them. Required hydration and revision checks finish before rendering or router creation. Missing records may materialize declared defaults, without persisting on mount. Invalid records fail hydration and retain their persisted data; recovery must be explicit.
+Reads return the current complete snapshot, including additive fields newer consumers introduced. Older consumers may ignore those extra fields; a strict authoring schema is not reapplied to the snapshot at runtime. Missing records may materialize declared defaults without persisting on mount. Invalid records fail hydration and retain their persisted data; recovery must be explicit.
 
 The shell calls `runtime.sharedState.setScope(nextOpaqueIdentity)` and remounts affected surfaces when tenant, user or workspace changes. Old bindings become unusable, pending promises reject, subscriptions are removed, and late hydration/write responses cannot reach the new scope. Collaborative workspace state requires its own configured scope; it is not automatically shared between users.
 
-`@company/mfe-runtime/shared-state` exports the structural protocol and `createSharedStateBackend`. Supply a `SharedStateRepository` with `read` and a **transactional, durable** `transact` operation, plus authenticated read/write authorization. The server resolves writer descriptors from its trusted registry, validates the current canonical record and the resulting value, stores an idempotency receipt, and returns the authoritative record. Its promise must resolve after commit. Map transport conflicts and cancellation to the protocol, and provide an optional subscription for authoritative records.
+`@company/mfe-runtime/shared-state` exports the structural protocol and `createSharedStateBackend`. Supply a `SharedStateRepository` with `read` and a **transactional, durable** `transact` operation, plus authenticated read/write authorization. The server uses its current compiled schema, validates the existing record and the merged result, stores an idempotency receipt, and returns the authoritative record. Its promise must resolve after commit. Map transport conflicts and cancellation to the protocol, and provide an optional subscription for authoritative records.
 
-The write envelope carries scope, ID, writer contract revision, expected record revision, operation ID and value. A compare-and-swap conflict rejects and refreshes without retrying the stale user intention. Local queued intentions keep their original expected revisions, so a remote change cannot silently overwrite a newer record. Clients replay newer optimistic intentions over older authoritative responses; scope cancellation does not depend on the adapter honoring abort.
+The write envelope carries scope, ID, expected record revision, operation ID and the supplied update. It carries no writer schema or field mask. A compare-and-swap conflict rejects and refreshes without retrying the stale user intention. Local queued intentions keep their original expected revisions, so a remote change cannot silently overwrite a newer record. Clients replay newer optimistic intentions over older authoritative responses; scope cancellation does not depend on the adapter honoring abort.
 
 Test helpers deliberately use memory and make no persistence guarantee. Production has no public memory-persistence selection and no offline/queued-acceptance substitute for a durable setter result.
 
-## Mixed-version writes
+## Merge-only writes
 
-**Setting a concrete object replaces fields described by the writer's contract and preserves newer fields outside it.** Old strict schemas read a projected view before validation; reading never writes that view back.
+Object updates are partial and merge recursively. Every omitted property stays unchanged, including optional properties and defaulted properties. Defaults are materialized only where the merged value has no existing property. There is no property deletion operation.
 
-| Operation                            | Result                                                         |
-| ------------------------------------ | -------------------------------------------------------------- |
-| Known scalar                         | Replace                                                        |
-| Unknown omitted field                | Preserve                                                       |
-| Known optional field omitted         | Remove                                                         |
-| Known defaulted field omitted        | Materialize its deterministic default                          |
-| Nested concrete object               | Replace known fields recursively; preserve unknown descendants |
-| Explicit null at a nullable boundary | Clear that complete subtree, including newer descendants       |
-| Omitted known optional object        | Remove that complete subtree                                   |
-| Array                                | Replace atomically                                             |
-
-New defaulted fields appear in the effective canonical view and persist on the next accepted write. Domain logic still owns dependent-field resets: preserving a comparison field while changing the well may preserve a semantically stale selection.
-
-Run the executable two-MFE example after building:
-
-```sh
-node tools/shared-state/example.mjs
+```ts
+// Existing: { wellId: '42', runId: '7', comparisonMode: 'overlay' }
+await store.set('well:active-selection', { runId: '8' })
+// Result:   { wellId: '42', runId: '8', comparisonMode: 'overlay' }
 ```
 
-It compiles two strict schema revisions independently, demonstrates a newer field surviving an old writer, verifies projected reads, and then clears the full state. The backend repository in this example is test-only; connect your durable database for deployment.
+| Supplied update  | Result                                             |
+| ---------------- | -------------------------------------------------- |
+| Object           | Merge supplied fields recursively                  |
+| Omitted property | Preserve existing value                            |
+| Scalar           | Replace that value                                 |
+| Array            | Replace the complete array, not individual items   |
+| Explicit null    | Set the value to null, if nullable                 |
+| Undefined        | Reject; it is not finite JSON or a deletion marker |
+
+Null is an explicit value/reset, and array replacement is atomic. Neither omitted keys nor an empty object deletes existing fields. Domain logic owns dependent-field resets: changing a well does not automatically reset its comparison mode.
+
+Run `node tools/shared-state/example.mjs` after building. The example independently compiles old/new consumer schemas, configures only the latest schema on the shell/backend and demonstrates that an old consumer update preserves newer fields. Both consumers see the complete shared record.
 
 ## Contract packages, release checks and diagnostics
 
@@ -175,11 +172,11 @@ Local exported const schemas can refer to other local schema consts and relative
 { "schemas": { "sharedStateSchema": { "formatVersion": 1, "contracts": [] } } }
 ```
 
-Populate contracts with `compileSharedState` from `@company/mfe-build/shared-state`; each artifact contains its validated shape and deterministic SHA-256 revision. Publish these artifacts immutably with the domain package. Source locations appear in compiler diagnostics and stay out of runtime payloads.
+Populate contracts with `compileSharedState` from `@company/mfe-build/shared-state`; each artifact contains its validated shape and deterministic SHA-256 revision. Publish these artifacts immutably with the domain package; export the current compiled schema separately from Zod authoring code so the shell does not need Zod. Source locations appear in compiler diagnostics and stay out of runtime payloads.
 
-Production builds declaring state require `sharedStatePolicy: './deployment/shared-state-policy.json'` in their build options. The file contains `contracts`, `supportedContracts` and explicit `baselines` manifests. Empty baselines declare a first release; missing/unreadable policy is an error. Publishing CI must provide the trusted published baselines rather than allowing an app to rewrite its support history. `checkSharedStateRelease` and `compareContracts` expose the same checks for editor and publishing integrations. Lint suppression cannot bypass the production release gate.
+Production builds declaring state require `sharedStatePolicy: './deployment/shared-state-policy.json'` in their build options. The file contains the latest compiled `schema` and explicit `baselines` manifests. Empty baselines declare a first release; missing/unreadable policy is an error. Publishing CI must provide the trusted published baselines rather than allowing an app to rewrite its support history. `checkSharedStateRelease` and `compareContracts` expose the same checks for editor and publishing integrations. Lint suppression cannot bypass the production release gate.
 
-Optional/defaulted additions within concrete objects are compatible. Required additions, removals/renames, type/default/constraint/enum/nullability changes and changes within atomic array elements fail automatic approval. A root ID addition does not invalidate other keys. Diagnostics include rule, ID, property path, old/new shape and a repair. Use a new key with an explicit bridge for breaking changes, or retire incompatible consumers through a coordinated rollout. Structural checking cannot establish whether an ID was reused for a different domain meaning.
+Optional/defaulted additions within objects are compatible. Required additions, removals/renames, type/default/constraint/enum/nullability changes and changes within atomic array elements fail automatic approval. A root ID addition does not invalidate other keys. Diagnostics include rule, ID, property path, old/new shape and a repair. Use a new key with an explicit bridge for breaking changes, or retire incompatible consumers through a coordinated rollout. Structural checking cannot establish whether an ID was reused for a different domain meaning.
 
 Generated deployment output includes a lightweight shared-state index and one JSON artifact per required key/revision. Repeated revisions are deduplicated within a container. Bindings contain types and definition identity, not a contract collection or compiler; production definitions contain references. The shell can load and cache artifacts by revision before configuring shared state. Compiler, compatibility baselines and Zod authoring code introduced solely by this declaration stay out of the consumer runtime graph.
 
@@ -211,6 +208,6 @@ Run `node tools/shared-state/measure.mjs` after building. These esbuild 0.28.2 f
 | same-revision   |             463 | 487 / 233 / 187              | 257 / 191 / 156               |         1 |
 | mixed-revisions |             496 | 484 / 280 / 233              | 584 / 254 / 217               |         2 |
 
-The standalone shell store and validator bundle measures 10333 raw, 3694 gzip and 3283 Brotli bytes. These rows overlap with full framework package bundles and must not be summed with them. The inspected graphs contain no compiler, baseline history or Zod authoring modules. Generated payload tests verify one copy per revision per container.
+The standalone shell store and validator bundle measures 9662 raw, 3510 gzip and 3111 Brotli bytes. These rows overlap with full framework package bundles and must not be summed with them. The inspected graphs contain no compiler, baseline history or Zod authoring modules. Generated payload tests verify one copy per revision per container.
 
-Measured fixture budgets: at most 400 declaration bytes per app, one artifact per distinct revision per container, and zero retained authoring validators. The script enforces the declaration budget and graph exclusion. Timing is reported separately for in-process hydration, cached reads and projecting 10,000 items; it is machine/load-dependent and excludes network/database latency, so no universal timing budget is claimed.
+Measured fixture budgets: at most 400 declaration bytes per app, one artifact per distinct revision per container, and zero retained authoring validators. The script enforces the declaration budget and graph exclusion. Timing is reported separately for in-process hydration, cached reads, validating 10,000 items and notifying 1,000 subscribers; it is machine/load-dependent and excludes network/database latency, so no universal timing budget is claimed.

@@ -56,14 +56,15 @@ const current = {
 // Executable protocol fixtures, shared semantics browser and backend call through applyStateWrite.
 const fixtures = [
   {
-    name: 'preserves newer fields recursively and deletes omitted known optional fields',
+    name: 'merges objects recursively without deleting any omitted fields',
     supplied: { well: 'well-43', details: { run: 'run-8' }, items: ['three'] },
     expected: {
       well: 'well-43',
+      note: 'remove',
       comparison: 'baseline',
-      details: { run: 'run-8', mode: 'overlay' },
+      details: { run: 'run-8', label: 'remove', mode: 'overlay' },
       items: ['three'],
-      units: 'metric',
+      units: 'imperial',
     },
   },
   {
@@ -71,23 +72,24 @@ const fixtures = [
     supplied: { well: 'well-42', details: null, items: [] },
     expected: {
       well: 'well-42',
+      note: 'remove',
       comparison: 'baseline',
       details: null,
       items: [],
-      units: 'metric',
+      units: 'imperial',
     },
   },
   {
-    name: 'omitted optional object clears the subtree',
+    name: 'omitted optional object and defaults are preserved',
     supplied: { well: 'well-42', items: [] },
-    expected: { well: 'well-42', comparison: 'baseline', items: [], units: 'metric' },
+    expected: { ...current, items: [] },
   },
   { name: 'null clears the complete state', supplied: null, expected: null },
 ]
 describe('shared-state wire conformance', () => {
   for (const fixture of fixtures)
     it(fixture.name, () =>
-      expect(applyStateWrite(next, old, current, fixture.supplied)).toEqual(fixture.expected),
+      expect(applyStateWrite(next, current, fixture.supplied)).toEqual(fixture.expected),
     )
   it('projects before strict validation and never mutates canonical reads', () => {
     const before = structuredClone(current)

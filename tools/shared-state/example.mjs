@@ -36,8 +36,7 @@ const repository = {
   },
 }
 const backend = createSharedStateBackend({
-  contracts: v2,
-  supportedContracts: [v1],
+  schema: v2,
   repository,
   authorize: async scope => {
     assert.equal(scope, 'tenant/user/workspace')
@@ -45,8 +44,7 @@ const backend = createSharedStateBackend({
 })
 const service = new SharedStateRuntime({
   scope: 'tenant/user/workspace',
-  contracts: v2,
-  supportedContracts: [v1],
+  schema: v2,
   adapter: backend,
 })
 await service.prepare(requirementsFor(v1))
@@ -56,7 +54,7 @@ const id = 'well:active-selection'
 assert.equal(records.size, 0) // Reading a default does not persist anything.
 await newMfe.set(id, { wellId: 'well-42', runId: 'run-7', comparisonMode: 'overlay' })
 await oldMfe.set(id, { wellId: 'well-42', runId: 'run-8' })
-assert.deepEqual(oldMfe.get(id), { wellId: 'well-42', runId: 'run-8' })
+assert.deepEqual(oldMfe.get(id), { wellId: 'well-42', runId: 'run-8', comparisonMode: 'overlay' })
 assert.deepEqual(newMfe.get(id), { wellId: 'well-42', runId: 'run-8', comparisonMode: 'overlay' })
 console.log('Old MFE:', oldMfe.get(id))
 console.log('New MFE:', newMfe.get(id))

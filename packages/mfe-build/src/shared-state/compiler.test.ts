@@ -143,31 +143,24 @@ describe('shared-state contract compiler and release gate', () => {
     )
     expect(() =>
       checkSharedStateRelease([candidate, previous], {
-        contracts: candidate,
+        schema: candidate,
         baselines: [previous],
-        supportedContracts: [previous],
       }),
     ).not.toThrow()
     expect(() =>
-      checkSharedStateRelease([previous], {
-        contracts: candidate,
-        baselines: [previous],
-        supportedContracts: [],
-      }),
-    ).toThrow('unsupported-revision')
+      checkSharedStateRelease([previous], { schema: candidate, baselines: [previous] }),
+    ).not.toThrow()
     expect(() =>
       checkSharedStateRelease([candidate], {
-        contracts: { formatVersion: 1, contracts: [] },
+        schema: { formatVersion: 1, contracts: [] },
         baselines: [previous],
-        supportedContracts: [],
       }),
     ).toThrow('missing-contract')
     const incompatible = compile(base.replace('wellId: z.string()', 'wellId: z.number()'))
     expect(() =>
       checkSharedStateRelease([incompatible], {
-        contracts: incompatible,
+        schema: incompatible,
         baselines: [previous],
-        supportedContracts: [previous],
       }),
     ).toThrow('incompatible-change')
     expect(() => validateArtifact({ ...candidate.contracts[0]!, revision: 'tampered' })).toThrow(

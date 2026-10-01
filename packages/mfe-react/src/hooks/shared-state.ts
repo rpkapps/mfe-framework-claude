@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import {
   SharedStateError,
   type SharedStateSetter,
+  type SharedStateUpdate,
   type SharedStateStore,
   type StateKey,
 } from '@company/mfe-core/shared-state'
@@ -26,7 +27,7 @@ export function createSharedStateBindings<V>(definitionId: string) {
       [store, key],
     )
     const getSnapshot = useCallback(() => store.get(key), [store, key])
-    const set = useCallback((value: V[K]) => store.set(key, value), [store, key])
+    const set = useCallback((value: SharedStateUpdate<V[K]>) => store.set(key, value), [store, key])
     return [useSyncExternalStore(subscribe, getSnapshot), set]
   }
   return { useSharedState, useSharedStateStore }

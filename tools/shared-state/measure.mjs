@@ -103,13 +103,18 @@ const node = {
   item: { kind: 'object', strict: true, fields: { id: { kind: 'string' } } },
 }
 const start = performance.now()
-for (let count = 0; count < 100; count++) normalize(node, items, 'benchmark', true)
-const projectionMs = (performance.now() - start) / 100
+for (let count = 0; count < 100; count++) normalize(node, items, 'benchmark')
+const validationMs = (performance.now() - start) / 100
+let publish
 const service = new SharedStateRuntime({
   scope: 'benchmark',
-  contracts: old.manifest,
+  schema: old.manifest,
   adapter: {
     hydrate: async () => [{ id: 'selection', revision: 0 }],
+    subscribe: (_scope, listener) => {
+      publish = listener
+      return () => {}
+    },
     write: async () => {
       throw new Error('read benchmark')
     },
@@ -122,6 +127,15 @@ const store = service.bind(old.refs)
 const cachedStart = performance.now()
 for (let count = 0; count < 100000; count++) store.get('selection')
 const cachedReadMicroseconds = ((performance.now() - cachedStart) * 1000) / 100000
+let notifications = 0
+for (let count = 0; count < 1000; count++)
+  store.subscribe('selection', () => {
+    notifications++
+  })
+const notifyStart = performance.now()
+publish({ id: 'selection', revision: 1, value: { id: '42' } })
+const notify1000SubscribersMs = performance.now() - notifyStart
+assert.equal(notifications, 1000)
 service.dispose()
 console.log(
   JSON.stringify(
@@ -130,9 +144,10 @@ console.log(
       esbuildVersion: requireBuild('esbuild/package.json').version,
       measurements,
       timing: {
-        projection10000ItemsMs: projectionMs,
+        validation10000ItemsMs: validationMs,
         inProcessHydrationMs: hydrationMs,
         cachedReadMicroseconds,
+        notify1000SubscribersMs,
       },
       budgets: {
         declarationBytesPerApp: 400,

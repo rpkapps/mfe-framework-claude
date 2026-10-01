@@ -60,7 +60,6 @@ const units: StateContract = {
   },
 }
 const contracts = { formatVersion: 1 as const, contracts: [current, units] }
-const supportedContracts = [{ formatVersion: 1 as const, contracts: [old] }]
 const refs = (contract: StateContract) => ({
   protocolVersion: 1 as const,
   contracts: [{ id: contract.id, revision: contract.revision }],
@@ -71,8 +70,7 @@ function setup(adapterOverride?: (adapter: SharedStateAdapter) => SharedStateAda
     Promise.resolve(),
   )
   const backend = createSharedStateBackend({
-    contracts,
-    supportedContracts,
+    schema: contracts,
     repository: storage.repository,
     authorize,
   })
@@ -80,8 +78,7 @@ function setup(adapterOverride?: (adapter: SharedStateAdapter) => SharedStateAda
   const onError = vi.fn()
   const runtime = new SharedStateRuntime({
     scope: 'tenant/user/workspace',
-    contracts,
-    supportedContracts,
+    schema: contracts,
     adapter,
     onError,
   })
@@ -98,7 +95,7 @@ function deferred<T>() {
 }
 
 describe('shell-owned shared state', () => {
-  it('supports old/new strict views and preserves newer fields on authoritative writes', async () => {
+  it('accepts old consumer revisions using only the latest schema and preserves newer fields', async () => {
     const { runtime, records } = setup()
     await runtime.prepare({
       protocolVersion: 1,
@@ -120,10 +117,12 @@ describe('shell-owned shared state', () => {
     expect(newer.get('selection')?.comparison).toBe('overlay') // optimistic, before await
     await initial
     const snapshot = older.get('selection')
-    expect(snapshot).toEqual({ wellId: '42', runId: '7' })
+    expect(snapshot).toEqual({ wellId: '42', runId: '7', comparison: 'overlay' })
     expect(older.get('selection')).toBe(snapshot)
     await older.set('selection', { wellId: '42', runId: '8' })
     expect(newer.get('selection')).toEqual({ wellId: '42', runId: '8', comparison: 'overlay' })
+    await newer.set('selection', { runId: '9' })
+    expect(newer.get('selection')).toEqual({ wellId: '42', runId: '9', comparison: 'overlay' })
     expect(untouched).not.toHaveBeenCalled()
     expect(changed).toHaveBeenCalled()
     expect(Object.isFrozen(newer.get('selection'))).toBe(true)
@@ -170,7 +169,6 @@ describe('shell-owned shared state', () => {
       {
         scope: 'tenant/user/workspace',
         id: 'units',
-        writerRevision: 'units',
         expectedRevision: 0,
         operationId: 'external',
         value: 'imperial',
@@ -250,7 +248,7 @@ describe('shell-owned shared state', () => {
     await pending
     runtime.dispose()
   })
-  it('keeps a projected snapshot identity when only another revision’s hidden field changes', async () => {
+  it('shares the latest snapshot across consumer revisions and keeps unchanged snapshot identity', async () => {
     const { runtime } = setup()
     await runtime.prepare(refs(old))
     const older = runtime.bind(refs(old))
@@ -258,7 +256,10 @@ describe('shell-owned shared state', () => {
     await newer.set('selection', { wellId: '42', runId: null, comparison: 'a' })
     const snapshot = older.get('selection')
     await newer.set('selection', { wellId: '42', runId: null, comparison: 'b' })
-    expect(older.get('selection')).toBe(snapshot)
+    expect(older.get('selection')).not.toBe(snapshot)
+    const updated = older.get('selection')
+    await newer.set('selection', { comparison: 'b' })
+    expect(older.get('selection')).toBe(updated)
     runtime.dispose()
   })
   it('retains canonical state through binding disposal and remount and supports structural copies', async () => {
@@ -278,18 +279,16 @@ describe('shell-owned shared state', () => {
     expect(() =>
       service.bind({ protocolVersion: 2, contracts: [] } as unknown as ReturnType<typeof refs>),
     ).toThrow('protocol 1')
-    expect(() => service.bind(refs({ ...units, revision: 'unsupported' }))).toThrow(
-      'support window',
-    )
+    expect(service.bind(refs({ ...units, revision: 'older' })).get('units')).toBe('imperial')
+    expect(() => service.bind(refs({ ...units, id: 'unknown' }))).toThrow('State ID')
     runtime.dispose()
   })
-  it('server derives preservation from its trusted registry, enforces authorization and deduplicates receipts', async () => {
+  it('server validates merged updates against the latest schema, enforces authorization and deduplicates receipts', async () => {
     const { backend, records, authorize } = setup()
     const signal = new AbortController().signal
     const operation: StateWrite = {
       scope: 'tenant/user/workspace',
       id: 'selection',
-      writerRevision: 'new',
       expectedRevision: 0,
       operationId: '1',
       value: { wellId: '42', runId: '7', comparison: 'overlay' },
@@ -299,7 +298,6 @@ describe('shell-owned shared state', () => {
       {
         ...operation,
         operationId: '2',
-        writerRevision: 'old',
         expectedRevision: 1,
         value: { wellId: '42', runId: '8' },
       },
@@ -312,7 +310,7 @@ describe('shell-owned shared state', () => {
       comparison: 'overlay',
     })
     await expect(
-      backend.write({ ...operation, operationId: '3', writerRevision: 'untrusted-mask' }, signal),
+      backend.write({ ...operation, id: 'unknown', operationId: '3' }, signal),
     ).rejects.toMatchObject({ code: 'shared-state/unsupported-contract' })
     await expect(backend.write({ ...operation, value: null }, signal)).rejects.toThrow('reused')
     authorize.mockRejectedValueOnce(new Error('forbidden'))

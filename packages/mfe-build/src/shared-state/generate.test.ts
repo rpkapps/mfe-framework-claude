@@ -50,10 +50,7 @@ describe('shared-state generated bindings and production pipeline', () => {
     expect(() => checkSharedStateBuild(plan, false)).not.toThrow()
     expect(() => checkSharedStateBuild(plan, true)).toThrow('missing-baseline')
     const policyFile = join(root, 'state-policy.json')
-    writeFileSync(
-      policyFile,
-      JSON.stringify({ baselines: [], supportedContracts: [], contracts: manifest() }),
-    )
+    writeFileSync(policyFile, JSON.stringify({ baselines: [], schema: manifest() }))
     expect(() =>
       checkSharedStateBuild(
         planContainer(profile, { containerRoot: root, sharedStatePolicy: 'state-policy.json' }),
@@ -104,7 +101,7 @@ describe('shared-state generated bindings and production pipeline', () => {
     const file = join(directory, 'types.ts')
     writeFileSync(
       file,
-      `import {useSharedState, type SharedStateValues, type AppRouterOptions} from './shared-state'; import {createApp} from '@company/mfe-react'; function component(){ const [units,set]=useSharedState('units'); const materialized: 'metric' | 'imperial' = units; void set('imperial');\n// @ts-expect-error unknown key\nuseSharedState('unknown');\n// @ts-expect-error incorrect enum\nset('wrong');\nconst [selection,setSelection]=useSharedState('selection'); void setSelection({id:'42',run:null});\n// @ts-expect-error required materialized run missing\nsetSelection({id:'42'});\nreturn selection;}\nfunction makeRouter({context}:AppRouterOptions){ const units:'metric'|'imperial'=context.mfe.sharedState.get('units'); void context.mfe.sharedState.set('selection',null); return {} as import('@tanstack/react-router').AnyRouter;} createApp({id:'reader',router:makeRouter});`,
+      `import {useSharedState, type SharedStateValues, type AppRouterOptions} from './shared-state'; import {createApp} from '@company/mfe-react'; function component(){ const [units,set]=useSharedState('units'); const materialized: 'metric' | 'imperial' = units; void set('imperial');\n// @ts-expect-error unknown key\nuseSharedState('unknown');\n// @ts-expect-error incorrect enum\nset('wrong');\nconst [selection,setSelection]=useSharedState('selection'); void setSelection({id:'42',run:null});\nsetSelection({id:'42'});\n// @ts-expect-error materialized read still requires run\nconst invalidRead: SharedStateValues['selection'] = {id:'42'};\nreturn selection;}\nfunction makeRouter({context}:AppRouterOptions){ const units:'metric'|'imperial'=context.mfe.sharedState.get('units'); void context.mfe.sharedState.set('selection',null); return {} as import('@tanstack/react-router').AnyRouter;} createApp({id:'reader',router:makeRouter});`,
     )
     const repository = resolve(import.meta.dirname, '../../../..')
     const program = ts.createProgram([file], {

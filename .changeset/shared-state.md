@@ -8,6 +8,6 @@
 '@company/mfe-nx': minor
 ---
 
-Add compiled shared-state contracts, typed React and Angular bindings, router-accessible stores, scoped shell-owned state and a transactional persistence protocol. Mixed-version writes preserve unknown object fields, while production build gates reject unsupported evolution. Include generated artifacts, optional editor diagnostics, a reference backend, documentation and reproducible production measurements.
+Add compiled shared-state contracts, typed React and Angular bindings, router-accessible stores, scoped shell-owned state and a transactional persistence protocol. Mixed-version writes merge objects without deleting omitted fields, while production build gates reject unsupported evolution. Include generated artifacts, optional editor diagnostics, a reference backend, documentation and reproducible production measurements.
 
-Configure current shared-state manifests with `contracts` and optional older consumer revisions with `supportedContracts`. These names apply consistently to the runtime, reference backend and release policy.
+Configure `sharedState.schema` with the latest compiled schema. Runtime history lists and writer revision envelopes are removed; backward compatibility is enforced in build/release tooling. Object setters accept partial updates and merge recursively before validation in both browser and backend.

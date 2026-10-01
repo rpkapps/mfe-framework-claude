@@ -40,7 +40,7 @@ function options() {
   }
   return {
     scope: 'user/workspace',
-    contracts: { formatVersion: 1 as const, contracts: [contract] },
+    schema: { formatVersion: 1 as const, contracts: [contract] },
     adapter,
   }
 }
