@@ -1,11 +1,12 @@
 {
-  "title": "How it works",
+  "title": "Architecture & decisions",
   "defaultOpen": false,
   "pages": [
     "design",
     "the-mount-lifecycle",
     "the-isolation-boundaries",
     "adapters-and-legacy-angular",
+    "shared-state",
     "decisions"
   ]
 }

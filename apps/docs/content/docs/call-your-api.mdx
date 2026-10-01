@@ -3,8 +3,18 @@ title: 'Call your API'
 description: 'Use the generated #mfe/fetch to send requests that carry the shell session token.'
 ---
 
-Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
+Apps and Widgets, in React and Angular. Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
 API base and attaches the shell's session token. The browser's own `fetch` is left alone.
+
+<Diagram
+  src="/diagrams/capability-requests.svg"
+  alt="How React and Angular containers connect to the shell for requests."
+  caption="How your container connects to the shell"
+>
+  Both frameworks import the same `#mfe/fetch` module. It resolves relative URLs against your
+  configured API base. The shell supplies the current token for declared API origins. Your API
+  receives the request and authorizes it.
+</Diagram>
 
 ## Steps
 
@@ -14,9 +24,24 @@ API base and attaches the shell's session token. The browser's own `fetch` is le
 
 ### 1. Import the generated fetch
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/queries/assets.ts"
 import { fetch } from '#mfe/fetch'
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/inspections.ts (adapted)"
+import { fetch } from '#mfe/fetch'
+```
+
+The generated fetch has the same behavior in Angular. Existing `HttpClient` calls can use the [authentication interceptor setup](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-angular/README.md#authenticated-httpclient-calls).
+
+</Tab>
+</Tabs>
 
 Every container has this module, whether or not it declares configuration.
 

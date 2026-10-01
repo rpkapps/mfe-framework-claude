@@ -12,16 +12,39 @@ declare `migrate` beside it, and the next read converts the old record. Apps and
 <Step>
 ### 1. Raise the version and convert
 
-```ts
-const [draft] = useStoredState('draft', draftSchema, {
+```ts title="Illustrative shared migration options"
+const draftOptions = {
   defaultValue: { note: '', pinned: false },
   version: 2,
-  migrate: (value, fromVersion) =>
+  migrate: (value: unknown, fromVersion: number) =>
     fromVersion === 0
       ? { note: '', pinned: false }
       : { note: (value as { text: string }).text, pinned: false },
-})
+}
 ```
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="Illustrative React component body"
+import { useStoredState } from '@company/mfe-react'
+
+const [draft] = useStoredState('draft', draftSchema, draftOptions)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectStoredState } from '@company/mfe-angular'
+
+readonly draft = injectStoredState('draft', draftSchema, draftOptions)
+```
+
+</Tab>
+</Tabs>
+
+Declare `draftSchema` and `draftOptions` at module scope. Both frameworks use the same migration options.
 
 `version` starts at `1` and is an integer. Raise it whenever the stored shape changes.
 
@@ -33,8 +56,7 @@ const [draft] = useStoredState('draft', draftSchema, {
 if (fromVersion === 0) return { note: '', pinned: false }
 ```
 
-A record that is valid JSON but was not written by the framework arrives as `fromVersion` 0. That
-covers anything written before this boundary existed.
+Older, unversioned JSON arrives as `fromVersion` 0. Handle those records explicitly in your migration.
 
 </Step>
 <Step>

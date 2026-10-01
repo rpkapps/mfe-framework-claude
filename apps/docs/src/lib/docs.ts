@@ -15,13 +15,17 @@ export const docs = defineDocs({
 })
 
 /**
- * Two Markdown files that live in the repository and are rendered, never copied: `docs/design.md`
- * is the canonical design map and `docs/decisions.md` is the decision log. A collection takes one
- * `dir`, so they are a second collection merged into the same page tree by `source.ts`, which
+ * Repository Markdown files are rendered, never copied: the design map, decision log and
+ * shared-state protocol. A collection takes one `dir`, so a second collection is merged into
+ * the same page tree by `source.ts`, which
  * maps them into the `how-it-works` folder.
  */
 export const repoDocs = defineDocs({
   dir: '../../docs',
-  docs: { async: true, files: ['design.md', 'decisions.md'], schema: repoPageSchema },
+  docs: {
+    async: true,
+    files: ['design.md', 'decisions.md', 'shared-state.md'],
+    schema: repoPageSchema,
+  },
   meta: { files: [] },
 })

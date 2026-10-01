@@ -120,6 +120,7 @@ const RECIPES = [
 /** `docs/design.md` and `docs/decisions.md` are mapped into this folder by `src/lib/source.ts`. */
 const HOW_IT_WORKS = [
   'design',
+  'shared-state',
   'the-mount-lifecycle',
   'the-isolation-boundaries',
   'adapters-and-legacy-angular',
@@ -146,6 +147,8 @@ const PAGES = [
   '/',
   '/docs',
   '/docs/architecture',
+  '/docs/capabilities',
+  '/docs/troubleshooting',
   '/docs/quickstart',
   '/docs/tutorial',
   ...RECIPES.map(name => `/docs/${name}`),

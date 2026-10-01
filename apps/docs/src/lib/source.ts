@@ -13,13 +13,14 @@ import { REPO_DOCS_DIR } from './repo-page.ts'
 export type DocEntry = (typeof docs.docs)[number] | (typeof repoDocs.docs)[number]
 
 /**
- * `fumadocs-mdx` gives one collection one directory, and `docs/design.md` and
- * `docs/decisions.md` live outside `content/docs`. Concatenating the two virtual file lists puts
+ * `fumadocs-mdx` gives one collection one directory. The repository design, decisions and
+ * shared-state protocol live outside `content/docs`. Concatenating the two virtual file lists puts
  * them in the same tree, so a `meta.json` can order them beside the written pages.
  *
  * `baseDir` prefixes the second list's virtual paths with `how-it-works/`, and the loader derives
- * both the slug and the folder from that path: the two files become
- * `/docs/how-it-works/design` and `/docs/how-it-works/decisions`, ordered by
+ * both the slug and the folder from that path: the repository files become
+ * `/docs/how-it-works/design`, `/docs/how-it-works/decisions` and
+ * `/docs/how-it-works/shared-state`, ordered by
  * `content/docs/how-it-works/meta.json`. The files themselves are untouched.
  */
 const merged: StaticSource<{ pageData: DocEntry; metaData: MetaData }> = {

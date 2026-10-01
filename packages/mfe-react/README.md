@@ -18,59 +18,19 @@ An application imports this package alone — its root, `/host`, `/registry` or
 `/testing/mfe-config` and `/testing/mfe-fetch` stand in for a container's
 generated `#mfe/config` and `#mfe/fetch` in its tests.
 
-## An App, a Widget, and placing them
+## Author guides and API reference
 
-```ts
-// src/mfe.ts
-export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
-```
+Use the task guides for complete examples and the reference for exact contracts:
 
-The App owns its router. `makeRouter({ basePath, history, context })` passes
-`basePath` to `createRouter({ basepath })` and the supplied `history` and
-`context` through unchanged; the first render checks all three and rejects the
-mount, naming the repair, when one is not what it supplied.
+| Task                              | Canonical documentation                                                                                                                                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Declare an App or Widget          | [Create an App](../../apps/docs/content/docs/create-an-app.mdx), [Create a Widget](../../apps/docs/content/docs/create-a-widget.mdx), [factory reference](../../apps/docs/content/docs/reference/create-app-and-create-widget.mdx)   |
+| Place a definition                | [Render a Widget](../../apps/docs/content/docs/render-a-widget.mdx), [embed an App](../../apps/docs/content/docs/embed-another-app.mdx), [host component reference](../../apps/docs/content/docs/reference/hooks-and-components.mdx) |
+| Read shell services               | [Hooks and components](../../apps/docs/content/docs/reference/hooks-and-components.mdx)                                                                                                                                              |
+| Register actions or agent context | [Add an action](../../apps/docs/content/docs/add-an-action.mdx), [tell the agent what is selected](../../apps/docs/content/docs/tell-the-agent-what-is-selected.mdx)                                                                 |
+| Test a definition                 | [Testing API](../../apps/docs/content/docs/reference/testing-api.mdx)                                                                                                                                                                |
 
-The factory runs again when a user signs in or out, or the user, account, tenant
-or groups change. Each App and Widget gets a fresh Query client and resets its
-component state; an App also gets a fresh router. Active queries reload, and
-route callbacks read the current shell state. Work still finishing with the old
-client cannot fill the new client's cache. Stored values remain. A theme or
-display-name change, token refresh, or reordered group list leaves the client
-and view state alone. Clear any user-dependent cache you keep outside the mount
-yourself.
-
-```tsx
-export const alertPanel = createWidget({
-  id: 'alert-panel',
-  ...alertPanelContract,
-  render: AlertPanel,
-})
-
-const Panel = lazyWidget('alert-panel', { contract: alertPanelContract }) // at module scope
-;<Panel alertId={id} onAcknowledged={ack} pending={<Skeleton />} fallback={Failed} />
-```
-
-`AppHost`, `mfeRoute`, `DynamicWidget` and the component `lazyWidget` returns
-render an empty element and hand it to the runtime's `mountDefinition`. They
-never ask which framework built the definition, so they place Angular
-definitions exactly as they place React ones.
-
-- **Nothing suspends.** `pending` fills the region while the container loads and
-  the definition mounts; `fallback({ error, retry, reload })` replaces it after a
-  failure. The defaults are a loading message and an error with details and the
-  retry or reload action the failure allows. Set `pending={null}` to leave the
-  region empty while loading.
-- **`retry()` acts only after a failure**, and a failed load is loaded afresh.
-- **A Widget is handed only inputs that changed**, and outputs reach the `onX`
-  prop their name maps to, then `onOutput`, with or without a contract.
-- **A rejected update keeps the last valid inputs on screen** and calls
-  `onInputRejected(error)`. A hint tells the user the update failed;
-  `inputFallback({ error })` replaces that hint with your own. The next valid
-  update clears it.
-- **Under StrictMode** the effect disposes the first mount before its load
-  settles, so a definition's `mount` runs once.
-- **`mfeRoute({ appId })`** delegates a splat route to another App and calls
-  `navigator.announce()` when its router's location changes.
+The site serves these guides under `/docs` when you run `pnpm docs:dev` from the repository root.
 
 ## Each definition in a React root of its own
 
@@ -89,6 +49,15 @@ So several React versions can share a page, and React context, Suspense and a
 host's error boundaries do not reach into a mounted definition. A container on
 another React version brings its own `sonner`, so its toasts do not reach the
 shell's `Toaster`.
+
+The App router factory runs again when a user signs in or out, or the user, account, tenant
+or groups change. Each App and Widget gets a fresh Query client and resets its
+component state; an App also gets a fresh router. Active queries reload, and
+route callbacks read the current shell state. Work still finishing with the old
+client cannot fill the new client's cache. Stored values remain. A theme or
+display-name change, token refresh, or reordered group list leaves the client
+and view state alone. Clear any user-dependent cache you keep outside the mount
+yourself.
 
 ## Booting a shell
 
@@ -121,125 +90,16 @@ recognises an entry whose `mfe` marker names `react`, and
 its `aroundLoad` hides TanStack Router's development global while a React
 container evaluates. `apps/shell/src/boot.tsx` is the worked example.
 
-## Hooks
-
-| Hook                                                | Gives                                                     |
-| --------------------------------------------------- | --------------------------------------------------------- |
-| `useUser()`, `useGroups()`, `useTheme()`            | one shell-state field each                                |
-| `useStoredState(name, schema, options)`             | validated state under the definition's storage scope      |
-| `useMfeStorage()`                                   | the imperative storage handle                             |
-| `useAction(registration)`                           | an action for the palette and the agent, and its run      |
-| `useAgentContext(registration)`                     | a snapshot of what is selected, sent with each agent turn |
-| `useAgentPrompt()`                                  | a function that hands a click to the shell's chat         |
-| `useAgentSuggestions(suggestions)`                  | prompts the chat offers while the component is mounted    |
-| `useBreadcrumbs(items)`                             | overrides the App's own breadcrumbs                       |
-| `useNavigationBlock(shouldBlock)`                   | a block for a mount with no router                        |
-| `useTelemetry()`, `useMfeSignal()`                  | the mount's telemetry and its disposal signal             |
-| `useBasePath()`, `useScopeRoot()`                   | the boundary, and the runtime's scope root for the mount  |
-| `useRegistryEntries()`, `useApps()`, `useWidgets()` | registry views for a host                                 |
+## Calling services from the shell
 
 Shell-state, storage, action, agent-context and breadcrumb hooks also work outside a mount,
 in the reserved `@host` scope, given an `MfeProvider` above them.
+Mount-only hooks require a definition's provider context.
+[Where each hook may be called](../../apps/docs/content/docs/reference/hooks-and-components.mdx#where-each-hook-may-be-called)
+is the authoritative scope table.
 
-`useAction` publishes an action to the palette and, unless its `placements` say
-otherwise, to the shell's agent as a tool. `description` is written for the
-agent, while `label` stays the menu text. `inputSchema` is one `z.object`,
-declared at module scope, that every call's input is parsed with before
-`execute` receives it; `outputSchema` checks the value `execute` returns.
-`effect` is `'read'`, `'write'` or `'destructive'`, and an undeclared one counts
-as `'write'`, so the agent asks the user before each call. `needsApproval`,
-`parallelSafe`, `timeoutMs` and `followUp` tune the agent's calls further.
-
-`execute(input, { signal })` also receives a signal, which aborts when the run
-is given up: an agent's call ran past its deadline (`timeoutMs`, 30 seconds by
-default, counted from when `execute` starts; it then fails with
-`action/timeout`), the component unmounted while it ran (`unavailable`), or the
-user pressed Stop in the chat (`cancelled`). The run has its result by then, and
-whatever `execute` still returns is dropped, so hand the signal to the work it
-waits on:
-
-```tsx
-useAction({
-  name: 'save-plan',
-  label: 'Save the plan',
-  inputSchema: planInput,
-  execute: async (plan, { signal }) => await savePlan(plan, { signal }),
-})
-```
-
-It returns a stable `ActionRun` with the caller `'ui'`, for the App's own
-button: a click shares `canExecute`, validation and the denial notice with the
-palette, the keys and the agent. The input is optional when the schema accepts
-`{}`. It runs this component's registration, even when another mount of the
-definition registered the same name; called before the component registered,
-from a child's effect, it waits for that registration. It never rejects, and
-resolves `unavailable` after the component unmounts, or as it unmounts while
-the run is still going. The package
-exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
-`ActionExecutionResult` as types.
-
-```tsx
-const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
-
-const runSimulation = useAction({
-  name: 'run-simulation',
-  label: 'Run the simulation',
-  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
-  inputSchema: simulationInput,
-  effect: 'read',
-  execute: ({ runs }) => simulate(runs),
-})
-
-return <Button onClick={() => void runSimulation({ runs: 10 })}>Run 10 times</Button>
-```
-
-An action can carry a `shortcut`: a chord such as `'mod+s'` or a sequence such
-as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. `useAction` passes it
-through unchanged; the host reads every key once and runs the action through
-the palette's path, so `canExecute` still decides. An App's shortcut fires while
-the page is inside the App's boundary. A Widget's is ignored, and so is one the
-host page already uses, each with a diagnostic.
-
-```tsx
-useAction({
-  name: 'open-wells',
-  label: 'Operations: open the wells inventory',
-  effect: 'read',
-  shortcut: 'o w',
-  execute: () => void navigate({ to: '/wells' }),
-})
-```
-
-`useAgentContext({ description, schema, value })` publishes a small, typed
-snapshot of what is selected or open, which the shell's agent receives with each
-turn. `description` tells the model what the value is, and the agent receives
-what `schema` parsed: ids and a short label, JSON of at most 4096 characters,
-never whole records and never secrets. The agent reads records through the
-App's read actions. Call it on every render; an equal value publishes nothing.
-An invalid value is left out and reported once as a warning. The snapshot goes
-when the component unmounts or the mount is disposed. The URL goes with each
-turn without a hook, so a filter the agent should see belongs in search params.
-
-`useAgentPrompt()` returns a stable function that hands
-`{ message, context?, submit? }` to the shell's chat: `message` is shown,
-`context` is sent unseen, and `submit: false` fills the input box for the user
-to review. It returns whether a chat took the prompt; `false` when the shell has
-no chat. `useAgentSuggestions([...])` offers up to three such prompts, which the
-chat shows as chips before the first message and after each answer, until the
-component unmounts. The package exports `AgentContextEntry`,
-`AgentContextRegistration`, `AgentPrompt` and `AgentSuggestion` as types.
-
-```tsx
-const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
-
-useAgentContext({
-  description: 'The well design the user has open, or null when its id is unknown',
-  schema: openWell,
-  value: design === undefined ? null : { id: design.id, name: design.name },
-})
-
-const prompt = useAgentPrompt()
-```
+Stored preferences survive sign-out and belong to the browser profile. Keep nothing personal in them.
+[Remember a value](../../apps/docs/content/docs/remember-a-value.mdx) explains validation, scope and updates.
 
 ## Building a container
 

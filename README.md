@@ -21,107 +21,29 @@ URL is a Widget, not an App.
 
 ---
 
-## The whole getting-started surface
+## Find the right documentation
 
-| Concept                        | What it is                                           |
-| ------------------------------ | ---------------------------------------------------- |
-| `createApp` / `createWidget`   | one call in `src/mfe.ts`                             |
-| `id`                           | a stable string                                      |
-| your route tree                | ordinary TanStack Router                             |
-| `#mfe/config`                  | generated, typed configuration                       |
-| `#mfe/fetch`                   | standard `fetch` with authenticated request handling |
-| `lazyWidget` / `DynamicWidget` | consuming a Widget by name, or by value              |
+Run `pnpm docs:dev` and open <http://localhost:3020/docs> for the searchable documentation site.
+The links below open the same source pages on GitHub.
 
-Everything else is discovered when a need arises and is absent from the
-quickstart.
+| You want to                        | Start here                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build your first container         | [Quickstart](apps/docs/content/docs/quickstart.mdx), then [the tutorial](apps/docs/content/docs/tutorial.mdx)                                                                                            |
+| Create an App or Widget            | [Create an App](apps/docs/content/docs/create-an-app.mdx) or [Create a Widget](apps/docs/content/docs/create-a-widget.mdx)                                                                               |
+| Connect to shell services          | [Capability index](apps/docs/content/docs/capabilities.mdx) for React and Angular APIs                                                                                                                   |
+| Look up a React API                | [Hooks and components](apps/docs/content/docs/reference/hooks-and-components.mdx) and [definition factories](apps/docs/content/docs/reference/create-app-and-create-widget.mdx)                          |
+| Look up an Angular API             | [Angular adapter](apps/docs/content/docs/reference/angular-adapter.mdx) and [Nx integration](apps/docs/content/docs/reference/mfe-nx.mdx)                                                                |
+| Diagnose a failure                 | [Troubleshooting](apps/docs/content/docs/troubleshooting.mdx), [failure messages](apps/docs/content/docs/read-a-failure-message.mdx) and [error codes](apps/docs/content/docs/reference/error-codes.mdx) |
+| Understand ownership and isolation | [Architecture](apps/docs/content/docs/architecture.mdx) and [the design map](docs/design.md)                                                                                                             |
+| Change the framework               | [Contributing](CONTRIBUTING.md) and [the decision log](docs/decisions.md)                                                                                                                                |
 
-### An App
+Task guides own the working examples. API reference owns signatures and options.
+Package READMEs describe package boundaries, setup and implementation details.
+The decision log records why a choice was made, including superseded choices.
 
-```ts
-// src/mfe.ts
-import { createApp, type AppRouterOptions } from '@company/mfe-react'
-import { createRouter } from '@tanstack/react-router'
-import { routeTree } from './routeTree.gen'
-
-function makeRouter({ basePath, history, context }: AppRouterOptions) {
-  return createRouter({
-    routeTree,
-    basepath: basePath,
-    history,
-    context: { ...context },
-    defaultPreload: 'intent',
-  })
-}
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: ReturnType<typeof makeRouter>
-  }
-}
-
-export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
-```
-
-The App owns its router. The framework supplies the boundary history and the
-route-callback context; everything else is the author's. The base path never
-appears again — `basepath` makes every route, `Link` and `navigate` relative, so
-authors write ordinary absolute-looking paths.
-
-### A Widget
-
-```tsx
-export const alertPanelContract = {
-  inputSchema: z.object({ alertId: z.string() }),
-  outputSchema: z.object({ acknowledged: z.object({ alertId: z.string() }) }),
-}
-
-export const alertPanel = createWidget({
-  id: 'alert-panel',
-  ...alertPanelContract,
-  render: ({ inputs, emit }) => (
-    <button onClick={() => emit('acknowledged', { alertId: inputs.alertId })}>Acknowledge</button>
-  ),
-})
-```
-
-Consuming one looks like an ordinary lazy component — inputs are props, outputs
-are `onX` props:
-
-```tsx
-const AlertPanel = lazyWidget('alert-panel', { contract: alertPanelContract })
-
-<AlertPanel alertId={id} onAcknowledged={payload => acknowledge(payload.alertId)} />
-```
-
-`lazyWidget` is called at module scope, because the component's identity is what
-React uses to decide whether it is looking at the same element. A host that only
-learns which Widgets exist when it reads the registry cannot do that, so it uses
-`DynamicWidget` and passes the id as a prop:
-
-```tsx
-<DynamicWidget widgetId={tile.widgetId} {...tile.inputs} />
-```
-
-That form has no contract and therefore no consumer-side types; the provider
-still validates every input and every output payload. What the host needs in
-order to ask for the inputs at all — the `inputSchema`, and the `outputSchema` with a
-schema for each output's payload — is published by the Widget's build into the registry, which
-is how the shell's dashboard renders a form for a Widget it has never imported.
-
-A host that knows those names only as strings takes every output through
-`DynamicWidget`'s `onOutput(name, payload)` instead, alongside any `onX` props.
-
-### One thing to know before you store anything
-
-A value `useStoredState` keeps belongs to the **browser profile**, not to the
-person signed in: the framework never clears it, so it survives a sign-out and
-**every user of that browser profile reads the same value**. That suits what
-storage is for — a display density, a collapsed panel, a chosen tab. Keep
-nothing personal in it.
-
-State the **host page** owns rather than any definition on it — a theme, a
-composed dashboard — goes in the reserved `@host` scope, which `useStoredState`
-binds when called outside a mount.
+**Before storing a value:** stored preferences survive sign-out and are shared by every user
+of the browser profile. Keep nothing personal in them. See
+[Remember a value](apps/docs/content/docs/remember-a-value.mdx) for the storage rules.
 
 ---
 

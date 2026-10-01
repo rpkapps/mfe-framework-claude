@@ -1,22 +1,33 @@
 ---
 title: 'Follow the shell theme'
-description: 'Read light or dark with useTheme, and let the shell own the switch.'
+description: 'Read light or dark from React or Angular, and let the shell own the switch.'
 ---
 
-The shell owns the theme. Your colours follow it with nothing wired up, and `useTheme()` tells you
-which one is active when a value has to change with it. Apps and Widgets.
+Apps and Widgets. The shell owns the light/dark switch. Semantic colors follow it automatically, and your component can read the theme for other values.
+
+<Diagram
+  src="/diagrams/capability-theme.svg"
+  alt="How React and Angular containers connect to the shell for theme."
+  caption="How your container connects to the shell"
+>
+  The shell publishes the theme. React reads it through `useTheme`, and Angular receives a signal
+  through `injectTheme`. Your scoped styles inherit shell theme variables. The shell owns the theme
+  switch.
+</Diagram>
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Do nothing for colours
+### 1. Use semantic colors
 
 ```tsx title="examples/operations/src/routes/index.tsx"
 <p className="text-xs text-muted-foreground">
   The panel below is a Widget served by a different deployment. …
 </p>
 ```
+
+For Angular, use the host-supplied PrimeNG tokens described in [Use PrimeNG](/docs/reference/angular-adapter#use-primeng). Generated containers configure PrimeNG without a preset.
 
 A semantic token resolves against the theme variables the shell declares, and those inherit into
 your subtree. The same class is correct in both themes.
@@ -25,31 +36,49 @@ your subtree. The same class is correct in both themes.
 <Step>
 ### 2. Read the theme when a value depends on it
 
-```tsx title="examples/lab/src/routes/shell-state.tsx"
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/lab/src/routes/shell-state.tsx (adapted)"
 import { useTheme } from '@company/mfe-react'
 
-const theme = useTheme()
-return theme === 'dark' ? <MoonIcon aria-hidden /> : <SunIcon aria-hidden />
+export function ThemeLabel() {
+  const theme = useTheme()
+  return <p>Current theme: {theme}</p>
+}
 ```
 
-`useTheme()` returns `'light'` or `'dark'`. It takes an optional selector,
-`useTheme(theme => theme === 'dark')`, and it re-renders only the components that read it.
+Use `useTheme(theme => theme === 'dark')` when you need only a selected value.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (adapted)"
+import { Component } from '@angular/core'
+import { injectTheme } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-theme-label',
+  template: `<p>Current theme: {{ theme() }}</p>`,
+})
+export class ThemeLabelComponent {
+  readonly theme = injectTheme()
+}
+```
+
+Read the signal with `theme()`. Create it in a field initializer or constructor.
+
+</Tab>
+</Tabs>
+
+Both APIs read `'light'` or `'dark'`.
 
 </Step>
 <Step>
 ### 3. Never set the theme yourself
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx"
-// Render your components directly: your build already wraps them in the design system's root.
-return (
-  <Alert variant={variant} appearance="outline">
-    {children}
-  </Alert>
-)
-```
-
-That root inherits the theme from the shell. A second root of your own, or a `dark` class on the
-document, would put part of the page in the wrong theme.
+Let the framework provide your themed root. React containers inherit shell tokens. Angular PrimeNG components read host-supplied tokens that follow the shell theme.
+A second root or a document-level `dark` class can put part of the page in the wrong theme.
 
 </Step>
 </Steps>
@@ -57,8 +86,7 @@ document, would put part of the page in the wrong theme.
 ## Check it works
 
 Press <Kbd>⌘J</Kbd> in the shell, or use the user menu at the top right. Your subtree repaints
-without a reload and without a prop crossing the boundary. Anything reading `useTheme()` re-renders
-with the new value. In a test, `createMfeTestEnvironment` sets the theme and changes it.
+without a reload and without a prop crossing the boundary. React theme consumers re-render, and Angular theme signals update. In a test, `createMfeTestEnvironment` sets the theme and changes it.
 
 ## Errors
 
@@ -79,5 +107,5 @@ container's build. Import the framework from that one package.
 - [Use the design system](/docs/use-the-design-system) — tokens and palette steps
 - [Add styles beyond utilities](/docs/add-custom-styles) — what your stylesheet may hold
 - [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) — overlays keep the theme
-- [Hooks and components](/docs/reference/hooks-and-components) — `useTheme` and its selector
+- [Hooks and components](/docs/reference/hooks-and-components#usetheme) — `useTheme` and its selector
 - [Test an App](/docs/test-an-app) — rendering under a chosen theme

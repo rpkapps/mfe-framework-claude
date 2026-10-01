@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/componen
 import { cn } from 'cn'
 import { AlertTriangleIcon, ChevronDownIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react'
 
+import { selectFramework, useFrameworkPreference } from '../lib/framework-preference.ts'
+
 /* ------------------------------------------------------------------------ */
 /* Callout                                                                   */
 /* ------------------------------------------------------------------------ */
@@ -157,6 +159,7 @@ export function DocsTabs({
   items,
   children,
   defaultValue,
+  onValueChange,
   className,
   ...props
 }: Omit<React.ComponentProps<typeof Tabs>, 'children' | 'defaultValue'> & {
@@ -165,20 +168,31 @@ export function DocsTabs({
   defaultValue?: string
 }) {
   const values = items ?? tabValues(children)
+  const framework = useFrameworkPreference()
+  const isFramework = values.length === 2 && values.includes('React') && values.includes('Angular')
+  const orderedValues = isFramework ? ['React', 'Angular'] : values
   const initial = defaultValue ?? values[0]
 
   return (
     <Tabs
       data-not-typeset
-      {...(initial === undefined ? {} : { defaultValue: initial })}
+      {...(!isFramework && initial !== undefined ? { defaultValue: initial } : {})}
       className={cn('relative mt-6 w-full gap-4', className)}
       {...props}
+      {...(isFramework ? { value: framework } : {})}
+      onValueChange={(value, details) => {
+        if (isFramework && (value === 'React' || value === 'Angular')) {
+          selectFramework(value === 'Angular' ? 'Angular' : 'React')
+        }
+        onValueChange?.(value, details)
+      }}
     >
       <TabsList
         variant="line"
+        aria-label={isFramework ? 'Code framework' : 'Example options'}
         className="h-auto justify-start gap-6 rounded-none bg-transparent p-0"
       >
-        {values.map(value => (
+        {orderedValues.map(value => (
           <TabsTrigger
             key={value}
             value={value}

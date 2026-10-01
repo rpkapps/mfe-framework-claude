@@ -33,19 +33,19 @@ or array items need a new key and a plan to move the Apps that use it.
 <Step>
 ### 2. Configure the production release check
 
-The production build needs a policy file with two fields: `schema` is the new compiled schema;
+The production build needs a policy file with two fields. `schema` is the new compiled schema.
 `baselines` contains copies of the schemas you have already released. Keep those released copies
 unchanged. For the first release, the list is empty: `baselines: []`.
 
 These older schemas are inputs to the build check. The running shell still needs only the latest
 `sharedState.schema`.
 
-<Tabs items={['React build options', 'Angular']}>
-<Tab value="React build options">
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
-Pass the policy to your existing `pluginMfe()` call; keep the rest of the configuration:
+Pass the policy to your existing `pluginMfe()` call:
 
-```ts title="rsbuild.config.ts (MFE plugin)"
+```ts title="Illustrative rsbuild.config.ts (MFE plugin)"
 import { pluginMfe } from '@company/mfe-rspack'
 
 pluginMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
@@ -54,7 +54,7 @@ pluginMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
 </Tab>
 <Tab value="Angular">
 
-```ts title="webpack.config.ts"
+```ts title="Illustrative webpack.config.ts"
 import { withMfe } from '@company/mfe-nx/webpack'
 
 export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
@@ -83,19 +83,24 @@ leave it asking the old shell for a field the shell does not have, so it would f
 
 Run an older and a newer consumer against the current schema. Set the new comparison field from
 the newer one, then change only `runId` from the older one. Both should read the updated run and
-the preserved comparison mode. Also try the new consumer against the old shell; mounting should fail.
+the preserved comparison mode. Try the new consumer against the old shell and confirm mounting fails.
 
 ## Errors
 
 <Callout type="error" title="shared-state/missing-baseline, at production build">
-  Provide the release policy path and ensure the file is available to the build. A first release
-  still needs an explicit policy with an empty baseline list.
+
+```text
+shared-state/missing-baseline: Production builds require sharedStatePolicy with explicit baselines and the current schema; use baselines: [] only for a first release
+```
+
+**Fix.** Provide the release policy path and ensure the file is available to the build. A first release
+still needs an explicit policy with an empty baseline list.
+
 </Callout>
 
 <Callout type="error" title="An incompatible schema change">
-  Read the key and field named by the build diagnostic. Restore its compatible shape, or introduce a
-  new key and transition its consumers deliberately. Suppressing lint does not bypass the build
-  check.
+  Read the key and field named by the build diagnostic. **Fix.** Restore its compatible shape or
+  introduce a new key. Suppressing lint does not bypass the build check.
 </Callout>
 
 ## Related

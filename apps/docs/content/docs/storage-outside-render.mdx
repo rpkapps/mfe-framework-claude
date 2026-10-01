@@ -12,13 +12,33 @@ reads and writes the same records `useStoredState` binds. Apps and Widgets.
 <Step>
 ### 1. Take the handle
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/storage.tsx"
 import { useMfeStorage } from '@company/mfe-react'
 
-const local = useMfeStorage() // 'local' by default; pass 'session' for the other area
+// Inside your component.
+const local = useMfeStorage()
 ```
 
-Call it in a component, as you would any hook. The handle stays the same for the mount's lifetime.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectMfeStorage } from '@company/mfe-angular'
+
+// Inside your component class, in an injection context.
+readonly local = injectMfeStorage()
+```
+
+Use `this.local` in component methods. In a resolver, capture the handle before any `await`.
+
+</Tab>
+</Tabs>
+
+Both return the same handle API. Pass `'session'` for tab-only records.
+See [browser storage scope](/docs/remember-a-value) before choosing what to save.
 
 </Step>
 <Step>
@@ -38,15 +58,33 @@ rather than a cached value, and it never subscribes. Anything you render still u
 <Step>
 ### 3. Reach it from a route callback
 
-```ts
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="Illustrative React route options"
 loader: ({ context }) => {
   const site = context.mfe.storage.local.key('last-site', siteSchema).get()
   return context.queryClient.ensureQueryData(assetsQueryOptions(site ?? 'north'))
 }
 ```
 
-A loader, an action and a `beforeLoad` get the same handle on `context.mfe.storage`, under `local`
-and `session`. No hook is involved, so there is no component to render it in.
+Loaders, actions and `beforeLoad` callbacks receive `context.mfe.storage.local` and `context.mfe.storage.session`.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular resolver"
+import { injectMfeStorage } from '@company/mfe-angular'
+import type { ResolveFn } from '@angular/router'
+
+export const lastSiteResolver: ResolveFn<string | null> = () =>
+  injectMfeStorage().key('last-site', siteSchema).get()
+```
+
+Import your module-level `siteSchema`. The resolver returns the saved site or `null`.
+
+</Tab>
+</Tabs>
 
 </Step>
 <Step>
@@ -105,8 +143,7 @@ origin can read or overwrite it, it carries no version to migrate a changed shap
 failure escapes as an unhandled exception.
 ```
 
-**Fix.** Take the handle with `useMfeStorage()`, or bind the key with `useStoredState()`. The
-editor offers the rewrite as a suggestion, and it compiles once the file binds the handle.
+**Fix.** Take the handle with `useMfeStorage()`, or bind the key with `useStoredState()`. Angular uses `injectMfeStorage()` or `injectStoredState()` instead.
 
 </Callout>
 
@@ -116,4 +153,4 @@ editor offers the rewrite as a suggestion, and it compiles once the file binds t
 - [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — `version`
 - [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work outside render
 - [Lint rules](/docs/reference/lint-rules) — `mfe/no-raw-storage` in full
-- [Hooks and components](/docs/reference/hooks-and-components) — the handle's three methods
+- [Hooks and components](/docs/reference/hooks-and-components#usemfestorage) — React handle API

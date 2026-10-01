@@ -58,3 +58,18 @@ jobs:
       - name: Boot the shell and every container, and check each page mounts
         working-directory: mfe-framework-claude
         run: pnpm run verify:page
+
+  docs:
+    name: Build docs and verify links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: mfe-framework-claude
+
+      - uses: ./mfe-framework-claude/.github/actions/setup
+
+      - name: Build every documentation page and check links and diagrams
+        working-directory: mfe-framework-claude
+        run: pnpm docs:check

@@ -2,8 +2,9 @@
   "title": "Reference",
   "defaultOpen": false,
   "pages": [
-    "create-app-and-create-widget",
     "hooks-and-components",
+    "angular-adapter",
+    "create-app-and-create-widget",
     "static-data",
     "naming-and-contract-rules",
     "lint-rules",
@@ -12,7 +13,6 @@
     "cli-and-scripts",
     "testing-api",
     "glossary",
-    "angular-adapter",
     "mfe-nx",
     "legacy-angular"
   ]

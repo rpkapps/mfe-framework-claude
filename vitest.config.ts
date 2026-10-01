@@ -47,6 +47,16 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'docs',
+          root: './apps/docs',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          server: tectonServerForTests,
+        },
+        resolve: tectonResolveForTests,
+      },
+      {
+        test: {
           name: 'core',
           root: './packages/mfe-core',
           environment: 'node',

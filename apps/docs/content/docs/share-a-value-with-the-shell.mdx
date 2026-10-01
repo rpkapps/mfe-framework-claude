@@ -1,22 +1,60 @@
 ---
 title: 'Share a value with the shell'
-description: 'How useStoredState picks a scope, what the reserved @host scope holds, and what to use instead.'
+description: 'Choose shared state for shell-wide selections, browser storage for local preferences, or Widget inputs and outputs.'
 ---
 
-Your stored records are yours: the shell cannot read them, and you cannot read the shell's. A
-component that renders in both places gets one record in each. Apps and Widgets.
-
-For a reactive record shared by the shell, Apps and Widgets, use [Shared state](/docs/shared-state).
-Start with the schema and React or Angular component bindings, then follow the recipes for
-[route callbacks](/docs/shared-state-outside-render) and
-[shell-owned persistence](/docs/configure-shared-state).
-`useStoredState` keeps the local scopes described below.
+Use shared state when the shell, Apps and Widgets need the same selection. Browser storage keeps
+preferences under each definition's own scope. Apps and Widgets.
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Bind the key as usual inside your mount
+### 1. Choose the data channel
+
+| Need                                                   | Channel                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| A units preference or selection across definitions     | [Shared state](/docs/shared-state)                             |
+| Data passed to one Widget and events returned          | [Widget inputs and outputs](/docs/define-inputs-and-outputs)   |
+| A preference private to one definition's storage scope | [Browser storage](/docs/remember-a-value)                      |
+| The shell's current identity or theme                  | [Shell bindings](/docs/reference/hooks-and-components#useuser) |
+
+Choose shared state for shared, reactive records with backend persistence. Choose Widget inputs when
+its host controls the value for that specific Widget.
+
+</Step>
+<Step>
+### 2. Use the shared-state binding
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="Illustrative React component body"
+import { useSharedState } from '#mfe/shared-state'
+
+const [units, setUnits] = useSharedState('display:units')
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectSharedState } from '#mfe/shared-state'
+
+readonly units = injectSharedState('display:units')
+```
+
+Read the Angular signal with `units[0]()`.
+
+</Tab>
+</Tabs>
+
+First declare your schema and generate these bindings. Follow [the shared-state guide](/docs/shared-state)
+for setup, writing values and handling failed saves.
+
+</Step>
+<Step>
+### 3. Keep browser preferences in their own scope
 
 ```tsx title="examples/operations/src/routes/index.tsx"
 const [density, setDensity] = useStoredState('table-density', densitySchema, {
@@ -24,68 +62,23 @@ const [density, setDensity] = useStoredState('table-density', densitySchema, {
 })
 ```
 
-Inside an App or a Widget the key is `operations:table-density`. There is no argument that points
-it somewhere else.
-
-</Step>
-<Step>
-### 2. Let a shared component pick its own scope
-
-```ts title="apps/shell/src/shell/hooks.ts"
-return useStoredState('dashboard', DashboardLayoutSchema, {
-  defaultValue: EMPTY_LAYOUT,
-  migrate: migrateLayout,
-})
-```
-
-The same call outside any mount binds `@host:dashboard`, the page's own scope. Ship one component
-to the shell and to your App, and each place keeps its own record under its own prefix. A
-definition id holds lower-case letters, digits and single hyphens, so no container can claim
-`@host`.
-
-</Step>
-<Step>
-### 3. Pass a value across the boundary as data
-
-```tsx title="examples/operations/src/routes/index.tsx"
-<AlertPanel
-  alertId="a-1001"
-  severity="warning"
-  onAcknowledged={payload => setAcknowledged(payload.acknowledgedAt)}
-/>
-```
-
-Storage is not a channel between containers. A Widget takes inputs as props and reports what
-happened through a declared output. An App reads the page's identity, groups and theme through
-`useUser`, `useGroups` and `useTheme`.
+Inside Operations, this binds `operations:table-density`. The same binding in the shell uses `@host:table-density`.
+Angular's `injectStoredState` follows the same scope rule. Neither binding accesses the other's record.
+Use [browser storage](/docs/remember-a-value) for complete React and Angular examples.
 
 </Step>
 </Steps>
 
 ## Check it works
 
-Open the browser developer tools, then Application, then Local storage. The shell's records sit
-under `@host:`, and yours sit under `<your definition id>:`. Two definitions that both chose the
-name `theme` keep two records, and neither one can overwrite the other.
-
-## Errors
-
-<Callout type="error" title="storage/failure, at bind">
-
-```text
-@host failed to bind a storage key: expected a definition id, received the reserved host scope
-'@host'.
-```
-
-**Fix.** Only shell code reaches that scope, and it does so by rendering outside a mount. From
-inside your App or Widget, bind the key normally and let it resolve to your own definition.
-
-</Callout>
+Mount two consumers of `display:units`, then change the units from either one. Both should update.
+A browser-storage preference should update only consumers within its own definition scope.
+If the shell cannot see your preference, check that you chose shared state rather than browser storage.
 
 ## Related
 
-- [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
-- [Define inputs and outputs](/docs/define-inputs-and-outputs) — the Widget's own data channel
-- [React to a Widget's outputs](/docs/react-to-widget-outputs) — reading what a Widget reports
-- [Follow the shell theme](/docs/follow-the-shell-theme) — shell state you can read
-- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why the scopes are apart
+- [Share state across Apps and Widgets](/docs/shared-state) — schema and component setup
+- [Configure shared state in the shell](/docs/configure-shared-state) — persistence and ownership
+- [Remember a value across reloads](/docs/remember-a-value) — browser-local preferences
+- [Define inputs and outputs](/docs/define-inputs-and-outputs) — one Widget's data contract
+- [Angular adapter](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — Angular shell bindings

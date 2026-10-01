@@ -18,7 +18,7 @@ This recipe uses the `well:selection` key from [the component recipe](/docs/shar
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="src/router.ts"
+```ts title="Illustrative src/router.ts"
 import { createRootRouteWithContext, createRouter } from '@tanstack/react-router'
 import type { AppRouterOptions, MfeRouterContext } from '#mfe/shared-state'
 
@@ -32,7 +32,7 @@ export function makeRouter({ basePath, history, context }: AppRouterOptions) {
 ```
 
 The loader returns the selected well and run, or `null` if the user has not selected a well.
-`context.mfe.sharedState` is supplied by the shell; you do not need to create a second store.
+The shell supplies `context.mfe.sharedState`. Use that store in your route.
 
 The generated types make TypeScript check the key and the returned value. Forward `basePath`,
 `history` and `context` when creating the router, as in [Add a route](/docs/add-a-route).
@@ -40,7 +40,7 @@ The generated types make TypeScript check the key and the returned value. Forwar
 </Tab>
 <Tab value="Angular">
 
-```ts title="src/selection.resolver.ts"
+```ts title="Illustrative src/selection.resolver.ts"
 import type { ResolveFn } from '@angular/router'
 import { injectSharedStateStore, type SharedStateValues } from '#mfe/shared-state'
 
@@ -64,7 +64,7 @@ the await, but Angular cannot run another injector call there.
 <Step>
 ### 2. Await writes before reporting success
 
-```ts title="src/selection-actions.ts"
+```ts title="Illustrative src/selection-actions.ts"
 import type { SharedStateStore, SharedStateValues } from '#mfe/shared-state'
 
 export async function chooseRun(store: SharedStateStore<SharedStateValues>, runId: string) {
@@ -103,9 +103,14 @@ well. Changing a run through `chooseRun` should also update the picker on screen
 ## Errors
 
 <Callout type="error" title="shared-state/scope-disposed">
-  The shell changed identity or workspace, or disposed the binding. Stop using that captured store
-  and take a new one from the remounted definition. A late callback must not write into the new
-  scope.
+
+```text
+<scope>: This binding belongs to a disposed scope
+```
+
+The shell changed identity or workspace, or disposed the binding. **Fix.** Take a new store from the remounted definition. A late callback must not write into the new
+scope.
+
 </Callout>
 
 ## Related

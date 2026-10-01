@@ -1,6 +1,6 @@
 # The diagrams
 
-Eleven Excalidraw scenes, and the SVGs the docs use. Both are committed, and they are committed
+Eighteen Excalidraw scenes, and the SVGs the docs use. Both are committed, and they are committed
 together: an SVG whose scene has moved on is a picture of software that no longer exists, so
 `pnpm diagrams:check` fails the build when the two disagree.
 
@@ -41,7 +41,7 @@ needs no browser, and `pnpm diagrams:check` runs it first, before it renders any
 1. Open `tools/diagrams/scenes/<name>.excalidraw` on <https://excalidraw.com> (**Open** in the
    menu, or drag the file onto the canvas). `docs/diagrams/<name>.svg` opens there too: the
    scene travels inside the SVG, so the committed figure is also the editable source.
-2. Change it. Keep to the text budget above and the conventions below — the eleven are meant to
+2. Change it. Keep to the text budget above and the conventions below — the diagrams are meant to
    read as one set.
 3. **Save back to `tools/diagrams/scenes/<name>.excalidraw`**, over the file you opened. Use
    **Save to disk** (or **Export image → Excalidraw** with _Embed scene_); saving to a new name
@@ -51,13 +51,13 @@ needs no browser, and `pnpm diagrams:check` runs it first, before it renders any
 
 `pnpm diagrams:render --only <name>` rewrites one figure while you iterate.
 
-`tools/diagrams/draft/build-scenes.mjs` lays the eleven scenes out, which is why they share one
+`tools/diagrams/draft/build-scenes.mjs` lays the scenes out, which is why they share one
 grid, one palette and one text size. **Re-running it reproduces every committed scene byte for
 byte** — it is deterministic, down to the rough-shape seeds — so it is the ordinary way to change
 a diagram:
 
 ```sh
-node tools/diagrams/draft/build-scenes.mjs   # rewrites all eleven scenes
+node tools/diagrams/draft/build-scenes.mjs   # rewrites all scenes
 pnpm diagrams:render
 ```
 
@@ -135,13 +135,13 @@ budget runs before the browser is launched, so it reports even on a machine with
 
 ## Visual conventions
 
-The eleven are one set. A diagram that invents its own colours makes the reader learn them twice.
+The diagrams are one set. A diagram that invents its own colours makes the reader learn them twice.
 
 - **Hand-drawn.** `roughness: 1`, stroke `#1e1e1e`. Labels in Excalifont (`fontFamily: 5`);
   anything that is spelled exactly as it is on disk — a file name, a module specifier, a call,
   an error code — in Comic Shanns (`fontFamily: 8`). Those are the two faces the package
   embeds, so they are the two that survive in the SVG.
-- **One hue per concern, in all eleven**, from Excalidraw's own palette:
+- **One hue per concern, throughout the set**, from Excalidraw's own palette:
 
   | Colour           | Means                                        |
   | ---------------- | -------------------------------------------- |
@@ -157,7 +157,8 @@ The eleven are one set. A diagram that invents its own colours makes the reader 
   A diagram in which the colours carry meaning draws a small legend. One that uses a single
   colour throughout does not.
 
-- **Size.** Between 1310 x 545 and 1470 x 770, except `adapters`, which stacks four bands and is
+- **Size.** Capability diagrams use a compact three-column grid, about 1240 × 600.
+  Architecture diagrams are between 1310 x 545 and 1470 x 770, except `adapters`, which stacks four bands and is
   1400 x 945. The diagram's own name is a 28 px text element at the top left, with a one-line
   subtitle under it in grey at 16 px. A box's name is 12–17 px and its subtitle 12 px; a panel
   heading is 17 px and its caption 13 px.
@@ -546,3 +547,62 @@ as components, so it is never a refresh boundary and an edit reloads the whole p
 `src/alert-panel.tsx` exports only the component, so it hot-updates in place and keeps the state
 the component held (§18). `pnpm hmr:probe <file> [url]` says which of the two happened: the change
 appears either way, and only what was lost is different.
+
+## Capability connections
+
+These diagrams show the React entry first, then its Angular equivalent. Both connect to the
+same runtime service supplied by the shell. The runtime column names the service, while the
+shell column shows its page connection. The examples and exact API details belong in the guide.
+
+| Diagram                   | Capability entry page | Connection                                                                    |
+| ------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `capability-actions`      | Register an action    | `useAction()` / `injectAction()` → action registry → command palette          |
+| `capability-storage`      | Persist state         | `useStoredState()` / `injectStoredState()` → storage store → browser adapters |
+| `capability-theme`        | Read the shell theme  | Shell theme setting → shell state → `useTheme()` / `injectTheme()`            |
+| `capability-breadcrumbs`  | Add breadcrumbs       | `useBreadcrumbs()` / `injectBreadcrumbs()` → breadcrumb store → shell trail   |
+| `capability-requests`     | Make an API request   | Generated `#mfe/fetch` → declared API, with the shell session token           |
+| `capability-shared-state` | Share selections      | Generated bindings → shared state service → shell-configured adapter          |
+| `capability-navigation`   | Link to another App   | App router → navigation bridge → shell router                                 |
+
+### capability-actions
+
+React and Angular register each action with the runtime registry. The shell lists those actions
+and invokes them through the same execution checks. A container button calls the run returned
+by its adapter. The callback remains owned by its registration and is removed on disposal.
+
+### capability-storage
+
+Both adapters read and update records through the runtime storage store. The shell supplies the
+browser adapters used for local and session storage. A key belongs to its definition by default.
+Instance scope adds an instance identifier. Neither storage area clears its records at sign-out.
+
+### capability-theme
+
+The shell publishes its theme through `runtime.shellState.apply()`. React reads a subscribed
+value through `useTheme()`. Angular reads a signal through `injectTheme()`. This picture shows
+state subscriptions. Theme CSS variables also inherit from the shell document.
+
+### capability-breadcrumbs
+
+React and Angular contribute override items to the shared breadcrumb store. The shell subscribes
+to the resulting trail. Apps also contribute route-derived items automatically. An empty override
+restores that route-derived contribution. Disposal removes the mount's contribution.
+
+### capability-requests
+
+Both frameworks import the same generated `#mfe/fetch` module. The generated transport resolves
+request URLs using deployment configuration. The shell supplies one session token source. The
+transport attaches its token only to declared API origins. Other origins receive no token.
+
+### capability-shared-state
+
+The build generates `useSharedState()` or `injectSharedState()` for each definition's declared
+contract. Mount bindings connect those calls to the runtime shared state service. The shell
+configures its schema, scope and adapter. The adapter loads and saves backend records. Optional
+subscriptions deliver external changes. This store is separate from browser stored state.
+
+### capability-navigation
+
+React Apps use TanStack Router links and navigation. Angular Apps use Angular Router links and
+navigation. Both routers operate through the host navigation bridge under their assigned App
+boundary. The shell owns the page URL. Widgets emit outputs so their owning App can navigate.

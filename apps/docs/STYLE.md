@@ -5,9 +5,9 @@ rule is checkable by a reviewer, and the targets at the end are countable.
 
 ## Who reads this and how
 
-Our reader is a React developer who has been handed one piece of a product and told it will load
-into a page somebody else owns. They arrive from a search engine or from a link in a ticket, on one
-page, with one question, and they have not read the pages before it. They scan before they read —
+Our readers build containers in React or Angular, or maintain the shell and framework.
+Container authors own one piece of a product that loads into a page somebody else owns.
+They arrive from a search engine or a ticket link, on one page, with one question, and they have not read the pages before it. They scan before they read —
 headings, code blocks, the first line of each paragraph — and they read only the part that answers
 the question ([NN/g: 79% of users scan every new page](#sources), and the F-pattern puts the weight
 on first lines and first words).
@@ -16,12 +16,12 @@ on first lines and first words).
 
 One page, one job. A how-to that also teaches theory serves neither reader (Diátaxis).
 
-| Page                                              | Diátaxis type     | Job                                          |
-| ------------------------------------------------- | ----------------- | -------------------------------------------- |
-| `index.mdx`                                       | orientation (map) | What this is, the two shapes, where to go    |
-| the recipes at the root of `content/docs/`        | how-to            | Get the reader's one task done               |
-| `reference/*.mdx`                                 | reference         | Look one fact up mid-work                    |
-| `how-it-works/*.mdx`, `design.md`, `decisions.md` | explanation       | Understand the system away from the keyboard |
+| Page                                                   | Diátaxis type     | Job                                          |
+| ------------------------------------------------------ | ----------------- | -------------------------------------------- |
+| `index.mdx`, `capabilities.mdx`, `troubleshooting.mdx` | orientation (map) | Find a task, capability or symptom           |
+| the recipes at the root of `content/docs/`             | how-to            | Get the reader's one task done               |
+| `reference/*.mdx`                                      | reference         | Look one fact up mid-work                    |
+| `how-it-works/*.mdx`, `design.md`, `decisions.md`      | explanation       | Understand the system away from the keyboard |
 
 **The consumer rule.** Every sentence on a recipe page answers "what do I do" or "what happens". A
 sentence answering "how does the framework do it" moves to a How it works page. Explain a mechanism
@@ -34,19 +34,22 @@ it true belongs to How it works.
 1. **Title** — the task, in the words a reader would search for: `Add a settings page`. Never a
    sentence.
 2. **"What you get" opener** — one or two sentences before the first heading: what you get. For a
-   shell recipe, name the shape it applies to: "Apps only." or "Apps and Widgets."
-3. **`## Steps`** — one `<Steps>` block, one `<Step>` per step. Each step opens with a `###`
+   capability recipe, name the shape it applies to: "Apps only." or "Apps and Widgets."
+3. **`## Connection to the shell`** — optional. Add a capability diagram when ownership or data flow
+   helps the reader use the API. Provide a text equivalent and show shipped behavior.
+4. **`## Steps`** — one `<Steps>` block, one `<Step>` per step. Each step opens with a `###`
    heading, then the code (fenced, with a `title=` naming a real file from `examples/`), then at
    most one sentence.
-4. **`## Check it works`** — where it appears in the shell, or the test to run. Two to four
+5. **`## Check it works`** — where it appears in the shell, or the test to run. Two to four
    sentences, or a short list.
-5. **`## Errors`** — only the messages this task can produce. Each is a
+6. **`## Errors`** — only the messages this task can produce. Each is a
    `<Callout type="error" title="…">` holding the first sentence of the real message verbatim, then
    a bold `**Fix.**` of one or two sentences. Omit the section when the task produces no error.
-6. **`## Related`** — three to five links, each with a reason of ten words or fewer: the
+7. **`## Related`** — three to five links, each with a reason of ten words or fewer: the
    neighbouring recipes, the reference entry, the How it works page.
 
-Length: 200 to 500 words of prose. A recipe that runs longer is two recipes.
+Length: aim for 200 to 500 words of shared prose. Framework examples do not create a second task.
+Split a longer guide only when it contains independently useful tasks.
 
 Use at most three `<Term>` definitions per page, on first use. Every other term links to the
 glossary.
@@ -56,6 +59,37 @@ questions this page answers and who it is for. Then one section per view of the 
 `<Diagram>` with its text equivalent, then at most five short paragraphs of _why_, then a link to
 the decision that argued it. No API signatures, no option tables, no error messages — those belong
 to the recipes and the reference.
+
+## React and Angular examples
+
+Explain shared behavior once, then show framework-specific code in tabs.
+Use `<Tabs items={['React', 'Angular']}>` with matching `<Tab value="React">` and
+`<Tab value="Angular">` children. React comes first. The site remembers the reader's framework choice.
+Place tabs inside a step when the instruction is shared. Use one tab group around the procedure
+when framework setup changes several steps. Keep shared verification and troubleshooting outside the tabs.
+
+Show real differences: React hooks run during render, and Angular injectables run in an injection context.
+Angular examples include required imports and providers. Use signals for values that render.
+A React-only or Angular-only page states that applicability in its opener.
+Never imply an equivalent API exists until its implementation has been checked.
+
+## Canonical content and useful repetition
+
+Each detailed explanation has one authoritative home:
+
+| Content                                          | Home           |
+| ------------------------------------------------ | -------------- |
+| Complete author procedure                        | Task guide     |
+| Signatures, options and return values            | API reference  |
+| Ownership, lifecycle and rationale               | How it works   |
+| Package boundaries, setup and maintainer details | Package README |
+| Decision history and superseded alternatives     | Decision log   |
+
+Link to that home from other pages with a reason to follow it.
+Repeat a short prerequisite or warning where it prevents a mistake, such as storage surviving sign-out.
+Keep unique host contracts and framework limitations when consolidating duplicate examples.
+Distinguish shipped behavior from proposals. A decision entry records history and links to current guidance.
+Preserve existing page URLs when reorganizing navigation, so tickets and saved links keep working.
 
 ## Sentence rules
 
@@ -218,6 +252,12 @@ there and moves on (NN/g F-pattern: first words of each line get the most fixati
 
 ## Diagram rules
 
+- **Capability diagrams show the shell connection.** Identify the container API, runtime boundary and
+  shell-owned service. Label calls or data flowing across each boundary.
+- **Reuse the capability's diagram** across related pages. Keep the shell and runtime layout stable
+  between React and Angular views. Change only the framework-specific connection.
+- **Diagram only what helps the task.** A recipe diagram explains ownership and flow. Internal
+  implementation detail belongs to How it works. Proposed flows are labelled as proposals.
 - A box holds a **name of four words or fewer** and at most **one subtitle of eight words or fewer**.
 - An arrow label is **three words or fewer**, and says what flows or what is called — never "uses".
 - **Sequence steps are numbered**, and the numbers are referenced in the text equivalent.
@@ -250,6 +290,9 @@ Answer yes to all of these before approving a docs change.
 14. Does every diagram obey the box, label and count limits, with the rest in the text equivalent?
 15. Does the page end with a "Related" list of three to five links?
 16. Does every sentence on a recipe page answer "what do I do" or "what happens"?
+17. Are shared explanations written once, with React before Angular in framework tabs?
+18. Do links identify the canonical guide or reference instead of duplicating its full content?
+19. Does each capability diagram identify shell ownership and agree with shipped code?
 
 ## Measurable targets
 

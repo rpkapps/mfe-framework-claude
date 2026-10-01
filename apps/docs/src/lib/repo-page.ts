@@ -1,9 +1,9 @@
 /**
- * Frontmatter for the two repository Markdown files, and the folder they are rendered in.
+ * Frontmatter for the repository Markdown files, and the folder they are rendered in.
  *
- * `docs/decisions.md` is rendered unchanged and `docs/design.md` has to stay plain Markdown that
- * renders on GitHub, so neither carries frontmatter. An async collection ships only the
- * frontmatter to the page tree, which would leave both pages nameless; this schema derives the
+ * Repository pages stay plain Markdown that renders on GitHub, without frontmatter. An async
+ * collection ships only frontmatter to the page tree, which would leave these pages nameless.
+ * This schema derives the
  * title from the `# ` heading and the description from the paragraph under it.
  *
  * It is a Standard Schema written by hand rather than a Zod object, for two reasons: the macro
@@ -13,8 +13,9 @@
  */
 
 /**
- * The folder of the page tree the two files are mapped into: they render at
- * `/docs/how-it-works/design` and `/docs/how-it-works/decisions`. `source.ts` passes it to
+ * The folder of the page tree the repository files are mapped into: they render at
+ * `/docs/how-it-works/design`, `/docs/how-it-works/decisions` and
+ * `/docs/how-it-works/shared-state`. `source.ts` passes it to
  * `toFumadocsSource({ baseDir })`, which prefixes the virtual file paths the loader derives slugs
  * from, and `content.ts` takes it off again to find the compiled body in the collection.
  */
@@ -23,9 +24,12 @@ export const REPO_DOCS_DIR = 'how-it-works'
 /**
  * Titles for files whose own `# ` heading is not the name the page tree should show, keyed by file
  * name: `fumadocs-mdx` hands the schema an absolute path. `design.md` opens with `# Design map`,
- * and the folder it renders in already says "How it works".
+ * while `shared-state.md` needs a title distinguishing its protocol from the task guide.
  */
-const TITLES: Record<string, string> = { 'design.md': 'The design map' }
+const TITLES: Record<string, string> = {
+  'design.md': 'The design map',
+  'shared-state.md': 'Shared-state protocol',
+}
 
 export interface RepoPageData {
   title: string

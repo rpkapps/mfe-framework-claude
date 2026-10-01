@@ -11,6 +11,24 @@ provides.
 An application imports this package alone — its root, `/host`, `/registry` or
 `/testing` — and never the core or the runtime directly.
 
+## Entry points and author documentation
+
+| Entry point                     | Purpose                                                              |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `@company/mfe-angular`          | Definition factories, injectables, route helpers and host components |
+| `@company/mfe-angular/host`     | The runtime host surface plus `provideMfeRuntime`                    |
+| `@company/mfe-angular/registry` | `angularAdapter` and `createAngularAdapter`, with no Angular import  |
+| `@company/mfe-angular/testing`  | Definition mounts, host test helpers and runtime test fakes          |
+
+`/testing/mfe-config` and `/testing/mfe-fetch` replace generated modules in tests.
+
+Start with the [Angular API reference](../../apps/docs/content/docs/reference/angular-adapter.mdx)
+and [Nx scaffolding and build guide](../../apps/docs/content/docs/reference/mfe-nx.mdx).
+Use [Create an App](../../apps/docs/content/docs/create-an-app.mdx) and
+[Create a Widget](../../apps/docs/content/docs/create-a-widget.mdx) for author tasks.
+The site serves these pages under `/docs` when you run `pnpm docs:dev` from the repository root.
+The sections below retain adapter-specific lifecycle and host integration details.
+
 ## Zoneless, and nothing else
 
 Every mount is its own Angular application, created with `createApplication`
@@ -96,36 +114,10 @@ naming that definition, and is forgotten, so a retry runs it again. The adapter
 names no library: what the assets are is entirely the host's function. The
 shell's are in `apps/shell/src/angular/`.
 
-## An App
+## App lifecycle and router constraints
 
-```ts
-// src/mfe.ts
-import { createApp } from '@company/mfe-angular'
-
-import { routes } from './app.routes'
-
-export const reportsApp = createApp({ id: 'reports', version: '0.1.0', routes })
-```
-
-```ts
-// src/app.routes.ts
-import type { Routes } from '@angular/router'
-import { mfeRouteData } from '@company/mfe-angular'
-
-import { OverviewComponent } from './overview.component'
-import { SettingsComponent } from './settings.component'
-
-export const routes: Routes = [
-  { path: '', component: OverviewComponent },
-  {
-    path: 'settings',
-    component: SettingsComponent,
-    data: mfeRouteData({
-      capability: { name: 'settings', label: 'Reports settings', icon: 'settings' },
-    }),
-  },
-]
-```
+See [Declare an App](../../apps/docs/content/docs/reference/angular-adapter.mdx#declare-an-app)
+for the definition and route examples.
 
 Route paths are relative to the boundary the host assigns. The App's router
 reads and writes the host's navigation bridge through `BoundaryLocationStrategy`
@@ -240,46 +232,10 @@ declared. The interceptor leaves caller-supplied authorization alone and
 refreshes once on a 401. The shell must install its session before mounting the
 container.
 
-## A Widget
+## Widget contracts and validation
 
-```ts
-// src/mfe.ts
-import { createWidget } from '@company/mfe-angular'
-import { z } from 'zod'
-
-import { AlertPanelComponent } from './alert-panel.component'
-
-export const alertPanelContract = {
-  inputSchema: z.object({ label: z.string() }),
-  outputSchema: z.object({ activated: z.object({ at: z.string() }) }),
-}
-
-export const alertPanel = createWidget({
-  id: 'alert-panel',
-  version: '0.1.0',
-  ...alertPanelContract,
-  component: AlertPanelComponent,
-})
-```
-
-```ts
-// src/alert-panel.component.ts
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core'
-
-@Component({
-  selector: 'app-alert-panel',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<button type="button" (click)="activate()">{{ label() }}</button>`,
-})
-export class AlertPanelComponent {
-  readonly label = input.required<string>()
-  readonly activated = output<{ at: string }>()
-
-  activate(): void {
-    this.activated.emit({ at: new Date().toISOString() })
-  }
-}
-```
+See [Declare a Widget](../../apps/docs/content/docs/reference/angular-adapter.mdx#declare-a-widget)
+for the definition example.
 
 The component is the contract: **every input key is a component input, and
 every property of the `outputSchema` is a component output of the same public
@@ -307,6 +263,7 @@ initialiser — and clean up with the injector that created them.
 
 | Function                                          | Gives                                                               | Outside a mount   |
 | ------------------------------------------------- | ------------------------------------------------------------------- | ----------------- |
+| `injectSession()`                                 | the session generation and cancellation signal                      | throws            |
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                            | host scope        |
 | `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws     | host scope        |
 | `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
@@ -320,90 +277,13 @@ initialiser — and clean up with the injector that created them.
 | `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                        | throws            |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)  | runtime only      |
 
-**An action and its run.** `injectAction` takes the registration `useAction`
-takes. It publishes the action to the palette and, unless its `placements` say
-otherwise, to the shell's agent as a tool. `description` is written for the
-agent, `inputSchema` (one `z.object`, at module scope) parses every call's input
-before `execute` receives it, and `outputSchema` checks the returned value.
-`effect` is `'read'`, `'write'` or `'destructive'`; an undeclared one counts as
-`'write'`, so the agent asks the user before each call.
-`execute(input, { signal })` also receives a signal that aborts when the run is
-given up: an agent's call ran past its deadline (`timeoutMs`, 30 seconds by
-default, counted from when `execute` starts; it then fails with
-`action/timeout`), the injector was destroyed while it ran (`unavailable`), or
-the user pressed Stop in the chat (`cancelled`). Whatever `execute` returns
-after that is dropped, so pass the signal on: to `fetch`, or to an `HttpClient`
-request through `takeUntil(fromEvent(signal, 'abort'))`. It returns an
-`ActionRun` with the caller `'ui'`, for the component's own button, so a click
-shares `canExecute`, validation and the denial notice with every other caller.
-It runs this injector's registration, even when another mount of the
-definition registered the same name, and never rejects. After the component is
-destroyed, or as it is destroyed mid-run, the run resolves `unavailable`. The
-package exports `ActionEffect`, `ActionInputSchema`, `ActionRun` and
-`ActionExecutionResult` as types.
+For action registration, cancellation and the returned `ActionRun`, see
+[Read the shell from inside a mount](../../apps/docs/content/docs/reference/angular-adapter.mdx#read-the-shell-from-inside-a-mount)
+and the shared [action contract](../../apps/docs/content/docs/reference/hooks-and-components.mdx#useaction).
+That reference also covers agent context, prompts and suggestions.
 
-```ts
-@Component({
-  selector: 'fieldwork-overview',
-  template: `<p-button label="Log inspection" (onClick)="logInspectionAction()" />`,
-})
-export class OverviewComponent {
-  protected readonly padId = signal<string | null>(null)
-  protected readonly logInspectionAction: ActionRun
-
-  constructor() {
-    this.logInspectionAction = injectAction(() => ({
-      name: 'log-inspection',
-      label: 'Fieldwork: log an inspection at the chosen pad',
-      description: 'Logs an inspection at the well pad the user has chosen, signed by them.',
-      canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
-      execute: () => this.logInspection(),
-    }))
-  }
-}
-```
-
-**An action's shortcut.** `injectAction` passes the registration through as it
-is, so `shortcut` works as in any adapter: a chord such as `'mod+s'` or a
-sequence such as `'g r'`, where `mod` is ⌘ on a Mac and Ctrl elsewhere. The host
-reads every key once and runs the action through the palette's path, so
-`canExecute` still decides. An App's shortcut fires while the page is inside the
-App's boundary; a Widget's is ignored, and so is one the host page already uses,
-each with a diagnostic.
-
-```ts
-injectAction({
-  name: 'export',
-  label: 'Export the insights',
-  shortcut: 'mod+e',
-  execute: () => this.export(),
-})
-```
-
-**What the agent is told.** `injectAgentContext` takes the registration
-`useAgentContext` takes, or a factory that returns one: `description`, `schema`
-and `value`. It publishes a small snapshot of what is selected or open, which
-the shell's agent receives with each turn: ids and a short label, JSON of at
-most 4096 characters, never whole records or secrets. A factory runs again when
-a signal it reads changes, and an equal value publishes nothing. An invalid
-value is left out and reported once as a warning. The snapshot goes when the
-injector is destroyed or the mount is disposed. `injectAgentPrompt()` returns a
-function that hands `{ message, context?, submit? }` to the shell's chat and
-returns whether a chat took it; `false` when the shell has no chat.
-`injectAgentSuggestions` offers up to three such prompts, as a list or a factory
-of signals, which the chat shows as chips while the injector lives. The package
-exports `AgentContextEntry`, `AgentContextRegistration`, `AgentPrompt` and
-`AgentSuggestion` as types.
-
-```ts
-const selectedPad = z.object({ id: z.string(), name: z.string() }).nullable()
-
-injectAgentContext(() => ({
-  description: 'The well pad the user has chosen, or null before they choose one',
-  schema: selectedPad,
-  value: this.pad(),
-}))
-```
+Stored preferences survive sign-out and are shared by the browser profile's users. Keep nothing personal in them.
+See [Remember a value](../../apps/docs/content/docs/remember-a-value.mdx).
 
 **The mount's elements.** `injectMfeMount()` carries the two elements the
 runtime created for the mount: `scopeRoot`, the element with the mount's scope
@@ -589,13 +469,9 @@ framework it is written in.
 
 ## Testing
 
-```ts
-import { mountWidget } from '@company/mfe-angular/testing'
-
-const widget = await mountWidget(alertPanel, { inputs: { label: 'Acknowledge' } })
-widget.element.querySelector('button')?.click()
-expect(widget.outputs).toEqual([{ name: 'activated', payload: { at: expect.any(String) } }])
-```
+See [Test a definition](../../apps/docs/content/docs/reference/angular-adapter.mdx#test-a-definition)
+for a working Widget test, and [Testing API](../../apps/docs/content/docs/reference/testing-api.mdx)
+for shared environment options.
 
 `mountWidget` and `mountApp` place the definition through the runtime's
 `mountDefinition` — the path every host takes — into an element in
