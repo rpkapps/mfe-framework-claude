@@ -6,7 +6,8 @@
   "mfe": {
     "port": 3007,
     "definitions": [
-      "fieldwork"
+      "fieldwork",
+      "well-inspection"
     ]
   },
   "nx": {
@@ -33,7 +34,8 @@
     "primeng": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:",
-    "@example/shared-state-contracts": "workspace:*"
+    "@example/shared-state-contracts": "workspace:*",
+    "@example/shared-state-demo": "workspace:*"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "catalog:",

@@ -9,6 +9,11 @@ even if one uses React and the other uses Angular.
 
 The shell must [configure shared state](/docs/configure-shared-state) before mounting your definition.
 
+The [running example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state)
+puts a React survey App and an Angular inspection Widget beside each other. Choosing a well in
+React updates the Angular planner; changing the survey or depth units in Angular updates React.
+The Widget receives no selection as props. Both consumers read and write the shell's shared store.
+
 ## Steps
 
 <Steps>

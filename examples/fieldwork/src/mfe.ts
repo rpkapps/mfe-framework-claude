@@ -1,12 +1,26 @@
 import { withComponentInputBinding } from '@angular/router'
-import { createApp } from '@company/mfe-angular'
+import { createApp, createWidget } from '@company/mfe-angular'
 import { sharedStateSchema } from '@example/shared-state-contracts'
+import { z } from 'zod'
 
 import { AppComponent } from './app.component'
 import { routes } from './app.routes'
 import { providePrimeNgForMfe } from './primeng'
+import { WellInspectionComponent } from './well-inspection.component'
 
-export default createApp({
+export const wellInspection = createWidget({
+  id: 'well-inspection',
+  version: '0.1.0',
+  title: 'Well inspection',
+  description: 'Plan an inspection for the well selected in the React survey App.',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  sharedStateSchema,
+  component: WellInspectionComponent,
+  providers: [providePrimeNgForMfe()],
+})
+
+export const fieldwork = createApp({
   id: 'fieldwork',
   version: '0.1.0',
   title: 'Fieldwork',

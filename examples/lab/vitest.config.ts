@@ -16,6 +16,18 @@ export default defineConfig({
     ...tectonResolveForTests,
     alias: [
       {
+        find: /^#mfe\/shared-state\/fieldwork$/,
+        replacement: fileURLToPath(
+          new URL('../fieldwork/.mfe/shared-state/fieldwork.ts', import.meta.url),
+        ),
+      },
+      {
+        find: /^#mfe\/shared-state\/well-inspection$/,
+        replacement: fileURLToPath(
+          new URL('../fieldwork/.mfe/shared-state/well-inspection.ts', import.meta.url),
+        ),
+      },
+      {
         find: /^#mfe\/shared-state$/,
         replacement: fileURLToPath(new URL('./.mfe/shared-state/lab.ts', import.meta.url)),
       },

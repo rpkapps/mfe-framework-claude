@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./browser": "./src/browser.ts",
+    "./wells": "./src/wells.ts",
     "./server": "./server.mjs"
   },
   "scripts": {

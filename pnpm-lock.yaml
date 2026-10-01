@@ -732,6 +732,9 @@ importers:
 
   examples/fieldwork:
     dependencies:
+      '@example/shared-state-demo':
+        specifier: workspace:*
+        version: link:../shared-state
       '@example/shared-state-contracts':
         specifier: workspace:*
         version: link:../shared-state-contracts
@@ -908,6 +911,9 @@ importers:
 
   examples/lab:
     dependencies:
+      '@example/shared-state-demo':
+        specifier: workspace:*
+        version: link:../shared-state
       '@example/shared-state-contracts':
         specifier: workspace:*
         version: link:../shared-state-contracts
@@ -954,6 +960,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
     devDependencies:
+      '@angular/compiler':
+        specifier: 'catalog:'
+        version: 19.2.25
       '@company/mfe-rspack':
         specifier: workspace:*
         version: link:../../packages/mfe-rspack

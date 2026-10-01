@@ -1,19 +1,38 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useLoaderData, useRouter } from '@tanstack/react-router'
-import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@tecton/react/components/empty'
+import { Field, FieldLabel } from '@tecton/react/components/field'
+import { NativeSelect, NativeSelectOption } from '@tecton/react/components/native-select'
+import { Switch } from '@tecton/react/components/switch'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableCaption,
+} from '@tecton/react/components/table'
+
+import { formatDepth, wells } from '@example/shared-state-demo/wells'
 import { useSharedState, useSharedStateStore } from '#mfe/shared-state'
 
-import { DataList, DataRow, LabPage, LabSection, Value } from './lab-page.tsx'
+import { WellInspection } from './inspection-widget.ts'
+import { LabPage, LabSection, WidgetSkeleton } from './lab-page.tsx'
 
 export function SharedStatePage(): ReactNode {
+  const id = useId()
   const [units, setUnits] = useSharedState('display:units')
   const [selection, setSelection] = useSharedState('well:selection')
   const store = useSharedStateStore()
   const router = useRouter()
   const loadedSelection = useLoaderData({ from: '/shared-state' })
+  const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
+  const [showInspection, setShowInspection] = useState(true)
 
   async function save(write: () => Promise<void>): Promise<void> {
     setPending(true)
@@ -31,81 +50,201 @@ export function SharedStatePage(): ReactNode {
   return (
     <LabPage
       eyebrow="Shared state"
-      title="One selection, two frameworks"
-      description="The Lab and Fieldwork import their schema from @example/shared-state-contracts. Change a value here, then open Fieldwork’s Shared state page: Angular reads the same saved record."
-      tryThis="Select well 42, enable overlay, then change only the run. The well and comparison mode stay unchanged. Reload the page to read the saved selection."
+      title="Review a survey. Plan its inspection."
+      description="Two independently mounted micro-frontends use the same selection. The React App reviews survey data; the Angular Widget prepares an inspection for that well."
+      tryThis="Choose a well on the left and watch the Angular panel update. Change the survey or units in Angular: the React review updates too. Close and reopen the inspection panel; the selection stays."
     >
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Change was not saved</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      <LabSection title="Units">
-        <DataList>
-          <DataRow label="Units">
-            <Value value={units} />
-          </DataRow>
-        </DataList>
-        <Button
-          variant="outline"
-          disabled={pending}
-          onClick={() => void save(() => setUnits(units === 'metric' ? 'imperial' : 'metric'))}
-        >
-          Switch units
-        </Button>
-        <UnitsMirror />
-      </LabSection>
-      <LabSection title="Selected well">
-        <DataList>
-          <DataRow label="Well">
-            <Value value={selection?.wellId ?? 'No well selected'} />
-          </DataRow>
-          <DataRow label="Run">
-            <Value value={selection?.runId ?? 'No run selected'} />
-          </DataRow>
-          <DataRow label="Comparison">
-            <Value value={selection?.comparisonMode ?? 'No selection'} />
-          </DataRow>
-          <DataRow label="Well read by route loader">
-            <Value value={loadedSelection?.wellId ?? 'No well selected'} />
-          </DataRow>
-        </DataList>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={pending}
-            onClick={() => void save(() => setSelection({ wellId: 'well-42', runId: 'run-7' }))}
-          >
-            Select well 42
-          </Button>
-          <Button
-            variant="outline"
-            disabled={pending || selection === null}
-            onClick={() => void save(() => setSelection({ comparisonMode: 'overlay' }))}
-          >
-            Enable overlay
-          </Button>
-          <Button
-            variant="outline"
-            disabled={pending || selection === null}
-            onClick={() => void save(() => store.set('well:selection', { runId: 'run-8' }))}
-          >
-            Change only run
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={pending || selection === null}
-            onClick={() => void save(() => setSelection(null))}
-          >
-            Clear selection
-          </Button>
-        </div>
-      </LabSection>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section aria-label="React survey app">
+          <LabSection title="Survey review" note="React App · Lab">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTitle>Selection was not saved</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Field>
+              <FieldLabel htmlFor={`${id}-well`}>Well</FieldLabel>
+              <NativeSelect
+                id={`${id}-well`}
+                value={well?.id ?? ''}
+                disabled={pending}
+                onChange={event => {
+                  const next = wells.find(candidate => candidate.id === event.target.value)
+                  if (next)
+                    void save(() =>
+                      setSelection({
+                        wellId: next.id,
+                        runId: next.runs[1].id,
+                        comparisonMode: 'baseline',
+                      }),
+                    )
+                }}
+              >
+                <NativeSelectOption value="">Choose a well</NativeSelectOption>
+                {wells.map(option => (
+                  <NativeSelectOption key={option.id} value={option.id}>
+                    {option.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-run`}>Survey run</FieldLabel>
+              <NativeSelect
+                id={`${id}-run`}
+                value={selection?.runId ?? ''}
+                disabled={pending || !well}
+                onChange={event => {
+                  const runId = event.target.value
+                  if (well?.runs.some(run => run.id === runId))
+                    void save(() => store.set('well:selection', { runId }))
+                }}
+              >
+                <NativeSelectOption value="">Choose a survey</NativeSelectOption>
+                {well?.runs.map(run => (
+                  <NativeSelectOption key={run.id} value={run.id}>
+                    {run.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${id}-units`}>Depth units</FieldLabel>
+              <NativeSelect
+                id={`${id}-units`}
+                value={units}
+                disabled={pending}
+                onChange={event => {
+                  const nextUnits = event.target.value
+                  if (nextUnits === 'metric' || nextUnits === 'imperial')
+                    void save(() => setUnits(nextUnits))
+                }}
+              >
+                <NativeSelectOption value="metric">Metres</NativeSelectOption>
+                <NativeSelectOption value="imperial">Feet</NativeSelectOption>
+              </NativeSelect>
+            </Field>
+            <Field orientation="horizontal" data-disabled={pending || !well}>
+              <Switch
+                id={`${id}-comparison`}
+                checked={selection?.comparisonMode === 'overlay'}
+                disabled={pending || !well}
+                onCheckedChange={checked =>
+                  void save(() =>
+                    setSelection({ comparisonMode: checked ? 'overlay' : 'baseline' }),
+                  )
+                }
+              />
+              <FieldLabel htmlFor={`${id}-comparison`}>Compare with baseline</FieldLabel>
+            </Field>
+            <SurveyResults />
+            <Button
+              variant="ghost"
+              disabled={pending || selection === null}
+              onClick={() => void save(() => setSelection(null))}
+            >
+              Clear selected well
+            </Button>
+          </LabSection>
+        </section>
+        <section aria-label="Angular inspection app">
+          <LabSection title="Inspection planner" note="Angular Widget · Fieldwork">
+            <p>
+              The planner below is loaded from the Fieldwork container. It receives no well, run or
+              units as props.
+            </p>
+            {showInspection ? (
+              <WellInspection
+                pending={<WidgetSkeleton />}
+                fallback={({ error: failure, retry }) => (
+                  <Alert variant="destructive">
+                    <AlertTitle>Inspection planner could not load</AlertTitle>
+                    <AlertDescription>{failure.message}</AlertDescription>
+                    <AlertAction>
+                      <Button variant="outline" onClick={retry}>
+                        Retry inspection planner
+                      </Button>
+                    </AlertAction>
+                  </Alert>
+                )}
+              />
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>Inspection panel closed</EmptyTitle>
+                  <EmptyDescription>
+                    Reopen it to read the current shared selection.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+            <Button variant="outline" onClick={() => setShowInspection(current => !current)}>
+              {showInspection ? 'Close inspection panel' : 'Reopen inspection panel'}
+            </Button>
+          </LabSection>
+        </section>
+      </div>
+      <details>
+        <summary>How the two MFEs share this selection</summary>
+        <p>
+          Both definitions import sharedStateSchema from @example/shared-state-contracts. The shell
+          owns the store; each MFE uses its own generated bindings. No selection is passed to the
+          Widget.
+        </p>
+        <p>
+          The route loader read{' '}
+          {wells.find(candidate => candidate.id === loadedSelection?.wellId)?.name ??
+            'no selection'}{' '}
+          when it last ran.
+        </p>
+      </details>
     </LabPage>
   )
 }
 
-function UnitsMirror(): ReactNode {
+function SurveyResults(): ReactNode {
   const [units] = useSharedState('display:units')
-  return <p aria-live="polite">Another subscriber reads {units} units.</p>
+  const [selection] = useSharedState('well:selection')
+  const well = wells.find(candidate => candidate.id === selection?.wellId)
+  const run = well?.runs.find(candidate => candidate.id === selection?.runId)
+  if (!well || !run)
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>No survey selected</EmptyTitle>
+          <EmptyDescription>
+            Choose a well to review its surveys and prepare an inspection.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  const baseline = well.runs[0]
+  return (
+    <section aria-label="React survey results" aria-live="polite">
+      <h3>{well.name}</h3>
+      <p>{well.site}</p>
+      <Table>
+        <TableCaption>Survey depths</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Survey</TableHead>
+            <TableHead>Measured depth</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>{run.name}</TableCell>
+            <TableCell>{formatDepth(run.depthMetres, units)}</TableCell>
+          </TableRow>
+          {selection?.comparisonMode === 'overlay' && run.id !== baseline.id && (
+            <TableRow>
+              <TableCell>{baseline.name}</TableCell>
+              <TableCell>{formatDepth(baseline.depthMetres, units)}</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </section>
+  )
 }

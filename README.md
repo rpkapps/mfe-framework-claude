@@ -181,8 +181,9 @@ The containers, all mounted by one shell, each on its own dev server:
 | `examples/loaders`     | 3008 | an App with a page for every loading screen the shell can draw              |
 
 For shared state, follow [the React and Angular walkthrough](examples/shared-state/README.md).
-Both Apps import `sharedStateSchema` from `@example/shared-state-contracts`; the shell imports
-that package's compiled `schema`. The example API saves selections and units on disk.
+The React survey App and Angular inspection Widget update each other on the same page.
+Both import `sharedStateSchema` from `@example/shared-state-contracts`; the shell imports that
+package's compiled `schema`. The example API saves selections and units on disk.
 
 ---
 

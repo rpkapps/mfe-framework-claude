@@ -6,7 +6,7 @@ import {
 import { schema } from '@example/shared-state-contracts/schema'
 import { expect, it } from 'vitest'
 
-import app from './mfe'
+import { fieldwork as app } from './mfe'
 
 function state() {
   const repository = createTestSharedStateRepository().repository

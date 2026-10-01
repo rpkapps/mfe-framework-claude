@@ -25,8 +25,11 @@ export default defineConfig({
       '#mfe/fetch': '@company/mfe-angular/testing/mfe-fetch',
       // Plain generated data with no side effects, so a test reads the real one.
       '#mfe/meta': fileURLToPath(new URL('./.mfe/meta.ts', import.meta.url)),
-      '#mfe/shared-state': fileURLToPath(
+      '#mfe/shared-state/fieldwork': fileURLToPath(
         new URL('./.mfe/shared-state/fieldwork.ts', import.meta.url),
+      ),
+      '#mfe/shared-state/well-inspection': fileURLToPath(
+        new URL('./.mfe/shared-state/well-inspection.ts', import.meta.url),
       ),
     },
   },

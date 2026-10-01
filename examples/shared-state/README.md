@@ -14,21 +14,27 @@ pnpm generate
 pnpm dev
 ```
 
-Open the shell at <http://localhost:3000> and use these pages:
+Open <http://localhost:3000/lab/shared-state>. The page mounts two independent MFEs side by side:
 
-- React: <http://localhost:3000/lab/shared-state>
-- Angular: <http://localhost:3000/fieldwork/shared-state>
+- **Survey review:** the React Lab App selects a well and reviews its surveys.
+- **Inspection planner:** an Angular Widget from the Fieldwork container reads that selection
+  and prepares an inspection brief. It receives no selection or units as props.
 
-1. In the React Lab, select well 42 and enable overlay.
-2. Open the Angular page. It shows well 42, run 7 and overlay. Its resolver also reads well 42.
-3. Choose **Change only run** in Angular. The run changes to 8; the well and overlay remain.
-4. Return to the React page. Its hooks and TanStack route loader read the same selection.
-5. Switch units in either App and open the other. Both use the saved units preference.
-6. Reload the shell. The local API reads the saved records from disk.
-7. Clear the selection. Both frameworks read null instead of a well.
+1. Choose **North Ridge 42** in React. Both panels show that well and its October survey.
+2. Turn on **Compare with baseline**. The React review adds the baseline depth; Angular reads
+   the same comparison setting.
+3. Choose **Baseline survey** in Angular. React's survey picker and results change immediately.
+   The well and comparison setting stay unchanged because Angular writes only `runId`.
+4. Choose **Use feet** in Angular. Both panels convert the survey depth, and React's units
+   picker changes to Feet.
+5. Choose **Prepare inspection**. Angular creates a local brief for the selected well and survey.
+6. Close the inspection panel, change the well in React and reopen the panel. Angular reads
+   the current selection from the shell's store.
+7. Reload the shell. Both MFEs read the saved selection. **Clear selected well** clears both panels.
 
-The React page also has a second units subscriber so you can see immediate updates without
-switching pages. Setters are awaited and failures remain visible next to the controls.
+The same Angular Widget also appears at <http://localhost:3000/fieldwork/shared-state>.
+The well names and measured depths are sample survey data; the shared store holds only the
+selection and units. An inspection brief is local draft state and is not submitted to a server.
 
 ## Find the code
 
@@ -39,8 +45,8 @@ switching pages. Setters are awaited and failures remain visible next to the con
 | React definition imports the package                | `examples/lab/src/mfe.ts`                                            |
 | React hooks and partial writes                      | `examples/lab/src/shared-state-page.tsx`                             |
 | Existing TanStack Router loader                     | `examples/lab/src/routes/shared-state.tsx`                           |
-| Angular definition imports the package              | `examples/fieldwork/src/mfe.ts`                                      |
-| Angular signals and partial writes                  | `examples/fieldwork/src/shared-state.component.ts`                   |
+| Angular App and Widget import the package           | `examples/fieldwork/src/mfe.ts`                                      |
+| Angular signals and partial writes                  | `examples/fieldwork/src/well-inspection.component.ts`                |
 | Angular route resolver                              | `examples/fieldwork/src/shared-state.resolver.ts`                    |
 | Shell configures the current compiled schema        | `apps/shell/src/boot.tsx` and `examples/shared-state/src/browser.ts` |
 | Local API transport                                 | `tools/dev/api.mjs`                                                  |
@@ -61,6 +67,7 @@ example does not broadcast changes between browser tabs; both Apps in one shell 
 ```sh
 pnpm --filter @example/shared-state-demo test
 pnpm --filter @example/lab typecheck
+pnpm --filter @example/lab test
 pnpm --filter @example/fieldwork typecheck
 pnpm --filter @example/fieldwork test
 ```

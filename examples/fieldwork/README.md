@@ -1,6 +1,6 @@
 # @example/fieldwork
 
-An Angular 19 App, zoneless and on PrimeNG, that the shell mounts beside the React examples. Its id
+An Angular 19 App and inspection Widget, zoneless and on PrimeNG, mounted beside the React examples. The App's id
 is `fieldwork` and its dev server is on port 3007. `@company/mfe-nx`'s `app` generator wrote it, and
 it builds the way a generated container does: Nx's Angular webpack builder with `withMfe()` as the
 `customWebpackConfig` (`webpack.config.ts`).
@@ -10,8 +10,8 @@ it builds the way a generated container does: Nx's Angular webpack builder with 
   `injectUser()` reads from the shell.
 - `/inspections/:inspectionId` shows one inspection; the router binds the parameter to an input.
 - `/settings` is the App's settings capability, which the shell lists in its own settings.
-- `/shared-state` reads and updates the well selection and units shared with the React Lab.
-  Both Apps import `sharedStateSchema` from `@example/shared-state-contracts`.
+- `/shared-state` hosts the inspection planner Widget, also mounted beside the React survey review.
+  The React App and Angular Widget import `sharedStateSchema` from `@example/shared-state-contracts`.
   Follow [the shared-state walkthrough](../shared-state/README.md) to run them together.
 
 ## An Nx workspace of its own

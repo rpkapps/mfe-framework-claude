@@ -15,11 +15,15 @@ const mfeMeta = {
   name: 'mfe-meta-per-example',
   enforce: 'pre' as const,
   resolveId(source: string, importer: string | undefined) {
-    if (!['#mfe/meta', '#mfe/shared-state'].includes(source) || importer === undefined) return null
+    if (
+      (source !== '#mfe/meta' && !/^#mfe\/shared-state(?:\/[a-z0-9-]+)?$/.test(source)) ||
+      importer === undefined
+    )
+      return null
     const match = /^(.*[/\\]examples[/\\][^/\\]+)[/\\]/.exec(importer)
     if (match?.[1] === undefined) return null
     if (source === '#mfe/meta') return resolve(match[1], '.mfe/meta.ts')
-    const definition = basename(match[1])
+    const definition = source.split('/')[2] ?? basename(match[1])
     return resolve(match[1], `.mfe/shared-state/${definition}.ts`)
   },
 }
