@@ -15,6 +15,8 @@
  */
 
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
+import { DEV_API_PORT } from './api.mjs'
+import { spawn } from 'node:child_process'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -59,6 +61,36 @@ const PAGES = [
     url: '/lab/widgets',
     mounts: ['lab'],
     nested: [{ parent: 'lab', child: 'alert-panel', contains: 'Alert a-1001' }],
+  },
+  {
+    // Hydration and updates cross the real API and federation boundaries in both directions.
+    url: '/lab/shared-state',
+    mounts: ['lab'],
+    nested: [{ parent: 'lab', child: 'well-inspection', contains: 'North Ridge 42' }],
+    angularPageAssets: true,
+    async prepare(page) {
+      await page.getByLabel('Well', { exact: true }).selectOption('well-42')
+      const planner = page.locator('[data-mfe-scope="well-inspection"]')
+      await planner.getByText('North Ridge 42', { exact: true }).waitFor()
+      // Start from metres even when a previous local run saved feet.
+      await page.getByLabel('Depth units').selectOption('metric')
+      await planner.getByRole('button', { name: 'Use feet', exact: true }).click()
+      const results = page.getByRole('region', { name: 'React survey results' })
+      await results.getByRole('cell', { name: '8,038 ft', exact: true }).waitFor()
+      check(
+        'Angular units update the React units picker through shared state',
+        (await page.getByLabel('Depth units').inputValue()) === 'imperial',
+        'React did not read the units saved by Angular',
+      )
+    },
+  },
+  {
+    // A new App mount hydrates the selection saved by the two MFEs on the previous page.
+    url: '/fieldwork/shared-state',
+    mounts: ['fieldwork'],
+    nested: [{ parent: 'fieldwork', child: 'well-inspection', contains: 'North Ridge 42' }],
+    contains: 'Inspection depth: 8,038 ft',
+    angularPageAssets: true,
   },
   {
     // The claim the dashboard exists to make: the shell mounts a Widget it was never built
@@ -198,6 +230,18 @@ function start(filter) {
   child.stdout.on('data', note)
   child.stderr.on('data', note)
   return child
+}
+
+function startApi() {
+  const child = spawn(process.execPath, [join(repoRoot, 'tools/dev/api.mjs')], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: detachedForGroupKill,
+  })
+  children.push(child)
+  const note = data => process.stderr.write(`[dev api] ${data}`)
+  child.stdout.on('data', note)
+  child.stderr.on('data', note)
 }
 
 function stopAll() {
@@ -502,11 +546,13 @@ async function checkAngularPageAssets(page, expected) {
 async function main() {
   const containers = await collectContainers()
 
-  console.log(`Starting the shell and ${containers.length} container(s)…`)
+  console.log(`Starting the API, shell and ${containers.length} container(s)…`)
+  startApi()
   start('@company/shell')
   for (const container of containers) start(container.packageName)
 
   await Promise.all([
+    waitForOk(`http://localhost:${DEV_API_PORT}/api/lab/probe`),
     waitForOk('http://localhost:3000/'),
     ...containers.map(container => waitForOk(container.manifestUrl)),
   ])
