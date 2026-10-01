@@ -18,9 +18,10 @@ import {
 
 export interface SharedStateOptions {
   readonly scope: string
-  readonly catalog: SharedStateManifest
-  /** Only explicitly supported revisions are accepted, never the first mounted schema. */
-  readonly supported?: readonly SharedStateManifest[]
+  /** Current contract for each key; these revisions are accepted automatically. */
+  readonly contracts: SharedStateManifest
+  /** Additional consumer revisions for independently deployed MFEs. Omit when all use current contracts. */
+  readonly supportedContracts?: readonly SharedStateManifest[]
   readonly adapter: SharedStateAdapter
   readonly onError?: (error: unknown, id: string) => void
 }
@@ -66,17 +67,17 @@ export class SharedStateRuntime implements SharedStateService {
   constructor(options: SharedStateOptions) {
     this.#options = options
     this.#scope = options.scope
-    if (!options.scope || options.catalog.formatVersion !== 1)
+    if (!options.scope || options.contracts.formatVersion !== 1)
       throw new SharedStateError(
         'unsupported-contract',
-        '<catalog>',
+        '<contracts>',
         'Configure a nonempty opaque scope and contract format 1',
       )
-    for (const manifest of [options.catalog, ...(options.supported ?? [])]) {
+    for (const manifest of [options.contracts, ...(options.supportedContracts ?? [])]) {
       if (manifest.formatVersion !== 1)
         throw new SharedStateError(
           'unsupported-contract',
-          '<catalog>',
+          '<contracts>',
           'Unsupported manifest format',
         )
       for (const contract of manifest.contracts) {
@@ -239,7 +240,7 @@ export class SharedStateRuntime implements SharedStateService {
   }
   #resetEntries(): void {
     this.#entries.clear()
-    for (const canonical of this.#options.catalog.contracts) {
+    for (const canonical of this.#options.contracts.contracts) {
       if (this.#entries.has(canonical.id))
         throw new SharedStateError(
           'unsupported-contract',
@@ -292,7 +293,7 @@ export class SharedStateRuntime implements SharedStateService {
         throw new SharedStateError(
           'unsupported-contract',
           requested.id,
-          `Revision ${requested.revision} is unavailable in the deployment catalog/support window`,
+          `Revision ${requested.revision} is unavailable in the deployment contracts/support window`,
         )
       contracts.set(requested.id, contract)
     }
@@ -304,7 +305,7 @@ export class SharedStateRuntime implements SharedStateService {
       throw new SharedStateError(
         'unsupported-contract',
         id,
-        'No canonical contract in deployment catalog',
+        'No canonical contract in deployment contracts',
       )
     return entry
   }

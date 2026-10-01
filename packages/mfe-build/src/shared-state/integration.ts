@@ -14,7 +14,7 @@ export function checkSharedStateBuild(plan: ContainerPlan, production: boolean):
   if (!file) {
     if (production)
       throw new Error(
-        'shared-state/missing-baseline: Production builds require sharedStatePolicy with explicit baselines, catalog and supported revisions; use baselines: [] only for a first release',
+        'shared-state/missing-baseline: Production builds require sharedStatePolicy with explicit baselines, contracts and supported revisions; use baselines: [] only for a first release',
       )
     return
   }

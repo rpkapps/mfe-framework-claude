@@ -59,8 +59,8 @@ const units: StateContract = {
     value: 'metric',
   },
 }
-const catalog = { formatVersion: 1 as const, contracts: [current, units] }
-const supported = [{ formatVersion: 1 as const, contracts: [old] }]
+const contracts = { formatVersion: 1 as const, contracts: [current, units] }
+const supportedContracts = [{ formatVersion: 1 as const, contracts: [old] }]
 const refs = (contract: StateContract) => ({
   protocolVersion: 1 as const,
   contracts: [{ id: contract.id, revision: contract.revision }],
@@ -71,8 +71,8 @@ function setup(adapterOverride?: (adapter: SharedStateAdapter) => SharedStateAda
     Promise.resolve(),
   )
   const backend = createSharedStateBackend({
-    catalog,
-    supported,
+    contracts,
+    supportedContracts,
     repository: storage.repository,
     authorize,
   })
@@ -80,8 +80,8 @@ function setup(adapterOverride?: (adapter: SharedStateAdapter) => SharedStateAda
   const onError = vi.fn()
   const runtime = new SharedStateRuntime({
     scope: 'tenant/user/workspace',
-    catalog,
-    supported,
+    contracts,
+    supportedContracts,
     adapter,
     onError,
   })

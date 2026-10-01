@@ -107,7 +107,7 @@ for (let count = 0; count < 100; count++) normalize(node, items, 'benchmark', tr
 const projectionMs = (performance.now() - start) / 100
 const service = new SharedStateRuntime({
   scope: 'benchmark',
-  catalog: old.manifest,
+  contracts: old.manifest,
   adapter: {
     hydrate: async () => [{ id: 'selection', revision: 0 }],
     write: async () => {
@@ -136,7 +136,7 @@ console.log(
       },
       budgets: {
         declarationBytesPerApp: 400,
-        catalogCopiesPerRevisionPerContainer: 1,
+        contractCopiesPerRevisionPerContainer: 1,
         authoringValidatorsAfter: 0,
       },
     },

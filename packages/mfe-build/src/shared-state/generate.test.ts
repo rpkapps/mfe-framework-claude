@@ -50,7 +50,10 @@ describe('shared-state generated bindings and production pipeline', () => {
     expect(() => checkSharedStateBuild(plan, false)).not.toThrow()
     expect(() => checkSharedStateBuild(plan, true)).toThrow('missing-baseline')
     const policyFile = join(root, 'state-policy.json')
-    writeFileSync(policyFile, JSON.stringify({ baselines: [], supported: [], catalog: manifest() }))
+    writeFileSync(
+      policyFile,
+      JSON.stringify({ baselines: [], supportedContracts: [], contracts: manifest() }),
+    )
     expect(() =>
       checkSharedStateBuild(
         planContainer(profile, { containerRoot: root, sharedStatePolicy: 'state-policy.json' }),

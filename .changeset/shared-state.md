@@ -9,3 +9,5 @@
 ---
 
 Add compiled shared-state contracts, typed React and Angular bindings, router-accessible stores, scoped shell-owned state and a transactional persistence protocol. Mixed-version writes preserve unknown object fields, while production build gates reject unsupported evolution. Include generated artifacts, optional editor diagnostics, a reference backend, documentation and reproducible production measurements.
+
+Configure current shared-state manifests with `contracts` and optional older consumer revisions with `supportedContracts`. These names apply consistently to the runtime, reference backend and release policy.

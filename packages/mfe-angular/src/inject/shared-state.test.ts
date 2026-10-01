@@ -40,7 +40,7 @@ function options() {
   }
   return {
     scope: 'user/workspace',
-    catalog: { formatVersion: 1 as const, contracts: [contract] },
+    contracts: { formatVersion: 1 as const, contracts: [contract] },
     adapter,
   }
 }

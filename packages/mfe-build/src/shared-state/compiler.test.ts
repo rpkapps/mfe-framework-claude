@@ -136,38 +136,38 @@ describe('shared-state contract compiler and release gate', () => {
       compareContracts(previous, compile(base.replace('wellId: z.string(), ', '')).contracts[0]!),
     ).not.toEqual([])
   })
-  it('checks every supported baseline, catalog availability and artifact integrity', () => {
+  it('checks every supported baseline, contracts availability and artifact integrity', () => {
     const previous = compile(base)
     const candidate = compile(
       base.replace('wellId: z.string()', 'wellId: z.string(), extra: z.string().optional()'),
     )
     expect(() =>
       checkSharedStateRelease([candidate, previous], {
-        catalog: candidate,
+        contracts: candidate,
         baselines: [previous],
-        supported: [previous],
+        supportedContracts: [previous],
       }),
     ).not.toThrow()
     expect(() =>
       checkSharedStateRelease([previous], {
-        catalog: candidate,
+        contracts: candidate,
         baselines: [previous],
-        supported: [],
+        supportedContracts: [],
       }),
     ).toThrow('unsupported-revision')
     expect(() =>
       checkSharedStateRelease([candidate], {
-        catalog: { formatVersion: 1, contracts: [] },
+        contracts: { formatVersion: 1, contracts: [] },
         baselines: [previous],
-        supported: [],
+        supportedContracts: [],
       }),
-    ).toThrow('missing-catalog-key')
+    ).toThrow('missing-contract')
     const incompatible = compile(base.replace('wellId: z.string()', 'wellId: z.number()'))
     expect(() =>
       checkSharedStateRelease([incompatible], {
-        catalog: incompatible,
+        contracts: incompatible,
         baselines: [previous],
-        supported: [previous],
+        supportedContracts: [previous],
       }),
     ).toThrow('incompatible-change')
     expect(() => validateArtifact({ ...candidate.contracts[0]!, revision: 'tampered' })).toThrow(

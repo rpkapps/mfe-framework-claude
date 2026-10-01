@@ -36,8 +36,8 @@ const repository = {
   },
 }
 const backend = createSharedStateBackend({
-  catalog: v2,
-  supported: [v1],
+  contracts: v2,
+  supportedContracts: [v1],
   repository,
   authorize: async scope => {
     assert.equal(scope, 'tenant/user/workspace')
@@ -45,8 +45,8 @@ const backend = createSharedStateBackend({
 })
 const service = new SharedStateRuntime({
   scope: 'tenant/user/workspace',
-  catalog: v2,
-  supported: [v1],
+  contracts: v2,
+  supportedContracts: [v1],
   adapter: backend,
 })
 await service.prepare(requirementsFor(v1))

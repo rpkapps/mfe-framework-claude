@@ -411,8 +411,8 @@ export function compareContracts(
 export interface SharedStateReleasePolicy {
   /** Explicit support window. An empty list declares a new domain's first release. */
   readonly baselines: readonly SharedStateManifest[]
-  readonly catalog: SharedStateManifest
-  readonly supported: readonly SharedStateManifest[]
+  readonly contracts: SharedStateManifest
+  readonly supportedContracts: readonly SharedStateManifest[]
 }
 export function checkSharedStateRelease(
   manifests: readonly SharedStateManifest[],
@@ -420,12 +420,17 @@ export function checkSharedStateRelease(
 ): void {
   if (!policyIsAvailable(policy))
     throw new Error(
-      'shared-state/missing-baseline: Release requires baselines, catalog and supported revisions',
+      'shared-state/missing-baseline: Release requires baselines, contracts and supported revisions',
     )
-  for (const manifest of [policy.catalog, ...policy.baselines, ...policy.supported, ...manifests])
+  for (const manifest of [
+    policy.contracts,
+    ...policy.baselines,
+    ...policy.supportedContracts,
+    ...manifests,
+  ])
     manifest.contracts.forEach(validateArtifact)
-  for (const canonical of policy.catalog.contracts)
-    for (const baseline of [...policy.baselines, ...policy.supported]) {
+  for (const canonical of policy.contracts.contracts)
+    for (const baseline of [...policy.baselines, ...policy.supportedContracts]) {
       const old = baseline.contracts.find(item => item.id === canonical.id)
       if (old) {
         const diagnostics = compareContracts(old, canonical)
@@ -439,10 +444,10 @@ export function checkSharedStateRelease(
     }
   for (const manifest of manifests)
     for (const contract of manifest.contracts) {
-      const canonical = policy.catalog.contracts.find(item => item.id === contract.id)
-      if (!canonical) throw new Error(`shared-state/missing-catalog-key: ${contract.id}`)
+      const canonical = policy.contracts.contracts.find(item => item.id === contract.id)
+      if (!canonical) throw new Error(`shared-state/missing-contract: ${contract.id}`)
       if (
-        ![policy.catalog, ...policy.supported].some(entry =>
+        ![policy.contracts, ...policy.supportedContracts].some(entry =>
           entry.contracts.some(
             item => item.id === contract.id && item.revision === contract.revision,
           ),
@@ -464,11 +469,15 @@ export function checkSharedStateRelease(
     }
   for (const baseline of policy.baselines)
     for (const old of baseline.contracts) {
-      if (!policy.catalog.contracts.some(item => item.id === old.id))
+      if (!policy.contracts.contracts.some(item => item.id === old.id))
         throw new Error(`shared-state/removed-key: ${old.id}`)
     }
 }
 
 function policyIsAvailable(policy: SharedStateReleasePolicy): boolean {
-  return Array.isArray(policy.baselines) && !!policy.catalog && Array.isArray(policy.supported)
+  return (
+    Array.isArray(policy.baselines) &&
+    !!policy.contracts &&
+    Array.isArray(policy.supportedContracts)
+  )
 }

@@ -65,7 +65,7 @@ export async function resolveDefinition(
       throw new SharedStateError(
         'unsupported-contract',
         id,
-        'Shell requires shared-state protocol 1, a deployment catalog and persistence adapter',
+        'Shell requires shared-state protocol 1, a deployment contracts and persistence adapter',
       )
     await runtime.sharedState.prepare(definition.sharedState, signal)
   }

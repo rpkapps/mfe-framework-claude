@@ -30,16 +30,16 @@ export interface SharedStateRepository {
   ): Promise<StoredState>
 }
 export interface SharedStateBackendOptions {
-  readonly catalog: SharedStateManifest
-  readonly supported?: readonly SharedStateManifest[]
+  readonly contracts: SharedStateManifest
+  readonly supportedContracts?: readonly SharedStateManifest[]
   readonly repository: SharedStateRepository
   /** Resolve identity from the authenticated request, never from client-supplied scope alone. */
   readonly authorize: (scope: string, id: string, operation: 'read' | 'write') => Promise<void>
 }
 export function createSharedStateBackend(options: SharedStateBackendOptions) {
-  const canonical = new Map(options.catalog.contracts.map(contract => [contract.id, contract]))
+  const canonical = new Map(options.contracts.contracts.map(contract => [contract.id, contract]))
   const contracts = new Map<string, StateContract>()
-  for (const manifest of [options.catalog, ...(options.supported ?? [])])
+  for (const manifest of [options.contracts, ...(options.supportedContracts ?? [])])
     for (const contract of manifest.contracts)
       contracts.set(`${contract.id}@${contract.revision}`, contract)
   const find = (id: string): StateContract => {

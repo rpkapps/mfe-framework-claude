@@ -118,15 +118,19 @@ const { runtime } = createMfeRuntime({
   // Existing shell options ...
   sharedState: {
     scope: opaqueTenantUserWorkspaceIdentity,
-    catalog: canonicalManifest,
-    supported: [supportedOlderManifest],
+    contracts: currentContracts,
+    supportedContracts: [olderContracts],
     adapter: durableBackendAdapter,
     onError: reportSharedStateFailure,
   },
 })
 ```
 
-The deployment chooses the canonical catalog and explicit support window. The first mounted app cannot choose them. Required hydration and revision checks finish before rendering or router creation. Missing records may materialize declared defaults, without persisting on mount. Invalid records fail hydration and retain their persisted data; recovery must be explicit.
+`contracts` supplies the current compiled contract for each shared-state key. These revisions are accepted automatically. `supportedContracts` is optional: supply additional compiled revisions only while deployed MFEs still use them. If every MFE uses the current contracts, omit it.
+
+The current shape cannot identify which fields an older writer knows. For example, omitting a known optional field means deletion, while an older writer omitting a field it never knew means preservation. Keeping the older writer contract makes those intentions distinguishable. Compile manifests from the shared schemas; do not maintain revision metadata by hand.
+
+The deployment chooses the current contracts and explicit support window. The first mounted app cannot choose them. Required hydration and revision checks finish before rendering or router creation. Missing records may materialize declared defaults, without persisting on mount. Invalid records fail hydration and retain their persisted data; recovery must be explicit.
 
 The shell calls `runtime.sharedState.setScope(nextOpaqueIdentity)` and remounts affected surfaces when tenant, user or workspace changes. Old bindings become unusable, pending promises reject, subscriptions are removed, and late hydration/write responses cannot reach the new scope. Collaborative workspace state requires its own configured scope; it is not automatically shared between users.
 
@@ -173,11 +177,11 @@ Local exported const schemas can refer to other local schema consts and relative
 
 Populate contracts with `compileSharedState` from `@company/mfe-build/shared-state`; each artifact contains its validated shape and deterministic SHA-256 revision. Publish these artifacts immutably with the domain package. Source locations appear in compiler diagnostics and stay out of runtime payloads.
 
-Production builds declaring state require `sharedStatePolicy: './deployment/shared-state-policy.json'` in their build options. The file contains `catalog`, `supported` and explicit `baselines` manifests. Empty baselines declare a first release; missing/unreadable policy is an error. Publishing CI must provide the trusted published baselines rather than allowing an app to rewrite its support history. `checkSharedStateRelease` and `compareContracts` expose the same checks for editor and publishing integrations. Lint suppression cannot bypass the production release gate.
+Production builds declaring state require `sharedStatePolicy: './deployment/shared-state-policy.json'` in their build options. The file contains `contracts`, `supportedContracts` and explicit `baselines` manifests. Empty baselines declare a first release; missing/unreadable policy is an error. Publishing CI must provide the trusted published baselines rather than allowing an app to rewrite its support history. `checkSharedStateRelease` and `compareContracts` expose the same checks for editor and publishing integrations. Lint suppression cannot bypass the production release gate.
 
 Optional/defaulted additions within concrete objects are compatible. Required additions, removals/renames, type/default/constraint/enum/nullability changes and changes within atomic array elements fail automatic approval. A root ID addition does not invalidate other keys. Diagnostics include rule, ID, property path, old/new shape and a repair. Use a new key with an explicit bridge for breaking changes, or retire incompatible consumers through a coordinated rollout. Structural checking cannot establish whether an ID was reused for a different domain meaning.
 
-Generated deployment output includes a lightweight shared-state index and one JSON artifact per required key/revision. Repeated revisions are deduplicated within a container. Bindings contain types and definition identity, not a catalog or compiler; production definitions contain references. The shell can load and cache artifacts by revision before constructing its catalog. Compiler, compatibility baselines and Zod authoring code introduced solely by this declaration stay out of the consumer runtime graph.
+Generated deployment output includes a lightweight shared-state index and one JSON artifact per required key/revision. Repeated revisions are deduplicated within a container. Bindings contain types and definition identity, not a contract collection or compiler; production definitions contain references. The shell can load and cache artifacts by revision before configuring shared state. Compiler, compatibility baselines and Zod authoring code introduced solely by this declaration stay out of the consumer runtime graph.
 
 ## Editor diagnostics
 

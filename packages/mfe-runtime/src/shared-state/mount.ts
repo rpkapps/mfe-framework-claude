@@ -36,7 +36,7 @@ export async function prepareSharedStateMount(
     throw new SharedStateError(
       'unsupported-contract',
       definition.id,
-      'Shell lacks shared-state protocol 1. Configure the shell catalog, scope and persistence adapter before mounting',
+      'Shell lacks shared-state protocol 1. Configure the shell contracts, scope and persistence adapter before mounting',
     )
   if (service) {
     if (
