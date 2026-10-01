@@ -597,7 +597,14 @@ async function main() {
     await page.goto(`http://localhost:3000${expected.url}`, { waitUntil: 'load' })
     await page.waitForTimeout(6000)
     if (expected.prepare !== undefined) {
-      await expected.prepare(page)
+      try {
+        await expected.prepare(page)
+      } catch (error) {
+        console.error(`Scenario failed at ${expected.url}`)
+        console.error('Page errors:', pageErrors)
+        console.error('Visible page:', await page.locator('body').innerText())
+        throw error
+      }
       await page.waitForTimeout(6000)
     }
 
