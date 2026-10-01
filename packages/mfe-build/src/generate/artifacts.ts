@@ -1,3 +1,4 @@
+import { requirementsFor } from '../shared-state/compiler.ts'
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
 import { RUNTIME_API_REQUIREMENT, type ContainerDescriptor } from '@company/mfe-core'
@@ -45,6 +46,9 @@ export function containerDescriptor(
     const appCapabilities = definition.kind === 'app' && capabilities.length > 0 ? capabilities : []
     return {
       id: definition.id,
+      ...(definition.sharedState === undefined
+        ? {}
+        : { sharedState: requirementsFor(definition.sharedState) }),
       kind: definition.kind,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.title === undefined ? {} : { title: definition.title }),
@@ -194,6 +198,14 @@ export function tsconfigPathsFile(context: GenerateContext): GeneratedFile {
     [ALIASES.meta]: ['./meta.ts'],
   }
   if (context.configSource !== undefined) paths[ALIASES.config] = ['./config.ts']
+  const stateDefinitions = context.discovery.definitions.filter(
+    definition => definition.sharedState !== undefined,
+  )
+  for (const definition of stateDefinitions)
+    paths[`#mfe/shared-state/${definition.id}`] = [`./shared-state/${definition.id}.ts`]
+  const soleStateDefinition = stateDefinitions[0]
+  if (stateDefinitions.length === 1 && soleStateDefinition)
+    paths['#mfe/shared-state'] = [`./shared-state/${soleStateDefinition.id}.ts`]
 
   return {
     path: generatedPath(context.options.generatedDir, 'tsconfig.paths.json'),

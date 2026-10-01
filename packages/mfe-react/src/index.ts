@@ -177,3 +177,6 @@ export {
   type IconData,
   type IconNode,
 } from '@company/mfe-core'
+
+export { createSharedStateBindings } from './hooks/shared-state.ts'
+export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'

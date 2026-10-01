@@ -111,3 +111,5 @@ export type {
   ScopePluginLoader,
 } from './css/scope.ts'
 export { scopeFallbackPlugin } from './css/scope-fallback.ts'
+
+export { sharedStateTransformRule, checkSharedStateBuild } from './shared-state/integration.ts'

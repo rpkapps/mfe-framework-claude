@@ -1,0 +1,293 @@
+/** Structural, JSON-only ABI. This entry has no Zod, React or compiler dependencies. */
+export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
+export type StateNode =
+  | { readonly kind: 'string'; readonly min?: number; readonly max?: number }
+  | {
+      readonly kind: 'number'
+      readonly min?: number
+      readonly max?: number
+      readonly integer?: true
+    }
+  | { readonly kind: 'boolean' | 'null' }
+  | { readonly kind: 'literal'; readonly value: Json }
+  | { readonly kind: 'enum'; readonly values: readonly string[] }
+  | {
+      readonly kind: 'array'
+      readonly item: StateNode
+      readonly min?: number
+      readonly max?: number
+    }
+  | {
+      readonly kind: 'object'
+      readonly fields: Readonly<Record<string, StateNode>>
+      readonly strict: boolean
+    }
+  | { readonly kind: 'nullable' | 'optional'; readonly inner: StateNode }
+  | { readonly kind: 'default'; readonly inner: StateNode; readonly value: Json }
+
+export interface StateContract {
+  readonly formatVersion: 1
+  readonly id: string
+  readonly revision: string
+  readonly node: StateNode
+}
+export interface SharedStateManifest {
+  readonly formatVersion: 1
+  readonly contracts: readonly StateContract[]
+}
+export interface SharedStateRequirements {
+  readonly protocolVersion: 1
+  readonly contracts: readonly { readonly id: string; readonly revision: string }[]
+}
+export type StateValues = Record<string, unknown>
+export type StateKey<V> = keyof V & string
+export type SharedStateSetter<T> = (value: T) => Promise<void>
+export interface SharedStateStore<V = StateValues> {
+  get<K extends StateKey<V>>(key: K): V[K]
+  set<K extends StateKey<V>>(key: K, value: V[K]): Promise<void>
+  subscribe<K extends StateKey<V>>(key: K, listener: () => void): () => void
+}
+export interface StateRecord {
+  readonly id: string
+  /** Monotonic within one scope/key, never a contract fingerprint. Zero denotes absent. */
+  readonly revision: number
+  readonly value?: Json
+}
+export interface StateWrite {
+  readonly scope: string
+  readonly id: string
+  readonly writerRevision: string
+  readonly expectedRevision: number
+  readonly operationId: string
+  readonly value: Json
+}
+export interface SharedStateAdapter {
+  hydrate(
+    scope: string,
+    ids: readonly string[],
+    signal: AbortSignal,
+  ): Promise<readonly StateRecord[]>
+  /** Must resolve only after durable acceptance, returning a fully validated canonical record. */
+  write(operation: StateWrite, signal: AbortSignal): Promise<StateRecord>
+  /** Full authoritative records; delayed/duplicate events are ignored by record revision. */
+  subscribe?(
+    scope: string,
+    listener: (record: StateRecord) => void,
+    signal: AbortSignal,
+  ): () => void
+}
+export interface SharedStateService {
+  readonly protocolVersion: 1
+  prepare(requirements: SharedStateRequirements, signal?: AbortSignal): Promise<void>
+  bind<V = StateValues>(
+    requirements: SharedStateRequirements,
+    signal?: AbortSignal,
+  ): SharedStateStore<V>
+}
+export interface SharedStateScopeService extends SharedStateService {
+  setScope(scope: string): void
+  dispose(): void
+}
+export type SharedStateErrorCode =
+  | 'invalid-value'
+  | 'unsupported-contract'
+  | 'not-ready'
+  | 'scope-disposed'
+  | 'conflict'
+  | 'persistence-failed'
+export class SharedStateError extends Error {
+  readonly code: `shared-state/${SharedStateErrorCode}`
+  constructor(
+    code: SharedStateErrorCode,
+    readonly id: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(`${id}: ${message}`, options)
+    this.name = 'SharedStateError'
+    this.code = `shared-state/${code}`
+  }
+}
+export const EMPTY_SHARED_STATE: SharedStateRequirements = { protocolVersion: 1, contracts: [] }
+
+export function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map(key => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'undefined'
+}
+export function isObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const prototype: unknown = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+/** Reject JSON's lossy cases before validation, including cycles and non-finite numbers. */
+export function assertJson(
+  value: unknown,
+  id = '<value>',
+  path = '',
+  seen = new Set<object>(),
+): asserts value is Json {
+  const invalid = (): never => {
+    throw new SharedStateError('invalid-value', id, `${path || '<root>'} must be finite JSON data`)
+  }
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) invalid()
+    return
+  }
+  if ((!Array.isArray(value) && !isObject(value)) || seen.has(value as object)) invalid()
+  seen.add(value as object)
+  for (const [key, child] of Object.entries(value as object))
+    assertJson(child, id, `${path}.${key}`, seen)
+  if (Array.isArray(value) && Object.keys(value).length !== value.length) invalid()
+  if (Object.getOwnPropertySymbols(value).length > 0) invalid()
+  seen.delete(value as object)
+}
+export function immutable<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) immutable(child)
+    Object.freeze(value)
+  }
+  return value
+}
+
+/** Materialize a caller's view or write. Projection happens BEFORE a strict object's validation. */
+export function normalize(
+  node: StateNode,
+  value: unknown,
+  id: string,
+  project = false,
+  path = '',
+): Json | undefined {
+  const fail = (expected: string): never => {
+    throw new SharedStateError('invalid-value', id, `${path || '<root>'}: expected ${expected}`)
+  }
+  switch (node.kind) {
+    case 'default':
+      return value === undefined
+        ? structuredClone(node.value)
+        : normalize(node.inner, value, id, project, path)
+    case 'optional':
+      return value === undefined ? undefined : normalize(node.inner, value, id, project, path)
+    case 'nullable':
+      return value === null ? null : normalize(node.inner, value, id, project, path)
+    case 'null':
+      return value === null ? null : fail('null')
+    case 'boolean':
+      return typeof value === 'boolean' ? value : fail('boolean')
+    case 'string':
+      if (
+        typeof value !== 'string' ||
+        (node.min !== undefined && value.length < node.min) ||
+        (node.max !== undefined && value.length > node.max)
+      )
+        fail('string within the declared length bounds')
+      return value as string
+    case 'number':
+      if (
+        typeof value !== 'number' ||
+        !Number.isFinite(value) ||
+        (node.integer && !Number.isSafeInteger(value)) ||
+        (node.min !== undefined && value < node.min) ||
+        (node.max !== undefined && value > node.max)
+      )
+        fail('finite number within the declared bounds')
+      return value as number
+    case 'literal':
+      return stableJson(value) === stableJson(node.value)
+        ? structuredClone(node.value)
+        : fail(JSON.stringify(node.value))
+    case 'enum':
+      return typeof value === 'string' && node.values.includes(value)
+        ? value
+        : fail(node.values.join(' | '))
+    case 'array':
+      if (
+        !Array.isArray(value) ||
+        (node.min !== undefined && value.length < node.min) ||
+        (node.max !== undefined && value.length > node.max)
+      )
+        return fail('array within the declared length bounds')
+      // Arrays are atomic; projection must never silently strip an unknown item field.
+      return value.map((item, index) => {
+        const normalized = normalize(node.item, item, id, false, `${path}[${index}]`)
+        if (normalized === undefined) fail('defined array item')
+        return normalized as Json
+      })
+    case 'object': {
+      if (!isObject(value)) return fail('fixed-shape object')
+      if (
+        !project &&
+        node.strict &&
+        Object.keys(value).some(key => !Object.hasOwn(node.fields, key))
+      )
+        fail('no undeclared properties')
+      const output: Record<string, Json> = {}
+      for (const [key, field] of Object.entries(node.fields)) {
+        const child = normalize(
+          field,
+          Object.hasOwn(value, key) ? value[key] : undefined,
+          id,
+          project,
+          path ? `${path}.${key}` : key,
+        )
+        if (child !== undefined)
+          Object.defineProperty(output, key, {
+            value: child,
+            enumerable: true,
+            configurable: true,
+            writable: true,
+          })
+      }
+      return output
+    }
+  }
+}
+/** Concrete objects replace known fields recursively; null, omissions and arrays clear atomically. */
+export function preserve(
+  node: StateNode,
+  current: unknown,
+  supplied: Json | undefined,
+): Json | undefined {
+  if (node.kind === 'nullable' || node.kind === 'optional' || node.kind === 'default')
+    return preserve(node.inner, current, supplied)
+  if (node.kind !== 'object' || !isObject(supplied)) return supplied
+  const output: Record<string, Json> = isObject(current)
+    ? (structuredClone(current) as Record<string, Json>)
+    : {}
+  for (const [key, child] of Object.entries(node.fields)) {
+    const next = preserve(
+      child,
+      Object.hasOwn(output, key) ? output[key] : undefined,
+      Object.hasOwn(supplied, key) ? supplied[key] : undefined,
+    )
+    if (next === undefined) Reflect.deleteProperty(output, key)
+    else
+      Object.defineProperty(output, key, {
+        value: next,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      })
+  }
+  return output
+}
+export function applyStateWrite(
+  canonical: StateContract,
+  writer: StateContract,
+  current: unknown,
+  value: unknown,
+): Json {
+  assertJson(value, writer.id)
+  const supplied = normalize(writer.node, value, writer.id)
+  const merged = preserve(writer.node, current, supplied)
+  const result = normalize(canonical.node, merged, canonical.id)
+  if (result === undefined)
+    throw new SharedStateError('invalid-value', canonical.id, 'a state record cannot be undefined')
+  return result
+}

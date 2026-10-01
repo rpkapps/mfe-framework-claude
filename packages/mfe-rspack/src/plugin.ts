@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 import type { Compiler, RspackPluginInstance, RuleSetUse } from '@rspack/core'
 
-import { applyContainerCompilation } from '@company/mfe-build'
+import { applyContainerCompilation, sharedStateTransformRule } from '@company/mfe-build'
 
 import { ownsRouteTree, routeTreeOptions } from './generate/route-tree.ts'
 import type { ContainerPlan } from './plan.ts'
@@ -63,6 +63,8 @@ export class MfeRspackPlugin implements RspackPluginInstance {
     // document; Rsbuild sets this from the federation options, so `auto` is only a fallback.
     compiler.options.output.publicPath ??= 'auto'
     applyReactCompiler(compiler, plan)
+    const stateRule = sharedStateTransformRule(plan)
+    if (stateRule) compiler.options.module.rules.push(stateRule)
 
     applyContainerCompilation(compiler, {
       name: PLUGIN_NAME,

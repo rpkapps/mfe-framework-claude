@@ -1,3 +1,6 @@
+import type { SharedStateManifest } from '@company/mfe-core/shared-state'
+import { compileSharedState } from '../shared-state/compiler.ts'
+import { sharedStateExpression } from '../shared-state/transform.ts'
 /** Everything is read from syntax: no module is evaluated and no render function is called. */
 
 import {
@@ -50,6 +53,7 @@ const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
 ])
 
 export interface DiscoveredDefinition {
+  readonly sharedState?: SharedStateManifest
   readonly id: string
   readonly kind: DefinitionKind
   readonly version?: string
@@ -264,6 +268,9 @@ function readDefinition(
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id)
+  const stateSchema = sharedStateExpression(factory.options)
+  const sharedState =
+    stateSchema === undefined ? undefined : compileSharedState(stateSchema, sourceFile, sources)
   const contract =
     factory.kind === 'app'
       ? null
@@ -272,6 +279,7 @@ function readDefinition(
 
   return withoutUndefined({
     id,
+    sharedState,
     kind: factory.kind,
     version,
     ...presentation,

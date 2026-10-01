@@ -182,3 +182,7 @@ Three costs follow. A container on its own copy of `sonner`, from another React 
 - [Legacy Angular applications](/docs/reference/legacy-angular) — the removable adapter, field by field.
 - [Glossary](/docs/reference/glossary) — every term on this page, defined once.
 - [Decision log](/docs/how-it-works/decisions) — the argument behind each rule stated here.
+
+## Shared state
+
+[Shared state](./shared-state.md) adds definition-bound React hooks, live router stores and Angular injection/signal bindings over one shell-owned structural service. Build tooling compiles authoring schemas and enforces the deployment support window. Concrete object setters preserve fields unknown to their writer; structural clears and arrays are atomic. The backend adapter must authorize, apply those operations transactionally and resolve only after durable commit.
