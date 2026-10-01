@@ -79,6 +79,7 @@ const RECIPES = [
   'fetch-with-tanstack-query',
   'cancel-a-request-on-unmount',
   // Storage
+  'shared-state',
   'remember-a-value',
   'change-the-shape-of-a-stored-value',
   'storage-outside-render',

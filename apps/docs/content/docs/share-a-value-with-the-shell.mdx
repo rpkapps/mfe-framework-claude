@@ -6,6 +6,10 @@ description: 'How useStoredState picks a scope, what the reserved @host scope ho
 Your stored records are yours: the shell cannot read them, and you cannot read the shell's. A
 component that renders in both places gets one record in each. Apps and Widgets.
 
+For a reactive record shared by the shell, Apps and Widgets, use [Shared state](/docs/shared-state).
+That guide covers schema declarations, React hooks and route loaders, Angular stores and signals,
+and shell-owned persistence. `useStoredState` keeps the local scopes described below.
+
 ## Steps
 
 <Steps>

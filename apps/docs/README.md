@@ -65,7 +65,7 @@ separator:
 group's title and the order of its pages, which keep their `/docs/how-it-works/<name>` and
 `/docs/reference/<name>` URLs.
 
-### `design.md` and `decisions.md` are rendered, not copied
+### Repository guides are rendered, not copied
 
 `/docs/how-it-works/design` and `/docs/how-it-works/decisions` come straight from `docs/design.md` and `docs/decisions.md` in
 the repository. Those files are the single source: `docs/design.md` has to render on GitHub, and
@@ -79,6 +79,11 @@ here.
 
 Neither file carries frontmatter, so `src/lib/repo-page.ts` derives the title from the `# ` heading
 and the description from the paragraph under it.
+
+`/docs/shared-state` renders the canonical `docs/shared-state.md` through a separate collection
+with the same heading/description schema. It appears in the Storage sidebar group, the search
+index and the explicit prerender list. Keep that guide in the repository rather than duplicating
+it as MDX; related storage recipes link to its public route.
 
 ## Writing MDX here
 
