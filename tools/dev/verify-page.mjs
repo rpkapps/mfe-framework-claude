@@ -489,7 +489,8 @@ async function checkAngularPageAssets(page, expected) {
     root.classList.toggle('dark', true)
     const dark = read()
     root.classList.toggle('dark', wasDark)
-    const button = document.querySelector('p-button button')
+    // Outlined buttons intentionally have a transparent background; inspect a filled button.
+    const button = document.querySelector('p-button button:not(.p-button-outlined)')
     return {
       firstPaint: window.__firstPrimeNgPaint ?? null,
       light,
@@ -537,7 +538,7 @@ async function checkAngularPageAssets(page, expected) {
     '--size-3 is empty on <html>',
   )
   check(
-    "a PrimeNG button is coloured by the shell's tokens",
+    "a filled PrimeNG button is coloured by the shell's tokens",
     facts.buttonBackground !== null && facts.buttonBackground !== 'rgba(0, 0, 0, 0)',
     `background-color ${JSON.stringify(facts.buttonBackground)}`,
   )
