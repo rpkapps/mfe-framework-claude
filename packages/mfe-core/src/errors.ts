@@ -1,7 +1,9 @@
+import type { SharedStateErrorCode } from './shared-state/index.ts'
 /** Structured framework errors: the code is the machine artifact, the message is for a reader. */
 
 /** Closed union, so adding a code is a contract change and two conditions use a near one (§7). */
 export type MfeErrorCode =
+  | `shared-state/${SharedStateErrorCode}`
   | 'registry/invalid-entry'
   | 'registry/duplicate-id'
   | 'contract/runtime-incompatible'

@@ -95,6 +95,8 @@ async function main() {
   for (const name of directories) {
     const directory = join(examplesDir, name)
     const manifest = await readJson(join(directory, 'package.json'))
+    // Contract and transport packages support the examples; only containers publish entries.
+    if (!manifest?.mfe) continue
     const published = await readJson(join(directory, '.mfe/mfe-registry.json'))
 
     if (!published) {

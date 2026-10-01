@@ -2026,3 +2026,7 @@ as an ordinary one, since nothing was published (§53).
 record — leaves it for the next person on a shared browser profile, and the framework does
 nothing to stop it. Clearing it is the container's own work until retention comes back, and
 bringing it back is an optional field, so it would not break anyone who stores today.
+
+## Shared-state contracts and persistence
+
+Shared-state authoring uses one domain Zod object with actual state IDs as its root keys. Generated bindings expose a typed hook/injector and an imperative store for routes. Contract compilation and compatibility history stay in development/release tooling; runtime values use the shell’s latest compiled schema. Object writes merge recursively, omission never deletes a field, and older consumers need no runtime contract list. Optimistic writes retain original record revisions, merge supplied object fields transactionally, and await durable acceptance. Scope changes invalidate bindings and pending work. See [the shared-state API and protocol](./shared-state.md) for structural clears, supported evolution and backend obligations.

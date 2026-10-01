@@ -1,3 +1,4 @@
+import type { SharedStateStore, StateValues } from '@company/mfe-core/shared-state'
 /** The framework supplies history and context; every other router option is the author's. */
 
 import type { RouterHistory } from '@tanstack/react-router'
@@ -11,7 +12,9 @@ import type {
 } from '@company/mfe-core'
 
 /** `user`, `groups` and `theme` are snapshots and do not become live across an `await`. */
-export interface MfeContext {
+export interface MfeContext<V = StateValues> {
+  /** Live store, including after awaits; reads are projected to this definition’s contract. */
+  readonly sharedState: SharedStateStore<V>
   /** Not an authorization API. */
   readonly user: ShellUser | null
   readonly groups: readonly string[]
@@ -26,16 +29,16 @@ export interface MfeContext {
 }
 
 /** Authors may add top-level keys, but must not replace or mutate `mfe` or the `queryClient`. */
-export interface MfeRouterContext {
-  readonly mfe: MfeContext
+export interface MfeRouterContext<V = StateValues> {
+  readonly mfe: MfeContext<V>
   readonly queryClient: QueryClient
 }
 
 /** `basePath` and `history` must be passed through unchanged, and `context` spread not replaced. */
-export interface AppRouterOptions {
+export interface AppRouterOptions<V = StateValues> {
   readonly basePath: string
   readonly history: RouterHistory
-  readonly context: MfeRouterContext
+  readonly context: MfeRouterContext<V>
 }
 
 export const RESERVED_CONTEXT_KEYS = ['mfe', 'queryClient'] as const

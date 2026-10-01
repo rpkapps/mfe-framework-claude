@@ -1,3 +1,4 @@
+import { SharedStateError } from '@company/mfe-core/shared-state'
 /**
  * Resolving the definition one mount attempt places. Nothing is cached here: the runtime's loader
  * already shares a load in flight and keeps one that resolved, and a rejection is never kept, so
@@ -59,6 +60,15 @@ export async function resolveDefinition(
   // The registry may have remained cached while the deployed container changed. Check the
   // loaded adapter's requirement as well before any mount-owned service is used.
   assertRuntimeCompatibility(runtime, definition)
+  if (definition.sharedState) {
+    if (!runtime.sharedState)
+      throw new SharedStateError(
+        'unsupported-contract',
+        id,
+        'Shell requires shared-state protocol 1, a deployment contracts and persistence adapter',
+      )
+    await runtime.sharedState.prepare(definition.sharedState, signal)
+  }
   return definition
 }
 

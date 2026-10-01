@@ -1,0 +1,105 @@
+---
+title: 'Evolve a shared-state schema'
+description: 'Add a comparison mode while older Apps keep reading and writing the selected well.'
+---
+
+The shared contract package already defines a well and a run. Now one App needs a comparison mode, but the
+other Apps have not been updated yet. Add the field with a default so those Apps can keep using
+the selection they already know.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Update the schema in its owning package
+
+```ts title="examples/shared-state-contracts/src/index.ts (selection fields)"
+z.strictObject({
+  wellId: z.string(),
+  runId: z.string().nullable(),
+  comparisonMode: z.enum(['baseline', 'overlay']).default('baseline'),
+})
+```
+
+An existing selection without `comparisonMode` reads as `baseline`. Once the user chooses
+`overlay`, an older App writing `{ runId: 'run-8' }` keeps that choice. The older App does not have
+to know about the new field to preserve it.
+
+You can also add an optional field. Keep the fields existing Apps depend on: renaming `wellId`
+would leave them unable to read it. Changes to existing types, defaults, enums, validation rules
+or array items need a new key and a plan to move the Apps that use it.
+
+</Step>
+<Step>
+### 2. Configure the production release check
+
+The production build needs a policy file with two fields: `schema` is the new compiled schema;
+`baselines` contains copies of the schemas you have already released. Keep those released copies
+unchanged. For the first release, the list is empty: `baselines: []`.
+
+These older schemas are inputs to the build check. The running shell still needs only the latest
+`sharedState.schema`.
+
+<Tabs items={['React build options', 'Angular']}>
+<Tab value="React build options">
+
+Pass the policy to your existing `pluginMfe()` call; keep the rest of the configuration:
+
+```ts title="rsbuild.config.ts (MFE plugin)"
+import { pluginMfe } from '@company/mfe-rspack'
+
+pluginMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="webpack.config.ts"
+import { withMfe } from '@company/mfe-nx/webpack'
+
+export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+```
+
+</Tab>
+</Tabs>
+
+Build and publish the updated contract package, then update the consumer's dependency.
+Run your container's production build. If it reports a changed field that older Apps depend on,
+fix that change before publishing. A successful development build does not perform the same
+release check.
+
+</Step>
+<Step>
+### 3. Deploy the shell schema before the new consumer
+
+Deploy the updated schema to the shell and backend first. Then deploy the App that uses
+`comparisonMode`. Older Apps continue to work with that schema. Deploying the App first would
+leave it asking the old shell for a field the shell does not have, so it would fail to mount.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Run an older and a newer consumer against the current schema. Set the new comparison field from
+the newer one, then change only `runId` from the older one. Both should read the updated run and
+the preserved comparison mode. Also try the new consumer against the old shell; mounting should fail.
+
+## Errors
+
+<Callout type="error" title="shared-state/missing-baseline, at production build">
+  Provide the release policy path and ensure the file is available to the build. A first release
+  still needs an explicit policy with an empty baseline list.
+</Callout>
+
+<Callout type="error" title="An incompatible schema change">
+  Read the key and field named by the build diagnostic. Restore its compatible shape, or introduce a
+  new key and transition its consumers deliberately. Suppressing lint does not bypass the build
+  check.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — reads and merge-only updates
+- [Configure shared state in the shell](/docs/configure-shared-state) — current schema and persistence
+- [Build and publish a container](/docs/build-and-publish) — the production build and output

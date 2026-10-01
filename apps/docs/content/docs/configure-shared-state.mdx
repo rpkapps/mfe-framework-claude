@@ -1,0 +1,121 @@
+---
+title: 'Configure shared state in the shell'
+description: 'Save shared selections and keep one workspace’s records separate from another’s.'
+---
+
+The Apps agree on what a selection contains. The shell supplies the storage connection and decides
+who that selection belongs to. This recipe sets up records for one user in one workspace, so
+switching workspaces does not bring the previous workspace's selection along.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Connect the schema, storage and workspace
+
+```ts title="apps/shell/src/runtime.ts (shared-state options)"
+import { schema } from '@example/shared-state-contracts/schema'
+
+const { runtime } = createMfeRuntime({
+  // Keep the shell's existing runtime options.
+  sharedState: {
+    schema,
+    scope: JSON.stringify([tenantId, userId, workspaceId]),
+    adapter: sharedStateAdapter,
+    onError: reportSharedStateFailure,
+  },
+})
+```
+
+The three required options have separate jobs:
+
+| Option    | What to supply                                                                           |
+| --------- | ---------------------------------------------------------------------------------------- |
+| `schema`  | The current compiled JSON schema for the keys the shell supports.                        |
+| `adapter` | Your connection to the backend that reads and saves those records.                       |
+| `scope`   | A string identifying whose records to read; here it includes tenant, user and workspace. |
+
+`schema` comes from the same external package the Apps import. `sharedStateAdapter` is your
+connection to the backend; the running example supplies it in `examples/shared-state/src/browser.ts`. `onError` is optional; use it to report a
+failure through the shell's existing error reporting.
+
+<Details summary="Where does the shell schema come from?">
+  The contract package generates `schema.json` from its authoring declaration and exports it as
+  `@example/shared-state-contracts/schema`. The shell and backend import this compiled artifact;
+  Apps import `sharedStateSchema` from the package's main export. Publish those exports together so
+  consumers and storage agree on the keys, fields and defaults.
+</Details>
+
+The adapter's `hydrate` method loads saved values; `write` saves a change and returns the saved
+record. Resolve a write only once the backend has committed it. Add `subscribe` if another user
+or browser can change a record while this page is open.
+
+</Step>
+<Step>
+### 2. Check access on the server
+
+Before reading or saving a record, check that the signed-in user can access that workspace.
+The browser's scope string selects a record; it does not prove the user has access to it.
+
+<Details summary="Use the reference backend with your repository">
+
+```ts title="server/shared-state.ts"
+import { createSharedStateBackend } from '@company/mfe-runtime/shared-state'
+import { schema } from '@example/shared-state-contracts/schema'
+
+export const backend = createSharedStateBackend({
+  schema,
+  repository: durableRepository,
+  authorize: authorizeSharedState,
+})
+```
+
+`durableRepository` is your database implementation of `SharedStateRepository`. Its `read` loads
+a saved record; `transact` checks and updates the record in one database transaction. It must
+finish saving before it resolves. `authorizeSharedState` performs the access check above.
+
+Your HTTP or RPC handlers call `backend.hydrate` and `backend.write`; the browser adapter calls
+those handlers. Return write conflicts as errors so the picker can tell the user the save failed.
+The in-memory test repository is useful for tests, but its records disappear when the process ends.
+
+</Details>
+
+</Step>
+<Step>
+### 3. Switch records when the user changes workspace
+
+```ts title="apps/shell/src/workspace.ts"
+runtime.sharedState.setScope(JSON.stringify([tenantId, userId, nextWorkspaceId]))
+```
+
+Remount the Apps and Widgets that use shared state. Their new bindings read the new workspace's
+records. A save still running from the previous workspace cannot update them.
+
+This example includes the user id, so two users have separate selections. To share a selection
+between users, use a workspace scope without the user id and authorize each user's access to it.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Save a selection, reload the page and confirm it returns. Switch to a different scope and confirm
+the first scope's selection is absent. Switch back and check its saved record remains. Reject a
+backend write and confirm the interaction reports failure instead of claiming it was saved.
+
+## Errors
+
+<Callout type="error" title="shared-state/unsupported-contract, before mount">
+  The shell's schema cannot satisfy the consumer's declared keys or fields. Deploy the compatible
+  current schema with the shell before deploying consumers that require the added fields.
+</Callout>
+
+<Callout type="error" title="shared-state/invalid-value, at hydration">
+  A saved record does not match the current schema. Recover it explicitly on the backend; mounting a
+  consumer must not erase invalid persisted data or quietly replace it with a default.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — consumer declarations and bindings
+- [Evolve a shared-state schema](/docs/evolve-shared-state) — release checks and deployment order

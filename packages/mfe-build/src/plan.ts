@@ -159,6 +159,20 @@ function planSources(
     [ALIASES.fetch]: generatedPath(resolved.generatedDir, 'fetch.ts'),
     [ALIASES.meta]: generatedPath(resolved.generatedDir, 'meta.ts'),
   }
+  const stateDefinitions = discovery.definitions.filter(
+    definition => definition.sharedState !== undefined,
+  )
+  for (const definition of stateDefinitions)
+    aliases[`#mfe/shared-state/${definition.id}`] = generatedPath(
+      resolved.generatedDir,
+      `shared-state/${definition.id}.ts`,
+    )
+  const soleStateDefinition = stateDefinitions[0]
+  if (stateDefinitions.length === 1 && soleStateDefinition)
+    aliases['#mfe/shared-state'] = generatedPath(
+      resolved.generatedDir,
+      `shared-state/${soleStateDefinition.id}.ts`,
+    )
   if (configSource !== undefined) {
     aliases[ALIASES.config] = generatedPath(resolved.generatedDir, 'config.ts')
   }

@@ -1,3 +1,4 @@
+import { sharedStateFiles } from '../shared-state/generate.ts'
 /** The build hash is a content hash of the generated files, so the two carrying it come last. */
 
 import { readFileSync } from 'node:fs'
@@ -48,6 +49,7 @@ export function generateContainerFiles(
     containerEntryModule(context),
     ...federationEntryModules(context),
     ...widgetContractModules(context),
+    ...sharedStateFiles(context),
     ...(context.profile.generatedFiles?.(context) ?? []),
   ]
 

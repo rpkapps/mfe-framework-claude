@@ -69,6 +69,9 @@ const config: Linter.Config[] = [
       // The documentation site is not an MFE, but it is first-party React in this workspace and
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
+      // Schema ownership and the host adapter are supporting packages, not MFE author code.
+      'examples/shared-state-contracts/src/**/*.ts',
+      'examples/shared-state/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
     // plugin building a module rule's `use:` list is told it called a Hook outside a component.
@@ -100,12 +103,21 @@ const config: Linter.Config[] = [
   }),
 
   ...outsideAngularExample(
-    react.author({
-      tsconfigRootDir: import.meta.dirname,
-      files: ['examples/*/src/**/*.{ts,tsx}'],
-      // Widget ownership is declared, never guessed from a filename.
-      widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
-    }),
+    react
+      .author({
+        tsconfigRootDir: import.meta.dirname,
+        files: ['examples/*/src/**/*.{ts,tsx}'],
+        // Widget ownership is declared, never guessed from a filename.
+        widgetScopes: ['examples/alert-panel/src/**', 'examples/insights/src/**'],
+      })
+      .map(object => ({
+        ...object,
+        ignores: [
+          ...(object.ignores ?? []),
+          'examples/shared-state-contracts/**',
+          'examples/shared-state/**',
+        ],
+      })),
   ),
 
   ...fieldwork.map(object => ({ ...object, basePath: ANGULAR_EXAMPLE })),
@@ -151,6 +163,7 @@ const config: Linter.Config[] = [
         ...mfe.DEFAULT_TOOLING_FILES,
         'apps/docs/source.config.ts',
         'tools/tecton/*.d.mts',
+        'tools/shared-state/*.d.mts',
       ],
     }),
   ),

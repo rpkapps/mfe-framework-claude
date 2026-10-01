@@ -1,0 +1,115 @@
+---
+title: 'Use shared state outside render'
+description: 'Read the selected well from a TanStack Router loader or an Angular resolver.'
+---
+
+A user selects a well, then opens the runs page. The route needs that selection before it can
+show the right runs. Read it from the shared store in your loader or resolver, without rendering
+a component or calling a React hook.
+
+This recipe uses the `well:selection` key from [the component recipe](/docs/shared-state).
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Read the selection when the route loads
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/router.ts"
+import { createRootRouteWithContext, createRouter } from '@tanstack/react-router'
+import type { AppRouterOptions, MfeRouterContext } from '#mfe/shared-state'
+
+const root = createRootRouteWithContext<MfeRouterContext>()({
+  loader: ({ context }) => context.mfe.sharedState.get('well:selection'),
+})
+
+export function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({ routeTree: root, basepath: basePath, history, context })
+}
+```
+
+The loader returns the selected well and run, or `null` if the user has not selected a well.
+`context.mfe.sharedState` is supplied by the shell; you do not need to create a second store.
+
+The generated types make TypeScript check the key and the returned value. Forward `basePath`,
+`history` and `context` when creating the router, as in [Add a route](/docs/add-a-route).
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/selection.resolver.ts"
+import type { ResolveFn } from '@angular/router'
+import { injectSharedStateStore, type SharedStateValues } from '#mfe/shared-state'
+
+export const selectionResolver: ResolveFn<SharedStateValues['well:selection']> = () => {
+  const store = injectSharedStateStore()
+  return store.get('well:selection')
+}
+```
+
+Attach `selectionResolver` to your route's `resolve` options. It returns the selected well and run
+for the route to use. A guard can read the store in the same way.
+
+Call `injectSharedStateStore()` before any `await`. You can keep using the returned store after
+the await, but Angular cannot run another injector call there.
+
+</Tab>
+
+</Tabs>
+
+</Step>
+<Step>
+### 2. Await writes before reporting success
+
+```ts title="src/selection-actions.ts"
+import type { SharedStateStore, SharedStateValues } from '#mfe/shared-state'
+
+export async function chooseRun(store: SharedStateStore<SharedStateValues>, runId: string) {
+  const selection = store.get('well:selection')
+  if (selection === null) return
+  await store.set('well:selection', { runId })
+}
+```
+
+Pass the store you took in the component or route callback to `chooseRun`. It keeps the selected
+well and saves only the new run. Handle a rejected promise where you show the result to the user.
+
+If you wait for other work before reading a selection, call `get` after that wait. A value you
+read earlier may no longer be the current selection.
+
+</Step>
+<Step>
+### 3. Refresh route-derived data when needed
+
+Changing the selected well updates components that read the key, but it does not rerun a
+TanStack Router loader. Call `router.invalidate()` when the route should load again for the new
+selection.
+
+For a longer-lived callback, `store.subscribe(key, listener)` lets you listen for changes. Call
+the returned unsubscribe function when you no longer need that listener.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Select `well-42`, then open the route: its loader or resolver should return `well-42`. Select a
+different well from another App. Run the loader or resolver again and confirm it returns that
+well. Changing a run through `chooseRun` should also update the picker on screen.
+
+## Errors
+
+<Callout type="error" title="shared-state/scope-disposed">
+  The shell changed identity or workspace, or disposed the binding. Stop using that captured store
+  and take a new one from the remounted definition. A late callback must not write into the new
+  scope.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — schema and component bindings
+- [Add a route](/docs/add-a-route) — the App's routing contract
+- [The Angular adapter](/docs/reference/angular-adapter) — Angular routes and injection contexts

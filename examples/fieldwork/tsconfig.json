@@ -22,6 +22,8 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "paths": {
+      "#mfe/shared-state/fieldwork": ["./.mfe/shared-state/fieldwork.ts"],
+      "#mfe/shared-state/well-inspection": ["./.mfe/shared-state/well-inspection.ts"],
       "#mfe/*": ["./.mfe/*.ts"]
     }
   },

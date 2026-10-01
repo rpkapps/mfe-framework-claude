@@ -1,0 +1,203 @@
+---
+title: 'Share state across Apps and Widgets'
+description: 'Keep a units preference or selected well in sync between React and Angular components.'
+---
+
+Suppose an App has a units switch and a Widget shows a chart. When the user changes from metric
+to imperial, the chart should change too. Shared state gives both components the same value,
+even if one uses React and the other uses Angular.
+
+The shell must [configure shared state](/docs/configure-shared-state) before mounting your definition.
+
+The [running example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state)
+puts a React survey App and an Angular inspection Widget beside each other. Choosing a well in
+React updates the Angular planner; changing the survey or depth units in Angular updates React.
+The Widget receives no selection as props. Both consumers read and write the shell's shared store.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Import the schema from its package
+
+The schema belongs to a shared contract package, not to each App. In these examples, the package
+is `@example/shared-state-contracts`; the React Lab and Angular Fieldwork both depend on it.
+
+```ts title="src/mfe.ts"
+import { sharedStateSchema } from '@example/shared-state-contracts'
+```
+
+That package defines `display:units`, which starts as `metric`, and `well:selection`, which starts
+as `null`. Using the same package keeps the keys, value types and defaults consistent.
+In your project, import the package your team publishes for this domain.
+
+<Details summary="Where is the example schema defined?">
+  The single authoring declaration lives in `examples/shared-state-contracts/src/index.ts`. That
+  package also publishes compiled schema files for the shell and build checks. Consumers import the
+  declaration; they do not copy its Zod object into their own source.
+</Details>
+
+</Step>
+<Step>
+### 2. Add the schema to your definition
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-react'
+import { sharedStateSchema } from '@example/shared-state-contracts'
+
+import { makeRouter } from './router'
+
+export default createApp({ id: 'operations', router: makeRouter, sharedStateSchema })
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-angular'
+import { sharedStateSchema } from '@example/shared-state-contracts'
+
+import { routes } from './app.routes'
+
+export default createApp({ id: 'operations', routes, sharedStateSchema })
+```
+
+</Tab>
+</Tabs>
+
+Widgets put `sharedStateSchema` on their `createWidget` options in the same way.
+Run your container's `pnpm generate` script. You can then import its hooks or injectors from
+`#mfe/shared-state`; TypeScript knows the keys and the values they accept.
+
+<Details summary="My container exports more than one definition">
+Import from `#mfe/shared-state/<definition-id>` so each App or Widget uses its own declaration.
+For example, the `operations` App uses `#mfe/shared-state/operations`.
+</Details>
+
+</Step>
+<Step>
+### 3. Read a key and handle rejected updates
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/unit-picker.tsx"
+import { useState } from 'react'
+import { useSharedState } from '#mfe/shared-state'
+
+export function UnitPicker() {
+  const [units, setUnits] = useSharedState('display:units')
+  const [error, setError] = useState('')
+
+  async function changeUnits() {
+    try {
+      await setUnits(units === 'metric' ? 'imperial' : 'metric')
+      setError('')
+    } catch {
+      setError('Units could not be saved. Choose again to retry.')
+    }
+  }
+
+  return (
+    <>
+      <button onClick={() => void changeUnits()}>{units}</button>
+      <p role="status">{error}</p>
+    </>
+  )
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/unit-picker.component.ts"
+import { Component, signal } from '@angular/core'
+import { injectSharedState } from '#mfe/shared-state'
+
+@Component({
+  selector: 'unit-picker',
+  template: `<button (click)="changeUnits()">{{ units() }}</button>
+    <p role="status">{{ error() }}</p>`,
+})
+export class UnitPicker {
+  readonly state = injectSharedState('display:units')
+  readonly units = this.state[0]
+  readonly error = signal('')
+
+  async changeUnits() {
+    try {
+      await this.state[1](this.units() === 'metric' ? 'imperial' : 'metric')
+      this.error.set('')
+    } catch {
+      this.error.set('Units could not be saved. Choose again to retry.')
+    }
+  }
+}
+```
+
+Call Angular injectors in an injection context, such as a component field initializer.
+The subscription ends when that context is destroyed.
+
+</Tab>
+</Tabs>
+
+Clicking the button changes every component reading `display:units` immediately. The `await`
+finishes once the change has been saved. If saving fails, the catch shows the user a message.
+Always change a value through its setter; modifying the object you read will not save an update.
+
+</Step>
+<Step>
+### 4. Update only the object fields that changed
+
+```ts title="src/selection-actions.ts (inside a mounted consumer)"
+await store.set('well:selection', { wellId: 'well-42', runId: 'run-7' })
+await store.set('well:selection', { runId: 'run-8' })
+```
+
+Take `store` with the generated `useSharedStateStore()` or `injectSharedStateStore()` binding.
+After these writes, the well is still `well-42` and the run is `run-8`. The comparison mode keeps
+its default, `baseline`. You changed the run without resending the well. The same rule applies to nested objects: leaving out a field
+keeps its saved value.
+
+To clear this selection, write `null`. Sending an empty object does not clear it, and `undefined`
+is not allowed. If a value is an array, send the complete new array.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Open the units picker in an App and a Widget on the same page. Click either button: both should
+show `imperial`. Close and reopen the Widget; it should still show `imperial`. Reload the page
+and check that the saved preference returns.
+
+## Errors
+
+<Callout type="error" title="shared-state/unsupported-schema, at build">
+  Use JSON values with fixed object fields and literal defaults. Replace transforms, coercion,
+  custom refinements or computed defaults with a supported declaration; perform domain calculations
+  before writing the value.
+</Callout>
+
+<Callout type="error" title="shared-state/invalid-value, at write">
+Supply the fields needed to form a valid record. From a null selection, `{ runId: 'run-8' }` alone
+cannot provide the required `wellId`. To reset this nullable key, write `null`; `undefined` is not
+a deletion marker.
+</Callout>
+
+<Callout type="error" title="shared-state/conflict, at write">
+  Another write changed the record before yours was accepted. Read the refreshed value and let the
+  user choose again. Do not silently retry the old intention over someone else's change.
+</Callout>
+
+## Related
+
+- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — the shared package, pages and local backend
+
+- [Use shared state outside render](/docs/shared-state-outside-render) — loaders, actions and resolvers
+- [Configure shared state in the shell](/docs/configure-shared-state) — persistence and scopes
+- [Evolve a shared-state schema](/docs/evolve-shared-state) — keep deployed consumers compatible
+- [Remember a value across reloads](/docs/remember-a-value) — a definition's own browser storage

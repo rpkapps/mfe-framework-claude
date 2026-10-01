@@ -11,9 +11,8 @@ const config: Linter.Config[] = [
   ...angular.angular({
     tsconfigRootDir: import.meta.dirname,
     files: ['src/**/*.ts'],
-    // Widget ownership is declared, never guessed: this container's whole `src/` is the Widget's
-    // own scope for a Widget template, and nothing is for an App, which owns the boundary router.
-    widgetScopes: [],
+    // Only the inspection Widget owns this scope; App routes retain access to their router.
+    widgetScopes: ['src/well-inspection.component.ts'],
   }),
   // This file, and the webpack and vitest config beside it.
   ...mfe.tooling({
