@@ -29,6 +29,7 @@ const REPORTS: MountableAppDefinition = {
   kind: 'app',
   id: 'reports',
   framework: 'plain-dom',
+  requiresRuntime: '>=1.1.0 <2.0.0',
   contributesBreadcrumbs: false,
   mount: async () => ({ dispose: async () => undefined }),
 }
@@ -38,8 +39,9 @@ const ALERT_PANEL: MountableWidgetDefinition = {
   kind: 'widget',
   id: 'alert-panel',
   framework: 'plain-dom',
+  requiresRuntime: '>=1.1.0 <2.0.0',
   contract: { inputSchema: z.object({}), outputSchema: z.object({}) },
-  mount: async () => ({ update: () => undefined, dispose: async () => undefined }),
+  mount: async () => ({ update: () => ({ status: 'accepted' }), dispose: async () => undefined }),
 }
 
 let memories: MemoryRuntime[] = []
@@ -77,6 +79,62 @@ async function rejection(promise: Promise<unknown>): Promise<MfeError> {
 }
 
 describe('resolveDefinition', () => {
+  it.each([
+    ['1.0.0', '>=1.1.0 <2.0.0', false],
+    ['1.3.0', '>=1.1.0 <2.0.0', true],
+    ['2.0.0', '>=1.1.0 <2.0.0', false],
+  ])(
+    'preflights shell %s and container %s before loading',
+    async (apiVersion, requiresRuntime, compatible) => {
+      const load = vi.fn(async () => loadedOf(REPORTS))
+      const original = runtimeWith([REPORTS], { load })
+      const entry = original.registry.entries.get('reports')!
+      const runtime = {
+        ...original,
+        apiVersion,
+        registry: {
+          ...original.registry,
+          entries: new Map([['reports', { ...entry, requiresRuntime }]]),
+        },
+      }
+      const resolving = resolveDefinition(runtime, 'reports', 'app', liveSignal())
+      if (compatible) {
+        await expect(resolving).resolves.toBe(REPORTS)
+        expect(load).toHaveBeenCalledOnce()
+      } else {
+        expect((await rejection(resolving)).code).toBe('contract/runtime-incompatible')
+        expect(load).not.toHaveBeenCalled()
+      }
+    },
+  )
+
+  it('checks the loaded adapter too when a stale registry advertises an older requirement', async () => {
+    const definition = { ...REPORTS, requiresRuntime: '>=1.2.0 <2.0.0' }
+    const load = vi.fn(async () => loadedOf(definition))
+    const runtime = { ...runtimeWith([REPORTS], { load }), apiVersion: '1.1.0' }
+    const error = await rejection(resolveDefinition(runtime, 'reports', 'app', liveSignal()))
+    expect(load).toHaveBeenCalledOnce()
+    expect(error.code).toBe('contract/runtime-incompatible')
+    expect(error.message).toContain('>=1.2.0 <2.0.0')
+  })
+
+  it('rejects a loaded definition missing its requirement with an actionable metadata error', async () => {
+    const { requiresRuntime: _requiresRuntime, ...definition } = REPORTS
+    const load = vi.fn(async () => loadedOf(definition))
+    const runtime = runtimeWith([REPORTS], { load })
+
+    const error = await rejection(resolveDefinition(runtime, 'reports', 'app', liveSignal()))
+
+    expect(load).toHaveBeenCalledOnce()
+    expect(error).toMatchObject({ code: 'registry/invalid-entry', path: ['requiresRuntime'] })
+    expect(error.message).toContain('Rebuild the container')
+  })
+
+  it('continues mounting a container on a newer compatible shell', async () => {
+    const runtime = { ...runtimeWith([REPORTS]), apiVersion: '1.8.0' }
+    await expect(resolveDefinition(runtime, 'reports', 'app', liveSignal())).resolves.toBe(REPORTS)
+  })
+
   it('resolves the mountable definition the registry lists under the id', async () => {
     const runtime = runtimeWith([REPORTS])
 

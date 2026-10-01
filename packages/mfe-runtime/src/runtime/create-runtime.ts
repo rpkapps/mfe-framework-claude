@@ -41,6 +41,8 @@ import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
+  /** Version of the registry, mount protocol and services, independent of package versions. */
+  readonly apiVersion: string
   readonly registry: Registry
   /** Shares in-flight and resolved loads, and runs each load through its adapter's `aroundLoad`. */
   readonly loader: ContainerLoader

@@ -15,6 +15,11 @@ import { deliverWidgetOutput, widgetInputs } from './widget-props.ts'
 export interface WidgetFallbackProps {
   readonly error: MfeError
   readonly retry: () => void
+  readonly reload: () => void
+}
+
+export interface WidgetInputFallbackProps {
+  readonly error: MfeError
 }
 
 type HandlerProps<C extends WidgetContract> = {
@@ -27,12 +32,18 @@ export type LazyWidgetProps<C extends WidgetContract | undefined> = (C extends W
   ? ContractInputs<C> & HandlerProps<C>
   : Record<string, unknown>) & {
   readonly fallback?: (props: WidgetFallbackProps) => ReactNode
-  /** What fills this Widget's box while its container is fetched; the default is nothing. */
+  /** What fills this Widget's box while its container is fetched; defaults to an accessible loading message. */
   readonly pending?: ReactNode
+  /** Stable host identity for storage the Widget declares with instance scope. */
+  readonly instanceId?: string
+  /** A rejected update leaves the Widget mounted with its previous valid inputs. */
+  readonly onInputRejected?: (error: MfeError) => void
+  /** Replaces the default stale-input message alongside the still-mounted Widget. */
+  readonly inputFallback?: (props: WidgetInputFallbackProps) => ReactNode
 }
 
 export interface LazyWidgetOptions<C extends WidgetContract> {
-  /** Enables consumer-side output validation and infers prop and handler types (§15). */
+  /** Checks provider compatibility, validates consumer outputs and infers prop/handler types. */
   readonly contract?: C
 }
 
@@ -89,7 +100,7 @@ function WidgetSlot({
   readonly contract: WidgetContract | undefined
   readonly props: Record<string, unknown>
 }): ReactNode {
-  const { element, state, retry } = useDefinitionMount(
+  const { element, state, attempt, inputState, retry, reload } = useDefinitionMount(
     {
       kind: 'widget',
       definitionId: widgetId,
@@ -97,7 +108,9 @@ function WidgetSlot({
       onOutput: (output, payload) => {
         deliverWidgetOutput(props, output, payload)
       },
-      consumerOutputs: contract?.outputSchema,
+      consumerContract: contract,
+      instanceId: props['instanceId'] as string | undefined,
+      onInputRejected: props['onInputRejected'] as ((error: MfeError) => void) | undefined,
     },
     `the "${widgetId}" Widget`,
   )
@@ -106,9 +119,15 @@ function WidgetSlot({
     <DefinitionSlot
       element={element}
       state={state}
+      attempt={attempt}
+      inputState={inputState}
       retry={retry}
+      reload={reload}
       pending={props['pending'] as ReactNode}
       fallback={props['fallback'] as ((props: WidgetFallbackProps) => ReactNode) | undefined}
+      inputFallback={
+        props['inputFallback'] as ((props: WidgetInputFallbackProps) => ReactNode) | undefined
+      }
     />
   )
 }

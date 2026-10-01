@@ -16,6 +16,7 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit && pnpm run build:stale && pnpm -r run typecheck",
     "boundaries": "node tools/boundaries/check-boundaries.mjs",
+    "bundle:framework": "node tools/bundles/measure-framework.mjs",
     "diagrams:render": "node tools/diagrams/render.mjs",
     "diagrams:check": "node tools/diagrams/render.mjs --check",
     "test": "vitest run && pnpm --filter @example/fieldwork run test",

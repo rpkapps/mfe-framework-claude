@@ -20,6 +20,8 @@ export interface RegistryEntry {
   readonly adapter: string
   readonly manifestUrl: string
   readonly version?: string
+  /** Generated range for the shell registry, mount protocol and runtime services. */
+  readonly requiresRuntime: string
   /** App-only; extracted statically at build time. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** App-only; the routes a host can navigate to, extracted statically at build time. */
@@ -58,7 +60,7 @@ export interface MfeAdapter<K extends string = string, E extends RegistryEntry =
   detect(raw: unknown): boolean
   /**
    * Strict. Throws an `MfeError` coded `registry/invalid-entry`, or
-   * `contract/unsupported-major`, carrying `path`, `expected`, `observed` and `repair`.
+   * `contract/runtime-incompatible`, carrying `path`, `expected`, `observed` and `repair`.
    */
   parse(raw: unknown): E
   /** How a caller gets back to this adapter's own fields without a cast. */
@@ -68,7 +70,11 @@ export interface MfeAdapter<K extends string = string, E extends RegistryEntry =
    * modules must not see while they evaluate. It runs once per load that actually happens, not
    * once per caller waiting on it, and must return what `load` resolved to.
    */
-  aroundLoad?<T>(load: () => Promise<T>, entry: RegistryEntry): Promise<T>
+  aroundLoad?<T>(
+    load: () => Promise<T>,
+    entry: RegistryEntry,
+    options?: { readonly signal: AbortSignal },
+  ): Promise<T>
 }
 
 /** An entry that could not be read; rejected with a reason rather than dropped silently. */
@@ -83,10 +89,4 @@ export interface RejectedRegistryEntry {
 export interface Registry {
   readonly entries: ReadonlyMap<string, RegistryEntry>
   readonly rejected: readonly RejectedRegistryEntry[]
-}
-
-export const FRAMEWORK_CONTRACT_MAJOR = 1
-
-export function isSupportedContractMajor(major: number): boolean {
-  return Number.isInteger(major) && major === FRAMEWORK_CONTRACT_MAJOR
 }

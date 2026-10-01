@@ -32,8 +32,8 @@ applications actually match them. That check is a first run of a real legacy
 container against this adapter, and it is still outstanding.
 
 Concretely, the tests prove: the translation of every legacy registry field; that
-an entry naming a framework version is never recognised by this adapter, however
-malformed that version marker is;
+an entry naming a framework marker is never recognised by this adapter, however
+malformed that framework marker is;
 the parcel mount, unmount, remount, failure and disposal behaviour against a
 structural parcel double; both documented base-href seams including the
 fallback; every shell-owned route pattern; and the release-notes sibling
@@ -66,13 +66,13 @@ const { runtime } = createMfeRuntime({
 Order means nothing. Exactly one adapter must recognise an entry: none and the
 entry is rejected as unrecognised, more than one and it is rejected as ambiguous.
 
-`detect` recognises an entry only when it carries **no** framework version (no
+`detect` recognises an entry only when it carries **no** framework marker (no
 `mfe` key) and has the minimum legacy metadata — an app `name` and an
 `mfManifestUrl`. That is the no-silent-fallback guarantee. An entry naming a
-framework version belongs to a framework adapter whatever state the rest of it is
+framework marker belongs to a framework adapter whatever state the rest of it is
 in; if this adapter recognised a malformed one, a typo in framework metadata would
 quietly change how an app loads instead of failing loudly. `detect` therefore asks
-only whether a framework version is named at all, and never inspects how well.
+only whether a framework marker is named at all, and never inspects how well.
 
 `parse` puts identity, manifest URL and presentation on the common fields, and
 the legacy-specific fields on `LegacyRegistryEntry`, which only this package

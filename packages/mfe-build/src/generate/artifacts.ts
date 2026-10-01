@@ -1,6 +1,6 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
-import { FRAMEWORK_CONTRACT_MAJOR, type ContainerDescriptor } from '@company/mfe-core'
+import { RUNTIME_API_REQUIREMENT, type ContainerDescriptor } from '@company/mfe-core'
 import type {
   CapabilityDescriptor,
   ExportedDefinitionDescriptor,
@@ -23,10 +23,9 @@ const RUNTIME_CONFIG_SCHEMA_FILE = 'runtime-config.schema.json'
 /** What the plugin embeds in the Module Federation manifest's metadata area. */
 export interface FrameworkManifestMetadata {
   readonly kind: 'mfe'
-  /** The framework contract major this container was built against. */
-  readonly major: number
   /** The adapter that built it. */
   readonly framework: string
+  readonly requiresRuntime: string
   readonly buildHash: string
   readonly buildTime: string
   readonly registryDescriptor: string
@@ -79,9 +78,9 @@ export function containerDescriptor(
   return {
     manifestUrl: context.options.manifestFileName,
     container: context.options.federationName,
-    contractMajor: FRAMEWORK_CONTRACT_MAJOR,
     framework: context.profile.framework,
     shareScopes: context.shareScopes,
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     definitions,
     entries,
     build: { hash: buildHash, time: context.options.buildTime },
@@ -96,8 +95,8 @@ export function frameworkMetadata(
 ): FrameworkManifestMetadata {
   return {
     kind: 'mfe',
-    major: descriptor.contractMajor,
     framework: context.profile.framework,
+    requiresRuntime: descriptor.requiresRuntime,
     buildHash,
     buildTime: context.options.buildTime,
     registryDescriptor: context.options.registryFileName,

@@ -1,18 +1,18 @@
 ---
 title: 'Version your container and its contract'
-description: 'The three versions a container carries, and which changes break the people who render you.'
+description: 'The versions a container carries, and which changes break the people who render you.'
 ---
 
-Three versions travel with a container, and only one of them decides whether the shell loads you at
-all. Apps and Widgets carry the same three.
+Your definition and package each have a version. The build adds a runtime requirement, which
+decides whether the shell loads you at all. Apps and Widgets carry the same three.
 
 ## Steps
 
-| Version            | Where you set it                                      | What it does                                      |
-| ------------------ | ----------------------------------------------------- | ------------------------------------------------- |
-| definition version | `version` on `createApp` or `createWidget`            | names your build in every message and every entry |
-| package version    | `"version"` in the container's `package.json`         | your own release record. No entry carries it      |
-| contract major     | the framework release your container is built against | decides whether the shell accepts the entry       |
+| Version            | Where you set it                                              | What it does                                      |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------- |
+| definition version | `version` on `createApp` or `createWidget`                    | names your build in every message and every entry |
+| package version    | `"version"` in the container's `package.json`                 | your own release record. No entry carries it      |
+| runtime API range  | generated from the build integration's compatibility metadata | decides whether the shell can read and mount you  |
 
 <Steps>
 
@@ -47,28 +47,50 @@ The registry entry carries the definition version alone, and nothing checks that
 </Step>
 
 <Step>
-### 3. Leave the contract major to the framework
+### 3. Leave the runtime requirement to the framework
 
 ```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
-{ "contractMajor": 1 }
+{ "requiresRuntime": ">=1.1.0 <2.0.0" }
 ```
 
-The build writes this number, and a shell accepts your entry only when it matches the shell's own
-major.
+The build writes this range, and the shell checks it against `runtime.apiVersion`, currently
+`"1.1.0"`. One API version covers the registry format, mount protocol and shell-owned services.
+The check runs before the shell chooses an adapter or reads the rest of the entry. The
+`mfe.framework` marker still names the adapter, and Widget schemas still validate values.
+
+The shell checks the loaded definition again before mounting, in case the container changed after
+the registry was written. React and Angular adapters check too, including in a shell that has no
+check of its own.
+
+A backward-compatible change to the format, mount protocol or services raises the API minor. An
+incompatible change raises its major. Package versions are separate: a newer runtime package
+cannot replace the object the shell already created.
+
+The definition helpers and build integrations write the same framework requirement. A container
+profile cannot override it. Every entry and definition needs `requiresRuntime`, and the runtime
+helper supplies `apiVersion`. Missing metadata is an error.
+
+The range reader accepts `>=`, `>`, `<=`, `<`, `=` or an exact version, joined with spaces. It
+accepts no prereleases, caret/tilde ranges, wildcards or alternatives. Build metadata does not
+change the comparison.
 
 </Step>
 
 <Step>
 ### 4. Decide whether a change breaks your consumers
 
-| Change to a Widget contract  | What a consumer gets                                             |
-| ---------------------------- | ---------------------------------------------------------------- |
-| a new optional input         | nothing. Its inputs still pass                                   |
-| a new output                 | nothing, until it handles the new name                           |
-| an output removed or renamed | its `onX` handler is dropped, and never runs again               |
-| a new required input         | its first render fails, and its `fallback` renders instead       |
-| a tighter input schema       | the same failure, for whoever passes the old value               |
-| a new definition id          | a different definition. Its stored records stay under the old id |
+The runtime requirement applies to Apps and Widgets. A Widget also checks the actual inputs and
+output payloads with Zod. Before mounting, the host checks that each output name in the consumer's
+imported contract still exists. It does not compare input schemas in advance.
+
+| Change to a Widget contract  | What a consumer gets                                                        |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| a new optional input         | nothing. Its inputs still pass                                              |
+| a new output                 | nothing, until it handles the new name                                      |
+| an output removed or renamed | a consumer contract that expects it fails before mounting                   |
+| a new required input         | a mount fails if the values sent omit it; a later invalid update is refused |
+| a tighter input schema       | the same failure when a value sent no longer passes the schema              |
+| a new definition id          | a different definition. Its stored records stay under the old id            |
 
 Ship any of the four breaking rows under a new name: a new output, a new input, or a new id.
 
@@ -96,15 +118,15 @@ code, so a computed version cannot be read at all.
 
 </Callout>
 
-<Callout type="error" title="contract/unsupported-major">
+<Callout type="error" title="contract/runtime-incompatible">
 
 ```text
-legacy-reports failed to read the framework version the container was built for: expected
-contract major 1, received contract major 2.
+operations failed to check shell runtime compatibility: expected runtime API >=1.1.0 <2.0.0,
+received runtime API 1.0.0.
 ```
 
-**Fix.** Rebuild the container against the framework major the shell runs, or wait for the shell to
-upgrade. Nothing you write sets this number.
+**Fix.** Upgrade and reload the shell, or rebuild the container against the API the shell provides.
+Retry cannot add an API the shell lacks. The other Apps and Widgets keep running.
 
 </Callout>
 

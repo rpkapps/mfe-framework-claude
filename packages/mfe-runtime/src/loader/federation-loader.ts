@@ -84,9 +84,17 @@ export interface FederationLoaderOptions {
  * message of a plain Error, which is the only machine-readable part of it.
  */
 const MANIFEST_ERROR_CODE = '#RUNTIME-003'
+const ENTRY_ERROR_CODE = '#RUNTIME-008'
 
 function isManifestFailure(error: unknown): boolean {
   return error instanceof Error && error.message.includes(MANIFEST_ERROR_CODE)
+}
+
+function requiresReload(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes(ENTRY_ERROR_CODE) || error.name === 'ChunkLoadError')
+  )
 }
 
 /** Registration is idempotent per container, so an override must be consistent across it. */
@@ -94,6 +102,21 @@ export function createFederationContainerLoader(
   options: FederationLoaderOptions,
 ): ContainerLoader<BrandedDefinition> {
   const registered = new Set<string>()
+  // Federation caches pending remote-entry and manifest promises independently of this loader.
+  // Resetting an entire remote can invalidate shares used by other mounted definitions. Keep
+  // those surfaces running and require a new page when a load's outcome is no longer knowable.
+  const reloadRequired = new Set<string>()
+
+  const reloadError = (entry: FederatedRegistryEntry, cause?: unknown) =>
+    createMfeError({
+      code: 'load/reload-required',
+      id: entry.id,
+      ...withoutUndefined({ definitionVersion: entry.version, cause }),
+      operation: 'load federation entry',
+      observed: `the federation runtime may retain a failed or pending load for ${entry.container}`,
+      repair:
+        'Save your work, then reload the page to create a fresh federation runtime. Other mounted definitions remain usable.',
+    })
 
   return {
     load: async (entry, { signal }): Promise<LoadedDefinition<BrandedDefinition>> => {
@@ -111,6 +134,7 @@ export function createFederationContainerLoader(
       }
 
       const { container: containerName, expose } = federationTarget(entry)
+      if (reloadRequired.has(containerName)) throw reloadError(entry)
 
       if (!registered.has(containerName)) {
         try {
@@ -129,11 +153,20 @@ export function createFederationContainerLoader(
       }
 
       let moduleExports: unknown
+      signal.throwIfAborted()
+      const aborted = (): void => {
+        reloadRequired.add(containerName)
+      }
+      signal.addEventListener('abort', aborted, { once: true })
       try {
         moduleExports = await options.runtime.loadRemote(
           `${containerName}/${expose.replace(/^\.\//, '')}`,
         )
       } catch (error) {
+        if (requiresReload(error)) {
+          reloadRequired.add(containerName)
+          throw reloadError(entry, error)
+        }
         throw toMfeError(
           error,
           isManifestFailure(error)
@@ -151,6 +184,8 @@ export function createFederationContainerLoader(
                   'Check the browser network panel for the failed chunk. A container that loaded its own copy of a package another shared module was bound to fails differently: it loads, and a framework hook inside it then reports being rendered outside any mount.',
               },
         )
+      } finally {
+        signal.removeEventListener('abort', aborted)
       }
 
       signal.throwIfAborted()

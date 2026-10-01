@@ -19,7 +19,7 @@ A new micro-frontend is declared with `createApp` or `createWidget` from `@compa
 
 ## What the adapter does
 
-- The adapter recognises registry entries that name no framework version. Every entry that names one
+- The adapter recognises registry entries that name no framework marker. Every entry that names one
   belongs to a [framework adapter](/docs/how-it-works/design#how-the-adapters-fit-together), React
   or Angular.
 - It reads a legacy entry into a `LegacyRegistryEntry`, with the legacy fields typed on it.
@@ -73,10 +73,10 @@ in its registry is read rather than set aside.
 
 `legacyAngularAdapter.detect` recognises an entry only when both are true.
 
-- The entry has no `mfe` key, so it names no framework version.
+- The entry has no `mfe` key, so it names no framework marker.
 - The entry carries a non-empty `name` and a non-empty `mfManifestUrl`.
 
-An entry that names a framework version is never recognised here, however malformed the rest of it
+An entry that names a framework marker is never recognised here, however malformed the rest of it
 is. The framework adapter it names sets it aside with a reason instead, and the registry lists it under
 `rejected`. Reading it as legacy would let a typo change how an application loads, unseen. An entry
 no adapter recognises is set aside as well, with a message naming the adapters that were
@@ -305,7 +305,7 @@ This adapter is proven against fixtures, and not against the real applications.
 The tests prove:
 
 - The translation of every legacy registry field.
-- That an entry declaring a malformed framework contract is never taken by this adapter.
+- That an entry declaring a malformed framework marker is never taken by this adapter.
 - The parcel mount, unmount, remount, failure and disposal behaviour, against a structural double.
 - Both base-href kinds, including the fallback, and every shell-owned route pattern.
 - The release-notes sibling resolution, and what happens once an App owns its own release notes.

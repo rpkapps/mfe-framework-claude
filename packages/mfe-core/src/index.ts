@@ -98,6 +98,7 @@ export {
 export {
   DEFAULT_SCHEMA_VERSION,
   isStorageEnvelope,
+  instanceStoragePrefix,
   physicalStorageKey,
   storagePrefix,
   type MfeStorage,
@@ -105,12 +106,12 @@ export {
   type StorageArea,
   type StorageEnvelope,
   type StorageKeyOptions,
+  type StorageScope,
+  type StorageScopeOptions,
   type StorageSnapshot,
 } from './storage.ts'
 
 export {
-  FRAMEWORK_CONTRACT_MAJOR,
-  isSupportedContractMajor,
   type MfeAdapter,
   type Registry,
   type RegistryEntry,
@@ -120,6 +121,14 @@ export {
 export { type DeadlineConfig } from './deadline.ts'
 
 export { defaultExposePath, PAGE_SHARE_SCOPE, SCOPE_ATTRIBUTE } from './container-contract.ts'
+
+export {
+  assertRuntimeCompatibility,
+  isRuntimeRequirement,
+  RUNTIME_API_REQUIREMENT,
+  RUNTIME_API_VERSION,
+  satisfiesRuntimeRequirement,
+} from './runtime-compatibility.ts'
 
 export {
   ACTION_EFFECTS,

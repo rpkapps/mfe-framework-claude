@@ -41,6 +41,7 @@ function definition(
     kind,
     id,
     framework,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...(version === undefined ? {} : { version }),
   }
 }
@@ -59,6 +60,7 @@ const publishedAdapter: MfeAdapter = {
       definitionKind: record['kind'] === 'widget' ? 'widget' : 'app',
       adapter: 'published',
       manifestUrl: `https://cdn.example.test/${id}/mf-manifest.json`,
+      requiresRuntime: '>=1.1.0 <2.0.0',
       container: typeof record['container'] === 'string' ? record['container'] : id,
     }
   },
@@ -103,7 +105,14 @@ describe('createMemoryRuntime', () => {
     const { runtime } = memoryRuntime({
       definitions: [definition('reports', 'app', 'react')],
       adapters: [publishedAdapter],
-      registryEntries: [{ id: 'reports', published: true, container: 'reports_remote' }],
+      registryEntries: [
+        {
+          id: 'reports',
+          published: true,
+          requiresRuntime: '>=1.1.0 <2.0.0',
+          container: 'reports_remote',
+        },
+      ],
     })
 
     expect(runtime.registry.entries.get('reports')).toMatchObject({
@@ -115,7 +124,7 @@ describe('createMemoryRuntime', () => {
   it('rejects and reports an entry no adapter recognised, as a shell does', () => {
     const { runtime, diagnostics } = memoryRuntime({
       adapters: [publishedAdapter],
-      registryEntries: [{ id: 'stray' }],
+      registryEntries: [{ id: 'stray', requiresRuntime: '>=1.1.0 <2.0.0' }],
     })
 
     expect(runtime.registry.entries.has('stray')).toBe(false)
@@ -131,7 +140,9 @@ describe('createMemoryRuntime', () => {
       adapters: [
         { ...publishedAdapter, aroundLoad: aroundLoad as NonNullable<MfeAdapter['aroundLoad']> },
       ],
-      registryEntries: [{ id: 'alert-panel', published: true, kind: 'widget' }],
+      registryEntries: [
+        { id: 'alert-panel', published: true, requiresRuntime: '>=1.1.0 <2.0.0', kind: 'widget' },
+      ],
     })
     const entry = runtime.registry.entries.get('alert-panel')
     if (!entry) throw new Error('expected the Widget to be registered')

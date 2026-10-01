@@ -18,7 +18,6 @@ import {
 
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
-import { SharedContainerLoader } from '../loader/container-loader.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
 import { createInProcessLoader } from '../testing/in-process-loader.ts'
 import { createMemoryNavigationBridge } from '../testing/memory-navigation-bridge.ts'
@@ -53,6 +52,7 @@ function adapterFor(kind: string): MfeAdapter {
         definitionKind: 'app',
         adapter: kind,
         manifestUrl: record['url'],
+        requiresRuntime: '>=1.1.0 <2.0.0',
         container: String(record['container'] ?? record['id']),
       }
     },
@@ -64,7 +64,13 @@ const first = adapterFor('first')
 const second = adapterFor('second')
 
 function published(id: string, kind: string, extra: Record<string, unknown> = {}): unknown {
-  return { id, kind, url: `https://cdn.example.test/${id}/mf-manifest.json`, ...extra }
+  return {
+    id,
+    kind,
+    url: `https://cdn.example.test/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
+    ...extra,
+  }
 }
 
 function overridesOf(value: Record<string, string> | string): Pick<Storage, 'getItem'> {
@@ -126,7 +132,10 @@ describe('reading the registry', () => {
 
   it('reports each rejected entry and keeps the valid ones', () => {
     const { runtime } = create({
-      registryEntries: [published('reports', 'first'), { id: 'broken', kind: 'first' }],
+      registryEntries: [
+        published('reports', 'first'),
+        { id: 'broken', kind: 'first', requiresRuntime: '>=1.1.0 <2.0.0' },
+      ],
     })
 
     expect([...runtime.registry.entries.keys()]).toEqual(['reports'])
@@ -138,10 +147,49 @@ describe('reading the registry', () => {
     })
   })
 
-  it('shares one load between concurrent callers', () => {
-    const { runtime } = create()
+  it('shares one load between concurrent callers', async () => {
+    const load = vi.fn(async (entry: RegistryEntry) => ({
+      identity: { id: entry.id, kind: entry.definitionKind },
+      module: 'module',
+    }))
+    const { runtime } = create({ loader: { load } })
+    const entry: RegistryEntry = {
+      id: 'reports',
+      adapter: 'first',
+      definitionKind: 'app',
+      manifestUrl: 'memory://reports',
+      requiresRuntime: '>=1.1.0 <2.0.0',
+    }
+    const options = { signal: new AbortController().signal }
+    const [firstLoad, secondLoad] = await Promise.all([
+      runtime.loader.load(entry, options),
+      runtime.loader.load(entry, options),
+    ])
+    expect(firstLoad).toBe(secondLoad)
+    expect(load).toHaveBeenCalledOnce()
+  })
 
-    expect(runtime.loader).toBeInstanceOf(SharedContainerLoader)
+  it('refuses incompatible direct loads and preloads before touching the loader', async () => {
+    const load = vi.fn()
+    const preload = vi.fn()
+    const { runtime } = create({ loader: { load, preload } })
+    const entry: RegistryEntry = {
+      id: 'reports',
+      adapter: 'first',
+      definitionKind: 'app',
+      manifestUrl: 'memory://reports',
+      requiresRuntime: '>=1.2.0 <2.0.0',
+    }
+    const options = { signal: new AbortController().signal }
+    expect(runtime.apiVersion).toBe('1.1.0')
+    await expect(runtime.loader.load(entry, options)).rejects.toMatchObject({
+      code: 'contract/runtime-incompatible',
+    })
+    await expect(runtime.loader.preload?.(entry, options)).rejects.toMatchObject({
+      code: 'contract/runtime-incompatible',
+    })
+    expect(load).not.toHaveBeenCalled()
+    expect(preload).not.toHaveBeenCalled()
   })
 })
 

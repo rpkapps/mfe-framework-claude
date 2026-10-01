@@ -11,7 +11,12 @@ import {
   type MfeError,
   type RegistryEntry,
 } from '@company/mfe-core'
-import { createFederatedAdapter, type FederatedRegistryEntry } from '@company/mfe-runtime'
+import {
+  createFederatedAdapter,
+  DEFAULT_DEADLINES,
+  withDeadline,
+  type FederatedRegistryEntry,
+} from '@company/mfe-runtime'
 
 /** What `entry.adapter` says on everything this adapter parses, and what `mfe.framework` names. */
 const ANGULAR_ADAPTER_KIND = 'angular'
@@ -32,35 +37,71 @@ export interface AngularAdapterOptions {
    * for it, so no Angular definition mounts before it has settled: the host shows its loading
    * state meanwhile. A rejection fails the load that is waiting, and the next load runs it again.
    */
-  readonly pageAssets?: () => Promise<unknown>
+  readonly pageAssets?: (options: { readonly signal: AbortSignal }) => Promise<unknown>
 }
 
 /** The adapter a host lists to place Angular containers, with what they need of the page. */
-export function createAngularAdapter(options: AngularAdapterOptions = {}): AngularAdapter {
-  const { pageAssets } = options
+export function createAngularAdapter(configuration: AngularAdapterOptions = {}): AngularAdapter {
+  const { pageAssets } = configuration
   if (pageAssets === undefined) return createFederatedAdapter({ kind: ANGULAR_ADAPTER_KIND })
 
   // One load for the page, and the loaded assets stay: they are the page's, not a mount's. Only a
-  // failure is forgotten, so a retry fetches again rather than replaying the rejection.
+  // failure or shared deadline is forgotten, so a retry starts a new attempt. This signal belongs
+  // to a shared container load, never to an individual mount that may have been disposed.
   let loading: Promise<unknown> | undefined
-  const loadPageAssets = (): Promise<unknown> => {
-    loading ??= Promise.resolve()
-      .then(pageAssets)
+  const loadPageAssets = (
+    entry: RegistryEntry,
+    options?: { readonly signal: AbortSignal },
+  ): Promise<unknown> => {
+    if (loading !== undefined) return loading
+
+    let stopWaiting = (): void => undefined
+    // This attempt also needs its own bound: a failed container can finish before the page assets,
+    // clearing that container's timer while other Angular definitions still need these assets.
+    const attempt = withDeadline(
+      signal => {
+        const work = Promise.resolve().then(() => {
+          signal.throwIfAborted()
+          return pageAssets({ signal })
+        })
+        return new Promise<unknown>((resolve, reject) => {
+          const expire = (): void => {
+            reject(
+              signal.reason instanceof Error
+                ? signal.reason
+                : pageAssetsFailure(entry, signal.reason),
+            )
+          }
+          if (signal.aborted) expire()
+          else signal.addEventListener('abort', expire, { once: true })
+          stopWaiting = () => signal.removeEventListener('abort', expire)
+          // Observed even after expiry, so late completion cannot publish into the next attempt.
+          work.then(resolve, reject)
+        })
+      },
+      DEFAULT_DEADLINES.load,
+      { id: entry.id, operation: 'load Angular page assets', phase: 'load' },
+      options,
+    )
       .catch((cause: unknown) => {
-        loading = undefined
+        if (loading === attempt) loading = undefined
         throw cause
       })
-    return loading
+      .finally(() => {
+        stopWaiting()
+      })
+    loading = attempt
+    return attempt
   }
 
   return createFederatedAdapter({
     kind: ANGULAR_ADAPTER_KIND,
     // In parallel with the container's own download, so the page assets cost the first Angular
     // load the longer of the two rather than their sum.
-    aroundLoad: async (load, entry) => {
+    aroundLoad: async (load, entry, options) => {
       const [loaded] = await Promise.all([
         load(),
-        loadPageAssets().catch((cause: unknown) => {
+        loadPageAssets(entry, options).catch((cause: unknown) => {
           throw pageAssetsFailure(entry, cause)
         }),
       ])

@@ -5,7 +5,7 @@
  */
 
 import { isMfeError, type MfeError, type RegistryEntry } from '@company/mfe-core'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   angularAdapter,
@@ -19,8 +19,9 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1, framework: 'angular' },
+    mfe: { framework: 'angular' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container: 'example_reports',
     ...overrides,
   }
@@ -43,10 +44,8 @@ describe('detect', () => {
   })
 
   it('leaves an entry naming another framework, or no framework at all, to another adapter', () => {
-    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'other' } }))).toBe(
-      false,
-    )
-    expect(angularAdapter.detect(entry({ mfe: { contractMajor: 1 } }))).toBe(false)
+    expect(angularAdapter.detect(entry({ mfe: { framework: 'other' } }))).toBe(false)
+    expect(angularAdapter.detect(entry({ mfe: {} }))).toBe(false)
     expect(angularAdapter.detect(entry({ mfe: 'angular' }))).toBe(false)
   })
 
@@ -66,6 +65,7 @@ describe('parse', () => {
       definitionKind: 'app',
       adapter: 'angular',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       container: 'example_reports',
       expose: './app',
       version: '1.2.0',
@@ -115,13 +115,12 @@ describe('parse', () => {
     expect(rejection(entry({ contract: {} })).message).toContain('no Widget contract on an App')
   })
 
-  it('gates a contract major the shell cannot load before reading the shape', () => {
-    const error = rejection(
-      entry({ mfe: { contractMajor: 2, framework: 'angular' }, container: 1 }),
-    )
+  it('gates a runtime requirement the shell cannot satisfy before reading the shape', () => {
+    const error = rejection(entry({ requiresRuntime: '>=2.0.0 <3.0.0', container: 1 }))
 
-    expect(error.code).toBe('contract/unsupported-major')
-    expect(error.message).toContain('Upgrade the shell')
+    expect(error.code).toBe('contract/runtime-incompatible')
+    expect(error.message).toContain('runtime API >=2.0.0 <3.0.0')
+    expect(error.message).toContain('shell is upgraded')
   })
 })
 
@@ -167,6 +166,9 @@ async function settle(): Promise<void> {
 }
 
 describe('page assets', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   it('leaves loads unwrapped when the host names none', () => {
     expect(angularAdapter.aroundLoad).toBeUndefined()
     expect(createAngularAdapter().aroundLoad).toBeUndefined()
@@ -244,6 +246,48 @@ describe('page assets', () => {
     ).rejects.toMatchObject({ code: 'load/entry-failure', id: 'reports' })
   })
 
+  it('evicts expired page assets and ignores a late result while the retry is pending', async () => {
+    const oldAssets = deferred<void>()
+    const nextAssets = deferred<void>()
+    const observedSignals: AbortSignal[] = []
+    const pageAssets = vi.fn(({ signal }: { signal: AbortSignal }) => {
+      observedSignals.push(signal)
+      return observedSignals.length === 1 ? oldAssets.promise : nextAssets.promise
+    })
+    const aroundLoad = aroundLoadOf(createAngularAdapter({ pageAssets }))
+    const reports = angularAdapter.parse(entry())
+    const expiring = new AbortController()
+    const expired = aroundLoad(() => Promise.resolve('module'), reports, {
+      signal: expiring.signal,
+    })
+    const failure = expect(expired).rejects.toMatchObject({ code: 'load/entry-failure' })
+    await settle()
+    expiring.abort(new Error('the shared container deadline expired'))
+    await failure
+    expect(observedSignals[0]?.aborted).toBe(true)
+
+    const retrying = new AbortController()
+    const retry = aroundLoad(() => Promise.resolve('retry'), reports, { signal: retrying.signal })
+    await settle()
+    oldAssets.resolve()
+    await settle()
+    let settled = false
+    void retry.then(() => {
+      settled = true
+    })
+    await settle()
+    expect(settled).toBe(false)
+    expect(pageAssets).toHaveBeenCalledTimes(2)
+    const sibling = aroundLoad(() => Promise.resolve('sibling'), reports, {
+      signal: retrying.signal,
+    })
+    nextAssets.resolve()
+    await expect(Promise.all([retry, sibling])).resolves.toEqual(['retry', 'sibling'])
+    expect(pageAssets).toHaveBeenCalledTimes(2)
+    await expect(aroundLoad(() => Promise.resolve('cached'), reports)).resolves.toBe('cached')
+    expect(pageAssets).toHaveBeenCalledTimes(2)
+  })
+
   it('reports a failed container load as the load failed, without waiting for the assets', async () => {
     const assets = deferred<void>()
     const aroundLoad = aroundLoadOf(createAngularAdapter({ pageAssets: () => assets.promise }))
@@ -252,5 +296,27 @@ describe('page assets', () => {
     await expect(
       aroundLoad(() => Promise.reject(unreachable), angularAdapter.parse(entry())),
     ).rejects.toBe(unreachable)
+    assets.resolve()
+  })
+
+  it('expires orphaned page assets even when their first container failed before its deadline', async () => {
+    vi.useFakeTimers()
+    const pageAssets = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => new Promise<void>(() => {}))
+      .mockResolvedValue(undefined)
+    const aroundLoad = aroundLoadOf(createAngularAdapter({ pageAssets }))
+    const reports = angularAdapter.parse(entry())
+    await expect(
+      aroundLoad(() => Promise.reject(new Error('container unavailable')), reports),
+    ).rejects.toThrow('container unavailable')
+
+    const waiting = aroundLoad(() => Promise.resolve('module'), reports)
+    const failure = expect(waiting).rejects.toMatchObject({ code: 'load/entry-failure' })
+    await vi.advanceTimersByTimeAsync(30_000)
+    await failure
+    await expect(aroundLoad(() => Promise.resolve('retry'), reports)).resolves.toBe('retry')
+    expect(pageAssets).toHaveBeenCalledTimes(2)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

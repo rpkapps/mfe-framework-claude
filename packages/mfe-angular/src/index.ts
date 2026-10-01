@@ -22,6 +22,7 @@ export { breadcrumbsFromSnapshot } from './routing/breadcrumbs-from-routes.ts'
 export { MFE_MOUNT, MFE_RUNTIME, WIDGET_EMIT } from './inject/tokens.ts'
 export { injectMfeMount, injectMfeRuntime, injectOptionalMfeMount } from './inject/runtime.ts'
 export { injectGroups, injectTheme, injectUser } from './inject/shell-state.ts'
+export { injectSession, type MfeSession } from './inject/session.ts'
 export {
   injectBasePath,
   injectMfeSignal,
@@ -87,6 +88,8 @@ export {
   type ShellUser,
   type StorageArea,
   type StorageKeyOptions,
+  type StorageScope,
+  type StorageScopeOptions,
   type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
@@ -108,6 +111,7 @@ export { provideMfeRuntime } from './host/provide-runtime.ts'
 export { MfeWidgetComponent, type MfeWidgetOutput } from './host/widget.component.ts'
 export { MfeAppHostComponent } from './host/app-host.component.ts'
 export type { MountStatus } from './host/hosted-mount.ts'
+export type { MfeFallbackContext } from './host/fallback-context.ts'
 export { MfeDefinitionIconComponent } from './host/definition-icon.component.ts'
 export { createMfeHttpAuthInterceptor, type MfeHttpAuthOptions } from './http/auth-interceptor.ts'
 export {

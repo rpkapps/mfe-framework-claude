@@ -71,6 +71,37 @@ Reload the page. The value is still on screen. Open the browser developer tools,
 then Local storage, and look for `operations:table-density`. Two mounts of one definition read that
 one record, so a second copy of your App on the page agrees with the first.
 
+## Give each Widget tile its own preferences
+
+Two copies of a Widget read the same stored value by default. To keep a tile's preference separate,
+give it an `instanceId` in the host:
+
+```tsx
+<DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
+```
+
+In Angular:
+
+```html
+<mfe-widget widgetId="well-view" instanceId="dashboard-east-well" />
+```
+
+Inside the Widget, add `scope: 'instance'` to the key:
+
+```tsx
+const [camera, setCamera] = useStoredState('camera', cameraSchema, {
+  defaultValue: defaultCamera,
+  scope: 'instance',
+})
+```
+
+Pass the same option to Angular's `injectStoredState`. Reuse the ID when the tile returns after
+a reload. A new ID starts a separate record; reusing one shares its settings. Omitting `scope`
+keeps reading the definition-wide value.
+
+`scope: 'instance'` without a non-empty host ID throws `storage/failure`. The same rule applies
+outside a mount, where there is no Widget instance.
+
 ## Errors
 
 <Callout type="error" title="storage/failure, at bind">

@@ -6,9 +6,8 @@
  * this tree renders inside it.
  */
 
-import type { MfeError } from '@company/mfe-core'
 import { QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 
 import { AppMount } from './app-mount.tsx'
 import type { AppDefinition, WidgetDefinition } from './definition.ts'
@@ -26,10 +25,10 @@ export interface AppMountTreeProps {
 export interface WidgetMountTreeProps {
   readonly definition: WidgetDefinition
   readonly mount: MfeMount
-  readonly inputs: Readonly<Record<string, unknown>>
+  /** Inputs already parsed by the Widget provider. */
+  readonly inputs: unknown
   /** Called with a payload the Widget's own output schema accepted. */
   readonly emit: (output: string, payload: unknown) => void
-  readonly onInputRejected?: ((error: MfeError) => void) | undefined
 }
 
 export type MountTreeProps = AppMountTreeProps | WidgetMountTreeProps
@@ -57,15 +56,14 @@ function Styled({
 
 export function MountTree(props: MountTreeProps): ReactNode {
   const { definition, mount } = props
+  const session = useSyncExternalStore(
+    mount.querySession.subscribe,
+    mount.querySession.getSnapshot,
+    mount.querySession.getSnapshot,
+  )
 
   const body = isWidgetTree(props) ? (
-    <WidgetMount
-      definition={props.definition}
-      mount={mount}
-      inputs={props.inputs}
-      emit={props.emit}
-      onInputRejected={props.onInputRejected}
-    />
+    <WidgetMount definition={props.definition} inputs={props.inputs} emit={props.emit} />
   ) : (
     <AppMount definition={props.definition} mount={mount} />
   )
@@ -73,7 +71,7 @@ export function MountTree(props: MountTreeProps): ReactNode {
   return (
     <MfeProvider runtime={mount.runtime}>
       <MfeMountProvider mount={mount}>
-        <QueryClientProvider client={mount.queryClient}>
+        <QueryClientProvider key={session.generation} client={session.client}>
           <Styled styleRoot={styleRootOf(definition)} overlayContainer={mount.overlayRoot}>
             {body}
           </Styled>

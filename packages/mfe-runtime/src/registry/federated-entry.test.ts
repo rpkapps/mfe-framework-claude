@@ -1,6 +1,6 @@
 /**
  * The entry shape every framework build publishes, read once for every adapter: identity and
- * container, the contract major gated before the shape, a Widget's published contract, an App's
+ * container, the runtime requirement checked before the shape, a Widget's published contract, an App's
  * capabilities, and the presentation fields a host may drop rather than reject an entry over.
  */
 
@@ -18,9 +18,10 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1 },
+    mfe: { framework: ADAPTER },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     container: 'example_reports',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...overrides,
   }
 }
@@ -40,6 +41,20 @@ function rejection(source: unknown): MfeError {
 }
 
 describe('parse', () => {
+  it('carries generated runtime requirements', () => {
+    expect(parse(entry()).requiresRuntime).toBe('>=1.1.0 <2.0.0')
+  })
+
+  it.each([undefined, '^1.1.0', '>=1.x', '', 1, null])(
+    'rejects missing, malformed or unsupported runtime metadata %s',
+    requiresRuntime => {
+      const error = rejection(entry({ requiresRuntime }))
+      expect(error.code).toBe('registry/invalid-entry')
+      expect(error.path).toEqual(['requiresRuntime'])
+      expect(error.message).toContain('SemVer comparator range')
+    },
+  )
+
   it('reads identity, kind, manifest URL and container name', () => {
     expect(parse(entry())).toMatchObject({
       id: 'reports',
@@ -68,16 +83,19 @@ describe('parse', () => {
     )
   })
 
-  it('rejects an entry whose kind is neither app nor widget', () => {
-    expect(rejection(entry({ kind: 'page' })).message).toContain('"app" or "widget"')
+  it('validates the entry shape after accepting its runtime requirement', () => {
+    const error = rejection(entry({ requiresRuntime: '>=1.1.0 <2.0.0', kind: 'page' }))
+    expect(error.code).toBe('registry/invalid-entry')
+    expect(error.path).toEqual(['kind'])
+    expect(error.message).toContain('"app" or "widget"')
   })
 
-  it('rejects a version marker that is not an object', () => {
-    expect(rejection(entry({ mfe: true })).message).toContain('{ "contractMajor": 1 }')
+  it('rejects a framework marker that is not an object', () => {
+    expect(rejection(entry({ mfe: true })).message).toContain('{ "framework": "react" }')
   })
 
-  it('rejects a contract major that is not an integer', () => {
-    expect(rejection(entry({ mfe: { contractMajor: 'one' } })).message).toContain('an integer')
+  it('rejects a framework marker with no framework name', () => {
+    expect(rejection(entry({ mfe: {} })).path).toEqual(['mfe', 'framework'])
   })
 
   it('rejects a value that is not an object at all', () => {
@@ -112,19 +130,27 @@ describe('share scopes', () => {
   })
 })
 
-describe('the framework version the container was built for', () => {
-  it('reports an unsupported major rather than quietly skipping the entry', () => {
-    const error = rejection(entry({ mfe: { contractMajor: 2 } }))
+describe('the shell/container protocol', () => {
+  it.each(['>=2.0.0 <3.0.0', '>=1.2.0 <2.0.0', '<1.0.0'])(
+    'rejects an unsatisfied runtime requirement %s before interpreting the entry shape',
+    requiresRuntime => {
+      const error = rejection(entry({ requiresRuntime, kind: 'future-kind', container: 1 }))
 
-    expect(error.code).toBe('contract/unsupported-major')
-    expect(error.message).toContain('Upgrade the shell')
+      expect(error.code).toBe('contract/runtime-incompatible')
+      expect(error.message).toContain(`runtime API ${requiresRuntime}`)
+      expect(error.message).toContain('runtime API 1.1.0')
+    },
+  )
+
+  it('checks malformed requirements before the remaining entry shape', () => {
+    const error = rejection(entry({ requiresRuntime: '^1.1.0', kind: 'future-kind', mfe: false }))
+
+    expect(error.code).toBe('registry/invalid-entry')
+    expect(error.path).toEqual(['requiresRuntime'])
   })
 
-  it('tells a container built against an older major to rebuild', () => {
-    const error = rejection(entry({ mfe: { contractMajor: 0 } }))
-
-    expect(error.code).toBe('contract/unsupported-major')
-    expect(error.message).toContain('Rebuild and redeploy the container')
+  it('reads entries with a framework marker and no separate major', () => {
+    expect(parse(entry({ requiresRuntime: '>=1.1.0 <2.0.0' })).adapter).toBe(ADAPTER)
   })
 })
 
@@ -382,10 +408,12 @@ describe('an adapter for one framework’s federation builds', () => {
   it('claims exactly the entries whose marker names its framework, however broken they are', () => {
     const adapter = createFederatedAdapter({ kind: 'plain-dom' })
 
-    expect(adapter.detect(marked({ contractMajor: 1, framework: 'plain-dom' }))).toBe(true)
-    expect(adapter.detect(marked({ contractMajor: 'one', framework: 'plain-dom' }))).toBe(true)
-    expect(adapter.detect(marked({ contractMajor: 1, framework: 'react' }))).toBe(false)
-    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(false)
+    expect(adapter.detect(marked({ framework: 'plain-dom' }))).toBe(true)
+    expect(
+      adapter.detect(entry({ mfe: { framework: 'plain-dom' }, requiresRuntime: 'broken' })),
+    ).toBe(true)
+    expect(adapter.detect(marked({ framework: 'react' }))).toBe(false)
+    expect(adapter.detect(marked({}))).toBe(false)
     expect(adapter.detect(marked('broken'))).toBe(false)
     expect(adapter.detect(entry({ mfe: undefined }))).toBe(false)
     expect(adapter.detect('not an entry')).toBe(false)
@@ -395,20 +423,20 @@ describe('an adapter for one framework’s federation builds', () => {
   it('claims no entry that names no framework', () => {
     const adapter = createFederatedAdapter({ kind: 'react' })
 
-    expect(adapter.detect(marked({ contractMajor: 1 }))).toBe(false)
+    expect(adapter.detect(marked({}))).toBe(false)
     expect(adapter.detect(marked('broken'))).toBe(false)
     expect(adapter.detect({ id: 'reports' })).toBe(false)
   })
 
   it('parses through the shared reading, stamps its kind, and recognises only its own', () => {
     const adapter = createFederatedAdapter({ kind: 'plain-dom' })
-    const parsed = adapter.parse(marked({ contractMajor: 1, framework: 'plain-dom' }))
+    const parsed = adapter.parse(marked({ framework: 'plain-dom' }))
 
     expect(parsed.adapter).toBe('plain-dom')
     expect(adapter.is(parsed)).toBe(true)
     expect(adapter.is({ ...parsed, adapter: 'react' })).toBe(false)
-    expect(() => adapter.parse(marked({ contractMajor: 'one', framework: 'plain-dom' }))).toThrow(
-      /reports failed to read registry entry mfe\.contractMajor/,
+    expect(() => adapter.parse(marked({ framework: 1 }))).toThrow(
+      /reports failed to read registry entry mfe\.framework/,
     )
   })
 

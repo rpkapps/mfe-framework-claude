@@ -30,6 +30,7 @@ import { filter, type Subscription } from 'rxjs'
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { readAppRoute } from '../routing/app-route-data.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
+import { createFallbackContext, type MfeFallbackContext } from './fallback-context.ts'
 
 interface Placement {
   readonly appId: string
@@ -46,8 +47,16 @@ function boundaryOf(route: ActivatedRoute, location: Location): string {
   selector: 'mfe-app-host',
   imports: [NgTemplateOutlet],
   template: `@if (status() === 'pending' && pending) {
-    <ng-container [ngTemplateOutlet]="pending" />
-  }`,
+      <ng-container [ngTemplateOutlet]="pending" />
+    }
+    @if (error(); as failure) {
+      @if (fallback) {
+        <ng-container
+          [ngTemplateOutlet]="fallback"
+          [ngTemplateOutletContext]="fallbackContext(failure)"
+        />
+      }
+    }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
@@ -57,6 +66,7 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   @Input() basePath: string | undefined
   /** Shown while the App loads. */
   @Input() pending: TemplateRef<unknown> | undefined
+  @Input() fallback: TemplateRef<MfeFallbackContext> | undefined
 
   /** The App could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
   @Output() readonly failed = new EventEmitter<MfeError>()
@@ -75,6 +85,19 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
 
   /** Where the App's mount is: `pending`, `mounted`, `error` or `disposed`. */
   readonly status: Signal<MountStatus> = this.#mount.status
+  readonly state = this.#mount.state
+  readonly attempt = this.#mount.attempt
+  readonly error = this.#mount.error
+  readonly #retry = (): void => {
+    this.retry()
+  }
+  readonly #reload = (): void => {
+    this.reload()
+  }
+
+  fallbackContext(error: MfeError): MfeFallbackContext {
+    return createFallbackContext(error, this.attempt(), this.#retry, this.#reload)
+  }
 
   // The first placement waits for `ngOnInit`, which runs whether or not an input is bound; placed
   // by `mfeAppRoute`, none is, and Angular never calls `ngOnChanges` at all.
@@ -89,7 +112,12 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
 
   /** Acts only after a failure; a failed load is loaded afresh. */
   retry(): void {
-    this.#mount.current?.retry()
+    if (this.#mount.current === null) this.#place()
+    else this.#mount.current.retry()
+  }
+
+  reload(): void {
+    this.#element.ownerDocument.defaultView?.location.reload()
   }
 
   ngOnDestroy(): void {
@@ -101,7 +129,12 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   #place(): void {
     const next = this.#resolvePlacement()
     if (next === null) return
-    if (next.appId === this.#placement?.appId && next.basePath === this.#placement.basePath) return
+    if (
+      this.#mount.current !== null &&
+      next.appId === this.#placement?.appId &&
+      next.basePath === this.#placement.basePath
+    )
+      return
     this.#start(next)
   }
 
@@ -126,16 +159,16 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
 
     const routed = this.#route === null ? null : readAppRoute(this.#route.snapshot.data)
     if (routed === null || this.#route === null) {
-      this.failed.emit(
-        createMfeError({
-          code: 'mount/failure',
-          id: '<app>',
-          operation: 'place an App',
-          expected: 'an appId input, or placement by mfeAppRoute',
-          observed: 'neither',
-          repair: 'Write <mfe-app-host appId="…" basePath="…" />, or route to it with mfeAppRoute.',
-        }),
-      )
+      const error = createMfeError({
+        code: 'mount/failure',
+        id: '<app>',
+        operation: 'place an App',
+        expected: 'an appId input, or placement by mfeAppRoute',
+        observed: 'neither',
+        repair: 'Write <mfe-app-host appId="…" basePath="…" />, or route to it with mfeAppRoute.',
+      })
+      this.#runtime.diagnostics.report(error)
+      this.#mount.fail(error)
       return null
     }
 

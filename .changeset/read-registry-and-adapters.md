@@ -15,6 +15,7 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 - `MfeAdapter<K, E>` is new: `kind`, `detect(raw)`, `parse(raw)` and `is(entry)`. It replaces `AdapterSelectionRule`, whose `adapter`, `advertises` and `normalize` are gone.
 - `NeutralRegistryEntry` is now `RegistryEntry`, `NormalizedRegistry` is now `Registry`, and `QuarantinedRegistryEntry` is now `RejectedRegistryEntry`.
 - `Registry.quarantined` is now `Registry.rejected`.
+- `RegistryEntry.requiresRuntime` is required. `readRegistry` checks it before offering an entry to an adapter; a missing or malformed requirement reports `registry/invalid-entry`.
 - **Breaking:** `RegistryEntry.adapterData` is gone. An adapter's own fields are typed on its own entry type and reached through its `is()` guard.
 - **Breaking:** `AdapterKind` is gone. `entry.adapter` is a `string` that each adapter declares, and the core no longer names any adapter.
 - **Breaking:** the error code `registry/invalid-descriptor` is now `registry/invalid-entry`.
@@ -26,7 +27,7 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 
 **`@company/mfe-react`**
 
-- `reactAdapter` is new, an `MfeAdapter<'react', ReactRegistryEntry>`. `ReactRegistryEntry` carries `container` and `expose` as typed fields. Its `parse` validates with zod and still reports `contract/unsupported-major` for a framework major the shell cannot load.
+- `reactAdapter` is new, an `MfeAdapter<'react', ReactRegistryEntry>`. `ReactRegistryEntry` carries `container` and `expose` as typed fields. Its `parse` validates with zod after checking the runtime requirement; unsupported runtime ranges report `contract/runtime-incompatible` before registry shape validation.
 - `createMfeRuntime({ adapters })` replaces `createMfeRuntime({ rules })`. `reactAdapter` is always registered, and `adapters` names the extras. Later in this release `createMfeRuntime` moved to `@company/mfe-react/host` and registers no adapter implicitly, so `adapters` names every one, `reactAdapter` included.
 - `MfeAdapter`, `Registry`, `RegistryEntry` and `RejectedRegistryEntry` are re-exported for a shell author; `AdapterSelectionRule` is not.
 

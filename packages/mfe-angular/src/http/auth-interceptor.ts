@@ -1,6 +1,9 @@
 import { HttpErrorResponse, type HttpInterceptorFn } from '@angular/common/http'
+import { inject } from '@angular/core'
 import { normalizeAllowedOrigins, type GetAccessToken } from '@company/mfe-runtime'
-import { catchError, defer, from, switchMap, throwError } from 'rxjs'
+import { EMPTY, catchError, defer, from, fromEvent, switchMap, takeUntil, throwError } from 'rxjs'
+
+import { MFE_SESSION } from '../inject/session.ts'
 
 export interface MfeHttpAuthOptions {
   /** The API origins the container trusts with the shell session token. */
@@ -41,34 +44,53 @@ export function createMfeHttpAuthInterceptor(options: MfeHttpAuthOptions): HttpI
       url.pathname.startsWith(`${apiPath}/`))
 
   return (request, next) => {
+    // HttpInterceptorFn runs in its application's injection context. A shell HttpClient has no
+    // mount session; a mounted application's interceptor shares its cancellation signal.
+    const session = inject(MFE_SESSION, { optional: true })?.()
+    const signal = session?.signal
     const url = destinationOf(request.url)
-    if (url === null || !receivesToken(url) || request.headers.has('Authorization')) {
-      return next(request)
-    }
+    const needsToken = url !== null && receivesToken(url) && !request.headers.has('Authorization')
 
     const withToken = (token: string) =>
       request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
 
-    return defer(() => from(options.getAccessToken())).pipe(
-      switchMap(token => {
-        if (token === null) return next(request)
+    const response = !needsToken
+      ? defer(() => next(request))
+      : defer(() =>
+          from(
+            signal === undefined ? options.getAccessToken() : options.getAccessToken({ signal }),
+          ),
+        ).pipe(
+          switchMap(token => {
+            if (token === null) return next(request)
 
-        return next(withToken(token)).pipe(
-          catchError((error: unknown) => {
-            if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
-              return throwError(() => error)
-            }
+            return next(withToken(token)).pipe(
+              catchError((error: unknown) => {
+                if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
+                  return throwError(() => error)
+                }
 
-            return from(options.getAccessToken({ rejectedToken: token })).pipe(
-              switchMap(refreshed =>
-                refreshed !== null && refreshed !== token
-                  ? next(withToken(refreshed))
-                  : throwError(() => error),
-              ),
+                return from(
+                  options.getAccessToken({
+                    rejectedToken: token,
+                    ...(signal === undefined ? {} : { signal }),
+                  }),
+                ).pipe(
+                  switchMap(refreshed =>
+                    refreshed !== null && refreshed !== token
+                      ? next(withToken(refreshed))
+                      : throwError(() => error),
+                  ),
+                )
+              }),
             )
           }),
         )
-      }),
+    if (signal === undefined) return response
+    // A response begun under a previous identity never reaches its subscriber, even when an
+    // underlying Promise or custom HTTP backend ignores transport cancellation.
+    return defer(() =>
+      signal.aborted ? EMPTY : response.pipe(takeUntil(fromEvent(signal, 'abort'))),
     )
   }
 }

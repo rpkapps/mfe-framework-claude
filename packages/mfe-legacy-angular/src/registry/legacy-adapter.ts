@@ -12,6 +12,10 @@ import {
   type MfeError,
   type RegistryEntry,
 } from '@company/mfe-core'
+import {
+  assertRuntimeCompatibility,
+  RUNTIME_API_VERSION,
+} from '@company/mfe-core/runtime-compatibility'
 import { z } from 'zod'
 
 /** What `entry.adapter` says on everything this adapter parses. */
@@ -86,6 +90,7 @@ const entrySchema = z
     mfManifestUrl: z
       .string({ error: 'a non-empty manifest URL' })
       .refine(isNonEmptyString, { error: 'a non-empty manifest URL' }),
+    requiresRuntime: z.string(),
     title: optionalText,
     icon: optionalText,
     version: optionalText,
@@ -136,6 +141,13 @@ export const legacyAngularAdapter: MfeAdapter<typeof LEGACY_ADAPTER_KIND, Legacy
   parse: raw => {
     const label = isRecord(raw) && isNonEmptyString(raw['name']) ? raw['name'] : '<unknown>'
 
+    if (isRecord(raw)) {
+      assertRuntimeCompatibility(
+        { apiVersion: RUNTIME_API_VERSION },
+        { id: label, requiresRuntime: raw['requiresRuntime'] },
+      )
+    }
+
     const result = entrySchema.safeParse(raw)
     if (!result.success) throw invalidEntry(label, result.error)
 
@@ -159,6 +171,7 @@ export const legacyAngularAdapter: MfeAdapter<typeof LEGACY_ADAPTER_KIND, Legacy
       definitionKind: 'app',
       adapter: LEGACY_ADAPTER_KIND,
       manifestUrl: parsed.mfManifestUrl,
+      requiresRuntime: parsed.requiresRuntime,
       containerName: parsed.name,
       exposeName: LEGACY_PARCEL_EXPOSE_NAME,
       navigationOwnership: LEGACY_NAVIGATION_OWNERSHIP,

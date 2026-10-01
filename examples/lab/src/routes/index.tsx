@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useBasePath, useMfeSignal, useTheme, useUser } from '@company/mfe-react'
-import { buildHash, buildTime, contractMajor, definitions } from '#mfe/meta'
+import { buildHash, buildTime, definitions, requiresRuntime } from '#mfe/meta'
 import { Badge } from '@tecton/react/components/badge'
 import {
   Table,
@@ -43,10 +43,6 @@ function Overview(): ReactNode {
         <Stat>
           <StatLabel>Mounted at</StatLabel>
           <StatValue>{basePath}</StatValue>
-        </Stat>
-        <Stat>
-          <StatLabel>Contract major</StatLabel>
-          <StatValue>{contractMajor}</StatValue>
         </Stat>
         <Stat>
           <StatLabel>Theme</StatLabel>
@@ -106,6 +102,9 @@ function Overview(): ReactNode {
         </Table>
 
         <DataList>
+          <DataRow label="requiresRuntime" hint="the shell runtime this container needs">
+            <Identifier value={requiresRuntime} />
+          </DataRow>
           <DataRow label="buildHash" hint="the commit this bundle came from">
             <Identifier value={buildHash} copy />
           </DataRow>

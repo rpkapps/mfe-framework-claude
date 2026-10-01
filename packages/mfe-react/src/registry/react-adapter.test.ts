@@ -14,8 +14,9 @@ function entry(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     id: 'reports',
     kind: 'app',
-    mfe: { contractMajor: 1, framework: 'react' },
+    mfe: { framework: 'react' },
     manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container: 'example_reports',
     ...overrides,
   }
@@ -36,21 +37,22 @@ function rejection(source: unknown): MfeError {
 }
 
 describe('detect', () => {
-  it('recognises an entry that carries a framework version', () => {
+  it('recognises an entry whose marker names React', () => {
     expect(reactAdapter.detect(entry())).toBe(true)
   })
 
   /** A typo in framework metadata must fail rather than quietly change how an app loads (§9). */
-  describe('recognises a React entry however malformed its version marker is', () => {
+  describe('recognises a React entry regardless of its runtime requirement', () => {
     const malformed: readonly (readonly [string, unknown])[] = [
-      ['a contract major of the wrong type', { contractMajor: 'one', framework: 'react' }],
-      ['an unsupported contract major', { contractMajor: 99, framework: 'react' }],
-      ['no contract major', { framework: 'react' }],
+      ['a runtime requirement of the wrong type', 1],
+      ['a malformed runtime requirement', 'one'],
+      ['an unsupported runtime requirement', '>=2.0.0 <3.0.0'],
+      ['no runtime requirement', undefined],
     ]
 
-    for (const [description, mfe] of malformed) {
+    for (const [description, requiresRuntime] of malformed) {
       it(`still recognises an entry with ${description}`, () => {
-        expect(reactAdapter.detect(entry({ mfe }))).toBe(true)
+        expect(reactAdapter.detect(entry({ requiresRuntime }))).toBe(true)
       })
     }
   })
@@ -58,7 +60,7 @@ describe('detect', () => {
   /** It is no adapter's, so the registry rejects it as unrecognised, which also fails loudly. */
   describe('does not recognise an entry whose marker names no framework', () => {
     const unnamed: readonly (readonly [string, unknown])[] = [
-      ['a marker without a framework', { contractMajor: 1 }],
+      ['a marker without a framework', { adapter: 'react' }],
       ['an empty marker object', {}],
       ['a marker that is a string', 'v1'],
       ['a marker that is null', null],
@@ -74,26 +76,20 @@ describe('detect', () => {
 
   describe('the framework the entry names', () => {
     it('recognises an entry that names React', () => {
-      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'react' } }))).toBe(
-        true,
-      )
+      expect(reactAdapter.detect(entry({ mfe: { framework: 'react' } }))).toBe(true)
     })
 
     /** That entry belongs to its own adapter; reading it here would make both claim it. */
     it('does not recognise an entry that names Angular', () => {
-      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'angular' } }))).toBe(
-        false,
-      )
+      expect(reactAdapter.detect(entry({ mfe: { framework: 'angular' } }))).toBe(false)
     })
 
     it('does not recognise an entry that names a framework it does not know', () => {
-      expect(reactAdapter.detect(entry({ mfe: { contractMajor: 1, framework: 'vue' } }))).toBe(
-        false,
-      )
+      expect(reactAdapter.detect(entry({ mfe: { framework: 'vue' } }))).toBe(false)
     })
   })
 
-  it('does not recognise an entry without a framework version', () => {
+  it('does not recognise an entry without a framework marker', () => {
     expect(reactAdapter.detect({ name: 'billing', mfManifestUrl: '/b.json' })).toBe(false)
   })
 
@@ -122,6 +118,7 @@ describe('is', () => {
       definitionKind: 'app',
       adapter: 'legacy-angular',
       manifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
 
     expect(reactAdapter.is(foreign)).toBe(false)
@@ -136,6 +133,7 @@ describe('parse', () => {
       definitionKind: 'app',
       adapter: 'react',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       container: 'example_reports',
     })
   })
@@ -146,6 +144,21 @@ describe('parse', () => {
     expect(error.code).toBe('registry/invalid-entry')
     expect(error.path).toEqual(['container'])
     expect(error.message).toContain('Rebuild the container')
+  })
+
+  it('rejects an unsupported runtime before reading a malformed container shape', () => {
+    const error = rejection(entry({ requiresRuntime: '>=2.0.0 <3.0.0', container: 1 }))
+
+    expect(error.code).toBe('contract/runtime-incompatible')
+    expect(error.message).toContain('runtime API >=2.0.0 <3.0.0')
+    expect(error.message).toContain('shell is upgraded')
+  })
+
+  it('names malformed runtime requirements before reading the rest of the entry', () => {
+    expect(rejection(entry({ requiresRuntime: 'one', container: 1 }))).toMatchObject({
+      code: 'registry/invalid-entry',
+      path: ['requiresRuntime'],
+    })
   })
 })
 

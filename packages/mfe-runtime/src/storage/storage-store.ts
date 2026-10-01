@@ -10,6 +10,7 @@ import {
   describeThrown,
   describeValue,
   HOST_SCOPE,
+  instanceStoragePrefix,
   physicalStorageKey,
   storagePrefix,
   toMfeError,
@@ -100,6 +101,7 @@ function defaultEventTarget(): StorageEventTargetLike | null {
 interface ResolvedDeclaration {
   readonly name: string
   readonly area: StorageArea
+  readonly instanceId?: string
   readonly schema: z.ZodType
   readonly version: number
   readonly declaresDefault: boolean
@@ -205,9 +207,13 @@ export class MfeStorageStore {
   }
 
   /** A write through the imperative surface notifies the key's subscribers. */
-  storageFor(definitionId: string, area: StorageArea = DEFAULT_AREA): MfeStorage {
+  storageFor(
+    definitionId: string,
+    area: StorageArea = DEFAULT_AREA,
+    instanceId?: string,
+  ): MfeStorage {
     this.#assertDefinitionScope(definitionId, 'open the storage surface')
-    return this.#storageFor(definitionId, area)
+    return this.#storageFor(definitionId, area, instanceId)
   }
 
   /** For a host with no component to hang a binding off — a boot script, or a non-React shell. */
@@ -215,18 +221,25 @@ export class MfeStorageStore {
     return this.#storageFor(HOST_SCOPE, area)
   }
 
-  #storageFor(definitionId: string, area: StorageArea): MfeStorage {
+  #storageFor(definitionId: string, area: StorageArea, instanceId?: string): MfeStorage {
     return {
       key: <T>(
         name: string,
         schema: z.ZodType<T>,
         options?: StorageKeyOptions<T>,
-      ): MfeStorageKey<T> => this.#imperativeKey(definitionId, area, name, schema, options),
-      remove: (name: string): void => {
-        this.#imperativeRemove(definitionId, area, name)
+      ): MfeStorageKey<T> =>
+        this.#imperativeKey(definitionId, area, name, schema, options, instanceId),
+      remove: (name, options): void => {
+        this.#imperativeRemove(
+          definitionId,
+          area,
+          name,
+          this.#resolveInstance(definitionId, area, options?.scope, instanceId),
+        )
       },
-      clear: (): void => {
-        this.#clearScope(definitionId, area)
+      clear: options => {
+        const selected = this.#resolveInstance(definitionId, area, options?.scope, instanceId)
+        this.#clearScope(definitionId, area, [storagePrefix(definitionId, selected)])
       },
     }
   }
@@ -237,13 +250,20 @@ export class MfeStorageStore {
    */
   clearDefinition(definitionId: string, area?: StorageArea): number {
     this.#assertDefinitionScope(definitionId, 'clear storage')
-    return this.#clearScope(definitionId, area)
+    return this.#clearScope(definitionId, area, [
+      storagePrefix(definitionId),
+      instanceStoragePrefix(definitionId),
+    ])
   }
 
-  #clearScope(definitionId: string, area?: StorageArea): number {
+  #clearScope(
+    definitionId: string,
+    area: StorageArea | undefined,
+    prefixes: readonly string[],
+  ): number {
     this.#assertUsable('clear storage')
     const areas = area === undefined ? AREAS : [area]
-    const prefix = storagePrefix(definitionId)
+    const describedPrefixes = prefixes.join("' or '")
     let removed = 0
 
     for (const target of areas) {
@@ -251,10 +271,12 @@ export class MfeStorageStore {
         const store = this.#resolveAreaOrFail(definitionId, target, 'clear', null)
         let names: readonly string[]
         try {
-          names = this.#listKeys(store).filter(name => name.startsWith(prefix))
+          names = this.#listKeys(store).filter(name =>
+            prefixes.some(prefix => name.startsWith(prefix)),
+          )
         } catch (error) {
           throw this.#fail(definitionId, target, 'clear', null, {
-            expected: `to enumerate ${target} storage for keys under '${prefix}'`,
+            expected: `to enumerate ${target} storage for keys under '${describedPrefixes}'`,
             observed: describeThrown(error),
             repair: 'The framework never clears a store it cannot enumerate.',
             cause: error,
@@ -268,14 +290,18 @@ export class MfeStorageStore {
             throw this.#fail(definitionId, target, 'clear', null, {
               expected: `to remove '${name}'`,
               observed: describeThrown(error),
-              repair: `Retry; nothing outside '${prefix}' was touched.`,
+              repair: `Retry; nothing outside '${describedPrefixes}' was touched.`,
               cause: error,
             })
           }
         }
       } finally {
         for (const entry of this.#entries.values()) {
-          if (entry.area === target && entry.definitionId === definitionId) this.#refresh(entry)
+          if (
+            entry.area === target &&
+            prefixes.some(prefix => entry.physicalKey.startsWith(prefix))
+          )
+            this.#refresh(entry)
         }
       }
     }
@@ -362,6 +388,14 @@ export class MfeStorageStore {
       })
     }
 
+    const instanceId = this.#resolveInstance(
+      definitionId,
+      area,
+      declaration.scope,
+      declaration.instanceId,
+      name,
+    )
+
     const version = declaration.version ?? DEFAULT_SCHEMA_VERSION
     if (!Number.isInteger(version) || version < 1) {
       throw this.#fail(definitionId, area, 'bind', name, {
@@ -390,6 +424,7 @@ export class MfeStorageStore {
     return {
       name,
       area,
+      ...(instanceId === undefined ? {} : { instanceId }),
       schema: declaration.schema,
       version,
       declaresDefault,
@@ -400,7 +435,7 @@ export class MfeStorageStore {
   }
 
   #acquireEntry(definitionId: string, declaration: ResolvedDeclaration): KeyEntry {
-    const physicalKey = physicalStorageKey(definitionId, declaration.name)
+    const physicalKey = physicalStorageKey(definitionId, declaration.name, declaration.instanceId)
     const entryKey = entryKeyFor(declaration.area, physicalKey)
     const existing = this.#entries.get(entryKey)
     if (existing !== undefined) {
@@ -648,11 +683,14 @@ export class MfeStorageStore {
     name: string,
     schema: z.ZodType<T>,
     options: StorageKeyOptions<T> | undefined,
+    instanceId?: string,
   ): MfeStorageKey<T> {
     const resolved = this.#resolveDeclaration(definitionId, {
       name,
       storage: area,
       schema,
+      ...(options?.scope === undefined ? {} : { scope: options.scope }),
+      ...(instanceId === undefined ? {} : { instanceId }),
       ...(options?.version === undefined ? {} : { version: options.version }),
       ...(options?.migrate === undefined ? {} : { migrate: options.migrate }),
     })
@@ -673,9 +711,14 @@ export class MfeStorageStore {
     }
   }
 
-  #imperativeRemove(definitionId: string, area: StorageArea, name: string): void {
+  #imperativeRemove(
+    definitionId: string,
+    area: StorageArea,
+    name: string,
+    instanceId?: string,
+  ): void {
     this.#assertUsable('remove a storage key')
-    const physical = physicalStorageKey(definitionId, name)
+    const physical = physicalStorageKey(definitionId, name, instanceId)
     const bound = this.#entries.get(entryKeyFor(area, physical))
     if (bound !== undefined) {
       this.#removeValue(bound)
@@ -690,7 +733,7 @@ export class MfeStorageStore {
    * nothing.
    */
   #workingEntry(definitionId: string, declaration: ResolvedDeclaration): KeyEntry {
-    const physicalKey = physicalStorageKey(definitionId, declaration.name)
+    const physicalKey = physicalStorageKey(definitionId, declaration.name, declaration.instanceId)
     const entryKey = entryKeyFor(declaration.area, physicalKey)
     const existing = this.#entries.get(entryKey)
     if (existing !== undefined) {
@@ -806,7 +849,19 @@ export class MfeStorageStore {
    * inferred from an id somebody chose (§24).
    */
   #assertDefinitionScope(definitionId: string, operation: string): void {
-    if (definitionId !== HOST_SCOPE) return
+    if (definitionId !== HOST_SCOPE) {
+      if (
+        typeof definitionId === 'string' &&
+        definitionId.length > 0 &&
+        !definitionId.includes(':')
+      )
+        return
+      throw this.#failStore(operation, {
+        expected: 'a non-empty definition id without a colon',
+        observed: describeValue(definitionId),
+        repair: 'Use the registry definition id; invalid prefixes could touch unrelated records.',
+      })
+    }
     throw this.#failStore(operation, {
       expected: 'a definition id',
       observed: `the reserved host scope '${HOST_SCOPE}'`,
@@ -822,5 +877,30 @@ export class MfeStorageStore {
       observed: 'a store that was already disposed',
       repair: 'Create a new MfeStorageStore; a disposed one no longer observes storage events.',
     })
+  }
+
+  #resolveInstance(
+    definitionId: string,
+    area: StorageArea,
+    scope: string | undefined,
+    instanceId?: string,
+    name?: string,
+  ): string | undefined {
+    if (scope === undefined || scope === 'definition') return undefined
+    if (
+      scope !== 'instance' ||
+      definitionId === HOST_SCOPE ||
+      typeof instanceId !== 'string' ||
+      instanceId.trim().length === 0
+    ) {
+      throw this.#fail(definitionId, area, 'bind', name ?? null, {
+        expected:
+          'definition scope, or instance scope with a stable non-empty host-supplied instanceId',
+        observed: scope === 'instance' ? describeValue(instanceId) : describeValue(scope),
+        repair:
+          "Pass instanceId on the Widget host and use scope: 'instance' inside its mount; keep the same id across remounts.",
+      })
+    }
+    return instanceId
   }
 }

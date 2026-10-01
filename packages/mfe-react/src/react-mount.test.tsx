@@ -4,9 +4,9 @@
  * because nothing around the element can do it instead.
  */
 
-import type { MfeError } from '@company/mfe-core'
 import {
   createMountContext,
+  mountDefinition,
   type MountContextHandle,
   type MountedApp,
   type MountedWidget,
@@ -100,7 +100,6 @@ async function mountCounter(
   inputs: Readonly<Record<string, unknown>>,
   callbacks: {
     readonly emit?: (event: string, payload: unknown) => void
-    readonly onInputRejected?: (error: MfeError) => void
   } = {},
 ): Promise<MountedWidget> {
   const { context } = hostFor('widget', 'counter-widget')
@@ -112,9 +111,6 @@ async function mountCounter(
       inputs,
       emit: callbacks.emit ?? (() => undefined),
       onFailure: noopFailure,
-      ...(callbacks.onInputRejected === undefined
-        ? {}
-        : { onInputRejected: callbacks.onInputRejected }),
     })
   })
   if (!mounted) throw new Error('the Widget did not mount')
@@ -122,6 +118,62 @@ async function mountCounter(
 }
 
 describe('a React Widget mounting itself', () => {
+  it('validates each offered set once and settles invalid-to-invalid-to-valid updates before React renders', async () => {
+    const check = vi.fn((value: string) => !value.startsWith('invalid'))
+    const widget = createWidget({
+      id: 'timing-probe',
+      inputSchema: z.object({ label: z.string().refine(check) }),
+      outputSchema: z.object({}),
+      render: ({ inputs }) => <p>{inputs.label}</p>,
+    })
+    memory = createMemoryRuntime({ definitions: [widget] })
+    memories.push(memory)
+    element = document.createElement('div')
+    document.body.appendChild(element)
+    const rejected = vi.fn()
+    const mount = mountDefinition({
+      runtime: memory.runtime,
+      definitionId: widget.id,
+      kind: 'widget',
+      element,
+      inputs: { label: 'First' },
+      onOutput: () => undefined,
+      onInputRejected: rejected,
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(mount.getState().status).toBe('mounted'))
+    })
+    expect(check).toHaveBeenCalledTimes(1)
+    const view = within(element).getByText('First')
+    const statuses: string[] = []
+    const unsubscribe = mount.subscribeInput(() => statuses.push(mount.getInputState().status))
+    act(() => {
+      mount.update({ label: 'invalid-one' })
+      expect(mount.getInputState().status).toBe('rejected')
+      mount.update({ label: 'invalid-two' })
+      expect(mount.getInputState().status).toBe('rejected')
+      expect(rejected).toHaveBeenCalledTimes(2)
+      expect(view).toHaveTextContent('First')
+    })
+    expect(statuses).toEqual(['rejected', 'rejected'])
+    expect(check).toHaveBeenCalledTimes(3)
+    act(() => {
+      mount.update({ label: 'Recovered' })
+      expect(mount.getInputState().status).toBe('accepted')
+    })
+    expect(within(element).getByText('Recovered')).toBe(view)
+    expect(check).toHaveBeenCalledTimes(4)
+    expect(rejected).toHaveBeenCalledTimes(2)
+    expect(memory.diagnostics.map(entry => entry.error.code)).toEqual([
+      'contract/input-mismatch',
+      'contract/input-mismatch',
+    ])
+    expect(statuses).toEqual(['rejected', 'rejected', 'accepted'])
+    unsubscribe()
+    await act(async () => {
+      await mount.dispose()
+    })
+  })
   it('renders its inputs into the element it was given', async () => {
     await mountCounter({ label: 'Clicks' })
 
@@ -307,20 +359,18 @@ describe('a React Widget mounting itself', () => {
     expect(memory?.diagnostics).toEqual([])
   })
 
-  it('keeps its last valid inputs when an update fails, and reports it once', async () => {
-    const onInputRejected = vi.fn()
-    const mounted = await mountCounter({ label: 'Clicks' }, { onInputRejected })
+  it('keeps its last valid render and returns a rejected update before React renders', async () => {
+    const mounted = await mountCounter({ label: 'Clicks' })
 
     act(() => {
-      mounted.update({ label: 7 })
+      expect(mounted.update({ label: 7 })).toMatchObject({
+        status: 'rejected',
+        error: { code: 'contract/input-mismatch' },
+      })
     })
 
     expect(within(element).getByRole('button')).toHaveTextContent('Clicks')
-    expect(onInputRejected).toHaveBeenCalledTimes(1)
-    expect(onInputRejected.mock.calls[0]?.[0]).toMatchObject({ code: 'contract/input-mismatch' })
-    expect(memory?.diagnostics.map(diagnostic => diagnostic.error.code)).toEqual([
-      'contract/input-mismatch',
-    ])
+    expect(memory?.diagnostics).toEqual([])
   })
 
   /**
@@ -368,7 +418,6 @@ describe('a React Widget mounting itself', () => {
     /** Outside `act`, because inside it React rethrows the failure to the test instead. */
     it('rejects the first mount with the declaration error', async () => {
       const { context } = hostFor('widget', 'picker')
-      const onInputRejected = vi.fn()
 
       const thrown = await picker
         .mount({
@@ -377,20 +426,17 @@ describe('a React Widget mounting itself', () => {
           inputs: { label: 'Pick', onPick: 'x' },
           emit: () => undefined,
           onFailure: noopFailure,
-          onInputRejected,
         })
         .catch((error: unknown) => error)
 
       expect(thrown).toMatchObject({ code: 'contract/input-mismatch', id: 'picker' })
       expect((thrown as Error).message).toBe(RESERVED_MESSAGE)
-      expect(onInputRejected).not.toHaveBeenCalled()
       expect(element.childElementCount).toBe(0)
     })
 
-    it('hands a later set that produces the name to onFailure, not onInputRejected', async () => {
+    it('throws a declaration error from a later update before scheduling a render', async () => {
       const { context } = hostFor('widget', 'picker')
       const onFailure = vi.fn()
-      const onInputRejected = vi.fn()
       let mounted: MountedWidget | undefined
       await act(async () => {
         mounted = await picker.mount({
@@ -399,20 +445,12 @@ describe('a React Widget mounting itself', () => {
           inputs: { label: 'Pick' },
           emit: () => undefined,
           onFailure,
-          onInputRejected,
         })
       })
 
-      mounted?.update({ label: 'Pick', onPick: 'x' })
-
-      await vi.waitFor(() => {
-        expect(onFailure).toHaveBeenCalledTimes(1)
-      })
-      expect(onFailure.mock.calls[0]?.[0]).toMatchObject({
-        code: 'contract/input-mismatch',
-        message: RESERVED_MESSAGE,
-      })
-      expect(onInputRejected).not.toHaveBeenCalled()
+      expect(() => mounted?.update({ label: 'Pick', onPick: 'x' })).toThrowError(RESERVED_MESSAGE)
+      expect(onFailure).not.toHaveBeenCalled()
+      expect(within(element).getByText('Pick')).toBeInTheDocument()
     })
 
     /** `pending` is the Widget host's loading slot, so a consumer's value never reached the Widget. */

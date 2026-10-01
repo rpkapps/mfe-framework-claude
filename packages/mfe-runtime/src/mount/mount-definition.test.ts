@@ -13,7 +13,7 @@ import {
   isMfeError,
   type DeadlineConfig,
   type MountState,
-  type OutputSchema,
+  type WidgetContract,
 } from '@company/mfe-core'
 
 import { at, codesOf, deferred, flush, type Deferred } from '../__tests__/harness.ts'
@@ -31,6 +31,7 @@ import {
   type WidgetDefinitionMount,
   type WidgetMountRequest,
 } from './mount-definition.ts'
+import { createProviderEmit, validateProviderInputs } from './provider-boundary.ts'
 import type {
   AppMountTarget,
   MountableAppDefinition,
@@ -39,6 +40,7 @@ import type {
   MountedApp,
   MountedWidget,
   WidgetMountTarget,
+  WidgetUpdateResult,
 } from './mountable-definition.ts'
 import {
   KIND_ATTRIBUTE,
@@ -89,6 +91,7 @@ function plainApp(
     id,
     version: '2.1.0',
     framework: FRAMEWORK,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contributesBreadcrumbs: false,
     mount,
   }
@@ -103,7 +106,7 @@ const ALERT_CONTRACT = {
 interface FakeWidget {
   readonly definition: MountableWidgetDefinition
   readonly mount: ReturnType<typeof vi.fn<(target: WidgetMountTarget) => Promise<MountedWidget>>>
-  readonly update: ReturnType<typeof vi.fn<(inputs: Inputs) => void>>
+  readonly update: ReturnType<typeof vi.fn<(inputs: Inputs) => WidgetUpdateResult>>
   readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>
   readonly targets: WidgetMountTarget[]
 }
@@ -113,7 +116,7 @@ function plainWidget(
   mountWith?: (target: WidgetMountTarget, render: () => MountedWidget) => Promise<MountedWidget>,
 ): FakeWidget {
   const targets: WidgetMountTarget[] = []
-  const update = vi.fn()
+  const update = vi.fn<(inputs: Inputs) => WidgetUpdateResult>(() => ({ status: 'accepted' }))
   const dispose = vi.fn(async () => undefined)
 
   const mount = vi.fn(async (target: WidgetMountTarget): Promise<MountedWidget> => {
@@ -122,8 +125,9 @@ function plainWidget(
       target.element.textContent = String(target.inputs['label'])
       return {
         update: inputs => {
-          update(inputs)
-          target.element.textContent = String(inputs['label'])
+          const result = update(inputs)
+          if (result.status === 'accepted') target.element.textContent = String(inputs['label'])
+          return result
         },
         dispose: async () => {
           await dispose()
@@ -139,6 +143,7 @@ function plainWidget(
     kind: 'widget',
     id,
     framework: FRAMEWORK,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contract: ALERT_CONTRACT,
     mount,
   }
@@ -413,6 +418,11 @@ describe('failure and retry', () => {
     await settled(mount, 'error')
     expect(host.children).toHaveLength(0)
     expect(codesOf(memory.diagnostics)).toEqual(['mount/failure'])
+    expect(memory.diagnostics[0]?.context).toEqual({
+      kind: 'app',
+      container: 'reports',
+      attempt: 1,
+    })
 
     mount.retry()
     await settled(mount, 'mounted')
@@ -779,13 +789,134 @@ describe('Widget inputs', () => {
       repair: 'Pass a string label.',
     })
 
-    at(widget.targets).onInputRejected?.(rejection)
+    widget.update.mockReturnValue({ status: 'rejected', error: rejection })
+    mount.update({ label: 7 })
 
     expect(onInputRejected).toHaveBeenCalledWith(rejection)
   })
 })
 
+describe('the outputs a Widget consumer expects', () => {
+  it('refuses a removed expected output before opening scope roots or calling the provider', async () => {
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    const mount = mountWidget(runtime, {
+      consumerContract: {
+        ...ALERT_CONTRACT,
+        outputSchema: z.object({
+          acknowledged: z.object({ alertId: z.string() }),
+          closed: z.string(),
+        }),
+      },
+    })
+    await settled(mount, 'error')
+    expect(errorOf(mount)).toMatchObject({ code: 'contract/incompatible-widget' })
+    expect(errorOf(mount).message).toContain("no longer declares expected output 'closed'")
+    expect(widget.mount).not.toHaveBeenCalled()
+    expect(scopeRoots()).toHaveLength(0)
+    expect(overlayRoots()).toHaveLength(0)
+  })
+
+  it('mounts when actual inputs are valid even if the provider accepts fewer values than the consumer schema', async () => {
+    const widget = plainWidget()
+    const definition: MountableWidgetDefinition = {
+      ...widget.definition,
+      contract: { ...ALERT_CONTRACT, inputSchema: z.object({ label: z.enum(['Pressure high']) }) },
+      mount: async target => {
+        const checked = validateProviderInputs(definition, target.inputs)
+        if (checked.status !== 'accepted') throw checked.error
+        return await widget.definition.mount(target)
+      },
+    }
+    const { runtime } = memoryRuntime([definition])
+    const mount = mountWidget(runtime, { consumerContract: ALERT_CONTRACT })
+    await settled(mount, 'mounted')
+    expect(widget.mount).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toBe('Pressure high')
+
+    const invalid = mountWidget(runtime, {
+      consumerContract: ALERT_CONTRACT,
+      inputs: { label: 'Unsupported' },
+    })
+    await settled(invalid, 'error')
+    expect(errorOf(invalid).code).toBe('contract/input-mismatch')
+    expect(widget.mount).toHaveBeenCalledTimes(1)
+  })
+
+  it('validates emitted payloads against the consumer schema without running refinements before mount', async () => {
+    const onOutput = vi.fn()
+    const widget = plainWidget()
+    const inputCheck = vi.fn(() => true)
+    const outputCheck = vi.fn((value: string) => value.startsWith('a-'))
+    const memory = memoryRuntime([widget.definition])
+    const mount = mountWidget(memory.runtime, {
+      onOutput,
+      consumerContract: {
+        inputSchema: z.object({ label: z.string().refine(inputCheck) }),
+        outputSchema: z.object({
+          acknowledged: z.object({ alertId: z.string().refine(outputCheck) }),
+        }),
+      },
+    })
+    await settled(mount, 'mounted')
+    expect(inputCheck).not.toHaveBeenCalled()
+    expect(outputCheck).not.toHaveBeenCalled()
+    at(widget.targets).emit('acknowledged', { alertId: 'invalid' })
+    expect(onOutput).not.toHaveBeenCalled()
+    expect(outputCheck).toHaveBeenCalledTimes(1)
+    expect(codesOf(memory.diagnostics)).toEqual(['contract/output-mismatch'])
+  })
+
+  it('reads the complete consumer contract from bound getters before attaching', async () => {
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([widget.definition])
+    const { loader, loads } = pendingLoader()
+    let contract = ALERT_CONTRACT
+    const mount = mountDefinition({
+      runtime: withLoader(runtime, loader),
+      element: host,
+      definitionId: 'alert-panel',
+      kind: 'widget',
+      inputs: { label: 'Pressure high' },
+      onOutput: () => undefined,
+      get consumerContract() {
+        return contract
+      },
+    })
+    await flush()
+    contract = {
+      ...ALERT_CONTRACT,
+      outputSchema: z.object({ closed: z.string() }),
+    } as unknown as typeof ALERT_CONTRACT
+    at(loads).resolve(loadedOf(widget.definition))
+    await settled(mount, 'error')
+    expect(errorOf(mount).code).toBe('contract/incompatible-widget')
+    expect(widget.mount).not.toHaveBeenCalled()
+  })
+})
+
 describe('Widget outputs', () => {
+  it('checks actual provider and consumer payloads without comparing their declared value domains', async () => {
+    const onOutput = vi.fn()
+    const widget = plainWidget()
+    const memory = memoryRuntime([widget.definition])
+    const mount = mountWidget(memory.runtime, {
+      onOutput,
+      consumerContract: {
+        ...ALERT_CONTRACT,
+        outputSchema: z.object({ acknowledged: z.object({ alertId: z.enum(['a-allowed']) }) }),
+      },
+    })
+    await settled(mount, 'mounted')
+    const emit = createProviderEmit(widget.definition, at(widget.targets).emit)
+    expect(() => emit('acknowledged', { alertId: 7 })).toThrowError(/accept|emit output/)
+    expect(onOutput).not.toHaveBeenCalled()
+    emit('acknowledged', { alertId: 'a-allowed' })
+    expect(onOutput).toHaveBeenCalledWith('acknowledged', { alertId: 'a-allowed' })
+    expect(() => emit('acknowledged', { alertId: 'a-blocked' })).not.toThrow()
+    expect(onOutput).toHaveBeenCalledTimes(1)
+    expect(codesOf(memory.diagnostics)).toEqual(['contract/output-mismatch'])
+  })
   it('delivers an event the host declared nothing about as the Widget emitted it', async () => {
     const onOutput = vi.fn()
     const widget = plainWidget()
@@ -802,7 +933,7 @@ describe('Widget outputs', () => {
     const onOutput = vi.fn()
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
-    const mount = mountWidget(runtime, { onOutput, consumerOutputs: ALERT_CONTRACT.outputSchema })
+    const mount = mountWidget(runtime, { onOutput, consumerContract: ALERT_CONTRACT })
     await settled(mount, 'mounted')
 
     at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
@@ -816,7 +947,7 @@ describe('Widget outputs', () => {
     const widget = plainWidget()
     const { runtime } = memoryRuntime([widget.definition])
     // What the Angular host's getter returns before a contract is bound: nothing declared.
-    let consumerOutputs: OutputSchema | undefined = undefined
+    let consumerContract: WidgetContract | undefined = undefined
     const mount = mountDefinition({
       runtime,
       element: host,
@@ -824,14 +955,14 @@ describe('Widget outputs', () => {
       kind: 'widget',
       inputs: { label: 'Pressure high' },
       onOutput,
-      get consumerOutputs() {
-        return consumerOutputs
+      get consumerContract() {
+        return consumerContract
       },
     })
     await settled(mount, 'mounted')
 
     at(widget.targets).emit('acknowledged', { alertId: 'a-7', extra: true })
-    consumerOutputs = ALERT_CONTRACT.outputSchema
+    consumerContract = ALERT_CONTRACT
     at(widget.targets).emit('acknowledged', { alertId: 'a-8', extra: true })
 
     expect(onOutput.mock.calls).toEqual([
@@ -846,7 +977,7 @@ describe('Widget outputs', () => {
     const memory = memoryRuntime([widget.definition])
     const mount = mountWidget(memory.runtime, {
       onOutput,
-      consumerOutputs: ALERT_CONTRACT.outputSchema,
+      consumerContract: ALERT_CONTRACT,
     })
     await settled(mount, 'mounted')
 

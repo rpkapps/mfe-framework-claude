@@ -16,6 +16,7 @@ import {
 function legacyEntry(overrides: Record<string, unknown> = {}): RegistryEntry {
   return legacyAngularAdapter.parse({
     name: 'asset-tracker',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     mfManifestUrl: 'https://cdn.example.test/apps/asset-tracker/mf-manifest.json',
     ...overrides,
   })

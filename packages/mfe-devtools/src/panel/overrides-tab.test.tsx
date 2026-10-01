@@ -18,12 +18,14 @@ const ENTRIES: readonly RegistryEntry[] = [
     definitionKind: 'app',
     adapter: 'react',
     manifestUrl: 'http://cdn.example.com/operations/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
   },
   {
     id: 'reports',
     definitionKind: 'app',
     adapter: 'react',
     manifestUrl: 'http://cdn.example.com/reports/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
   },
 ]
 

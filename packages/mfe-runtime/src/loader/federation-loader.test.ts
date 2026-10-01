@@ -36,7 +36,7 @@ function definition(
   kind: DefinitionKind = 'app',
   framework = 'angular',
 ): BrandedDefinition {
-  return { [DEFINITION_BRAND]: true, kind, id, framework }
+  return { [DEFINITION_BRAND]: true, kind, id, framework, requiresRuntime: '>=1.1.0 <2.0.0' }
 }
 
 function entry(
@@ -49,6 +49,7 @@ function entry(
     definitionKind: 'app',
     adapter: 'angular',
     manifestUrl: `http://localhost:3001/${id}/mf-manifest.json`,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     container,
     ...overrides,
   }
@@ -84,6 +85,7 @@ describe('isFederatedEntry', () => {
       definitionKind: 'app',
       adapter: 'legacy-angular',
       manifestUrl: 'https://cdn.example.test/billing/manifest.json',
+      requiresRuntime: '>=1.1.0 <2.0.0',
     }
 
     expect(isFederatedEntry(unnamed)).toBe(false)
@@ -240,6 +242,7 @@ describe('createFederationContainerLoader', () => {
           definitionKind: 'app',
           adapter: 'legacy-angular',
           manifestUrl: 'https://cdn.example.test/billing/manifest.json',
+          requiresRuntime: '>=1.1.0 <2.0.0',
         },
         { signal: liveSignal() },
       )
@@ -324,6 +327,44 @@ describe('createFederationContainerLoader', () => {
       .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'load/entry-failure', id: 'reports' })
+  })
+
+  it('requires reload for entry failures the federation runtime caches', async () => {
+    const { runtime, loadRemote, registerRemotes } = createRuntime({
+      example_reports: () => Promise.reject(new Error('Failed remote entry #RUNTIME-008')),
+    })
+    const loader = createFederationContainerLoader({ runtime })
+    await expect(
+      loader.load(entry('reports', 'example_reports'), { signal: liveSignal() }),
+    ).rejects.toMatchObject({ code: 'load/reload-required' })
+    await expect(
+      loader.load(entry('reports', 'example_reports'), { signal: liveSignal() }),
+    ).rejects.toThrow(/Save your work, then reload/)
+    expect(loadRemote).toHaveBeenCalledTimes(1)
+    expect(registerRemotes).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not force-reset a timed-out container or disturb unrelated containers', async () => {
+    const controller = new AbortController()
+    const { runtime, loadRemote, registerRemotes } = createRuntime({
+      example_reports: () => {
+        controller.abort()
+        return Promise.resolve({ reports: definition('reports') })
+      },
+      example_other: () => Promise.resolve({ other: definition('other') }),
+    })
+    const loader = createFederationContainerLoader({ runtime })
+    await expect(
+      loader.load(entry('reports', 'example_reports'), { signal: controller.signal }),
+    ).rejects.toThrow()
+    await expect(
+      loader.load(entry('reports', 'example_reports'), { signal: liveSignal() }),
+    ).rejects.toMatchObject({ code: 'load/reload-required' })
+    await expect(
+      loader.load(entry('other', 'example_other'), { signal: liveSignal() }),
+    ).resolves.toMatchObject({ identity: { id: 'other' } })
+    expect(loadRemote).toHaveBeenCalledTimes(2)
+    expect(registerRemotes.mock.calls.every(call => call.length === 1)).toBe(true)
   })
 
   it('refuses a definition of the other kind than its registry entry says', async () => {

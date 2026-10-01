@@ -54,6 +54,7 @@ export function domWidget(options: { readonly settleManually?: boolean } = {}): 
     id: 'alert-panel',
     version: '1.4.0',
     framework: FRAMEWORK,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contract: alertContract,
     mount: target => {
       targets.push(target)
@@ -71,6 +72,7 @@ export function domWidget(options: { readonly settleManually?: boolean } = {}): 
         update: inputs => {
           updates.push(inputs)
           rendered.textContent = String(inputs['label'])
+          return { status: 'accepted' }
         },
         dispose: () => {
           disposals += 1
@@ -135,6 +137,7 @@ export function domApp(id = 'reports'): DomApp {
     kind: 'app',
     id,
     framework: FRAMEWORK,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contributesBreadcrumbs: true,
     mount: target => {
       targets.push(target)

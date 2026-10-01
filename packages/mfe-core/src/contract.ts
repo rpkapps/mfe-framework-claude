@@ -64,7 +64,18 @@ export function outputPayloadSchema(
  * places a Widget by id without its contract, so it can only tell its own props from inputs by
  * name, and an input with one of these names would never reach the Widget.
  */
-export const RESERVED_INPUT_NAMES = ['key', 'ref', 'fallback', 'pending'] as const
+export const RESERVED_INPUT_NAMES = [
+  'key',
+  'ref',
+  'fallback',
+  'pending',
+  'onInputRejected',
+  'inputFallback',
+  'instanceId',
+] as const
+
+/** A framework callback must never be mistaken for a provider's named output. */
+const RESERVED_OUTPUT_HANDLER_NAMES: readonly string[] = ['onInputRejected']
 
 const HANDLER_PROP_PATTERN = /^on[A-Z]/
 const OUTPUT_NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/
@@ -80,7 +91,10 @@ export function outputNameToHandlerProp(outputName: string): string {
 }
 
 export function isValidOutputName(name: string): boolean {
-  return OUTPUT_NAME_PATTERN.test(name)
+  return (
+    OUTPUT_NAME_PATTERN.test(name) &&
+    !RESERVED_OUTPUT_HANDLER_NAMES.includes(outputNameToHandlerProp(name))
+  )
 }
 
 /** An invalid name, or two names that would map to the same `on`-prefixed handler prop. */
@@ -147,9 +161,10 @@ export function outputSchemaError(
   return problem.kind === 'invalid'
     ? createMfeError({
         ...declaration,
-        expected: 'a lower-camel-case output name, for example "acknowledged"',
+        expected:
+          'a lower-camel-case output name whose handler is not reserved, for example "acknowledged"',
         observed: JSON.stringify(problem.name),
-        repair: renameRepair,
+        repair: `${renameRepair} The output 'inputRejected' is reserved for the host's rejected-input callback.`,
       })
     : createMfeError({
         ...declaration,

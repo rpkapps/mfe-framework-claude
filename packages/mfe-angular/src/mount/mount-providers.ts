@@ -25,6 +25,7 @@ import type { AppMountTarget, MountContext, MountedApp } from '@company/mfe-runt
 
 import type { MfeDefinition } from '../definition.ts'
 import { MFE_MOUNT, MFE_RUNTIME } from '../inject/tokens.ts'
+import { provideSession } from '../inject/session.ts'
 
 type MountProviders = readonly (Provider | EnvironmentProviders)[]
 
@@ -96,6 +97,7 @@ function provideMfeMount(
     { provide: ErrorHandler, useValue: errors },
     { provide: MFE_MOUNT, useValue: context },
     { provide: MFE_RUNTIME, useValue: context.runtime },
+    provideSession(),
   ]
 }
 
@@ -257,6 +259,12 @@ export async function runMountApplication<T>(
     hostElement.remove()
     throw rendered.error
   }
+  if (context.signal.aborted) {
+    application.destroy()
+    release()
+    hostElement.remove()
+    throw disposedWhileMounting(context)
+  }
 
   const stop = start(rendered.value, application)
   const stopWatchingDestroy = reportForeignDestroy(application, context, onFailure)
@@ -265,6 +273,7 @@ export async function runMountApplication<T>(
   let disposal: Promise<void> | null = null
   const dispose = (): Promise<void> => {
     disposal ??= (async () => {
+      context.signal.removeEventListener('abort', onAbort)
       stopWatchingDestroy()
       stop()
       try {
@@ -290,7 +299,10 @@ export async function runMountApplication<T>(
 
   // The host disposes the handle before the context; a host that only disposes the context
   // still gets the application torn down.
-  context.signal.addEventListener('abort', () => void dispose(), { once: true })
+  const onAbort = (): void => {
+    void dispose()
+  }
+  context.signal.addEventListener('abort', onAbort, { once: true })
 
   return {
     rendered: rendered.value,

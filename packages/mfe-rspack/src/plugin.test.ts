@@ -155,11 +155,13 @@ describe('Module Federation options', () => {
     expect(manifest.metaData['name']).toBe('acme_operations')
     expect(manifest.metaData['mfe']).toMatchObject({
       kind: 'mfe',
-      major: 1,
+      framework: 'react',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       buildTime: '2026-01-02T03:04:05.000Z',
       registryDescriptor: 'mfe-registry.json',
       entries: { operations: './app', 'order-row': './widgets/order-row' },
     })
+    expect(manifest.metaData['mfe']).not.toHaveProperty('major')
   })
 
   it('never drops what the Module Federation plugin already wrote', () => {
@@ -167,8 +169,8 @@ describe('Module Federation options', () => {
       { shared: [], metaData: { globalName: 'x' } },
       {
         kind: 'mfe',
-        major: 1,
         framework: 'react',
+        requiresRuntime: '>=1.1.0 <2.0.0',
         buildHash: 'abc',
         buildTime: 't',
         registryDescriptor: 'mfe-registry.json',

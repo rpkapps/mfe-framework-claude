@@ -10,6 +10,7 @@ function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
     definitionKind: 'app',
     adapter: 'react',
     manifestUrl: 'https://cdn.example.test/operations/mf-manifest.json',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     ...overrides,
   }
 }

@@ -12,6 +12,7 @@ import type { LegacyParcelConfig } from './single-spa-contract.ts'
 function legacyRegistryEntry(overrides: Record<string, unknown> = {}): RegistryEntry {
   return legacyAngularAdapter.parse({
     name: 'asset-tracker',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     mfManifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
     version: '4.7.1',
     routes: ['/asset-tracker'],
@@ -177,6 +178,7 @@ describe('createLegacyContainerLoader failures', () => {
       id: 'reports',
       definitionKind: 'app',
       adapter: 'react',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     }
 

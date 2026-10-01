@@ -36,6 +36,16 @@ function resolveShared(options: Omit<ResolveSharedOptions, 'frameworkScope'>) {
 }
 
 describe('resolveShared', () => {
+  it('keeps the adapter handshake subpath local when the shell shares an older bare core', () => {
+    const shared = resolveShared({
+      policy: withPagePolicy({}),
+      dependencies: { '@company/mfe-core': '^0.1.0' },
+    })
+    expect(shared).toHaveProperty('@company/mfe-core')
+    expect(shared).not.toHaveProperty('@company/mfe-core/runtime-compatibility')
+    expect(shared).not.toHaveProperty('@company/mfe-core/')
+  })
+
   it('shares only the candidates the container actually depends on', () => {
     const shared = resolveShared({
       policy: POLICY,

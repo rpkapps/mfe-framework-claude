@@ -42,6 +42,8 @@ export function injectStoredState<T>(
     ...withoutUndefined({
       version: options.version,
       migrate: options.migrate,
+      scope: options.scope,
+      instanceId: mount?.instanceId,
     }),
   }
 

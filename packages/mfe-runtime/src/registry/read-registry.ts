@@ -14,6 +14,8 @@ import {
   type RejectedRegistryEntry,
 } from '@company/mfe-core'
 
+import { assertRegistryRuntimeCompatibility } from './runtime-compatibility.ts'
+
 export interface ReadRegistryOptions {
   /** Exactly one of these must recognise an entry: none rejects it, two or more rejects it. */
   readonly adapters: readonly MfeAdapter[]
@@ -64,6 +66,21 @@ export function readRegistry(raw: readonly unknown[], options: ReadRegistryOptio
       repair = REBUILD,
     ): Error =>
       createMfeError({ code: 'registry/invalid-entry', id, operation, expected, observed, repair })
+
+    try {
+      assertRegistryRuntimeCompatibility(source, id)
+    } catch (error) {
+      reject(
+        'the entry does not satisfy shell runtime compatibility',
+        toMfeError(error, {
+          code: 'registry/invalid-entry',
+          id,
+          operation: 'read registry entry',
+          repair: REBUILD,
+        }),
+      )
+      return
+    }
 
     // Exactly one adapter, or the entry is rejected: there is no order to fall back through.
     const recognised = options.adapters.filter(candidate => detects(candidate, source))

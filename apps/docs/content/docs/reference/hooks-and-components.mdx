@@ -119,7 +119,7 @@ observer.observe(scopeRoot)
 useMfeStorage(area?: 'local' | 'session'): MfeStorage
 ```
 
-Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name)` and `clear()`, and a bound key has `get()`, `set(value)` and `remove()`. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
+Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name, options?)` and `clear(options?)`, and a bound key has `get()`, `set(value)` and `remove()`. Pass `{ scope: 'instance' }` to use the `instanceId` the host gave this Widget; omitting it keeps definition scope. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const local = useMfeStorage()
@@ -320,11 +320,15 @@ Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-un
 useStoredState<T>(
   name: string,
   schema: z.ZodType<T>,
-  options: { defaultValue: T; storage?: 'local' | 'session'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
+  options: { defaultValue: T; storage?: 'local' | 'session'; scope?: 'definition' | 'instance'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
 ): readonly [T, (next: T | ((current: T) => T)) => void]
 ```
 
 Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data. The record belongs to the browser, so a sign-out keeps it and the next user reads it.
+
+Two copies of a definition share the value by default. With `scope: 'instance'`, the key uses the
+`instanceId` the host gave the Widget. The same ID reads the same value after a reload. Without a
+non-empty host ID, instance scope throws `storage/failure`.
 
 ```ts title="examples/lab/src/routes/storage.tsx"
 const [draft, setDraft] = useStoredState('draft', draftSchema, {
@@ -343,7 +347,7 @@ lazyWidget(widgetId: string): (props: LazyWidgetProps<undefined>) => ReactNode
 lazyWidget<C extends WidgetContract>(widgetId: string, options: { contract: C }): (props: LazyWidgetProps<C>) => ReactNode
 ```
 
-Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, and validates outputs on your side.
+Returns a component for a Widget you name in your source. Call it once at module scope. Passing the Widget's published `contract` types the props and the `onX` handlers, checks that the loaded Widget still declares your output names before mounting, and validates output payloads on your side.
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
@@ -353,17 +357,25 @@ import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
-The returned component takes the Widget's inputs as props and one `onX` handler per declared output. It also takes an optional `pending` node, shown while the container is fetched, and an optional `fallback({ error, retry })`.
+The returned component takes the Widget's inputs as props and one `onX` handler per declared output.
+`pending` replaces its loading message; `fallback({ error, retry, reload })` replaces its error
+content. With neither, the host shows its defaults in the Widget's box.
+
+`onInputRejected(error)` hears about a later update the Widget refused. The last valid inputs stay
+on screen, with a message that can be replaced by `inputFallback({ error })`. A valid update removes
+that message. `instanceId` names the copy for keys declared with `scope: 'instance'`.
 
 Recipe: [Render a Widget inside your App](/docs/render-a-widget).
 
 ### DynamicWidget
 
 ```tsx
-<DynamicWidget widgetId={string} onOutput={(name, payload) => void} pending={ReactNode} fallback={({ error, retry }) => ReactNode} {...inputs} />
+<DynamicWidget widgetId={string} onOutput={(name, payload) => void} pending={ReactNode} fallback={({ error, retry, reload }) => ReactNode} {...inputs} />
 ```
 
 Renders a Widget whose id is a value rather than a name in your source. It takes no contract, so outputs arrive by name through one `onOutput` handler. Changing `widgetId` replaces the mount rather than feeding new inputs to the old one.
+
+It takes the same `onInputRejected`, `inputFallback` and `instanceId` props as `lazyWidget`.
 
 ```tsx title="apps/shell/src/shell/dashboard/tile.tsx"
 <DynamicWidget
@@ -505,9 +517,17 @@ These place or compose containers. A shell calls them. An App calls `mfeRoute` w
 | `RESERVED_CONTEXT_KEYS`                                                 | `['mfe', 'queryClient']`                   | Router context keys the framework owns.                   |
 | `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                           |
 
-`AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. `pending` fills the region while the container loads and the definition mounts, and `fallback` replaces it after a failure, with a `retry`. Without a `fallback` the failure is thrown to the nearest error boundary. Nothing suspends.
+`AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. They show loading and error content in that region by default. `pending` and `fallback({ error, retry, reload })` replace it. Retry is offered for temporary failures, Reload page when the tab needs fresh code. Nothing suspends.
 
 A shell boots from `@company/mfe-react/host`: it re-exports the whole runtime surface — `createMfeRuntime`, `createFederationContainerLoader`, `DiagnosticsHub` and the rest — beside `MfeProvider`, so a shell imports its adapter and never `@company/mfe-runtime` itself. `@company/mfe-react/registry` exports `reactAdapter` alone, with no React import, for a shell written in another framework. `createMfeRuntime` registers no adapter implicitly; list every one in `adapters`.
+
+Angular's `<mfe-widget>` and `<mfe-app-host>` render only the `[pending]` and `[fallback]`
+templates you give them. The fallback receives `error`, `retry`, `reload`, `recovery` and `attempt`;
+the error is also its implicit value. `<mfe-widget>` accepts `[inputFallback]` for a rejected update,
+with the error as its implicit value. Declare these templates in the consuming component to use
+that component's Angular style scope. The adapter supplies no loading text, buttons or presentation
+styles. Without a template a failed mount leaves an empty region; `(failed)` and diagnostics still
+report it. A rejected update keeps the last valid Widget on screen and emits `(inputRejected)`.
 
 ## Where each hook may be called
 

@@ -46,6 +46,8 @@ export interface MountControllerOptions<TLoaded> {
   /** The runtime's, so a shell tunes every mount in one place. */
   readonly deadlines: DeadlineConfig
   readonly diagnostics?: DiagnosticsHub
+  /** Safe identity metadata a placement knows, such as container and definition kind. */
+  readonly diagnosticContext?: Readonly<Record<string, string | number | boolean>>
   /** Called once the mount reaches a terminal disposed state. */
   readonly onDisposed?: () => void
 }
@@ -88,6 +90,11 @@ export class MountController<TLoaded> implements MountHandle {
 
   get state(): MountState {
     return this.#lifecycle.getState()
+  }
+
+  /** Available after settlement as well, for local recovery diagnostics. */
+  get attempt(): number {
+    return this.#attempt?.attempt ?? 0
   }
 
   readonly getState = (): MountState => this.#lifecycle.getState()
@@ -302,6 +309,8 @@ export class MountController<TLoaded> implements MountHandle {
       id: this.id,
       operation: 'mount definition',
     })
-    this.#options.diagnostics?.report(structured)
+    this.#options.diagnostics?.report(structured, {
+      context: { ...this.#options.diagnosticContext, attempt: this.attempt },
+    })
   }
 }

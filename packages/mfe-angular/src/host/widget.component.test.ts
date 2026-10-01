@@ -72,6 +72,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
     [DEFINITION_BRAND]: true,
     kind: 'widget',
     framework: 'plain-dom',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     id,
     contract: {
       inputSchema: z.object({ count: z.number() }),
@@ -88,6 +89,7 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
         update: inputs => {
           calls.updates.push(inputs)
           target.element.textContent = `count ${String(inputs['count'])}`
+          return { status: 'accepted' }
         },
         dispose: () => {
           calls.disposals += 1
@@ -116,19 +118,53 @@ function foreignWidget(id: string, options: ForeignWidgetOptions = {}) {
       [widgetId]="widgetId()"
       [inputs]="inputs()"
       [contract]="contract"
-      [pending]="loading"
+      [pending]="templates() ? loading : undefined"
+      [fallback]="templates() ? failure : undefined"
+      [inputFallback]="templates() ? refused : undefined"
       (output)="outputs.push($event)"
       (failed)="failures.push($event)"
+      (inputRejected)="rejections.push($event)"
     />
     <ng-template #loading><span class="pending">loading</span></ng-template>
+    <ng-template
+      #failure
+      let-error
+      let-recovery="recovery"
+      let-retry="retry"
+      let-reload="reload"
+      let-attempt="attempt"
+    >
+      <p class="consumer-failure">{{ error.code }}: {{ recovery }}: {{ attempt }}</p>
+      @if (recovery === 'retry' || recovery === 'correct-inputs') {
+        <button (click)="retry()">Retry</button>
+      } @else {
+        <button (click)="reload()">Reload</button>
+      }
+    </ng-template>
+    <ng-template #refused let-error>
+      <p class="consumer-rejection" [attr.data-consumer-rejection]="error.code">Inputs refused</p>
+    </ng-template>
+  `,
+  styles: `
+    .pending {
+      color: rgb(12, 34, 56);
+    }
+    .consumer-failure {
+      color: rgb(23, 45, 67);
+    }
+    .consumer-rejection {
+      color: rgb(34, 56, 78);
+    }
   `,
 })
 class HostComponent {
+  readonly templates = signal(true)
   readonly widgetId = signal('alert-panel')
   readonly inputs = signal<Readonly<Record<string, unknown>>>({ alertId: 'a-1' })
   contract: WidgetContract | undefined = undefined
   readonly outputs: MfeWidgetOutput[] = []
   readonly failures: MfeError[] = []
+  readonly rejections: MfeError[] = []
   @ViewChild('widget') widget: MfeWidgetComponent | undefined
 }
 
@@ -147,6 +183,109 @@ async function renderHost(
 }
 
 describe('<mfe-widget>', () => {
+  it('exposes a rejected update separately from mount status and clears it after a valid update', async () => {
+    const { rendered, appRef } = await renderHost([alertWidget])
+    const host = rendered.ref.instance
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('p')?.textContent).toBe('a-1')
+    })
+
+    host.inputs.set({ alertId: 7 })
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(host.rejections).toHaveLength(1)
+    })
+    expect(host.widget?.status()).toBe('mounted')
+    expect(host.widget?.inputStatus()).toBe('rejected')
+    expect(host.widget?.inputError()?.code).toBe('contract/input-mismatch')
+    expect(host.failures).toEqual([])
+    expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('a-1')
+    const rejection = rendered.element.querySelector('[data-consumer-rejection]')!
+    expect(rejection.getAttribute('data-consumer-rejection')).toBe('contract/input-mismatch')
+    expect(rejection.textContent).toBe('Inputs refused')
+    expect(getComputedStyle(rejection).color).toBe('rgb(34, 56, 78)')
+
+    host.inputs.set({ alertId: 'a-2' })
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(host.widget?.inputStatus()).toBe('accepted')
+    })
+    expect(host.widget?.inputError()).toBeNull()
+    expect(rendered.element.querySelector('[data-consumer-rejection]')).toBeNull()
+    expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('a-2')
+  })
+
+  it('renders the consumer error template with scoped styles and retries with corrected inputs', async () => {
+    const { rendered, appRef } = await renderHost([alertWidget], host => {
+      host.inputs.set({ alertId: 7 })
+    })
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('.consumer-failure')).not.toBeNull()
+    })
+    const failure = rendered.element.querySelector('.consumer-failure')!
+    expect(failure.textContent).toBe('contract/input-mismatch: correct-inputs: 1')
+    expect(getComputedStyle(failure).color).toBe('rgb(23, 45, 67)')
+    expect(rendered.element.querySelector('button')?.textContent).toBe('Retry')
+    rendered.ref.instance.inputs.set({ alertId: 'corrected' })
+    await appRef.whenStable()
+    rendered.element.querySelector('button')?.click()
+    await vi.waitFor(() => {
+      expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('corrected')
+    })
+    expect(rendered.element.querySelector('.consumer-failure')).toBeNull()
+  })
+
+  it('adds no loading or error UI when the consumer supplies no templates', async () => {
+    const { definition, calls } = foreignWidget('unpresented', { deferMount: true })
+    const { rendered, appRef, environment } = await renderHost([definition], host => {
+      host.widgetId.set('unpresented')
+      host.inputs.set({ count: 1 })
+      host.templates.set(false)
+    })
+    const host = rendered.ref.instance
+    expect(host.widget?.status()).toBe('pending')
+    expect(rendered.element.querySelector('p, button, details, mfe-definition-status')).toBeNull()
+    await vi.waitFor(() => {
+      expect(calls.targets).toHaveLength(1)
+    })
+    calls.finishMounting()
+    await vi.waitFor(() => {
+      expect(host.widget?.status()).toBe('mounted')
+    })
+    calls.targets[0]?.onFailure(new Error('failed without an error template'))
+    await vi.waitFor(() => {
+      expect(host.widget?.status()).toBe('error')
+    })
+    await appRef.whenStable()
+    expect(host.failures).toHaveLength(1)
+    expect(host.widget?.error()?.code).toBe('mount/failure')
+    expect(environment.diagnostics).toHaveLength(1)
+    expect(rendered.element.querySelector('mfe-widget')?.children).toHaveLength(0)
+    expect(rendered.element.textContent?.trim()).toBe('')
+  })
+
+  it('keeps rejected-input state and events without adding an input hint', async () => {
+    const { rendered, appRef } = await renderHost([alertWidget], host => {
+      host.templates.set(false)
+    })
+    const host = rendered.ref.instance
+    await vi.waitFor(() => {
+      expect(host.widget?.status()).toBe('mounted')
+    })
+    host.inputs.set({ alertId: 7 })
+    await appRef.whenStable()
+    await vi.waitFor(() => {
+      expect(host.widget?.inputStatus()).toBe('rejected')
+    })
+    expect(host.rejections).toHaveLength(1)
+    expect(host.widget?.inputError()?.code).toBe('contract/input-mismatch')
+    expect(rendered.element.querySelector('mfe-widget')?.children).toHaveLength(1)
+    expect(rendered.element.querySelector('[data-mfe-scope] p')?.textContent).toBe('a-1')
+    expect(
+      rendered.element.querySelector('[data-mfe-input-rejected], [data-consumer-rejection]'),
+    ).toBeNull()
+  })
+
   it('mounts an Angular Widget by id inside exactly one scope root, the one its mount sees', async () => {
     alertMounts.length = 0
     const { rendered } = await renderHost([alertWidget])
@@ -176,6 +315,9 @@ describe('<mfe-widget>', () => {
     const { rendered, appRef } = await renderHost([alertWidget])
 
     expect(rendered.element.querySelector('.pending')).not.toBeNull()
+    expect(getComputedStyle(rendered.element.querySelector('.pending')!).color).toBe(
+      'rgb(12, 34, 56)',
+    )
     await vi.waitFor(() => {
       expect(rendered.element.querySelector('p')).not.toBeNull()
     })
@@ -294,7 +436,11 @@ describe('<mfe-widget>', () => {
         host.inputs.set({ count: 1 })
         host.contract = {
           inputSchema: z.object({ count: z.number() }),
-          outputSchema: z.object({ clicked: z.object({ count: z.number().max(5) }) }),
+          // Custom refinements are unknown to static comparison, so actual payloads still
+          // need the consumer check during delivery.
+          outputSchema: z.object({
+            clicked: z.object({ count: z.number().refine(value => value <= 5) }),
+          }),
         }
       })
       await vi.waitFor(() => {
@@ -364,7 +510,8 @@ describe('<mfe-widget>', () => {
       })
       expect(rendered.ref.instance.failures[0]?.message).toContain('the first mount fails')
 
-      rendered.ref.instance.widget?.retry()
+      expect(rendered.element.querySelector('button')?.textContent).toBe('Retry')
+      rendered.element.querySelector('button')?.click()
 
       await vi.waitFor(() => {
         expect(calls.targets).toHaveLength(1)

@@ -20,6 +20,8 @@ export interface MountContext {
   readonly definitionId: string
   readonly definitionVersion: string | undefined
   readonly kind: DefinitionKind
+  /** Stable host identity for optional instance storage, independent of the mount token. */
+  readonly instanceId: string | undefined
   /** Internal bookkeeping that isolates duplicate mounts; never public API. */
   readonly mountToken: string
   /** Shell is 0, a top-level App 1, an App nested inside it 2, and so on. */
@@ -63,6 +65,7 @@ export interface CreateMountContextOptions {
   readonly definitionId: string
   readonly definitionVersion?: string
   readonly kind: DefinitionKind
+  readonly instanceId?: string
   /** The assigned URL boundary, always `''` for a Widget. */
   readonly basePath?: string
   /** The enclosing mount's depth plus one; 1, a top-level mount, when omitted. */
@@ -123,13 +126,14 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     definitionId,
     definitionVersion: options.definitionVersion,
     kind,
+    instanceId: options.instanceId,
     mountToken,
     depth: options.depth ?? 1,
     basePath: kind === 'widget' ? '' : (options.basePath ?? ''),
     telemetry,
     storage: {
-      local: runtime.storage.storageFor(definitionId, 'local'),
-      session: runtime.storage.storageFor(definitionId, 'session'),
+      local: runtime.storage.storageFor(definitionId, 'local', options.instanceId),
+      session: runtime.storage.storageFor(definitionId, 'session', options.instanceId),
     },
     signal: disposal.signal,
     scopeRoot,

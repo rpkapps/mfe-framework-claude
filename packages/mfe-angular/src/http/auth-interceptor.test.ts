@@ -1,8 +1,21 @@
 import { HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/http'
+import { Injector, runInInjectionContext } from '@angular/core'
 import { describe, expect, it, vi } from 'vitest'
 import { lastValueFrom, of, throwError } from 'rxjs'
 
-import { createMfeHttpAuthInterceptor } from './auth-interceptor.ts'
+import {
+  createMfeHttpAuthInterceptor as createInterceptor,
+  type MfeHttpAuthOptions,
+} from './auth-interceptor.ts'
+
+/** Functional HTTP interceptors run in DI; this injector deliberately has no mount session. */
+function createMfeHttpAuthInterceptor(
+  options: MfeHttpAuthOptions,
+): ReturnType<typeof createInterceptor> {
+  const interceptor = createInterceptor(options)
+  const injector = Injector.create({ providers: [] })
+  return (request, next) => runInInjectionContext(injector, () => interceptor(request, next))
+}
 
 describe('createMfeHttpAuthInterceptor', () => {
   it('attaches a token only to declared absolute API origins without replacing caller auth', async () => {

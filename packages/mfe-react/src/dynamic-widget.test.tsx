@@ -107,6 +107,54 @@ function hosted(runtime: MfeTestEnvironment['runtime'], children: ReactNode): Re
 }
 
 describe('DynamicWidget', () => {
+  it('keeps the last valid view after a rejected update, reports it to the current host and clears the hint after recovery', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+    const firstRejected = vi.fn()
+    const latestRejected = vi.fn()
+    const page = (label: unknown, rejected: (error: unknown) => void): ReactNode =>
+      hosted(
+        environment!.runtime,
+        <DynamicWidget widgetId="counter-widget" label={label} onInputRejected={rejected} />,
+      )
+    const rendered = render(page('Original', firstRejected))
+    await screen.findByRole('button', { name: 'Original: 0' })
+    await userEvent.click(screen.getByRole('button', { name: 'Original: 0' }))
+
+    rendered.rerender(page(7, latestRejected))
+    await waitFor(() => {
+      expect(latestRejected).toHaveBeenCalledTimes(1)
+    })
+    expect(firstRejected).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Original: 1' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('previous inputs')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    rendered.rerender(page('Recovered', latestRejected))
+    await screen.findByRole('button', { name: 'Recovered: 1' })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(latestRejected).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows a host to replace the input-rejection hint without replacing the Widget', async () => {
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
+    const page = (label: unknown): ReactNode =>
+      hosted(
+        environment!.runtime,
+        <DynamicWidget
+          widgetId="counter-widget"
+          label={label}
+          inputFallback={({ error }) => <p role="status">Selection was refused: {error.code}</p>}
+        />,
+      )
+    const rendered = render(page('Original'))
+    await screen.findByRole('button', { name: 'Original: 0' })
+    rendered.rerender(page(7))
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Selection was refused: contract/input-mismatch',
+    )
+    expect(screen.getByRole('button', { name: 'Original: 0' })).toBeInTheDocument()
+  })
+
   it('mounts the Widget named by its prop', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [counter] })
 
@@ -239,6 +287,35 @@ describe('DynamicWidget', () => {
 
 /** A host knows a Widget's events only as the strings its published contract lists (§28). */
 describe('DynamicWidget onOutput', () => {
+  it('does not mistake a legacy output named inputRejected for the host input-rejection callback', async () => {
+    const widget = domWidget()
+    const legacy = {
+      ...widget.definition,
+      contract: {
+        inputSchema: alertContract.inputSchema,
+        outputSchema: z.object({ inputRejected: z.object({ reason: z.string() }) }),
+      },
+    }
+    environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [legacy] })
+    const onInputRejected = vi.fn()
+    const onOutput = vi.fn()
+    render(
+      hosted(
+        environment.runtime,
+        <DynamicWidget
+          widgetId="alert-panel"
+          label="Disk full"
+          onInputRejected={onInputRejected}
+          onOutput={onOutput}
+        />,
+      ),
+    )
+    await screen.findByTestId('dom-label')
+    widget.emit('inputRejected', { reason: 'a provider business event' })
+    expect(onInputRejected).not.toHaveBeenCalled()
+    expect(onOutput).toHaveBeenCalledWith('inputRejected', { reason: 'a provider business event' })
+  })
+
   it('delivers every declared event, by name, to one handler', async () => {
     environment = createMfeTestEnvironment({ definitionId: 'host', definitions: [feed] })
     const onOutput = vi.fn()

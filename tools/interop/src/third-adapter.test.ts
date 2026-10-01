@@ -24,6 +24,7 @@ import {
   createFederationContainerLoader,
   createMfeRuntime,
   mountDefinition,
+  validateProviderInputs,
   type AppMountTarget,
   type CreateMfeRuntimeOptions,
   type FederationRuntime,
@@ -139,7 +140,14 @@ function createPlainDomWidget<I>(options: {
 
     return {
       update: inputs => {
-        view.update(options.inputSchema.parse(inputs))
+        const accepted = validateProviderInputs(
+          { id: options.id, version: options.version, contract },
+          inputs,
+        )
+        if (accepted.status === 'misdeclared') throw accepted.error
+        if (accepted.status === 'rejected') return { status: 'rejected', error: accepted.error }
+        view.update(accepted.value as I)
+        return { status: 'accepted' }
       },
       dispose: () => {
         view.dispose()
@@ -155,6 +163,7 @@ function createPlainDomWidget<I>(options: {
     id: options.id,
     version: options.version,
     framework: PLAIN_DOM,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contract,
     mount: target => Promise.resolve(mount(target)),
   }
@@ -172,6 +181,7 @@ function createPlainDomApp(options: {
     id: options.id,
     version: options.version,
     framework: PLAIN_DOM,
+    requiresRuntime: '>=1.1.0 <2.0.0',
     contributesBreadcrumbs: false,
     mount: target => Promise.resolve(options.mount(target)),
   }
@@ -274,7 +284,8 @@ const registryEntries = [
   {
     id: 'tally',
     kind: 'widget',
-    mfe: { contractMajor: 1, framework: PLAIN_DOM },
+    mfe: { framework: PLAIN_DOM },
+    requiresRuntime: '>=1.1.0 <2.0.0',
     manifestUrl: 'https://cdn.example.test/tally/mf-manifest.json',
     container: 'plain_tally',
     shareScopes: ['default', 'plain-dom@1.0.0'],
@@ -284,7 +295,8 @@ const registryEntries = [
   {
     id: 'notes',
     kind: 'app',
-    mfe: { contractMajor: 1, framework: PLAIN_DOM },
+    mfe: { framework: PLAIN_DOM },
+    requiresRuntime: '>=1.1.0 <2.0.0',
     manifestUrl: 'https://cdn.example.test/notes/mf-manifest.json',
     container: 'plain_notes',
     version: '0.3.0',
@@ -292,7 +304,8 @@ const registryEntries = [
   {
     id: 'counter',
     kind: 'widget',
-    mfe: { contractMajor: 1, framework: 'react' },
+    mfe: { framework: 'react' },
+    requiresRuntime: '>=1.1.0 <2.0.0',
     manifestUrl: 'https://cdn.example.test/counter/mf-manifest.json',
     container: 'react_counter',
     shareScopes: ['default', 'react@19.3.0'],
@@ -384,6 +397,42 @@ describe('a third adapter, registered beside React and Angular', () => {
       expect(reactAdapter.detect(raw)).toBe(false)
       expect(angularAdapter.detect(raw)).toBe(false)
     }
+  })
+
+  it('reports explicit rejected update results once and keeps the last valid plain-DOM render', async () => {
+    const { runtime } = createPage()
+    const rejected = vi.fn()
+    const diagnostics: string[] = []
+    const removeSink = runtime.diagnostics.add(({ error }) => diagnostics.push(error.code))
+    onTestFinished(removeSink)
+    const page = (count: unknown) =>
+      reactHostPage(
+        runtime,
+        h(DynamicWidget, {
+          widgetId: 'tally',
+          label: 'Clicks',
+          count,
+          onInputRejected: rejected,
+        }),
+      )
+    const view = await renderSuspending(page(1))
+    await screen.findByRole('button', { name: 'Clicks: 1' })
+
+    view.rerender(page('invalid'))
+    await waitFor(() => expect(rejected).toHaveBeenCalledTimes(1))
+    expect(rejected.mock.calls[0]?.[0]).toMatchObject({
+      code: 'contract/input-mismatch',
+      path: ['count'],
+    })
+    expect(screen.getByRole('button', { name: 'Clicks: 1' })).toBeInTheDocument()
+    expect(document.querySelector('[data-mfe-input-rejected]')).not.toBeNull()
+    expect(diagnostics).toEqual(['contract/input-mismatch'])
+
+    view.rerender(page(2))
+    await screen.findByRole('button', { name: 'Clicks: 2' })
+    await waitFor(() => expect(document.querySelector('[data-mfe-input-rejected]')).toBeNull())
+    expect(seen.tallyMounts).toBe(1)
+    expect(rejected).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -13,6 +13,11 @@
       "mfe-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./runtime-compatibility": {
+      "mfe-source": "./src/runtime-compatibility.ts",
+      "types": "./dist/runtime-compatibility.d.ts",
+      "default": "./dist/runtime-compatibility.js"
     }
   },
   "files": [

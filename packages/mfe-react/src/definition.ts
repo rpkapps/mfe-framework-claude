@@ -17,6 +17,12 @@ import {
   type OutputSchema,
   type WidgetContract,
 } from '@company/mfe-core'
+// Deliberately outside the bare core share: an older shell may have provided that package
+// before it exported the handshake. This tiny guard must stay with the new adapter.
+import {
+  assertRuntimeCompatibility,
+  RUNTIME_API_REQUIREMENT,
+} from '@company/mfe-core/runtime-compatibility'
 import type {
   AppMountTarget,
   MountableAppDefinition,
@@ -88,6 +94,7 @@ export function createApp(options: AppOptions): AppDefinition {
     [DEFINITION_BRAND]: true,
     kind: 'app',
     framework: 'react',
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     id: options.id,
     ...withoutUndefined({ version: options.version }),
     createRouter: options.router,
@@ -96,6 +103,7 @@ export function createApp(options: AppOptions): AppDefinition {
     // `withStyleRoot` attached its style root to. Imported on first use, so a module that only
     // declares definitions, such as a container's entry, does not pull the renderer in with it.
     async mount(target: AppMountTarget): Promise<MountedApp> {
+      assertRuntimeCompatibility(target.context.runtime, this)
       const { mountApp } = await import('./react-mount.tsx')
       return mountApp(this, target)
     },
@@ -157,12 +165,14 @@ export function createWidget<Inputs extends z.ZodType, Outputs extends OutputSch
     [DEFINITION_BRAND]: true,
     kind: 'widget',
     framework: 'react',
+    requiresRuntime: RUNTIME_API_REQUIREMENT,
     id: options.id,
     ...withoutUndefined({ version: options.version }),
     contract: { inputSchema: options.inputSchema, outputSchema: options.outputSchema },
     render: options.render,
     // See `createApp`: `this` is the copy a container's build attached its style root to.
     async mount(target: WidgetMountTarget): Promise<MountedWidget> {
+      assertRuntimeCompatibility(target.context.runtime, this)
       const { mountWidget } = await import('./react-mount.tsx')
       return mountWidget(this, target)
     },

@@ -30,6 +30,11 @@ function entriesFor(published, presentation, origin) {
       `${published.container}: its build names no framework or share scopes. Rebuild the container.`,
     )
   }
+  if (typeof published.requiresRuntime !== 'string' || published.requiresRuntime.trim() === '') {
+    throw new Error(
+      `${published.container}: its build names no runtime API requirement. Rebuild the container.`,
+    )
+  }
 
   return published.definitions.map(definition => {
     const expose = published.entries?.[definition.id]
@@ -44,7 +49,6 @@ function entriesFor(published, presentation, origin) {
       kind: definition.kind,
       // The framework picks the adapter that reads the entry, so it travels in the marker.
       mfe: {
-        contractMajor: published.contractMajor,
         framework: published.framework,
       },
       manifestUrl: new URL(published.manifestUrl, origin).href,
@@ -53,6 +57,7 @@ function entriesFor(published, presentation, origin) {
       // A host registers the container with exactly these, so it links the framework scope its
       // shares live in.
       shareScopes: published.shareScopes,
+      requiresRuntime: published.requiresRuntime,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
       ...(definition.routes === undefined ? {} : { routes: definition.routes }),

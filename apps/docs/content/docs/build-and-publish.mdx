@@ -66,7 +66,8 @@ container's environment.
 {
   "manifestUrl": "mf-manifest.json",
   "container": "example_alert_panel",
-  "contractMajor": 1,
+  "framework": "react",
+  "requiresRuntime": ">=1.1.0 <2.0.0",
   "definitions": [{ "id": "alert-panel", "kind": "widget", "version": "1.4.0" }],
   "entries": { "alert-panel": "./widgets/alert-panel" }
 }
@@ -74,6 +75,10 @@ container's environment.
 
 `manifestUrl` is relative to your container, so whoever assembles the registry resolves it against
 the origin you deployed to.
+
+`requiresRuntime` is generated from the build integration's compatibility metadata. One runtime
+API version covers this registry format, the mount protocol and shell-owned services. The shell
+checks that requirement before selecting an adapter or parsing the registry shape.
 
 </Step>
 

@@ -38,8 +38,8 @@
     {
       "id": "legacy-reports",
       "kind": "app",
+      "requiresRuntime": ">=2.0.0 <3.0.0",
       "mfe": {
-        "contractMajor": 2,
         "framework": "react"
       },
       "manifestUrl": "http://localhost:3106/mf-manifest.json",
@@ -51,7 +51,6 @@
       "id": "no-manifest",
       "kind": "app",
       "mfe": {
-        "contractMajor": 1,
         "framework": "react"
       },
       "container": "no_manifest",

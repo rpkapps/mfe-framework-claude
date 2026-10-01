@@ -9,13 +9,39 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 
 ## Registry and contract codes
 
-| Code                         | When it happens                                                                                                                                                                                                                                                                                 | Fix                                                                                                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `registry/invalid-entry`     | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                                                                                                                                   | Rebuild the container. Registry JSON is generated, never hand-written.                                                                               |
-| `registry/duplicate-id`      | Two definitions in one container, or two registry entries, use one id.                                                                                                                                                                                                                          | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                                                      |
-| `contract/unsupported-major` | The entry names a framework major the shell does not support.                                                                                                                                                                                                                                   | Rebuild against the shell's major, or upgrade the shell.                                                                                             |
-| `contract/input-mismatch`    | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
-| `contract/output-mismatch`   | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
+| Code                            | When it happens                                                                                                                                                                                                                                                                                 | Fix                                                                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `registry/invalid-entry`        | A registry entry, or a definition's own declaration, is not the shape the framework requires.                                                                                                                                                                                                   | Rebuild the container. Registry JSON is generated, never hand-written.                                                                               |
+| `registry/duplicate-id`         | Two definitions in one container, or two registry entries, use one id.                                                                                                                                                                                                                          | Rename one and rebuild. Both entries are set aside, so a duplicate costs you the other one too.                                                      |
+| `contract/runtime-incompatible` | The shell's `apiVersion` is outside the container's `requiresRuntime` range. The entry is refused before adapter selection or shape parsing.                                                                                                                                                    | Upgrade and reload the shell, or rebuild the container against the API the shell provides.                                                           |
+| `contract/incompatible-widget`  | The loaded Widget is missing an output name the consumer's imported contract declares. The Widget is refused before mounting.                                                                                                                                                                   | Keep the output, or update the consumer's contract and remove its handler.                                                                           |
+| `contract/input-mismatch`       | A prop failed the Widget's `inputSchema`, an input name is reserved, or the build could not read the contract. A call's input failed an action's `inputSchema`, reported as a warning. Agent context had an empty description, or a value that failed its schema, was not JSON or was too long. | Send the declared type, or rename the input. Call the action with input its `inputSchema` accepts. Publish ids and a short label the schema accepts. |
+| `contract/output-mismatch`      | A Widget emitted an undeclared output or a payload that failed its schema, or an output name breaks the naming rule. An action's `execute` returned a value that failed its `outputSchema`.                                                                                                     | Emit a declared output with a valid payload, or rename the output. Return what the action's `outputSchema` declares.                                 |
+
+<Callout type="error" title="contract/runtime-incompatible">
+
+The shell checks the generated `requiresRuntime` range before it reads the rest of your entry.
+The same API version covers the registry format, mount protocol and shell-owned services. It
+checks the loaded definition again before mounting, in case the container changed after the
+registry was written.
+
+**Fix.** Upgrade and reload the shell, or rebuild your container against the API the shell provides.
+Retry cannot add an API the shell lacks. A missing or malformed `requiresRuntime` instead reports
+`registry/invalid-entry`. A runtime with no `apiVersion` reports `config/missing`; a malformed
+version reports `config/invalid`.
+
+</Callout>
+
+<Callout type="error" title="contract/incompatible-widget">
+
+The loaded Widget no longer declares an output name in the consumer's imported contract. For
+example, it removed `dismissed` while the consumer still expects it. The Widget is not mounted.
+
+**Fix.** Keep that output, or update the consumer's contract and remove its handler, then reload.
+Input values and output payloads are checked with Zod when they arrive; this check only compares
+the declared output names.
+
+</Callout>
 
 <Callout type="error" title="contract/input-mismatch">
 
@@ -23,7 +49,10 @@ A runtime message reads `<id> failed to <operation>: expected <x>, received <y>.
 alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received number → at alertId. Check the alertId prop on the Widget.
 ```
 
-**Fix.** Send the type the contract declares. On a first render the Widget throws and your `fallback` renders. On a later update it keeps its last valid inputs and reports the rejection instead.
+**Fix.** Send the type the contract declares. Invalid first inputs fail the mount. On a later update
+the Widget keeps its last valid inputs and reports the rejection instead. React shows error content
+by default; Angular renders the consumer's fallback template and otherwise leaves the failed region
+empty. The error still reaches diagnostics.
 
 </Callout>
 
@@ -69,12 +98,12 @@ orders failed to register definition: expected one registry entry per definition
 
 ## Configuration and network codes
 
-| Code                     | When it happens                                                                                                       | Fix                                                                                           |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `config/missing`         | No `runtime-config.json` beside the container's assets, or a relative request URL with no `apiBaseUrl`.               | Publish the file with the container, or declare an `{ api: true }` field.                     |
-| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with an error status other than 404.               | Check that the deployment publishes the file and that its origin answers.                     |
-| `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, or the shell installed no session. | Set the value in the deployment, fix the spelling, or install the session at boot.            |
-| `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.              | Declare the origin if it is your API. Leave it undeclared if it must never receive the token. |
+| Code                     | When it happens                                                                                                                                  | Fix                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `config/missing`         | No `runtime-config.json` beside the container's assets, a relative request URL with no `apiBaseUrl`, or a runtime with no `apiVersion`.          | Publish the file with the container, declare an `{ api: true }` field, or provide the runtime API version.          |
+| `config/unreachable`     | The request for `runtime-config.json` never completed, or answered with an error status other than 404.                                          | Check that the deployment publishes the file and that its origin answers.                                           |
+| `config/invalid`         | A value failed its schema, the file holds an undeclared key, the body is not JSON, the shell installed no session, or `apiVersion` is malformed. | Set the value in the deployment, fix the spelling, install the session at boot, or use a valid runtime API version. |
+| `auth/undeclared-origin` | A request went to an origin you did not declare with `{ api: true }`. Development only, once per origin.                                         | Declare the origin if it is your API. Leave it undeclared if it must never receive the token.                       |
 
 <Callout type="error" title="config/missing">
 
@@ -108,6 +137,16 @@ operations failed to attach the access token for https://reports.example.test: e
 | `mount/timeout`         | The definition's `mount` did not settle within the mount deadline, 30 seconds by default.                                                              | Check what the first render waits on, then retry.                                                                                                      |
 | `dispose/failure`       | Cleanup threw, or the adapter's detach step threw. It is also the normal teardown signal.                                                              | Check the diagnostics for the cleanup step that failed. Other mounts are unaffected.                                                                   |
 | `dispose/timeout`       | Teardown did not finish within the dispose deadline, 5 seconds by default.                                                                             | Check the diagnostics for the cleanup step that did not finish.                                                                                        |
+
+<Callout type="error" title="load/reload-required">
+
+Module Federation kept a failed or unfinished load, or a chunk your tab needs is no longer served.
+Retry cannot repair it without also disrupting definitions that already loaded.
+
+**Fix.** Save your work and reload. A failed manifest fetch still offers retry when the federation
+runtime has dropped it.
+
+</Callout>
 
 <Callout type="error" title="mount/failure, outside a mount">
 
@@ -251,31 +290,34 @@ The shell reads every entry on its own, so one bad entry loses only itself. A re
 | ------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- |
 | no adapter recognised this entry            | No registered adapter recognised the entry.                  | Publish the entry your build generated. |
 | more than one adapter recognised this entry | Two adapters both recognised it. The reason names them.      | Publish the entry your build generated. |
-| the react adapter rejected this entry       | The entry names a framework version but breaks the shape.    | Rebuild the container.                  |
+| the react adapter rejected this entry       | The entry names the React framework but breaks the shape.    | Rebuild the container.                  |
 | invalid definition id                       | The id is not lower-case letters, digits and single hyphens. | Rename the id and rebuild.              |
 | duplicate definition id                     | Two or more entries used the id. All of them are set aside.  | Rename one definition and rebuild.      |
 
 The React adapter recognises any entry whose `mfe.framework` is `"react"`, then reads it strictly. A typo fails here rather than being read as another adapter's entry.
 
-| The adapter requires                       | Fix                                                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `mfe.contractMajor`, an integer equal to 1 | Rebuild against the shell's framework major, or upgrade the shell.                            |
-| a non-empty `id`                           | Set a stable id on the `createApp` or `createWidget` call.                                    |
-| a non-empty `manifestUrl`                  | Point the entry at the container's `mf-manifest.json`. A dev override cannot stand in for it. |
-| a non-empty `container`                    | Rebuild. The container name comes from the build.                                             |
-| `kind` of `"app"` or `"widget"`            | Rebuild. The kind comes from which factory you called.                                        |
-| no Widget contract on an App               | Drop the contract, or declare the piece as a Widget.                                          |
-| no capabilities on a Widget                | Move the capability routes into an App.                                                       |
-| no routes on a Widget                      | Rebuild. A Widget owns no URL, so routes belong to an App.                                    |
-| a capability object with a label and path  | Rebuild. A capability name this shell does not know is skipped, not refused.                  |
+| The adapter requires                      | Fix                                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `mfe.framework`, a non-empty string       | Rebuild. This marker names the adapter that reads the entry.                                                        |
+| a supported `requiresRuntime` range       | Upgrade and reload the shell, or rebuild against its runtime API. This check runs before the entry's shape is read. |
+| a non-empty `id`                          | Set a stable id on the `createApp` or `createWidget` call.                                                          |
+| a non-empty `manifestUrl`                 | Point the entry at the container's `mf-manifest.json`. A dev override cannot stand in for it.                       |
+| a non-empty `container`                   | Rebuild. The container name comes from the build.                                                                   |
+| `kind` of `"app"` or `"widget"`           | Rebuild. The kind comes from which factory you called.                                                              |
+| no Widget contract on an App              | Drop the contract, or declare the piece as a Widget.                                                                |
+| no capabilities on a Widget               | Move the capability routes into an App.                                                                             |
+| no routes on a Widget                     | Rebuild. A Widget owns no URL, so routes belong to an App.                                                          |
+| a capability object with a label and path | Rebuild. A capability name this shell does not know is skipped, not refused.                                        |
 
-<Callout type="error" title="contract/unsupported-major">
+<Callout type="error" title="contract/runtime-incompatible">
 
 ```text
-legacy-reports failed to read the framework version the container was built for: expected contract major 1, received contract major 2. Upgrade the shell, or redeploy the container against the shell’s major.
+legacy-reports failed to check shell runtime compatibility: expected runtime API >=2.0.0 <3.0.0,
+received runtime API 1.1.0.
 ```
 
-**Fix.** Rebuild the container against the framework major the shell runs, or upgrade the shell.
+**Fix.** Rebuild the container against the API the shell provides, or upgrade and reload the shell.
+This fixture is rejected before its registry shape is read; the other entries still load.
 
 </Callout>
 

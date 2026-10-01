@@ -3,7 +3,7 @@
  * subscription fan-out, and commits are counted because a cached render hides upstream work.
  */
 
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { useState, type ReactNode } from 'react'
@@ -13,7 +13,7 @@ import { createWidget } from './definition.ts'
 import { useAction } from './hooks/use-action.ts'
 import { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 import { useStoredState } from './hooks/use-stored-state.ts'
-import { WidgetMount } from './widget-mount.tsx'
+import { DynamicWidget } from './lazy-widget.tsx'
 import { allow } from '@company/mfe-core'
 
 let environment: MfeTestEnvironment | null = null
@@ -345,11 +345,10 @@ describe('Widget inputs and handlers', () => {
   ): ReactNode {
     return (
       <env.wrapper>
-        <WidgetMount
-          definition={probeWidget}
-          mount={env.mount}
-          inputs={inputs}
-          emit={(event, payload) => {
+        <DynamicWidget
+          widgetId={probeWidget.id}
+          {...inputs}
+          onOutput={(event, payload) => {
             handlers[event]?.(payload)
           }}
         />
@@ -357,13 +356,14 @@ describe('Widget inputs and handlers', () => {
     )
   }
 
-  it('replacing only a handler does not revalidate inputs or re-render the Widget', () => {
-    const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
+  it('replacing only a handler does not revalidate inputs or re-render the Widget', async () => {
+    const env = setup({ definitionId: 'probe-widget', kind: 'widget', definitions: [probeWidget] })
     const inputs = { value: 'stable' }
 
     const { rerender } = render(widgetTree(env, inputs, { changed: () => {} }))
     const parseCount = (): number => env.telemetry.records.length
 
+    await screen.findByTestId('widget-value')
     const before = parseCount()
 
     // A new handler closure on every render, with the same input object.
@@ -375,11 +375,11 @@ describe('Widget inputs and handlers', () => {
     expect(parseCount()).toBe(before)
   })
 
-  it('an equal but freshly allocated input object does not remount the Widget', () => {
-    const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
+  it('an equal but freshly allocated input object does not remount the Widget', async () => {
+    const env = setup({ definitionId: 'probe-widget', kind: 'widget', definitions: [probeWidget] })
 
     const { rerender } = render(widgetTree(env, { value: 'same' }, {}))
-    const node = screen.getByTestId('widget-value')
+    const node = await screen.findByTestId('widget-value')
 
     rerender(widgetTree(env, { value: 'same' }, {}))
 
@@ -387,17 +387,21 @@ describe('Widget inputs and handlers', () => {
     expect(screen.getByTestId('widget-value')).toBe(node)
   })
 
-  it('a rejected input update keeps the last valid inputs rendered', () => {
-    const env = setup({ definitionId: 'probe-widget', kind: 'widget' })
+  it('a rejected input update keeps the last valid inputs rendered', async () => {
+    const env = setup({ definitionId: 'probe-widget', kind: 'widget', definitions: [probeWidget] })
 
     const { rerender } = render(widgetTree(env, { value: 'good' }, {}))
-    expect(screen.getByTestId('widget-value')).toHaveTextContent('good')
+    expect(await screen.findByTestId('widget-value')).toHaveTextContent('good')
 
     rerender(widgetTree(env, { value: 42 }, {}))
 
     // The update was rejected; the mount stayed mounted with its last good value.
     expect(screen.getByTestId('widget-value')).toHaveTextContent('good')
-    expect(env.diagnostics.some(entry => entry.error.code === 'contract/input-mismatch')).toBe(true)
+    await waitFor(() =>
+      expect(env.diagnostics.some(entry => entry.error.code === 'contract/input-mismatch')).toBe(
+        true,
+      ),
+    )
   })
 })
 

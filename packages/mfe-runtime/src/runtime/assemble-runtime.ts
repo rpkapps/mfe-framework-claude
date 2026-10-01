@@ -14,6 +14,7 @@ import {
   type Registry,
   type TelemetryProvider,
 } from '@company/mfe-core'
+import { RUNTIME_API_VERSION } from '@company/mfe-core/runtime-compatibility'
 
 import { auditTelemetryRecord, type ActionAuditSink } from '../actions/action-audit.ts'
 import type { ActionApprovalPolicy, ActionDenialNotifier } from '../actions/action-executor.ts'
@@ -24,6 +25,7 @@ import { DEFAULT_DEADLINES } from '../deadline.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
 import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
+import { withRuntimeApiCompatibility } from '../loader/runtime-compatibility.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import type { MfeStorageStore } from '../storage/storage-store.ts'
@@ -110,8 +112,14 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   })
 
   const runtime: MfeRuntime = {
+    apiVersion: RUNTIME_API_VERSION,
     registry: parts.registry,
-    loader: new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters)),
+    loader: withRuntimeApiCompatibility(
+      new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters), {
+        deadlineMs: parts.deadlines?.load ?? DEFAULT_DEADLINES.load,
+      }),
+      RUNTIME_API_VERSION,
+    ),
     shellState,
     storage,
     actions,

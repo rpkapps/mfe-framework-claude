@@ -16,6 +16,7 @@ import {
 function legacyEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     name: 'asset-tracker',
+    requiresRuntime: '>=1.1.0 <2.0.0',
     title: 'Asset Tracker',
     icon: 'clipboard',
     mfManifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
@@ -48,15 +49,16 @@ function rejection(source: unknown): MfeError {
 }
 
 describe('detect', () => {
-  it('recognises an entry that has legacy metadata and no framework version', () => {
+  it('recognises an entry that has legacy metadata and no framework marker', () => {
     expect(legacyAngularAdapter.detect(legacyEntry())).toBe(true)
   })
 
   // A typo in framework metadata must fail rather than quietly change how an app loads (§9).
-  describe('never recognises an entry that carries a framework version', () => {
+  describe('never recognises an entry that carries a framework marker', () => {
     const malformed: readonly (readonly [string, unknown])[] = [
-      ['a contract major of the wrong type', { contractMajor: 'one' }],
-      ['an unsupported contract major', { contractMajor: 99 }],
+      ['a framework of the wrong type', { framework: 1 }],
+      ['a modern framework', { framework: 'react' }],
+      ['an unknown framework', { framework: 'future' }],
       ['an empty marker object', {}],
       ['a marker that is a string', 'v1'],
       ['a marker that is null', null],
@@ -96,6 +98,7 @@ describe('parse', () => {
       id: 'asset-tracker',
       definitionKind: 'app',
       adapter: 'legacy-angular',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       manifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
       title: 'Asset Tracker',
       icon: 'clipboard',
@@ -146,6 +149,7 @@ describe('parse', () => {
   it('substitutes empty collections for the legacy fields an entry omitted', () => {
     const entry = parse({
       name: 'rigstream',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       mfManifestUrl: 'https://cdn.example.test/rigstream/mf-manifest.json',
     })
 
@@ -185,6 +189,7 @@ describe('is', () => {
       id: 'reports',
       definitionKind: 'app',
       adapter: 'react',
+      requiresRuntime: '>=1.1.0 <2.0.0',
       manifestUrl: 'https://cdn.example.test/reports/mf-manifest.json',
     }
 
@@ -208,6 +213,21 @@ describe('deriveLegacyDefinitionId', () => {
 })
 
 describe('parse failures', () => {
+  it('requires an explicit runtime requirement even for a legacy registry entry', () => {
+    expect(rejection(legacyEntry({ requiresRuntime: undefined }))).toMatchObject({
+      code: 'registry/invalid-entry',
+      path: ['requiresRuntime'],
+    })
+  })
+
+  it('rejects a newer runtime before interpreting malformed legacy fields', () => {
+    expect(
+      rejection(legacyEntry({ requiresRuntime: '>=2.0.0 <3.0.0', name: undefined })),
+    ).toMatchObject({
+      code: 'contract/runtime-incompatible',
+    })
+  })
+
   it('names the missing app name and what it is used for', () => {
     const error = rejection(legacyEntry({ name: undefined }))
 
@@ -273,8 +293,8 @@ describe('the legacy adapter inside a shell that reads the registry', () => {
     expect(registry.entries.get('asset-tracker')?.adapter).toBe('legacy-angular')
   })
 
-  it('leaves an entry carrying a malformed framework version to the framework adapter', () => {
-    const source = legacyEntry({ mfe: { contractMajor: 'one' }, id: 'asset-tracker' })
+  it('leaves an entry carrying a malformed framework marker to the framework adapter', () => {
+    const source = legacyEntry({ mfe: { framework: 1 }, id: 'asset-tracker' })
 
     const registry = readRegistry([source], { adapters })
 
@@ -293,7 +313,9 @@ describe('the legacy adapter inside a shell that reads the registry', () => {
   })
 
   it('rejects a legacy entry that no adapter recognises at all', () => {
-    const registry = readRegistry([{ name: 'asset-tracker' }], { adapters })
+    const registry = readRegistry([{ name: 'asset-tracker', requiresRuntime: '>=1.1.0 <2.0.0' }], {
+      adapters,
+    })
 
     expect(registry.entries.size).toBe(0)
     expect(registry.rejected[0]?.reason).toBe('no adapter recognised this entry')

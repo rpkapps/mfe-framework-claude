@@ -352,7 +352,7 @@ and the name stays. `events` is absent only when the names themselves cannot be 
 or a computed key in the events map counts as that, since a partial set would
 claim to be closed. The host still accepts the old list of names, read as those
 events with unknown payloads, so a shell is deployed first and the containers
-rebuilt in any order after it, without a contract major.
+rebuilt in any order after it, without changing the runtime API baseline.
 
 **Amendment (2026-09-25):** the published fields are `inputSchema` and
 `outputSchema`, the names the authored contract now uses (§41), and a Widget's
