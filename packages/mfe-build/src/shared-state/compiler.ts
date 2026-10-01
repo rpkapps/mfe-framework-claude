@@ -6,6 +6,7 @@ import {
   assertJson,
   normalize,
   stableJson,
+  stateCapabilities,
   type Json,
   type SharedStateManifest,
   type StateContract,
@@ -58,7 +59,11 @@ export function contractFor(id: string, node: StateNode): StateContract {
 export function requirementsFor(manifest: SharedStateManifest) {
   return {
     protocolVersion: 1 as const,
-    contracts: manifest.contracts.map(({ id, revision }) => ({ id, revision })),
+    contracts: manifest.contracts.map(({ id, revision, node }) => ({
+      id,
+      revision,
+      capabilities: stateCapabilities(node),
+    })),
   }
 }
 
@@ -232,7 +237,14 @@ function readNode(
       const value = inner.kind === 'number' ? argument() : numeric()
       if (typeof value !== 'number' || !Number.isFinite(value))
         return fail('Bounds must be finite number literals')
-      return { ...inner, [method]: value }
+      const existing = (inner as { min?: number; max?: number })[method]
+      const bound =
+        existing === undefined
+          ? value
+          : method === 'min'
+            ? Math.max(existing, value)
+            : Math.min(existing, value)
+      return { ...inner, [method]: bound }
     }
     case 'int':
       if (inner.kind !== 'number' || node.arguments.length) return fail('int requires a number')

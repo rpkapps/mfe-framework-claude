@@ -125,7 +125,7 @@ const { runtime } = createMfeRuntime({
 })
 ```
 
-`schema` is the latest compiled shared-state schema from your contract package or build artifacts. Consumers still author `sharedStateSchema`; their generated bindings contain types and key references. The runtime and backend need only the current compiled schema. There is no runtime list of older contracts.
+`schema` is the latest compiled shared-state schema from your contract package or build artifacts. Consumers still author `sharedStateSchema`; their generated bindings contain types, key references and required schema capabilities. Before hydration, the runtime checks those generated requirements against the current schema. Older consumers can use a newer additive schema; a newer consumer requiring fields absent from an older shell fails before mounting, rather than silently losing writes. No historical schema configuration is needed. The runtime and backend need only the current compiled schema. There is no runtime list of older contracts.
 
 Updates merge recursively into the existing record and validate the complete result against this schema. Older, backward-compatible consumers can keep using their declared keys. Schema fingerprints remain build metadata; they are not a runtime allowlist. Release checks must establish backward compatibility before deploying a schema or consumer. Unknown keys and unsupported protocol versions still fail before mount.
 
@@ -178,7 +178,7 @@ Production builds declaring state require `sharedStatePolicy: './deployment/shar
 
 Optional/defaulted additions within objects are compatible. Required additions, removals/renames, type/default/constraint/enum/nullability changes and changes within atomic array elements fail automatic approval. A root ID addition does not invalidate other keys. Diagnostics include rule, ID, property path, old/new shape and a repair. Use a new key with an explicit bridge for breaking changes, or retire incompatible consumers through a coordinated rollout. Structural checking cannot establish whether an ID was reused for a different domain meaning.
 
-Generated deployment output includes a lightweight shared-state index and one JSON artifact per required key/revision. Repeated revisions are deduplicated within a container. Bindings contain types and definition identity, not a contract collection or compiler; production definitions contain references. The shell can load and cache artifacts by revision before configuring shared state. Compiler, compatibility baselines and Zod authoring code introduced solely by this declaration stay out of the consumer runtime graph.
+Generated deployment output includes a lightweight shared-state index and one JSON artifact per required key/revision. Repeated revisions are deduplicated within a container. Bindings contain types, definition identity and generated capability signatures, not a contract collection or compiler; production definitions contain references. Angular applies the declaration transform after its compiler emits JavaScript so the compiler cannot overwrite the replacement. The shell can load and cache artifacts by revision before configuring shared state. Compiler, compatibility baselines and Zod authoring code introduced solely by this declaration stay out of the consumer runtime graph.
 
 ## Editor diagnostics
 
@@ -204,10 +204,10 @@ Run `node tools/shared-state/measure.mjs` after building. These esbuild 0.28.2 f
 
 | Fixture         | Before JS bytes | After JS raw / gzip / Brotli | Contracts raw / gzip / Brotli | Revisions |
 | --------------- | --------------: | ---------------------------- | ----------------------------- | --------: |
-| one-app         |             230 | 242 / 214 / 190              | 257 / 191 / 156               |         1 |
-| same-revision   |             463 | 487 / 233 / 187              | 257 / 191 / 156               |         1 |
-| mixed-revisions |             496 | 484 / 280 / 233              | 584 / 254 / 217               |         2 |
+| one-app         |             230 | 386 / 290 / 235              | 257 / 191 / 156               |         1 |
+| same-revision   |             463 | 775 / 304 / 244              | 257 / 191 / 156               |         1 |
+| mixed-revisions |             496 | 858 / 376 / 316              | 584 / 254 / 217               |         2 |
 
-The standalone shell store and validator bundle measures 9662 raw, 3510 gzip and 3111 Brotli bytes. These rows overlap with full framework package bundles and must not be summed with them. The inspected graphs contain no compiler, baseline history or Zod authoring modules. Generated payload tests verify one copy per revision per container.
+The standalone shell store and validator bundle measures 10750 raw, 3889 gzip and 3446 Brotli bytes. These rows overlap with full framework package bundles and must not be summed with them. The inspected graphs contain no compiler, baseline history or Zod authoring modules. Generated payload tests verify one copy per revision per container.
 
-Measured fixture budgets: at most 400 declaration bytes per app, one artifact per distinct revision per container, and zero retained authoring validators. The script enforces the declaration budget and graph exclusion. Timing is reported separately for in-process hydration, cached reads, validating 10,000 items and notifying 1,000 subscribers; it is machine/load-dependent and excludes network/database latency, so no universal timing budget is claimed.
+Measured fixture budgets: at most 500 declaration bytes per app, one artifact per distinct revision per container, and zero retained authoring validators. The script enforces the declaration budget and graph exclusion. Timing is reported separately for in-process hydration, cached reads, validating 10,000 items and notifying 1,000 subscribers; it is machine/load-dependent and excludes network/database latency, so no universal timing budget is claimed.

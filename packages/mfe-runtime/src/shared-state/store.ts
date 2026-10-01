@@ -5,6 +5,7 @@ import {
   normalize,
   SharedStateError,
   stableJson,
+  stateCapabilities,
   type Json,
   type SharedStateAdapter,
   type SharedStateManifest,
@@ -53,6 +54,8 @@ export class SharedStateRuntime implements SharedStateService {
   readonly #contracts = new Map<string, StateContract>()
   readonly #entries = new Map<string, Entry>()
   readonly #sending = new Set<Entry>()
+  readonly #inflight = new Set<Pending>()
+  readonly #capabilities = new Map<string, ReadonlySet<string>>()
   #scope: string
   #generation = 0
   #controller = new AbortController()
@@ -78,6 +81,7 @@ export class SharedStateRuntime implements SharedStateService {
           'Schema needs one current contract per state ID in format 1',
         )
       this.#contracts.set(contract.id, immutable(structuredClone(contract)))
+      this.#capabilities.set(contract.id, new Set(stateCapabilities(contract.node)))
     }
     this.#resetEntries()
     this.#listen()
@@ -271,6 +275,19 @@ export class SharedStateRuntime implements SharedStateService {
           requested.id,
           'State ID is unavailable in the shell schema or declared more than once',
         )
+      const available = this.#capabilities.get(requested.id)
+      if (
+        !Array.isArray(requested.capabilities) ||
+        !requested.capabilities.length ||
+        requested.capabilities.some(
+          capability => typeof capability !== 'string' || !available?.has(capability),
+        )
+      )
+        throw new SharedStateError(
+          'unsupported-contract',
+          requested.id,
+          'Shell schema lacks required consumer fields or constraints; reload after upgrading the shell schema',
+        )
       contracts.set(requested.id, contract)
     }
     return contracts
@@ -354,8 +371,23 @@ export class SharedStateRuntime implements SharedStateService {
   }
   #replay(entry: Entry): void {
     let value = entry.confirmed
-    for (const pending of entry.pending)
-      value = applyStateWrite(entry.canonical, value, pending.value)
+    try {
+      for (const pending of entry.pending)
+        value = applyStateWrite(entry.canonical, value, pending.value)
+    } catch (cause) {
+      const failure = new SharedStateError(
+        'conflict',
+        entry.canonical.id,
+        'State changed and queued updates no longer have a valid base; refresh and choose again',
+        { cause },
+      )
+      // A request already sent may have committed. Its own response settles that promise.
+      const retained = entry.pending.filter(pending => this.#inflight.has(pending))
+      for (const pending of entry.pending) if (!this.#inflight.has(pending)) pending.reject(failure)
+      entry.pending.splice(0, entry.pending.length, ...retained)
+      value = entry.confirmed
+      this.#report(failure, entry.canonical.id)
+    }
     entry.effective = immutable(value)
   }
   async #flush(entry: Entry, generation: number): Promise<void> {
@@ -366,6 +398,7 @@ export class SharedStateRuntime implements SharedStateService {
         const pending = entry.pending[0]
         if (!pending) break
         try {
+          this.#inflight.add(pending)
           const expectedRevision = pending.expectedRevision
           const record = await abortable(
             this.#options.adapter.write(
@@ -388,11 +421,13 @@ export class SharedStateRuntime implements SharedStateService {
               'Persistence acceptance must advance the record revision',
             )
           this.#accept(entry, record)
+          this.#inflight.delete(pending)
           entry.pending.shift()
           this.#replay(entry)
           this.#notify(entry)
           pending.resolve()
         } catch (error) {
+          this.#inflight.delete(pending)
           if (generation !== this.#generation || this.#disposed) return
           entry.pending.shift()
           pending.reject(error)

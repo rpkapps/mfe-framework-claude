@@ -1,3 +1,4 @@
+import { stateCapabilities } from '@company/mfe-core/shared-state'
 import { act, renderHook } from '@testing-library/react'
 import {
   createMemoryHistory,
@@ -39,7 +40,7 @@ const contract: StateContract = {
 }
 const requirements = {
   protocolVersion: 1 as const,
-  contracts: [{ id: 'units', revision: 'units' }],
+  contracts: [{ id: 'units', revision: 'units', capabilities: stateCapabilities(contract.node) }],
 }
 const bindings = createSharedStateBindings<Values>('reader')
 function adapter(): SharedStateAdapter {

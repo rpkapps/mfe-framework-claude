@@ -44,6 +44,31 @@ function temporary() {
 const base = `z.object({ 'selection': z.strictObject({ wellId: z.string(), details: z.strictObject({ run: z.string() }).optional(), items: z.array(z.strictObject({ id: z.string() })) }).nullable().default(null) })`
 
 describe('shared-state contract compiler and release gate', () => {
+  for (const fixture of [
+    {
+      expression: 'z.string().min(5).min(1).max(6).max(10)',
+      schema: z.string().min(5).min(1).max(6).max(10),
+      values: ['ab', 'valid', 'too long'],
+    },
+    {
+      expression: 'z.number().min(5).min(1).max(6).max(10)',
+      schema: z.number().min(5).min(1).max(6).max(10),
+      values: [2, 5, 8],
+    },
+    {
+      expression: 'z.array(z.string()).min(2).min(1).max(3).max(5)',
+      schema: z.array(z.string()).min(2).min(1).max(3).max(5),
+      values: [['a'], ['a', 'b'], ['a', 'b', 'c', 'd']],
+    },
+  ])
+    it(`retains all accumulated bounds for ${fixture.expression}`, () => {
+      const contract = compile(`z.object({ key: ${fixture.expression} })`).contracts[0]!
+      for (const value of fixture.values) {
+        const expected = fixture.schema.safeParse(value)
+        if (expected.success) expect(normalize(contract.node, value, 'key')).toEqual(expected.data)
+        else expect(() => normalize(contract.node, value, 'key')).toThrow()
+      }
+    })
   it('produces stable, per-key fingerprints independent of property or enum order', () => {
     expect(
       compile(
@@ -227,7 +252,10 @@ describe('shared-state contract compiler and release gate', () => {
     const source = `import {z} from 'zod'; import {createWidget} from '@company/mfe-react'; import {schema} from './domain'; export const one = createWidget({id:'one', sharedStateSchema: schema, inputSchema: z.object({}), outputSchema: z.object({}), render: () => null}); export const two = createWidget({id:'two', sharedStateSchema: z.object({units:z.string().default('metric')}), inputSchema:z.object({}), outputSchema:z.object({}), render:() => null});`
     const output = transformSharedStateSource(source, 'mfe.ts', {
       one: refs,
-      two: { protocolVersion: 1, contracts: [{ id: 'units', revision: 'other' }] },
+      two: {
+        protocolVersion: 1,
+        contracts: [{ id: 'units', revision: 'other', capabilities: [] }],
+      },
     })
     expect(output).not.toContain('sharedStateSchema')
     expect(output).not.toContain("from './domain'")

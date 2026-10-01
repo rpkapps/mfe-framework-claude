@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { stateCapabilities } from '@company/mfe-core/shared-state'
 import type {
   SharedStateAdapter,
   StateContract,
@@ -62,7 +63,13 @@ const units: StateContract = {
 const contracts = { formatVersion: 1 as const, contracts: [current, units] }
 const refs = (contract: StateContract) => ({
   protocolVersion: 1 as const,
-  contracts: [{ id: contract.id, revision: contract.revision }],
+  contracts: [
+    {
+      id: contract.id,
+      revision: contract.revision,
+      capabilities: stateCapabilities(contract.node),
+    },
+  ],
 })
 function setup(adapterOverride?: (adapter: SharedStateAdapter) => SharedStateAdapter) {
   const storage = createTestSharedStateRepository()
@@ -95,6 +102,76 @@ function deferred<T>() {
 }
 
 describe('shell-owned shared state', () => {
+  it('rejects consumers requiring fields unavailable in an older shell before hydration', async () => {
+    const { adapter, runtime: original } = setup()
+    original.dispose()
+    const hydrate = vi.fn(adapter.hydrate)
+    const runtime = new SharedStateRuntime({
+      scope: 'scope',
+      schema: { formatVersion: 1, contracts: [old] },
+      adapter: { ...adapter, hydrate },
+    })
+    await expect(runtime.prepare(refs(current))).rejects.toMatchObject({
+      code: 'shared-state/unsupported-contract',
+    })
+    expect(() => runtime.bind(refs(current))).toThrow('required consumer fields')
+    expect(hydrate).not.toHaveBeenCalled()
+    runtime.dispose()
+  })
+  it('rejects consumers whose validation constraints differ from the shell schema', () => {
+    const { runtime } = setup()
+    const different: StateContract = {
+      ...units,
+      node: {
+        kind: 'default',
+        value: 'metric',
+        inner: { kind: 'enum', values: ['metric', 'imperial', 'other'] },
+      },
+    }
+    expect(() => runtime.bind(refs(different))).toThrow('required consumer fields')
+    runtime.dispose()
+  })
+  for (const initialValue of [null, { wellId: '42', runId: '0', comparison: 'overlay' }])
+    it(`settles accepted and dependent queued writes after a remote reset from ${initialValue === null ? 'absent state' : 'an existing record'}`, async () => {
+      const acceptance = deferred<StateRecord>()
+      let publish!: (record: StateRecord) => void
+      let record: StateRecord =
+        initialValue === null
+          ? { id: 'selection', revision: 0 }
+          : { id: 'selection', revision: 1, value: initialValue }
+      const runtime = new SharedStateRuntime({
+        scope: 'scope',
+        schema: contracts,
+        adapter: {
+          hydrate: async () => [record],
+          subscribe: (_scope, listener) => {
+            publish = listener
+            return () => undefined
+          },
+          write: () => acceptance.promise,
+        },
+      })
+      await runtime.prepare(refs(current))
+      const store = runtime.bind(refs(current))
+      const first = store.set(
+        'selection',
+        initialValue === null ? { wellId: '42', runId: '1' } : { runId: '1' },
+      )
+      const second = store.set('selection', { runId: '2' })
+      const rejected = expect(second).rejects.toMatchObject({ code: 'shared-state/conflict' })
+      const acceptedRevision = record.revision + 1
+      record = { id: 'selection', revision: acceptedRevision + 1, value: null }
+      publish(record)
+      acceptance.resolve({
+        id: 'selection',
+        revision: acceptedRevision,
+        value: { wellId: '42', runId: '1', comparison: 'overlay' },
+      })
+      await expect(first).resolves.toBeUndefined()
+      await rejected
+      expect(store.get('selection')).toBeNull()
+      runtime.dispose()
+    })
   it('accepts old consumer revisions using only the latest schema and preserves newer fields', async () => {
     const { runtime, records } = setup()
     await runtime.prepare({

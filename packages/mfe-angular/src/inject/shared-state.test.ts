@@ -1,3 +1,4 @@
+import { stateCapabilities } from '@company/mfe-core/shared-state'
 import { Component, createEnvironmentInjector, runInInjectionContext } from '@angular/core'
 import { Router } from '@angular/router'
 import { describe, expect, it, vi } from 'vitest'
@@ -23,7 +24,7 @@ const contract: StateContract = {
 }
 const requirements = {
   protocolVersion: 1 as const,
-  contracts: [{ id: 'units', revision: 'units' }],
+  contracts: [{ id: 'units', revision: 'units', capabilities: stateCapabilities(contract.node) }],
 }
 function options() {
   let revision = 0

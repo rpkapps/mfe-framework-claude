@@ -37,7 +37,11 @@ export interface SharedStateManifest {
 }
 export interface SharedStateRequirements {
   readonly protocolVersion: 1
-  readonly contracts: readonly { readonly id: string; readonly revision: string }[]
+  readonly contracts: readonly {
+    readonly id: string
+    readonly revision: string
+    readonly capabilities: readonly string[]
+  }[]
 }
 export type StateValues = Record<string, unknown>
 export type StateKey<V> = keyof V & string
@@ -124,6 +128,24 @@ export function stableJson(value: unknown): string {
       .join(',')}}`
   }
   return JSON.stringify(value) ?? 'undefined'
+}
+/** Required schema features. Object additions add tokens without invalidating older consumers. */
+export function stateCapabilities(node: StateNode): readonly string[] {
+  const tokens: string[] = []
+  const visit = (value: StateNode, path: string): void => {
+    if (value.kind === 'object') {
+      tokens.push(`${path}:${stableJson({ kind: value.kind, strict: value.strict })}`)
+      for (const [key, field] of Object.entries(value.fields))
+        visit(field, `${path}/f:${key.replaceAll('~', '~0').replaceAll('/', '~1')}`)
+    } else if ('inner' in value) {
+      tokens.push(
+        `${path}:${stableJson(value.kind === 'default' ? { kind: value.kind, value: value.value } : { kind: value.kind })}`,
+      )
+      visit(value.inner, `${path}/i`)
+    } else tokens.push(`${path}:${stableJson(value)}`)
+  }
+  visit(node, '')
+  return tokens.sort()
 }
 export function isObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false

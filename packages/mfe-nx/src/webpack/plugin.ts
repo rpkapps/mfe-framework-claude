@@ -52,7 +52,7 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
     const plan = replan()
 
     applyContainerShape(compiler, plan)
-    const stateRule = sharedStateTransformRule(plan)
+    const stateRule = sharedStateTransformRule(plan, 'post')
     if (stateRule) compiler.options.module.rules.push(stateRule)
     new ModuleFederationPlugin(buildFederationOptions(plan)).apply(compiler)
 

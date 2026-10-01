@@ -21,11 +21,11 @@ export function checkSharedStateBuild(plan: ContainerPlan, production: boolean):
   const policy = JSON.parse(readFileSync(file, 'utf8')) as SharedStateReleasePolicy
   checkSharedStateRelease(manifests, policy)
 }
-export function sharedStateTransformRule(plan: ContainerPlan) {
+export function sharedStateTransformRule(plan: ContainerPlan, stage: 'pre' | 'post' = 'pre') {
   if (!plan.discovery.definitions.some(definition => definition.sharedState)) return undefined
   return {
     include: [plan.entryFile],
-    enforce: 'pre' as const,
+    enforce: stage,
     use: [
       {
         loader: createRequire(import.meta.url).resolve('@company/mfe-build/shared-state-loader'),

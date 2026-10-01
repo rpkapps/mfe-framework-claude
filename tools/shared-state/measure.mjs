@@ -150,7 +150,7 @@ console.log(
         notify1000SubscribersMs,
       },
       budgets: {
-        declarationBytesPerApp: 400,
+        declarationBytesPerApp: 500,
         contractCopiesPerRevisionPerContainer: 1,
         authoringValidatorsAfter: 0,
       },
@@ -160,4 +160,4 @@ console.log(
   ),
 )
 for (const measurement of measurements)
-  assert.ok(measurement.afterParsedJs.raw <= 400 * (measurement.name === 'one-app' ? 1 : 2))
+  assert.ok(measurement.afterParsedJs.raw <= 500 * (measurement.name === 'one-app' ? 1 : 2))
