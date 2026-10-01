@@ -14,10 +14,12 @@ switching workspaces does not bring the previous workspace's selection along.
 ### 1. Connect the schema, storage and workspace
 
 ```ts title="apps/shell/src/runtime.ts (shared-state options)"
+import { schema } from '@example/shared-state-contracts/schema'
+
 const { runtime } = createMfeRuntime({
   // Keep the shell's existing runtime options.
   sharedState: {
-    schema: compiledSharedStateSchema,
+    schema,
     scope: JSON.stringify([tenantId, userId, workspaceId]),
     adapter: sharedStateAdapter,
     onError: reportSharedStateFailure,
@@ -33,15 +35,15 @@ The three required options have separate jobs:
 | `adapter` | Your connection to the backend that reads and saves those records.                       |
 | `scope`   | A string identifying whose records to read; here it includes tenant, user and workspace. |
 
-`compiledSharedStateSchema` and `sharedStateAdapter` in the example come from your release and
-backend integration. They are not built-in values. `onError` is optional; use it to report a
+`schema` comes from the same external package the Apps import. `sharedStateAdapter` is your
+connection to the backend; the running example supplies it in `examples/shared-state/src/browser.ts`. `onError` is optional; use it to report a
 failure through the shell's existing error reporting.
 
 <Details summary="Where does the shell schema come from?">
-  The consumer build writes compiled key files under `.mfe/shared-state/contracts/`. Your release
-  groups the current files into a schema with `formatVersion: 1` and a `contracts` array containing
-  one current contract per key. Supply that compiled schema to the shell and backend. The shell does
-  not take the consumer's Zod object, and it does not need older schema versions at runtime.
+  The contract package generates `schema.json` from its authoring declaration and exports it as
+  `@example/shared-state-contracts/schema`. The shell and backend import this compiled artifact;
+  Apps import `sharedStateSchema` from the package's main export. Publish those exports together so
+  consumers and storage agree on the keys, fields and defaults.
 </Details>
 
 The adapter's `hydrate` method loads saved values; `write` saves a change and returns the saved
@@ -59,9 +61,10 @@ The browser's scope string selects a record; it does not prove the user has acce
 
 ```ts title="server/shared-state.ts"
 import { createSharedStateBackend } from '@company/mfe-runtime/shared-state'
+import { schema } from '@example/shared-state-contracts/schema'
 
 export const backend = createSharedStateBackend({
-  schema: compiledSharedStateSchema,
+  schema,
   repository: durableRepository,
   authorize: authorizeSharedState,
 })

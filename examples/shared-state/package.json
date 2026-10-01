@@ -1,0 +1,22 @@
+{
+  "name": "@example/shared-state-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./browser": "./src/browser.ts",
+    "./server": "./server.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server.test.mjs"
+  },
+  "dependencies": {
+    "@company/mfe-runtime": "workspace:*",
+    "@example/shared-state-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

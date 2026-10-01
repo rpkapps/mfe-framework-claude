@@ -8,6 +8,8 @@ import {
 import { signalFromStore } from '../signals.ts'
 import { injectMfeMount } from './runtime.ts'
 
+export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'
+
 /** Per-injector bindings work in components, services, route guards and resolvers. */
 export function createSharedStateBindings<V>(definitionId: string) {
   function injectSharedStateStore(): SharedStateStore<V> {

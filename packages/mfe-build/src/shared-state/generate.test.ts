@@ -44,6 +44,11 @@ describe('shared-state generated bindings and production pipeline', () => {
     expect(JSON.stringify(descriptor)).not.toContain('fields')
     const assets = plan.generated.files.filter(file => file.asset?.startsWith('shared-state/'))
     expect(assets).toHaveLength(2)
+    const binding = plan.generated.files.find(file => file.path.endsWith('shared-state/reader.ts'))!
+    expect(binding.contents).toContain(
+      "export type { SharedStateStore, SharedStateSetter } from '@company/mfe-react/shared-state'",
+    )
+    expect(binding.contents).not.toContain('@company/mfe-core')
     const rule = sharedStateTransformRule(plan)!
     expect(rule.enforce).toBe('pre')
     expect(rule.include).toEqual([plan.entryFile])
@@ -87,6 +92,10 @@ describe('shared-state generated bindings and production pipeline', () => {
     )!
     expect(file.contents).toContain('injectSharedState, injectSharedStateStore')
     expect(file.contents).not.toContain('useSharedState')
+    expect(file.contents).toContain(
+      "export type { SharedStateStore, SharedStateSetter } from '@company/mfe-angular/shared-state'",
+    )
+    expect(file.contents).not.toContain('@company/mfe-core')
   })
   it('typechecks generated React bindings and router context, rejecting wrong keys, wrong values and missing materialized fields', () => {
     const root = createContainer({ 'src/mfe.ts': entry })

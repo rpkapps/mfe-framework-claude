@@ -1,5 +1,6 @@
 /** Test-only storage. It deliberately makes no durable/offline persistence guarantee. */
 import type { SharedStateRepository, StoredState } from '../shared-state/backend.ts'
+export { createSharedStateBackend } from '../shared-state/backend.ts'
 export function createTestSharedStateRepository() {
   const records = new Map<string, StoredState>()
   const repository: SharedStateRepository = {

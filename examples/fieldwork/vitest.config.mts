@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 
 import angular from '@analogjs/vite-plugin-angular'
 import { defineConfig } from 'vitest/config'
+import { sharedStateDeclarationsForTests } from '../../tools/shared-state/vitest.mjs'
 
 /**
  * JIT, not AOT: Vitest never runs the webpack build, so the compiler transform has to run
@@ -9,7 +10,10 @@ import { defineConfig } from 'vitest/config'
  * to work under Vitest at all.
  */
 export default defineConfig({
-  plugins: [angular({ jit: true, tsconfig: './tsconfig.spec.json' })],
+  plugins: [
+    angular({ jit: true, tsconfig: './tsconfig.spec.json' }),
+    sharedStateDeclarationsForTests,
+  ],
   resolve: {
     alias: {
       // The real #mfe/config fetches runtime-config.json in a top-level await, and the real
@@ -21,9 +25,14 @@ export default defineConfig({
       '#mfe/fetch': '@company/mfe-angular/testing/mfe-fetch',
       // Plain generated data with no side effects, so a test reads the real one.
       '#mfe/meta': fileURLToPath(new URL('./.mfe/meta.ts', import.meta.url)),
+      '#mfe/shared-state': fileURLToPath(
+        new URL('./.mfe/shared-state/fieldwork.ts', import.meta.url),
+      ),
     },
   },
   test: {
+    // The adapter carries JSON records; VM pools clone objects into a different realm.
+    pool: 'forks',
     environment: 'jsdom',
     include: ['src/**/*.spec.ts'],
     setupFiles: ['./vitest.setup.ts'],

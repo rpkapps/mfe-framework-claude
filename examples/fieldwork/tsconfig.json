@@ -22,6 +22,7 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "paths": {
+      "#mfe/shared-state": ["./.mfe/shared-state/fieldwork.ts"],
       "#mfe/*": ["./.mfe/*.ts"]
     }
   },

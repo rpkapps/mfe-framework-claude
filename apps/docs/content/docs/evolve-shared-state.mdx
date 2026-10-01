@@ -3,7 +3,7 @@ title: 'Evolve a shared-state schema'
 description: 'Add a comparison mode while older Apps keep reading and writing the selected well.'
 ---
 
-Your selection already contains a well and a run. Now one App needs a comparison mode, but the
+The shared contract package already defines a well and a run. Now one App needs a comparison mode, but the
 other Apps have not been updated yet. Add the field with a default so those Apps can keep using
 the selection they already know.
 
@@ -11,9 +11,9 @@ the selection they already know.
 
 <Steps>
 <Step>
-### 1. Give the new field a default
+### 1. Update the schema in its owning package
 
-```ts title="src/shared-state.ts (selection fields)"
+```ts title="examples/shared-state-contracts/src/index.ts (selection fields)"
 z.strictObject({
   wellId: z.string(),
   runId: z.string().nullable(),
@@ -63,6 +63,7 @@ export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.js
 </Tab>
 </Tabs>
 
+Build and publish the updated contract package, then update the consumer's dependency.
 Run your container's production build. If it reports a changed field that older Apps depend on,
 fix that change before publishing. A successful development build does not perform the same
 release check.

@@ -10,6 +10,9 @@ it builds the way a generated container does: Nx's Angular webpack builder with 
   `injectUser()` reads from the shell.
 - `/inspections/:inspectionId` shows one inspection; the router binds the parameter to an input.
 - `/settings` is the App's settings capability, which the shell lists in its own settings.
+- `/shared-state` reads and updates the well selection and units shared with the React Lab.
+  Both Apps import `sharedStateSchema` from `@example/shared-state-contracts`.
+  Follow [the shared-state walkthrough](../shared-state/README.md) to run them together.
 
 ## An Nx workspace of its own
 

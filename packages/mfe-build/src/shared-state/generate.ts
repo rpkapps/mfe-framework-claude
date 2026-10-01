@@ -64,7 +64,7 @@ export function sharedStateFiles(context: GenerateContext): readonly GeneratedFi
         banner(context.profile.generator, `#mfe/shared-state/${definition.id}`),
         `import { createSharedStateBindings } from '@company/mfe-${context.profile.framework}/shared-state'`,
         `export interface SharedStateValues {\n${types}\n}`,
-        `export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'`,
+        `export type { SharedStateStore, SharedStateSetter } from '@company/mfe-${context.profile.framework}/shared-state'`,
         ...(react
           ? [
               `export type AppRouterOptions = import('@company/mfe-react').AppRouterOptions<SharedStateValues>`,

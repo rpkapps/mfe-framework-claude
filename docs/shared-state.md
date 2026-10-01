@@ -3,20 +3,15 @@
 Shared state is a shell-owned reactive store for independently deployed apps and widgets. Declare one Zod object whose top-level properties are shared-state IDs. Each ID has its own subscriptions, record revision and persistence operation.
 
 ```ts
-export const sharedStateSchema = z.object({
-  'well:active-selection': z
-    .strictObject({
-      wellId: z.string(),
-      runId: z.string().nullable(),
-    })
-    .nullable()
-    .default(null),
-  'display:units': z.enum(['metric', 'imperial']).default('metric'),
-})
+import { sharedStateSchema } from '@example/shared-state-contracts'
 
 export default createApp({ id: 'operations', router: makeRouter, sharedStateSchema })
-// Widgets and Angular apps declare sharedStateSchema in the same place.
+// Angular definitions import the same package and supply their routes.
 ```
+
+The shared contract package owns the Zod declaration. Consumers import it; they do not copy it.
+See `examples/shared-state-contracts/src/index.ts` for that declaration and
+`examples/shared-state/README.md` for the running React and Angular walkthrough.
 
 The builder reads syntax without running app modules, emits per-key contracts and materialized TypeScript types, and **replaces the schema declaration with compiled references**. Authoring-only imports and local helpers are removed. An unsupported schema fails the build; metadata cannot weaken validation. A raw authoring declaration that reaches mounting fails before rendering.
 
@@ -26,7 +21,7 @@ The builder reads syntax without running app modules, emits per-key contracts an
 import { useSharedState } from '#mfe/shared-state'
 
 function RunPicker() {
-  const [selection, setSelection] = useSharedState('well:active-selection')
+  const [selection, setSelection] = useSharedState('well:selection')
   async function choose(runId: string) {
     if (selection) await setSelection({ runId })
   }
@@ -46,7 +41,7 @@ const route = createRoute({
   getParentRoute: () => root,
   path: '/runs',
   loader: ({ context }) => {
-    const selection = context.mfe.sharedState.get('well:active-selection')
+    const selection = context.mfe.sharedState.get('well:selection')
     return fetchRuns(selection?.wellId)
   },
 })
@@ -78,7 +73,7 @@ export class UnitPicker {
 
 export const selectionResolver: ResolveFn<unknown> = () => {
   const store = injectSharedStateStore()
-  return store.get('well:active-selection')
+  return store.get('well:selection')
 }
 ```
 
@@ -87,11 +82,13 @@ Call injectors in an injection context: component/service field initializers, gu
 ## Shell and backend configuration
 
 ```ts
+import { schema } from '@example/shared-state-contracts/schema'
+
 const { runtime } = createMfeRuntime({
   // Existing shell options ...
   sharedState: {
     scope: opaqueTenantUserWorkspaceIdentity,
-    schema: compiledSharedStateSchema,
+    schema,
     adapter: durableBackendAdapter,
     onError: reportSharedStateFailure,
   },
@@ -118,7 +115,7 @@ Object updates are partial and merge recursively. Every omitted property stays u
 
 ```ts
 // Existing: { wellId: '42', runId: '7', comparisonMode: 'overlay' }
-await store.set('well:active-selection', { runId: '8' })
+await store.set('well:selection', { runId: '8' })
 // Result:   { wellId: '42', runId: '8', comparisonMode: 'overlay' }
 ```
 

@@ -13,23 +13,24 @@ The shell must [configure shared state](/docs/configure-shared-state) before mou
 
 <Steps>
 <Step>
-### 1. Declare the keys your definition uses
+### 1. Import the schema from its package
 
-```ts title="src/shared-state.ts"
-import { z } from 'zod'
+The schema belongs to a shared contract package, not to each App. In these examples, the package
+is `@example/shared-state-contracts`; the React Lab and Angular Fieldwork both depend on it.
 
-export const sharedStateSchema = z.object({
-  'display:units': z.enum(['metric', 'imperial']).default('metric'),
-  'well:selection': z
-    .strictObject({ wellId: z.string(), runId: z.string().nullable() })
-    .nullable()
-    .default(null),
-})
+```ts title="src/mfe.ts"
+import { sharedStateSchema } from '@example/shared-state-contracts'
 ```
 
-`display:units` starts as `metric`; `well:selection` starts as `null`, meaning no well is selected.
-Use the same key and schema in each App or Widget that needs that value. A key is the name of
-the record they share, not a name private to your component.
+That package defines `display:units`, which starts as `metric`, and `well:selection`, which starts
+as `null`. Using the same package keeps the keys, value types and defaults consistent.
+In your project, import the package your team publishes for this domain.
+
+<Details summary="Where is the example schema defined?">
+  The single authoring declaration lives in `examples/shared-state-contracts/src/index.ts`. That
+  package also publishes compiled schema files for the shell and build checks. Consumers import the
+  declaration; they do not copy its Zod object into their own source.
+</Details>
 
 </Step>
 <Step>
@@ -40,8 +41,9 @@ the record they share, not a name private to your component.
 
 ```ts title="src/mfe.ts"
 import { createApp } from '@company/mfe-react'
+import { sharedStateSchema } from '@example/shared-state-contracts'
+
 import { makeRouter } from './router'
-import { sharedStateSchema } from './shared-state'
 
 export default createApp({ id: 'operations', router: makeRouter, sharedStateSchema })
 ```
@@ -51,8 +53,9 @@ export default createApp({ id: 'operations', router: makeRouter, sharedStateSche
 
 ```ts title="src/mfe.ts"
 import { createApp } from '@company/mfe-angular'
+import { sharedStateSchema } from '@example/shared-state-contracts'
+
 import { routes } from './app.routes'
-import { sharedStateSchema } from './shared-state'
 
 export default createApp({ id: 'operations', routes, sharedStateSchema })
 ```
@@ -150,8 +153,8 @@ await store.set('well:selection', { runId: 'run-8' })
 ```
 
 Take `store` with the generated `useSharedStateStore()` or `injectSharedStateStore()` binding.
-After these writes, the selection is `{ wellId: 'well-42', runId: 'run-8' }`. You changed the run
-without having to resend the well. The same rule applies to nested objects: leaving out a field
+After these writes, the well is still `well-42` and the run is `run-8`. The comparison mode keeps
+its default, `baseline`. You changed the run without resending the well. The same rule applies to nested objects: leaving out a field
 keeps its saved value.
 
 To clear this selection, write `null`. Sending an empty object does not clear it, and `undefined`
@@ -186,6 +189,8 @@ a deletion marker.
 </Callout>
 
 ## Related
+
+- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — the shared package, pages and local backend
 
 - [Use shared state outside render](/docs/shared-state-outside-render) — loaders, actions and resolvers
 - [Configure shared state in the shell](/docs/configure-shared-state) — persistence and scopes

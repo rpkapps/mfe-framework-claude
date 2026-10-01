@@ -32,7 +32,8 @@
     "@company/mfe-angular": "workspace:*",
     "primeng": "catalog:",
     "rxjs": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@example/shared-state-contracts": "workspace:*"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "catalog:",

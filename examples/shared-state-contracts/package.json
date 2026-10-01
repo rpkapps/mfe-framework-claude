@@ -1,0 +1,30 @@
+{
+  "name": "@example/shared-state-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": {
+      "types": "./src/schema.d.ts",
+      "default": "./src/schema.js"
+    },
+    "./shared-state.manifest.json": "./shared-state.manifest.json",
+    "./release-policy.json": "./release-policy.json"
+  },
+  "scripts": {
+    "generate": "node generate.mjs",
+    "build": "node generate.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@company/mfe-core": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@company/mfe-build": "workspace:*",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  }
+}

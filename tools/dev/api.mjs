@@ -8,6 +8,7 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
+import { createDemoBackend, readRequestBody } from '../../examples/shared-state/server.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
 export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
@@ -34,7 +35,7 @@ const ASSETS = {
 function cors(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
   response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-  response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   response.setHeader('Access-Control-Max-Age', '600')
 }
 
@@ -44,7 +45,11 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
-const server = createServer((request, response) => {
+const sharedState = createDemoBackend(
+  fileURLToPath(new URL('../../.mfe/shared-state-demo/records.json', import.meta.url)),
+)
+
+const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') {
     cors(response)
     response.writeHead(204)
@@ -53,6 +58,28 @@ const server = createServer((request, response) => {
   }
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
+
+  if (url.pathname === '/api/shared-state/hydrate' || url.pathname === '/api/shared-state/write') {
+    if (request.method !== 'POST') {
+      json(response, 405, { message: 'Use POST for shared state' })
+      return
+    }
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    request.once('aborted', abort)
+    try {
+      const body = await readRequestBody(request)
+      const record = url.pathname.endsWith('/hydrate')
+        ? await sharedState.hydrate(body.scope, body.ids, controller.signal)
+        : await sharedState.write(body, controller.signal)
+      json(response, 200, record)
+    } catch (error) {
+      json(response, error.code === 'shared-state/conflict' ? 409 : 400, { message: error.message })
+    } finally {
+      request.off('aborted', abort)
+    }
+    return
+  }
 
   if (url.pathname === '/api/assets') {
     const site = url.searchParams.get('site') ?? 'north'

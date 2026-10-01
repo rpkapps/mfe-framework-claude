@@ -13,6 +13,7 @@
       "#mfe/config": ["./.mfe/config.ts"],
       "#mfe/fetch": ["./.mfe/fetch.ts"],
       "#mfe/meta": ["./.mfe/meta.ts"],
+      "#mfe/shared-state": ["./.mfe/shared-state/lab.ts"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],

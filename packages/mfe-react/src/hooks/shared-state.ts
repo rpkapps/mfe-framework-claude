@@ -8,6 +8,8 @@ import {
 } from '@company/mfe-core/shared-state'
 import { useMfeMount } from '../mount-context.tsx'
 
+export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'
+
 /** Generated once per definition; only closures over immutable metadata, never a store singleton. */
 export function createSharedStateBindings<V>(definitionId: string) {
   function useSharedStateStore(): SharedStateStore<V> {

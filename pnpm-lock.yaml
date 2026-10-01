@@ -444,6 +444,9 @@ importers:
 
   apps/shell:
     dependencies:
+      '@example/shared-state-demo':
+        specifier: workspace:*
+        version: link:../../examples/shared-state
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -729,6 +732,9 @@ importers:
 
   examples/fieldwork:
     dependencies:
+      '@example/shared-state-contracts':
+        specifier: workspace:*
+        version: link:../shared-state-contracts
       '@angular/animations':
         specifier: 'catalog:'
         version: 19.2.25(@angular/common@19.2.25(@angular/core@19.2.25(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.25(rxjs@7.8.2)(zone.js@0.15.1))
@@ -902,6 +908,9 @@ importers:
 
   examples/lab:
     dependencies:
+      '@example/shared-state-contracts':
+        specifier: workspace:*
+        version: link:../shared-state-contracts
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1738,6 +1747,41 @@ importers:
       react-dom:
         specifier: catalog:interop
         version: 19.2.8(react@19.2.8)
+
+  examples/shared-state-contracts:
+    dependencies:
+      '@company/mfe-core':
+        specifier: workspace:*
+        version: link:../../packages/mfe-core
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
+    devDependencies:
+      '@company/mfe-build':
+        specifier: workspace:*
+        version: link:../../packages/mfe-build
+      prettier:
+        specifier: 'catalog:'
+        version: 3.9.8
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  examples/shared-state:
+    dependencies:
+      '@company/mfe-runtime':
+        specifier: workspace:*
+        version: link:../../packages/mfe-runtime
+      '@example/shared-state-contracts':
+        specifier: workspace:*
+        version: link:../shared-state-contracts
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
 packages:
   '@adobe/css-tools@4.5.0':

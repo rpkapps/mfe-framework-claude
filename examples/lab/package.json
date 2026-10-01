@@ -30,7 +30,8 @@
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.12.4",
     "recharts": "3.8.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@example/shared-state-contracts": "workspace:*"
   },
   "devDependencies": {
     "@company/mfe-rspack": "workspace:*",
