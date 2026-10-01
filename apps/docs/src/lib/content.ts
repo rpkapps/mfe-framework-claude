@@ -3,14 +3,14 @@
  * the page it is rendering through the collections themselves, keyed by the virtual path the
  * loader reported.
  */
-import { docs, repoDocs, sharedStateDocs } from './docs.ts'
+import { docs, repoDocs } from './docs.ts'
 import { REPO_DOCS_DIR } from './repo-page.ts'
 
 import type { TOCItemType } from 'fumadocs-core/toc'
 import type { MDXContent } from 'mdx/types'
 
 /**
- * What a route needs from any content collection. All are async collections, so the
+ * What a route needs from a page of either collection. Both are async collections, so the
  * compiled body is code-split: `preload()` in the loader, then `load()` in render.
  */
 export interface PageEntry {
@@ -30,5 +30,5 @@ function repoPath(path: string): string {
 }
 
 export function getEntry(path: string): PageEntry | undefined {
-  return docs.getPage(path) ?? repoDocs.getPage(repoPath(path)) ?? sharedStateDocs.getPage(path)
+  return docs.getPage(path) ?? repoDocs.getPage(repoPath(path))
 }

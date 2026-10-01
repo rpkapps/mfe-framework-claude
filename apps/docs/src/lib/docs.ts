@@ -1,5 +1,5 @@
 /**
- * The content collections, declared with the `fumadocs-mdx` macro API.
+ * The two content collections, declared with the `fumadocs-mdx` macro API.
  *
  * Isomorphic: imported by routes (client and server). The macro rewrites each call into glob
  * imports, so only frontmatter and the lazy MDX body imports reach the browser bundle.
@@ -23,12 +23,5 @@ export const docs = defineDocs({
 export const repoDocs = defineDocs({
   dir: '../../docs',
   docs: { async: true, files: ['design.md', 'decisions.md'], schema: repoPageSchema },
-  meta: { files: [] },
-})
-
-/** The canonical shared-state guide, rendered at `/docs/shared-state` without copying it. */
-export const sharedStateDocs = defineDocs({
-  dir: '../../docs',
-  docs: { async: true, files: ['shared-state.md'], schema: repoPageSchema },
   meta: { files: [] },
 })

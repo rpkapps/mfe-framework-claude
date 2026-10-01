@@ -1,0 +1,133 @@
+---
+title: 'Use shared state outside render'
+description: 'Read and write the live store from React route loaders and actions or Angular guards and resolvers.'
+---
+
+Route callbacks use the same store as components. They read the current snapshot with `get`,
+update a key with `set`, and can subscribe to changes. First
+[declare the keys on your definition](/docs/shared-state).
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Take the store where your router receives its context
+
+<Tabs items={['TanStack Router', 'Angular', 'React Router']}>
+<Tab value="TanStack Router">
+
+```ts title="src/router.ts"
+import { createRootRouteWithContext, createRouter } from '@tanstack/react-router'
+import type { AppRouterOptions, MfeRouterContext } from '#mfe/shared-state'
+
+const root = createRootRouteWithContext<MfeRouterContext>()({
+  loader: ({ context }) => context.mfe.sharedState.get('well:selection'),
+})
+
+export function makeRouter({ basePath, history, context }: AppRouterOptions) {
+  return createRouter({ routeTree: root, basepath: basePath, history, context })
+}
+```
+
+Import the generated context types so keys and values are inferred. Keep the `basePath`, history
+and context your App factory receives, as in [Add a route](/docs/add-a-route).
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/selection.resolver.ts"
+import type { ResolveFn } from '@angular/router'
+import { injectSharedStateStore, type SharedStateValues } from '#mfe/shared-state'
+
+export const selectionResolver: ResolveFn<SharedStateValues['well:selection']> = () => {
+  const store = injectSharedStateStore()
+  return store.get('well:selection')
+}
+```
+
+Use the same injector in a guard. If the callback awaits other work, capture the store before the
+first `await`; an Angular injection context does not continue across it.
+
+</Tab>
+<Tab value="React Router">
+
+```tsx title="src/routed-panel.tsx"
+import { useMemo } from 'react'
+import { createMemoryRouter, RouterProvider } from 'react-router'
+import { useSharedStateStore } from '#mfe/shared-state'
+
+export function RoutedPanel() {
+  const store = useSharedStateStore()
+  const router = useMemo(
+    () =>
+      createMemoryRouter([
+        {
+          path: '/',
+          loader: () => store.get('display:units'),
+          action: async () => {
+            await store.set('display:units', 'imperial')
+            return null
+          },
+        },
+      ]),
+    [store],
+  )
+  return <RouterProvider router={router} />
+}
+```
+
+Capture the store while rendering inside the mount; route callbacks then use it without hooks.
+This works in an existing React Router surface. The framework's React App boundary still uses
+TanStack Router. A Widget owns no address-bar URL, so its nested router uses memory history.
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+### 2. Await writes before reporting success
+
+```ts title="src/selection-actions.ts"
+import type { SharedStateStore, SharedStateValues } from '#mfe/shared-state'
+
+export async function chooseRun(store: SharedStateStore<SharedStateValues>, runId: string) {
+  const selection = store.get('well:selection')
+  if (selection === null) return
+  await store.set('well:selection', { runId })
+}
+```
+
+Let an action's error handling report a rejected write. The store remains live across awaits:
+call `get` again when you need the latest value rather than retaining an earlier snapshot.
+
+</Step>
+<Step>
+### 3. Refresh route-derived data when needed
+
+A shared-state change updates subscribed components; it does not automatically rerun every
+loader. Invalidate your TanStack router or revalidate your React Router data when the route's
+result depends on a changed key. If you use `store.subscribe(key, listener)`, keep its returned
+unsubscribe function and call it when the owner is destroyed.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Read `well:selection` in a loader or resolver, change it from another mounted consumer, then
+run the callback again. It should read the new value. Write through an action and confirm a
+component subscribed to the key updates too.
+
+## Errors
+
+<Callout type="error" title="shared-state/scope-disposed">
+  The shell changed identity or workspace, or disposed the binding. Stop using that captured store
+  and take a new one from the remounted definition. A late callback must not write into the new
+  scope.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — schema and component bindings
+- [Add a route](/docs/add-a-route) — the App's routing contract
+- [The Angular adapter](/docs/reference/angular-adapter) — Angular routes and injection contexts

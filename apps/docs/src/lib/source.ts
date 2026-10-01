@@ -1,12 +1,12 @@
 /**
- * The page tree and page lookup, built from all content collections at once.
+ * The page tree and page lookup, built from both collections at once.
  *
  * Server-only: import it inside a `createServerFn` handler or a server route handler, so the
  * loader never reaches the browser bundle.
  */
 import { loader, type MetaData, type StaticSource } from 'fumadocs-core/source'
 
-import { docs, repoDocs, sharedStateDocs } from './docs.ts'
+import { docs, repoDocs } from './docs.ts'
 import { REPO_DOCS_DIR } from './repo-page.ts'
 
 /** A page of either collection: the site's own MDX, or a Markdown file from the repository. */
@@ -26,7 +26,6 @@ const merged: StaticSource<{ pageData: DocEntry; metaData: MetaData }> = {
   files: [
     ...docs.toFumadocsSource().files,
     ...repoDocs.toFumadocsSource({ baseDir: REPO_DOCS_DIR }).files,
-    ...sharedStateDocs.toFumadocsSource().files,
   ],
 }
 

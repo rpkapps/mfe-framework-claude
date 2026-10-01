@@ -1,0 +1,98 @@
+---
+title: 'Configure shared state in the shell'
+description: 'Give the runtime the current schema, a persistence adapter and the identity that scopes its records.'
+---
+
+The shell configures shared state once. Apps and Widgets declare the keys they consume; the shell
+decides which records belong to the current user or workspace and how they are persisted.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Supply the current schema and persistence adapter
+
+```ts title="apps/shell/src/runtime.ts (shared-state options)"
+const { runtime } = createMfeRuntime({
+  // Keep the shell's existing runtime options.
+  sharedState: {
+    schema: compiledSharedStateSchema,
+    scope: currentWorkspaceIdentity,
+    adapter: sharedStateAdapter,
+    onError: reportSharedStateFailure,
+  },
+})
+```
+
+Use the latest compiled schema supplied by your shared contract package or release artifacts.
+The consumer's Zod declaration is `sharedStateSchema`; the shell's compiled schema is `sharedState.schema`.
+There is no list of supported historical schemas to configure.
+
+The adapter loads records and saves updates to your backend. Its write promise must resolve after
+the backend commits the change. Provide its optional subscription when backend changes need to
+reach already mounted consumers.
+
+</Step>
+<Step>
+### 2. Match server authorization to the scope
+
+Choose an opaque identity for the records the page should share, such as a tenant, user and
+workspace identity. On the server, authorize reads and writes against the authenticated request;
+a scope string supplied by a client is not authorization.
+
+<Details summary="Use the reference backend with your repository">
+
+```ts title="server/shared-state.ts"
+import { createSharedStateBackend } from '@company/mfe-runtime/shared-state'
+
+export const backend = createSharedStateBackend({
+  schema: compiledSharedStateSchema,
+  repository: durableRepository,
+  authorize: authorizeSharedState,
+})
+```
+
+Supply a `SharedStateRepository` whose `read` loads a record and whose `transact` atomically updates
+and durably commits it. Expose `backend.hydrate` and `backend.write` through your authenticated
+transport. Map conflicts and cancellation into the adapter's error handling. The test repository
+uses memory and is not production persistence.
+
+</Details>
+
+</Step>
+<Step>
+### 3. Replace the scope when identity changes
+
+```ts title="apps/shell/src/workspace.ts"
+runtime.sharedState.setScope(nextWorkspaceIdentity)
+```
+
+Remount affected Apps and Widgets so they receive bindings for the new scope. Old bindings stop
+working, pending writes reject and late responses cannot update the new workspace. Sharing across
+users requires a deliberately configured collaborative scope.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Save a selection, reload the page and confirm it returns. Switch to a different scope and confirm
+the first scope's selection is absent. Switch back and check its saved record remains. Reject a
+backend write and confirm the interaction reports failure instead of claiming it was saved.
+
+## Errors
+
+<Callout type="error" title="shared-state/unsupported-contract, before mount">
+  The shell's schema cannot satisfy the consumer's declared keys or fields. Deploy the compatible
+  current schema with the shell before deploying consumers that require the added fields.
+</Callout>
+
+<Callout type="error" title="shared-state/invalid-value, at hydration">
+  A saved record does not match the current schema. Recover it explicitly on the backend; mounting a
+  consumer must not erase invalid persisted data or quietly replace it with a default.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — consumer declarations and bindings
+- [Evolve a shared-state schema](/docs/evolve-shared-state) — release checks and deployment order

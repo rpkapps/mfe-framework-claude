@@ -1,0 +1,98 @@
+---
+title: 'Evolve a shared-state schema'
+description: 'Add fields without breaking deployed consumers, then check and deploy the updated schema.'
+---
+
+Independently deployed consumers may keep using an older schema. Add fields so their writes
+preserve newer values, and deploy the shell's schema before a consumer starts relying on them.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Make an additive change
+
+```ts title="src/shared-state.ts (selection fields)"
+z.strictObject({
+  wellId: z.string(),
+  runId: z.string().nullable(),
+  comparisonMode: z.enum(['baseline', 'overlay']).default('baseline'),
+})
+```
+
+Add an optional field or one with a deterministic literal default. Keep existing field types,
+defaults and meanings. An older consumer writing `{ runId: 'run-8' }` leaves an existing
+`comparisonMode: 'overlay'` intact. Omission never deletes a field.
+
+Changing a required field, removing or renaming one, changing an enum or constraint, or changing
+an array element's shape needs a new key and an explicit transition for its consumers.
+
+</Step>
+<Step>
+### 2. Configure the production release check
+
+Set `sharedStatePolicy` on your build integration to a policy file containing the current compiled
+`schema` and previously released `baselines`. Use `baselines: []` only for the first release.
+Keep published baselines immutable so a change cannot approve itself by rewriting its history.
+
+<Tabs items={['React build options', 'Angular']}>
+<Tab value="React build options">
+
+Pass the policy to your existing `pluginMfe()` call; keep the rest of the configuration:
+
+```ts title="rsbuild.config.ts (MFE plugin)"
+import { pluginMfe } from '@company/mfe-rspack'
+
+pluginMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="webpack.config.ts"
+import { withMfe } from '@company/mfe-nx/webpack'
+
+export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+```
+
+</Tab>
+</Tabs>
+
+Run your production build. It checks the consumer's schema against the current shell schema and
+the released baselines. Development schema checks alone do not replace this release check.
+
+</Step>
+<Step>
+### 3. Deploy the shell schema before the new consumer
+
+Give the shell and backend the current compiled schema, then publish the consumer that needs the
+added field. Older compatible consumers keep working. A newer consumer on an older shell fails
+before mounting instead of accepting a write that loses the field.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Run an older and a newer consumer against the current schema. Set the new comparison field from
+the newer one, then change only `runId` from the older one. Both should read the updated run and
+the preserved comparison mode. Also try the new consumer against the old shell; mounting should fail.
+
+## Errors
+
+<Callout type="error" title="shared-state/missing-baseline, at production build">
+  Provide the release policy path and ensure the file is available to the build. A first release
+  still needs an explicit policy with an empty baseline list.
+</Callout>
+
+<Callout type="error" title="An incompatible schema change">
+  Read the key and field named by the build diagnostic. Restore its compatible shape, or introduce a
+  new key and transition its consumers deliberately. Suppressing lint does not bypass the build
+  check.
+</Callout>
+
+## Related
+
+- [Share state across Apps and Widgets](/docs/shared-state) — reads and merge-only updates
+- [Configure shared state in the shell](/docs/configure-shared-state) — current schema and persistence
+- [Build and publish a container](/docs/build-and-publish) — the production build and output
