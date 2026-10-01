@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     "./browser": "./src/browser.ts",
-    "./wells": "./src/wells.ts",
+    "./wells": {
+      "types": "./src/wells.d.ts",
+      "default": "./src/wells.js"
+    },
     "./server": "./server.mjs"
   },
   "scripts": {

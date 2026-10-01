@@ -18,9 +18,10 @@ export const wells = [
       { id: 'run-4', name: 'October survey', depthMetres: 1800 },
     ],
   },
-] as const
+]
 
-export function formatDepth(metres: number, units: 'metric' | 'imperial'): string {
+/** @param {number} metres @param {'metric' | 'imperial'} units */
+export function formatDepth(metres, units) {
   const value = units === 'metric' ? metres : metres / 0.3048
   return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)} ${units === 'metric' ? 'm' : 'ft'}`
 }
