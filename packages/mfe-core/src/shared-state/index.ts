@@ -87,11 +87,33 @@ export interface SharedStateAdapter {
 }
 export interface SharedStateService {
   readonly protocolVersion: 1
+  /** Optional read-only diagnostics. Observing never hydrates or binds state. */
+  readonly inspection?: SharedStateInspection
   prepare(requirements: SharedStateRequirements, signal?: AbortSignal): Promise<void>
   bind<V = StateValues>(
     requirements: SharedStateRequirements,
     signal?: AbortSignal,
   ): SharedStateStore<V>
+}
+export type SharedStateStatus = 'absent' | 'hydrating' | 'ready' | 'invalid' | 'persistence-failed'
+export interface SharedStateInspectionEntry {
+  readonly contract: StateContract
+  readonly status: SharedStateStatus
+  readonly recordRevision: number
+  readonly pendingWrites: number
+  readonly confirmed: Json | undefined
+  readonly effective: Json | undefined
+  readonly error: string | undefined
+}
+export interface SharedStateInspectionSnapshot {
+  /** Changes on a scope switch; deliberately does not expose the authenticated scope. */
+  readonly generation: number
+  readonly disposed: boolean
+  readonly entries: readonly SharedStateInspectionEntry[]
+}
+export interface SharedStateInspection {
+  getSnapshot(): SharedStateInspectionSnapshot
+  subscribe(listener: () => void): () => void
 }
 export interface SharedStateScopeService extends SharedStateService {
   setScope(scope: string): void

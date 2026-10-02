@@ -26,6 +26,7 @@ import { Toggle } from '@tecton/react/components/toggle'
 import { ToggleGroup, ToggleGroupItem } from '@tecton/react/components/toggle-group'
 import {
   LayersIcon,
+  DatabaseIcon,
   PanelBottomIcon,
   PanelLeftIcon,
   PanelRightIcon,
@@ -43,6 +44,7 @@ import { MountOutlineOverlay } from './outline-overlay.tsx'
 import { useOverlayLayer } from './overlay-layer.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 import { RegistryTab } from './registry-tab.tsx'
+import { SharedStateTab } from './shared-state-tab.tsx'
 import { useActiveOverrides } from './use-devtools.ts'
 
 const SIDE_ICON: Readonly<Record<DevtoolsSide, typeof PanelTopIcon>> = {
@@ -175,6 +177,10 @@ function DevtoolsDock({
                 <LayersIcon />
                 <span className="@max-lg:sr-only">Registry</span>
               </TabsTrigger>
+              <TabsTrigger value="shared-state" aria-label="Shared State">
+                <DatabaseIcon data-icon="inline-start" />
+                <span className="@max-lg:sr-only">Shared State</span>
+              </TabsTrigger>
             </TabsList>
 
             {/*
@@ -288,6 +294,9 @@ function DevtoolsDock({
             </TabsContent>
             <TabsContent value="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
               <RegistryTab />
+            </TabsContent>
+            <TabsContent value="shared-state" className="flex min-h-0 flex-1 flex-col">
+              <SharedStateTab />
             </TabsContent>
           </PanelContent>
         </Tabs>

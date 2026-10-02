@@ -22,6 +22,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { verifySharedStateDevtools } from '../browser/verify-shared-state-devtools.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -862,6 +863,7 @@ async function main() {
     }
   }
 
+  if (values.url === undefined) await verifySharedStateDevtools(browser)
   if (values['keep-open'] !== true) await browser.close()
 }
 

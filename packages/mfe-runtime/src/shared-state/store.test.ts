@@ -396,3 +396,86 @@ describe('shell-owned shared state', () => {
     )
   })
 })
+
+describe('read-only shared-state inspection', () => {
+  it('does not hydrate and caches immutable snapshots without exposing the scope', () => {
+    const { runtime, adapter } = setup()
+    const hydrate = vi.spyOn(adapter, 'hydrate')
+    const first = runtime.inspection.getSnapshot()
+    expect(runtime.inspection.getSnapshot()).toBe(first)
+    expect(first.entries.map(entry => entry.status)).toEqual(['absent', 'absent'])
+    expect(Object.isFrozen(first.entries[0])).toBe(true)
+    expect(Object.isFrozen(first.entries)).toBe(true)
+    expect(first).not.toHaveProperty('scope')
+    expect(hydrate).not.toHaveBeenCalled()
+    runtime.dispose()
+  })
+
+  it('publishes hydration, optimistic writes and durable acceptance separately', async () => {
+    const write = deferred<StateRecord>()
+    const { runtime } = setup(adapter => ({ ...adapter, write: () => write.promise }))
+    const seen: string[] = []
+    const unsubscribe = runtime.inspection.subscribe(() => {
+      seen.push(runtime.inspection.getSnapshot().entries[1]?.status ?? '')
+    })
+    await runtime.prepare(refs(units))
+    expect(seen).toContain('hydrating')
+    const store = runtime.bind(refs(units))
+    const accepted = store.set('units', 'imperial')
+    expect(runtime.inspection.getSnapshot().entries[1]).toMatchObject({
+      status: 'ready',
+      pendingWrites: 1,
+      confirmed: 'metric',
+      effective: 'imperial',
+      recordRevision: 0,
+    })
+    write.resolve({ id: 'units', revision: 1, value: 'imperial' })
+    await accepted
+    expect(runtime.inspection.getSnapshot().entries[1]).toMatchObject({
+      pendingWrites: 0,
+      confirmed: 'imperial',
+      effective: 'imperial',
+      recordRevision: 1,
+    })
+    unsubscribe()
+    const count = seen.length
+    runtime.setScope('next')
+    expect(seen).toHaveLength(count)
+    runtime.dispose()
+  })
+
+  it('replaces all inspected values atomically on scope changes and clears them on disposal', async () => {
+    const { runtime } = setup()
+    await runtime.prepare(refs(units))
+    const snapshots: ReturnType<typeof runtime.inspection.getSnapshot>[] = []
+    runtime.inspection.subscribe(() => snapshots.push(runtime.inspection.getSnapshot()))
+    runtime.setScope('another identity')
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0]).toMatchObject({ generation: 1, disposed: false })
+    expect(snapshots[0]?.entries.every(entry => entry.effective === undefined)).toBe(true)
+    runtime.dispose()
+    expect(snapshots.at(-1)).toMatchObject({ generation: 2, disposed: true, entries: [] })
+    expect(runtime.inspection.getSnapshot()).toBe(snapshots.at(-1))
+  })
+
+  it('shows validation failures and isolates broken inspection subscribers', async () => {
+    const { runtime, onError } = setup(adapter => ({
+      ...adapter,
+      hydrate: async () => [{ id: 'units', revision: 1, value: 'invalid units' }],
+    }))
+    const listener = vi.fn()
+    runtime.inspection.subscribe(() => {
+      throw new Error('subscriber failed')
+    })
+    runtime.inspection.subscribe(listener)
+    await expect(runtime.prepare(refs(units))).rejects.toThrow()
+    expect(runtime.inspection.getSnapshot().entries[1]).toMatchObject({
+      status: 'invalid',
+      pendingWrites: 0,
+    })
+    expect(runtime.inspection.getSnapshot().entries[1]?.error).toContain('units')
+    expect(listener).toHaveBeenCalled()
+    expect(onError).toHaveBeenCalled()
+    runtime.dispose()
+  })
+})

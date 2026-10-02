@@ -11,6 +11,8 @@ import {
   type SharedStateManifest,
   type SharedStateRequirements,
   type SharedStateService,
+  type SharedStateInspection,
+  type SharedStateInspectionSnapshot,
   type SharedStateStore,
   type StateContract,
   type StateRecord,
@@ -63,6 +65,39 @@ export class SharedStateRuntime implements SharedStateService {
   #disposed = false
   #operation = 0
   readonly #clientId = crypto.randomUUID()
+  readonly #inspectionListeners = new Set<() => void>()
+  #inspectionSnapshot: SharedStateInspectionSnapshot | undefined
+
+  /** Snapshots are built on demand and share already immutable values, never consumer bindings. */
+  readonly inspection: SharedStateInspection = {
+    getSnapshot: () => {
+      this.#inspectionSnapshot ??= Object.freeze({
+        generation: this.#generation,
+        disposed: this.#disposed,
+        entries: Object.freeze(
+          [...this.#entries.values()].map(entry =>
+            Object.freeze({
+              contract: entry.canonical,
+              status: entry.status,
+              recordRevision: entry.recordRevision,
+              pendingWrites: entry.pending.length,
+              confirmed: entry.confirmed,
+              effective: entry.effective,
+              error: entry.error === undefined ? undefined : asError(entry.error).message,
+            }),
+          ),
+        ),
+      })
+      return this.#inspectionSnapshot
+    },
+    subscribe: listener => {
+      if (this.#disposed) return () => {}
+      this.#inspectionListeners.add(listener)
+      return () => {
+        this.#inspectionListeners.delete(listener)
+      }
+    },
+  }
 
   constructor(options: SharedStateOptions) {
     this.#options = options
@@ -85,6 +120,7 @@ export class SharedStateRuntime implements SharedStateService {
     }
     this.#resetEntries()
     this.#listen()
+    this.#notifyInspection()
   }
 
   async prepare(requirements: SharedStateRequirements, signal?: AbortSignal): Promise<void> {
@@ -189,12 +225,15 @@ export class SharedStateRuntime implements SharedStateService {
     this.#controller = new AbortController()
     this.#resetEntries()
     this.#listen()
+    this.#notifyInspection()
   }
   dispose(): void {
     if (!this.#disposed) {
       this.#disposed = true
       this.#closeGeneration()
       this.#entries.clear()
+      this.#notifyInspection()
+      this.#inspectionListeners.clear()
     }
   }
   #closeGeneration(): void {
@@ -214,7 +253,8 @@ export class SharedStateRuntime implements SharedStateService {
           ),
         )
       entry.pending.length = 0
-      this.#notify(entry)
+      // Diagnostics publish only after the new scope is fully installed.
+      this.#notify(entry, false)
       entry.listeners.clear()
     }
   }
@@ -314,6 +354,7 @@ export class SharedStateRuntime implements SharedStateService {
     if (entry.status === 'ready' || entry.status === 'persistence-failed') return Promise.resolve()
     if (entry.hydration) return entry.hydration
     entry.status = 'hydrating'
+    this.#notifyInspection()
     entry.hydration = (async () => {
       try {
         const records = await abortable(
@@ -433,6 +474,7 @@ export class SharedStateRuntime implements SharedStateService {
           pending.reject(error)
           entry.status = 'persistence-failed'
           entry.error = error
+          this.#notifyInspection()
           this.#report(error, entry.canonical.id)
           // Refresh after rejection, including CAS conflicts; never retry this user intention.
           try {
@@ -467,7 +509,18 @@ export class SharedStateRuntime implements SharedStateService {
       this.#sending.delete(entry)
     }
   }
-  #notify(entry: Entry): void {
+  #notifyInspection(): void {
+    this.#inspectionSnapshot = undefined
+    for (const listener of [...this.#inspectionListeners]) {
+      try {
+        listener()
+      } catch (error) {
+        this.#report(error, '<inspection>')
+      }
+    }
+  }
+  #notify(entry: Entry, inspection = true): void {
+    if (inspection) this.#notifyInspection()
     for (const listener of [...entry.listeners]) {
       try {
         listener()
