@@ -214,11 +214,26 @@ Angular `canDeactivate` guards do not intercept reloads. `injectNavigationBlock`
 
 <Callout type="error" title="expected a component rendered inside an App or Widget mount">
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```text
 <unmounted> failed to call useNavigationBlock: expected a component rendered inside an App or
 Widget mount, received a component rendered outside any mount. Move the useNavigationBlock call
 into a component the App or Widget renders.
 ```
+
+</Tab>
+<Tab value="Angular">
+
+`injectNavigationBlock()` requires an App or Widget mount and an Angular injection context.
+If the component or service was created outside a mount, it reports `mount/failure`.
+
+**Fix.** Inject the blocker in a component the definition renders, or a service created by its mount injector.
+Do not inject it into shell chrome.
+
+</Tab>
+</Tabs>
 
 **Fix.** Move the call into a component your App or Widget renders. Shell chrome and test harness
 code sit outside every mount.

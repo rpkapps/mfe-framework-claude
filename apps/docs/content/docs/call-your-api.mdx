@@ -1,6 +1,6 @@
 ---
-title: 'Call your API'
-description: 'Use the generated #mfe/fetch to send requests that carry the shell session token.'
+title: 'API requests'
+description: 'Declare API URLs, send authenticated fetch requests, and load route data with React TanStack Query or Angular.'
 ---
 
 Apps and Widgets, in React and Angular. Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
@@ -21,14 +21,58 @@ API base and attaches the shell's session token. The browser's own `fetch` is le
 <Steps>
 
 <Step>
+<span id="api-url" />
 
-### 1. Import the generated fetch
+### 1. Declare your API URL
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="examples/operations/src/mfe.config.ts"
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/mfe.config.ts"
+import { env } from '@company/mfe-nx/env'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}
+```
+
+</Tab>
+</Tabs>
+
+Supply `API_BASE_URL` per deployment, for example `https://api.example.test/v1/`.
+The first `{ api: true }` field becomes the relative-request base. Keep its trailing slash when you want paths appended.
+Declare additional API origins in separate flagged fields. Origins match exactly, without wildcards.
+
+</Step>
+
+<Step>
+
+### 2. Send an authenticated request
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
 ```ts title="examples/operations/src/queries/assets.ts"
 import { fetch } from '#mfe/fetch'
+
+export async function loadAssets(siteId: string, signal: AbortSignal) {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
 ```
 
 </Tab>
@@ -36,6 +80,12 @@ import { fetch } from '#mfe/fetch'
 
 ```ts title="examples/fieldwork/src/inspections.ts (adapted)"
 import { fetch } from '#mfe/fetch'
+
+export async function loadAssets(siteId: string, signal: AbortSignal) {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
 ```
 
 The generated fetch has the same behavior in Angular. Existing `HttpClient` calls can use the [authentication interceptor setup](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-angular/README.md#authenticated-httpclient-calls).
@@ -43,40 +93,141 @@ The generated fetch has the same behavior in Angular. Existing `HttpClient` call
 </Tab>
 </Tabs>
 
-Every container has this module, whether or not it declares configuration.
+Both frameworks use the same generated module. Validate the response with your API schema before using it.
+Undeclared origins receive no framework token. Caller-supplied authorization wins and is never refreshed by the framework.
+A framework-authenticated 401 refreshes the token and retries once. A 403 passes through unchanged.
 
 </Step>
 
 <Step>
+<span id="tanstack-query" />
 
-### 2. Send the request
+### 3. Load route data with TanStack Query or Angular
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/queries/assets.ts"
-const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+import { queryOptions } from '@tanstack/react-query'
+import { fetch } from '#mfe/fetch'
+import { z } from 'zod'
 
-if (!response.ok) {
-  throw new Error(`Loading assets for site ${siteId} failed with ${response.status}.`)
+const assetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['operational', 'degraded', 'offline']),
+})
+
+export type Asset = z.infer<typeof assetSchema>
+
+export function assetsQueryOptions(siteId: string) {
+  return queryOptions({
+    // Every variable that determines the response is in the key.
+    queryKey: ['operations', 'assets', { siteId }],
+    queryFn: async ({ signal }): Promise<Asset[]> => {
+      const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+
+      if (!response.ok) {
+        throw new Error(
+          `Loading assets for site ${siteId} failed with ${response.status} ${response.statusText}.`,
+        )
+      }
+
+      return z.array(assetSchema).parse(await response.json())
+    },
+    staleTime: 30_000,
+  })
 }
-
-return z.array(assetSchema).parse(await response.json())
 ```
 
-The signature is `fetch`'s own, so pass a `signal`, a method and a body as you always would.
+Put every response-changing variable in the key, starting with your definition id.
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/app.routes.ts (adapted)"
+import type { ResolveFn } from '@angular/router'
+import { injectMfeSignal } from '@company/mfe-angular'
+import { fetch } from '#mfe/fetch'
+
+export const assetsResolver: ResolveFn<unknown> = async route => {
+  const signal = injectMfeSignal()
+  const siteId = route.queryParamMap.get('site') ?? 'north'
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
+```
+
+Attach this resolver as `resolve: { assets: assetsResolver }`. The Angular adapter does not supply a TanStack Query client.
+
+</Tab>
+</Tabs>
 </Step>
-
 <Step>
+### 4. Read loaded data and refresh after edits
 
-### 3. Take the token for anything that is not HTTP
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
-```ts
-import { getAccessToken } from '#mfe/fetch'
+```tsx title="examples/operations/src/routes/assets.tsx (adapted)"
+import { createFileRoute } from '@tanstack/react-router'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { assetsQueryOptions } from '../queries/assets'
 
-const token = await getAccessToken()
+export const Route = createFileRoute('/assets')({
+  validateSearch: search => ({
+    site: typeof search.site === 'string' ? search.site : 'north',
+  }),
+  loaderDeps: ({ search }) => ({ site: search.site }),
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(assetsQueryOptions(deps.site)),
+  component: Assets,
+})
+
+function Assets() {
+  const { site } = Route.useSearch()
+  const { data } = useSuspenseQuery(assetsQueryOptions(site))
+  const queryClient = useQueryClient()
+  return (
+    <>
+      <pre>{JSON.stringify(data)}</pre>
+      <button
+        onClick={() =>
+          void queryClient.invalidateQueries({
+            queryKey: ['operations', 'assets'],
+          })
+        }
+      >
+        Refresh assets
+      </button>
+    </>
+  )
+}
 ```
 
-Await it, call it once per connection, and never store what it returns.
+The loader and component share a cache entry. Invalidate the query after a successful edit.
+Forward the supplied router context unchanged; disposal cancels that mount's queries.
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (adapted)"
+import { Component, inject } from '@angular/core'
+import { ActivatedRoute } from '@angular/router'
+
+@Component({
+  selector: 'fieldwork-assets',
+  template: `<p>Assets loaded for this route.</p>`,
+})
+export class AssetsComponent {
+  readonly assets = inject(ActivatedRoute).snapshot.data['assets']
+}
+```
+
+For Angular, choose your application's caching and refresh policy. Resolved data does not share the React mount's Query cache.
+
+</Tab>
+</Tabs>
 </Step>
 
 </Steps>
@@ -92,7 +243,7 @@ write. A 401 is handled once, and a 403 passes through untouched.
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to resolve the request URL: expected an absolute URL, or an apiBaseUrl to
 resolve a relative one against, received the relative URL "assets?site=north" and no configured
 apiBaseUrl.
@@ -105,7 +256,7 @@ resolved against the shell document.
 
 <Callout type="error" title="auth/undeclared-origin">
 
-```text
+```text shared
 operations failed to attach the access token for https://reports.example.test: expected a request
 to an origin the author declared as an API with { api: true }, received a request to
 https://reports.example.test, which is not declared.
@@ -118,7 +269,7 @@ is this missing declaration.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to retry POST https://api.example.test after 401: expected a request the
 framework can send a second time, received a ReadableStream body, which is consumed as it is sent
 and cannot be read a second time.
@@ -132,8 +283,7 @@ request.
 
 ## Related
 
-- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — which origins get the token.
-- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — caching and loaders.
-- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — the signal to pass.
-- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — intercept these
-  requests.
+- [Environment variables](/docs/declare-an-env-variable) — declaration and deployment values.
+- [Create an App](/docs/create-an-app) — router setup for either framework.
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — mount and loader cancellation.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — request interception.

@@ -77,6 +77,10 @@ separator:
     "---Shell integration---",
     "add-an-action",
     "…",
+    "---Environment---",
+    "declare-an-env-variable",
+    "read-an-env-variable",
+    "supply-values-per-deployment",
     "---Development & deployment---",
     "run-the-shell-locally",
     "…",
@@ -101,13 +105,17 @@ would wrap awkwardly in the sidebar.
 
 Task guides explain shared behavior once and put framework-specific examples in React / Angular tabs.
 Use `items={['React', 'Angular']}` and matching tab values, with React first.
-Framework selection is remembered across pages. Keep common verification and errors outside the tabs.
+Every framework pair starts on React and switches independently. Shared prose stays outside the tabs.
+Every code section in a task guide uses paired tabs or a `shared` fence marker. The shared marker renders
+one neutral source snippet in both framework tabs through `SharedCode`; use it only when the code
+applies unchanged to both frameworks. The build rejects unpaired guide fences.
 For framework-specific pages, state applicability in the opener.
 
 Give each complete procedure and API contract one canonical home. Package READMEs link to those
 pages and retain setup, package boundaries and unique maintainer details.
 Short prerequisites and warnings can repeat beside the example where readers need them.
-Consolidated guides have one current destination:
+Environment configuration has its own sidebar group. API URL declaration, authenticated requests
+and query integration share the API requests guide. Consolidated guides have one current destination:
 
 | Topic                                                        | Canonical guide               |
 | ------------------------------------------------------------ | ----------------------------- |
@@ -132,8 +140,8 @@ Run `pnpm docs:check` to verify the built destinations and heading anchors.
 ### Paragraph and table widths
 
 `src/styles/app.css` keeps ordinary article content in a centered column up to `40rem` wide.
-Top-level tables span the available article width. `src/components/mdx.tsx` wraps each table in a
-focusable horizontal scroll region. Tables keep a minimum width of `48rem`, cells retain useful width,
+Tables stay inside that content column. `src/components/mdx.tsx` wraps each table in a
+focusable region with visible horizontal scrollbars. Tables retain their intrinsic width, cells retain useful width,
 and inline code stays unbroken. Put reference facts in real Markdown tables and let the wrapper scroll.
 Do not add page-level width overrides or force API names to wrap.
 

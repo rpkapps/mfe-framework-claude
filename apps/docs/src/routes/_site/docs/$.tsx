@@ -85,7 +85,7 @@ function Content({
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="h-(--top-spacing) shrink-0" />
-        <div className="mx-auto flex w-full max-w-240 min-w-0 flex-1 flex-col gap-6 px-4 py-6 text-foreground md:px-6 lg:py-8">
+        <div className="mx-auto flex w-full max-w-160 min-w-0 flex-1 flex-col gap-6 px-4 py-6 text-foreground md:px-0 lg:py-8">
           <div className="mx-auto flex w-full max-w-160 flex-col gap-2">
             <div className="flex items-center justify-between md:items-start">
               <h1 className="scroll-m-24 text-3xl font-medium tracking-tight sm:text-3xl">
@@ -124,7 +124,7 @@ function Content({
               </p>
             )}
           </div>
-          <div className="docs-prose typeset w-full min-w-0 flex-1 pb-16 *:data-[slot=alert]:first:mt-0 sm:pb-0">
+          <div className="typeset w-full min-w-0 flex-1 pb-16 *:data-[slot=alert]:first:mt-0 sm:pb-0">
             <MDX components={getMDXComponents()} />
           </div>
           <div className="mx-auto hidden h-16 w-full max-w-160 items-center gap-2 px-4 sm:flex sm:px-0">

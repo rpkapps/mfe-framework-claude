@@ -14,7 +14,7 @@ from your `src/mfe.config.ts`, so the type of every field comes from the schema 
 
 ### 1. Import the config
 
-```ts title="examples/lab/src/routes/config.tsx"
+```ts shared title="examples/lab/src/routes/config.tsx"
 import config from '#mfe/config'
 ```
 
@@ -26,9 +26,31 @@ A named import works too: `import { config } from '#mfe/config'`.
 
 ### 2. Read a field
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/config.tsx (trimmed)"
 <span>GET {String(config.apiBaseUrl)}lab/probe</span>
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular config-preview.component.ts"
+import { Component } from '@angular/core'
+import config from '#mfe/config'
+
+@Component({
+  selector: 'config-preview',
+  template: '<span>GET {{ config.apiBaseUrl }}lab/probe</span>',
+})
+export class ConfigPreview {
+  readonly config = config
+}
+```
+
+</Tab>
+</Tabs>
 
 Read fields anywhere, including at module scope, because the values are in place before your code
 runs.
@@ -39,7 +61,7 @@ runs.
 
 ### 3. Name the type where you need it
 
-```ts
+```ts shared
 import type { MfeConfig } from '#mfe/config'
 
 function describe(values: MfeConfig): string {
@@ -67,7 +89,7 @@ first screen.
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
@@ -79,7 +101,7 @@ http://localhost:3001/runtime-config.json, received 404 Not Found.
 
 <Callout type="error" title="config/unreachable">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a readable file at
 http://localhost:3001/runtime-config.json, received a request that never completed.
 ```
@@ -91,7 +113,7 @@ reads `received 503 Service Unavailable` instead.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to validate apiBaseUrl: expected a string in uri form, received Invalid input:
 expected string, received undefined.
 ```
@@ -102,7 +124,7 @@ expected string, received undefined.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to read its runtime configuration: expected only the declared fields
 (apiBaseUrl, telemetryEnabled), received apiBaseURL.
 ```

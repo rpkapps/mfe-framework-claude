@@ -12,6 +12,9 @@ each mount its own root there, so your styles still reach it. Apps and Widgets.
 <Step>
 ### 1. Raise the overlay normally
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/unsaved.tsx"
 <Dialog open={blocker.status === 'blocked'} disablePointerDismissal>
   <DialogContent showCloseButton={false}>
@@ -22,28 +25,89 @@ each mount its own root there, so your styles still reach it. Apps and Widgets.
 </Dialog>
 ```
 
-There is nothing to wire up. Your container's own copy of the design system already knows where to
-put it.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/confirm.component.ts"
+import { Component, signal } from '@angular/core'
+import { injectMfeMount } from '@company/mfe-angular'
+import { DialogModule } from 'primeng/dialog'
+
+@Component({
+  selector: 'fieldwork-confirm',
+  imports: [DialogModule],
+  template: `
+    <button (click)="open.set(true)">Open confirmation</button>
+    <p-dialog
+      [visible]="open()"
+      (visibleChange)="open.set($event)"
+      [appendTo]="mount.overlayRoot"
+      header="Unsaved changes"
+    >
+      <p>Leave with unsaved changes?</p>
+    </p-dialog>
+  `,
+})
+export class ConfirmComponent {
+  readonly mount = injectMfeMount()
+  readonly open = signal(false)
+}
+```
+
+</Tab>
+</Tabs>
+
+React Tecton overlays use the supplied root automatically. Angular Dialog, ConfirmDialog and Drawer
+require `[appendTo]="mount.overlayRoot"`. Keep the generated PrimeNG providers for other overlays.
 
 </Step>
 <Step>
 ### 2. Use the same approach for the rest
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/assets.tsx"
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@tecton/react/components/select'
 ```
 
-Dialog, alert dialog, sheet, drawer, popover, tooltip, hover card, select, combobox, dropdown menu
-and context menu all place themselves the same way.
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts"
+import { Select } from 'primeng/select'
+```
+
+</Tab>
+</Tabs>
+
+React Tecton overlays share their framework root. Angular Select and other supported PrimeNG overlays
+read the generated `overlayOptions.appendTo` provider. See the [PrimeNG exceptions](/docs/reference/angular-adapter#use-primeng).
 
 </Step>
 <Step>
 ### 3. Do not portal to the body yourself
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx
 // Not this: it leaves your part of the page and loses your stylesheet.
 createPortal(<Confirm />, document.body)
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```html title="Illustrative Angular template: incorrect portal target"
+<!-- Avoid: this bypasses the mount overlay root. -->
+<p-dialog [visible]="open()" appendTo="body" header="Unsaved changes">
+  <p>Leave with unsaved changes?</p>
+</p-dialog>
+```
+
+</Tab>
+</Tabs>
 
 A hand-written portal lands outside your styles and outside the design system's base colours. The
 overlay renders, and it renders wrong.

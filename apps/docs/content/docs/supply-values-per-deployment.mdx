@@ -15,7 +15,7 @@ values into it, and your container reads it at load time.
 
 ### 1. Write the file for local development
 
-```json title="examples/operations/.mfe/runtime-config.json"
+```json shared title="examples/operations/.mfe/runtime-config.json"
 {
   "apiBaseUrl": "http://localhost:3010/api/",
   "telemetryEnabled": false
@@ -32,7 +32,7 @@ there.
 
 ### 2. Hand the deployment the names
 
-```bash title="examples/operations/.mfe/.env.example (generated, trimmed)"
+```bash shared title="examples/operations/.mfe/.env.example (generated, trimmed)"
 # apiBaseUrl: a string in uri form
 # Declares an API origin: its origin joins this container's authentication allowlist.
 # Required.
@@ -52,7 +52,7 @@ value.
 
 ### 3. Validate the file before release
 
-```json title="examples/operations/.mfe/runtime-config.schema.json (generated, trimmed)"
+```json shared title="examples/operations/.mfe/runtime-config.schema.json (generated, trimmed)"
 {
   "type": "object",
   "properties": {
@@ -92,7 +92,7 @@ The build writes `.mfe/runtime-config.sh` from your declarations. It needs only 
 it runs in `nginx:alpine`. The official nginx image runs every script in `/docker-entrypoint.d/`
 before it starts serving.
 
-```dockerfile title="Dockerfile"
+```dockerfile shared title="Dockerfile"
 FROM node:22 AS build
 WORKDIR /app
 COPY . .
@@ -103,7 +103,7 @@ COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
 ```
 
-```sh
+```sh shared
 docker run -e API_BASE_URL=https://api.example.com/ -e TELEMETRY_ENABLED=false my-container
 ```
 
@@ -141,7 +141,7 @@ changing one takes a new deployment and a page reload.
 
 <Callout type="error" title="runtime-config.sh: … is required">
 
-```text
+```text shared
 runtime-config.sh: API_BASE_URL is required (apiBaseUrl: a string in uri form). Set it on the container.
 ```
 
@@ -152,7 +152,7 @@ container stops at start so the browser never loads a file with the value missin
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
@@ -164,7 +164,7 @@ which creates `.mfe/runtime-config.json` for the dev server to answer with, and 
 
 <Callout type="error" title="config/unreachable">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a 200 response from
 http://localhost:3001/runtime-config.json, received 503 Service Unavailable.
 ```
@@ -176,7 +176,7 @@ configuration, and nothing retries in the background.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to read its runtime configuration: expected a JSON object of configuration
 values, received a body that is not JSON.
 ```

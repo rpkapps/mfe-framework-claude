@@ -14,9 +14,22 @@ container's entry file, and the shell mounts it at whatever prefix it assigns.
 
 ### 1. Scaffold the container
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```sh
 pnpm create @company/mfe examples/operations --id operations
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```sh title="terminal"
+nx g @company/mfe-nx:app operations --id operations --port 3001
+```
+
+</Tab>
+</Tabs>
 
 The id is lower-case letters, digits and single hyphens. It is also your storage prefix and your
 style scope, so pick one you can live with.
@@ -26,6 +39,9 @@ style scope, so pick one you can live with.
 <Step>
 
 ### 2. Declare the App in the entry file
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/mfe.ts"
 import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
@@ -55,8 +71,21 @@ declare module '@tanstack/react-router' {
 export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
 ```
 
-Pass all three values straight through. `basepath: basePath` keeps every `Link` and `navigate`
-relative, so your routes stay `/assets` and `/wells/$wellId`.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-angular'
+import { routes } from './app.routes'
+
+export default createApp({ id: 'operations', version: '2.1.0', routes })
+```
+
+</Tab>
+</Tabs>
+
+React forwards `basePath`, `history`, and `context` to its router factory. Angular supplies `routes` and gets a mount-owned router.
+Both resolve paths under the boundary assigned by the shell.
 
 </Step>
 
@@ -64,15 +93,14 @@ relative, so your routes stay `/assets` and `/wells/$wellId`.
 
 ### 3. Declare the dev port
 
-```json title="examples/operations/package.json"
+```json title="examples/operations/package.json" shared
 "mfe": {
   "port": 3001,
   "definitions": ["operations"]
 }
 ```
 
-The registry builder reads the port and writes your dev URL into the shell's registry. Without it
-the registry build stops.
+The repository's registry builder reads this port. Angular's Nx generator also configures its `serve` target with the same port.
 
 </Step>
 
@@ -91,7 +119,7 @@ strings, and export every definition from `src/mfe.ts`.
 
 <Callout type="error" title="expected lower-case letters, digits and single hyphens">
 
-```text
+```text shared
 Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for
 example "alert-panel"), received "Order_Book".
 ```
@@ -102,7 +130,7 @@ example "alert-panel"), received "Order_Book".
 
 <Callout type="error" title="expected a router factory function">
 
-```text
+```text shared
 orders failed to create App definition: expected a router factory function, received nothing.
 ```
 
@@ -113,7 +141,7 @@ module, and twice in development under StrictMode.
 
 <Callout type="error" title="expected the supplied basePath passed through unchanged">
 
-```text
+```text shared
 operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
 unchanged as createRouter({ basepath }), received no basepath on the router.
 ```
@@ -125,7 +153,7 @@ check, because a nested App is mounted somewhere else.
 
 <Callout type="error" title="expected the supplied context.mfe namespace">
 
-```text
+```text shared
 operations@2.1.0 failed to mount App: expected the supplied context.mfe namespace, spread into the
 router context unchanged, received no mfe key.
 ```

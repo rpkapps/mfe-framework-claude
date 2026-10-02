@@ -14,7 +14,7 @@ server, in your browser only. It is a URL and nothing else, never a token and ne
 
 ### 1. Start your container
 
-```sh
+```sh shared
 pnpm dev
 ```
 
@@ -37,13 +37,33 @@ server** on your row, then press **Apply and reload**.
 ### 3. Or run the override snippet
 
 {/* prettier-ignore */}
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```js
-const key = "company:mfe:overrides"
+const key = 'company:mfe:overrides'
 const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-overrides["operations"] = "http://localhost:3001/mf-manifest.json"
+overrides['operations'] = 'http://localhost:3001/mf-manifest.json'
 localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```js
+const key = 'company:mfe:overrides'
+const overrides = JSON.parse(localStorage.getItem(key) || '{}')
+overrides['fieldwork'] = 'http://localhost:3007/mf-manifest.json'
+overrides['well-inspection'] = 'http://localhost:3007/mf-manifest.json'
+localStorage.setItem(key, JSON.stringify(overrides))
+location.reload()
+```
+
+Point every definition from the Angular container at the same manifest.
+
+</Tab>
+</Tabs>
 
 Your container's README carries it with your id and port, and the repository's root `pnpm dev`
 prints one for every example. Run it in the shell's browser console. The reload is not optional: the old container's modules stay
@@ -55,9 +75,23 @@ registered in the page until it reloads.
 
 ### 4. Take it off again
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```js
 delete overrides['operations']
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```js
+delete overrides['fieldwork']
+delete overrides['well-inspection']
+```
+
+</Tab>
+</Tabs>
 
 The same snippet with that middle line clears one id and keeps the others. In the panel, use
 **Clear the override for `<id>`**, or **Clear all**.
@@ -77,7 +111,7 @@ pointing at a stopped dev server looks exactly like a broken deployment.
 
 <Callout type="error" title="Needs an absolute URL">
 
-```text
+```text shared
 Needs an absolute URL, for example http://localhost:3001/mf-manifest.json — a relative one resolves
 against the shell, not the remote.
 ```
@@ -89,7 +123,7 @@ changes until you correct it.
 
 <Callout type="error" title="cannot load from two URLs">
 
-```text
+```text shared
 insights cannot load from two URLs. One container is registered once, under one name. Point
 fda-summary and well-design at the same manifest, or only one of them will apply.
 ```

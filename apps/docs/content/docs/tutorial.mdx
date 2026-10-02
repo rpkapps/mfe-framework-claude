@@ -11,8 +11,9 @@ things:
 - a Widget from another container rendered inside yours,
 - a test that passes.
 
-Every file below is a real file in that example, except the release notes route in step 5, which
-the example does not have.
+React examples follow `examples/operations`, except the release-notes route. Angular tabs show equivalent files for a generated Nx container.
+Start Angular with the [Nx generator](/docs/reference/mfe-nx#generate-a-container), then add the files shown below.
+Add Angular route objects to the same `routes` array as you progress.
 
 ## Steps
 
@@ -21,6 +22,9 @@ the example does not have.
 <Step>
 
 ### 1. Declare the App
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/mfe.ts"
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
@@ -48,6 +52,19 @@ export default createApp({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-angular'
+import { routes } from './app.routes'
+
+export default createApp({ id: 'operations', version: '2.1.0', routes })
+```
+
+</Tab>
+</Tabs>
+
 `router` is a factory the framework calls for each mount, twice in development under StrictMode, so it builds the router and does nothing else. Forward all three arguments: `basePath`
 as `basepath`, the `history` as it arrived, and the `context` spread into your own. Add your own
 top-level context keys freely.
@@ -57,6 +74,9 @@ top-level context keys freely.
 <Step>
 
 ### 2. Add a route
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/assets.tsx"
 import { createFileRoute } from '@tanstack/react-router'
@@ -87,6 +107,51 @@ function Assets() {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/assets.component.ts"
+import { Component, inject } from '@angular/core'
+import { ActivatedRoute } from '@angular/router'
+
+@Component({
+  selector: 'operations-assets',
+  template: `<ul>
+    @for (asset of assets; track asset.id) {
+      <li>{{ asset.name }}</li>
+    }
+  </ul>`,
+})
+export class AssetsComponent {
+  readonly assets = inject(ActivatedRoute).snapshot.data['assets'] as { id: string; name: string }[]
+}
+```
+
+```ts title="src/app.routes.ts"
+import { inject } from '@angular/core'
+import { type ResolveFn, type Routes } from '@angular/router'
+import { injectTelemetry } from '@company/mfe-angular'
+import { fetch } from '#mfe/fetch'
+import { AssetsComponent } from './assets.component'
+
+const assetsResolver: ResolveFn<unknown> = async route => {
+  const telemetry = injectTelemetry()
+  const site = route.queryParamMap.get('site') ?? 'north'
+  telemetry.debug('Loading assets', { site })
+  const response = await fetch(`assets?site=${encodeURIComponent(site)}`)
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
+
+export const routes: Routes = [
+  { path: 'assets', component: AssetsComponent, resolve: { assets: assetsResolver } },
+]
+// AssetsComponent reads its result from ActivatedRoute.snapshot.data['assets'].
+```
+
+</Tab>
+</Tabs>
+
 Write the path relative to your boundary. This route is `/assets`, never `/operations/assets`. The
 `queryClient` on the context belongs to your mount, so the loader and the component share one cache
 entry.
@@ -97,6 +162,9 @@ entry.
 
 ### 3. Call your API
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/mfe.config.ts"
 import { env } from '@company/mfe-rspack'
 import { z } from 'zod'
@@ -106,6 +174,25 @@ export default {
   telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
 }
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/operations/src/mfe.config.ts"
+import { env } from '@company/mfe-nx/env'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+  telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
+}
+```
+
+</Tab>
+</Tabs>
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/queries/assets.ts"
 import { queryOptions } from '@tanstack/react-query'
@@ -131,6 +218,29 @@ export function assetsQueryOptions(siteId: string) {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/assets.ts"
+import { fetch } from '#mfe/fetch'
+import { z } from 'zod'
+
+const assetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['operational', 'degraded', 'offline']),
+})
+
+export async function fetchAssets(siteId: string, signal?: AbortSignal) {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed with ${response.status}.`)
+  return z.array(assetSchema).parse(await response.json())
+}
+```
+
+</Tab>
+</Tabs>
+
 `src/mfe.config.ts` declares names and schemas, never values. The values arrive in the deployed
 `runtime-config.json`. A relative request through `#mfe/fetch` resolves against the field marked
 `{ api: true }`, and only those origins receive the session token.
@@ -140,6 +250,9 @@ export function assetsQueryOptions(siteId: string) {
 <Step>
 
 ### 4. Mark the settings page
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/settings.tsx"
 import { createFileRoute } from '@tanstack/react-router'
@@ -159,6 +272,32 @@ export const Route = createFileRoute('/settings')({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+import { SettingsComponent } from './settings.component'
+
+export const routes: Routes = [
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    data: mfeRouteData({
+      capability: {
+        name: 'settings',
+        label: 'Operations settings',
+        icon: 'settings',
+      },
+    }),
+  },
+]
+```
+
+</Tab>
+</Tabs>
+
 A capability page is an ordinary route with a marker on it. The build extracts the marker into your
 registry entry, and the shell decides where the page opens. The path comes from `createFileRoute`,
 and the `capability` object says which page it is and what the shell calls it.
@@ -168,6 +307,9 @@ and the `capability` object says which page it is and what the shell calls it.
 <Step>
 
 ### 5. Publish release notes
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/release-notes.tsx"
 import { createFileRoute } from '@tanstack/react-router'
@@ -183,6 +325,31 @@ export const Route = createFileRoute('/release-notes')({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+import { ReleaseNotesComponent } from './release-notes.component'
+
+export const routes: Routes = [
+  {
+    path: 'release-notes',
+    component: ReleaseNotesComponent,
+    data: mfeRouteData({
+      capability: {
+        name: 'releaseNotes',
+        label: 'Operations release notes',
+      },
+    }),
+  },
+]
+```
+
+</Tab>
+</Tabs>
+
 The capability names are `settings`, `help` and `releaseNotes`. One route may claim each,
 and only an App may claim any. The page is yours to write, and the shell opens it at
 `/operations/release-notes`.
@@ -193,6 +360,9 @@ and only an App may claim any. The page is yours to write, and the shell opens i
 
 ### 6. Render a Widget from another container
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
@@ -200,6 +370,34 @@ import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component } from '@angular/core'
+import { MfeWidgetComponent } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+    widgetId="alert-panel"
+    [contract]="contract"
+    [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+  />`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+}
+```
+
+</Tab>
+</Tabs>
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/index.tsx"
 import { useState } from 'react'
@@ -225,6 +423,47 @@ function Overview() {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component, signal } from '@angular/core'
+import { MfeWidgetComponent, type MfeWidgetOutput } from '@company/mfe-angular'
+import { inputSchema, outputSchema, type Outputs } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+      widgetId="alert-panel"
+      [contract]="contract"
+      [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+      [pending]="loading"
+      [fallback]="failed"
+      (output)="onOutput($event)"
+    />
+    <ng-template #loading>Loading alert…</ng-template>
+    <ng-template #failed let-error let-retry="retry">
+      <p role="alert">{{ error.message }}</p>
+      <button (click)="retry()">Retry</button>
+    </ng-template>`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+  readonly acknowledged = signal<string | null>(null)
+
+  onOutput(event: MfeWidgetOutput) {
+    if (event.name === 'acknowledged') {
+      const payload = outputSchema.shape.acknowledged.parse(event.payload)
+      this.acknowledged.set(payload.acknowledgedAt)
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
 Call `lazyWidget` at module scope, once. A Widget's inputs are ordinary props, and each output it
 declares arrives as an `onX` prop. `pending` fills the space while the other container is fetched.
 
@@ -233,6 +472,9 @@ declares arrives as an `onX` prop. `pending` fills the space while the other con
 <Step>
 
 ### 7. Write a test
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/assets.test.tsx"
 import { renderApp, setMfeApiBaseUrl, setMfeConfig, setMfeFetch } from '@company/mfe-react/testing'
@@ -260,6 +502,38 @@ it('renders what the API returned', async () => {
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/assets.spec.ts"
+import { mountApp, setMfeApiBaseUrl, setMfeConfig, setMfeFetch } from '@company/mfe-angular/testing'
+import { expect, it } from 'vitest'
+import operations from './mfe'
+
+const API = 'https://api.example.test/v1/'
+
+it('renders what the API returned', async () => {
+  setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+  setMfeApiBaseUrl(API)
+  setMfeFetch(
+    () => new Response(JSON.stringify([{ id: 'a-1', name: 'Pump 4', status: 'operational' }])),
+  )
+  const mounted = await mountApp(operations, {
+    basePath: '/operations',
+    initialEntries: ['/operations/assets'],
+  })
+  try {
+    await mounted.whenStable()
+    expect(mounted.element.textContent).toContain('Pump 4')
+  } finally {
+    await mounted.dispose()
+  }
+})
+```
+
+</Tab>
+</Tabs>
+
 `renderApp` runs the real adapter over a memory history and in-memory stores. Your source keeps its
 production imports, and the test runner points `#mfe/config` and `#mfe/fetch` at fixtures. Dispose
 the render, so the next test starts clean.
@@ -270,7 +544,7 @@ the render, so the next test starts clean.
 
 ### 8. Run it
 
-```sh
+```sh shared
 pnpm run generate
 pnpm dev
 ```
@@ -295,7 +569,7 @@ test you wrote.
 
 <Callout type="error" title="a non-empty label string literal">
 
-```text
+```text shared
 failed to extract the capability route '/release-notes': expected a non-empty `label` string
 literal, found no label.
 ```

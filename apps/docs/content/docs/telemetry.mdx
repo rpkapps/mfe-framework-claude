@@ -61,7 +61,7 @@ The handle stays stable for the mount's lifetime. Recording does not subscribe y
 
 ### 2. Record events, measurements and caught errors
 
-```ts title="examples/lab/src/routes/telemetry.tsx (adapted)"
+```ts shared title="examples/lab/src/routes/telemetry.tsx (adapted)"
 telemetry.info('Export started', { format: 'csv' })
 telemetry.event('lab.export.started', { format: 'csv' })
 telemetry.measure('lab.export.rows', 128, { unit: 'count' })
@@ -108,7 +108,7 @@ const signal = injectMfeSignal()
 </Tab>
 </Tabs>
 
-```ts title="examples/lab/src/routes/telemetry.tsx (adapted)"
+```ts shared title="examples/lab/src/routes/telemetry.tsx (adapted)"
 import { fetch } from '#mfe/fetch'
 
 async function loadAssets(telemetry: MfeTelemetry, signal: AbortSignal) {
@@ -151,10 +151,25 @@ The development shell retains no records unless you configure a collector, so te
 
 <Callout type="error" title="mount/failure, outside a mount">
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```text
 <unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget
 mount, received a component rendered outside any mount.
 ```
+
+</Tab>
+<Tab value="Angular">
+
+`injectTelemetry()` requires a component or service created inside an App or Widget mount.
+A consumer created outside a mount reports `mount/failure`.
+
+**Fix.** Capture telemetry in a component constructor or field initializer inside the mount.
+Resolvers can inject it before any `await`.
+
+</Tab>
+</Tabs>
 
 **Fix.** Get telemetry inside your mounted component. React route callbacks use `context.mfe.telemetry`.
 
@@ -162,7 +177,7 @@ mount, received a component rendered outside any mount.
 
 <Callout type="error" title="dispose/failure, open spans">
 
-```text
+```text shared
 lab@1.0.0 failed to dispose the mount telemetry: expected every span started by the mount to be
 ended by its author, received 1 span(s) still open: lab.compute.
 ```

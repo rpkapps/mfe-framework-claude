@@ -64,7 +64,11 @@ to the recipes and the reference.
 
 Explain shared behavior once, then show framework-specific code in tabs.
 Use `<Tabs items={['React', 'Angular']}>` with matching `<Tab value="React">` and
-`<Tab value="Angular">` children. React comes first. The site remembers the reader's framework choice.
+`<Tab value="Angular">` children. React comes first and is the default for every pair. Tab selection is independent.
+Every task-guide code section uses a React/Angular pair. Mark genuinely identical fences `shared`
+instead of copying the snippet; the build renders that one source under both tabs. Do not mark
+framework-specific imports, commands or configuration shared.
+
 Place tabs inside a step when the instruction is shared. Use one tab group around the procedure
 when framework setup changes several steps. Keep shared verification and troubleshooting outside the tabs.
 
@@ -256,7 +260,7 @@ there and moves on (NN/g F-pattern: first words of each line get the most fixati
   section must give a correct, if shallow, picture of the page.
 - **Tables for parallel facts** — options, failures, comparisons. Prose for causes.
 - **Keep prose readable and tables usable.** Ordinary content uses the site's centered `40rem` column.
-  Top-level tables use the article width and scroll horizontally at smaller sizes. Use real Markdown
+  Tables stay within the content column and use visible horizontal scrollbars when wider. Use real Markdown
   tables. Keep API names intact and avoid page-specific width overrides.
 - **Consolidate related API tasks.** Prefer a section in the canonical feature guide when the setup
   and contract are shared. Add a page only for an independently useful reader task.

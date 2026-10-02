@@ -13,11 +13,26 @@ definition you export. Apps and Widgets publish the same way.
 <Step>
 ### 1. Build the container
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```sh
 pnpm --filter @example/alert-panel run build
 ```
 
-The script runs `pnpm run generate && rsbuild build`, and the output lands in `dist/`.
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm --filter @example/fieldwork run build
+```
+
+Fieldwork's build script runs framework builds, then `nx build fieldwork --skip-nx-cache`. Its Nx target writes `dist/`.
+
+</Tab>
+</Tabs>
+
+React uses generation followed by Rsbuild. Angular uses its Nx build target. Both examples write `dist/`.
 
 </Step>
 
@@ -44,7 +59,7 @@ the environment into `runtime-config.json`.
 <Step>
 ### 3. Publish the whole output directory
 
-```text
+```text shared
 alert-panel.example.com/
   mf-manifest.json
   remoteEntry.js
@@ -62,6 +77,9 @@ container's environment.
 <Step>
 ### 4. Hand the description record over
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
 {
   "manifestUrl": "mf-manifest.json",
@@ -72,6 +90,26 @@ container's environment.
   "entries": { "alert-panel": "./widgets/alert-panel" }
 }
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```json title="examples/fieldwork/.mfe/mfe-registry.json (trimmed)"
+{
+  "manifestUrl": "mf-manifest.json",
+  "container": "example_fieldwork",
+  "framework": "angular",
+  "requiresRuntime": ">=1.1.0 <2.0.0",
+  "definitions": [
+    { "id": "fieldwork", "kind": "app", "version": "0.1.0" },
+    { "id": "well-inspection", "kind": "widget", "version": "0.1.0" }
+  ],
+  "entries": { "fieldwork": "./app", "well-inspection": "./widgets/well-inspection" }
+}
+```
+
+</Tab>
+</Tabs>
 
 `manifestUrl` is relative to your container, so whoever assembles the registry resolves it against
 the origin you deployed to.
@@ -85,7 +123,7 @@ checks that requirement before selecting an adapter or parsing the registry shap
 <Step>
 ### 5. Rebuild the registry
 
-```sh
+```sh shared
 pnpm run generate
 ```
 
@@ -107,7 +145,7 @@ JSON carries your definitions under `metaData.mfe`. Then open the shell and the 
 
 <Callout type="error" title="MfePlugin: no mf-manifest.json was emitted">
 
-```text
+```text shared
 MfePlugin: no mf-manifest.json was emitted, so this container declares no framework contract and
 a shell cannot tell which major it was built against.
 ```
@@ -119,7 +157,7 @@ a shell cannot tell which major it was built against.
 
 <Callout type="error" title="Nothing generated">
 
-```text
+```text shared
 Nothing generated for insights, lab. Run `pnpm run generate` first: the registry is assembled
 from what each container generates, never hand-written.
 ```
@@ -131,7 +169,7 @@ registry from what they wrote.
 
 <Callout type="error" title="names no expose path">
 
-```text
+```text shared
 alert-panel: its container's build names no expose path. Rebuild the container.
 ```
 

@@ -14,6 +14,9 @@ everything below the branch and never learns where you put it.
 
 ### 1. Hand over at a splat route
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/routes/reports.$.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import { mfeRoute } from '@company/mfe-react'
@@ -21,8 +24,21 @@ import { mfeRoute } from '@company/mfe-react'
 export const Route = createFileRoute('/reports/$')(mfeRoute({ appId: 'reports' }))
 ```
 
-The splat is what makes the handover work. The child is mounted at the path above the splat, so
-`reports` runs at `/operations/reports` and routes `/accounts/fda-2-3` for itself.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import type { Routes } from '@angular/router'
+import { mfeAppRoute } from '@company/mfe-angular'
+
+export const routes: Routes = [mfeAppRoute({ appId: 'reports', path: 'reports' })]
+```
+
+</Tab>
+</Tabs>
+
+React delegates through a splat route. Angular's `mfeAppRoute` adds the wildcard child for you.
+Both mount Reports at `/operations/reports` and let it handle paths below that boundary.
 
 </Step>
 
@@ -30,18 +46,41 @@ The splat is what makes the handover work. The child is mounted at the path abov
 
 ### 2. Link to it
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/__root.tsx"
 void navigate({ to: '/reports/$', params: { _splat: '' } })
 ```
 
-It is one of your own routes, so your own `Link` and `navigate` reach it. An empty splat lands on
-the child's index page.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/navigation.component.ts"
+import { inject } from '@angular/core'
+import { Router } from '@angular/router'
+
+// Component field initializer: this router belongs to the mounted App.
+readonly router = inject(Router)
+
+openReports() {
+  void this.router.navigate(['/reports'])
+}
+```
+
+</Tab>
+</Tabs>
+
+Your App's router reaches the delegated route. React passes an empty splat. Angular navigates to `/reports`. Both open the child's index page.
 
 </Step>
 
 <Step>
 
 ### 3. Draw your own box when it fails
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/reports.$.tsx"
 export const Route = createFileRoute('/reports/$')({
@@ -50,8 +89,35 @@ export const Route = createFileRoute('/reports/$')({
 })
 ```
 
-`mfeRoute` returns ordinary route options, so your own merge in beside it. A failure to load the
-child reaches this `errorComponent` and leaves the rest of your App running.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/reports-host.component.ts"
+import { Component } from '@angular/core'
+import { MfeAppHostComponent, mfeAppRoute } from '@company/mfe-angular'
+
+@Component({
+  selector: 'reports-host',
+  imports: [MfeAppHostComponent],
+  template: `<mfe-app-host [pending]="loading" [fallback]="failed" />
+    <ng-template #loading>Loading reports…</ng-template>
+    <ng-template #failed let-error let-retry="retry">
+      <p>{{ error.message }}</p>
+      <button (click)="retry()">Retry</button>
+    </ng-template>`,
+})
+export class ReportsHost {}
+
+export const routes = [
+  { ...mfeAppRoute({ appId: 'reports', path: 'reports' }), component: ReportsHost },
+]
+```
+
+</Tab>
+</Tabs>
+
+React merges an `errorComponent` into `mfeRoute` options. Angular supplies a wrapper with pending and fallback templates.
+A child failure leaves the rest of your App running.
 
 </Step>
 
@@ -71,7 +137,7 @@ App takes no props. A screen that needs props is a Widget.
 
 <Callout type="error" title="no registry entry with this id">
 
-```text
+```text shared
 reports failed to resolve App: no registry entry with this id. Check the id against the generated
 registry entry, or add a localStorage override pointing at your dev server.
 ```
@@ -83,7 +149,7 @@ the child's dev server.
 
 <Callout type="error" title="expected an entry for an App">
 
-```text
+```text shared
 reports failed to resolve App: expected an entry for an App, received an entry for a Widget, which
 owns no URL boundary.
 ```

@@ -14,7 +14,7 @@ This configures backend persistence. [Browser storage](/docs/remember-a-value) r
 <Step>
 ### 1. Connect the schema, storage and workspace
 
-```ts title="Illustrative apps/shell/src/runtime.ts (shared-state options)"
+```ts shared title="Illustrative apps/shell/src/runtime.ts (shared-state options)"
 import { schema } from '@example/shared-state-contracts/schema'
 
 const { runtime } = createMfeRuntime({
@@ -54,7 +54,7 @@ The browser's scope string selects a record. Check access separately on the serv
 
 <Details summary="Use the reference backend with your repository">
 
-```ts title="Illustrative server/shared-state.ts"
+```ts shared title="Illustrative server/shared-state.ts"
 import { createSharedStateBackend } from '@company/mfe-runtime/shared-state'
 import { schema } from '@example/shared-state-contracts/schema'
 
@@ -77,7 +77,7 @@ Use a durable repository in production.
 <Step>
 ### 3. Switch records when the user changes workspace
 
-```ts title="Illustrative apps/shell/src/workspace.ts"
+```ts shared title="Illustrative apps/shell/src/workspace.ts"
 runtime.sharedState.setScope(JSON.stringify([tenantId, userId, nextWorkspaceId]))
 ```
 
@@ -100,7 +100,7 @@ backend write and confirm the interaction reports failure instead of claiming it
 
 <Callout type="error" title="shared-state/unsupported-contract, before mount">
 
-```text
+```text shared
 well:selection: Shell schema lacks required consumer fields or constraints; reload after upgrading the shell schema
 ```
 
@@ -110,7 +110,7 @@ The shell's schema cannot satisfy the consumer's declared keys or fields. **Fix.
 
 <Callout type="error" title="shared-state/invalid-value, at hydration">
 
-```text
+```text shared
 well:selection: Invalid stored record
 ```
 

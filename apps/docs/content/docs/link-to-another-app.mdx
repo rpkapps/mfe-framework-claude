@@ -14,9 +14,30 @@ embed. The shell owns moves between two Apps, and the framework gives you no API
 
 ### 1. Move inside your own App
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/__root.tsx"
 <Link to="/assets">Assets</Link>
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/navigation.component.ts"
+import { Component } from '@angular/core'
+import { RouterLink } from '@angular/router'
+
+@Component({
+  selector: 'app-navigation',
+  imports: [RouterLink],
+  template: `<a routerLink="/assets">Assets</a>`,
+})
+export class AppNavigation {}
+```
+
+</Tab>
+</Tabs>
 
 Write the path your route file declares. The shell's prefix is added for you, so `/operations`
 never appears in your code.
@@ -27,9 +48,30 @@ never appears in your code.
 
 ### 2. Go to an App you embed
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/__root.tsx"
 void navigate({ to: '/reports/$', params: { _splat: '' } })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/navigation.component.ts"
+import { inject } from '@angular/core'
+import { Router } from '@angular/router'
+
+// Component field initializer: this router belongs to the mounted App.
+readonly router = inject(Router)
+
+openReports() {
+  void this.router.navigate(['/reports'])
+}
+```
+
+</Tab>
+</Tabs>
 
 An App you host at a splat route is one of your own routes. An empty splat lands on the child's
 index page.
@@ -40,12 +82,29 @@ index page.
 
 ### 3. Build an absolute URL into your App
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx
 import { useBasePath } from '@company/mfe-react'
 
 const basePath = useBasePath()
 const deepLink = `${window.location.origin}${basePath}/wells/W-114`
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/navigation.component.ts"
+import { injectBasePath } from '@company/mfe-angular'
+
+// Component field initializer.
+readonly basePath = injectBasePath()
+readonly deepLink = `${window.location.origin}${this.basePath}/wells/W-114`
+```
+
+</Tab>
+</Tabs>
 
 Use this for an email, a work order or any system outside the page. You never need it for routing.
 A Widget owns no URL and gets an empty string.
@@ -68,28 +127,31 @@ than moving the page itself.
 
 <Callout type="error" title="mfe/no-global-patching">
 
-```text
+```text shared
 Patching `history.pushState` hijacks navigation for the whole page, so the host router and the
 other MFEs learn about a navigation only by accident.
 ```
 
-**Fix.** Use `navigate` or `Link` from your router. They already resolve under your prefix.
+**Fix.** Use React's `navigate` or `Link`, or Angular's `Router` or `RouterLink`. They already resolve under your prefix.
 
 </Callout>
 
 <Callout type="error" title="Public API boundary">
 
-```text
+```text shared
 Public API boundary: @company/mfe-runtime is the shell's loader and registry. An application that
 imports it directly can mount outside the host lifecycle and will leak on unmount.
 ```
 
-**Fix.** Import from `@company/mfe-react` only. The loader and the navigator belong to whoever
+**Fix.** Import from your framework adapter: `@company/mfe-react` or `@company/mfe-angular`. The loader and the navigator belong to whoever
 owns the page.
 
 </Callout>
 
-<Callout type="error" title="expected a component rendered inside an App or Widget mount">
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+<Callout type="error" title="mount/failure: useBasePath">
 
 ```text
 <unmounted> failed to call useBasePath: expected a component rendered inside an App or Widget
@@ -99,6 +161,22 @@ mount, received a component rendered outside any mount.
 **Fix.** Move the call into a component your App or Widget renders.
 
 </Callout>
+
+</Tab>
+<Tab value="Angular">
+
+<Callout type="error" title="mount/failure: injectBasePath">
+
+```text
+<unmounted> failed to call injectBasePath(): expected a component or service created inside an App or Widget mount, received one created outside any mount. Move the injectBasePath() call into a component the App or Widget renders.
+```
+
+**Fix.** Call `injectBasePath()` in the injection context of a component created inside the mount.
+
+</Callout>
+
+</Tab>
+</Tabs>
 
 ## Related
 

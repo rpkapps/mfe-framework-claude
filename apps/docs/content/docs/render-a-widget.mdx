@@ -3,8 +3,8 @@ title: 'Render a Widget inside your App'
 description: 'Call lazyWidget at module scope, then render the Widget as an ordinary component.'
 ---
 
-A Widget you know the id of at build time is an ordinary lazy component. Its inputs are props
-and its outputs are `onX` props, both typed from the contract.
+React loads a known Widget with `lazyWidget`. Angular renders `<mfe-widget>` with its id, inputs, and contract.
+Both can host a Widget built with either framework.
 
 ## Steps
 
@@ -14,7 +14,7 @@ and its outputs are `onX` props, both typed from the contract.
 
 ### 1. Depend on the provider's container
 
-```json title="examples/operations/package.json"
+```json title="examples/operations/package.json" shared
 "dependencies": {
   "@example/alert-panel": "workspace:*"
 }
@@ -27,7 +27,10 @@ time.
 
 <Step>
 
-### 2. Call lazyWidget at module scope
+### 2. Bind the Widget's contract
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
@@ -37,14 +40,41 @@ import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
-Module scope means the top level of a file, outside every function, and the contract is optional:
-`lazyWidget('alert-panel')` types the inputs as `Record<string, unknown>`.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component } from '@angular/core'
+import { MfeWidgetComponent } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+    widgetId="alert-panel"
+    [contract]="contract"
+    [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+  />`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+}
+```
+
+</Tab>
+</Tabs>
+
+React calls `lazyWidget` at module scope. Angular binds a contract object to `<mfe-widget>`. Contracts are optional but validate consumer expectations.
 
 </Step>
 
 <Step>
 
 ### 3. Render it with inputs, a placeholder and a fallback
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/index.tsx (trimmed)"
 <AlertPanel
@@ -63,9 +93,49 @@ Module scope means the top level of a file, outside every function, and the cont
 />
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component, signal } from '@angular/core'
+import { MfeWidgetComponent, type MfeWidgetOutput } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+      widgetId="alert-panel"
+      [contract]="contract"
+      [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+      [pending]="loading"
+      [fallback]="failed"
+      (output)="onOutput($event)"
+    />
+    <ng-template #loading>Loading alert…</ng-template>
+    <ng-template #failed let-error let-retry="retry">
+      <p role="alert">{{ error.message }}</p>
+      <button (click)="retry()">Retry</button>
+    </ng-template>`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+  readonly acknowledged = signal<string | null>(null)
+
+  onOutput(event: MfeWidgetOutput) {
+    if (event.name === 'acknowledged') {
+      const payload = outputSchema.shape.acknowledged.parse(event.payload)
+      this.acknowledged.set(payload.acknowledgedAt)
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
 `pending` fills the box while the container is fetched, and `fallback` receives the error and a
-`retry` function, plus `reload` when the tab needs fresh code. Both props are optional: the host
-shows loading and error content in the Widget's box by default.
+`retry` function, plus `reload` when the tab needs fresh code. React supplies default loading and error content. Angular shows only the pending and fallback templates you provide.
 
 </Step>
 
@@ -75,10 +145,12 @@ shows loading and error content in the Widget's box by default.
 
 The panel renders inside your page, styled by its own container. Change an input and the mounted
 Widget updates without remounting or losing its state. A Widget that fails to load loses its own
-box, and the rest of the page keeps working. The default error content offers Retry or Reload page;
-`fallback` replaces it with your own. `examples/lab/src/routes/widgets.tsx` shows the cases side by side.
+box, and the rest of the page keeps working. React's default error content offers Retry or Reload page. Angular's fallback template receives those functions. `examples/lab/src/routes/widgets.tsx` shows the cases side by side.
 
 ## Errors
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 <Callout type="error" title="mfe/stable-definitions">
 
@@ -90,9 +162,18 @@ box, and the rest of the page keeps working. The default error content offers Re
 
 </Callout>
 
+</Tab>
+<Tab value="Angular">
+
+Angular renders `MfeWidgetComponent` directly. It has no `lazyWidget` factory or module-scope call requirement.
+Import `MfeWidgetComponent` in the consuming component and bind its `widgetId`, `inputs`, and optional `contract`.
+
+</Tab>
+</Tabs>
+
 <Callout type="error" title="registry/invalid-entry">
 
-```text
+```text shared
 alert-panel failed to resolve Widget: no registry entry with this id.
 ```
 
@@ -103,7 +184,7 @@ server.
 
 <Callout type="error" title="contract/input-mismatch">
 
-```text
+```text shared
 alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received number
   → at alertId.
 ```
@@ -112,11 +193,10 @@ alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected
 
 </Callout>
 
-On the first render there is nothing to fall back to, so your `fallback` renders. On a later
-update the Widget keeps its last valid inputs on screen and reports the rejection.
-Pass `onInputRejected(error)` to hear about that update. The host's message says the Widget is
-still showing the previous inputs; `inputFallback({ error })` replaces the message. A valid
-update removes it.
+A failed first mount renders your fallback. Angular leaves the region empty when you supply no fallback template.
+On a later rejected update, the Widget keeps its last valid inputs.
+React reports the rejection through `onInputRejected(error)` and optional `inputFallback` content.
+Angular reports it through `(inputRejected)` and your `[inputFallback]` template. A valid update clears the rejection.
 
 ## Related
 

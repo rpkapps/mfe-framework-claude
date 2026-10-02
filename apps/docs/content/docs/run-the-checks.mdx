@@ -14,11 +14,11 @@ on its own, which is what you want while you are fixing one of them.
 
 ### 1. Run the lot
 
-```sh
+```sh shared
 pnpm check
 ```
 
-```json title="package.json"
+```json title="package.json" shared
 "check": "pnpm run build && pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
 ```
 
@@ -30,7 +30,7 @@ The packages build first, then generation, because the rest read the generated `
 
 ### 2. Run one part while you fix it
 
-```sh
+```sh shared
 pnpm format      # write the formatting
 pnpm lint        # the rules
 pnpm typecheck   # tsc --noEmit, strict
@@ -43,12 +43,28 @@ pnpm test        # every suite
 
 ### 3. Run them inside your own container
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```sh
 pnpm lint
 pnpm typecheck
 pnpm test
 pnpm format:check
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```sh title="examples/fieldwork"
+pnpm exec nx lint fieldwork
+pnpm typecheck
+pnpm test
+pnpm exec prettier --check src
+```
+
+</Tab>
+</Tabs>
 
 Your container has the same four scripts. `typecheck` and `test` generate first, so they never run
 against stale output.
@@ -59,12 +75,33 @@ against stale output.
 
 ### 4. Read what lint says
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```text
 src/routes/settings.tsx
   12:10  error  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so
   another MFE in this origin can read or overwrite it … Use `useStoredState()` for component state
   or `useMfeStorage()` for imperative access, both from @company/mfe-react  mfe/no-raw-storage
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```text
+src/settings.component.ts
+  12:10  error  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so
+  another MFE in this origin can read or overwrite it, it carries no version to migrate a changed
+  shape from, and a quota failure escapes as an unhandled exception. Use `injectStoredState()`
+  for component state or `injectMfeStorage()` for imperative access, both from @company/mfe-angular.
+  The storage adapter and a documented shell override bootstrap opt out through this rule's
+  `allowedScopes` option.  mfe/no-raw-storage
+```
+
+Call the injection helper inside a component or service injection context.
+
+</Tab>
+</Tabs>
 
 Read it from the ends in. The file, line and column say where. The rule name at the far right says
 which rule. The message between them says what it found and what to write instead.
@@ -84,7 +121,7 @@ to you. `pnpm verify:page` drives a real browser and is deliberately not part of
 
 <Callout type="error" title="was not found by the project service">
 
-```text
+```text shared
 Parsing error: /home/you/operations/src/routes/probe.tsx was not found by the project service.
 Consider either including it in the tsconfig.json or including it in allowDefaultProject
 ```

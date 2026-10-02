@@ -19,6 +19,9 @@ decides whether the shell loads you at all. Apps and Widgets carry the same thre
 <Step>
 ### 1. Write the definition version inline
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/mfe.ts (trimmed)"
 export default createApp({
   id: 'operations',
@@ -26,6 +29,27 @@ export default createApp({
   router: makeRouter,
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/mfe.ts (version example)"
+import { createApp } from '@company/mfe-angular'
+import { AppComponent } from './app.component'
+import { routes } from './app.routes'
+
+export const fieldwork = createApp({
+  id: 'fieldwork',
+  version: '2.1.0',
+  component: AppComponent,
+  routes,
+})
+```
+
+Angular supplies `component` and `routes`. The version names this release in diagnostics and registry entries.
+
+</Tab>
+</Tabs>
 
 It has to be a plain string literal, and every message about this App then names it as
 `operations@2.1.0`.
@@ -35,12 +59,28 @@ It has to be a plain string literal, and every message about this App then names
 <Step>
 ### 2. Move the package version with it
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```json title="examples/operations/package.json (trimmed)"
 {
   "name": "@example/operations",
   "version": "2.1.0"
 }
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```json title="examples/fieldwork/package.json (version example)"
+{
+  "name": "@example/fieldwork",
+  "version": "2.1.0"
+}
+```
+
+</Tab>
+</Tabs>
 
 The registry entry carries the definition version alone, and nothing checks that these two agree.
 
@@ -49,7 +89,7 @@ The registry entry carries the definition version alone, and nothing checks that
 <Step>
 ### 3. Leave the runtime requirement to the framework
 
-```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
+```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)" shared
 { "requiresRuntime": ">=1.1.0 <2.0.0" }
 ```
 
@@ -108,7 +148,7 @@ declared. Make one of your screens fail on purpose, and the message names the sa
 
 <Callout type="error" title="failed to read the definition version">
 
-```text
+```text shared
 src/mfe.ts:44:3: 'operations' failed to read the definition version: expected a plain string
 literal, found pkg.version.
 ```
@@ -120,7 +160,7 @@ code, so a computed version cannot be read at all.
 
 <Callout type="error" title="contract/runtime-incompatible">
 
-```text
+```text shared
 operations failed to check shell runtime compatibility: expected runtime API >=1.1.0 <2.0.0,
 received runtime API 1.0.0.
 ```

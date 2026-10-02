@@ -4,10 +4,15 @@ import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DocsTab as DocsTabComponent, DocsTabs as DocsTabsComponent } from './docs-blocks.tsx'
+import type {
+  DocsSharedCode as DocsSharedCodeComponent,
+  DocsTab as DocsTabComponent,
+  DocsTabs as DocsTabsComponent,
+} from './docs-blocks.tsx'
 
 let DocsTab: typeof DocsTabComponent
 let DocsTabs: typeof DocsTabsComponent
+let DocsSharedCode: typeof DocsSharedCodeComponent
 
 function Examples() {
   return (
@@ -23,7 +28,7 @@ let container: HTMLDivElement
 
 beforeEach(async () => {
   vi.resetModules()
-  ;({ DocsTab, DocsTabs } = await import('./docs-blocks.tsx'))
+  ;({ DocsTab, DocsTabs, DocsSharedCode } = await import('./docs-blocks.tsx'))
   window.localStorage.clear()
   container = document.createElement('div')
   document.body.append(container)
@@ -56,13 +61,27 @@ function selectedLabels() {
 }
 
 describe('framework examples', () => {
+  it('shows the same shared snippet in either framework tab', async () => {
+    await mount(
+      <DocsSharedCode>
+        <pre>
+          <code>pnpm run build</code>
+        </pre>
+      </DocsSharedCode>,
+    )
+    expect(selectedLabels()).toEqual(['React'])
+    expect(container.querySelector('[role="tabpanel"]')?.textContent).toBe('pnpm run build')
+    await choose('Angular')
+    expect(selectedLabels()).toEqual(['Angular'])
+    expect(container.querySelector('[role="tabpanel"]')?.textContent).toBe('pnpm run build')
+  })
   it('puts React first and defaults to React', async () => {
     await mount(<Examples />)
     expect(container.querySelector('[role="tab"]')?.textContent).toBe('React')
     expect(selectedLabels()).toEqual(['React'])
   })
 
-  it('syncs mounted examples and remembers selection on the next page', async () => {
+  it('lets each example switch independently and starts the next page on React', async () => {
     await mount(
       <>
         <Examples />
@@ -70,13 +89,13 @@ describe('framework examples', () => {
       </>,
     )
     await choose('Angular')
-    expect(selectedLabels()).toEqual(['Angular', 'Angular'])
-    expect(window.localStorage.getItem('mfe-docs:framework')).toBe('Angular')
+    expect(selectedLabels()).toEqual(['Angular', 'React'])
+    expect(window.localStorage.getItem('mfe-docs:framework')).toBeNull()
     await act(async () => root?.render(<Examples key="next-page" />))
-    expect(selectedLabels()).toEqual(['Angular'])
+    expect(selectedLabels()).toEqual(['React'])
   })
 
-  it('hydrates the React server output safely before restoring Angular', async () => {
+  it('hydrates with React even when a previous Angular preference exists', async () => {
     window.localStorage.setItem('mfe-docs:framework', 'Angular')
     container.innerHTML = renderToString(<Examples />)
     expect(selectedLabels()).toEqual(['React'])
@@ -84,7 +103,7 @@ describe('framework examples', () => {
     await act(async () => {
       root = hydrateRoot(container, <Examples />, { onRecoverableError })
     })
-    expect(selectedLabels()).toEqual(['Angular'])
+    expect(selectedLabels()).toEqual(['React'])
     expect(onRecoverableError).not.toHaveBeenCalled()
   })
 
@@ -102,9 +121,9 @@ describe('framework examples', () => {
       </>,
     )
     await choose('Angular')
-    expect(selectedLabels()).toEqual(['Angular', 'Angular'])
+    expect(selectedLabels()).toEqual(['Angular', 'React'])
     await act(async () => root?.render(<Examples key="next-page" />))
-    expect(selectedLabels()).toEqual(['Angular'])
+    expect(selectedLabels()).toEqual(['React'])
   })
 
   it('leaves unrelated tabs independent with their existing default', async () => {

@@ -36,7 +36,7 @@ Apps and Widgets store it under their own definition id.
 <Step>
 ### 1. Declare the schema at module scope
 
-```ts title="examples/operations/src/routes/index.tsx"
+```ts shared title="examples/operations/src/routes/index.tsx"
 import { z } from 'zod'
 
 // Module scope: a schema rebuilt on every render rebinds the key on every render.
@@ -49,7 +49,7 @@ The framework compares schemas by reference. Export one schema object per key fr
 <Step>
 ### 2. Bind the key
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```tsx title="examples/operations/src/routes/index.tsx"
@@ -84,7 +84,7 @@ The stored key is `operations:table-density`. An absent record reads as `comfort
 <Step>
 ### 3. Write a value
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```tsx title="examples/operations/src/routes/index.tsx"
@@ -107,12 +107,28 @@ Both setters accept a value or an updater function. Both validate the result aga
 <Step>
 ### 4. Keep it for this tab alone
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/storage.tsx"
 const [visits, setVisits] = useStoredState('visits', visitsSchema, {
   defaultValue: 0,
   storage: 'session',
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+readonly visits = injectStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  storage: 'session',
+})
+```
+
+</Tab>
+</Tabs>
 
 `storage` defaults to `'local'`. `'session'` clears when the tab closes. The areas keep separate records with the same name.
 Angular accepts the same `storage` option.
@@ -122,7 +138,7 @@ Angular accepts the same `storage` option.
 
 ## Read or write outside render
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```tsx title="examples/lab/src/routes/storage.tsx"
@@ -148,12 +164,28 @@ Use `this.local` in methods. A resolver captures `injectMfeStorage()` before any
 </Tab>
 </Tabs>
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```ts title="Illustrative handler using the density schema above"
 const key = local.key('table-density', densitySchema)
 const density = key.get()
 key.set('compact')
 key.remove()
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular handler using the density schema above"
+const key = this.local.key('table-density', densitySchema)
+const density = key.get()
+key.set('compact')
+key.remove()
+```
+
+</Tab>
+</Tabs>
 
 `get()` returns `null` for an absent record and does not subscribe. Writes update mounted consumers
 of that key. Reuse the same schema and options as the rendered binding.
@@ -172,17 +204,27 @@ then Local storage, and look for `operations:table-density`. Two mounts of one d
 Two copies of a Widget read the same stored value by default. To keep a tile's preference separate,
 give it an `instanceId` in the host:
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```tsx
 <DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
-In Angular:
+</Tab>
+<Tab value="Angular">
 
-```html
+```html title="Illustrative Angular host template"
 <mfe-widget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
+</Tab>
+</Tabs>
+
 Inside the Widget, add `scope: 'instance'` to the key:
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
 
 ```tsx
 const [camera, setCamera] = useStoredState('camera', cameraSchema, {
@@ -191,7 +233,20 @@ const [camera, setCamera] = useStoredState('camera', cameraSchema, {
 })
 ```
 
-Pass the same option to Angular's `injectStoredState`. Reuse the ID when the tile returns after
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+readonly camera = injectStoredState('camera', cameraSchema, {
+  defaultValue: defaultCamera,
+  scope: 'instance',
+})
+```
+
+</Tab>
+</Tabs>
+
+Reuse the ID when the tile returns after
 a reload. A new ID starts a separate record. Reusing one shares its settings. Omitting `scope`
 keeps reading the definition-wide value.
 
@@ -204,7 +259,7 @@ outside a mount, where there is no Widget instance.
 
 <Callout type="error" title="storage/failure, at bind">
 
-```text
+```text shared
 lab failed to bind the local storage key draft: expected the same schema object every active
 consumer already declared, received a different schema object.
 ```
@@ -216,7 +271,7 @@ import it wherever the key is read.
 
 <Callout type="error" title="storage/failure, at write">
 
-```text
+```text shared
 lab failed to write the local storage key draft: expected local storage to accept 2097152
 characters, received QuotaExceededError: …
 ```

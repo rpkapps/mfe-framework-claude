@@ -14,7 +14,7 @@ App that rendered you act with its own router.
 
 ### 1. Declare the output
 
-```ts title="examples/insights/src/mfe.tsx"
+```ts title="examples/insights/src/mfe.tsx" shared
 export const fdaSummaryContract = {
   inputSchema: z.object({
     fdaId: z.enum(['fda-1-02', 'fda-2-3', 'fda-1-2']),
@@ -35,7 +35,10 @@ the same shape.
 
 <Step>
 
-### 2. Emit it from the render function
+### 2. Emit it from the Widget
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/insights/src/widgets.tsx (trimmed)"
 <FdaCard
@@ -46,6 +49,30 @@ the same shape.
 />
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/fda-summary.component.ts"
+import { Component, input, output } from '@angular/core'
+
+@Component({
+  selector: 'fda-summary',
+  template: `<button (click)="open()">Open report</button>`,
+})
+export class FdaSummaryComponent {
+  readonly fdaId = input.required<string>()
+  readonly showActions = input(true)
+  readonly selected = output<{ fdaId: string; selected: boolean }>()
+  readonly opened = output<{ fdaId: string; title: string }>()
+  open() {
+    this.opened.emit({ fdaId: this.fdaId(), title: 'FDA report' })
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
 Send only what the App needs to act, as JSON: a route id or a parameter, never a function.
 
 </Step>
@@ -53,6 +80,9 @@ Send only what the App needs to act, as JSON: a route id or a parameter, never a
 <Step>
 
 ### 3. Act on it in the App
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx
 const navigate = useNavigate()
@@ -65,6 +95,42 @@ const navigate = useNavigate()
   }}
 />
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/report-overview.component.ts"
+import { Component, inject, signal } from '@angular/core'
+import { Router } from '@angular/router'
+import { MfeWidgetComponent, type MfeWidgetOutput } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/insights/contracts/fda-summary'
+
+@Component({
+  selector: 'report-overview',
+  imports: [MfeWidgetComponent],
+  template: `<h2>{{ heading() }}</h2>
+    <mfe-widget
+      widgetId="fda-summary"
+      [contract]="contract"
+      [inputs]="{ fdaId: 'fda-2-3' }"
+      (output)="onOutput($event)"
+    />`,
+})
+export class ReportOverview {
+  readonly router = inject(Router)
+  readonly heading = signal('Overview')
+  readonly contract = { inputSchema, outputSchema }
+  onOutput(event: MfeWidgetOutput) {
+    if (event.name !== 'opened') return
+    const payload = outputSchema.shape.opened.parse(event.payload)
+    this.heading.set(payload.title)
+    void this.router.navigate(['/reports'], { queryParams: { fda: payload.fdaId } })
+  }
+}
+```
+
+</Tab>
+</Tabs>
 
 Write the route as your App's own path, because the mount prefix is added for you wherever the
 shell put your App.
@@ -84,7 +150,7 @@ Widget code.
 
 <Callout type="error" title="mfe/no-widget-global-effects">
 
-```text
+```text shared
 A Widget does not drive the URL: `history.pushState` navigates the whole page, and the host
 router, the owning App and every sibling MFE learn about it only by accident.
 ```
@@ -95,7 +161,7 @@ router, the owning App and every sibling MFE learn about it only by accident.
 
 <Callout type="error" title="mfe/no-widget-global-effects">
 
-```text
+```text shared
 `document.title` is shell-owned: several Widgets can be mounted at once, so the last one to render
 would win and the tab title would flicker.
 ```

@@ -30,7 +30,7 @@ Choosing a well in React updates the Angular planner. Changing units in Angular 
 
 Import the schema from your shared contract package. React Lab and Angular Fieldwork both use `@example/shared-state-contracts`.
 
-```ts title="Illustrative src/mfe.ts"
+```ts shared title="Illustrative src/mfe.ts"
 import { sharedStateSchema } from '@example/shared-state-contracts'
 ```
 
@@ -40,7 +40,7 @@ The package defines `display:units` and `well:selection`. Import your team's pub
 <Step>
 ### 2. Add the schema to your definition
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```ts title="Illustrative src/mfe.ts"
@@ -78,7 +78,7 @@ For example, the `operations` App uses `#mfe/shared-state/operations`.
 <Step>
 ### 3. Read a key and handle rejected updates
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```tsx title="Illustrative src/unit-picker.tsx"
@@ -147,7 +147,7 @@ Always write through the setter.
 <Step>
 ### 4. Update only the object fields that changed
 
-```ts title="Illustrative src/selection-actions.ts (inside a mounted consumer)"
+```ts shared title="Illustrative src/selection-actions.ts (inside a mounted consumer)"
 await store.set('well:selection', { wellId: 'well-42', runId: 'run-7' })
 await store.set('well:selection', { runId: 'run-8' })
 ```
@@ -162,7 +162,7 @@ To clear this selection, write `null`. Sending an empty object preserves it. `un
 
 ## Read state in a loader or resolver
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 ```ts title="Illustrative React router"
@@ -207,7 +207,7 @@ Open a units picker in an App and a Widget. Toggle either picker and confirm bot
 
 <Callout type="error" title="shared-state/unsupported-schema, at build">
 
-```text
+```text shared
 shared-state/unsupported-schema: sharedStateSchema must be a fixed-shape z.object
 ```
 
@@ -218,7 +218,7 @@ Calculate domain values before writing them.
 
 <Callout type="error" title="shared-state/invalid-value, at write">
 
-```text
+```text shared
 well:selection: <root> must be finite JSON data
 ```
 
@@ -229,7 +229,7 @@ cannot provide the required `wellId`. To reset this nullable key, write `null`. 
 
 <Callout type="error" title="shared-state/conflict, at write">
 
-```text
+```text shared
 well:selection: Record changed since this intention was formed; refresh and choose again
 ```
 
@@ -239,7 +239,7 @@ Another write changed the record before yours was accepted. **Fix.** Read the re
 
 <Callout type="error" title="shared-state/scope-disposed">
 
-```text
+```text shared
 <scope>: This binding belongs to a disposed scope
 ```
 

@@ -3,8 +3,8 @@ title: 'Quickstart'
 description: 'Scaffold a container, start the shell, and watch your own App mount into it. About ten minutes.'
 ---
 
-Ten minutes from an empty directory to your own App running inside the shell. You get a scaffolded
-container, a registry entry the shell reads at boot, and a page at `/<your-id>`.
+Run a React or Angular App inside the shell. React scaffolds a new container. Angular starts with the bundled Fieldwork example.
+For your own Angular container, use the [Nx generator](/docs/reference/mfe-nx#generate-a-container) in an Nx workspace.
 
 ## Steps
 
@@ -12,14 +12,29 @@ container, a registry entry the shell reads at boot, and a page at `/<your-id>`.
 
 <Step>
 
-### 1. Scaffold a container
+### 1. Choose a container
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```sh
 pnpm create @company/mfe examples/field-notes --id field-notes
 ```
 
-Run it from the repository root. An id is lower-case letters, digits and single hyphens. Pass
-`--template widget` for a Widget instead.
+</Tab>
+<Tab value="Angular">
+
+```sh title="terminal"
+# The Angular example is already present in this repository.
+cd examples/fieldwork
+cat src/mfe.ts
+cd ../..
+```
+
+</Tab>
+</Tabs>
+
+Run commands from the repository root. React ids use lower-case letters, digits and single hyphens. Pass `--template widget` for a React Widget.
 
 </Step>
 
@@ -27,11 +42,11 @@ Run it from the repository root. An id is lower-case letters, digits and single 
 
 ### 2. Install the new package
 
-```sh
+```sh shared
 pnpm install
 ```
 
-`examples/*` is a workspace folder, so this links the container you scaffolded.
+`examples/*` is a workspace folder. Installation links the React scaffold and the bundled Angular packages.
 
 </Step>
 
@@ -39,7 +54,7 @@ pnpm install
 
 ### 3. Generate the registry
 
-```sh
+```sh shared
 pnpm run generate
 ```
 
@@ -52,12 +67,11 @@ Every container writes its own registry entry, and the root script assembles the
 
 ### 4. Start the shell and every container
 
-```sh
+```sh shared
 pnpm dev
 ```
 
-The shell serves `http://localhost:3000`. Each container serves its own port, and a scaffolded App
-takes 3101.
+The shell serves `http://localhost:3000`. Each container serves its own port. A React scaffold takes 3101. The Angular Fieldwork example uses 3007.
 
 </Step>
 
@@ -65,9 +79,22 @@ takes 3101.
 
 ### 5. Open your App
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```text
 http://localhost:3000/field-notes
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```text title="browser address"
+http://localhost:3000/fieldwork
+```
+
+</Tab>
+</Tabs>
 
 The shell owns `/` and `/$appId`. Everything below your id is yours to route.
 
@@ -77,16 +104,15 @@ The shell owns `/` and `/$appId`. Everything below your id is yours to route.
 
 ## Check it works
 
-The shell chrome stays at the top, and your App renders below it. The scaffolded home route shows
-your id as a heading and names the signed-in user under it. Press <Kbd>⌘</Kbd><Kbd>K</Kbd> to open
+The shell chrome stays at the top, and your App renders below it. The React scaffold and Angular Fieldwork example show the signed-in user. Press <Kbd>⌘</Kbd><Kbd>K</Kbd> to open
 the palette. Your App is listed under **Go to**, and the settings page the scaffold wrote is listed
-under **Application pages** as `field-notes settings`.
+under **Application pages** as `field-notes settings` or `Fieldwork settings`.
 
 ## Errors
 
 <Callout type="error" title="Port 3000 already in use">
 
-```text
+```text shared
 Port 3000 already in use.
 ```
 
@@ -97,7 +123,7 @@ names the process, and `kill <pid>` stops it.
 
 <Callout type="error" title="not a usable definition id">
 
-```text
+```text shared
 "Field_Notes" is not a usable definition id. Ids are lower-case letters, digits and single hyphens,
 for example "alert-panel".
 ```
@@ -108,7 +134,7 @@ for example "alert-panel".
 
 <Callout type="error" title="Nothing generated">
 
-```text
+```text shared
 Nothing generated for field-notes. Run `pnpm run generate` first: the registry is assembled
 from what each container generates, never hand-written.
 ```

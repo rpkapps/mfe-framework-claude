@@ -13,10 +13,24 @@ registry. What people see depends on whether their page loaded before or after t
 <Step>
 ### 1. Roll back by redeploying the earlier build
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```sh
 git checkout v2.0.3
 pnpm --filter @example/operations run build
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+git checkout v2.0.3
+pnpm --filter @example/fieldwork run build
+```
+
+</Tab>
+</Tabs>
 
 Publish that build to the same origin under the same id, and register its record again.
 
@@ -25,7 +39,7 @@ Publish that build to the same origin under the same id, and register its record
 <Step>
 ### 2. Undeploy by removing the entry
 
-```sh
+```sh shared
 curl -X DELETE "$REGISTRY_URL/containers/operations"
 ```
 
@@ -37,7 +51,7 @@ soon as it answers.
 <Step>
 ### 3. Rebuild the registry in this repository
 
-```sh
+```sh shared
 pnpm run generate
 ```
 
@@ -49,7 +63,7 @@ registry.
 <Step>
 ### 4. Expect the stored records to stay
 
-```text
+```text shared
 lab:draft
 lab:visits
 ```
@@ -76,7 +90,7 @@ loading now reaches it. What everyone else gets depends on when their page loade
 
 <Callout type="error" title="registry/invalid-entry">
 
-```text
+```text shared
 operations failed to resolve App: no registry entry with this id.
 ```
 
@@ -87,7 +101,7 @@ again, or point the id at a dev server with a local override.
 
 <Callout type="error" title="load/manifest-failure">
 
-```text
+```text shared
 Check that https://operations.example.com/mf-manifest.json is reachable and serves a valid manifest.
 ```
 

@@ -15,6 +15,9 @@ with.
 
 ### 1. Install the values the deployment would supply
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/routes/assets.test.tsx"
 import {
   mfeRequests,
@@ -31,6 +34,28 @@ setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
 setMfeApiBaseUrl(API)
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+import {
+  mfeRequests,
+  mountApp,
+  setMfeAccessToken,
+  setMfeApiBaseUrl,
+  setMfeConfig,
+  setMfeFetch,
+} from '@company/mfe-angular/testing'
+import { app } from './mfe'
+
+const API = 'https://api.example.test/v1/'
+setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+setMfeApiBaseUrl(API)
+```
+
+</Tab>
+</Tabs>
+
 `setMfeConfig` fills every field you declared with `env()`. `setMfeApiBaseUrl` gives the request
 boundary the base a relative URL resolves against.
 
@@ -39,6 +64,9 @@ boundary the base a relative URL resolves against.
 <Step>
 
 ### 2. Answer the request yourself
+
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/routes/assets.test.tsx"
 function json(body: unknown, status = 200): Response {
@@ -52,6 +80,23 @@ setMfeAccessToken('token-7')
 setMfeFetch(() => json(ASSETS))
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+setMfeAccessToken('token-7')
+setMfeFetch(() => json(ASSETS))
+```
+
+</Tab>
+</Tabs>
+
 Pass `null` to `setMfeAccessToken` for a shell with nobody signed in. Return a 503 from the handler
 to check what your page shows when the API fails.
 
@@ -60,6 +105,9 @@ to check what your page shows when the API fails.
 <Step>
 
 ### 3. Assert on the request that went out
+
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
 
 ```ts title="examples/operations/src/routes/assets.test.tsx"
 const rendered = renderApp(operations, { initialEntries: ['/assets'] })
@@ -72,6 +120,21 @@ expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=nort
 expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+const mounted = await mountApp(app, { initialEntries: ['/assets'] })
+await expect.poll(() => mfeRequests()).toHaveLength(1)
+expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=north')
+expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
+```
+
+This assumes your Angular App has an `assets` route that sends the same request. Supply its shared-state fixtures if it declares shared state.
+
+</Tab>
+</Tabs>
+
 `mfeRequests()` records the URL the boundary resolved and the header it attached. Each record holds
 `url`, `method` and `authorization`.
 
@@ -81,6 +144,9 @@ expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 
 ### 4. Clear the fixtures between tests
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```ts title="vitest.setup.ts"
 import { resetGeneratedAliases } from '@company/mfe-react/testing'
 
@@ -88,6 +154,23 @@ afterEach(() => {
   resetGeneratedAliases()
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="vitest.setup.ts (Angular)"
+import '@angular/compiler'
+import { cleanup, resetGeneratedAliases } from '@company/mfe-angular/testing'
+import { afterEach } from 'vitest'
+
+afterEach(async () => {
+  await cleanup()
+  resetGeneratedAliases()
+})
+```
+
+</Tab>
+</Tabs>
 
 Both fixtures are module state, so one test would otherwise inherit another's values.
 `resetMfeConfig()` and `resetMfeFetch()` clear them one at a time.
@@ -107,7 +190,7 @@ installed throws and names the field.
 
 <Callout type="error" title="failed to read the configuration field">
 
-```text
+```text shared
 the test environment failed to read the configuration field 'apiBaseUrl': expected configuration
 installed by the test, received nothing installed.
 ```
@@ -118,7 +201,7 @@ installed by the test, received nothing installed.
 
 <Callout type="error" title="among the installed values">
 
-```text
+```text shared
 the test environment failed to read the configuration field 'telemetryEnabled': expected
 'telemetryEnabled' among the installed values, received only apiBaseUrl.
 ```
@@ -130,7 +213,7 @@ has to supply it.
 
 <Callout type="error" title="failed to answer">
 
-```text
+```text shared
 the test environment failed to answer https://api.example.test/v1/assets?site=north: expected a
 request handler installed by the test, received nothing installed.
 ```
@@ -144,6 +227,6 @@ network.
 
 - [Call your API](/docs/call-your-api) — the request path this fakes.
 - [Declare an environment variable](/docs/declare-an-env-variable) — where these fields come from.
-- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — which origins get the token.
+- [Mark a URL as your API](/docs/call-your-api#api-url) — which origins get the token.
 - [Test an App](/docs/test-an-app) — rendering the App around these requests.
 - [Testing API](/docs/reference/testing-api) — every setter, with its options.

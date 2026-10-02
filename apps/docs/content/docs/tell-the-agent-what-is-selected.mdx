@@ -15,6 +15,9 @@ one.
 
 ### 1. Publish what is open
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
 import { useAgentContext } from '@company/mfe-react'
 import { z } from 'zod'
@@ -36,15 +39,45 @@ function WellDetail(): ReactNode {
 }
 ```
 
-Call it on every render with the current value. `description` tells the model what the value is,
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/well-context.component.ts"
+import { Component, input } from '@angular/core'
+import { injectAgentContext } from '@company/mfe-angular'
+import { z } from 'zod'
+
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+@Component({ selector: 'operations-well-context', template: '' })
+export class WellContextComponent {
+  readonly design = input<z.infer<typeof openWell>>(null)
+
+  constructor() {
+    injectAgentContext(() => ({
+      description: 'The well design the user has open, or null when its id is unknown',
+      schema: openWell,
+      value: this.design(),
+    }))
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+React calls its hook on every render. Angular uses an injection-context factory that reads the current signals. `description` tells the model what the value is,
 and the agent gets what `schema` parsed. An equal value publishes nothing. The snapshot goes when
-the component unmounts or the mount is disposed.
+the component unmounts, its injector is destroyed, or the mount is disposed.
 
 </Step>
 
 <Step>
 
 ### 2. Send ids and a label, not the record
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
 /** At module scope, as every inputSchema is. */
@@ -62,6 +95,31 @@ useAction({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { injectAction } from '@company/mfe-angular'
+import { z } from 'zod'
+
+// Declare once at module scope.
+const wellDesignInput = z.object({ id: z.string() })
+
+// Inside a component constructor; wellDesigns holds your application's records.
+injectAction({
+  name: 'read-well-design',
+  label: 'Operations: read a well design',
+  description: 'Returns the well design with this id, or null.',
+  inputSchema: wellDesignInput,
+  effect: 'read',
+  placements: ['agent'],
+  execute: ({ id }) => wellDesigns.find(design => design.id === id) ?? null,
+})
+```
+
+</Tab>
+</Tabs>
+
 A value must be JSON, at most 4096 characters of it. Never publish a
 secret. For the rest of the record, offer a read action that takes the id, so the agent reads it
 fresh before it acts. [Offer an action to the agent](/docs/offer-an-action-to-the-agent) has every
@@ -72,6 +130,9 @@ field.
 <Step>
 
 ### 3. Hand a click to the chat
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/wells.$wellId.tsx (trimmed)"
 import { useAgentContext, useAgentPrompt } from '@company/mfe-react'
@@ -93,6 +154,40 @@ const [unanswered, setUnanswered] = useState(false)
 </Button>
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/ask-agent.component.ts"
+import { Component, input, signal } from '@angular/core'
+import { injectAgentPrompt } from '@company/mfe-angular'
+
+@Component({
+  selector: 'operations-ask-agent',
+  template: `<button (click)="ask()">Ask the agent</button>
+    @if (unanswered()) {
+      <p role="status">No chat accepted the prompt.</p>
+    }`,
+})
+export class AskAgentComponent {
+  readonly design = input.required<{ id: string; name: string }>()
+  readonly unanswered = signal(false)
+  private readonly prompt = injectAgentPrompt()
+
+  ask(): void {
+    const design = this.design()
+    this.unanswered.set(
+      !this.prompt({
+        message: `What stands out in ${design.name}?`,
+        context: { wellId: design.id },
+      }),
+    )
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
 The chat shows `message` and sends `context` unseen, under the same size limit. Pass
 `submit: false` to fill the chat's input box for the user to review and send. The function returns
 whether a chat took the prompt: `false` when the shell's deployment names no agent backend.
@@ -107,6 +202,9 @@ outputs as agent context, so the agent can read what the user picked in later tu
 
 ### 4. Suggest what to ask
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/index.tsx"
 import { useAgentSuggestions } from '@company/mfe-react'
 
@@ -116,6 +214,22 @@ useAgentSuggestions([
   { message: 'Open the wells inventory' },
 ])
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { injectAgentSuggestions } from '@company/mfe-angular'
+
+// Inside a component constructor or field initializer.
+injectAgentSuggestions([
+  { message: 'Summarise the alternatives on this page' },
+  { message: 'Open the wells inventory' },
+])
+```
+
+</Tab>
+</Tabs>
 
 Each is a prompt, shown as a chip. Pressed, it is handed to the chat as `useAgentPrompt` hands one,
 `context` and `submit` included; `label` shortens the chip. A mount offers at most three, and they
@@ -127,12 +241,47 @@ go when it unmounts.
 
 ### 5. Keep shareable filters in the URL
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/assets.tsx (trimmed)"
 export const Route = createFileRoute('/assets')({
   validateSearch: z.object({ site: z.enum(['north', 'south', 'central']).default('north') }),
   component: Assets,
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular route component"
+import { inject } from '@angular/core'
+import { toSignal } from '@angular/core/rxjs-interop'
+import { ActivatedRoute, Router } from '@angular/router'
+import { map } from 'rxjs'
+import { z } from 'zod'
+
+// Declare once at module scope.
+const siteSchema = z.enum(['north', 'south', 'central']).catch('north')
+
+// Inside your component constructor.
+const route = inject(ActivatedRoute)
+const router = inject(Router)
+const site = toSignal(
+  route.queryParamMap.pipe(map(params => siteSchema.parse(params.get('site')))),
+  { initialValue: 'north' },
+)
+
+// In your filter handler, update the URL instead of publishing duplicate agent context.
+void router.navigate([], {
+  relativeTo: route,
+  queryParams: { site: 'south' },
+  queryParamsHandling: 'merge',
+})
+```
+
+</Tab>
+</Tabs>
 
 The URL goes with every turn, and you write no code for it. The agent gets the page's path and
 search params, and each App's own path below its boundary. It sees a filter in the search params,
@@ -146,6 +295,9 @@ and changes it by navigating.
 
 Render the component in a test, then read the published snapshots. There is one entry per
 published value, and none once the component unmounts.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="src/routes/wells.test.tsx"
 import { useAgentContext } from '@company/mfe-react'
@@ -178,11 +330,58 @@ it('tells the agent which well is open, until the page closes', async () => {
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/well-context.spec.ts"
+import { Component } from '@angular/core'
+import { createWidget, injectAgentContext } from '@company/mfe-angular'
+import { mountWidget } from '@company/mfe-angular/testing'
+import { expect, it } from 'vitest'
+import { z } from 'zod'
+
+const openWell = z.object({ id: z.string(), name: z.string() }).nullable()
+
+@Component({ selector: 'well-context', template: '' })
+class WellContext {
+  constructor() {
+    injectAgentContext({
+      description: 'The well design the user has open',
+      schema: openWell,
+      value: { id: 'W-1', name: 'Alpha 1' },
+    })
+  }
+}
+
+const definition = createWidget({
+  id: 'operations',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  component: WellContext,
+})
+
+it('publishes the well until the component is destroyed', async () => {
+  const view = await mountWidget(definition)
+  const environment = view.environment
+  try {
+    expect(environment.runtime.agentContext.getSnapshot()).toMatchObject([
+      { definitionId: 'operations', value: { id: 'W-1', name: 'Alpha 1' } },
+    ])
+  } finally {
+    await view.dispose()
+  }
+  expect(environment.runtime.agentContext.getSnapshot()).toEqual([])
+})
+```
+
+</Tab>
+</Tabs>
+
 ## Errors
 
 <Callout type="error" title="expected a description of what the value is">
 
-```text
+```text shared
 operations failed to publish agent context: expected a description of what the value is, received
 an empty string.
 ```
@@ -195,7 +394,7 @@ is `contract/input-mismatch`.
 
 <Callout type="error" title="expected a value its schema accepts">
 
-```text
+```text shared
 operations failed to publish agent context 'The well design the user has open': expected a value
 its schema accepts, received ✖ Invalid input: expected string, received number → at id.
 ```
@@ -207,7 +406,7 @@ call. The warning is reported once, with the code `contract/input-mismatch`.
 
 <Callout type="error" title="expected JSON data no longer than 4096 characters">
 
-```text
+```text shared
 operations failed to publish agent context 'The wells the user has selected': expected JSON data
 no longer than 4096 characters, received 4691 characters of JSON, over the 4096 a selection may
 take.

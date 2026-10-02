@@ -23,9 +23,22 @@ the rest is yours to provide.
 <Step>
 ### 1. Publish each container on its own origin
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```sh
 pnpm --filter @example/operations run build
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm --filter @example/fieldwork run build
+```
+
+</Tab>
+</Tabs>
 
 Serve the `dist/` directory from an image of your own, one image per container.
 
@@ -34,7 +47,7 @@ Serve the `dist/` directory from an image of your own, one image per container.
 <Step>
 ### 2. Write the deployment's values at container start
 
-```dockerfile title="Dockerfile (after the build stage)"
+```dockerfile title="Dockerfile (after the build stage)" shared
 FROM nginx:alpine
 COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
@@ -49,7 +62,7 @@ assets, so each environment only sets its variables. See
 <Step>
 ### 3. Register the container as the pipeline deploys it
 
-```sh
+```sh shared
 curl -X PUT "$REGISTRY_URL/containers/operations" \
   --data-binary @.mfe/mfe-registry.json
 ```
@@ -62,7 +75,7 @@ Your pipeline sends the generated record to a registry service of your own, whic
 <Step>
 ### 4. Serve one registry from the shell's own origin
 
-```tsx title="apps/shell/src/boot.tsx (trimmed)"
+```tsx title="apps/shell/src/boot.tsx (trimmed)" shared
 const response = await fetch('/registry.json')
 ```
 
@@ -74,7 +87,7 @@ load.
 <Step>
 ### 5. Keep the shell's own overrides in the shell's deployment
 
-```json title="apps/shell/registry.source.json (trimmed)"
+```json title="apps/shell/registry.source.json (trimmed)" shared
 {
   "presentation": {
     "operations": { "title": "Operations", "icon": "OPS" }
@@ -99,7 +112,7 @@ its requests reach the API the deployment configured.
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a file at
 https://operations.example.com/runtime-config.json, received 404 Not Found.
 ```
@@ -111,7 +124,7 @@ every value the file has to carry.
 
 <Callout type="error" title="load/manifest-failure">
 
-```text
+```text shared
 Check that https://operations.example.com/mf-manifest.json is reachable and serves a valid manifest.
 ```
 
@@ -122,7 +135,7 @@ requests from the shell's origin.
 
 <Callout type="error" title="no adapter recognised this entry">
 
-```text
+```text shared
 expected exactly one of the registered adapters (react) to recognise the entry, received an entry
 none of them recognised.
 ```

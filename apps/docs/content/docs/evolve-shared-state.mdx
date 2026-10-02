@@ -13,7 +13,7 @@ the selection they already know.
 <Step>
 ### 1. Update the schema in its owning package
 
-```ts title="examples/shared-state-contracts/src/index.ts (selection fields)"
+```ts shared title="examples/shared-state-contracts/src/index.ts (selection fields)"
 z.strictObject({
   wellId: z.string(),
   runId: z.string().nullable(),
@@ -40,7 +40,7 @@ unchanged. For the first release, the list is empty: `baselines: []`.
 These older schemas are inputs to the build check. The running shell still needs only the latest
 `sharedState.schema`.
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
 Pass the policy to your existing `pluginMfe()` call:
@@ -89,7 +89,7 @@ the preserved comparison mode. Try the new consumer against the old shell and co
 
 <Callout type="error" title="shared-state/missing-baseline, at production build">
 
-```text
+```text shared
 shared-state/missing-baseline: Production builds require sharedStatePolicy with explicit baselines and the current schema; use baselines: [] only for a first release
 ```
 

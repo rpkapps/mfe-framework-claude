@@ -14,8 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/componen
 import { cn } from 'cn'
 import { AlertTriangleIcon, ChevronDownIcon, InfoIcon, OctagonAlertIcon } from 'lucide-react'
 
-import { selectFramework, useFrameworkPreference } from '../lib/framework-preference.ts'
-
 /* ------------------------------------------------------------------------ */
 /* Callout                                                                   */
 /* ------------------------------------------------------------------------ */
@@ -168,24 +166,17 @@ export function DocsTabs({
   defaultValue?: string
 }) {
   const values = items ?? tabValues(children)
-  const framework = useFrameworkPreference()
   const isFramework = values.length === 2 && values.includes('React') && values.includes('Angular')
   const orderedValues = isFramework ? ['React', 'Angular'] : values
-  const initial = defaultValue ?? values[0]
+  const initial = isFramework ? 'React' : (defaultValue ?? values[0])
 
   return (
     <Tabs
       data-not-typeset
-      {...(!isFramework && initial !== undefined ? { defaultValue: initial } : {})}
+      {...(initial === undefined ? {} : { defaultValue: initial })}
       className={cn('relative mt-6 w-full gap-4', className)}
       {...props}
-      {...(isFramework ? { value: framework } : {})}
-      onValueChange={(value, details) => {
-        if (isFramework && (value === 'React' || value === 'Angular')) {
-          selectFramework(value === 'Angular' ? 'Angular' : 'React')
-        }
-        onValueChange?.(value, details)
-      }}
+      onValueChange={onValueChange}
     >
       <TabsList
         variant="line"
@@ -221,6 +212,16 @@ export function DocsTab({
       )}
       {...props}
     />
+  )
+}
+
+/** One source snippet used by both frameworks; each tab renders its own code block. */
+export function DocsSharedCode({ children }: { children: React.ReactNode }) {
+  return (
+    <DocsTabs items={['React', 'Angular']}>
+      <DocsTab value="React">{children}</DocsTab>
+      <DocsTab value="Angular">{children}</DocsTab>
+    </DocsTabs>
   )
 }
 

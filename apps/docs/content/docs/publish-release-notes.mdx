@@ -14,6 +14,9 @@ can open it by name. You own the page, so the notes can be a list, a document or
 
 ### 1. Mark the route
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="src/routes/release-notes.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
@@ -35,6 +38,39 @@ function ReleaseNotes(): ReactNode {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/app.routes.ts"
+import { Component } from '@angular/core'
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+
+@Component({
+  selector: 'operations-release-notes',
+  template: `<h2>What&#39;s new in Operations</h2>`,
+})
+export class ReleaseNotesComponent {}
+
+export const routes: Routes = [
+  {
+    path: 'release-notes',
+    component: ReleaseNotesComponent,
+    data: mfeRouteData({
+      capability: {
+        name: 'releaseNotes',
+        label: "What's new in Operations",
+        icon: 'sparkles',
+      },
+      breadcrumb: 'Release notes',
+    }),
+  },
+]
+```
+
+</Tab>
+</Tabs>
+
 The name is `releaseNotes`, in camel case. `label` is required, and both are plain strings.
 
 </Step>
@@ -43,12 +79,27 @@ The name is `releaseNotes`, in camel case. `label` is required, and both are pla
 
 ### 2. Generate the description record
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```sh
 pnpm run generate
 ```
 
-This writes your container's description record and rebuilds the registry the shell reads at boot.
-`pnpm dev` runs both steps when it starts.
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx run operations:generate
+```
+
+Run this in your Angular Nx workspace. Replace `operations` with your Nx project name.
+
+</Tab>
+</Tabs>
+
+This writes your container's registry description. The host includes that record in its registry.
+The example repository's `pnpm dev` also rebuilds the shell registry before starting.
 
 </Step>
 
@@ -56,7 +107,7 @@ This writes your container's description record and rebuilds the registry the sh
 
 ### 3. Confirm what the build published
 
-```json title=".mfe/mfe-registry.json"
+```json shared title=".mfe/mfe-registry.json"
 "capabilities": [
   {
     "name": "releaseNotes",
@@ -67,7 +118,7 @@ This writes your container's description record and rebuilds the registry the sh
 ]
 ```
 
-`path` comes from `createFileRoute`. An App publishes at most one release notes page.
+`path` comes from `createFileRoute` in React or the route object in Angular. An App publishes at most one release notes page.
 
 </Step>
 
@@ -85,7 +136,7 @@ notes, which are written by whoever owns the shell.
 
 <Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
 route: expected one of 'settings', 'help' and 'releaseNotes', found "release-notes".
 ```
@@ -96,7 +147,7 @@ route: expected one of 'settings', 'help' and 'releaseNotes', found "release-not
 
 <Callout type="error" title="expected a non-empty `label` string literal">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:6:17: 'operations' failed to extract the
 capability route '/release-notes': expected a non-empty `label` string literal, found no label.
 ```
@@ -107,7 +158,7 @@ capability route '/release-notes': expected a non-empty `label` string literal, 
 
 <Callout type="error" title="expected a `name` string literal">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
 route: expected a `name` string literal, found RELEASE_NOTES.
 ```
@@ -119,7 +170,7 @@ running it, so a constant or a variable cannot be resolved.
 
 <Callout type="error" title="expected a capability declared by an App">
 
-```text
+```text shared
 /home/you/alerts/src/routes/release-notes.tsx:5:5: the build failed to extract the 'releaseNotes'
 capability route: expected a capability declared by an App, found a container that exports
 Widgets only.
